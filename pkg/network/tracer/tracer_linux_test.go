@@ -18,6 +18,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -35,6 +36,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -57,10 +59,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -393,7 +397,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTCPSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.GetLastTCPSentMiscounts())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -554,7 +558,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
@@ -596,7 +600,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
@@ -915,19 +919,19 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
 		"ip link add veth1 type veth peer name veth2",
 		"ip link set veth1 master br0",
-		fmt.Sprintf("ip link set veth2 netns %s", ns1),
-		fmt.Sprintf("ip -n %s addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2", ns1),
+		"ip link set veth2 netns " + ns1,
+		"ip -n " + ns1 + " addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
 		"ip link add veth3 type veth peer name veth4",
 		"ip link set veth3 master br0",
-		fmt.Sprintf("ip link set veth4 netns %s", ns2),
-		fmt.Sprintf("ip -n %s addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4", ns2),
+		"ip link set veth4 netns " + ns2,
+		"ip -n " + ns2 + " addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
 		"ip link set br0 up",
 		"ip link set veth1 up",
-		fmt.Sprintf("ip -n %s link set veth2 up", ns1),
+		"ip -n " + ns1 + " link set veth2 up",
 		"ip link set veth3 up",
-		fmt.Sprintf("ip -n %s link set veth4 up", ns2),
-		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns1),
-		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns2),
+		"ip -n " + ns2 + " link set veth4 up",
+		"ip -n " + ns1 + " r add default via 2.2.2.1",
+		"ip -n " + ns2 + " r add default via 2.2.2.1",
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 		"iptables -I FORWARD -i br0 -j ACCEPT",
 		"iptables -I FORWARD -o br0 -j ACCEPT",
@@ -940,7 +944,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
-				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil
+				return network.Subnet{Alias: "subnet-" + i.Name}, nil
 			}
 		}
 
@@ -1048,7 +1052,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		}, 3*time.Second, 100*time.Millisecond)
 
 		require.NotNil(t, conn.Via)
-		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
+		require.Equal(t, "subnet-"+ifi.Name, conn.Via.Subnet.Alias)
 
 	})
 }
@@ -1672,7 +1676,7 @@ func iptablesWrapper(t *testing.T, f func()) {
 
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
-	create := strings.Fields(fmt.Sprintf("-I %s", rule))
+	create := strings.Fields("-I " + rule)
 
 	state := testutil.IptablesSave(t)
 	defer testutil.IptablesRestore(t, state)
@@ -1933,7 +1937,8 @@ func (s *TracerSuite) TestShortWrite() {
 
 	sk, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
 	require.NoError(t, err)
-	defer syscall.Close(sk)
+	f := os.NewFile(uintptr(sk), "")
+	t.Cleanup(func() { f.Close() })
 
 	err = unix.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
 	require.NoError(t, err)
@@ -1969,11 +1974,17 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			// Short write, send buffer is completely full
+			done = true
+			break
+		}
 		require.NoError(t, err)
 		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
+			// Short write, partial write
 			done = true
 			break
 		}
@@ -1981,14 +1992,12 @@ func (s *TracerSuite) TestShortWrite() {
 
 	require.True(t, done)
 
-	f := os.NewFile(uintptr(sk), "")
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 
 	unix.Shutdown(sk, unix.SHUT_WR)
 	close(read)
-	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
@@ -1997,7 +2006,7 @@ func (s *TracerSuite) TestShortWrite() {
 		require.True(collect, ok)
 
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
+	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
 func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
@@ -3177,4 +3186,265 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+}
+
+func getExampleCertPaths() (string, string, error) {
+	curDir, err := usmtestutil.CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/example.com.crt"), filepath.Join(curDir, "testdata/example.com.key"), nil
+}
+
+func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *network.ConnectionStats) bool) {
+	cfg := testConfig()
+	cfg.EnableCertCollection = true
+	if isPrebuilt(cfg) {
+		t.Skip("tls certs not supported on prebuilt")
+	}
+	if err := ssluprobes.ValidateSupported(); err != nil {
+		t.Skipf("skipping because tls certs kernel features are not supported on this kernel: %s", err)
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("tls certs not (yet) supported on fentry")
+	}
+
+	serverAddr := "127.0.0.1:8002"
+
+	certPath, keyPath, err := getExampleCertPaths()
+	require.NoError(t, err)
+	cmd := usmtestutil.HTTPPythonServer(t, serverAddr, usmtestutil.Options{
+		EnableTLS: true,
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+	})
+
+	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
+
+	code, _, err := tracertestutil.HTTPGet(client, "https://"+serverAddr+"/status/200/foobar")
+	require.NoError(t, err)
+	require.Equal(t, 200, code)
+
+	var cert network.CertInfo
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		c := network.FirstConnection(conns, func(c network.ConnectionStats) bool {
+			server := netip.MustParseAddrPort(serverAddr)
+			addrMatches := server.Addr() == c.Source.Addr && server.Port() == c.SPort
+			return addrMatches && c.HasCertInfo() && matcher(&c)
+		})
+		require.NotNil(collect, c)
+		cert = c.CertInfo.Value()
+	}, time.Second*5, time.Millisecond*200)
+
+	assert.Equal(t, "4dcfeb0a16bcfddba47a1fae9d28b4bd0b9212e7", cert.SerialNumber)
+	assert.Equal(t, "example.com", cert.Domain)
+	assert.Equal(t, time.Date(2025, time.October, 2, 18, 5, 2, 0, time.UTC), cert.Validity.NotBefore)
+	assert.Equal(t, time.Date(2026, time.November, 6, 18, 5, 2, 0, time.UTC), cert.Validity.NotAfter)
+
+}
+
+func (s *TracerSuite) TestTLSCertParsing() {
+
+	t := s.T()
+
+	t.Run("closed connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return c.IsClosed
+		})
+	})
+
+	t.Run("long-lived connection", func(t *testing.T) {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client := &http.Client{Transport: transport}
+
+		testTLSCertParsing(t, client, func(c *network.ConnectionStats) bool {
+			return !c.IsClosed
+		})
+	})
+
+}
+
+func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("skipping retransmit sync test on prebuilt")
+	}
+	// We need eBPF to test this kernel-side fix
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	// Create a server that reads one byte and closes, or just listens.
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Connect
+	c, err := server.Dial()
+	require.NoError(t, err)
+
+	// Establish connection first
+	// We don't send "ping" here to keep the baseline segs_out low (SYN + ACK = 2 segments).
+	// Then we write "data" (3rd segment).
+	// Stale SentPackets = 3.
+	// We need retransmits > 3 to fail the test without the fix.
+
+	// Drop packets now to induce retransmits
+	iptablesWrapper(t, func() {
+		// Write data.
+		_, err = c.Write([]byte("data"))
+		require.NoError(t, err)
+
+		// Wait for retransmits. Linux TCP RTO min is often 200ms.
+		// Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms...
+		// In 4 seconds we expect ~4 retransmits.
+		// 4 (retransmits) > 3 (stale sent packets) -> Test should fail without fix.
+		time.Sleep(4 * time.Second)
+	})
+
+	// Close connection. This should trigger the sync in the BPF program.
+	c.Close()
+
+	// Check stats.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+
+		// We expect retransmits > 0
+		assert.Greater(ct, int(conn.Monotonic.Retransmits), 0, "should have retransmits")
+
+		// With the fix, SentPackets should be updated on close to match the kernel's segs_out,
+		// which includes retransmits. So SentPackets should be >= Retransmits.
+		// Without the fix, SentPackets would only count the initial sends (e.g. 2: "ping" + "data"),
+		// while Retransmits could be much higher (e.g. 5+), failing this check.
+		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentPackets), int(conn.Monotonic.Retransmits),
+			"SentPackets (%d) should be >= Retransmits (%d) due to sync on close", conn.Monotonic.SentPackets, conn.Monotonic.Retransmits)
+
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
+	// find a connection from Python client to CoreDNS
+	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
+		return c.Type == network.UDP &&
+			c.Dest.String() == "172.25.0.2" &&
+			c.DPort == 53 &&
+			c.Source.String() == "172.25.0.3"
+	})
+
+	require.NotNil(ct, conn, "could not find DNS connection from Python client to CoreDNS")
+
+	var foundDNSQuery bool
+	var successfulResponses uint32
+	for domain, byQueryType := range conn.DNSStats {
+		if domain.Get() == "my-server.local" {
+			foundDNSQuery = true
+			for _, stats := range byQueryType {
+				// rcode 0 means successful response
+				successfulResponses += stats.CountByRcode[0]
+			}
+		}
+	}
+
+	require.True(ct, foundDNSQuery, "expected to find my-server.local in DNSStats")
+
+	require.NotZero(ct, successfulResponses, "expected at least one successful DNS response for my-server.local")
+	return conn
+}
+
+// TestDNSWorkload creates a fake DNS workload with docker-compose, that has a known
+// resolv.conf inserted. It tests that we see the resolv.conf in the connections
+func (s *TracerSuite) TestDNSWorkload() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+
+	// Container ID resolution (not resolv.conf resolution) fails in this test before 5.11.
+	// I think it's related to this patch:
+	// https://github.com/torvalds/linux/commit/3ae700ecfae913316e3b4fe5f60c72b6131aaa1f#diff-360c5854af72f475f4ebbf588f1c163c9b9694f618088f5ff1e399b36e339901
+	// It changes the way that timestamps are offered in /proc/<pid>/stat to respect time namespaces.
+	// This means the processCache doesn't always work properly in pre-5.11
+	if kv < kernel.VersionCode(5, 11, 0) {
+		t.Skip("Not supported before 5.11")
+	}
+
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	trueResolvConf := `nameserver 172.25.0.2
+search local
+options ndots:1`
+
+	err := RunDNSWorkload(t)
+	require.NoError(t, err, "failed to start DNS workload")
+
+	require.NoError(t, tr.reverseDNS.WaitForDomain("my-server.local"), "failed to wait for my-server.local domain")
+
+	// first, find the DNS connection just to grab the PID
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper stats")
+
+	proc, err := process.NewProcessWithContext(context.Background(), int32(conn.Pid))
+	require.NoError(t, err)
+
+	createTime, err := proc.CreateTime()
+	require.NoError(t, err)
+
+	// StartTime is recorded as nanoseconds by security's EBPFResolver
+	createTime *= int64(time.Millisecond)
+
+	containerID := intern.GetByString("test-python-container")
+
+	// CWS is not running, so we need to inject a fake process event
+	procEvent := &events.Process{
+		Pid:         conn.Pid,
+		ContainerID: containerID,
+		StartTime:   createTime,
+	}
+	events.Consumer().HandleEvent(procEvent)
+
+	// next, do the real test, now that we marked the process with HandleEvent
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+
+		require.Equal(ct, procEvent.Pid, conn.Pid, "unexpected connection PID")
+		require.Equal(ct, containerID, conn.ContainerID.Source, "unexpected container ID")
+
+		resolvConf, ok := connections.ResolvConfs[conn.ContainerID.Source]
+		require.True(ct, ok, "container didn't have a resolv.conf")
+		require.Equal(ct, trueResolvConf, resolvConf.Get(), "resolv.conf was found, but didn't match expected value")
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper resolv.conf")
 }

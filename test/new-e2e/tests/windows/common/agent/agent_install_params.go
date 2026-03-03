@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/msi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
@@ -49,6 +49,9 @@ type InstallAgentParams struct {
 	ProcessEnabled          string `installer_arg:"PROCESS_ENABLED"`
 	ProcessDiscoveryEnabled string `installer_arg:"PROCESS_DISCOVERY_ENABLED"`
 	APMEnabled              string `installer_arg:"APM_ENABLED"`
+	RemoteUpdates           string `installer_arg:"DD_REMOTE_UPDATES"`
+	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
+	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -324,6 +327,31 @@ func WithAddLocal(addLocal string) InstallAgentOption {
 func WithIntegrationsPersistence(IntegrationsPersistence string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.IntegrationsPersistence = IntegrationsPersistence
+		return nil
+	}
+}
+
+// WithRemoteUpdates specifies the DD_REMOTE_UPDATES parameter.
+func WithRemoteUpdates(remoteUpdates string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.RemoteUpdates = remoteUpdates
+		return nil
+	}
+}
+
+// WithInfrastructureMode specifies the DD_INFRASTRUCTURE_MODE parameter.
+func WithInfrastructureMode(infrastructureMode string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InfrastructureMode = infrastructureMode
+		return nil
+	}
+}
+
+// WithInstallOnly specifies the DD_INSTALL_ONLY parameter.
+// When set to "1", the MSI will skip starting the Agent services.
+func WithInstallOnly(installOnly string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InstallOnly = installOnly
 		return nil
 	}
 }

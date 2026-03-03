@@ -6,7 +6,7 @@
 package replayimpl
 
 import (
-	"fmt"
+	"errors"
 	"io"
 
 	"github.com/h2non/filetype"
@@ -44,12 +44,12 @@ func datadogMatcher(buf []byte) bool {
 func fileVersion(buf []byte) (int, error) {
 
 	if !datadogMatcher(buf) {
-		return -1, fmt.Errorf("Cannot verify file version bad buffer or invalid file")
+		return -1, errors.New("Cannot verify file version bad buffer or invalid file")
 	}
 
 	ver := int(0xF0 ^ buf[4])
 	if ver > int(datadogFileVersion) {
-		return -1, fmt.Errorf("Unsupported file version")
+		return -1, errors.New("Unsupported file version")
 	}
 	return ver, nil
 }

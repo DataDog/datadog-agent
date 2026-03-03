@@ -7,9 +7,9 @@
 package logs
 
 import (
+	kubehealthfx "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
-	healthfx "github.com/DataDog/datadog-agent/comp/logs/health/fx"
 	streamlogs "github.com/DataDog/datadog-agent/comp/logs/streamlogs/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -19,7 +19,7 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		healthfx.Module(),
+		kubehealthfx.Module(),
 		agentimpl.Module(),
 		streamlogs.Module(),
 		auditorfx.Module(),

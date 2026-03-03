@@ -72,7 +72,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName stri
 	if expRetCode != -1 {
 		assert.Nil(t, err, "program execution error")
 	}
-	assert.Equal(t, expRetCode, code, "return code error: %v", err)
+	assert.Equal(t, expRetCode, code, "return code error: %v, please check the kernel structure offset of raw_packet_event", err)
 }
 
 func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {

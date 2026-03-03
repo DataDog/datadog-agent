@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cd "${ARTIFACTS_DIR}"
+cd "${ARTIFACTS_DIR}" || exit 1
 
 # Collect software information
 

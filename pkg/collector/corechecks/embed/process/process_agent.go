@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -195,7 +195,7 @@ func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint
 	configFile := pkgconfigsetup.Datadog().ConfigFileUsed()
 	c.commandOpts = []string{}
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
+		c.commandOpts = append(c.commandOpts, "-config="+configFile)
 	}
 
 	c.source = source

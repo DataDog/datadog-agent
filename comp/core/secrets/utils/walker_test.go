@@ -6,13 +6,13 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 )
 
 var (
@@ -52,7 +52,7 @@ func TestWalkerError(t *testing.T) {
 
 	w := Walker{
 		Resolver: func([]string, string) (string, error) {
-			return "", fmt.Errorf("some error")
+			return "", errors.New("some error")
 		},
 	}
 

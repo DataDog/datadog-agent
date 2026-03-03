@@ -45,7 +45,7 @@ func newClient() kubernetes.Interface {
 	client := fake.NewSimpleClientset()
 	client.Resources = []*metav1.APIResourceList{
 		{
-			GroupVersion: fmt.Sprintf("%s/%s", autoscalingGroup, "v2beta1"),
+			GroupVersion: autoscalingGroup + "/v2beta1",
 			APIResources: []metav1.APIResource{
 				{
 					Name:    hpaResource,

@@ -1,0 +1,49 @@
+# Test discovering multiple processes in one scan.
+# Create three processes at different times, scan should discover all eligible ones.
+- !initialize
+  current_time: 0
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "service-1"}
+- !create-process
+  pid: 1002
+  start_time: 60
+  tracer_metadata: {language: "go", service: "service-2"}
+- !create-process
+  pid: 1003
+  start_time: 70
+  tracer_metadata: {language: "go", service: "service-3"}
+- !advance-time {to: 200}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "service-1"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 60
+  tracer_metadata: {language: "go", service: "service-2"}
+---
+command: !create-process
+  pid: 1003
+  start_time: 70
+  tracer_metadata: {language: "go", service: "service-3"}
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+new: [1001, 1002, 1003]
+state:
+  current_time: 200
+  last_scan: 200
+  process_delays: [100]
+  live: [1001, 1002, 1003]
+  processes_in_procfs: [1001, 1002, 1003]

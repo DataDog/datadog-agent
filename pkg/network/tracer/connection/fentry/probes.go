@@ -8,10 +8,12 @@
 package fentry
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -133,9 +135,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		return nil, err
 	}
 
+	hasSendPage := util.HasTCPSendPage(kv)
+
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpConnect)
@@ -156,10 +159,12 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, tcpCloseReturn)
 		}
+		if hasSendPage {
+			enableProgram(enabled, tcpSendPageReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
@@ -174,7 +179,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	if c.CollectUDPv6Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
@@ -189,6 +193,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
+		}
 		if err := enableAdvancedUDP(enabled); err != nil {
 			return nil, err
 		}
@@ -209,7 +216,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 		enableProgram(enabled, skbFreeDatagramLocked)
 	} else {
-		return fmt.Errorf("missing desired UDP receive kernel functions")
+		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
 }

@@ -229,35 +229,8 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  test_folders = [
-    '../idlelib/idle_test',
-    'bs4/tests',
-    'Cryptodome/SelfTest',
-    'gssapi/tests',
-    'keystoneauth1/tests',
-    'lazy_loader/tests',
-    'openstack/tests',
-    'os_service_types/tests',
-    'pbr/tests',
-    'pkg_resources/tests',
-    'pip/_vendor/colorama/tests',
-    'psutil/tests',
-    'requests_unixsocket/tests',
-    'securesystemslib/_vendor/ed25519/test_data',
-    'setuptools/_distutils/compilers/C/tests',
-    'setuptools/_distutils/tests',
-    'setuptools/tests',
-    'simplejson/tests',
-    'stevedore/tests',
-    'supervisor/tests',
-    'test', # cm-client
-    'vertica_python/tests',
-    'websocket/tests',
-    'win32com/test',
-  ]
-  test_folders.each do |test_folder|
-    delete "#{site_packages_path}/#{test_folder}/"
-  end
+  # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
+  delete "#{site_packages_path}/../idlelib/idle_test/"
 
   unless windows_target?
     block "Remove .exe files" do
@@ -318,23 +291,15 @@ build do
     elsif windows_target?
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
       lib_folder = File.join(install_dir, "embedded3", "lib")
-      dll_folder = File.join(install_dir, "embedded3", "DLLS")
       include_folder = File.join(install_dir, "embedded3", "include")
-
-      # We first need create links to some files around such that cryptography finds .lib files
-      link File.join(lib_folder, "libssl.dll.a"),
-           File.join(dll_folder, "libssl-3-x64.lib")
-      link File.join(lib_folder, "libcrypto.dll.a"),
-           File.join(dll_folder, "libcrypto-3-x64.lib")
 
       block "Build cryptography library against Agent's OpenSSL" do
         cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
 
         shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
                 env: {
-                  "OPENSSL_LIB_DIR" => dll_folder,
+                  "OPENSSL_LIB_DIR" => lib_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
-                  "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
                 }
       end
       # Python extensions on windows require this to find their DLL dependencies,
@@ -344,21 +309,6 @@ build do
           f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
         end
       end
-    end
-  end
-
-  # These are files containing Python type annotations which aren't used at runtime
-  libraries = [
-    'krb5',
-    'Cryptodome',
-    'ddtrace',
-    'pyVmomi',
-    'gssapi',
-  ]
-  block "Remove type annotations files" do
-    libraries.each do |library|
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
-      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
     end
   end
 

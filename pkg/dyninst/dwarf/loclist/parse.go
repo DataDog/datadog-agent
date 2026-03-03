@@ -11,6 +11,7 @@ package loclist
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 
@@ -108,7 +109,7 @@ func ParseInstructions(data []byte, ptrSize uint8, totalByteSize uint32) ([]ir.P
 			op = ir.Addr{Addr: offset}
 
 		case opcode == dw_op_deref:
-			return nil, fmt.Errorf("unsupported DW_OP_deref")
+			return nil, errors.New("unsupported DW_OP_deref")
 
 		case dw_const_op_lo <= opcode && opcode <= dw_const_op_hi:
 			return nil, fmt.Errorf("unsupported DW_OP_const* opcode: 0x%x", opcode)

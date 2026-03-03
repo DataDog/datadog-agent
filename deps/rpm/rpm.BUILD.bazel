@@ -1,0 +1,334 @@
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":license"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.0"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@//:linux_x86_64": "config-linux-x86_64.h",
+        "@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+VERSION = "4.18.1"
+FAKE_PREFIX = "/opt/datadog-agent/embedded"
+
+COMMON_DEFINES = [
+    "HAVE_CONFIG_H",
+    'LOCALSTATEDIR=\\"/var\\"',
+]
+
+PUBLIC_HEADERS = glob(["include/rpm/*.h"])
+
+COMMON_HEADERS = [
+    "system.h",
+    "debug.h",
+] + PUBLIC_HEADERS
+
+cc_library(
+    name = "misc",
+    srcs = [
+        "misc/fts.c",
+        "misc/rpmfts.h",
+        "misc/fnmatch.c",
+        "misc/fnmatch.h",
+    ] + COMMON_HEADERS,
+    implementation_deps = [
+        ":config_h",
+    ],
+    local_defines = COMMON_DEFINES,
+    includes = ["include"],
+)
+
+cc_library(
+    name = "librpmio",
+    srcs = [
+        "rpmio/argv.c",
+        "rpmio/base64.c",
+        "rpmio/digest.c",
+        "rpmio/expression.c",
+        "rpmio/macro.c",
+        "rpmio/rpmhook.c",
+        "rpmio/rpmio.c",
+        "rpmio/rpmlog.c",
+        "rpmio/rpmmalloc.c",
+        "rpmio/rgetopt.c",
+        "rpmio/rpmpgp.c",
+        "rpmio/rpmpgpval.h",
+        "rpmio/rpmsq.c",
+        "rpmio/rpmsw.c",
+        "rpmio/url.c",
+        "rpmio/rpmio_internal.h",
+        "rpmio/rpmhook.h",
+        "rpmio/rpmvercmp.c",
+        "rpmio/rpmver.c",
+        "rpmio/rpmstring.c",
+        "rpmio/rpmfileutil.c",
+        "rpmio/rpmglob.c",
+        "rpmio/rpmkeyring.c",
+        "rpmio/rpmstrpool.c",
+        "rpmio/rpmmacro_internal.h",
+        "rpmio/rpmlua.c",
+        "rpmio/rpmlua.h",
+        "rpmio/lposix.c",
+        "rpmio/lposix.h",
+        "rpmio/digest_openssl.c",
+        "rpmio/rpmpgp_internal.c",
+        "rpmio/rpmpgp_internal.h",
+    ] + COMMON_HEADERS,
+    textual_hdrs = [
+        "rpmio/modemuncher.c",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        ":misc",
+        "@openssl",
+        "@zstd//:libzstd",
+        "@popt//:libpopt",
+        "@lua//:liblua",
+        "@zlib//:zlib",
+        "@xz//:liblzma",
+        "@bzip2//:libbz2",
+    ],
+    local_defines = COMMON_DEFINES + [
+        'RPMCONFIGDIR=\\"{}/lib/rpm\\"'.format(FAKE_PREFIX),
+    ],
+    includes = [".", "include"],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "rpmio",
+    deps = [":librpmio"],
+    dynamic_deps = [
+        "@popt//:popt",
+        "@zlib//:z",
+        "@xz//:lzma",
+        "@bzip2//:bz2",
+        "@openssl//:openssl_shared",
+    ],
+    user_link_flags = select({
+        "@platforms//os:linux": [
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "tagtbl_c",
+    srcs = [
+        "include/rpm/rpmtag.h",
+    ],
+    tools = [
+        "lib/gentagtbl.sh",
+        "@gawk",
+    ],
+    cmd = "AWK=$(location @gawk) $(location lib/gentagtbl.sh) $(location include/rpm/rpmtag.h) > $@",
+    outs = ["lib/tagtbl.C"],
+)
+
+cc_library(
+    name = "librpm",
+    srcs = [
+        "lib/backend/dbi.c",
+        "lib/backend/dbi.h",
+        "lib/backend/dummydb.c",
+        "lib/backend/dbiset.c",
+        "lib/backend/dbiset.h",
+        "lib/backend/bdb_ro.c",
+        "lib/backend/sqlite.c",
+        "lib/headerutil.c",
+        "lib/header.c",
+        "lib/headerfmt.c",
+        "lib/header_internal.h",
+        "lib/rpmdb.c",
+        "lib/rpmdb_internal.h",
+        "lib/fprint.c",
+        "lib/fprint.h",
+        "lib/tagname.c",
+        "lib/rpmtd.c",
+        "lib/cpio.c",
+        "lib/cpio.h",
+        "lib/depends.c",
+        "lib/order.c",
+        "lib/formats.c",
+        "lib/tagexts.c",
+        "lib/fsm.c",
+        "lib/fsm.h",
+        "lib/manifest.c",
+        "lib/manifest.h",
+        "lib/package.c",
+        "lib/poptALL.c",
+        "lib/poptI.c",
+        "lib/poptQV.c",
+        "lib/psm.c",
+        "lib/query.c",
+        "lib/rpmal.c",
+        "lib/rpmal.h",
+        "lib/rpmchecksig.c",
+        "lib/rpmds.c",
+        "lib/rpmds_internal.h",
+        "lib/rpmfi.c",
+        "lib/rpmfi_internal.h",
+        "lib/rpmgi.h",
+        "lib/rpmgi.c",
+        "lib/rpminstall.c",
+        "lib/rpmts_internal.h",
+        "lib/rpmlead.c",
+        "lib/rpmlead.h",
+        "lib/rpmps.c",
+        "lib/rpmprob.c",
+        "lib/rpmrc.c",
+        "lib/rpmte.c",
+        "lib/rpmte_internal.h",
+        "lib/rpmts.c",
+        "lib/rpmfs.h",
+        "lib/rpmfs.c",
+        "lib/signature.c",
+        "lib/signature.h",
+        "lib/transaction.c",
+        "lib/verify.c",
+        "lib/rpmlock.c",
+        "lib/rpmlock.h",
+        "lib/misc.h",
+        "lib/relocation.c",
+        "lib/rpmscript.h",
+        "lib/rpmscript.c",
+        "lib/rpmchroot.c",
+        "lib/rpmchroot.h",
+        "lib/rpmplugins.c",
+        "lib/rpmplugins.h",
+        "lib/rpmplugin.h",
+        "lib/rpmug.c",
+        "lib/rpmug.h",
+        "lib/rpmtriggers.h",
+        "lib/rpmtriggers.c",
+        "lib/rpmvs.c",
+        "lib/rpmvs.h",
+    ] + COMMON_HEADERS,
+    textual_hdrs = [
+        "lib/rpmhash.H",
+        "lib/rpmhash.C",
+        ":tagtbl_c",
+    ],
+    hdrs = PUBLIC_HEADERS,
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        ":librpmio",
+        "@popt//:libpopt",
+        "@sqlite3//:libsqlite3",
+    ],
+    local_defines = COMMON_DEFINES + [
+        'LIBRPMALIAS_FILENAME=\\"rpmopt-{}\\"'.format(VERSION),
+        'LIBRPMALIAS_EXECPATH=\\"{}\\"'.format(FAKE_PREFIX),
+        'SYSCONFDIR=\\"{}/etc\\"'.format(FAKE_PREFIX),
+    ],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "rpm",
+    deps = [":librpm"],
+    dynamic_deps = [
+        ":rpmio",
+        "@sqlite3//:sqlite3",
+        "@popt//:popt",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "librpmio_files",
+    src = ":rpmio",
+    libname = "librpmio",
+    version = "9.4.0",
+)
+
+so_symlink(
+    name = "librpm_files",
+    src = ":rpm",
+    libname = "librpm",
+    version = "9.4.0",
+)
+
+dd_agent_expand_template(
+    name = "gen_rpmrc",
+    out = "rpmrc",
+    substitutions = {
+        "@RPMCONFIGDIR@": "{install_dir}/lib/rpm/rpmrc",
+    },
+    template = "rpmrc.in",
+)
+
+dd_agent_expand_template(
+    name = "gen_rpmpopt",
+    out = "rpmpopt-{}".format(VERSION),
+    substitutions = {
+        "@RPMCONFIGDIR@": "{install_dir}/lib/rpm/rpmrc",
+        "@VERSION@": VERSION,
+    },
+    template = "rpmpopt.in",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include/rpm",
+)
+
+pkg_files(
+    name = "misc_files",
+    srcs = [
+        ":gen_rpmrc",
+        ":gen_rpmpopt",
+    ],
+    prefix = "lib/rpm",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":librpmio_files",
+        ":librpm_files",
+        ":misc_files",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

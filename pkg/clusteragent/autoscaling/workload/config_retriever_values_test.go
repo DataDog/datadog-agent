@@ -55,7 +55,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		},
 	}
 
-	// New Autoscaling settings received, should do nothing
+	// New Autoscaling values received, should store values in state
 	stateCallbackCalled := 0
 	mockRCClient.triggerUpdate(
 		data.ProductContainerAutoscalingValues,
@@ -65,7 +65,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
-				State: state.ApplyStateUnacknowledged,
+				State: state.ApplyStateAcknowledged,
 				Error: "",
 			})
 		},
@@ -211,8 +211,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace: "ns",
-			Name:      "name1",
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 1,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerManualValueSource,
@@ -222,8 +223,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 2,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -247,8 +249,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 2,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -303,13 +306,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:         "ns",
-			Name:              "name1",
-			MainScalingValues: model.ScalingValues{},
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 10,
+			MainScalingValues:        model.ScalingValues{},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -333,8 +338,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -365,13 +371,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:         "ns",
-			Name:              "name1",
-			MainScalingValues: model.ScalingValues{},
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 10,
+			MainScalingValues:        model.ScalingValues{},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -395,8 +403,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -431,8 +440,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			Name:      "name1",
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 21,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -462,6 +472,93 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	}, podAutoscalers)
 }
 
+func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
+	testClock := clock.NewFakeClock(time.Now())
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	isLeader := false
+	isLeaderFunc := func() bool {
+		return isLeader
+	}
+
+	_, mockRCClient := newMockConfigRetriever(t, isLeaderFunc, store, testClock)
+
+	// Add a PodAutoscaler to the store
+	store.Set("ns/name1", model.FakePodAutoscalerInternal{
+		Namespace: "ns",
+		Name:      "name1",
+	}.Build(), "unittest")
+
+	// Object values
+	value1 := &kubeAutoscaling.WorkloadValues{
+		Namespace: "ns",
+		Name:      "name1",
+		Horizontal: &kubeAutoscaling.WorkloadHorizontalValues{
+			Auto: &kubeAutoscaling.WorkloadHorizontalData{
+				Replicas: pointer.Ptr[int32](3),
+			},
+		},
+	}
+
+	// New Autoscaling values received, should store values in state but not update the store
+	stateCallbackCalled := 0
+	mockRCClient.triggerUpdate(
+		data.ProductContainerAutoscalingValues,
+		map[string]state.RawConfig{
+			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
+		},
+		func(_ string, applyState state.ApplyStatus) {
+			stateCallbackCalled++
+			assert.Equal(t, applyState, state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+				Error: "",
+			})
+		},
+	)
+
+	// Nothing changed in the store as we are not the leader
+	assert.Equal(t, 1, stateCallbackCalled)
+	podAutoscalers := store.GetAll()
+	assert.Equal(t, 1, len(podAutoscalers))
+	// Verify the PodAutoscaler doesn't have values
+	podAutoscaler := podAutoscalers[0]
+	assert.Equal(t, model.ScalingValues{}, podAutoscaler.MainScalingValues())
+
+	// Become leader and receive values again - now they should be processed and reconciled immediately
+	isLeader = true
+	callbackTimestamp := testClock.Now()
+	stateCallbackCalled = 0
+	mockRCClient.triggerUpdate(
+		data.ProductContainerAutoscalingValues,
+		map[string]state.RawConfig{
+			"foo1": buildAutoscalingValuesRawConfig(t, 2, value1),
+		},
+		func(_ string, applyState state.ApplyStatus) {
+			stateCallbackCalled++
+			assert.Equal(t, applyState, state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+				Error: "",
+			})
+		},
+	)
+
+	assert.Equal(t, 1, stateCallbackCalled)
+	podAutoscalers = store.GetAll()
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
+		{
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 2,
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Replicas:  3,
+					Timestamp: callbackTimestamp,
+				},
+			},
+		},
+	}, podAutoscalers)
+}
+
 func buildAutoscalingValuesRawConfig(t *testing.T, version uint64, values ...*kubeAutoscaling.WorkloadValues) state.RawConfig {
 	t.Helper()
 
@@ -472,5 +569,5 @@ func buildAutoscalingValuesRawConfig(t *testing.T, version uint64, values ...*ku
 	content, err := json.Marshal(valuesList)
 	assert.NoError(t, err)
 
-	return buildRawConfig(t, data.ProductContainerAutoscalingSettings, version, content)
+	return buildRawConfig(t, data.ProductContainerAutoscalingValues, version, content)
 }

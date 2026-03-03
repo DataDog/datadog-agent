@@ -10,7 +10,6 @@ package pod
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -154,6 +154,11 @@ func (c *Check) Run() error {
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
+			// Check if this is a temporary retry error from cluster agent client
+			if retry.IsErrWillRetry(err) {
+				log.Warnf("Cluster Agent not ready yet, skipping orchestrator_pod check run: %s", err)
+				return nil
+			}
 			return err
 		}
 		c.clusterID = clusterID
@@ -195,7 +200,7 @@ func (c *Check) Run() error {
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
-		return fmt.Errorf("unable to process pods: a panic occurred")
+		return errors.New("unable to process pods: a panic occurred")
 	}
 
 	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)

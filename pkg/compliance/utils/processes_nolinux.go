@@ -7,7 +7,7 @@
 
 package utils
 
-import "fmt"
+import "errors"
 
 // ContainerID wraps a string representing a container identifier.
 type ContainerID string
@@ -26,5 +26,5 @@ func GetProcessRootPath(_ int32) (string, bool) {
 // GetContainerOverlayPath tries to extract the directory mounted as root
 // mountpoint of the given process.
 func GetContainerOverlayPath(_ int32) (string, error) {
-	return "", fmt.Errorf("not implemented")
+	return "", errors.New("not implemented")
 }

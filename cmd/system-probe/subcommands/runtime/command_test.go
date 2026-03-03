@@ -33,7 +33,7 @@ func TestDownloadCommand(t *testing.T) {
 			cliInput: []string{"download"},
 			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
-				require.Equal(t, "SYS-PROBE", params.LoggerName(), "logger name not matching")
+				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
 			},
 		},
@@ -49,8 +49,8 @@ func TestDownloadCommand(t *testing.T) {
 	}
 }
 
-func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
-	m := mocks.NewSecurityModuleClientWrapper(t)
+func newMockRSClient(t *testing.T) secagent.SecurityModuleCmdClientWrapper {
+	m := mocks.NewSecurityModuleCmdClientWrapper(t)
 	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportMessage{
 		RuleSetReportMessage: &api.RuleSetReportMessage{
 			Filters: &api.FilterReport{
@@ -94,7 +94,7 @@ func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 func Test_checkPoliciesLoaded(t *testing.T) {
 	type args struct {
 		args   *checkPoliciesCliParams
-		client secagent.SecurityModuleClientWrapper
+		client secagent.SecurityModuleCmdClientWrapper
 	}
 	tests := []struct {
 		name               string

@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"fmt"
+	"errors"
 )
 
 // Rate tracks the rate of a metric over 2 successive flushes
@@ -32,7 +32,7 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 	}
 
 	if r.timestamp == r.previousTimestamp {
-		return []*Serie{}, fmt.Errorf("Rate was sampled twice at the same timestamp, can't compute a rate")
+		return []*Serie{}, errors.New("Rate was sampled twice at the same timestamp, can't compute a rate")
 	}
 
 	value, ts := (r.sample-r.previousSample)/(r.timestamp-r.previousTimestamp), r.timestamp
@@ -40,7 +40,7 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 	r.sample, r.timestamp = 0., 0.
 
 	if value < 0 {
-		return []*Serie{}, fmt.Errorf("Rate value is negative, discarding it (the underlying counter may have been reset)")
+		return []*Serie{}, errors.New("Rate value is negative, discarding it (the underlying counter may have been reset)")
 	}
 
 	return []*Serie{

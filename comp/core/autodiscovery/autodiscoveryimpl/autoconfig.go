@@ -18,9 +18,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/slices"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
+
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -81,6 +84,7 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
+	refreshConfig            chan string
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
@@ -153,22 +157,21 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		expBackoff := backoff.NewExponentialBackOff()
 		expBackoff.InitialInterval = wmetaCheckInitialInterval
 		expBackoff.MaxInterval = wmetaCheckMaxInterval
-		expBackoff.MaxElapsedTime = wmetaCheckMaxElapsedTime
-		err := backoff.Retry(func() error {
+		_, err := backoff.Retry(context.Background(), func() (any, error) {
 			instance, found := deps.WMeta.Get()
 			if found {
 				if instance.IsInitialized() {
 					deps.Log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
 					schController.Start()
-					return nil
+					return nil, nil
 				}
 				retries++
 				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
-				return errors.New("workloadmeta not initialized")
+				return nil, errors.New("workloadmeta not initialized")
 			}
 			schController.Start()
-			return nil
-		}, expBackoff)
+			return nil, nil
+		}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(wmetaCheckMaxElapsedTime))
 		if err != nil {
 			deps.Log.Errorf("Workloadmeta collectors are not ready after %d retries: %s, starting check scheduler controller anyway.", retries, err)
 			schController.Start()
@@ -200,6 +203,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
+		refreshConfig:            make(chan string, 100),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
@@ -211,6 +215,24 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
+
+	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, oldValue, _ any) {
+		oldValueStr, ok := oldValue.(string)
+		if !ok {
+			return
+		}
+
+		isEnc, _ := utils.IsEnc(oldValueStr)
+		// - An empty old value means this secret was initially resolved and isn't a refresh.
+		// - An unresolved ([ENC]) value implies this secret was triggered by a cache hit, not a refresh.
+		if oldValueStr == "" || isEnc {
+			return
+		}
+		// Asynchronously handle refresh. Cannot do it synchronously because config refresh uses
+		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
+		ac.refreshConfig <- origin
+	})
+
 	return ac
 }
 
@@ -228,6 +250,8 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
+		case origin := <-ac.refreshConfig:
+			ac.processRefreshConfig(origin)
 		}
 	}
 }
@@ -433,6 +457,25 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 	return ac.telemetryStore
 }
 
+func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
+	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
+	if compileErr != nil {
+		return compileErr
+	}
+
+	if len(config.ADIdentifiers) == 0 && celADID != "" {
+		// Only throw recError if no explicit ADIDs are defined
+		if recErr != nil {
+			return recErr
+		}
+		config.ADIdentifiers = []string{string(celADID)}
+	}
+
+	config.SetMatchingProgram(prg)
+
+	return nil
+}
+
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
 func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
@@ -444,6 +487,13 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 		} else if err := config.AddMetrics(metrics); err != nil {
 			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
 		}
+	}
+
+	err := ac.initializeConfiguration(&config)
+	if err != nil {
+		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		errorStats.setConfigError(config.Name, err.Error())
+		return integration.ConfigChanges{}
 	}
 
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
@@ -584,7 +634,7 @@ func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 		containerPorts, err := svc.GetPorts()
 		ports := make([]string, 0)
 		if err == nil {
-			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+			ports = slices.Map(containerPorts, func(port workloadmeta.ContainerPort) string {
 				return strconv.Itoa(port.Port)
 			})
 		}
@@ -637,6 +687,24 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
+}
+
+// processRefreshConfig takes a secret origin and matches it against an active config. If found
+// it will refresh the config to apply the new secret.
+func (ac *AutoConfig) processRefreshConfig(origin string) integration.ConfigChanges {
+	var changes integration.ConfigChanges
+
+	rawConfig, found := ac.cfgMgr.getActiveConfigs()[origin]
+	if !found {
+		ac.logs.Debugf("no active config found for secret origin %s", origin)
+		return changes
+	}
+
+	ac.logs.Infof("Found config '%v' using refreshed secret. Refreshing config.", rawConfig.Name)
+	ac.processRemovedConfigs([]integration.Config{rawConfig})
+	changes = ac.processNewConfig(rawConfig)
+	ac.applyChanges(changes)
+	return changes
 }
 
 // GetAutodiscoveryErrors fetches AD errors from each ConfigProvider.  The

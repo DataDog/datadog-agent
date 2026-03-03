@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -24,24 +25,28 @@ import (
 )
 
 const (
-	eventSetMask                = uint64(nvml.EventTypeXidCriticalError)
-	eventSetWaitTimeout         = 1000 * time.Millisecond
-	devicePendingEventQueueSize = 1000
-	xidOriginDriver             = "driver"
-	xidOriginHardware           = "hardware"
-	xidOriginUnknown            = "unknown"
+	eventSetMask                  = uint64(nvml.EventTypeXidCriticalError)
+	eventSetWaitTimeout           = 1000 * time.Millisecond
+	devicePendingEventQueueSize   = 1000
+	deviceMaxRegistrationAttempts = 5
+	xidOriginDriver               = "driver"
+	xidOriginHardware             = "hardware"
+	xidOriginUnknown              = "unknown"
 )
 
 // helps mocking an actual events gatherer in tests
 type deviceEventsCollectorCache interface {
 	GetEvents(deviceUUID string) ([]ddnvml.DeviceEventData, error)
 	RegisterDevice(device ddnvml.Device) error
+	SupportsDevice(device ddnvml.Device) (bool, error)
 }
 
 type deviceEventsCollector struct {
-	device           ddnvml.Device
-	eventsCache      deviceEventsCollectorCache
-	metricsByXidCode map[uint64]*Metric
+	registered           bool
+	registrationAttempts int
+	device               ddnvml.Device
+	eventsCache          deviceEventsCollectorCache
+	metricsByXidCode     map[uint64]*Metric
 }
 
 func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
@@ -51,10 +56,13 @@ func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies)
 // used internally for testing
 func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsCollectorCache) (c Collector, err error) {
 	if cache == nil {
-		return nil, fmt.Errorf("device events gatherer cannot be nil")
+		return nil, errors.New("device events gatherer cannot be nil")
 	}
-	if err := cache.RegisterDevice(device); err != nil {
+
+	if supported, err := cache.SupportsDevice(device); err != nil {
 		return nil, err
+	} else if !supported {
+		return nil, errUnsupportedDevice
 	}
 
 	return &deviceEventsCollector{
@@ -73,6 +81,10 @@ func (c *deviceEventsCollector) Name() CollectorName {
 }
 
 func (c *deviceEventsCollector) Collect() ([]Metric, error) {
+	if !c.ensureDeviceRegistered() {
+		return nil, nil
+	}
+
 	events, err := c.eventsCache.GetEvents(c.DeviceUUID())
 	if err != nil {
 		return nil, fmt.Errorf("failed collecting device events: %w", err)
@@ -91,8 +103,8 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 			}
 			c.metricsByXidCode[evt.EventData] = &Metric{
 				Name:     "errors.xid.total",
-				Type:     metrics.CountType,
-				Priority: High,
+				Type:     metrics.GaugeType,
+				Priority: Medium,
 				Tags: []string{
 					"type:" + strconv.Itoa(int(evt.EventData)),
 					"origin:" + xidOrigin,
@@ -108,6 +120,34 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 		metrics = append(metrics, *m)
 	}
 	return metrics, nil
+}
+
+// note: watching device events seems to require specific permission/status with the NVIDIA driver,
+// which leads to data races at initialization/node-setup time that give us error when registering
+// devices. As such, this collector performs a lazy registration of the device to the events gatherer,
+// with a retry logic with a max number of attempts. This makes sure we attempt registration multiple
+// times at subsequent runs of the GPU check, and eventually give up if errors are persistent
+func (c *deviceEventsCollector) ensureDeviceRegistered() bool {
+	if c.registered {
+		return true
+	}
+
+	if c.registrationAttempts >= deviceMaxRegistrationAttempts {
+		return false
+	}
+
+	c.registrationAttempts++
+	if err := c.eventsCache.RegisterDevice(c.device); err != nil {
+		if c.registrationAttempts == 1 {
+			log.Warnf("could not register %s to device events gatherer, will retry up to %d times: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+		} else if c.registrationAttempts >= deviceMaxRegistrationAttempts {
+			log.Warnf("could not register %s to device events gatherer after %d attempts, skipping collection: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+		}
+		return false
+	}
+
+	c.registered = true
+	return true
 }
 
 // NewDeviceEventsGatherer creates a new cache that gathers NVML device events
@@ -240,6 +280,19 @@ func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEven
 	return nil, nil
 }
 
+// SupportsDevice returns true if the gatherer supports the given device
+func (c *DeviceEventsGatherer) SupportsDevice(device ddnvml.Device) (bool, error) {
+	evtTypes, err := device.GetSupportedEventTypes()
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to query supported device event types for %s: %w", device.GetDeviceInfo().UUID, err)
+	}
+	return (evtTypes & eventSetMask) != 0, nil
+}
+
 // RegisterDevice registers a device for event collection
 func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	evtTypes, err := device.GetSupportedEventTypes()
@@ -257,7 +310,7 @@ func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	c.evtSetMtx.Lock()
 	defer c.evtSetMtx.Unlock()
 	if c.evtSet == nil {
-		return fmt.Errorf("failed registering device events on stopped gatherer")
+		return errors.New("failed registering device events on stopped gatherer")
 	}
 	if err := device.RegisterEvents(evtTypes&eventSetMask, c.evtSet); err != nil {
 		return fmt.Errorf("failed registering device events: %w", err)

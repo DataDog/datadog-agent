@@ -373,6 +373,7 @@ func completeReqRespTracking(eventInfo *etw.DDEventRecord, httpConnLink *HttpCon
 			log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
 		}
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
+		log.Infof("  SubSite:        %v\n", httpConnLink.http.SubSite)
 		log.Infof("  Url:            %v\n", httpConnLink.url)
 		log.Infof("  Method:         %v\n", Method(httpConnLink.http.Txn.RequestMethod).String())
 		log.Infof("  StatusCode:     %v\n", httpConnLink.http.Txn.ResponseStatusCode)
@@ -808,7 +809,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	// Get req/resp conn link
 	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
-		log.Warnf("connlink not found at tracetaskdeliver")
 		return
 	}
 	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)
@@ -833,12 +833,20 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 		return
 	}
 
-	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = userData.GetUint32(16)
+	httpConnLink.http.AppPool = appPool
 	cfg := iisConfig.Load()
 	if cfg != nil {
 		httpConnLink.http.SiteName = cfg.GetSiteNameFromID(httpConnLink.http.SiteID)
+		httpConnLink.http.SubSite = httpConnLink.http.SiteName
 		httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = cfg.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
+
+		// Determine the IIS application path handling this request
+		appPath := cfg.GetApplicationPath(httpConnLink.http.SiteID, httpConnLink.urlPath)
+		if appPath != "" && appPath != "/" {
+			// Sub-application: set SubSite to AppPool + path
+			httpConnLink.http.SubSite = appPool + appPath
+		}
 	}
 
 	// Parse url
@@ -858,6 +866,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 		log.Infof("  ConnActivityId: %v\n", FormatGUID(httpConnLink.connActivityId))
 		log.Infof("  ActivityId:     %v\n", FormatGUID(eventInfo.EventHeader.ActivityID))
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
+		log.Infof("  SubSite:        %v\n", httpConnLink.http.SubSite)
 		log.Infof("  Url:            %v\n", httpConnLink.url)
 		if connFound {
 			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
@@ -982,6 +991,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 		// Get from cache and complete reqResp tracking
 		httpConnLink.http = cacheEntry.http
 		httpConnLink.http.AppPool = cacheEntry.http.AppPool
+		httpConnLink.http.SubSite = cacheEntry.http.SubSite
 		httpConnLink.http.Txn.ResponseStatusCode = cacheEntry.http.Txn.ResponseStatusCode
 
 		// <<<MORE ETW HttpService DETAILS>>>
@@ -1129,6 +1139,7 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEventRecord) 
 			// log.Infof("  SiteID:         %v\n", cacheEntry.http.SiteID)
 
 			log.Infof("  AppPool:        %v\n", cacheEntry.http.AppPool)
+			log.Infof("  SubSite:        %v\n", cacheEntry.http.SubSite)
 		}
 
 		log.Infof("\n")

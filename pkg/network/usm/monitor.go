@@ -86,7 +86,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map, statsd statsd
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
+		return nil, errors.New("error retrieving socket filter")
 	}
 	ddebpf.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
@@ -124,7 +124,7 @@ func (m *Monitor) Start() error {
 	defer func() {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
-				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+				err = errors.New("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 			} else {
 				err = fmt.Errorf("could not enable USM: %s", err)
 			}

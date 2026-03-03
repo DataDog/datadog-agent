@@ -138,7 +138,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	if token != fmt.Sprintf("Bearer %s", d.token) {
+	if token != "Bearer "+d.token {
 		log.Errorf("wrong token %s", token)
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -220,7 +220,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "node":
 			switch s[3] {
 			case "tags":
-				key := fmt.Sprintf("node/%s", nodeName)
+				key := "node/" + nodeName
 				labels, found := d.nodeLabels[key]
 				if found {
 					b, err := json.Marshal(labels)
@@ -232,7 +232,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			case "annotations":
-				key := fmt.Sprintf("node/%s", nodeName)
+				key := "node/" + nodeName
 				labels, found := d.nodeAnnotations[key]
 				if found {
 					b, err := json.Marshal(labels)
@@ -244,7 +244,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			case "uid":
-				key := fmt.Sprintf("node/%s", nodeName)
+				key := "node/" + nodeName
 				uid, found := d.nodeUIDs[key]
 				if found {
 					uidResp := map[string]string{"uid": uid}

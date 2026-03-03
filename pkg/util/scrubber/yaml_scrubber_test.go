@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestScrubDataObj(t *testing.T) {
@@ -98,6 +98,35 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	require.NoError(t, err)
 
 	cleaned, err := ScrubBytes([]byte(inputConfData))
+	require.NoError(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.ReplaceAll(string(outputConfData), "\r\n", "\n"))
+	trimmedCleaned := strings.TrimSpace(strings.ReplaceAll(string(cleaned), "\r\n", "\n"))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
+func TestConfigScrubbedYamlWithENC(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf_enc.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_enc_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	// Create scrubber with ENC preservation enabled
+	scrubber := NewWithDefaults()
+	scrubber.SetPreserveENC(true)
+	cleaned, err := scrubber.ScrubBytes([]byte(inputConfData))
 	require.NoError(t, err)
 
 	// First test that the a scrubbed yaml is still a valid yaml
@@ -339,6 +368,78 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.input)
 		})
 	}
+}
+
+func TestScrubbingENC(t *testing.T) {
+	t.Run("basic ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[my_secret]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[my_secret]`, result)
+	})
+
+	t.Run("ENC with whitespace preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: "  ENC[key]	"`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "  ENC[key]	"`, result)
+	})
+
+	t.Run("empty ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[]`, result)
+	})
+
+	t.Run("invalid ENC formats scrubbed", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[incomplete
+password: ENC
+token: [not_enc]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "********"
+password: "********"
+token: "********"`, result)
+	})
+
+	t.Run("ENC in nested structure", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "plain_token",
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "********",
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
+
+	t.Run("ENC in array", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "plain_secret",
+				},
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "********",
+				},
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
 }
 
 func TestComplexYAMLWithNewKeys(t *testing.T) {
@@ -681,7 +782,7 @@ api_config:
       x-api-key: "primary_api_key_12345"
       x-auth-token: "primary_auth_token_67890"
       x-api-secret: "primary_api_secret_abcdef"
-  
+
   secondary_endpoints:
     - name: "google"
       config:
@@ -701,14 +802,14 @@ services:
         username: "dbuser"
         password: "dbpassword123"
         x-static-token: "static_token_12345"
-  
+
   cache:
     redis:
       auth:
         accesstoken: "redis_access_token_67890"
         session_token: "redis_session_token_abcdef"
         cookie: "redis_cookie_ghijk"
-  
+
   external_apis:
     - name: "sonar"
       config:
@@ -743,7 +844,7 @@ api_config:
       x-api-key: "********"
       x-auth-token: "********"
       x-api-secret: "********"
-  
+
   secondary_endpoints:
     - name: "google"
       config:
@@ -763,14 +864,14 @@ services:
         username: "dbuser"
         password: "********"
         x-static-token: "********"
-  
+
   cache:
     redis:
       auth:
         accesstoken: "********"
         session_token: "********"
         cookie: "********"
-  
+
   external_apis:
     - name: "sonar"
       config:

@@ -104,7 +104,7 @@ dda inv agent.build --bundle process-agent --bundle security-agent
 ```
 ///
 
-// details | Under the hood
+/// details | Under the hood
     open: False
     type: info
 

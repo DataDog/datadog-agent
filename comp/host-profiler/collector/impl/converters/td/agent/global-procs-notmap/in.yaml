@@ -1,0 +1,13 @@
+processors: not-a-map
+service:
+  pipelines:
+    profiles:
+      processors:
+      - batch
+      receivers: []
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

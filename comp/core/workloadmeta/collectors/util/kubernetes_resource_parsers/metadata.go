@@ -24,7 +24,7 @@ type metadataParser struct {
 
 // NewMetadataParser initialises and returns a metadata parser
 func NewMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []string) (ObjectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
+	filters, err := ParseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name:        partialObjectMetadata.Name,
 			Namespace:   partialObjectMetadata.Namespace,
 			Labels:      partialObjectMetadata.Labels,
-			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
+			Annotations: FilterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
 			UID:         string(partialObjectMetadata.UID),
 		},
 		GVR: p.gvr,

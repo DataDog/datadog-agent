@@ -7,11 +7,9 @@ package compliance
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -48,7 +46,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		endpoints,
 		dstcontext,
 		&common.NoopStatusProvider{},
-		hostnameimpl.NewHostnameService(),
+		common.NewStaticHostnameService(hostname),
 		cfg,
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
@@ -67,7 +65,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 
 	tags := []string{
 		common.QueryAccountIDTag(),
-		fmt.Sprintf("host:%s", hostname),
+		"host:" + hostname,
 	}
 
 	// merge tags from config

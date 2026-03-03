@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fixes an issue where ``agent check --flare`` created the checks directory with 0000 permissions, preventing check output files from being written. The directory is now created with 0750 permissions.

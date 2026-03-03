@@ -10,6 +10,7 @@ package custommetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/pflag"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -47,7 +48,7 @@ const (
 func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) error {
 	defer clearServerResources()
 	if apiCl == nil {
-		return fmt.Errorf("unable to run server with nil APIClient")
+		return errors.New("unable to run server with nil APIClient")
 	}
 
 	cmd = &DatadogMetricsAdapter{}
@@ -99,11 +100,11 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 		if dc, ok := datadogCl.Get(); ok {
 			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc)
 		}
-		return nil, fmt.Errorf("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
+		return nil, errors.New("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
+	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, namespace.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		log.Errorf("Unable to create ConfigMap Store: %v", err)
 		return nil, err

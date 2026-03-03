@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,11 +70,11 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 	}
 
 	if p.Package == nil {
-		return "", fmt.Errorf("missing agent package to install")
+		return "", errors.New("missing agent package to install")
 	}
 	if p.InstallLogFile != "" {
 		// InstallMSI always used a temporary file path
-		return "", fmt.Errorf("Setting the remote MSI log file path is not supported")
+		return "", errors.New("Setting the remote MSI log file path is not supported")
 	}
 
 	if p.LocalInstallLogFile == "" {
@@ -83,11 +84,10 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 	downloadBackOff := p.DownloadMSIBackOff
 	if downloadBackOff == nil {
 		// 5s, 7s, 11s, 17s, 25s, 38s, 60s, 60s...for up to 5 minutes
-		downloadBackOff = backoff.NewExponentialBackOff(
-			backoff.WithInitialInterval(5*time.Second),
-			backoff.WithMaxInterval(60*time.Second),
-			backoff.WithMaxElapsedTime(5*time.Minute),
-		)
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.InitialInterval = 5 * time.Second
+		expBackoff.MaxInterval = 60 * time.Second
+		downloadBackOff = expBackoff
 	}
 
 	args := p.toArgs()
@@ -96,7 +96,8 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 	if err != nil {
 		return "", err
 	}
-	err = windowsCommon.PutOrDownloadFileWithRetry(host, p.Package.URL, remoteMSIPath, downloadBackOff)
+	err = windowsCommon.PutOrDownloadFileWithRetry(host, p.Package.URL, remoteMSIPath,
+		backoff.WithBackOff(downloadBackOff), backoff.WithMaxElapsedTime(5*time.Minute))
 	if err != nil {
 		return "", err
 	}

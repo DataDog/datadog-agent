@@ -22,7 +22,10 @@ type PodTagExtractor struct {
 
 // Extract extracts and returns tags from a workloadmeta pod entity
 func (p *PodTagExtractor) Extract(podEntity *workloadmeta.KubernetesPod, cardinality types.TagCardinality) []string {
-	tagInfos := p.c.extractTagsFromPodEntity(podEntity, taglist.NewTagList())
+	// The value sent for isComplete in this call does not matter, because we're
+	// not processing an event from workloadmeta which is the component that
+	// reports completeness.
+	tagInfos := p.c.extractTagsFromPodEntity(podEntity, taglist.NewTagList(), false)
 
 	switch cardinality {
 	case types.HighCardinality:

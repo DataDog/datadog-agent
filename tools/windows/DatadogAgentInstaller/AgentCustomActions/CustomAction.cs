@@ -1,5 +1,5 @@
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 
 namespace Datadog.AgentCustomActions
 {
@@ -57,12 +57,6 @@ namespace Datadog.AgentCustomActions
         public static ActionResult SetupInstaller(Session session)
         {
             return Datadog.CustomActions.SetupInstallerCustomAction.SetupInstaller(session);
-        }
-
-        [CustomAction]
-        public static ActionResult UpdateInstallSource(Session session)
-        {
-            return Datadog.CustomActions.UpdateInstallSourceCustomAction.UpdateInstallSource(session);
         }
 
         [CustomAction]
@@ -225,6 +219,24 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RollbackOciPackages(Session session)
         {
             return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
+        }
+
+        [CustomAction]
+        public static ActionResult PurgeOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPreRemoveHook(Session session)
+        {
+            return Datadog.CustomActions.InstallerHooksCustomAction.RunPreRemoveHook(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPostInstallHook(Session session)
+        {
+            return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
         }
     }
 }

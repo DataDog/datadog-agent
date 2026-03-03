@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package processcollector implements the remote process collector for
-// Workloadmeta.
+//go:build windows
+
+// Package processcollector implements the remote process collector for Workloadmeta on Windows.
+// This collector is not used on non-Windows platforms.
 package processcollector
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 	"time"
 
@@ -19,7 +21,6 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -151,7 +152,7 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	return s.Reader.GetBool("language_detection.enabled") && !util.ProcessLanguageCollectorIsEnabled() && !pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm")
+	return s.Reader.GetBool("language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
@@ -163,7 +164,7 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
-		return nil, fmt.Errorf("incorrect response type")
+		return nil, errors.New("incorrect response type")
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The disk check now handles ``PartitionsWithContext`` errors gracefully instead of failing entirely.
+    When some partitions fail to load, the check continues collecting metrics for the partitions that
+    succeeded. This aligns the Go implementation with the Python check behavior.

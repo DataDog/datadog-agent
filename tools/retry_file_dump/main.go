@@ -17,7 +17,7 @@ import (
 	"path"
 	"path/filepath"
 
-	proto "github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 func main() {

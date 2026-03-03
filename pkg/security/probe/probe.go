@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -36,7 +36,7 @@ const (
 	defaultConsumerChanSize = 50
 )
 
-// PlatformProbe defines a platform dependant probe
+// PlatformProbe defines a platform dependent probe
 type PlatformProbe interface {
 	Init() error
 	Start() error
@@ -48,7 +48,7 @@ type PlatformProbe interface {
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -58,6 +58,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
+	ReplayEvents()
 }
 
 var probeTelemetry = struct {
@@ -116,7 +117,7 @@ type Probe struct {
 	cancelFnc func()
 	wg        sync.WaitGroup
 	startTime time.Time
-	scrubber  *procutil.DataScrubber
+	scrubber  *utils.Scrubber
 
 	// Events section
 	consumers           []*EventConsumer
@@ -129,14 +130,19 @@ type Probe struct {
 	ruleActionStats     map[actionStatsTags]*atomic.Int64
 }
 
-func newProbe(config *config.Config, opts Opts) *Probe {
+func newProbe(config *config.Config, opts Opts) (*Probe, error) {
+	scrubber, err := utils.NewScrubber(config.Probe.CustomSensitiveWords, config.Probe.CustomSensitiveRegexps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event scrubber: %w", err)
+	}
+
 	return &Probe{
 		Opts:            opts,
 		Config:          config,
 		StatsdClient:    opts.StatsdClient,
-		scrubber:        newProcScrubber(config.Probe.CustomSensitiveWords),
+		scrubber:        scrubber,
 		ruleActionStats: make(map[actionStatsTags]*atomic.Int64),
-	}
+	}, nil
 }
 
 // Init initializes the probe
@@ -161,7 +167,7 @@ func (p *Probe) sendConsumerStats() error {
 		dropped := consumer.eventDropped.Swap(0)
 		if dropped > 0 {
 			tags := []string{
-				fmt.Sprintf("consumer_id:%s", consumer.consumer.ID()),
+				"consumer_id:" + consumer.consumer.ID(),
 			}
 			if err := p.StatsdClient.Count(metrics.MetricEventMonitoringEventsDropped, dropped, tags, 1.0); err != nil {
 				return err
@@ -183,8 +189,8 @@ func (p *Probe) SendStats() error {
 		count := counter.Swap(0)
 		if count > 0 {
 			tags := []string{
-				fmt.Sprintf("rule_id:%s", tags.ruleID),
-				fmt.Sprintf("action_name:%s", tags.actionName),
+				"rule_id:" + tags.ruleID,
+				"action_name:" + tags.actionName,
 			}
 			_ = p.StatsdClient.Count(metrics.MetricRuleActionPerformed, count, tags, 1.0)
 		}
@@ -216,7 +222,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -333,12 +339,17 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func logTraceEvent(eventType model.EventType, event interface{}) {
+func (p *Probe) logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event, Scrubber: p.scrubber})
+}
+
+// GetScrubber returns the event scrubber
+func (p *Probe) GetScrubber() *utils.Scrubber {
+	return p.scrubber
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -348,7 +359,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	logTraceEvent(event.GetEventType(), event)
+	p.logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
@@ -399,6 +410,11 @@ func (p *Probe) onRuleActionPerformed(rule *rules.Rule, action *rules.ActionDefi
 	}
 }
 
+// ReplayEvents replays the events from the rule set
+func (p *Probe) ReplayEvents() {
+	p.PlatformProbe.ReplayEvents()
+}
+
 // NewRuleSet returns a new ruleset
 func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
 	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
@@ -407,6 +423,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	ruleOpts.WithRuleCacheEnabled(p.Config.RuntimeSecurity.RuleCacheEnabled)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
@@ -429,11 +446,6 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
-}
-
-// IsSysctlEventEnabled returns whether the sysctl event is enabled
-func (p *Probe) IsSysctlEventEnabled() bool {
-	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

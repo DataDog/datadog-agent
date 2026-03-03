@@ -10,7 +10,7 @@
 #define SEC_TO_NS(x) (x) * 1000000000
 
 #define PARSE_FUNC(STRUCT)                                                                                \
-    __attribute__((always_inline)) struct STRUCT *parse_##STRUCT(struct __sk_buff *skb, struct cursor *c, struct STRUCT *dest) { \
+    static __attribute__((always_inline)) struct STRUCT *parse_##STRUCT(struct __sk_buff *skb, struct cursor *c, struct STRUCT *dest) { \
         if (bpf_skb_load_bytes(skb, ((u32)(long)c->pos - skb->data), dest, sizeof(*dest)) < 0) {   \
             return NULL;                                                                           \
         }                                                                                          \

@@ -1,0 +1,54 @@
+---
+.cluster_agent-build_common:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_mod_tidy_check", "go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- check-go-version
+    - dda inv -- -e cluster-agent.build
+    # keep the unstripped binary for fips compliance checks
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+    - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+  artifacts:
+    paths:
+      - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+      - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+      - $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector
+      - Dockerfiles/cluster-agent/datadog-cluster.yaml
+      - Dockerfiles/cluster-agent/security-agent-policies
+    exclude:
+      - Dockerfiles/cluster-agent/security-agent-policies/.git/**/*
+      - Dockerfiles/cluster-agent/security-agent-policies/.github/**/*
+
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 6
+
+cluster_agent-build_amd64:
+  extends: .cluster_agent-build_common
+  rules:
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+
+cluster_agent-build_arm64:
+  extends: .cluster_agent-build_common
+  rules:
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+
+cluster_agent_fips-build_amd64:
+  extends: cluster_agent-build_amd64
+  variables:
+    GOEXPERIMENT: boringcrypto
+
+cluster_agent_fips-build_arm64:
+  extends: cluster_agent-build_arm64
+  variables:
+    GOEXPERIMENT: boringcrypto

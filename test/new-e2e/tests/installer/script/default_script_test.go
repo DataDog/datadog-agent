@@ -10,13 +10,15 @@ import (
 	"os"
 	"strings"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 )
 
 type installScriptDefaultSuite struct {
@@ -26,7 +28,7 @@ type installScriptDefaultSuite struct {
 
 func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDefaultSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithRunOptions(scenec2.WithoutFakeIntake()), awshost.WithRunOptions(scenec2.WithoutAgent())),
 	}
 	s.url = s.scriptURLPrefix + "install.sh"
 
@@ -44,7 +46,7 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
@@ -94,10 +96,9 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Full supported option set
 	params := []string{
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
 	}
@@ -118,8 +119,8 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
-		"DD_API_KEY":               s.getAPIKey(),
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(map[string]string{
+		"DD_API_KEY":               installer.GetAPIKey(),
 		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys",
 		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
@@ -150,7 +151,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 				s.T().Fatalf("config key api_key differs in file %s (not logging values)", file)
 			}
 		}
-		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs", file)
+		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs, %s VS %s", file, installerScriptConfig, agent7Config)
 	}
 }
 
@@ -158,7 +159,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 // the major / minor version when installing the agent
 func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 	params := []string{
-		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_API_KEY=" + installer.GetAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
 		"DD_AGENT_MINOR_VERSION=65.0",

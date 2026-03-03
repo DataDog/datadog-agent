@@ -8,7 +8,6 @@ package ddflareextensionimpl
 
 import (
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -41,7 +40,7 @@ var _ component.Config = (*Config)(nil)
 // Validate checks if the extension configuration is valid
 func (c *Config) Validate() error {
 
-	if c.HTTPConfig == nil || c.HTTPConfig.Endpoint == "" {
+	if c.HTTPConfig == nil || c.HTTPConfig.NetAddr.Endpoint == "" {
 		return errHTTPEndpointRequired
 	}
 
@@ -75,17 +74,17 @@ func healthExtractEndpoint(c *confmap.Conf) (string, error) {
 
 func regularStringEndpointExtractor(c *confmap.Conf) (string, error) {
 	if c == nil {
-		return "", fmt.Errorf("nil confmap - skipping")
+		return "", errors.New("nil confmap - skipping")
 	}
 
 	element := c.Get("endpoint")
 	if element == nil {
-		return "", fmt.Errorf("Expected endpoint conf element, but none found")
+		return "", errors.New("Expected endpoint conf element, but none found")
 	}
 
 	endpoint, ok := element.(string)
 	if !ok {
-		return "", fmt.Errorf("endpoint conf element was unexpectedly not a string")
+		return "", errors.New("endpoint conf element was unexpectedly not a string")
 	}
 	return endpoint, nil
 }

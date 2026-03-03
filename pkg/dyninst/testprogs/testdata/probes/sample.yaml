@@ -6,6 +6,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleByte
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleRune
     type: LOG_PROBE
@@ -13,6 +18,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleRune
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleBool
     type: LOG_PROBE
@@ -20,6 +30,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleBool
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt
     type: LOG_PROBE
@@ -27,6 +42,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt8
     type: LOG_PROBE
@@ -34,6 +54,18 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt8
+    template: "parameter = {x}{x}{x}"
+    segments:
+      - str: "parameter = "
+      - json:
+          ref: "x"
+        dsl: "x"
+      - json:
+          ref: "x"
+        dsl: "x"
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt16
     type: LOG_PROBE
@@ -41,6 +73,12 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt16
+    template: "parameter = {x}"
+    segments:
+      - str: "parameter = "
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt32
     type: LOG_PROBE
@@ -48,6 +86,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt32
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt64
     type: LOG_PROBE
@@ -55,6 +98,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt64
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleUint
     type: LOG_PROBE
@@ -62,6 +110,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleUint
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleUint8
     type: LOG_PROBE
@@ -69,6 +122,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleUint8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleUint16
     type: LOG_PROBE
@@ -76,6 +134,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleUint16
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleUint32
     type: LOG_PROBE
@@ -83,6 +146,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleUint32
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleUint64
     type: LOG_PROBE
@@ -90,6 +158,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleUint64
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleFloat32
     type: LOG_PROBE
@@ -97,6 +170,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleFloat32
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleFloat64
     type: LOG_PROBE
@@ -104,6 +182,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleFloat64
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testTypeAlias
     type: LOG_PROBE
@@ -111,6 +194,23 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testTypeAlias
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testAtomicAdd
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testAtomicAdd
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleString
     type: LOG_PROBE
@@ -119,12 +219,22 @@ probes:
     where:
       methodName: main.testSingleString
     captureSnapshot: true
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
   - id: testUnitializedString
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testUnitializedString
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testMassiveString
     type: LOG_PROBE
@@ -132,6 +242,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMassiveString
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testMassiveStringWithSizeLimit
     type: LOG_PROBE
@@ -139,6 +254,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMassiveString
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
     capture:
       maxLength: 11
@@ -148,6 +268,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testEmptyString
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -157,20 +282,65 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testThreeStrings
+    template: "{x}, {y}, {z}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", "
+      - json:
+          ref: "y"
+        dsl: "y"
+      - str: ", "
+      - json:
+          ref: "z"
+        dsl: "z"
     captureSnapshot: true
   - id: testThreeStringsInStruct
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testThreeStringsInStruct
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
+  - id: testThreeStringsInStructExpr
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testThreeStringsInStruct
+    template: "{a.a} {a.b} {a.c}"
+    segments:
+      - json:
+          getmember: [{ ref: "a" }, "a"]
+        dsl: "a.a"
+      - str: " "
+      - json:
+          getmember: [{ ref: "a" }, "b"]
+        dsl: "t.b"
+      - str: " "
+      - json:
+          getmember: [{ ref: "a" }, "c"]
+        dsl: "t.c"
+    captureSnapshot: false
   - id: testUnsafePointer
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testUnsafePointer
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testThreeStringsInStructPointer
     type: LOG_PROBE
@@ -178,20 +348,134 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testThreeStringsInStructPointer
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
+  - id: testThreeStringsInStructPointer_expression_with_dots
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testThreeStringsInStructPointer
+    template: "{a.a} {a.b} {a.c}"
+    segments:
+      - json:
+          getmember: [{ ref: "a" }, "a"]
+        dsl: "a.a"
+      - str: " "
+      - json:
+          getmember: [{ ref: "a" }, "b"]
+        dsl: "a.b"
+      - str: " "
+      - json:
+          getmember: [{ ref: "a" }, "c"]
+        dsl: "a.c"
+    captureSnapshot: false
   - id: testOneStringInStructPointer
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testOneStringInStructPointer
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
+  - id: testSubstrings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSubstrings
+    template: "{a}, {b}, {c}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+      - str: ", "
+      - json:
+          ref: "c"
+        dsl: "c"
+    captureSnapshot: true
+  - id: testNestedPointer
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testNestedPointer_expression_with_dots
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested.anotherString}"
+    segments:
+      - json:
+          getmember: [{ getmember: [{ ref: "x" }, "nested"] }, "anotherString"]
+        dsl: "x.nested.anotherString"
+    captureSnapshot: false
+  - id: testNestedPointer_expression_with_dots_low_limit
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested}"
+    segments:
+      - json:
+          getmember: [{ ref: "x" }, "nested"]
+        dsl: "x.nested"
+    captureSnapshot: false
+    capture:
+      depthLimit: 1
+  - id: testNestedPointer_expression_with_dots_bad_expr
+    type: LOG_PROBE
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested.anotherString.anotherInt} {x.notAMember}"
+    segments:
+      - json:
+          getmember:
+            - {
+                getmember:
+                  [{ getmember: [{ ref: "x" }, "nested"] }, "anotherString"],
+              }
+            - "anotherInt"
+        dsl: "x.nested.anotherString.anotherInt"
+      - str: " "
+      - json:
+          getmember: [{ ref: "x" }, "notAMember"]
+        dsl: "x.notAMember"
+    captureSnapshot: false
+    capture:
+      depthLimit: 0
   - id: testByteArray
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testByteArray
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testRuneArray
     type: LOG_PROBE
@@ -199,6 +483,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testRuneArray
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testStringArray
     type: LOG_PROBE
@@ -206,6 +495,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStringArray
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testBoolArray
     type: LOG_PROBE
@@ -214,12 +508,22 @@ probes:
     where:
       methodName: main.testBoolArray
     captureSnapshot: true
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
   - id: testIntArray
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testIntArray
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInt8Array
     type: LOG_PROBE
@@ -227,6 +531,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInt8Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInt16Array
     type: LOG_PROBE
@@ -234,6 +543,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInt16Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInt32Array
     type: LOG_PROBE
@@ -241,6 +555,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInt32Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInt64Array
     type: LOG_PROBE
@@ -248,6 +567,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInt64Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testUintArray
     type: LOG_PROBE
@@ -255,6 +579,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testUintArray
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testUint8Array
     type: LOG_PROBE
@@ -262,6 +591,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testUint8Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testUint16Array
     type: LOG_PROBE
@@ -269,6 +603,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testUint16Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testUint32Array
     type: LOG_PROBE
@@ -276,6 +615,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testUint32Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testUint64Array
     type: LOG_PROBE
@@ -283,6 +627,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testUint64Array
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testArrayOfArrays
     type: LOG_PROBE
@@ -290,6 +639,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testArrayOfArrays
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testArrayOfStrings
     type: LOG_PROBE
@@ -297,6 +651,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testArrayOfStrings
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testArrayOfArraysOfArrays
     type: LOG_PROBE
@@ -304,11 +663,21 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testArrayOfArraysOfArrays
+    template: "{b}"
+    segments:
+      - json:
+          ref: "b"
+        dsl: "b"
     captureSnapshot: true
   - id: testArrayOfStructs
     type: LOG_PROBE
     where:
       methodName: main.testArrayOfStructs
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testArrayEmptyStructs
     type: LOG_PROBE
@@ -316,6 +685,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testArrayEmptyStructs
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testUintSlice
     type: LOG_PROBE
@@ -324,12 +698,22 @@ probes:
     where:
       methodName: main.testUintSlice
     captureSnapshot: true
+    template: "{u}"
+    segments:
+      - json:
+          ref: "u"
+        dsl: "u"
   - id: testVeryLargeSlice
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testVeryLargeSlice
+    template: "{xs}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
     captureSnapshot: true
   - id: testVeryLargeSliceWithSizeLimit
     type: LOG_PROBE
@@ -337,6 +721,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testVeryLargeSlice
+    template: "{xs}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
     captureSnapshot: true
     capture:
       collectionSizeLimit: 12
@@ -346,6 +735,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testVeryLargeArray
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testEmptySlice
     type: LOG_PROBE
@@ -353,6 +747,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testEmptySlice
+    template: "{u}"
+    segments:
+      - json:
+          ref: "u"
+        dsl: "u"
     captureSnapshot: true
   - id: testSliceOfSlices
     type: LOG_PROBE
@@ -360,6 +759,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSliceOfSlices
+    template: "{u}"
+    segments:
+      - json:
+          ref: "u"
+        dsl: "u"
     captureSnapshot: true
   - id: testStructSlice
     type: LOG_PROBE
@@ -367,6 +771,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStructSlice
+    template: "{xs}, {a}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
+      - str: ", "
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testEmptySliceOfStructs
     type: LOG_PROBE
@@ -374,6 +787,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testEmptySliceOfStructs
+    template: "{xs}, {a}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
+      - str: ", "
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testNilSliceOfStructs
     type: LOG_PROBE
@@ -381,6 +803,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilSliceOfStructs
+    template: "{xs}, {a}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
+      - str: ", "
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testStringSlice
     type: LOG_PROBE
@@ -388,6 +819,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStringSlice
+    template: "{s}"
+    segments:
+      - json:
+          ref: "s"
+        dsl: "s"
     captureSnapshot: true
   - id: testNilSliceWithOtherParams
     type: LOG_PROBE
@@ -395,6 +831,19 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilSliceWithOtherParams
+    template: "{a}, {s}, {x}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "s"
+        dsl: "s"
+      - str: ", "
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testNilSlice
     type: LOG_PROBE
@@ -402,6 +851,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilSlice
+    template: "{xs}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
     captureSnapshot: true
   - id: testSliceEmptyStructs
     type: LOG_PROBE
@@ -409,13 +863,44 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSliceEmptyStructs
+    template: "{xs}"
+    segments:
+      - json:
+          ref: "xs"
+        dsl: "xs"
+    captureSnapshot: true
+  - id: testSubslices
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSubslices
+    template: "{as}, {bs}, {cs}"
+    segments:
+      - json:
+          ref: "as"
+        dsl: "as"
+      - str: ", "
+      - json:
+          ref: "bs"
+        dsl: "bs"
+      - str: ", "
+      - json:
+          ref: "cs"
+        dsl: "cs"
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testStruct
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testEmptyStruct
     type: LOG_PROBE
@@ -424,6 +909,11 @@ probes:
     where:
       methodName: main.testEmptyStruct
     captureSnapshot: true
+    template: "{e}"
+    segments:
+      - json:
+          ref: "e"
+        dsl: "e"
   - id: testUintPointer
     type: LOG_PROBE
     tags:
@@ -431,12 +921,22 @@ probes:
     where:
       methodName: main.testUintPointer
     captureSnapshot: true
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
   - id: testStringPointer
     type: LOG_PROBE
     tags:
       - "foo:bar"
     where:
       methodName: main.testStringPointer
+    template: "{z}"
+    segments:
+      - json:
+          ref: "z"
+        dsl: "z"
     captureSnapshot: true
   - id: testNilPointer
     type: LOG_PROBE
@@ -444,6 +944,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilPointer
+    template: "{z}, {a}"
+    segments:
+      - json:
+          ref: "z"
+        dsl: "z"
+      - str: ", "
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testCombinedByte
     type: LOG_PROBE
@@ -451,6 +960,19 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testCombinedByte
+    template: "{w}, {x}, {y}"
+    segments:
+      - json:
+          ref: "w"
+        dsl: "w"
+      - str: ", "
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", "
+      - json:
+          ref: "y"
+        dsl: "y"
     captureSnapshot: true
   - id: testMultipleSimpleParams
     type: LOG_PROBE
@@ -458,11 +980,37 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMultipleSimpleParams
+    template: "{a}, {b}, {c}, {d}, {e}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+      - str: ", "
+      - json:
+          ref: "c"
+        dsl: "c"
+      - str: ", "
+      - json:
+          ref: "d"
+        dsl: "d"
+      - str: ", "
+      - json:
+          ref: "e"
+        dsl: "e"
     captureSnapshot: true
   - id: testInterface
     type: LOG_PROBE
     where:
       methodName: main.testInterface
+    template: "{b}"
+    segments:
+      - json:
+          ref: "b"
+        dsl: "b"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -470,6 +1018,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testAny
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -479,13 +1032,24 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testError
+    template: "{e}"
+    segments:
+      - json:
+          ref: "e"
+        dsl: "e"
     captureSnapshot: true
   - id: testBigStruct
     type: LOG_PROBE
     tags:
       - "foo:bar"
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testBigStruct
+    template: "{b}"
+    segments:
+      - json:
+          ref: "b"
+        dsl: "b"
     captureSnapshot: true
   - id: stackC
     type: LOG_PROBE
@@ -493,6 +1057,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.stackC
+    template: "stackC"
+    segments:
+      - str: "stackC"
     captureSnapshot: true
   - id: testChannel
     type: LOG_PROBE
@@ -500,6 +1067,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testChannel
+    template: "{c}"
+    segments:
+      - json:
+          ref: "c"
+        dsl: "c"
     captureSnapshot: true
   - id: testLinkedList
     type: LOG_PROBE
@@ -507,6 +1079,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testLinkedList
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testPointerLoop
     type: LOG_PROBE
@@ -514,6 +1091,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testPointerLoop
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testCycle
     type: LOG_PROBE
@@ -521,6 +1103,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testCycle
+    template: "{t}"
+    segments:
+      - json:
+          ref: "t"
+        dsl: "t"
     captureSnapshot: true
   - id: testPointerToSimpleStruct
     type: LOG_PROBE
@@ -528,6 +1115,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testPointerToSimpleStruct
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testEsotericStack
     type: LOG_PROBE
@@ -535,6 +1127,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testEsotericStack
+    template: "{e}"
+    segments:
+      - json:
+          ref: "e"
+        dsl: "e"
     captureSnapshot: true
   - id: testEsotericHeap
     type: LOG_PROBE
@@ -542,6 +1139,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testEsotericHeap
+    template: "{e}"
+    segments:
+      - json:
+          ref: "e"
+        dsl: "e"
     captureSnapshot: true
   - id: testSmallMap
     type: LOG_PROBE
@@ -549,6 +1151,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSmallMap
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapIntToInt
     type: LOG_PROBE
@@ -556,6 +1163,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapIntToInt
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapStringToInt
     type: LOG_PROBE
@@ -563,6 +1175,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapStringToInt
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapStringToSlice
     type: LOG_PROBE
@@ -570,6 +1187,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapStringToSlice
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapArrayToArray
     type: LOG_PROBE
@@ -577,6 +1199,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapArrayToArray
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapStringToStruct
     type: LOG_PROBE
@@ -584,6 +1211,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapStringToStruct
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapMassive
     type: LOG_PROBE
@@ -591,6 +1223,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapMassive
+    template: "{redactMyEntries}"
+    segments:
+      - json:
+          ref: "redactMyEntries"
+        dsl: "redactMyEntries"
     captureSnapshot: true
   - id: testMapMassiveWithSizeLimit
     type: LOG_PROBE
@@ -598,6 +1235,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapMassive
+    template: "{redactMyEntries}"
+    segments:
+      - json:
+          ref: "redactMyEntries"
+        dsl: "redactMyEntries"
     captureSnapshot: true
     capture:
       collectionSizeLimit: 3
@@ -607,6 +1249,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapEmbeddedMaps
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapWithLinkedList
     type: LOG_PROBE
@@ -614,6 +1261,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapWithLinkedList
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapWithSmallValue
     type: LOG_PROBE
@@ -621,6 +1273,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapWithSmallValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapWithSmallValueMassive
     type: LOG_PROBE
@@ -628,6 +1285,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapWithSmallValueMassive
+    template: "{redactMyEntries}"
+    segments:
+      - json:
+          ref: "redactMyEntries"
+        dsl: "redactMyEntries"
     captureSnapshot: true
   - id: testMapWithSmallKeyAndValue
     type: LOG_PROBE
@@ -635,6 +1297,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapWithSmallKeyAndValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapWithSmallKeyAndValueMassive
     type: LOG_PROBE
@@ -642,6 +1309,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapWithSmallKeyAndValueMassive
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapSmallKeySmallValue
     type: LOG_PROBE
@@ -649,6 +1321,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapSmallKeySmallValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapSmallKeyLargeValue
     type: LOG_PROBE
@@ -656,6 +1333,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapSmallKeyLargeValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapLargeKeySmallValue
     type: LOG_PROBE
@@ -663,6 +1345,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapLargeKeySmallValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapLargeKeyLargeValue
     type: LOG_PROBE
@@ -670,6 +1357,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapLargeKeyLargeValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapEmptyKey
     type: LOG_PROBE
@@ -677,6 +1369,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapEmptyKey
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapEmptyValue
     type: LOG_PROBE
@@ -684,6 +1381,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapEmptyValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testMapEmptyKeyAndValue
     type: LOG_PROBE
@@ -691,6 +1393,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapEmptyKeyAndValue
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testStructWithMap
     type: LOG_PROBE
@@ -698,6 +1405,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStructWithMap
+    template: "{s} {@duration}"
+    segments:
+      - json:
+          ref: "s"
+        dsl: "s"
+      - str: " "
+      - json:
+          ref: "@duration"
+        dsl: "@duration"
     captureSnapshot: true
   - id: testArrayOfMaps
     type: LOG_PROBE
@@ -705,6 +1421,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testArrayOfMaps
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testPointerToMap
     type: LOG_PROBE
@@ -712,6 +1433,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testPointerToMap
+    template: "{m}"
+    segments:
+      - json:
+          ref: "m"
+        dsl: "m"
     captureSnapshot: true
   - id: testInlinedPrint
     type: LOG_PROBE
@@ -719,6 +1445,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedPrint
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -728,6 +1459,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedSumArray
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -737,6 +1473,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedSq
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInlinedBA
     type: LOG_PROBE
@@ -744,6 +1485,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBA
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInlinedBB
     type: LOG_PROBE
@@ -751,6 +1497,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBB
+    template: "{x}, {y}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", "
+      - json:
+          ref: "y"
+        dsl: "y"
     captureSnapshot: true
   - id: testInlinedBBA
     type: LOG_PROBE
@@ -758,6 +1513,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBBA
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testInlinedBBB
     type: LOG_PROBE
@@ -765,6 +1525,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBBB
+    template: "testInlinedBBB"
+    segments:
+      - str: "testInlinedBBB"
     captureSnapshot: true
   - id: testInlinedBC
     type: LOG_PROBE
@@ -772,6 +1535,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBC
+    template: "testInlinedBC"
+    segments:
+      - str: "testInlinedBC"
     captureSnapshot: true
   - id: testInlinedBCA
     type: LOG_PROBE
@@ -779,6 +1545,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBCA
+    template: "testInlinedBCA"
+    segments:
+      - str: "testInlinedBCA"
     captureSnapshot: true
   - id: testInlinedBCB
     type: LOG_PROBE
@@ -786,6 +1555,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testInlinedBCB
+    template: "testInlinedBCB"
+    segments:
+      - str: "testInlinedBCB"
     captureSnapshot: true
   - id: testFrameless
     type: LOG_PROBE
@@ -793,6 +1565,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testFrameless
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testFramelessArray
     type: LOG_PROBE
@@ -800,11 +1577,21 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testFramelessArray
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testDeepPtr1
     type: LOG_PROBE
     where:
       methodName: main.testDeepPtr1
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -812,6 +1599,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testDeepPtr7
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 5
@@ -819,6 +1611,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testDeepSlice1
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -826,6 +1623,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testDeepSlice7
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 5
@@ -833,6 +1635,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testDeepMap1
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -840,6 +1647,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testDeepMap7
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 5
@@ -847,6 +1659,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testStringType1
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -854,6 +1671,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testStringType2
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -861,11 +1683,21 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testEmptyStructPointer
+    template: "{e}"
+    segments:
+      - json:
+          ref: "e"
+        dsl: "e"
     captureSnapshot: true
   - id: testAnyPtr
     type: LOG_PROBE
     where:
       methodName: main.testAnyPtr
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -873,6 +1705,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testStructWithAny
+    template: "{s}"
+    segments:
+      - json:
+          ref: "s"
+        dsl: "s"
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
@@ -880,31 +1717,63 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testStructWithCyclicSlices
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testStructWithCyclicMaps
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testStructWithCyclicMaps
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
   - id: testReturnsInt
     type: LOG_PROBE
     where:
       methodName: main.testReturnsInt
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testReturnsIntPointer
     type: LOG_PROBE
     where:
       methodName: main.testReturnsIntPointer
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testReturnsIntAndFloat
     type: LOG_PROBE
     where:
       methodName: main.testReturnsIntAndFloat
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testReturnsError
     type: LOG_PROBE
     where:
       methodName: main.testReturnsError
+    template: "{failed}"
+    segments:
+      - json:
+          ref: "failed"
+        dsl: "failed"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -912,6 +1781,15 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testReturnsAnyAndError
+    template: "{v}, {failed}"
+    segments:
+      - json:
+          ref: "v"
+        dsl: "v"
+      - str: ", "
+      - json:
+          ref: "failed"
+        dsl: "failed"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -919,6 +1797,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testReturnsAny
+    template: "{v}"
+    segments:
+      - json:
+          ref: "v"
+        dsl: "v"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -926,6 +1809,11 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testReturnsInterface
+    template: "{v}"
+    segments:
+      - json:
+          ref: "v"
+        dsl: "v"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 10
@@ -933,16 +1821,46 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testNamedReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
+    captureSnapshot: true
+  - id: testNamedReturnWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    template: "Parameter {i} * 2 = result {result}"
+    segments:
+      - str: "Parameter "
+      - dsl: "i"
+        json:
+          ref: "i"
+      - str: " * 2 = result "
+      - dsl: "result"
+        json:
+          ref: "result"
     captureSnapshot: true
   - id: testMultipleNamedReturn
     type: LOG_PROBE
     where:
       methodName: main.testMultipleNamedReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testSomeNamedReturn
     type: LOG_PROBE
     where:
       methodName: main.testSomeNamedReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testInlinedPrintLine
     type: LOG_PROBE
@@ -951,6 +1869,11 @@ probes:
       sourceFile: inlined.go
       lines:
         - "14"
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -961,6 +1884,9 @@ probes:
       sourceFile: inlined.go
       lines:
         - "63"
+    template: "testInlinedBCA"
+    segments:
+      - str: "testInlinedBCA"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -971,6 +1897,9 @@ probes:
       sourceFile: inlined.go
       lines:
         - "67"
+    template: "testInlinedBCB"
+    segments:
+      - str: "testInlinedBCB"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -981,6 +1910,11 @@ probes:
       sourceFile: inlined.go
       lines:
         - "75"
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -991,6 +1925,11 @@ probes:
       sourceFile: inlined.go
       lines:
         - "93"
+    template: "{a}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -1000,147 +1939,498 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "208"
+        - "211"
+    template: "testLongFunctionWithChangingState"
+    segments:
+      - str: "testLongFunctionWithChangingState"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
   - id: testLongFunctionWithChangingStateLineB
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "215"
+        - "218"
+    template: "testLongFunctionWithChangingState"
+    segments:
+      - str: "testLongFunctionWithChangingState"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
   - id: testLongFunctionWithChangingStateLineC
     type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "220"
+        - "223"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
+    template: "testLongFunctionWithChangingState"
+    segments:
+      - str: "testLongFunctionWithChangingState"
   - id: testReturnsPrimitives
     type: LOG_PROBE
     where:
       methodName: main.testReturnsPrimitives
+    template: "testReturnsPrimitives"
+    segments:
+      - str: "testReturnsPrimitives"
     captureSnapshot: true
   - id: testReturnsManyFloats
     type: LOG_PROBE
     where:
       methodName: main.testReturnsManyFloats
+    template: "testReturnsManyFloats"
+    segments:
+      - str: "testReturnsManyFloats"
     captureSnapshot: true
   - id: testReturnsComplex
     type: LOG_PROBE
     where:
       methodName: main.testReturnsComplex
+    template: "testReturnsComplex"
+    segments:
+      - str: "testReturnsComplex"
     captureSnapshot: true
   - id: testReturnsLargeStruct
     type: LOG_PROBE
     where:
       methodName: main.testReturnsLargeStruct
+    template: "testReturnsLargeStruct"
+    segments:
+      - str: "testReturnsLargeStruct"
     captureSnapshot: true
   - id: testReturnsArray
     type: LOG_PROBE
     where:
       methodName: main.testReturnsArray
+    template: "testReturnsArray"
+    segments:
+      - str: "testReturnsArray"
     captureSnapshot: true
   - id: testReturnsArrayOne
     type: LOG_PROBE
     where:
       methodName: main.testReturnsArrayOne
+    template: "testReturnsArrayOne"
+    segments:
+      - str: "testReturnsArrayOne"
     captureSnapshot: true
   - id: testReturnsArrayZero
     type: LOG_PROBE
     where:
       methodName: main.testReturnsArrayZero
+    template: "testReturnsArrayZero"
+    segments:
+      - str: "testReturnsArrayZero"
     captureSnapshot: true
   - id: testReturnsMixedStruct
     type: LOG_PROBE
     where:
       methodName: main.testReturnsMixedStruct
+    template: "testReturnsMixedStruct"
+    segments:
+      - str: "testReturnsMixedStruct"
     captureSnapshot: true
   - id: testReturnsBacktrackInt
     type: LOG_PROBE
     where:
       methodName: main.testReturnsBacktrackInt
+    template: "testReturnsBacktrackInt"
+    segments:
+      - str: "testReturnsBacktrackInt"
     captureSnapshot: true
   - id: testReturnsWideStruct
     type: LOG_PROBE
     where:
       methodName: main.testReturnsWideStruct
+    template: "testReturnsWideStruct"
+    segments:
+      - str: "testReturnsWideStruct"
     captureSnapshot: true
   - id: testReturnsMixed
     type: LOG_PROBE
     where:
       methodName: main.testReturnsMixed
+    template: "testReturnsMixed"
+    segments:
+      - str: "testReturnsMixed"
     captureSnapshot: true
   - id: testReturnsStructWithArray
     type: LOG_PROBE
     where:
       methodName: main.testReturnsStructWithArray
+    template: "testReturnsStructWithArray"
+    segments:
+      - str: "testReturnsStructWithArray"
     captureSnapshot: true
   - id: testReturnsOnlyFloat
     type: LOG_PROBE
     where:
       methodName: main.testReturnsOnlyFloat
+    template: "testReturnsOnlyFloat"
+    segments:
+      - str: "testReturnsOnlyFloat"
     captureSnapshot: true
   - id: testReturnsMultipleFloats
     type: LOG_PROBE
     where:
       methodName: main.testReturnsMultipleFloats
+    template: "testReturnsMultipleFloats"
+    segments:
+      - str: "testReturnsMultipleFloats"
     captureSnapshot: true
   - id: testReturnsBoolAndUintptr
     type: LOG_PROBE
     where:
       methodName: main.testReturnsBoolAndUintptr
+    template: "testReturnsBoolAndUintptr"
+    segments:
+      - str: "testReturnsBoolAndUintptr"
     captureSnapshot: true
   - id: testLargeArgAndReturn
     type: LOG_PROBE
     where:
       methodName: main.testLargeArgAndReturn
+    template: "{arg}"
+    segments:
+      - json:
+          ref: "arg"
+        dsl: "arg"
     captureSnapshot: true
   - id: testArrayArgAndReturn
     type: LOG_PROBE
     where:
       methodName: main.testArrayArgAndReturn
+    template: "{arg}"
+    segments:
+      - json:
+          ref: "arg"
+        dsl: "arg"
     captureSnapshot: true
   - id: testMultipleLargeArgs
     type: LOG_PROBE
     where:
       methodName: main.testMultipleLargeArgs
+    template: "{s1}, {s2}"
+    segments:
+      - json:
+          ref: "s1"
+        dsl: "s1"
+      - str: ", "
+      - json:
+          ref: "s2"
+        dsl: "s2"
     captureSnapshot: true
   - id: testManyArgsArrayReturn
     type: LOG_PROBE
     where:
       methodName: main.testManyArgsArrayReturn
+    template: "{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+      - str: ", "
+      - json:
+          ref: "c"
+        dsl: "c"
+      - str: ", "
+      - json:
+          ref: "d"
+        dsl: "d"
+      - str: ", "
+      - json:
+          ref: "e"
+        dsl: "e"
+      - str: ", "
+      - json:
+          ref: "f"
+        dsl: "f"
+      - str: ", "
+      - json:
+          ref: "g"
+        dsl: "g"
+      - str: ", "
+      - json:
+          ref: "h"
+        dsl: "h"
+      - str: ", "
+      - json:
+          ref: "i"
+        dsl: "i"
     captureSnapshot: true
   - id: testMixedArgsStackReturn
     type: LOG_PROBE
     where:
       methodName: main.testMixedArgsStackReturn
+    template: "{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {s}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+      - str: ", "
+      - json:
+          ref: "c"
+        dsl: "c"
+      - str: ", "
+      - json:
+          ref: "d"
+        dsl: "d"
+      - str: ", "
+      - json:
+          ref: "e"
+        dsl: "e"
+      - str: ", "
+      - json:
+          ref: "f"
+        dsl: "f"
+      - str: ", "
+      - json:
+          ref: "g"
+        dsl: "g"
+      - str: ", "
+      - json:
+          ref: "h"
+        dsl: "h"
+      - str: ", "
+      - json:
+          ref: "s"
+        dsl: "s"
     captureSnapshot: true
   - id: testStackArgRegReturns
     type: LOG_PROBE
     where:
       methodName: main.testStackArgRegReturns
+    template: "{arg}"
+    segments:
+      - json:
+          ref: "arg"
+        dsl: "arg"
     captureSnapshot: true
   - id: testMultipleArrayArgs
     type: LOG_PROBE
     where:
       methodName: main.testMultipleArrayArgs
+    template: "{a}, {b}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
     captureSnapshot: true
   - id: testStructWithArrayArg
     type: LOG_PROBE
     where:
       methodName: main.testStructWithArrayArg
+    template: "{arg}"
+    segments:
+      - json:
+          ref: "arg"
+        dsl: "arg"
     captureSnapshot: true
   - id: testZeroSizeArgAndReturn
     type: LOG_PROBE
     where:
       methodName: main.testZeroSizeArgAndReturn
+    template: "{a}, {b}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
     captureSnapshot: true
+  - id: testSegmentsForParamsAndReturnsOutOfOrder
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "{result2}{i}{result}{i}{i}{result2}{result}"
+    segments:
+      - json:
+          ref: "result2"
+        dsl: "result2"
+      - json:
+          ref: "i"
+        dsl: "i"
+      - json:
+          ref: "result"
+        dsl: "result"
+      - json:
+          ref: "i"
+        dsl: "i"
+      - json:
+          ref: "i"
+        dsl: "i"
+      - json:
+          ref: "result2"
+        dsl: "result2"
+      - json:
+          ref: "result"
+        dsl: "result"
+    captureSnapshot: true
+  - id: testTemplateWithNonexistantVariableName
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "{nonexistentVariable}"
+    segments:
+      - json:
+          ref: "nonexistentVariable"
+        dsl: "nonexistentVariable"
+    captureSnapshot: true
+  - id: testTemplateWithUnsupportedExpression
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "{unsupportedExpression}"
+    segments:
+      - json:
+          foobar: "unsupportedExpression"
+        dsl: "unsupportedExpression"
+    captureSnapshot: true
+  - id: testTemplateWithUnsupportedVariable
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "Executed main.testMultipleNamedReturn, it took {@duration}ms"
+    segments:
+      - str: "Executed main.testMultipleNamedReturn, it took "
+      - json:
+          ref: "@duration"
+        dsl: "@duration"
+      - str: "ms"
+    captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
+    captureSnapshot: true
+  # This test observes that when you have a value receiver on a type that doesn't
+  # do anything with the value it gets wholly inlined into the pointer receiver
+  # and those two methods then have overlapping PC ranges which tickled a bug
+  # in irgen. This test acts as a regression test for that bug.
+  - id: testWhollyInlinedSubroutine
+    type: LOG_PROBE
+    where:
+      methodName: main.firstBehavior.DoSomething
+    template: "testWhollyInlinedSubroutine"
+    segments:
+      - str: "testWhollyInlinedSubroutine"
+    captureSnapshot: true
+  # Capture expression probes
+  - id: testCaptureExprSimple
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprGetmember
+    type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testStruct
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x.aString"
+        expr:
+          dsl: "x.aString"
+          json:
+            getmember:
+              - ref: "x"
+              - "aString"
+  - id: testCaptureExprWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprLine
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100

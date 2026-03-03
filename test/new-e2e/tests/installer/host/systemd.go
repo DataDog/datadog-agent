@@ -39,7 +39,7 @@ func (h *Host) LastJournaldTimestamp() JournaldTimestamp {
 func (h *Host) AssertUnitProperty(unit, property, value string) {
 	res, err := h.remote.Execute(fmt.Sprintf("sudo systemctl show -p %s %s", property, unit))
 	require.NoError(h.t(), err)
-	require.Equal(h.t(), fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute(fmt.Sprintf("sudo systemctl cat %s", unit)))
+	require.Equal(h.t(), fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute("sudo systemctl cat "+unit))
 }
 
 func popIfMatches(searchedEvents []SystemdEvent, log journaldLog) []SystemdEvent {
@@ -123,7 +123,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 
 		for unit := range units {
-			h.t().Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
+			h.t().Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 		}
 	}
 }

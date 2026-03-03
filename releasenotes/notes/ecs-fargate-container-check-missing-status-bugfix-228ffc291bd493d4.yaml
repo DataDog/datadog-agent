@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes a bug on ecs fargate where the container check on the core agent was not reporting the status of the container

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -56,16 +57,9 @@ func procMount() error {
 	}
 
 	egid := os.Getegid()
-	var haveEgid bool
 	// From `man getgroups`:
 	// It is unspecified whether the effective group ID of the calling process is included in the returned list.
-	for _, gid := range groups {
-		if gid == egid {
-			haveEgid = true
-			break
-		}
-	}
-	if !haveEgid {
+	if !slices.Contains(groups, egid) {
 		groups = append(groups, egid)
 	}
 	path := pkgconfigsetup.Datadog().GetString("container_proc_root")

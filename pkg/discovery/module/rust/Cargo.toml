@@ -1,0 +1,53 @@
+[package]
+name = "sd-agent"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "dd_discovery"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "sd-agent"
+path = "src/main.rs"
+
+[[bin]]
+name = "disco"
+path = "src/bin/disco.rs"
+
+[dependencies]
+anyhow.workspace = true
+cap-std.workspace = true
+clap.workspace = true
+elf.workspace = true
+glob-match.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+log.workspace = true
+lru.workspace = true
+memchr.workspace = true
+nom.workspace = true
+normalize-path.workspace = true
+phf.workspace = true
+quick-xml.workspace = true
+rmp-serde.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+simple_logger = { workspace = true, features = ["colors", "timestamps"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
+uzers.workspace = true
+walkdir.workspace = true
+yaml-rust2.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+dircpy.workspace = true
+memmap2.workspace = true
+nix.workspace = true
+scopeguard.workspace = true
+temp-env.workspace = true
+tempfile.workspace = true

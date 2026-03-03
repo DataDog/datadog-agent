@@ -19,10 +19,11 @@ const _StorageFormat_name = "jsonprotobufdotprofile"
 var _StorageFormat_index = [...]uint8{0, 4, 12, 15, 22}
 
 func (i StorageFormat) String() string {
-	if i < 0 || i >= StorageFormat(len(_StorageFormat_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StorageFormat_index)-1 {
 		return "StorageFormat(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StorageFormat_name[_StorageFormat_index[i]:_StorageFormat_index[i+1]]
+	return _StorageFormat_name[_StorageFormat_index[idx]:_StorageFormat_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -37,8 +38,9 @@ const _StorageType_name = "local_storageremote_storage"
 var _StorageType_index = [...]uint8{0, 13, 27}
 
 func (i StorageType) String() string {
-	if i < 0 || i >= StorageType(len(_StorageType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StorageType_index)-1 {
 		return "StorageType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StorageType_name[_StorageType_index[i]:_StorageType_index[i+1]]
+	return _StorageType_name[_StorageType_index[idx]:_StorageType_index[idx+1]]
 }

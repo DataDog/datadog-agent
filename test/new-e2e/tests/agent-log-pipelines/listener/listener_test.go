@@ -7,20 +7,21 @@ package listener
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
-	appslogger "github.com/DataDog/test-infra-definitions/components/datadog/apps/logger"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+
+	appslogger "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/logger"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -54,12 +55,13 @@ func TestTCPListener(t *testing.T) {
 		&dockerTCPSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-					dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
-				))),
-	)
+				awsdocker.WithRunOptions(
+					ec2docker.WithAgentOptions(
+						dockeragentparams.WithLogs(),
+						dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+						dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
+					))),
+		))
 }
 
 func TestUDPListener(t *testing.T) {
@@ -67,12 +69,13 @@ func TestUDPListener(t *testing.T) {
 		&dockerUDPSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-					dockeragentparams.WithExtraComposeManifest("logger-udp", pulumi.String(udpCompose)),
-				))),
-	)
+				awsdocker.WithRunOptions(
+					ec2docker.WithAgentOptions(
+						dockeragentparams.WithLogs(),
+						dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+						dockeragentparams.WithExtraComposeManifest("logger-udp", pulumi.String(udpCompose)),
+					))),
+		))
 }
 
 func assertLogsReceived(
@@ -102,7 +105,7 @@ func assertLogsReceived(
 	require.NoError(t, err)
 	ipAddress = strings.TrimSpace(ipAddress)
 	t.Logf("Logger-app IP address: %s", ipAddress)
-	sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
+	sourceHostTag := "source_host:" + ipAddress
 	// Command to execute inside the container
 	cmd := []string{
 		"/usr/local/bin/send-message.sh",

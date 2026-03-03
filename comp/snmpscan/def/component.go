@@ -7,8 +7,12 @@
 package snmpscan
 
 import (
+	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -16,9 +20,19 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// Triggers a device scan
-	RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
-	SendPayload(payload metadata.NetworkDevicesMetadata) error
-	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error
+	ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
+}
+
+// ScanParams contains options for a device scan
+type ScanParams struct {
+	ScanType metadata.ScanType
+
+	// CallInterval specifies how long to wait between consecutive SNMP calls.
+	// A value of 0 means calls are made without any delay.
+	CallInterval time.Duration
+
+	// MaxCallCount limits the total number of SNMP calls in a scan.
+	// A value of 0 means there is no limit.
+	MaxCallCount int
 }

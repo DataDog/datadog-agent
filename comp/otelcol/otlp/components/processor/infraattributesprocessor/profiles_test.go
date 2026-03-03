@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
@@ -37,6 +38,6 @@ func TestInfraAttributesProfileProcessor(t *testing.T) {
 	require.NoError(t, fpp.Shutdown(context.Background()))
 
 	require.Len(t, next.AllProfiles(), 1)
-	require.EqualValues(t, map[string]any{"datadog.host.name": "test-host"}, next.AllProfiles()[0].ResourceProfiles().At(0).Resource().Attributes().AsRaw())
+	require.EqualValues(t, map[string]any{"datadog.host.name": "test-host", "host.arch": runtime.GOARCH}, next.AllProfiles()[0].ResourceProfiles().At(0).Resource().Attributes().AsRaw())
 
 }

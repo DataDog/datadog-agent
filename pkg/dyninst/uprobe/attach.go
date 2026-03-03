@@ -16,20 +16,21 @@ import (
 	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // AttachedProgram represents a program that has been attached to a process.
 type AttachedProgram struct {
-	processID    procmon.ProcessID
+	processID    process.ID
 	loader       *loader.Program
 	executable   *link.Executable
 	attachpoints []link.Link
 }
 
 // Detach detaches the program from the target process.
-func (p *AttachedProgram) Detach() error {
+func (p *AttachedProgram) Detach(_ error) error {
 	var retErr error
 	for _, attachpoint := range p.attachpoints {
 		if err := attachpoint.Close(); err != nil {
@@ -49,15 +50,15 @@ func (p *AttachedProgram) LoaderProgram() *loader.Program {
 }
 
 // ProcessID returns the process ID the program is attached to.
-func (p *AttachedProgram) ProcessID() procmon.ProcessID {
+func (p *AttachedProgram) ProcessID() process.ID {
 	return p.processID
 }
 
 // Attach attaches the provided program to the target process.
 func Attach(
 	loaded *loader.Program,
-	executable procmon.Executable,
-	processID procmon.ProcessID,
+	executable process.Executable,
+	processID process.ID,
 ) (*AttachedProgram, error) {
 	// A silly thing here is that it's going to call, under the hood,
 	// safeelf.Open twice: once for the link package and once for finding the
@@ -78,7 +79,21 @@ func Attach(
 
 	textSection := elfFile.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("text section not found")
+		return nil, errors.New("text section not found")
+	}
+
+	// As close to injection as possible, check that executable that we analyzed
+	// is the same as the one that we're attaching to.
+	currentExe, err := process.ResolveExecutable(kernel.ProcFSRoot(), processID.PID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve executable for process %s: %w", processID, err,
+		)
+	}
+	if currentExe != executable {
+		return nil, fmt.Errorf(
+			"executable changed during probe setup: %s != %s", currentExe, executable,
+		)
 	}
 
 	attached := make([]link.Link, 0, len(loaded.Attachpoints))

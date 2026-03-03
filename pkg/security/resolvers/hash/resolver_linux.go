@@ -37,7 +37,7 @@ import (
 
 var (
 	// ErrSizeLimitReached indicates that the size limit was reached
-	ErrSizeLimitReached = fmt.Errorf("size limit reached")
+	ErrSizeLimitReached = errors.New("size limit reached")
 )
 
 // SizeLimitedWriter implements io.Writer and returns an error if more than the configured amount of data is read
@@ -80,16 +80,32 @@ type ResolverOpts struct {
 
 // LRUCacheKey is the structure used to access cached hashes
 type LRUCacheKey struct {
-	path        string
-	containerID string
-	inode       uint64
-	pathID      uint32
+	path     string
+	cgroupID string
 }
 
 // LRUCacheEntry is the structure used to cache hashes
+// It includes file metadata (inode, mtime, size) to detect if the file has changed
 type LRUCacheEntry struct {
 	state  model.HashState
 	hashes []string
+	// File metadata to detect changes
+	inode  uint64 // file inode
+	pathID uint32 // internal path ID
+	mtime  uint64 // modification time in nanoseconds
+	size   int64  // file size in bytes
+}
+
+// SSDeepCacheKey is the key used for caching ssdeep hashes based on cheaper hashes
+type SSDeepCacheKey struct {
+	inode     uint64 // file inode
+	size      int64  // file size in bytes
+	cheapHash string // the cheapest hash used as cache key
+}
+
+// SSDeepCacheEntry stores the cached ssdeep hash
+type SSDeepCacheEntry struct {
+	ssdeepHash string
 }
 
 // Resolver represents a cache for mountpoints and the corresponding file systems
@@ -100,7 +116,8 @@ type Resolver struct {
 	cgroupResolver *cgroup.Resolver
 	replace        map[string]string
 
-	cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
+	cache       *lru.Cache[LRUCacheKey, *LRUCacheEntry]
+	ssdeepCache *lru.Cache[SSDeepCacheKey, *SSDeepCacheEntry]
 
 	bufferPool *ddsync.TypedPool[[]byte]
 }
@@ -108,19 +125,23 @@ type Resolver struct {
 // NewResolver returns a new instance of the hash resolver
 func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver) (*Resolver, error) {
 	if !c.HashResolverEnabled {
-		return &Resolver{
-			opts: ResolverOpts{
-				Enabled: false,
-			},
-		}, nil
+		return &Resolver{}, nil
 	}
 
 	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
+	var ssdeepCache *lru.Cache[SSDeepCacheKey, *SSDeepCacheEntry]
 	if c.HashResolverCacheSize > 0 {
 		var err error
 		cache, err = lru.New[LRUCacheKey, *LRUCacheEntry](c.HashResolverCacheSize)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create hash resolver cache: %w", err)
+		}
+		// Create a separate cache for ssdeep hashes only if ssdeep algorithm is enabled
+		if slices.Contains(c.HashResolverHashAlgorithms, model.SSDEEP) {
+			ssdeepCache, err = lru.New[SSDeepCacheKey, *SSDeepCacheEntry](c.HashResolverCacheSize)
+			if err != nil {
+				return nil, fmt.Errorf("couldn't create ssdeep cache: %w", err)
+			}
 		}
 	}
 
@@ -137,13 +158,14 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		opts: ResolverOpts{
 			Enabled:        true,
 			MaxFileSize:    c.HashResolverMaxFileSize,
-			HashAlgorithms: c.HashResolverHashAlgorithms,
+			HashAlgorithms: sortAlgorithmsByCost(c.HashResolverHashAlgorithms),
 			EventTypes:     c.HashResolverEventTypes,
 		},
 		cgroupResolver: cgroupResolver,
 		statsdClient:   statsdClient,
 		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), burst),
 		cache:          cache,
+		ssdeepCache:    ssdeepCache,
 		bufferPool:     ddsync.NewSlicePool[byte](copyBufferSize, copyBufferSize),
 		replace:        c.HashResolverReplace,
 	}
@@ -152,7 +174,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 }
 
 // ComputeHashesFromEvent calls ComputeHashes using the provided event
-func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent) []string {
+func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent, maxFileSize int64) []string {
 	if !resolver.opts.Enabled {
 		return nil
 	}
@@ -161,19 +183,19 @@ func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model
 	event.FieldHandlers.ResolveFilePath(event, file)
 
 	process := event.ProcessContext.Process
-	resolver.HashFileEvent(event.GetEventType(), process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(event.GetEventType(), process.CGroup.CGroupID, process.Pid, file, maxFileSize)
 
 	return file.Hashes
 }
 
 // ComputeHashes computes the hashes of the provided file event.
 // Disclaimer: This resolver considers that the FileEvent has already been resolved
-func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent, maxFileSize int64) []string {
 	if !resolver.opts.Enabled {
 		return nil
 	}
 
-	resolver.HashFileEvent(eventType, process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(eventType, process.CGroup.CGroupID, process.Pid, file, maxFileSize)
 
 	return file.Hashes
 }
@@ -194,15 +216,42 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 	}
 }
 
+// getHashCost returns the relative computational cost of a hash algorithm
+// Lower values indicate cheaper algorithms
+func getHashCost(algorithm model.HashAlgorithm) int {
+	switch algorithm {
+	case model.MD5:
+		return 1
+	case model.SHA1:
+		return 2
+	case model.SHA256:
+		return 3
+	case model.SSDEEP:
+		return 100 // SSDEEP is significantly more expensive
+	default:
+		return 999
+	}
+}
+
+// sortAlgorithmsByCost sorts hash algorithms from least costly to most costly
+func sortAlgorithmsByCost(algorithms []model.HashAlgorithm) []model.HashAlgorithm {
+	sorted := make([]model.HashAlgorithm, len(algorithms))
+	copy(sorted, algorithms)
+	slices.SortFunc(sorted, func(a, b model.HashAlgorithm) int {
+		return getHashCost(a) - getHashCost(b)
+	})
+	return sorted
+}
+
 type fileUniqKey struct {
 	dev   uint64
 	inode uint64
 }
 
-func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
+func getFileInfo(path string) (fs.FileMode, int64, uint64, fileUniqKey, error) {
 	stat, err := utils.UnixStat(path)
 	if err != nil {
-		return 0, 0, fileUniqKey{}, err
+		return 0, 0, 0, fileUniqKey{}, err
 	}
 
 	fkey := fileUniqKey{
@@ -210,11 +259,14 @@ func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
 		inode: stat.Ino,
 	}
 
-	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, fkey, nil
+	// Convert mtime to nanoseconds
+	mtime := uint64(stat.Mtim.Sec)*1e9 + uint64(stat.Mtim.Nsec)
+
+	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, mtime, fkey, nil
 }
 
 // HashFileEvent hashes the provided file event
-func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID containerutils.ContainerID, pid uint32, file *model.FileEvent) {
+func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID containerutils.CGroupID, pid uint32, file *model.FileEvent, maxFileSize int64) {
 	if !resolver.opts.Enabled {
 		return
 	}
@@ -249,20 +301,12 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 
 	// check if the hash(es) of this file is in cache
 	fileKey := LRUCacheKey{
-		path:        file.PathnameStr,
-		containerID: string(ctrID),
-		inode:       file.Inode,
-		pathID:      file.PathKey.PathID,
+		path:     file.PathnameStr,
+		cgroupID: string(cgroupID),
 	}
-	if resolver.cache != nil {
-		cacheEntry, ok := resolver.cache.Get(fileKey)
-		if ok {
-			file.HashState = cacheEntry.state
-			file.Hashes = cacheEntry.hashes
-			hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
-			return
-		}
-	}
+
+	// Note: we'll check after stat if the cached entry matches the file metadata
+	// This is done later after we get the actual file stats
 
 	// check the rate limiter
 	rateReservation := resolver.limiter.Reserve()
@@ -276,9 +320,8 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(ctrID)
-		if ok {
-			rootPIDs = w.GetPIDs()
+		if cacheEntry := resolver.cgroupResolver.GetCacheEntryByCgroupID(cgroupID); cacheEntry != nil {
+			rootPIDs = cacheEntry.GetPIDs()
 		}
 	}
 
@@ -288,13 +331,20 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		f           *os.File
 		mode        fs.FileMode
 		size        int64
+		mtime       uint64
 		fkey        fileUniqKey
 		failedCache = make(map[fileUniqKey]struct{})
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		if mode, size, fkey, lastErr = getFileInfo(path); !mode.IsRegular() {
+		mode, size, mtime, fkey, lastErr = getFileInfo(path)
+		if lastErr != nil {
 			continue
+		}
+
+		if !mode.IsRegular() {
+			// the file is not regular, break out early and the error will be reported in the `if f == nil` check
+			break
 		}
 
 		if _, ok := failedCache[fkey]; ok {
@@ -303,10 +353,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		}
 
 		f, lastErr = os.Open(path)
-		if lastErr == nil {
-			break
+		if lastErr != nil {
+			failedCache[fkey] = struct{}{}
+			continue
 		}
-		failedCache[fkey] = struct{}{}
+
+		// we manage to open the file
+		break
 	}
 	if lastErr != nil {
 		rateReservation.Cancel()
@@ -333,8 +386,12 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 	defer f.Close()
 
+	if maxFileSize <= 0 {
+		maxFileSize = resolver.opts.MaxFileSize
+	}
+
 	// is the file size above the configured limit
-	if size > resolver.opts.MaxFileSize {
+	if size > maxFileSize {
 		rateReservation.Cancel()
 		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
 		file.HashState = model.FileTooBig
@@ -349,69 +406,174 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		return
 	}
 
+	// Now that we have the file stats, check if we have a cached entry
+	// and if it matches the current file metadata
+	if resolver.cache != nil {
+		cacheEntry, ok := resolver.cache.Get(fileKey)
+		if ok {
+			// Check if the cached entry matches the current file metadata
+			if cacheEntry.inode == file.Inode &&
+				cacheEntry.pathID == file.PathKey.PathID &&
+				cacheEntry.mtime == mtime &&
+				cacheEntry.size == size {
+				// Cache hit: file hasn't changed
+				file.HashState = cacheEntry.state
+				file.Hashes = cacheEntry.hashes
+				hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
+				rateReservation.Cancel()
+				return
+			}
+			// Cache entry exists but file has changed, we'll recompute and update the entry
+		}
+	}
+
+	// Map to store computed hashes by algorithm (to preserve original order)
+	var computedHashes []string
+
+	// Step 1: Compute all non-SSDEEP hashes in a single pass (ordered by cost)
 	var hashers []io.Writer
+	var hasherAlgorithms []model.HashAlgorithm
 	for _, algorithm := range resolver.opts.HashAlgorithms {
+		// SSDEEP is handled separately
+		if algorithm == model.SSDEEP {
+			continue
+		}
+
 		h := resolver.getHashFunction(algorithm)
 		if h == nil {
 			// shouldn't happen, ignore
 			continue
 		}
 		hashers = append(hashers, h)
+		hasherAlgorithms = append(hasherAlgorithms, algorithm)
 	}
-	multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
 
-	buffer := resolver.bufferPool.Get()
-	_, err := io.CopyBuffer(multiWriter, f, *buffer)
-	resolver.bufferPool.Put(buffer)
-	if err != nil {
-		if errors.Is(err, ErrSizeLimitReached) {
-			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
-			file.HashState = model.FileTooBig
+	if len(hashers) > 0 {
+		multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
+
+		buffer := resolver.bufferPool.Get()
+		_, err := io.CopyBuffer(multiWriter, f, *buffer)
+		resolver.bufferPool.Put(buffer)
+		if err != nil {
+			if errors.Is(err, ErrSizeLimitReached) {
+				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
+				file.HashState = model.FileTooBig
+				return
+			}
+			// We can't read this file, most likely because it isn't a regular file (despite the check above). Example seen
+			// in production:
+			//  - read(/host/proc/2076/root/proc/1/fdinfo/64) => no such file or directory
+			//  - read(/host/proc/2328/root/run/netns/a574a27c) => invalid argument
+			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
+			file.HashState = model.FileOpenError
 			return
 		}
-		// We can't read this file, most likely because it isn't a regular file (despite the check above). Example seen
-		// in production:
-		//  - read(/host/proc/2076/root/proc/1/fdinfo/64) => no such file or directory
-		//  - read(/host/proc/2328/root/run/netns/a574a27c) => invalid argument
-		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
-		file.HashState = model.FileOpenError
-		return
-	}
 
-	for i, algorithm := range resolver.opts.HashAlgorithms {
-		var hashStr strings.Builder
-		hashStr.WriteString(algorithm.String())
-		if hashStr.Len() > 0 {
-			hashStr.WriteByte(':')
-		}
-		digest := hashers[i].(hash.Hash).Sum(nil)
-		if algorithm == model.SSDEEP {
-			if len(digest) == 0 {
-				// we failed to compute the digest
-				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
-				continue
+		// Store computed hashes in map
+		for i, algorithm := range hasherAlgorithms {
+			var hashStr strings.Builder
+			hashStr.WriteString(algorithm.String())
+			if hashStr.Len() > 0 {
+				hashStr.WriteByte(':')
 			}
-			hashStr.Write(digest)
-		} else {
+			digest := hashers[i].(hash.Hash).Sum(nil)
 			hencoder := hex.NewEncoder(&hashStr)
 			if _, err := hencoder.Write(digest); err != nil {
 				// we failed to compute the digest
 				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
 				continue
 			}
-		}
 
-		file.Hashes = append(file.Hashes, hashStr.String())
-		hashResolverTelemetry.hashCount.Inc(eventType.String(), algorithm.String())
+			computedHashes = append(computedHashes, hashStr.String())
+			hashResolverTelemetry.hashCount.Inc(eventType.String(), algorithm.String())
+		}
 	}
 
+	// Step 2: Handle SSDEEP separately with caching based on cheapest hash
+	if resolver.ssdeepCache != nil {
+		var (
+			cheapestHash  string
+			ssdeepHashStr string
+			foundInCache  bool
+		)
+
+		if len(computedHashes) > 0 {
+			// Find the cheapest computed hash to use as cache key
+			cheapestHash = computedHashes[0]
+
+			// Check if we have a cached SSDEEP for this cheap hash
+			ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
+			if cached, ok := resolver.ssdeepCache.Get(ssdeepKey); ok {
+				ssdeepHashStr = cached.ssdeepHash
+				foundInCache = true
+				hashResolverTelemetry.hashCacheHit.Inc(eventType.String())
+			}
+		}
+
+		// Compute SSDEEP if not found in cache
+		if !foundInCache {
+			// Seek back to the beginning of the file
+			if _, err := f.Seek(0, 0); err != nil {
+				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
+			} else {
+				ssdeepHasher := ssdeep.New()
+				limitedWriter := newSizeLimitedWriter(ssdeepHasher, int(resolver.opts.MaxFileSize))
+
+				buffer := resolver.bufferPool.Get()
+				_, err := io.CopyBuffer(limitedWriter, f, *buffer)
+				resolver.bufferPool.Put(buffer)
+
+				if err != nil {
+					if !errors.Is(err, ErrSizeLimitReached) {
+						hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
+					}
+				} else {
+					digest := ssdeepHasher.Sum(nil)
+					if len(digest) > 0 {
+						var hashStr strings.Builder
+						hashStr.WriteString("ssdeep:")
+						hashStr.Write(digest)
+						ssdeepHashStr = hashStr.String()
+
+						// Cache the SSDEEP hash with the cheapest hash as key
+						if cheapestHash != "" {
+							ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
+							resolver.ssdeepCache.Add(ssdeepKey, &SSDeepCacheEntry{ssdeepHash: ssdeepHashStr})
+						}
+
+						hashResolverTelemetry.hashCount.Inc(eventType.String(), model.SSDEEP.String())
+					} else {
+						hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
+					}
+				}
+			}
+		} else {
+			// Still count the cached ssdeep (but as a cache hit, already counted above)
+			if ssdeepHashStr != "" {
+				// Note: Already counted as cache hit, but also increment the hash count
+				hashResolverTelemetry.hashCount.Inc(eventType.String(), model.SSDEEP.String())
+			}
+		}
+
+		// Store SSDEEP in the map
+		if ssdeepHashStr != "" {
+			computedHashes = append(computedHashes, ssdeepHashStr)
+		}
+	}
+
+	file.Hashes = computedHashes
 	file.HashState = model.Done
 
-	// cache entry
+	// cache entry with file metadata
+	// This will either create a new entry or update an existing one for the same path
 	if resolver.cache != nil {
 		cacheEntry := &LRUCacheEntry{
 			state:  model.Done,
 			hashes: make([]string, len(file.Hashes)),
+			inode:  file.Inode,
+			pathID: file.PathKey.PathID,
+			mtime:  mtime,
+			size:   size,
 		}
 		copy(cacheEntry.hashes, file.Hashes)
 		resolver.cache.Add(fileKey, cacheEntry)

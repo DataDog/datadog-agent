@@ -4,7 +4,8 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 5 GiB
+  # Set to 20% higher than the memory_usage check value
+  memory_allotment: 570 MiB
 
   environment:
     DD_API_KEY: a0000001
@@ -22,21 +23,23 @@ target:
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_cpu
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_metrics_logs
 
 checks:
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
     bounds:
       series: total_pss_bytes
-      upper_bound: 530 MiB
+      # When updating this, update the memory_allotment in the target section to 20% higher
+      upper_bound: 475 MiB
 
   - name: cpu_usage
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
     bounds:
       series: avg(total_cpu_usage_millicores)
-      upper_bound: 4000
+      upper_bound: 2000
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

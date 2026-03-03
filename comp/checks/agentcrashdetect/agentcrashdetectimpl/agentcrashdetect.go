@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"go.uber.org/fx"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -44,6 +44,7 @@ var (
 	ddDrivers = map[string]struct{}{
 		"ddnpm":       {}, // NPM/USM driver, used for network monitoring
 		"ddprocmon":   {}, // process monitoring driver, used for CWS
+		"ddinjector":  {}, // application tracing driver, used for APM
 		"crashdriver": {}, // this entry exists only for testing purposes.
 	}
 	// system probe enabled flags indicating we should be enabled

@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 
@@ -22,11 +23,13 @@ import (
 const sampleBufferSize = 2
 
 type gpmCollector struct {
-	lib                 ddnvml.SafeNVML
-	device              ddnvml.Device
-	samples             [sampleBufferSize]nvml.GpmSample
-	metricsToCollect    map[nvml.GpmMetricId]gpmMetric
-	nextSampleToCollect int
+	lib                  ddnvml.SafeNVML
+	device               ddnvml.Device
+	parentPhysicalDevice *ddnvml.PhysicalDevice
+	migInstanceID        int // only for collectors for MIG devices, contains the instance ID of the MIG device
+	samples              [sampleBufferSize]nvml.GpmSample
+	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
+	nextSampleToCollect  int
 }
 
 type gpmMetric struct {
@@ -40,7 +43,9 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_UTIL: {
-		name:       "sm_active",
+		// Despite the name, this GPM metric returns the percentage of SMs that were in use, not whether any of them were
+		// active in the interval like gr_engine_active does.
+		name:       "sm_utilization",
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_OCCUPANCY: {
@@ -70,9 +75,17 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 }
 
 func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
-	support, err := device.GpmQueryDeviceSupport()
-	if err != nil {
-		return nil, fmt.Errorf("failed to query for GPM support: %w", err)
+	migDevice, isMig := device.(*ddnvml.MIGDevice)
+	if isMig && migDevice.Parent == nil {
+		return nil, errors.New("MIG device has no parent physical device")
+	}
+
+	var support nvml.GpmSupport
+	// The query for device support needs to be made on the physical device always
+	if isMig {
+		support, err = migDevice.Parent.GpmQueryDeviceSupport()
+	} else {
+		support, err = device.GpmQueryDeviceSupport()
 	}
 
 	if support.IsSupportedDevice == 0 {
@@ -85,6 +98,11 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 	collector := &gpmCollector{
 		device:           device,
 		metricsToCollect: clonedMetrics,
+	}
+
+	if isMig {
+		collector.parentPhysicalDevice = migDevice.Parent
+		collector.migInstanceID = migDevice.MIGInstanceID
 	}
 
 	collector.lib, err = ddnvml.GetSafeNvmlLib()
@@ -140,10 +158,19 @@ func (c *gpmCollector) removeUnsupportedMetrics() {
 }
 
 func (c *gpmCollector) collectSample() error {
-	err := c.device.GpmSampleGet(c.samples[c.nextSampleToCollect])
+	sample := c.samples[c.nextSampleToCollect]
+
+	var err error
+	if c.parentPhysicalDevice != nil {
+		err = c.parentPhysicalDevice.GpmMigSampleGet(c.migInstanceID, sample)
+	} else {
+		err = c.device.GpmSampleGet(sample)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to collect GPM sample: %w", err)
 	}
+
 	c.nextSampleToCollect = (c.nextSampleToCollect + 1) % sampleBufferSize
 	return nil
 }
@@ -169,12 +196,12 @@ func (c *gpmCollector) getLastTwoSamples() (nvml.GpmSample, nvml.GpmSample) {
 }
 
 func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
-	sample1, sample2 := c.getLastTwoSamples()
+	lastSample, secondToLastSample := c.getLastTwoSamples()
 	metricsGet := &nvml.GpmMetricsGetType{
 		NumMetrics: uint32(len(c.metricsToCollect)),
 		Version:    nvml.GPM_METRICS_GET_VERSION,
-		Sample1:    sample1,
-		Sample2:    sample2,
+		Sample1:    secondToLastSample,
+		Sample2:    lastSample,
 	}
 
 	metricIndex := 0

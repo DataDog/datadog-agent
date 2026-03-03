@@ -8,7 +8,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -26,14 +25,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-const functionARNKeyTag = "function_arn"
 const originTag = "origin"
 
 type cloudResourceType string
 type cloudProvider string
 
 const (
-	awsLambda                     cloudResourceType = "AWSLambda"
 	awsFargate                    cloudResourceType = "AWSFargate"
 	cloudRun                      cloudResourceType = "GCPCloudRun"
 	cloudFunctions                cloudResourceType = "GCPCloudFunctions"
@@ -236,7 +233,7 @@ func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
 }
 
 func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", f.conf.AgentVersion))
+	req.Header.Set("Via", "trace-agent "+f.conf.AgentVersion)
 	if _, ok := req.Header["User-Agent"]; !ok {
 		// explicitly disable User-Agent so it's not set to the default value
 		// that net/http gives it: Go-http-client/1.1
@@ -266,11 +263,7 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set("DD-Agent-Install-Type", f.conf.InstallSignature.InstallType)
 		req.Header.Set("DD-Agent-Install-Time", strconv.FormatInt(f.conf.InstallSignature.InstallTime, 10))
 	}
-	if arn, ok := f.conf.GlobalTags[functionARNKeyTag]; ok {
-		req.Header.Set(cloudProviderHeader, string(aws))
-		req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
-		req.Header.Set(cloudResourceIdentifierHeader, arn)
-	} else if taskArn, ok := extractFargateTask(containerTags); ok {
+	if taskArn, ok := extractFargateTask(containerTags); ok {
 		req.Header.Set(cloudProviderHeader, string(aws))
 		req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
 		req.Header.Set(cloudResourceIdentifierHeader, taskArn)
@@ -340,7 +333,7 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 
 func (f *TelemetryForwarder) forwardTelemetryEndpoint(req *http.Request, endpoint *config.Endpoint) (*http.Response, error) {
 	tags := []string{
-		fmt.Sprintf("endpoint:%s", endpoint.Host),
+		"endpoint:" + endpoint.Host,
 	}
 	defer func(now time.Time) {
 		_ = f.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)

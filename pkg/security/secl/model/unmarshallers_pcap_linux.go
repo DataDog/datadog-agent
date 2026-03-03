@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"slices"
 )
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -28,7 +29,7 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data)
 	data = data[4:]
-	e.Data = data
+	e.Data = slices.Clone(data)
 	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
 	e.CaptureInfo.Length = int(e.NetworkContext.Size)
 	e.CaptureInfo.CaptureLength = len(data)

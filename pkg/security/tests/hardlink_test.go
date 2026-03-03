@@ -57,13 +57,13 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 
 	t.Run("exec-orig-then-link-then-exec-link", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
 			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
-		})
+		}, "test_rule_orig_exec")
 
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
@@ -71,7 +71,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		}
 		defer os.Remove(testNewExecutable)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			err = os.Link(testOrigExecutable, testNewExecutable)
 			if err != nil {
 				t.Fatal(err)
@@ -79,14 +79,14 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
-		})
+		}, "test_rule_link_creation")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
-		})
+		}, "test_rule_link_exec")
 	})
 
 	t.Run("link-then-exec-orig-then-exec-link", func(t *testing.T) {
@@ -96,7 +96,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		}
 		defer os.Remove(testNewExecutable)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			err = os.Link(testOrigExecutable, testNewExecutable)
 			if err != nil {
 				t.Fatal(err)
@@ -104,23 +104,23 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
-		})
+		}, "test_rule_link_creation")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
 			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
-		})
+		}, "test_rule_orig_exec")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
 			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
-		})
+		}, "test_rule_link_exec")
 	})
 }
 
@@ -170,7 +170,7 @@ func TestHardLink(t *testing.T) {
 		}
 		defer os.Remove(testNewExecutable)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// nb: this wil test linkat, not link.
 			err = os.Link(testOrigExecutable, testNewExecutable)
 			if err != nil {
@@ -179,7 +179,7 @@ func TestHardLink(t *testing.T) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
-		})
+		}, "test_rule_link_creation")
 	})
 }
 
@@ -218,7 +218,7 @@ func TestHardlinkBusybox(t *testing.T) {
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("/bin/cat", []string{"/bin/gunzip"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -231,10 +231,10 @@ func TestHardlinkBusybox(t *testing.T) {
 			// explicitly assert on process.file.path value here because the use of argv0 in operator overrides
 			// might cause the rule to match even though process.file.path might be resolved to an incorrect path
 			assertFieldEqual(t, event, "process.file.path", "/bin/cat", "unexpected process.file.path field value")
-		})
+		}, "test_busybox_hardlink_1")
 
 		// check that the cache is not used (having the same path_key)
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("/bin/cat", []string{"/bin/tar"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -247,6 +247,6 @@ func TestHardlinkBusybox(t *testing.T) {
 			// explicitly assert on process.file.path value here because the use of argv0 in operator overrides
 			// might cause the rule to match even though process.file.path might be resolved to an incorrect path
 			assertFieldEqual(t, event, "process.file.path", "/bin/cat", "unexpected process.file.path field value")
-		})
+		}, "test_busybox_hardlink_2")
 	})
 }

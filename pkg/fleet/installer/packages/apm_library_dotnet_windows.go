@@ -11,8 +11,10 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,11 +60,7 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
@@ -80,11 +78,7 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
@@ -102,20 +96,15 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
 }
 
 // preRemoveAPMLibraryDotnet uninstalls the .NET APM library
-// This function only disable injection, the cleanup for each version is done by the PreRemoveHook
+// This function only disable injection, the cleanup for each version is done by the asyncPreRemoveHook
 func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
+	_, err = filepath.EvalSymlinks(getTargetPath("stable"))
 	if err != nil {
 		// If the remove is being retried after a failed first attempt, the stable symlink may have been removed
 		// so we do not consider this an error
@@ -125,12 +114,7 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+	return uninstrumentDotnetLibrary(ctx.Context, "stable")
 }
 
 // asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
@@ -146,4 +130,41 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 		return shouldDelete, err
 	}
 	return true, nil
+}
+
+func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_dotnet_library")
+	defer func() { span.Finish(err) }()
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+	if err != nil {
+		return err
+	}
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
+	return err
+}
+
+func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_dotnet_library")
+	defer func() { span.Finish(err) }()
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+	if err != nil {
+		return err
+	}
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
+	return err
+}
+
+func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+	envInst := env.FromEnv()
+	if envInst.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledIIS {
+		return instrumentDotnetLibrary(ctx, target)
+	}
+	// If we don't instrument we try uninstrumenting in case there was a previous installation
+	// to make sure we don't leave a previous version's instrumentation hanging around.
+	_ = uninstrumentDotnetLibrary(ctx, target)
+	return nil
 }

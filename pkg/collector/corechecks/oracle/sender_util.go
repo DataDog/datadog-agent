@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -31,45 +32,55 @@ type metricSender func(string, float64, string, []string)
 
 func getMetricFunction(sender sender.Sender, method metricType) (metricSender, error) {
 	if sender == nil {
-		return nil, fmt.Errorf("sender is nil")
+		return nil, errors.New("sender is nil")
 	}
-	methods := map[metricType]metricSender{
-		gauge:          sender.Gauge,
-		count:          sender.Count,
-		rate:           sender.Rate,
-		monotonicCount: sender.MonotonicCount,
-		histogram:      sender.Histogram,
-		historate:      sender.Historate,
+	switch method {
+	case gauge:
+		return sender.Gauge, nil
+	case count:
+		return sender.Count, nil
+	case rate:
+		return sender.Rate, nil
+	case monotonicCount:
+		return sender.MonotonicCount, nil
+	case histogram:
+		return sender.Histogram, nil
+	case historate:
+		return sender.Historate, nil
+	default:
+		return nil, fmt.Errorf("Invalid metric function code %d", method)
 	}
-	if val, ok := methods[method]; ok {
-		return val, nil
-	}
-	return nil, fmt.Errorf("Invalid metric function code %d", method)
 }
 
 func getMetricFunctionCode(name string) (metricType, error) {
-	metricTypes := map[string]metricType{
-		"gauge":           gauge,
-		"count":           count,
-		"rate":            rate,
-		"monotonic_count": monotonicCount,
-		"histogram":       histogram,
-		"historate":       historate,
+	switch name {
+	case "gauge":
+		return gauge, nil
+	case "count":
+		return count, nil
+	case "rate":
+		return rate, nil
+	case "monotonic_count":
+		return monotonicCount, nil
+	case "histogram":
+		return histogram, nil
+	case "historate":
+		return historate, nil
+	default:
+		return unknownMetricType, fmt.Errorf("unknown metric type: %s", name)
 	}
-	if val, ok := metricTypes[name]; ok {
-		return val, nil
-	}
-	return unknownMetricType, fmt.Errorf("unknown metric type: %s", name)
 }
 
 func sendMetric(c *Check, method metricType, metric string, value float64, tags []string) {
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("failed to get metric sender: %s", err)
+		return
 	}
 	metricFunction, err := getMetricFunction(sender, method)
 	if err != nil {
 		log.Errorf("failed to get metric function: %s", err)
+		return
 	}
 	metricFunction(metric, value, c.dbHostname, tags)
 }

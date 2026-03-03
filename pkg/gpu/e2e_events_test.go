@@ -65,7 +65,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	cfg.StreamConfig.MaxActiveStreams = 1000
 
 	handlers := newStreamCollection(ctx, telemetryMock, cfg)
-	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, telemetryMock)
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, handlers, withTelemetryMock(telemetryMock))
 	require.NotNil(t, consumer)
 
 	// Setup the visibleDevicesCache so that we don't get warnings
@@ -153,7 +153,7 @@ loop:
 
 	// Now let's check the stats generator and see the output
 	statsGen, _, _ := getStatsGeneratorForTest(t)
-	statsGen.streamHandlers = consumer.streamHandlers // Replace the streamHandlers with the ones from the consumer
+	statsGen.streamHandlers = consumer.deps.streamHandlers // Replace the streamHandlers with the ones from the consumer
 
 	// Tell the generator the last generation time is before the start of our first event
 	statsGen.lastGenerationKTime = int64(startTs - 1)
@@ -163,9 +163,9 @@ loop:
 	stats, err := statsGen.getStats(int64(endTs + 1))
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.Len(t, stats.Metrics, 1)
+	require.Len(t, stats.ProcessMetrics, 1)
 
-	metrics := stats.Metrics[0]
+	metrics := stats.ProcessMetrics[0]
 
 	require.Equal(t, metrics.Key.PID, uint32(executingPID))
 

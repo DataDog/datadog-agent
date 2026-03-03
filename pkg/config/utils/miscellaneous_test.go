@@ -175,6 +175,29 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 				m.SetWithoutSource("remote_configuration.enabled", false)
 			},
 		},
+		{
+			name:     "gov via long site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
+			},
+		},
+		{
+			name:     "gov via long site and explicitly enabled",
+			expected: true,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
+				m.SetWithoutSource("remote_configuration.enabled", true)
+			},
+		},
+		{
+			name:     "gov via long site and explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "xxxx99.ddog-gov.com")
+				m.SetWithoutSource("remote_configuration.enabled", false)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -186,4 +209,36 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 				"Was expecting IsRemoteConfigEnabled to return", test.expected)
 		})
 	}
+}
+
+func TestIsCloudProviderEnabled(t *testing.T) {
+	config := configmock.New(t)
+
+	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	assert.True(t, IsCloudProviderEnabled("AWS", config))
+	assert.True(t, IsCloudProviderEnabled("GCP", config))
+	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.True(t, IsCloudProviderEnabled("Azure", config))
+	assert.True(t, IsCloudProviderEnabled("Tencent", config))
+
+	config.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
+	assert.True(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.False(t, IsCloudProviderEnabled("Tencent", config))
+
+	config.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	assert.False(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.True(t, IsCloudProviderEnabled("Tencent", config))
+
+	config.SetWithoutSource("cloud_provider_metadata", []string{})
+	assert.False(t, IsCloudProviderEnabled("AWS", config))
+	assert.False(t, IsCloudProviderEnabled("GCP", config))
+	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
+	assert.False(t, IsCloudProviderEnabled("Azure", config))
+	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 }

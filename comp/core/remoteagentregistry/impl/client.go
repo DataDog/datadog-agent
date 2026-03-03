@@ -42,7 +42,8 @@ type remoteAgentClient struct {
 	remoteagentregistry.RegisteredAgent
 
 	// health tracking
-	unhealthy bool // marks agent for removal during next cleanup cycle
+	unhealthy       bool  // marks agent for removal during next cleanup cycle
+	unhealthyReason error // stores the reason the agent was marked unhealthy (for logging)
 
 	// gRPC relative
 	pb.FlareProviderClient
@@ -84,7 +85,12 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	return client, nil
 }
 
-// validateSessionID extracts and validates the session_id from gRPC response metadata
+// close closes the remote agent client and its connection
+func (rac *remoteAgentClient) close() error {
+	return rac.conn.Close()
+}
+
+// validateSessionID extracts and validates the session_id from gRPC response metadata.
 func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) error {
 	sessionIDs := responseMetadata.Get("session_id")
 	if len(sessionIDs) == 0 {
@@ -183,6 +189,7 @@ func callAgentsForService[PbType any, StructuredType any](
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
 					remoteAgent.unhealthy = true
+					remoteAgent.unhealthyReason = validationErr
 				}
 			}
 
@@ -201,9 +208,5 @@ func callAgentsForService[PbType any, StructuredType any](
 }
 
 func sanitizeString(in string) string {
-	out := []string{}
-	for _, s := range strings.Split(in, " ") {
-		out = append(out, strings.ToLower(s))
-	}
-	return strings.Join(out, "-")
+	return strings.ReplaceAll(strings.ToLower(in), " ", "-")
 }

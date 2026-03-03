@@ -56,10 +56,16 @@
           "location": {
             "method": "main.testInlinedBCB"
           }
-        },
-        "captures": {}
-      }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBCB"
   }
 ]

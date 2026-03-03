@@ -7,7 +7,7 @@
 package info
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -55,7 +55,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 func agentInfo(config config.Component) error {
 	tracecfg := config.Object()
 	if tracecfg == nil {
-		return fmt.Errorf("Unable to successfully parse config")
+		return errors.New("Unable to successfully parse config")
 	}
 	if err := info.InitInfo(tracecfg); err != nil {
 		return err

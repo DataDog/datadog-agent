@@ -56,13 +56,13 @@ func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.
 		}
 	}
 
-	link, err := os.Readlink(kernel.HostProc(fmt.Sprintf("%d", p.Pid), "ns/net"))
+	link, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "ns/net"))
 	if err != nil {
 		return nil, err
 	}
 	// link should be in for of: net:[4026542294]
 	if !strings.HasPrefix(link, "net:[") {
-		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformed: (%s) err: %v", link, err)
 	}
 
 	link = strings.TrimPrefix(link, "net:[")
@@ -70,7 +70,7 @@ func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.
 
 	ns, err := strconv.ParseUint(link, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformed: (%s) err: %v", link, err)
 	}
 
 	var cacheEntry *netNsCacheEntry
@@ -178,7 +178,7 @@ type netIPEntry struct {
 }
 
 func parseNetIP(pid int32, suffix string) ([]netIPEntry, error) {
-	path := kernel.HostProc(fmt.Sprintf("%d", pid), suffix)
+	path := kernel.HostProc(strconv.Itoa(int(pid)), suffix)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

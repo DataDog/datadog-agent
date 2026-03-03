@@ -8,21 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "container.created_at",
-          "definition": "Timestamp of the creation of the container",
-          "property_doc_link": "container-created_at-doc"
-        },
-        {
-          "name": "container.id",
-          "definition": "ID of the container",
-          "property_doc_link": "container-id-doc"
-        },
-        {
-          "name": "container.tags",
-          "definition": "Tags of the container",
-          "property_doc_link": "container-tags-doc"
-        },
-        {
           "name": "event.hostname",
           "definition": "Hostname associated with the event",
           "property_doc_link": "event-hostname-doc"
@@ -63,9 +48,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.ancestors.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.ancestors.created_at",
@@ -138,9 +133,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.created_at",
@@ -188,9 +193,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "process.parent.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "process.parent.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "process.parent.created_at",
@@ -512,9 +527,19 @@
           "property_doc_link": "common-process-cmdline-doc"
         },
         {
+          "name": "exec.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exec.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exec.created_at",
@@ -601,9 +626,19 @@
           "property_doc_link": "exit-code-doc"
         },
         {
+          "name": "exit.container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "common-containercontext-created_at-doc"
+        },
+        {
           "name": "exit.container.id",
-          "definition": "Container ID",
-          "property_doc_link": "common-process-container-id-doc"
+          "definition": "ID of the container",
+          "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "common-containercontext-tags-doc"
         },
         {
           "name": "exit.created_at",
@@ -946,16 +981,16 @@
       ]
     },
     {
-      "name": "*.container.id",
-      "link": "common-process-container-id-doc",
-      "type": "string",
-      "definition": "Container ID",
+      "name": "*.created_at",
+      "link": "common-containercontext-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
       "prefixes": [
-        "exec",
-        "exit",
-        "process",
-        "process.ancestors",
-        "process.parent"
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -1057,6 +1092,22 @@
         "rename.file",
         "rename.file.destination",
         "write.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.id",
+      "link": "common-containercontext-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -1285,6 +1336,22 @@
       "examples": []
     },
     {
+      "name": "*.tags",
+      "link": "common-containercontext-tags-doc",
+      "type": "string",
+      "definition": "Tags of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.user",
       "link": "common-process-user-doc",
       "type": "string",
@@ -1396,42 +1463,6 @@
       "definition": "Username of the permission change author",
       "prefixes": [
         "change_permission"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.created_at",
-      "link": "container-created_at-doc",
-      "type": "int",
-      "definition": "Timestamp of the creation of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.id",
-      "link": "container-id-doc",
-      "type": "string",
-      "definition": "ID of the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "container.tags",
-      "link": "container-tags-doc",
-      "type": "string",
-      "definition": "Tags of the container",
-      "prefixes": [
-        "container"
       ],
       "constants": "",
       "constants_link": "",
@@ -2710,6 +2741,44 @@
         },
         {
           "name": "EGRESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SSHAuthMethod",
+      "link": "sshauthmethod",
+      "description": "SSH authentication methods.",
+      "all": [
+        {
+          "name": "password",
+          "architecture": "all"
+        },
+        {
+          "name": "public_key",
+          "architecture": "all"
+        },
+        {
+          "name": "unknown",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "UserSessionTypes",
+      "link": "usersessiontypes",
+      "description": "UserSessionTypes are the supported user session types.",
+      "all": [
+        {
+          "name": "unknown",
+          "architecture": "all"
+        },
+        {
+          "name": "k8s",
+          "architecture": "all"
+        },
+        {
+          "name": "ssh",
           "architecture": "all"
         }
       ]

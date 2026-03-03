@@ -56,9 +56,18 @@ func (f *controllerRevisionRolloutFactory) MetricFamilyGenerators() []generator.
 			"",
 			wrapControllerRevisionFunc(func(cr *appsv1.ControllerRevision) *metric.Family {
 				// Store ControllerRevision info if it's owned by a StatefulSet
-				ownerName, ownerUID := f.getStatefulSetOwner(cr)
-				if ownerName != "" && ownerUID != "" {
-					f.rolloutTracker.StoreControllerRevision(cr, ownerName, ownerUID)
+				owner := f.getOwner(cr)
+				if owner == nil {
+					return &metric.Family{
+						Metrics: []*metric.Metric{},
+					}
+				}
+
+				switch owner.Kind {
+				case "StatefulSet":
+					f.rolloutTracker.StoreControllerRevision(cr, owner.Name, string(owner.UID))
+				case "DaemonSet":
+					f.rolloutTracker.StoreDaemonSetControllerRevision(cr, owner.Name, string(owner.UID))
 				}
 
 				// Return empty metric family - we don't emit actual metrics for ControllerRevisions
@@ -93,14 +102,14 @@ func (f *controllerRevisionRolloutFactory) ListWatch(customResourceClient interf
 	}
 }
 
-// getStatefulSetOwner returns the name and UID of the StatefulSet that owns this ControllerRevision
-func (f *controllerRevisionRolloutFactory) getStatefulSetOwner(cr *appsv1.ControllerRevision) (string, string) {
+// getOwner assumes a single StatefulSet or DaemonSet owns this ControllerRevision and returns the OwnerReference
+func (f *controllerRevisionRolloutFactory) getOwner(cr *appsv1.ControllerRevision) *metav1.OwnerReference {
 	for _, owner := range cr.OwnerReferences {
-		if owner.Kind == "StatefulSet" {
-			return owner.Name, string(owner.UID)
+		if owner.Kind == "StatefulSet" || owner.Kind == "DaemonSet" {
+			return &owner
 		}
 	}
-	return "", ""
+	return nil
 }
 
 func wrapControllerRevisionFunc(f func(*appsv1.ControllerRevision) *metric.Family) func(interface{}) *metric.Family {

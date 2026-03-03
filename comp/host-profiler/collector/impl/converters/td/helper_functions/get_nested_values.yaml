@@ -1,0 +1,6 @@
+level1:
+  level2:
+    level3:
+      deep_string: "deep-value"
+      deep_number: 999
+      deep_bool: false

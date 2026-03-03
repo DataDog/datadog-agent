@@ -6,7 +6,7 @@
 package report
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +84,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing free, total memory metrics, skipping scalar memory usage"),
+			errors.New("missing free, total memory metrics, skipping scalar memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when only scalar memory.free is collected",
@@ -98,7 +98,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing used, total memory metrics, skipping scalar memory usage"),
+			errors.New("missing used, total memory metrics, skipping scalar memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when only scalar memory.total is collected",
@@ -112,7 +112,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing used, free memory metrics, skipping scalar memory usage"),
+			errors.New("missing used, free memory metrics, skipping scalar memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when only column memory.used is collected",
@@ -135,7 +135,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing free, total memory metrics, skipping column memory usage"),
+			errors.New("missing free, total memory metrics, skipping column memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when only column memory.free is collected",
@@ -158,7 +158,7 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing used, total memory metrics, skipping column memory usage"),
+			errors.New("missing used, total memory metrics, skipping column memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when only column memory.total is collected",
@@ -181,13 +181,13 @@ func Test_metricSender_sendMemoryUsageMetric(t *testing.T) {
 				},
 			}},
 			[]Metric{},
-			fmt.Errorf("missing used, free memory metrics, skipping column memory usage"),
+			errors.New("missing used, free memory metrics, skipping column memory usage"),
 		},
 		{
 			"should not emit evaluated snmp.memory.usage when no memory metric is collected",
 			MetricSamplesStore{},
 			[]Metric{},
-			fmt.Errorf("missing used, free, total memory metrics, skipping column memory usage"),
+			errors.New("missing used, free, total memory metrics, skipping column memory usage"),
 		},
 		{
 			"should emit evaluated snmp.memory.usage when scalar memory.used and memory.total are collected",

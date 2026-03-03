@@ -4,15 +4,15 @@
 
 init_config: {}
 instances:
-  - 
+  -
 
     ## @param memory_threshold - string - optional - default: "0"
     ## Set to either a size (e.g., 10MB) or an exact byte value (e.g., 10485760).
     ## When this check runs, it will check if the Core Agent's RSS memory usage is above this threshold.
     ## If the threshold is exceeded, the check will generate a flare with memory and CPU profiles.
     ## Flare generation can only be triggered once per Agent lifecycle.
-    ## 
-    ## If this value is set to "0", the check will not run. 
+    ##
+    ## If this value is set to "0", the check will not run.
     #
     # memory_threshold: "0"
 
@@ -21,7 +21,7 @@ instances:
     ## a flare with memory and CPU profiles will be generated.
     ## Flare generation can only be triggered once per Agent lifecycle.
     ##
-    ## If this value is set to 0, the check will not run. 
+    ## If this value is set to 0, the check will not run.
     #
     # cpu_threshold: 0
 
@@ -32,7 +32,19 @@ instances:
     # ticket_id: ""
 
     ## @param user_email - string - required - default: ""
-    ## Set to the email address associated with the ticket. 
+    ## Set to the email address associated with the ticket.
     ## If not specified, the Agent will be unable to associate the flare with the ticket.
     #
     # user_email: ""
+
+    ## @param terminate_agent_on_threshold - boolean - optional - default: false
+    ## When set to true, the agent process will be terminated after successfully generating a flare
+    ## when memory or CPU thresholds are exceeded.
+    ##
+    ## WARNING: This will cause the agent to exit. Ensure your process manager is configured to restart
+    ## the agent automatically. Use with caution.
+    ##
+    ## The agent will attempt graceful shutdown via SIGINT, allowing cleanup before exit. If signal
+    ## delivery fails, it will fall back to immediate termination.
+    #
+    # terminate_agent_on_threshold: false

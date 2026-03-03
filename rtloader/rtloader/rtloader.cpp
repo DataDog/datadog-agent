@@ -13,11 +13,12 @@
     "[{\"result\":3, \"diagnosis\": \"check's get_diagnoses() method failed\", \"rawerror\": \""
 #define GET_DIANGOSES_FAILURE_DIAGNOSES_END "\"}]"
 
-RtLoader::RtLoader(cb_memory_tracker_t memtrack_cb)
+RtLoader::RtLoader(rtloader_malloc_t tracked_malloc, rtloader_free_t tracked_free)
     : _error()
     , _errorFlag(false)
 {
-    _set_memory_tracker_cb(memtrack_cb);
+    __atomic_store_n(&_malloc, tracked_malloc, __ATOMIC_RELAXED);
+    __atomic_store_n(&_free, tracked_free, __ATOMIC_RELAXED);
 };
 
 void RtLoader::setError(const std::string &msg) const

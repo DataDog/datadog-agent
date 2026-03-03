@@ -1,5 +1,7 @@
-ARG BASE_IMAGE_ALPINE_VERSION=3.21
-FROM public.ecr.aws/docker/library/alpine:$BASE_IMAGE_ALPINE_VERSION AS release-base
+ARG BASE_IMAGE_ALPINE_VERSION=3.21.3
+ARG BASE_IMAGE_REGISTRY=public.ecr.aws/docker
+
+FROM ${BASE_IMAGE_REGISTRY}/library/alpine:$BASE_IMAGE_ALPINE_VERSION AS release-base
 ARG TARGETARCH
 ARG BASE_IMAGE_ALPINE_VERSION
 
@@ -24,7 +26,7 @@ COPY install_info /etc/datadog-agent/install_info
 
 FROM release-base
 
-COPY --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
+COPY --chmod=755 --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA

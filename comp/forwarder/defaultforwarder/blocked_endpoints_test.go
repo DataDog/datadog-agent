@@ -2,16 +2,20 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//
+// 1 Error will give us a backoff duration of base backoff time:
+// between
+// forwarder_backoff_base * 2 ^ num_errors / forwarder_backoff_factor
+// and
+// forwarder_backoff_base * 2 ^ num_errors
 
 package defaultforwarder
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -206,8 +210,8 @@ func TestBlock(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	e.close("test")
 	now := time.Now()
+	e.close("test", now)
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
 	assert.True(t, now.Before(e.errorPerEndpoint["test"].until))
@@ -217,10 +221,12 @@ func TestMaxBlock(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
-	e.close("test")
-	e.errorPerEndpoint["test"].nbError = 1000000
 
-	e.close("test")
+	e.close("test", time.Now())
+	e.errorPerEndpoint["test"].nbError = 1000000
+	e.errorPerEndpoint["test"].state = halfBlocked
+
+	e.close("test", time.Now())
 	now := time.Now()
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -234,83 +240,181 @@ func TestMaxBlock(t *testing.T) {
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
 
-func TestUnblock(t *testing.T) {
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	e := newBlockedEndpoints(mockConfig, log)
-
-	e.close("test")
-	require.Contains(t, e.errorPerEndpoint, "test")
-	e.close("test")
-	e.close("test")
-	e.close("test")
-	e.close("test")
-
-	e.recover("test")
-
-	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
-	assert.True(t, ok)
-
-	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-policy.RecoveryInterval))))
+func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected circuitBreakerState) {
+	exists, state := e.getState(endpoint)
+	assert.True(t, exists)
+	assert.Equal(t, expected, state)
 }
 
-func TestMaxUnblock(t *testing.T) {
+func TestIsBlockForSendEndpointStaysClosedAfterFailedTest(t *testing.T) {
+	mocktime := time.Now()
+
 	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	e.close("test")
-	e.recover("test")
-	e.recover("test")
-	now := time.Now()
+	assert.False(t, e.isBlockForSend("test", mocktime))
 
-	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
-	assert.True(t, now.After(e.errorPerEndpoint["test"].until) || now.Equal(e.errorPerEndpoint["test"].until))
+	e.close("test", mocktime)
+
+	assert.True(t, e.isBlockForSend("test", mocktime))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
+
+	e.close("test", mocktime)
+
+	assertState(t, e, "test", blocked)
+
+	// Still blocked after 2 seconds
+	mocktime = mocktime.Add(2 * time.Second)
+
+	assertState(t, e, "test", blocked)
+
+	// Testing again after another 2 seconds
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
+	assertState(t, e, "test", halfBlocked)
 }
 
-func TestUnblockUnknown(t *testing.T) {
+func TestIsBlockForSendEndpointReopensAfterSuccessfulTest(t *testing.T) {
+	mocktime := time.Now()
+
 	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	e.recover("test")
-	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
+	assert.False(t, e.isBlockForSend("test", mocktime))
+
+	e.close("test", mocktime)
+
+	assert.True(t, e.isBlockForSend("test", mocktime))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
+
+	e.recover("test", mocktime)
+
+	e.isBlockForSend("test", mocktime)
+	assertState(t, e, "test", unblocked)
 }
 
-func TestIsBlock(t *testing.T) {
+func TestIsBlockForSendEndpointReopensForTest(t *testing.T) {
+	mocktime := time.Now()
+
 	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
 
-	e.close("test")
-	assert.True(t, e.isBlock("test"))
+	e.close("test", mocktime)
 
-	e.recover("test")
-	assert.False(t, e.isBlock("test"))
+	assert.True(t, e.isBlockForSend("test", mocktime))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 }
 
-func TestIsBlockTiming(t *testing.T) {
+func TestIsBlockForSendEndpointCloses(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	// setting an old close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-30 * time.Second)}
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test", time.Now()))
 
-	// setting an new close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(30 * time.Second)}
-	assert.True(t, e.isBlock("test"))
+	e.close("test", time.Now())
+
+	assert.True(t, e.isBlockForSend("test", time.Now()))
 }
 
-func TestIsblockUnknown(t *testing.T) {
+func TestIsBlockForSendOpen(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test", time.Now()))
+}
+
+func TestIsBlockForRetryOpen(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	retry := e.startRetry()
+
+	// Without any errored transactions occurring, we are unblocked no matter
+	// how many times we call.
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+	assert.False(t, retry.isBlockForRetry("test", time.Now()))
+}
+
+func TestIsBlockForRetryCloses(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	mocktime := time.Now()
+	e.close("test", mocktime)
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is within the blocked time the enpoint
+	// is blocked as will all subsequent calls.
+	assert.True(t, retry.isBlockForRetry("test", mocktime))
+
+	expired := e.errorPerEndpoint["test"].until
+
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+}
+
+func TestIsBlockForRetrySendsSingleTransactionInHalfBlockedPeriod(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	mocktime := time.Now()
+	e.close("test", mocktime)
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is after the expired time, we unblock a
+	// single transaction
+	expired := e.errorPerEndpoint["test"].until
+	assert.False(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+	assert.True(t, retry.isBlockForRetry("test", expired.Add(2*time.Second)))
+}
+
+func TestIsBlockForRetryReopens(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	e.close("test", time.Now())
+	retry := e.startRetry()
+
+	// If the first call to `isBlockForRetry` is after the expired time, we unblock a
+	// single transaction
+	expired := e.errorPerEndpoint["test"].until
+	assert.False(t, retry.isBlockForRetry("test", expired.Add(time.Second)))
+
+	// That test transaction is successful, so the endpoint should be recovered.
+	mocktime := expired.Add(time.Second)
+	// `isBlockForSend` call is needed to move the state into `HalfBlocked`.
+	e.isBlockForSend("test", mocktime)
+	e.recover("test", mocktime)
+
+	// That endpoint should be open again
+	retry = e.startRetry()
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
+	assert.False(t, retry.isBlockForRetry("test", mocktime.Add(time.Second)))
 }

@@ -5,7 +5,11 @@
 
 package ir
 
-import "cmp"
+import (
+	"cmp"
+	"encoding/json"
+	"iter"
+)
 
 // ProbeIDer is an interface that allows for comparison of probe definitions.
 type ProbeIDer interface {
@@ -28,6 +32,20 @@ type ProbeDefinition interface {
 	GetCaptureConfig() CaptureConfig
 	// ThrottleConfig returns the throttle configuration of the probe.
 	GetThrottleConfig() ThrottleConfig
+	// GetTemplate returns the template of the probe.
+	GetTemplate() TemplateDefinition
+	// GetCaptureExpressions returns the capture expressions of the probe, or
+	// nil if the probe does not have capture expressions.
+	GetCaptureExpressions() []CaptureExpressionDefinition
+}
+
+// CaptureExpressionDefinition defines a single capture expression on a probe.
+type CaptureExpressionDefinition interface {
+	GetName() string
+	GetDSL() string
+	GetJSON() json.RawMessage
+	// GetCaptureConfig returns per-expression capture limits, or nil for probe defaults.
+	GetCaptureConfig() CaptureConfig
 }
 
 // CompareProbeIDs compares two probe definitions by their ID and version.
@@ -36,6 +54,30 @@ func CompareProbeIDs[A, B ProbeIDer](a A, b B) int {
 		cmp.Compare(a.GetID(), b.GetID()),
 		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
 	)
+}
+
+// TemplateDefinition represents the configuration-time template definition
+type TemplateDefinition interface {
+	GetTemplateString() string
+	GetSegments() iter.Seq[TemplateSegmentDefinition]
+}
+
+// TemplateSegmentDefinition represents a configuration-time template segment
+type TemplateSegmentDefinition interface {
+	TemplateSegment() // marker method
+}
+
+// TemplateSegmentString represents a string literal segment in configuration
+type TemplateSegmentString interface {
+	TemplateSegmentDefinition
+	GetString() string
+}
+
+// TemplateSegmentExpression represents an expression segment in configuration
+type TemplateSegmentExpression interface {
+	TemplateSegmentDefinition
+	GetDSL() string
+	GetJSON() json.RawMessage
 }
 
 // Where is a where clause of a probe.

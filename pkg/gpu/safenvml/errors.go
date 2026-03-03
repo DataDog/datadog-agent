@@ -27,9 +27,9 @@ type NvmlAPIError struct {
 func (e *NvmlAPIError) Error() string {
 	switch {
 	case errors.Is(e.NvmlErrorCode, nvml.ERROR_FUNCTION_NOT_FOUND):
-		return fmt.Sprintf("%s symbol not found in NVML library", e.APIName)
+		return e.APIName + " symbol not found in NVML library"
 	case errors.Is(e.NvmlErrorCode, nvml.ERROR_NOT_SUPPORTED):
-		return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
+		return e.APIName + " is not supported by the GPU or driver"
 	default:
 		return fmt.Sprintf("NVML API error for %s: %s", e.APIName, nvml.ErrorString(e.NvmlErrorCode))
 	}
@@ -60,4 +60,22 @@ func IsUnsupported(err error) bool {
 func IsTimeout(err error) bool {
 	var nvmlErr *NvmlAPIError
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_TIMEOUT)
+}
+
+// IsDriverNotLoaded checks if an error indicates that the driver is not loaded
+func IsDriverNotLoaded(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_DRIVER_NOT_LOADED)
+}
+
+func IsInvalidArgument(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_INVALID_ARGUMENT)
+}
+
+// IsAPIUnsupportedOnDevice checks if an error indicates that the API is not supported on the device.
+// Requires the device because some error codes indicate unsupported APIs when the device is MIG.
+func IsAPIUnsupportedOnDevice(err error, device Device) bool {
+	_, isMig := device.(*MIGDevice)
+	return IsUnsupported(err) || (isMig && IsInvalidArgument(err))
 }

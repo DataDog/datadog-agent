@@ -17,11 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 //
@@ -33,6 +32,13 @@ const (
 	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
 )
+
+// jmxInstanceData stores metadata about a JMX instance for building consistent check IDs
+type jmxInstanceData struct {
+	host string
+	port string
+	tags interface{}
+}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
@@ -48,11 +54,6 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }
 
 // GetPayload builds a payload of all the agentchecks metadata
@@ -128,7 +129,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	stats := map[string]interface{}{}
 	jmxStatus.PopulateStatus(stats)
-	instanceConfByName := map[string]interface{}{}
+	instanceConfByName := map[string]*jmxInstanceData{}
 	for _, config := range jmxfetch.GetScheduledConfigs() {
 		for _, instance := range config.Instances {
 			instanceconfig := map[interface{}]interface{}{}
@@ -137,10 +138,35 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				log.Errorf("invalid instance section: %s", err)
 				continue
 			}
+
+			// Instance name is required to map this data
+			instanceName, hasName := instanceconfig["name"].(string)
+			if !hasName {
+				continue
+			}
+
+			// Extract host with default
+			host := "unknown"
+			if h, ok := instanceconfig["host"]; ok {
+				host = fmt.Sprint(h)
+			}
+
+			// Extract port with default
+			port := "unknown"
+			if p, ok := instanceconfig["port"]; ok {
+				port = fmt.Sprint(p)
+			}
+
+			// Extract tags
+			var tags interface{} = []string{}
 			if tagsNode, ok := instanceconfig["tags"]; ok {
-				if instanceName, ok := instanceconfig["name"].(string); ok {
-					instanceConfByName[instanceName] = tagsNode
-				}
+				tags = tagsNode
+			}
+
+			instanceConfByName[instanceName] = &jmxInstanceData{
+				host: host,
+				port: port,
+				tags: tags,
 			}
 		}
 	}
@@ -163,15 +189,28 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 					if !ok {
 						checkStatus = "OK"
 					}
-					checkID, ok := check["instance_name"].(string)
+
+					instanceName, ok := check["instance_name"].(string)
+					var checkID string
 					if !ok {
+						// No instance name - use just the check name
 						checkID = checkName
+						tags = []string{}
 					} else {
-						if tags, ok = instanceConfByName[checkID]; !ok {
+						// Instance name exists - look up full instance data
+						if instanceData, found := instanceConfByName[instanceName]; found {
+							// Build checkID in format: checkName-host-port:instanceName
+							// This matches the format used in inventory metadata (integrations_jmx.go:77-79)
+							checkID = fmt.Sprintf("%s-%s-%s:%s", checkName, instanceData.host, instanceData.port, instanceName)
+							tags = instanceData.tags
+						} else {
+							// Instance not found in config - fall back with unknown host/port
+							log.Debugf("JMX instance %s not found in scheduled configs, using unknown host/port", instanceName)
+							checkID = fmt.Sprintf("%s-unknown-unknown:%s", checkName, instanceName)
 							tags = []string{}
 						}
-						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
 					}
+
 					checkError, ok := check["message"].(string)
 					if !ok {
 						checkError = ""

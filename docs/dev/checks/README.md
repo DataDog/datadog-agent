@@ -285,14 +285,20 @@ Linux when trying to run the resulting `agent` binary:
 
 `Could not initialize Python: could not load runtime python for version 3: Unable to open three library: libdatadog-agent-three.so: cannot open shared object file: No such file or directory`
 
-To solve on Linux, use the loader env var `LD_LIBRARY_PATH`.
-For example, `LD_LIBRARY_PATH=$PWD/dev/lib ./bin/agent/agent run`
+**Solution**: Clean and rebuild rtloader to set the correct RPATH:
 
-Why is this needed? This is due to a combination of the way `rtloader` works
-and how library loading works on Linux.
+```bash
+dda inv rtloader.clean
+dda inv agent.build
+```
 
-The very simplified summary is that `libdatadog-agent-rtloader.so` attempts to load
-`libdatadog-agent-three.so` via `dlopen`, however `libdatadog-agent-rtloader`
-does not have its `RUNPATH` set correctly in local builds, so `dlopen` is unable to find
-`libdatadog-agent-three.so`. Using `LD_LIBRARY_PATH` instructs `dlopen` where to
-search for libraries, so using it sidesteps this issue.
+If the issue persists (e.g., with older cached builds), you can use `LD_LIBRARY_PATH` as a workaround:
+
+```bash
+LD_LIBRARY_PATH=$PWD/dev/lib ./bin/agent/agent run
+```
+
+**Why this happens**: `libdatadog-agent-rtloader.so` loads `libdatadog-agent-three.so`
+via `dlopen`. The rtloader build now sets `CMAKE_INSTALL_RPATH` on Linux so that
+libraries can find each other. If you have an old cached build without the RPATH set,
+a clean rebuild will fix it.

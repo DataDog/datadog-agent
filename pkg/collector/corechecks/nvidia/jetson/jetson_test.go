@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -537,4 +538,82 @@ func TestOrin(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 46)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
+	tegraCheck := new(JetsonCheck)
+	mock := mocksender.NewMockSender(tegraCheck.ID())
+
+	tests := []struct {
+		name            string
+		path            string
+		isAbsolute      bool
+		hasInvalidChars bool
+	}{
+		// valid paths
+		{name: "default path", path: "/usr/bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with underscores", path: "/usr/bin/tegra_stats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with numbers", path: "/usr/bin/tegrastats123", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with hyphens", path: "/usr/bin/tegra-stats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with dots", path: "/usr/bin/tegrastats.bin", isAbsolute: true, hasInvalidChars: false},
+		{name: "deep neste path", path: "/opt/nvidia/jetson/bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
+		{name: "not fully resolved path", path: "/usr/bin/../bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
+
+		// relative paths (no invalidChar chars, just not absolute)
+		{name: "relative path", path: "./usr/bin/tegrastats", isAbsolute: false, hasInvalidChars: false},
+		{name: "relative without dot", path: "usr/bin/tegrastats", isAbsolute: false, hasInvalidChars: false},
+
+		// whitespace
+		{name: "space in path", path: "/usr/bin/tegra stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "tab in path", path: "/usr/bin/tegra\tstats", isAbsolute: true, hasInvalidChars: true},
+		{name: "newline character", path: "/usr/bin/tegra\nstats", isAbsolute: true, hasInvalidChars: true},
+		{name: "carriage return", path: "/usr/bin/tegra\rstats", isAbsolute: true, hasInvalidChars: true},
+
+		// command injection
+		{name: "semicolon", path: "/usr/bin/tegrastats;echo pwned", isAbsolute: true, hasInvalidChars: true},
+		{name: "pipe", path: "/usr/bin/tegrastats|cat", isAbsolute: true, hasInvalidChars: true},
+		{name: "ampersand", path: "/usr/bin/tegra&stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "backtick", path: "/usr/bin/`tegrastats`", isAbsolute: true, hasInvalidChars: true},
+		{name: "dollar sign", path: "/usr/bin/$tegrastats", isAbsolute: true, hasInvalidChars: true},
+		{name: "output redirection", path: "/usr/bin/tegrastats>/tmp/out", isAbsolute: true, hasInvalidChars: true},
+		{name: "input redirection", path: "/usr/bin/tegrastats</etc/passwd", isAbsolute: true, hasInvalidChars: true},
+
+		// quotes
+		{name: "single quote", path: "/usr/bin/tegra'stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "double quote", path: "/usr/bin/tegra\"stats", isAbsolute: true, hasInvalidChars: true},
+
+		// brackets and braces
+		{name: "parentheses", path: "/usr/bin/(tegrastats)", isAbsolute: true, hasInvalidChars: true},
+		{name: "curly braces", path: "/usr/bin/{tegrastats}", isAbsolute: true, hasInvalidChars: true},
+		{name: "square brackets", path: "/usr/bin/tegra[stats]", isAbsolute: true, hasInvalidChars: true},
+
+		// glob patterns
+		{name: "wildcard asterisk", path: "/usr/bin/tegra*", isAbsolute: true, hasInvalidChars: true},
+		{name: "wildcard question mark", path: "/usr/bin/tegra?stats", isAbsolute: true, hasInvalidChars: true},
+
+		// others
+		{name: "backslash", path: "/usr/bin/tegra\\stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "exclamation", path: "/usr/bin/tegra!stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "hash comment", path: "/usr/bin/tegra#stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "tilde", path: "~/bin/tegrastats", isAbsolute: false, hasInvalidChars: true},
+		{name: "null byte", path: "/usr/bin/tegra\x00stats", isAbsolute: true, hasInvalidChars: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instanceConfig := fmt.Sprintf(`
+tegrastats_path: %q
+use_sudo: true
+`, tt.path)
+
+			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test")
+			if tt.hasInvalidChars {
+				assert.ErrorContains(t, err, "tegrastats_path contains invalid characters")
+			} else if !tt.isAbsolute {
+				assert.ErrorContains(t, err, "tegrastats_path should be absolute")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

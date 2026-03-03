@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -17,6 +18,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 const checksSourceTypeName = "System"
@@ -33,10 +35,20 @@ type CheckSampler struct {
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
+	allowSketchBucketReset bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMetrics bool, statefulTimeout time.Duration, cache *tags.Store, id checkid.ID, tagger tagger.Component) *CheckSampler {
+func newCheckSampler(
+	expirationCount int,
+	expireMetrics bool,
+	contextResolverMetrics bool,
+	statefulTimeout time.Duration,
+	allowSketchBucketReset bool,
+	cache *tags.Store,
+	id checkid.ID,
+	tagger tagger.Component,
+) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
@@ -47,12 +59,12 @@ func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMet
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
+		allowSketchBucketReset: allowSketchBucketReset,
 	}
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
-	contextKey := cs.contextResolver.trackContext(metricSample)
-
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return
@@ -77,7 +89,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList filterlist.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -100,7 +112,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket)
+	contextKey := cs.contextResolver.trackContext(bucket, filterList)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -114,7 +126,14 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 			return
 		}
 
-		bucket.Value = rawValue - lastBucketValue
+		// Handle reset for monotonic buckets.
+		if rawValue < lastBucketValue && cs.allowSketchBucketReset {
+			if !bucket.FlushFirstValue {
+				return
+			}
+		} else {
+			bucket.Value = rawValue - lastBucketValue
+		}
 	}
 
 	if bucket.Value < 0 {
@@ -123,6 +142,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		}
 		return
 	}
+
 	if bucket.Value == 0 {
 		// noop
 		return
@@ -141,14 +161,15 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64) {
+func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.Matcher) {
+
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 		} else {
-			log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
+			log.Debugf("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags().Join(", "), err)
 		}
 	}
 	for _, serie := range series {
@@ -158,7 +179,14 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
 		}
-		serie.Name = context.Name + serie.NameSuffix
+
+		name := context.Name + serie.NameSuffix
+		// Filter the metrics
+		if filterList != nil && filterList.Test(name) {
+			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		serie.Name = name
 		serie.Tags = context.Tags()
 		serie.Host = context.Host
 		serie.NoIndex = context.noIndex
@@ -169,7 +197,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 }
 
-func (cs *CheckSampler) commitSketches(timestamp float64) {
+func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstrings.Matcher) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
@@ -179,13 +207,19 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+		series := cs.newSketchSeries(ck, points)
+		// Filter the metrics
+		if filterList != nil && filterList.Test(series.Name) {
+			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		cs.sketches = append(cs.sketches, series)
 	}
 }
 
-func (cs *CheckSampler) commit(timestamp float64) {
-	cs.commitSeries(timestamp)
-	cs.commitSketches(timestamp)
+func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matcher) {
+	cs.commitSeries(timestamp, filterList)
+	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)
 

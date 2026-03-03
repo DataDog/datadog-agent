@@ -19,7 +19,6 @@ func TestRunAssertion(t *testing.T) {
 		stats     common.NetStats
 		wantValue string
 		valid     bool
-		wantError bool
 	}{
 		{
 			name: "PacketLoss assertion",
@@ -28,7 +27,7 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "50",
 			},
-			stats:     common.NetStats{PacketLossPercentage: 42},
+			stats:     common.NetStats{PacketLossPercentage: 42, PacketsReceived: 40},
 			wantValue: "42",
 			valid:     true,
 		},
@@ -39,7 +38,7 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "5",
 			},
-			stats:     common.NetStats{Jitter: 3.5},
+			stats:     common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120}, PacketsReceived: 40},
 			valid:     true,
 			wantValue: "3.5",
 		},
@@ -47,11 +46,11 @@ func TestRunAssertion(t *testing.T) {
 			name: "Latency avg assertion",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeLatency,
-				Property: common.AssertionSubTypeAverage,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeAverage}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "100",
 			},
-			stats:     common.NetStats{Latency: payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120}},
+			stats:     common.NetStats{Latency: &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120}, PacketsReceived: 40},
 			valid:     true,
 			wantValue: "90",
 		},
@@ -59,23 +58,22 @@ func TestRunAssertion(t *testing.T) {
 			name: "Latency unsupported property",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeLatency,
-				Property: "median",
+				Property: &[]common.AssertionSubType{"median"}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "100",
 			},
-			stats:     common.NetStats{},
-			valid:     false,
-			wantError: true,
+			stats: common.NetStats{PacketsReceived: 40},
+			valid: false,
 		},
 		{
 			name: "Hops max assertion",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypeNetworkHops,
-				Property: common.AssertionSubTypeMax,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeMax}[0],
 				Operator: common.OperatorLessThan,
 				Target:   "15",
 			},
-			stats:     common.NetStats{Hops: payload.HopCountStats{Max: 12}},
+			stats:     common.NetStats{Hops: payload.HopCountStats{Max: 12}, PacketsReceived: 40},
 			valid:     true,
 			wantValue: "12",
 		},
@@ -86,9 +84,8 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "1",
 			},
-			stats:     common.NetStats{},
-			valid:     false,
-			wantError: true,
+			stats: common.NetStats{PacketsReceived: 40},
+			valid: false,
 		},
 		{
 			name: "Comparison failure",
@@ -97,28 +94,79 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "10",
 			},
-			stats:     common.NetStats{PacketLossPercentage: 50},
+			stats:     common.NetStats{PacketLossPercentage: 50, PacketsReceived: 40},
 			wantValue: "50",
 			valid:     false,
-			wantError: false,
+		},
+		{
+			name: "Jitter invalid - no packet received",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypePacketJitter,
+				Operator: common.OperatorLessThan,
+				Target:   "5",
+			},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], PacketsReceived: 0},
+			valid: false,
+		},
+		{
+			name: "Jitter invalid - one packet received",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypePacketJitter,
+				Operator: common.OperatorLessThan,
+				Target:   "5",
+			},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], PacketsReceived: 1},
+			valid: false,
+		},
+		{
+			name: "Jitter invalid - max latency is 0",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypePacketJitter,
+				Operator: common.OperatorLessThan,
+				Target:   "5",
+			},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 0, Min: 0, Max: 0}, PacketsReceived: 2},
+			valid: false,
+		},
+		{
+			name: "Jitter invalid - nil jitter",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypePacketJitter,
+				Operator: common.OperatorLessThan,
+				Target:   "5",
+			},
+			stats: common.NetStats{Jitter: nil, PacketsReceived: 40},
+			valid: false,
+		},
+		{
+			name: "Latency invalid - no packet received",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypeLatency,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeAverage}[0],
+				Operator: common.OperatorLessThan,
+				Target:   "100",
+			},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120}, PacketsReceived: 0}, // This cannot happen
+			valid: false,
+		},
+		{
+			name: "Latency invalid - max latency is 0",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypeLatency,
+				Property: &[]common.AssertionSubType{common.AssertionSubTypeAverage}[0],
+				Operator: common.OperatorLessThan,
+				Target:   "100",
+			},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 0, Min: 0, Max: 0}, PacketsReceived: 40}, // This cannot happen
+			valid: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := runAssertion(tt.assertion, tt.stats)
-
-			if tt.wantError {
-				if got.Failure.Code == "" {
-					t.Errorf("expected error, got none")
-				}
-			} else {
-				if got.Failure.Code != "" {
-					t.Errorf("expected no error, got failure=%v", got.Failure)
-				}
-				if tt.valid && !got.Valid {
-					t.Errorf("expected actual=%v, got=%v", tt.wantValue, got.Actual)
-				}
+			if got.Valid != tt.valid {
+				t.Errorf("expected valid=%v, got=%v", tt.valid, got.Valid)
 			}
 		})
 	}
@@ -126,12 +174,12 @@ func TestRunAssertion(t *testing.T) {
 
 func TestRunAssertions(t *testing.T) {
 	tests := []struct {
-		name       string
-		cfg        common.SyntheticsTestConfig
-		stats      common.NetStats
-		wantLength int
-		wantValid  int
-		wantErrors int
+		name         string
+		cfg          common.SyntheticsTestConfig
+		stats        common.NetStats
+		wantLength   int
+		wantValid    int
+		wantNotValid int
 	}{
 		{
 			name: "Single assertion success",
@@ -149,10 +197,10 @@ func TestRunAssertions(t *testing.T) {
 					},
 				},
 			},
-			stats:      common.NetStats{PacketLossPercentage: 42},
-			wantLength: 1,
-			wantValid:  1,
-			wantErrors: 0,
+			stats:        common.NetStats{PacketLossPercentage: 42, PacketsReceived: 40},
+			wantLength:   1,
+			wantValid:    1,
+			wantNotValid: 0,
 		},
 		{
 			name: "Multiple assertions with mixed results",
@@ -182,11 +230,13 @@ func TestRunAssertions(t *testing.T) {
 			},
 			stats: common.NetStats{
 				PacketLossPercentage: 42,
-				Jitter:               3.5,
+				Jitter:               &[]float64{3.5}[0],
+				Latency:              &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120},
+				PacketsReceived:      40,
 			},
-			wantLength: 3,
-			wantValid:  1,
-			wantErrors: 1,
+			wantLength:   3,
+			wantValid:    1,
+			wantNotValid: 2,
 		},
 		{
 			name: "No assertions",
@@ -198,10 +248,10 @@ func TestRunAssertions(t *testing.T) {
 					Assertions: []common.Assertion{},
 				},
 			},
-			stats:      common.NetStats{},
-			wantLength: 0,
-			wantValid:  0,
-			wantErrors: 0,
+			stats:        common.NetStats{PacketsReceived: 40},
+			wantLength:   0,
+			wantValid:    0,
+			wantNotValid: 0,
 		},
 	}
 
@@ -215,13 +265,13 @@ func TestRunAssertions(t *testing.T) {
 
 			errors := 0
 			for _, r := range results {
-				if r.Failure.Code != "" {
+				if !r.Valid {
 					errors++
 				}
 			}
 
-			if errors != tt.wantErrors {
-				t.Errorf("expected %d failures, got %d", tt.wantErrors, errors)
+			if errors != tt.wantNotValid {
+				t.Errorf("expected %d failures, got %d", tt.wantNotValid, errors)
 			}
 		})
 	}

@@ -39,9 +39,8 @@ func TestClients(t *testing.T) {
 
 func TestCacheBypassClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
-	cacheBypassClients := cacheBypassClients{
+	cacheBypassClients := rateLimiter{
 		clock:         clock,
-		requests:      make(chan chan struct{}),
 		currentWindow: clock.Now(),
 		// Allows 3 bypass every 5 seconds
 		windowDuration: 5 * time.Second,

@@ -7,7 +7,7 @@ package utils
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"runtime"
 	"testing"
 
@@ -74,7 +74,7 @@ func TestGetInstallMethod(t *testing.T) {
 		installinfoGet = orig
 	}(installinfoGet)
 
-	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) { return nil, fmt.Errorf("an error") }
+	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) { return nil, errors.New("an error") }
 
 	installMethod := getInstallMethod(conf)
 	assert.Equal(t, "undefined", installMethod.ToolVersion)

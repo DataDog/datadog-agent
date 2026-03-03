@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
@@ -37,7 +37,7 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 	}
 
 	return &workloadfilter.Pod{
-		FilterPod: &typedef.FilterPod{
+		FilterPod: &core.FilterPod{
 			Id:          pod.ID,
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
@@ -52,7 +52,7 @@ func CreateProcess(process *workloadmeta.Process) *workloadfilter.Process {
 		return nil
 	}
 
-	p := &typedef.FilterProcess{
+	p := &core.FilterProcess{
 		Name:    process.Name,
 		Cmdline: strings.Join(process.Cmdline, " "),
 		Args:    process.Cmdline,

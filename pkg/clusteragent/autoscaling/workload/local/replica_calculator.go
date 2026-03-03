@@ -9,6 +9,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -166,11 +167,11 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 	lastValidTimestamp := time.Time{}
 
 	if len(pods) == 0 {
-		return utilizationResult{}, fmt.Errorf("No pods found")
+		return utilizationResult{}, errors.New("No pods found")
 	}
 
 	if len(queryResult.Results) == 0 {
-		return utilizationResult{}, fmt.Errorf("Issue fetching metrics data")
+		return utilizationResult{}, errors.New("Issue fetching metrics data")
 	}
 
 	for _, pod := range pods {
@@ -212,7 +213,7 @@ func calculateUtilization(recSettings resourceRecommenderSettings, pods []*workl
 	}
 
 	if podCount == 0 {
-		return utilizationResult{}, fmt.Errorf("Issue calculating pod utilization")
+		return utilizationResult{}, errors.New("Issue calculating pod utilization")
 	}
 
 	return utilizationResult{
@@ -247,7 +248,7 @@ func getContainerMetrics(queryResult loadstore.QueryResult, podName, containerNa
 // corresponding timestamp to use to generate a recommendation
 func processAverageContainerMetricValue(series []loadstore.EntityValue, currentTime time.Time, fallbackStaleDataThreshold int64) (float64, time.Time, error) {
 	if len(series) < 2 { // too little metrics data
-		return 0.0, time.Time{}, fmt.Errorf("Missing usage metrics")
+		return 0.0, time.Time{}, errors.New("Missing usage metrics")
 	}
 
 	values := []loadstore.ValueType{}

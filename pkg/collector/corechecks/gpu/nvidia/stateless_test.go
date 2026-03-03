@@ -9,6 +9,8 @@ package nvidia
 
 import (
 	"errors"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -24,7 +27,7 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	collector, err := newStatelessCollector(device, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+	collector, err := newStatelessCollector(device, &CollectorDependencies{Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)})
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
@@ -75,12 +78,12 @@ func TestCollectProcessMemory(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
 						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-							return processMemorySample(device, nsPidCache)
+							return processMemorySample(device)
 						},
 					},
 				}
@@ -93,7 +96,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -109,12 +112,12 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
 				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-					return processMemorySample(device, nsPidCache)
+					return processMemorySample(device)
 				},
 			},
 		}
@@ -127,7 +130,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -143,12 +146,12 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+	statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
 				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-					return processMemorySample(device, nsPidCache)
+					return processMemorySample(device)
 				},
 			},
 		}
@@ -166,7 +169,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -175,19 +178,18 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	// Should have exactly 3 metrics: 2 process.memory.usage + 1 memory.limit
 	require.Len(t, processMetrics, 3)
 
-	// Check process.memory.usage metrics have PID tags
+	// Check process.memory.usage metrics have associated workloads
 	processMemoryMetrics := 0
 	for _, metric := range processMetrics {
 		if metric.Name == "process.memory.usage" {
 			processMemoryMetrics++
-			require.Len(t, metric.Tags, 2, "process.memory.usage should have exactly two tags")
-			require.Contains(t, metric.Tags[0], "pid:", "process.memory.usage should have pid tag")
-			require.Contains(t, metric.Tags[1], "nspid:", "process.memory.usage should have nspid tag")
-			require.Equal(t, High, metric.Priority, "process.memory.usage should have High priority")
+			require.Len(t, metric.AssociatedWorkloads, 1, "process.memory.usage should have exactly one workload")
+			require.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind), "process.memory.usage workload should be of kind process")
+			require.Equal(t, Medium, metric.Priority, "process.memory.usage should have High priority")
 		}
 		if metric.Name == "memory.limit" {
-			require.Len(t, metric.Tags, 4, "memory.limit should have PID and NSPID tags for all processes")
-			require.Equal(t, High, metric.Priority, "memory.limit should have High priority")
+			require.Len(t, metric.AssociatedWorkloads, 2, "memory.limit should have workloads for all processes")
+			require.Equal(t, Medium, metric.Priority, "memory.limit should have High priority")
 		}
 	}
 	require.Equal(t, 2, processMemoryMetrics, "Should have process.memory.usage for each process")
@@ -254,7 +256,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -277,7 +279,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			}
 
 			mockDevice := setupMockDevice(t, tt.customSetup)
-			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -344,7 +346,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -377,7 +379,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			// Collect metrics
@@ -403,6 +405,200 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			// Check inactive links metric
 			require.Equal(t, float64(tt.expectedInactive), allMetrics[2].Value)
 			require.Equal(t, metrics.GaugeType, allMetrics[2].Type)
+		})
+	}
+}
+
+// TestProcessMemoryMetricValues tests that the correct memory metric values are emitted
+// depending on the device architecture and API availability. On Hopper+, the process_detail_list
+// API should win (higher priority). On older architectures, process_memory_usage is the only source.
+// When GetRunningProcessDetailList fails, we should fall back to GetComputeRunningProcesses data
+// including memory.limit.
+func TestProcessMemoryMetricValues(t *testing.T) {
+	const (
+		legacyPid    = uint32(1001)
+		legacyMemory = uint64(100)
+
+		detailPid    = uint32(2002)
+		detailMemory = uint64(200)
+
+		totalMemory = uint64(1024 * 1024 * 1024) // 1 GiB
+	)
+
+	detailProc := nvml.ProcessDetail_v1{
+		Pid:           detailPid,
+		UsedGpuMemory: detailMemory,
+	}
+
+	tests := []struct {
+		name             string
+		architecture     nvml.DeviceArchitecture
+		detailListErr    nvml.Return
+		expectPid        uint32
+		expectMemory     float64
+		expectCollectErr bool
+	}{
+		{
+			name:          "PreHopper uses GetComputeRunningProcesses",
+			architecture:  nvml.DEVICE_ARCH_AMPERE,
+			detailListErr: nvml.ERROR_ARGUMENT_VERSION_MISMATCH,
+			expectPid:     legacyPid,
+			expectMemory:  float64(legacyMemory),
+		},
+		{
+			name:          "Hopper uses GetRunningProcessDetailList",
+			architecture:  nvml.DEVICE_ARCH_HOPPER,
+			detailListErr: nvml.SUCCESS,
+			expectPid:     detailPid,
+			expectMemory:  float64(detailMemory),
+		},
+		{
+			name:             "Hopper fallback on detail list error",
+			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			detailListErr:    nvml.ERROR_UNKNOWN,
+			expectPid:        legacyPid,
+			expectMemory:     float64(legacyMemory),
+			expectCollectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalFactory := statelessAPIFactory
+			defer func() { statelessAPIFactory = originalFactory }()
+
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
+				return []apiCallInfo{
+					{
+						Name: "process_memory_usage",
+						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+							return processMemorySample(device)
+						},
+					},
+					{
+						Name: "process_detail_list",
+						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
+							return processDetailListSample(device)
+						},
+					},
+				}
+			}
+
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				testutil.WithMockAllDeviceFunctions()(device)
+
+				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+					return tt.architecture, nvml.SUCCESS
+				}
+				device.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+					return []nvml.ProcessInfo{
+						{Pid: legacyPid, UsedGpuMemory: legacyMemory},
+					}, nvml.SUCCESS
+				}
+				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+					if tt.detailListErr != nvml.SUCCESS {
+						return nvml.ProcessDetailList{}, tt.detailListErr
+					}
+					return nvml.ProcessDetailList{
+						NumProcArrayEntries: 1,
+						ProcArray:           &detailProc,
+					}, nvml.SUCCESS
+				}
+				return device
+			})
+
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
+			require.NoError(t, err)
+
+			allMetrics, err := collector.Collect()
+			if tt.expectCollectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Deduplicate across the two API handlers, just like the real collector pipeline does
+			deduped := RemoveDuplicateMetrics(map[CollectorName][]Metric{
+				collector.Name(): allMetrics,
+			})
+
+			// Find the process.memory.usage metric and verify its value
+			var foundProcessMemory bool
+			var foundMemoryLimit bool
+			for _, m := range deduped {
+				switch m.Name {
+				case "process.memory.usage":
+					foundProcessMemory = true
+					require.Equal(t, tt.expectMemory, m.Value, "process.memory.usage value mismatch")
+					require.Len(t, m.AssociatedWorkloads, 1)
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID)
+				case "memory.limit":
+					require.False(t, foundMemoryLimit, "memory.limit should be emitted only once")
+					foundMemoryLimit = true
+					require.Equal(t, float64(totalMemory), m.Value, "memory.limit should equal total device memory")
+					require.Len(t, m.AssociatedWorkloads, 1, "memory.limit should have one associated workload")
+					require.Equal(t, strconv.Itoa(int(tt.expectPid)), m.AssociatedWorkloads[0].ID, "memory.limit workload should match the winning process source")
+				}
+			}
+
+			require.True(t, foundProcessMemory, "expected process.memory.usage metric")
+			require.True(t, foundMemoryLimit, "expected memory.limit metric")
+		})
+	}
+}
+
+func TestProcessDetailListArchitectureSupport(t *testing.T) {
+	tests := []struct {
+		name         string
+		architecture nvml.DeviceArchitecture
+		supported    bool
+	}{
+		{
+			name:         "Hopper",
+			architecture: nvml.DEVICE_ARCH_HOPPER,
+			supported:    true,
+		},
+		{
+			name:         "Blackwell",
+			architecture: 10,
+			supported:    true,
+		},
+		{
+			name:         "Ampere",
+			architecture: nvml.DEVICE_ARCH_AMPERE,
+			supported:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				testutil.WithMockAllDeviceFunctions()(device)
+
+				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+					return tt.architecture, nvml.SUCCESS
+				}
+				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+					if tt.supported {
+						return nvml.ProcessDetailList{}, nvml.SUCCESS
+					}
+					return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
+				}
+				return device
+			})
+
+			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})
+			require.NoError(t, err)
+
+			baseColl, ok := collector.(*baseCollector)
+			require.True(t, ok)
+
+			hasProcessDetailAPICall := slices.ContainsFunc(baseColl.supportedAPIs, func(api apiCallInfo) bool {
+				return api.Name == "process_detail_list"
+			})
+			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
 }

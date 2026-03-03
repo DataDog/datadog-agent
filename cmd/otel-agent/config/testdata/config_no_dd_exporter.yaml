@@ -11,8 +11,6 @@ exporters:
     tls:
       insecure: true
 processors:
-  batch:
-    timeout: 10s
   resourcedetection:
     detectors: [system, env]
 service:
@@ -22,13 +20,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug]
     metrics:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug]
     logs:
       receivers: [otlp]
-      processors: [batch, resourcedetection]
+      processors: [resourcedetection]
       exporters: [debug]

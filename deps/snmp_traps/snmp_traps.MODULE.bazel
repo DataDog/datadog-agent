@@ -1,0 +1,16 @@
+# snmp-traps
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "0.4.0"
+
+# TODO: Where does this come from? If we pull it in, we should know the license.
+http_file(
+    name = "snmp_traps",
+    sha256 = "04fb9d43754c2656edf35f08fbad11ba8dc20d52654962933f3dd8f4d463b42c",
+    urls = [
+        "https://s3.amazonaws.com/dd-agent-omnibus/snmp_traps_db/dd_traps_db-{version}.json.gz".format(
+            version = VERSION,
+        ),
+    ],
+)

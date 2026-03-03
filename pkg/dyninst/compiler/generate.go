@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Function represents stack machine function.
@@ -168,6 +170,7 @@ func (g *generator) addEventHandler(
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
+		NoReturnReason:      injectionPoint.NoReturnReason,
 		TopPCOffset:         injectionPoint.TopPCOffset,
 		ProbeID:             probeID,
 		EventKind:           eventKind,
@@ -190,6 +193,16 @@ func (g *generator) addEventHandler(
 	return g.addFunction(id, ops)
 }
 
+var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
+func logLocationIssue(format string, args ...any) {
+	if encodeLocationLogLimiter.Allow() {
+		log.Infof("dyninst/compiler: location encoding issue: "+format, args...)
+	} else {
+		log.Debugf("dyninst/compiler: location encoding issue: "+format, args...)
+	}
+}
+
 // Generates a function that evaluates an expression (at exprIdx in the root type)
 // at specific user program counter (injectionPC).
 func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) (FunctionID, error) {
@@ -202,14 +215,35 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 	// Approximated capacity, location ops may require more than one instruction.
 	ops := make([]Op, 0, 4+len(expr.Operations))
 	ops = append(ops, ExprPrepareOp{})
+
+	// Track the size of the last operation to sanity check that we are
+	// dereferencing a pointer with the correct size.
+	var lastOpSize uint32
 	for _, op := range expr.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			var err error
-			ops, err = g.EncodeLocationOp(injectionPC, op, ops)
+			lastOpSize = op.ByteSize
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			// Treat an error as if the location op is not available.
 			if err != nil {
-				return nil, err
+				logLocationIssue(
+					"error encoding location op for expression %s: %v",
+					rootType.Expressions[exprIdx].Name,
+					err,
+				)
+				opsAfter = append(ops, ReturnOp{})
 			}
+			ops = opsAfter
+		case *ir.DereferenceOp:
+			const pointerSize = 8
+			if lastOpSize != pointerSize {
+				return nil, fmt.Errorf("unexpected pointer size: %d", lastOpSize)
+			}
+			lastOpSize = op.ByteSize
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias: op.Bias,
+				Len:  op.ByteSize,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -673,7 +707,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						OutputOffset: paddedOffset - op.Offset,
 					})
 				case ir.Addr:
-					return nil, fmt.Errorf("unsupported addr location op")
+					return nil, errUnsupportedAddrLocationOp
 				}
 			}
 		}
@@ -683,3 +717,5 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 	ops = append(ops, ReturnOp{})
 	return ops, nil
 }
+
+var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

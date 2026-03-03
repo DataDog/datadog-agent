@@ -3,9 +3,8 @@ name: Close stale issues and PRs
 
 on:
   schedule:
-    # Every day at noon CEST (10:00 UTC in summer, 11:00 UTC in winter)
-    # Using 10:00 UTC as CEST is UTC+2 (summer time)
-    - cron: '0 10 * * *'
+    # 4 times per day to cope with the backlog of ~40K PR/issues
+    - cron: '0 4,10,16,22 * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -24,7 +23,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.stale.manage-stale
 
-      - uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10.0.0
+      - uses: actions/stale@997185467fa4f803885201cee163a9f38240193d # v10.1.1
         with:
           repo-token: ${{ steps.octo-sts.outputs.token }}
 
@@ -76,6 +75,8 @@ jobs:
           stale-pr-label: 'stale'
           close-pr-label: 'auto-closed'
 
-          # Exemptions
+          # Exclude/include labels
           exempt-issue-labels: 'kind/bug,kind/feature,kind/security,category/bugfix,category/feature,category/security,pending'
+          any-of-issue-labels: 'waiting-on-author'
           exempt-pr-labels: 'do-not-merge/WIP,do-not-merge/hold'
+          any-of-pr-labels: 'waiting-on-author,internal'

@@ -8,7 +8,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,7 +35,7 @@ func GetSelfPodName() (string, error) {
 	}
 
 	if *hostUTS {
-		return "", fmt.Errorf("DD_POD_NAME is not set and running in host UTS namespace; cannot reliably determine self pod name")
+		return "", errors.New("DD_POD_NAME is not set and running in host UTS namespace; cannot reliably determine self pod name")
 	}
 
 	return os.Hostname()

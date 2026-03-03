@@ -14,10 +14,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
@@ -33,13 +33,14 @@ func StartEventMonitor(tb testing.TB, callback PreStartCallback) {
 	secconfig, err := secconfig.NewConfig()
 	require.NoError(tb, err)
 
+	// disable the CWS part (similar to running USM/CNM only)
+	secmodule.DisableRuntimeSecurity(secconfig)
+
 	// Needed for the socket creation to work
 	require.NoError(tb, os.MkdirAll("/opt/datadog-agent/run/", 0755))
 
-	ipcComp := ipcmock.New(tb)
-
 	opts := eventmonitor.Opts{}
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, opts)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, "test-hostname", opts)
 	require.NoError(tb, err)
 	require.NoError(tb, evm.Init())
 	callback(tb, evm)

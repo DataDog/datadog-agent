@@ -43,13 +43,17 @@ func init() {
 	registerFeature(Kubernetes)
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
+	registerFeature(ECSManagedInstances)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
+	registerFeature(KubeletConfigOrchestratorCheck)
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
 	registerFeature(PodResources)
+	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
+	registerFeature(NonstandardCRIRuntime)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -61,9 +65,11 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(Kubernetes) ||
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
+		IsFeaturePresent(ECSManagedInstances) ||
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
-		IsFeaturePresent(Podman)
+		IsFeaturePresent(Podman) ||
+		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
@@ -74,6 +80,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
+	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
 }
 
@@ -82,6 +89,9 @@ func detectKubernetes(features FeatureMap, cfg model.Reader) {
 		features[Kubernetes] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") {
 			features[KubeOrchestratorExplorer] = struct{}{}
+		}
+		if cfg.GetBool("orchestrator_explorer.kubelet_config_check.enabled") {
+			features[KubeletConfigOrchestratorCheck] = struct{}{}
 		}
 	}
 }
@@ -142,6 +152,8 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 			mergeContainerdNamespaces(cfg)
 		} else if strings.Contains(criSocket, "crio") {
 			features[Crio] = struct{}{}
+		} else {
+			features[NonstandardCRIRuntime] = struct{}{}
 		}
 	}
 }
@@ -190,6 +202,15 @@ func isCriSupported() bool {
 func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
+		if cfg.GetBool("orchestrator_explorer.enabled") &&
+			cfg.GetBool("ecs_task_collection_enabled") {
+			features[ECSOrchestratorExplorer] = struct{}{}
+		}
+		return
+	}
+
+	if IsECSManagedInstances() {
+		features[ECSManagedInstances] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
 			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
@@ -248,17 +269,56 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectNVML(features FeatureMap, _ model.Reader) {
-	// Use dlopen to search for the library to avoid importing the go-nvml package here,
-	// which is 1MB in size and would increase the agent binary size, when we don't really
-	// need it for anything else.
-	if err := system.CheckLibraryExists(defaultNVMLLibraryName); err != nil {
-		log.Debugf("Agent did not find NVML library: %v", err)
+func detectDevicePlugins(features FeatureMap, cfg model.Reader) {
+	// We only check the path from config if the path from config exists (does not have unix:// prefix)
+	socketDir := cfg.GetString("kubernetes_kubelet_deviceplugins_socketdir")
+	if socketDir == "" {
 		return
 	}
 
-	features[NVML] = struct{}{}
-	log.Infof("Agent found NVML library")
+	configured := cfg.IsConfigured("kubernetes_kubelet_deviceplugins_socketdir")
+	stat, err := os.Stat(socketDir)
+	if err != nil {
+		if configured {
+			log.Infof("Agent did not find device plugins socket path dir %s: %v", socketDir, err)
+		}
+		return
+	}
+	if !stat.IsDir() {
+		if configured {
+			log.Infof("Agent did not find valid device plugins socket path dir %s", socketDir)
+		}
+		return
+	}
+
+	features[KubernetesDevicePlugins] = struct{}{}
+	log.Infof("Agent found device plugins socket path dir %s", socketDir)
+}
+
+func detectNVML(features FeatureMap, cfg model.Reader) {
+	var defaultPaths []string
+	configuredNvmlPath := cfg.GetString("gpu.nvml_lib_path")
+	if configuredNvmlPath == "" {
+		defaultPaths = append(defaultPaths, defaultNVMLLibraryName) // non-absolute path will force dlopen to search for the library in the usual dlopen system paths
+	} else {
+		defaultPaths = append(defaultPaths, configuredNvmlPath)
+	}
+
+	// Add common paths for the NVML library as a fallback, matching the logic in the safenvml package.
+	defaultPaths = append(defaultPaths, getDefaultNvmlPaths()...)
+
+	for _, path := range defaultPaths {
+		// Use dlopen to search for the library to avoid importing the go-nvml package here,
+		// which is 1MB in size and would increase the agent binary size, when we don't really
+		// need it for anything else.
+		if err := system.CheckLibraryExists(path); err == nil {
+			features[NVML] = struct{}{}
+			log.Infof("Agent found NVML library at %s", path)
+			return
+		}
+	}
+
+	log.Debugf("Agent did not find NVML library in any of the default paths: %v", defaultPaths)
 }
 
 func getHostMountPrefixes() []string {
@@ -308,6 +368,36 @@ func getDefaultPodmanPaths() []string {
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultPodmanContainersStoragePath))
+	}
+	return paths
+}
+
+// getDefaultNvmlPaths returns the common paths where the NVML library may be installed.
+// NOTE: This logic is intentionally duplicated in pkg/gpu/safenvml/lib.go
+// (generateDefaultNvmlPaths). We keep it inline here to avoid adding a dependency on
+// pkg/gpu from pkg/config/env, which is imported by nearly every binary in the repo.
+func getDefaultNvmlPaths() []string {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+
+	systemPaths := []string{
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+	}
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		if !IsContainerized() {
+			return systemPaths
+		}
+
+		hostRoot = defaultHostMountPrefix
+	}
+
+	paths := make([]string, 0, len(systemPaths))
+	for _, p := range systemPaths {
+		paths = append(paths, path.Join(hostRoot, p))
 	}
 	return paths
 }

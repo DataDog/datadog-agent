@@ -11,11 +11,10 @@ package clusteragentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -42,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// Payload handles the JSON unmarshalling of the metadata payload
+// Payload handles the JSON unmarshalling of the metadata payloa d
 type Payload struct {
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`
@@ -55,12 +54,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split datadog-cluster-agent process payload any more, payload is too big for intake")
 }
 
 // Requires defines the dependencies for the clusteragent metadata component

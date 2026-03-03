@@ -33,6 +33,12 @@
             "log"
           ],
           "title": "LogAction"
+        },
+        {
+          "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
         }
       ],
       "properties": {
@@ -105,6 +111,9 @@
       "properties": {
         "field": {
           "type": "string"
+        },
+        "max_file_size": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -125,7 +134,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "disable_container_disarmer": {
@@ -146,19 +156,15 @@
     },
     "LogDefinition": {
       "properties": {
-        "Level": {
+        "level": {
           "type": "string"
         },
-        "Message": {
+        "message": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "Level",
-        "Message"
-      ],
       "description": "LogDefinition describes the 'log' section of a rule action"
     },
     "MacroDefinition": {
@@ -254,9 +260,6 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "fields"
-      ],
       "description": "OverrideOptions defines combine options"
     },
     "RuleDefinition": {
@@ -336,6 +339,9 @@
         },
         "group_id": {
           "type": "string"
+        },
+        "priority": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -456,6 +462,10 @@
   "properties": {
     "version": {
       "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "description": "Type is the type of content served by the policy (e.g. \"policy\" for a default policy, \"content_pack\" or empty for others)"
     },
     "replace_policy_id": {
       "type": "string"

@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -20,12 +21,13 @@ import (
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
 // the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
-	streamHandlers      *streamCollection              // streamHandlers contains the map of active stream handlers.
-	lastGenerationKTime int64                          // lastGenerationTime is the kernel time of the last stats generation.
-	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
-	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
-	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
-	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
+	streamHandlers      *streamCollection                     // streamHandlers contains the map of active stream handlers.
+	lastGenerationKTime int64                                 // lastGenerationTime is the kernel time of the last stats generation.
+	currGenerationKTime int64                                 // currGenerationTime is the kernel time of the current stats generation.
+	aggregators         map[model.ProcessStatsKey]*aggregator // aggregators contains the map of aggregators
+	sysCtx              *systemContext                        // sysCtx is the system context with global GPU-system data
+	telemetry           *statsGeneratorTelemetry              // telemetry contains the telemetry component for the stats generator
+	deviceIntervals     map[string][][2]uint64                // deviceIntervals contains the map of device intervals
 }
 
 type statsGeneratorTelemetry struct {
@@ -36,11 +38,12 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers *streamCollection, 
 	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
-		aggregators:         make(map[model.StatsKey]*aggregator),
+		aggregators:         make(map[model.ProcessStatsKey]*aggregator),
 		lastGenerationKTime: currKTime,
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
 		telemetry:           newStatsGeneratorTelemetry(tm),
+		deviceIntervals:     make(map[string][][2]uint64),
 	}
 }
 
@@ -51,12 +54,30 @@ func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry
 	}
 }
 
+// collectIntervals collects and clamps kernel span intervals for device-level aggregation
+func (g *statsGenerator) collectIntervals(spans []*kernelSpan, deviceUUID string, nowKtime int64) {
+	for _, span := range spans {
+		// Clamp to the interval boundaries
+		start := span.startKtime
+		end := span.endKtime
+		if uint64(g.lastGenerationKTime) > start {
+			start = uint64(g.lastGenerationKTime)
+		}
+		if end > uint64(nowKtime) {
+			end = uint64(nowKtime)
+		}
+		if start < end {
+			g.deviceIntervals[deviceUUID] = append(g.deviceIntervals[deviceUUID], [2]uint64{start, end})
+		}
+	}
+}
+
 // getStats takes data from all active stream handlers, aggregates them and returns the per-process GPU stats.
 // This function gets called by the Probe when it receives a data request in the GetAndFlush method
 // TODO: consider removing this parameter and encapsulate it inside the function (will affect UTs as they rely on precise time intervals)
 func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 	g.currGenerationKTime = nowKtime
-	// mark all aggregators as inactive
+	g.deviceIntervals = make(map[string][][2]uint64)
 	for _, aggr := range g.aggregators {
 		aggr.isActive = false
 	}
@@ -71,38 +92,64 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData()
 
+		deviceUUID := handler.metadata.gpuUUID
 		if currData != nil {
+			g.collectIntervals(currData.kernels, deviceUUID, nowKtime)
 			aggr.processCurrentData(currData)
 			currData.releaseSpans()
 		}
 
 		if pastData != nil {
+			g.collectIntervals(pastData.kernels, deviceUUID, nowKtime)
 			aggr.processPastData(pastData)
 			pastData.releaseSpans()
 		}
 	}
 
-	// Compute unnormalized stats first for each aggregator
-	rawStats := make([]model.StatsTuple, 0, len(g.aggregators))
+	intervalNs := g.currGenerationKTime - g.lastGenerationKTime
+	processMetrics, err := g.computeProcessMetrics(intervalNs)
+	if err != nil {
+		return nil, err
+	}
 
+	deviceMetrics, err := g.computeDeviceMetrics(intervalNs)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &model.GPUStats{
+		ProcessMetrics: processMetrics,
+		DeviceMetrics:  deviceMetrics,
+	}
+
+	g.telemetry.aggregators.Set(float64(len(g.aggregators)))
+	g.lastGenerationKTime = g.currGenerationKTime
+
+	return stats, nil
+}
+
+func (g *statsGenerator) computeProcessMetrics(intervalNs int64) ([]model.ProcessStatsTuple, error) {
+	if intervalNs <= 0 {
+		return nil, errors.New("intervalNs is less than or equal to 0")
+	}
+
+	rawStats := make([]model.ProcessStatsTuple, 0, len(g.aggregators))
+
+	// Compute unnormalized stats first for each aggregator
 	for aggKey, aggr := range g.aggregators {
-		entry := model.StatsTuple{
+		entry := model.ProcessStatsTuple{
 			Key:                aggKey,
 			UtilizationMetrics: aggr.getRawStats(),
 		}
 		rawStats = append(rawStats, entry)
 	}
 
-	// Now get the normalization factors for each device
 	normFactors, err := g.getNormalizationFactors(rawStats)
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply normalization to each stats entry
-	stats := &model.GPUStats{
-		Metrics: make([]model.StatsTuple, 0, len(rawStats)),
-	}
+	processMetrics := make([]model.ProcessStatsTuple, 0, len(rawStats))
 	for _, entry := range rawStats {
 		factors, ok := normFactors[entry.Key.DeviceUUID]
 		if !ok {
@@ -115,18 +162,38 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		entry.UtilizationMetrics.Memory.CurrentBytes = uint64(float64(entry.UtilizationMetrics.Memory.CurrentBytes) / factors.memory)
 		entry.UtilizationMetrics.Memory.MaxBytes = uint64(float64(entry.UtilizationMetrics.Memory.MaxBytes) / factors.memory)
 
-		stats.Metrics = append(stats.Metrics, entry)
+		processMetrics = append(processMetrics, entry)
 	}
 
-	g.telemetry.aggregators.Set(float64(len(g.aggregators)))
+	return processMetrics, nil
+}
 
-	g.lastGenerationKTime = g.currGenerationKTime
+func (g *statsGenerator) computeDeviceMetrics(intervalNs int64) ([]model.DeviceStatsTuple, error) {
+	if intervalNs <= 0 {
+		return nil, errors.New("intervalNs is less than or equal to 0")
+	}
 
-	return stats, nil
+	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(g.deviceIntervals))
+	for deviceUUID, intervals := range g.deviceIntervals {
+		activeDurationNs := mergeIntervals(intervals)
+		activeTimePct := (float64(activeDurationNs) / float64(intervalNs)) * 100.0
+		if activeTimePct > 100.0 {
+			activeTimePct = 100.0
+		}
+
+		deviceMetrics = append(deviceMetrics, model.DeviceStatsTuple{
+			DeviceUUID: deviceUUID,
+			Metrics: model.DeviceUtilizationMetrics{
+				ActiveTimePct: activeTimePct,
+			},
+		})
+	}
+
+	return deviceMetrics, nil
 }
 
 func (g *statsGenerator) getOrCreateAggregator(sKey streamMetadata) (*aggregator, error) {
-	aggKey := model.StatsKey{
+	aggKey := model.ProcessStatsKey{
 		PID:         sKey.pid,
 		DeviceUUID:  sKey.gpuUUID,
 		ContainerID: sKey.containerID,
@@ -163,7 +230,7 @@ type normalizationFactors struct {
 // same GPU adding up to more than 100%, so we need to scale all of them back.
 // It is guaranteed that the normalization factors are always equal to or
 // greater than 1
-func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[string]normalizationFactors, error) {
+func (g *statsGenerator) getNormalizationFactors(stats []model.ProcessStatsTuple) (map[string]normalizationFactors, error) {
 	usages := make(map[string]*normalizationFactors) // reuse the normalizationFactors struct to keep track of the total usage
 
 	for _, entry := range stats {

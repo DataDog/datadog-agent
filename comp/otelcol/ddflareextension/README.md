@@ -1,8 +1,6 @@
 # ddflare Extension
 
-The ddflare extension component allows inclusion of otel-agent data in the datadog-agent [flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agent). A flare can be triggered by the core agent process, or remote-config. 
-
-The ddflare extension also provides the relevant metadata for otel-agent configuration and inventory tracking in Fleet Automation. This metadata is periodically collected by the core-agent which then submits that data to the backend.
+The ddflare extension component allows inclusion of otel-agent data in the datadog-agent [flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agent). A flare can be triggered by the core agent process, or remote-config.
 
 <img src="image/ddflareextensiondiagram.png" width="350">
 
@@ -29,7 +27,7 @@ The port is the location in which the otel-agent will expose the data required t
 
 ### Configurations
 
-The flare will collect both the provided collector config and the enhanced config (enhanced via [converter](../converter/README.md)). 
+The flare will collect both the provided collector config and the enhanced config (enhanced via [converter](../converter/README.md)).
 
 The provided collector configs can be found in `otel/otel-flare/customer.cfg` and the enhanced config can be found in `otel/otel-flare/runtime.cfg`.
 
@@ -40,7 +38,7 @@ The flare will collect all environment variables, and these can be found in `ote
 ### Extension data
 
 The flare also adds data collected from extensions. These extensions are added automatically by the [converter component](../converter/README.md). The data collected is from extensions:
-- health_check: Found in `otel/otel-flare/health_check`. 
+- health_check: Found in `otel/otel-flare/health_check`.
 
 Contains a JSON of the latest health check, for example:
 
@@ -65,7 +63,3 @@ The flare will collect the otel-agent logs which can be found in `logs/otel-agen
 ### Raw data
 
 The raw response can be found in `otel-response.json`. This corresponds to the data that is exposed at the datadog extensions port.
-
-## Data collected for inventory
-
-The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../../metadata/inventoryotel/README.md).

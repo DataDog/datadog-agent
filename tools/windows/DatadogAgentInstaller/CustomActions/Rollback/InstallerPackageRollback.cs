@@ -30,6 +30,9 @@ namespace Datadog.CustomActions.Rollback
             var installerEnvVariables = new Dictionary<string, string>();
             installerEnvVariables["DD_API_KEY"] = session.Property("APIKEY");
             installerEnvVariables["DD_SITE"] = session.Property("SITE");
+            // set the environment variable to prevent the agent from being uninstalled
+            // as the MSI will handle the agent installation and state
+            installerEnvVariables["DD_NO_AGENT_UNINSTALL"] = "true";
 
             using (var proc = session.RunCommand(installerExecutable, _installerCommand, installerEnvVariables))
             {

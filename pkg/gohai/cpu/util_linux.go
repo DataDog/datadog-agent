@@ -87,7 +87,7 @@ func sysCPUList(path string) (map[uint64]struct{}, bool) {
 		return result, true
 	}
 
-	for _, elt := range strings.Split(contentStr, ",") {
+	for elt := range strings.SplitSeq(contentStr, ",") {
 		if submatches := listRangeRegex.FindStringSubmatch(elt); submatches != nil {
 			// Handle the NN-NN form, inserting each included integer into the set
 			first, err := strconv.ParseUint(submatches[1], 0, 64)

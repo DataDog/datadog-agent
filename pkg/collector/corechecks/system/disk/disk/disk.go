@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -96,16 +96,24 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 	}
 
 	excludedFilesystems, found := conf["excluded_filesystems"]
-	if excludedFilesystems, ok := excludedFilesystems.([]string); found && ok {
-		c.cfg.excludedFilesystems = excludedFilesystems
+	if excludedFilesystems, ok := excludedFilesystems.([]interface{}); found && ok {
+		for _, excludedFilesystem := range excludedFilesystems {
+			if strExcludedFilesystem, ok := excludedFilesystem.(string); ok {
+				c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, strExcludedFilesystem)
+			}
+		}
 	}
 
 	// Force exclusion of CDROM (iso9660) from disk check
 	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, "iso9660")
 
 	excludedDisks, found := conf["excluded_disks"]
-	if excludedDisks, ok := excludedDisks.([]string); found && ok {
-		c.cfg.excludedDisks = excludedDisks
+	if excludedDisks, ok := excludedDisks.([]interface{}); found && ok {
+		for _, excludedDisk := range excludedDisks {
+			if strExcludedDisk, ok := excludedDisk.(string); ok {
+				c.cfg.excludedDisks = append(c.cfg.excludedDisks, strExcludedDisk)
+			}
+		}
 	}
 
 	excludedDiskRe, found := conf["excluded_disk_re"]

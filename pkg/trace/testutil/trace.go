@@ -9,7 +9,9 @@ import (
 	"math/rand"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
@@ -48,7 +50,7 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 		curSpans := make([]*pb.Span, 0, childSpans)
 		for j := 0; j < childSpans && timeLeft > 0; j++ {
 			news := RandomSpan()
-			news.TraceID = prev.TraceID
+			traceutil.CopyTraceID(news, prev)
 			news.ParentID = prev.SpanID
 
 			// distribute durations in prev span
@@ -92,7 +94,7 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
-		Origin:   "lambda",
+		Origin:   "cloudrun",
 		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }
@@ -125,6 +127,51 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 		traces = append(traces, trace)
 	}
 	return traces
+}
+
+// GetTestTracesV1 returns a []Trace that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
+func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPayload {
+	strings := idx.NewStringTable()
+	traces := &idx.InternalTracerPayload{Strings: strings}
+
+	r := rand.New(rand.NewSource(42))
+
+	for i := 0; i < traceN; i++ {
+		traceID := make([]byte, 16)
+		r.Read(traceID)
+		chunk := idx.InternalTraceChunk{
+			Strings: strings,
+			// Calculate a trace ID which is predictable (this is why we seed)
+			// but still spreads on a wide spectrum so that, among other things,
+			// sampling algorithms work in a realistic way.
+			TraceID: traceID,
+		}
+
+		spans := []*idx.InternalSpan{}
+		for j := 0; j < size; j++ {
+			span := GetTestSpanV1(strings)
+			if realisticIDs {
+				// Need to have different span IDs else traces are rejected
+				// because they are not correct (indeed, a trace with several
+				// spans boasting the same span ID is not valid)
+				span.SetSpanID(span.SpanID() + uint64(j))
+			}
+			spans = append(spans, span)
+		}
+		chunk.Spans = spans
+		traces.Chunks = append(traces.Chunks, &chunk)
+	}
+	return traces
+}
+
+// GetTestTraceChunksV1 returns a []TraceChunk that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
+func GetTestTraceChunksV1(traceN, size int, realisticIDs bool) []*idx.InternalTraceChunk {
+	traces := GetTestTracesV1(traceN, size, realisticIDs)
+	traceChunks := make([]*idx.InternalTraceChunk, 0, len(traces.Chunks))
+	traceChunks = append(traceChunks, traces.Chunks...)
+	return traceChunks
 }
 
 // GetTestTraceChunks returns a []TraceChunk that is composed by “traceN“ number
@@ -165,6 +212,17 @@ func TraceChunkWithSpanAndPriority(span *pb.Span, priority int32) *pb.TraceChunk
 	}
 }
 
+// TraceChunkV1WithSpanAndPriority wraps a `span` and `priority` with pb.TraceChunk
+func TraceChunkV1WithSpanAndPriority(span *idx.InternalSpan, priority int32) *idx.InternalTraceChunk {
+	return &idx.InternalTraceChunk{
+		TraceID:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		Strings:    span.Strings,
+		Spans:      []*idx.InternalSpan{span},
+		Priority:   priority,
+		Attributes: map[uint32]*idx.AnyValue{},
+	}
+}
+
 // TraceChunkWithSpansAndPriority wraps `spans` and `priority` with pb.TraceChunk
 func TraceChunkWithSpansAndPriority(spans []*pb.Span, priority int32) *pb.TraceChunk {
 	return &pb.TraceChunk{
@@ -180,9 +238,25 @@ func TracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
 	}
 }
 
+// TracerPayloadV1WithChunk wraps `chunk` with idx.InternalTracerPayload
+func TracerPayloadV1WithChunk(chunk *idx.InternalTraceChunk) *idx.InternalTracerPayload {
+	return &idx.InternalTracerPayload{
+		Strings: chunk.Strings,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}
+}
+
 // TracerPayloadWithChunks wraps `chunks` with pb.TraceChunk
 func TracerPayloadWithChunks(chunks []*pb.TraceChunk) *pb.TracerPayload {
 	return &pb.TracerPayload{
 		Chunks: chunks,
+	}
+}
+
+// TracerPayloadV1WithChunks wraps `chunks` with idx.InternalTracerPayload
+func TracerPayloadV1WithChunks(chunks []*idx.InternalTraceChunk) *idx.InternalTracerPayload {
+	return &idx.InternalTracerPayload{
+		Strings: chunks[0].Strings,
+		Chunks:  chunks,
 	}
 }

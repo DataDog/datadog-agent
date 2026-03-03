@@ -8,13 +8,14 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -34,7 +35,7 @@ func (v *filePermissionsTestSuite) TestFilePermissions() {
 		agentparams.WithFileWithPermissions(`/tmp/seven_seven_seven`, "Perms are 777", true, perms.NewUnixPermissions(perms.WithPermissions("0777"))),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(files...)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithAgentOptions(files...))))
 
 	perm := v.Env().RemoteHost.MustExecute("ls -la /tmp/default_perms")
 	assert.Contains(v.T(), perm, "-rw-r--r--")
@@ -61,7 +62,7 @@ func (v *filePermissionsTestSuite) TestUserGroupPermissions() {
 		agentparams.WithFileWithPermissions(`/tmp/own_by_root_plus_permissions`, "root:root 750", false, perms.NewUnixPermissions(perms.WithPermissions("0750"), perms.WithGroup("root"), perms.WithOwner("root"))),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(files...)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithAgentOptions(files...))))
 
 	perm := v.Env().RemoteHost.MustExecute("ls -la /tmp/default_usergroup_root")
 	assert.Contains(v.T(), perm, "root root")
@@ -94,7 +95,7 @@ func (v *filePermissionsTestSuite) TestSecretsPermissions() {
 		secretsutils.WithUnixSetupScript("/tmp/secrets_root_group", true),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(files...)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithAgentOptions(files...))))
 
 	perm := v.Env().RemoteHost.MustExecute("ls -la /tmp/secrets")
 	assert.Contains(v.T(), perm, "-rwx------ 1 dd-agent dd-agent")

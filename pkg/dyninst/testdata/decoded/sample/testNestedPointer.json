@@ -1,0 +1,87 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testNestedPointer",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testNestedPointer",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 108
+          },
+          {
+            "function": "main.executeStructFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 152
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 32
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testNestedPointer",
+          "location": {
+            "method": "main.testNestedPointer"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "*main.anotherStruct",
+                "address": "[addr]",
+                "fields": {
+                  "nested": {
+                    "type": "*main.nestedStruct",
+                    "address": "[addr]",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "42"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "xyz"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "{nested: {anotherInt: 42, anotherString: xyz}}"
+  }
+]

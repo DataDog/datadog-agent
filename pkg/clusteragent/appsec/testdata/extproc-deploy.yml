@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datadog-appsec-extproc-deployment
+  namespace: datadog
+  labels:
+    app: datadog-appsec-extproc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datadog-appsec-extproc
+  template:
+    metadata:
+      labels:
+        app: datadog-appsec-extproc
+        admission.datadoghq.com/enabled: "true"
+    spec:
+      containers:
+        - name: datadog-appsec-extproc-container
+          image: ghcr.io/datadog/dd-trace-go/service-extensions-callout:latest
+          ports:
+            - name: grpc
+              containerPort: 443 # Default gRPC port for the external processor
+            - name: health
+              containerPort: 80  # Default health check port
+          env:
+            - name: DD_APPSEC_BODY_PARSING_SIZE_LIMIT
+              value: "10000000" # 10MB limit for body parsing
+            # at least v2.3.1-docker.1 required to disable TLS
+            - name: DD_SERVICE_EXTENSION_TLS
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datadog-appsec-extproc-service # This name will be used in the EnvoyFilter configuration
+  namespace: datadog
+  labels:
+    app: datadog-appsec-extproc
+spec:
+  ports:
+    - name: grpc
+      port: 443
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app: datadog-appsec-extproc
+  type: ClusterIP

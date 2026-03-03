@@ -59,7 +59,7 @@ func TestMkdir(t *testing.T) {
 		}
 		defer syscall.Rmdir(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
 				return error(errno)
 			}
@@ -74,7 +74,7 @@ func TestMkdir(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_mkdir")
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestMkdir(t *testing.T) {
 		}
 		defer syscall.Rmdir(testatFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 				return error(errno)
 			}
@@ -99,7 +99,7 @@ func TestMkdir(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_mkdirat")
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestMkdir(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -158,7 +158,7 @@ func TestMkdir(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule_mkdirat")
 	})
 }
 
@@ -193,11 +193,11 @@ func TestMkdirError(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "mkdirat-error", testatFile)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assert.Equal(t, event.Mkdir.Retval, -int64(syscall.EACCES))
-		})
+		}, "test_rule_mkdirat_error")
 	})
 }

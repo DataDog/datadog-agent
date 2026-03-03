@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -22,9 +23,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -35,13 +38,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
+// processCheckWithMocks returns a ProcessCheck along with the mocked probe and workloadmeta component.
+func processCheckWithMocks(t *testing.T) (*ProcessCheck, *mocks.Probe, workloadmetamock.Mock) {
 	t.Helper()
 	probe := mocks.NewProbe(t)
 	sysInfo := &model.SystemInfo{
@@ -62,21 +65,27 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 
 	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
 
+	mockWLM := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
 	return &ProcessCheck{
-		probe:                   probe,
-		scrubber:                procutil.NewDefaultDataScrubber(),
-		hostInfo:                hostInfo,
-		containerProvider:       mockContainerProvider(t),
-		sysProbeConfig:          &SysProbeConfig{},
-		checkCount:              0,
-		skipAmount:              2,
-		serviceExtractor:        serviceExtractor,
-		extractors:              []metadata.Extractor{serviceExtractor},
-		gpuSubscriber:           mockGpuSubscriber,
-		useWLMProcessCollection: false,
-		statsd:                  &statsd.NoOpClient{},
-		clock:                   clock.NewMock(),
-	}, probe
+		probe:             probe,
+		scrubber:          procutil.NewDefaultDataScrubber(),
+		hostInfo:          hostInfo,
+		containerProvider: mockContainerProvider(t),
+		sysProbeConfig:    &SysProbeConfig{},
+		checkCount:        0,
+		skipAmount:        2,
+		serviceExtractor:  serviceExtractor,
+		extractors:        []metadata.Extractor{serviceExtractor},
+		gpuSubscriber:     mockGpuSubscriber,
+		statsd:            &statsd.NoOpClient{},
+		clock:             clock.NewMock(),
+		wmeta:             mockWLM,
+	}, probe, mockWLM
 }
 
 // TODO: create a centralized, easy way to mock this
@@ -92,20 +101,56 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	// Workload filter
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	filter := filterStore.GetContainerPausedFilters()
+
 	// Finally, container provider
-	filter, err := containers.GetPauseContainerFilter()
-	assert.NoError(t, err)
 	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 
+func procToWLMProc(proc *procutil.Process) *workloadmeta.Process {
+	return &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(proc.Pid)),
+		},
+		Name:           proc.Name,
+		Pid:            proc.Pid,
+		Ppid:           proc.Ppid,
+		NsPid:          proc.NsPid,
+		Cwd:            proc.Cwd,
+		Exe:            proc.Exe,
+		Comm:           proc.Comm,
+		Cmdline:        proc.Cmdline,
+		Uids:           proc.Uids,
+		Gids:           proc.Gids,
+		CreationTime:   time.UnixMilli(proc.Stats.CreateTime),
+		Language:       proc.Language,
+		InjectionState: workloadmeta.InjectionState(proc.InjectionState),
+	}
+}
+
+// mockProcesses sets up process mocks for either WLM or probe-based collection
+func mockProcesses(wlmEnabled bool, probe *mocks.Probe, wmeta workloadmetamock.Mock, processesByPid map[int32]*procutil.Process, statsByPid map[int32]*procutil.Stats) {
+	if wlmEnabled {
+		for _, p := range processesByPid {
+			wmeta.Set(procToWLMProc(p))
+		}
+		probe.On("StatsForPIDs", mock.Anything, mock.Anything).Return(statsByPid, nil)
+	} else {
+		probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+	}
+}
+
 func TestProcessCheckFirstRunWithProbe(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
@@ -114,9 +159,11 @@ func TestProcessCheckFirstRunWithProbe(t *testing.T) {
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	statsByPid := map[int32]*procutil.Stats{
+		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
+	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	expected := CombinedRunResult{}
@@ -127,7 +174,7 @@ func TestProcessCheckFirstRunWithProbe(t *testing.T) {
 }
 
 func TestProcessCheckSecondRunWithProbe(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
@@ -137,9 +184,11 @@ func TestProcessCheckSecondRunWithProbe(t *testing.T) {
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	statsByPid := map[int32]*procutil.Stats{
+		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
+	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
@@ -202,7 +251,7 @@ func TestProcessCheckChunking(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			processCheck, probe := processCheckWithMockProbe(t)
+			processCheck, probe, wmeta := processCheckWithMocks(t)
 
 			// Set small chunk size to force chunking behavior
 			processCheck.maxBatchBytes = 0
@@ -217,8 +266,10 @@ func TestProcessCheckChunking(t *testing.T) {
 			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 
 			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-				Return(processesByPid, nil)
+			statsByPid := map[int32]*procutil.Stats{
+				1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
+			}
+			mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 			// Test second check runs without error and has correct number of chunks
 			processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
@@ -229,8 +280,38 @@ func TestProcessCheckChunking(t *testing.T) {
 	}
 }
 
+func TestProcessCheckEmpty(t *testing.T) {
+	processCheck, probe, wmeta := processCheckWithMocks(t)
+
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, nil, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, actual)
+}
+
+func TestProcessCheckEmptyWithRealtime(t *testing.T) {
+	processCheck, probe, wmeta := processCheckWithMocks(t)
+
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, nil, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	actual, err := processCheck.run(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, actual)
+}
+
 func TestProcessCheckWithRealtime(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 	proc1 := makeProcess(1, "git clone google.com")
 	proc2 := makeProcess(2, "mine-bitcoins -all -x")
 	proc3 := makeProcess(3, "foo --version")
@@ -238,9 +319,11 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 	proc5 := makeProcess(5, "datadog-process-agent --cfgpath datadog.conf")
 
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	statsByPid := map[int32]*procutil.Stats{
+		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
+	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, true)
@@ -397,14 +480,14 @@ func TestDisallowList(t *testing.T) {
 }
 
 func TestProcessCheckHints(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
 	processesByPid := map[int32]*procutil.Process{1: proc1}
+	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
@@ -468,7 +551,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
@@ -479,7 +562,8 @@ func TestProcessWithNoCommandline(t *testing.T) {
 }
 
 func BenchmarkProcessCheck(b *testing.B) {
-	processCheck, probe := processCheckWithMockProbe(&testing.T{})
+	testingT := &testing.T{}
+	processCheck, probe, wmeta := processCheckWithMocks(testingT)
 
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
@@ -488,8 +572,11 @@ func BenchmarkProcessCheck(b *testing.B) {
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	statsByPid := map[int32]*procutil.Stats{
+		1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats, 4: proc4.Stats, 5: proc5.Stats,
+	}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	for n := 0; n < b.N; n++ {
 		_, err := processCheck.run(0, false)
@@ -498,7 +585,7 @@ func BenchmarkProcessCheck(b *testing.B) {
 }
 
 func TestProcessCheckZombieToggleFalse(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
 	cfg.SetWithoutSource("process_config.ignore_zombie_processes", false)
@@ -516,8 +603,9 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	expectedModel3 := makeProcessModel(t, proc3, []string{"process_context:datadog-process-agent"})
 	expectedModel3.State = 7
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
+
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
@@ -550,7 +638,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 }
 
 func TestProcessCheckZombieToggleTrue(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
@@ -562,9 +650,9 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	proc2.Stats.Status = "Z"
 	proc3.Stats.Status = "Z"
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
+	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
 	first, err := processCheck.run(0, false)
@@ -588,12 +676,12 @@ func TestProcessCheckZombieToggleTrue(t *testing.T) {
 }
 
 func TestProcessContextCollection(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
+	processCheck, probe, wmeta := processCheckWithMocks(t)
 	now := time.Now().Unix()
 	proc1 := makeProcessWithCreateTime(1, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", now)
 	processesByPid := map[int32]*procutil.Process{1: proc1}
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
+	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats}
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
 	first, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.Equal(t, CombinedRunResult{}, first)
@@ -629,7 +717,7 @@ func TestProcessTaggerIntegration(t *testing.T) {
 	}
 
 	// Create tagger mock and configure it to return specific tags for our test processes
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(),
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 	// Set up expected tags for process 1234

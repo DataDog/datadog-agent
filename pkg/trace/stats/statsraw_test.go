@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -44,7 +45,14 @@ func TestGrainWithPeerTags(t *testing.T) {
 	sc := &SpanConcentrator{}
 	t.Run("none present", func(t *testing.T) {
 		assert := assert.New(t)
-		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client"}, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+			Service:  "thing",
+			Resource: "yo",
+			Name:     "other",
+			Meta:     map[string]string{"span.kind": "client"},
+			Metrics:  map[string]float64{"_dd.measured": 1},
+			PeerTags: []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"},
+		})
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
@@ -68,13 +76,19 @@ func TestGrainWithPeerTags(t *testing.T) {
 	})
 	t.Run("computeBySpanKind config", func(t *testing.T) {
 		for _, spanKindEnabled := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%t", spanKindEnabled), func(t *testing.T) {
+			t.Run(strconv.FormatBool(spanKindEnabled), func(t *testing.T) {
 				assert := assert.New(t)
 				sci := NewSpanConcentrator(&SpanConcentratorConfig{
 					ComputeStatsBySpanKind: spanKindEnabled,
 					BucketInterval:         (time.Duration(10) * time.Second).Nanoseconds(),
 				}, time.Now().Add(-time.Minute))
-				s, _ := sci.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client", "server.address": "foo"}, nil, []string{"_dd.base_service", "server.address"}, "", ""})
+				s, _ := sci.NewStatSpanWithConfig(StatSpanConfig{
+					Service:  "thing",
+					Resource: "yo",
+					Name:     "other",
+					Meta:     map[string]string{"span.kind": "client", "server.address": "foo"},
+					PeerTags: []string{"_dd.base_service", "server.address"},
+				})
 				if spanKindEnabled {
 					assert.Equal([]string{"server.address:foo"}, s.matchingPeerTags)
 				} else {
@@ -87,7 +101,14 @@ func TestGrainWithPeerTags(t *testing.T) {
 		for _, spanKind := range []string{"client", "internal"} {
 			t.Run(spanKind, func(t *testing.T) {
 				assert := assert.New(t)
-				s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"}, map[string]float64{"_dd.measured": 1}, []string{"_dd.base_service", "server.address"}, "", ""})
+				s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+					Service:  "thing",
+					Resource: "yo",
+					Name:     "other",
+					Meta:     map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"},
+					Metrics:  map[string]float64{"_dd.measured": 1},
+					PeerTags: []string{"_dd.base_service", "server.address"},
+				})
 				if spanKind == "client" {
 					assert.Equal([]string{"_dd.base_service:the-real-base", "server.address:foo"}, s.matchingPeerTags)
 				} else {
@@ -99,7 +120,14 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"}
-		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+			Service:  "thing",
+			Resource: "yo",
+			Name:     "other",
+			Meta:     meta,
+			Metrics:  map[string]float64{"_dd.measured": 1},
+			PeerTags: []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"},
+		})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -126,7 +154,14 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("peer ip quantization", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "server.address": "129.49.218.65"}
-		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"server.address"}, "", ""})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+			Service:  "thing",
+			Resource: "yo",
+			Name:     "other",
+			Meta:     meta,
+			Metrics:  map[string]float64{"_dd.measured": 1},
+			PeerTags: []string{"server.address"},
+		})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -154,7 +189,14 @@ func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"}
-		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"}, "", ""})
+		s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+			Service:  "thing",
+			Resource: "yo",
+			Name:     "other",
+			Meta:     meta,
+			Metrics:  map[string]float64{"_dd.measured": 1},
+			PeerTags: []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"},
+		})
 
 		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
@@ -185,7 +227,13 @@ func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
 	sc := &SpanConcentrator{}
 	meta := map[string]string{traceutil.TagStatusCode: "418"}
-	s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{"thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, nil, "", ""})
+	s, _ := sc.NewStatSpanWithConfig(StatSpanConfig{
+		Service:  "thing",
+		Resource: "yo",
+		Name:     "other",
+		Meta:     meta,
+		Metrics:  map[string]float64{"_dd.measured": 1},
+	})
 
 	aggr := NewAggregationFromSpan(s, "synthetics-browser", PayloadAggregationKey{
 		Hostname:    "host-id",
@@ -218,7 +266,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			statSpan, ok := sc.NewStatSpanFromPB(s, nil)
+			statSpan, ok := sc.NewStatSpanFromPB(s, nil, nil)
 			assert.True(b, ok, "Statically defined benchmark spans should require stats")
 			benchStatSpans = append(benchStatSpans, statSpan)
 		}
@@ -276,7 +324,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags)
+			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags, nil)
 			assert.True(b, ok, "Statically defined benchmark spans should require stats")
 			benchStatSpans = append(benchStatSpans, statSpan)
 		}

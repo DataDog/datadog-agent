@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,7 @@ func buildClusterAgentImagePath() string {
 	tag := fmt.Sprintf("%s-%s-fips", pipelineID, commitSHA)
 	registry := "669783387624.dkr.ecr.us-east-1.amazonaws.com"
 
-	return fmt.Sprintf("%s/cluster-agent:%s", registry, tag)
+	return fmt.Sprintf("%s/cluster-agent-qa:%s", registry, tag)
 }
 
 type fipsServerClusterAgentSuite struct {
@@ -61,12 +62,14 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 		&fipsServerClusterAgentSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithFIPS(),
-					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
-					dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-						"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
-					}),
+				awsdocker.WithRunOptions(
+					scendocker.WithAgentOptions(
+						dockeragentparams.WithFIPS(),
+						dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
+						dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
+							"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
+						}),
+					),
 				),
 			),
 		),
@@ -123,13 +126,13 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
 		}
 		if tc.cipher != "" {
-			envVars["CIPHER"] = fmt.Sprintf("-c %s", tc.cipher)
+			envVars["CIPHER"] = "-c " + tc.cipher
 		}
 		if tc.tlsMax != "" {
-			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
+			envVars["TLS_MAX"] = "--tls-max " + tc.tlsMax
 		}
 		if tc.tlsMin != "" {
-			envVars["TLS_MIN"] = fmt.Sprintf("--tls-min %s", tc.tlsMin)
+			envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
 		}
 
 		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.fipsServer.composeFiles))
@@ -177,7 +180,7 @@ func (s *fipsServerClusterAgentSuite) TestFIPSCiphers() {
 
 			serverLogs := s.fipsServer.Logs()
 			if tc.want {
-				assert.Contains(s.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
+				assert.Contains(s.T(), serverLogs, "Negotiated cipher suite: "+tc.cipher)
 			} else {
 				assert.Contains(s.T(), serverLogs, "no cipher suite supported by both client and server")
 			}

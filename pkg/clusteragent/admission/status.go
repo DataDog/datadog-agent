@@ -10,6 +10,7 @@ package admission
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -34,11 +35,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		return status
 	}
 
-	ns := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	webhookName := pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")
 	secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 	status["WebhookName"] = webhookName
-	status["SecretName"] = fmt.Sprintf("%s/%s", ns, secretName)
+	status["SecretName"] = ns + "/" + secretName
 
 	validatingWebhookStatus, err := getValidatingWebhookStatus(webhookName, apiCl)
 	if err != nil {
@@ -65,11 +66,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 }
 
 var getValidatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, fmt.Errorf("admission controller not started")
+	return nil, errors.New("admission controller not started")
 }
 
 var getMutatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, fmt.Errorf("admission controller not started")
+	return nil, errors.New("admission controller not started")
 }
 
 func getValidatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
@@ -93,7 +94,7 @@ func getValidatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -130,7 +131,7 @@ func getValidatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) 
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -167,7 +168,7 @@ func getMutatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[st
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -203,7 +204,7 @@ func getMutatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) (m
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}

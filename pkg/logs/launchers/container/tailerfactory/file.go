@@ -32,10 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var podLogsBasePath = "/var/log/pods"
-var dockerLogsBasePathNix = "/var/lib/docker"
-var dockerLogsBasePathWin = "c:\\programdata\\docker"
-var podmanRootfullLogsBasePath = "/var/lib/containers"
+var (
+	podLogsBasePath            = "/var/log/pods"
+	dockerLogsBasePathNix      = "/var/lib/docker"
+	dockerLogsBasePathWin      = "c:\\programdata\\docker"
+	podmanRootfullLogsBasePath = "/var/lib/containers"
+)
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
@@ -53,8 +55,13 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 	// The user configuration consulted is different depending on what we are
 	// logging.  Note that we assume that by the time we have gotten a source
 	// from AD, it is clear what we are logging.  The `Wait` here should return
-	// quickly.
-	logWhat := tf.cop.Wait(context.Background())
+	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
+	// Make expiring context to run detection on.
+	to := pkgconfigsetup.Datadog().GetDuration("logs_config.container_runtime_waiting_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), to)
+	defer cancel()
+
+	logWhat := tf.cop.Wait(ctx)
 
 	switch logWhat {
 	case containersorpods.LogContainers:
@@ -154,14 +161,14 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	// and set it in place of the usual docker base path
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
+		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log")
 	}
 
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(
 			dockerLogsBasePathWin, "containers", containerID,
-			fmt.Sprintf("%s-json.log", containerID))
+			containerID+"-json.log")
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
@@ -179,7 +186,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 		}
 		return filepath.Join(
 			dockerLogsBasePathNix, "containers", containerID,
-			fmt.Sprintf("%s-json.log", containerID))
+			containerID+"-json.log")
 	}
 }
 
@@ -221,7 +228,6 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	// get the path for the discovered pod and container
-	// TODO: need a different base path on windows?
 	path := findK8sLogPath(pod, container.Name)
 
 	// Note that it's not clear from k8s documentation that the container logs,

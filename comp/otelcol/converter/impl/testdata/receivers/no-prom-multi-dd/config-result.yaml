@@ -27,11 +27,12 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-    
+  datadog/user-defined:
+
 processors:
   infraattributes/user-defined:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    metrics: 
+    metrics:
       exclude:
         match_type: regexp
         metric_names:
@@ -39,7 +40,7 @@ processors:
           - ^up$
           - ^promhttp_metric_handler_errors_total$
 service:
-    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, datadog/user-defined]
     pipelines:
         traces:
             receivers: [nop]

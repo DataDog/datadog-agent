@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -41,7 +41,7 @@ const defaultCollectInterval = 1800 * time.Second
 const defaultEarlyInterval = 300 * time.Second
 
 // the host metadata collector interval can be set through configuration within acceptable bounds
-const minAcceptedInterval = 300   // 5min
+const minAcceptedInterval = 60    // 1min
 const maxAcceptedInterval = 14400 // 4h
 
 const providerName = "host"
@@ -127,8 +127,6 @@ func newHostProvider(deps dependencies) provides {
 		RandomizationFactor: 0,
 		Multiplier:          3.0,
 		MaxInterval:         collectInterval, // max interval is the user configured interval
-		MaxElapsedTime:      0,
-		Clock:               backoff.SystemClock,
 	}
 	bo.Reset()
 

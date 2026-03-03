@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
@@ -42,9 +43,19 @@ func NewInput(content []byte) *message.Message {
 // The LineHandler processes the messages it as necessary (as single lines,
 // multiple lines, or auto-detecting the two), and sends the result to the
 // Decoder's output channel.
-type Decoder struct {
-	InputChan  chan *message.Message
-	OutputChan chan *message.Message
+type Decoder interface {
+	Start()
+	Stop()
+	GetLineCount() int64
+	GetDetectedPattern() *regexp.Regexp
+	InputChan() chan *message.Message
+	OutputChan() chan *message.Message
+}
+
+// decoderImpl is the default implementation of the Decoder interface
+type decoderImpl struct {
+	inputChan  chan *message.Message
+	outputChan chan *message.Message
 
 	framer      *framer.Framer
 	lineParser  LineParser
@@ -56,31 +67,45 @@ type Decoder struct {
 	detectedPattern *DetectedPattern
 }
 
+func (d *decoderImpl) InputChan() chan *message.Message {
+	return d.inputChan
+}
+
+func (d *decoderImpl) OutputChan() chan *message.Message {
+	return d.outputChan
+}
+
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser, tailerInfo *status.InfoRegistry) *Decoder {
+func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser, tailerInfo *status.InfoRegistry) Decoder {
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil, tailerInfo)
 }
 
-// Since a single source can have multiple file tailers - each with their own decoder instance:
-// make sure we sync info providers from all of the decoders so the status page displays it correctly.
-func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
-	if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
-		// override the new decoders info to the instance we are already using
-		lh.countInfo = existingInfo
+// multiLineCountable is implemented by any handler or aggregator that tracks multiline match
+// and lines-combined counters, allowing them to be shared across multiple tailers for the same source.
+type multiLineCountable interface {
+	CountInfo() *status.CountInfo
+	SetCountInfo(*status.CountInfo)
+	LinesCombinedInfo() *status.CountInfo
+	SetLinesCombinedInfo(*status.CountInfo)
+}
+
+// syncSourceInfo ensures that multiple decoders for the same source share the same status counters,
+// so the status page displays a single combined count rather than per-tailer counts.
+func syncSourceInfo(source *sources.ReplaceableSource, c multiLineCountable) {
+	if existingInfo, ok := source.GetInfo(c.CountInfo().InfoKey()).(*status.CountInfo); ok {
+		c.SetCountInfo(existingInfo)
 	} else {
-		// this is the first decoder we have seen for this source - use it's count info
-		source.RegisterInfo(lh.countInfo)
+		source.RegisterInfo(c.CountInfo())
 	}
-	// Same as above for linesCombinedInfo
-	if existingInfo, ok := source.GetInfo(lh.linesCombinedInfo.InfoKey()).(*status.CountInfo); ok {
-		lh.linesCombinedInfo = existingInfo
+	if existingInfo, ok := source.GetInfo(c.LinesCombinedInfo().InfoKey()).(*status.CountInfo); ok {
+		c.SetLinesCombinedInfo(existingInfo)
 	} else {
-		source.RegisterInfo(lh.linesCombinedInfo)
+		source.RegisterInfo(c.LinesCombinedInfo())
 	}
 }
 
 // NewNoopDecoder initializes a decoder with all dependent components in passthrough mode.
-func NewNoopDecoder() *Decoder {
+func NewNoopDecoder() Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
@@ -94,13 +119,18 @@ func NewNoopDecoder() *Decoder {
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
-func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
+func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) Decoder {
 	maxMessageSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern)
+	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	if opts := source.Config().AutoMultiLineOptions; opts != nil && opts.TokenizerMaxInputBytes != nil {
+		tokenizerMaxInputBytes = *opts.TokenizerMaxInputBytes
+	}
+	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -114,30 +144,59 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern) LineHandler {
-	outputFn := func(m *message.Message) { outputChan <- m }
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
+	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
+	sampler := preprocessor.NewNoopSampler()
 
-	// construct the lineHandler
+	// directOutputFn is used by legacy handlers that bypass the Preprocessor.
+	directOutputFn := func(msg *message.Message) { outputChan <- msg }
+
+	// User-configured multiline regex — each line is matched against the regex to detect group
+	// boundaries; completed groups are emitted as a single combined message.
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, false, tailerInfo, "multi_line")
-			syncSourceInfo(source, lh)
-			lineHandler = lh
-		}
-	}
-	if lineHandler == nil {
-		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
-		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples)
-		} else {
-			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
+			regexAggregator := preprocessor.NewRegexAggregator(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
+			syncSourceInfo(source, regexAggregator)
+			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 		}
 	}
 
-	return lineHandler
+	if lineHandler != nil {
+		return lineHandler
+	}
+
+	// Priority order when no user-configured regex rule was set:
+	// 1. Legacy auto multiline (bypasses Preprocessor; outputs directly to outputChan)
+	// 2. Auto multiline with aggregation — combines detected groups into one message
+	// 3. Auto multiline detection-only — tags group starts without combining, this is the default
+	// 4. Pass-through — tokenizes and samples every line individually
+	if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		return getLegacyAutoMultilineHandler(directOutputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
+	} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
+		combiningAggregator := preprocessor.NewCombiningAggregator(maxContentSize,
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+			tailerInfo)
+		enableJSON := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+		if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
+			enableJSON = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
+		}
+		var jsonAgg preprocessor.JSONAggregator = preprocessor.NewNoopJSONAggregator()
+		if enableJSON {
+			jsonAgg = preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
+		}
+		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout)
+	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
+		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
+		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
+		// while only tagging everything else.
+		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo)
+		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
+	}
+	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
@@ -192,10 +251,10 @@ func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), 
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
-	return &Decoder{
-		InputChan:       InputChan,
-		OutputChan:      OutputChan,
+func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) Decoder {
+	return &decoderImpl{
+		inputChan:       InputChan,
+		outputChan:      OutputChan,
 		framer:          framer,
 		lineParser:      lineParser,
 		lineHandler:     lineHandler,
@@ -204,28 +263,28 @@ func New(InputChan chan *message.Message, OutputChan chan *message.Message, fram
 }
 
 // Start starts the Decoder
-func (d *Decoder) Start() {
+func (d *decoderImpl) Start() {
 	go d.run()
 }
 
 // Stop stops the Decoder
-func (d *Decoder) Stop() {
+func (d *decoderImpl) Stop() {
 	// stop the entire decoder by closing the input.  This will "bubble" through the
 	// components and eventually cause run() to finish, closing OutputChan.
-	close(d.InputChan)
+	close(d.InputChan())
 }
 
-func (d *Decoder) run() {
+func (d *decoderImpl) run() {
 	defer func() {
 		// flush any remaining output in component order, and then close the
 		// output channel
 		d.lineParser.flush()
 		d.lineHandler.flush()
-		close(d.OutputChan)
+		close(d.outputChan)
 	}()
 	for {
 		select {
-		case msg, isOpen := <-d.InputChan:
+		case msg, isOpen := <-d.InputChan():
 			if !isOpen {
 				// InputChan has been closed, no more lines are expected
 				return
@@ -245,14 +304,14 @@ func (d *Decoder) run() {
 }
 
 // GetLineCount returns the number of decoded lines
-func (d *Decoder) GetLineCount() int64 {
+func (d *decoderImpl) GetLineCount() int64 {
 	// for the moment, this counts _frames_, which aren't quite the same but
 	// close enough for logging purposes
 	return d.framer.GetFrameCount()
 }
 
 // GetDetectedPattern returns a detected pattern (if any)
-func (d *Decoder) GetDetectedPattern() *regexp.Regexp {
+func (d *decoderImpl) GetDetectedPattern() *regexp.Regexp {
 	if d.detectedPattern == nil {
 		return nil
 	}

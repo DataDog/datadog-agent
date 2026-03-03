@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -45,6 +48,7 @@ type serviceLogRef struct {
 type processLogConfigProvider struct {
 	workloadmetaStore       workloadmeta.Component
 	tagger                  tagger.Component
+	logsFilters             workloadfilter.FilterBundle
 	serviceLogRefs          map[string]*serviceLogRef
 	pidToServiceIDs         map[int32][]string
 	unreadableFilesCache    *simplelru.LRU[string, struct{}]
@@ -104,14 +108,14 @@ func discoverIntegrationSources() map[string]bool {
 			continue
 		}
 
-		err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Continue walking, don't fail on individual errors
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
 			}
-			if info.Name() != "conf.yaml.example" && info.Name() != "conf.yaml" {
+			if d.Name() != "conf.yaml.example" && d.Name() != "conf.yaml" {
 				return nil
 			}
 
@@ -141,7 +145,7 @@ func discoverIntegrationSources() map[string]bool {
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err
@@ -153,6 +157,7 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 	return &processLogConfigProvider{
 		workloadmetaStore:       wmeta,
 		tagger:                  tagger,
+		logsFilters:             filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs, workloadfilter.ProcessCELGlobal}}),
 		serviceLogRefs:          make(map[string]*serviceLogRef),
 		pidToServiceIDs:         make(map[int32][]string),
 		unreadableFilesCache:    cache,
@@ -231,7 +236,7 @@ func checkFileReadable(logPath string) error {
 
 	if !utf8.Valid(buf) {
 		log.Infof("Discovered log file %s is not a text file", logPath)
-		return fmt.Errorf("file is not a text file")
+		return errors.New("file is not a text file")
 	}
 
 	return nil
@@ -279,18 +284,13 @@ var agentProcessNames = []string{
 	"trace-agent",
 	"security-agent",
 	"system-probe",
+	"privateactionrunner",
 }
 
 func isAgentProcess(process *workloadmeta.Process) bool {
 	// Check if the process name matches any of the known agent process names;
 	// we may not be able to make assumptions about the executable paths.
-	for _, agentName := range agentProcessNames {
-		if process.Name == agentName {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(agentProcessNames, process.Name)
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
@@ -328,8 +328,21 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 			// process still has logs.
 			delete(p.pidToServiceIDs, process.Pid)
 
+			var filterProcess *workloadfilter.Process
+			if p.logsFilters != nil {
+				filterProcess = workloadmetafilter.CreateProcess(process)
+			}
+
 			newServiceIDs := []string{}
 			for _, logFile := range process.Service.LogFiles {
+				if filterProcess != nil {
+					filterProcess.SetLogFile(logFile)
+					if p.logsFilters.IsExcluded(filterProcess) {
+						log.Debugf("Process %d log file %s excluded by CEL filter", process.Pid, logFile)
+						continue
+					}
+				}
+
 				newServiceIDs = append(newServiceIDs, logFile)
 
 				if ref, exists := p.serviceLogRefs[logFile]; exists {
@@ -483,7 +496,7 @@ func getServiceID(logFile string) string {
 
 func (p *processLogConfigProvider) getProcessTags(pid int32) ([]string, error) {
 	if p.tagger == nil {
-		return nil, fmt.Errorf("tagger not available")
+		return nil, errors.New("tagger not available")
 	}
 	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
 	return p.tagger.Tag(entityID, taggertypes.HighCardinality)

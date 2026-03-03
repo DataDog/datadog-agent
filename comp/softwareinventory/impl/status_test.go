@@ -27,7 +27,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
 	})
-	is := f.sut()
+	is := f.sut().WaitForSystemProbe()
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -108,7 +108,7 @@ func TestStatusTemplates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixtureWithData(t, true, tt.mockData)
-			is := f.sut()
+			is := f.sut().WaitForSystemProbe()
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -133,7 +133,7 @@ func TestStatusTemplates(t *testing.T) {
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{})
-	is := f.sut()
+	is := f.sut().WaitForSystemProbe()
 
 	// Test Text template
 	var buf bytes.Buffer

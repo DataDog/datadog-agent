@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Reports telemetry from the Windows Injector, enabled by default.
+    Disable this feature by setting ``injector.enable_telemetry=false`` in ``system-probe.yaml`` when running system-probe.

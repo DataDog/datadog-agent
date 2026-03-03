@@ -1,0 +1,48 @@
+"""toolchain to wrap the patchelf binary.
+
+Type: @@//bazel/toolchains/patchelf:patchelf_toolchain_type
+
+Toolchains:
+- patchelf_missing_toolchain: provides a fallback toolchain for exec platforms
+  where patchelf might not be available.
+
+- patchelf_auto_toolchain: a toolchain that uses the installed patchelf. See
+  patchelf_configure.bzl%find_system_patchelf for usage.
+"""
+
+load("@@//bazel/toolchains/patchelf:patchelf.bzl", "is_patchelf_available", "patchelf_toolchain")
+
+# Expose the availability of an actual patchelf as a config_setting, so we can
+# select() on it.
+config_setting(
+    name = "have_patchelf",
+    flag_values = {
+        ":is_patchelf_available": "1",
+    },
+    visibility = ["//visibility:public"],
+)
+
+# Expose the availability of an actual patchelf as a feature flag, so we can
+# create a config_setting from it.
+is_patchelf_available(
+    name = "is_patchelf_available",
+)
+
+toolchain_type(
+    name = "patchelf_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# patchelf_missing_toolchain provides a fallback toolchain so that toolchain
+# resolution can succeed even on platforms that do not have a working patchelf.
+# If this toolchain is selected, the constraint ":have_patchelf" will not be
+# satistifed.
+patchelf_toolchain(
+    name = "no_patchelf",
+)
+
+toolchain(
+    name = "patchelf_missing_toolchain",
+    toolchain = ":no_patchelf",
+    toolchain_type = ":patchelf_toolchain_type",
+)

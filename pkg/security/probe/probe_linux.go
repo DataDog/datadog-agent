@@ -9,7 +9,6 @@ package probe
 import (
 	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -25,10 +24,13 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p := newProbe(config, opts)
+	p, err := newProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	acc, err := NewAgentContainerContext()
 	if err != nil {
@@ -36,14 +38,14 @@ func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, erro
 	}
 
 	if opts.EBPFLessEnabled {
-		pp, err := NewEBPFLessProbe(p, config, ipc, opts)
+		pp, err := NewEBPFLessProbe(p, config, hostname, opts)
 		if err != nil {
 			return nil, err
 		}
 		p.PlatformProbe = pp
 		p.agentContainerContext = acc
 	} else {
-		pp, err := NewEBPFProbe(p, config, ipc, opts)
+		pp, err := NewEBPFProbe(p, config, hostname, opts)
 		if err != nil {
 			return nil, err
 		}

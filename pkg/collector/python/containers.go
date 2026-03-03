@@ -9,6 +9,7 @@ package python
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 )
 
 /*
@@ -24,7 +25,7 @@ import "C"
 //
 //export IsContainerExcluded
 func IsContainerExcluded(name, image, namespace *C.char) C.int {
-	checkContext, err := getCheckContext()
+	checkContext, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		return 0
 	}
@@ -39,7 +40,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 	filterablePod := workloadfilter.CreatePod("", "", goNs, nil)
 	filterableContainer := workloadfilter.CreateContainer("", goName, goImg, filterablePod)
 
-	if checkContext.filter.IsExcluded(filterableContainer) {
+	if checkContext.IsExcluded(filterableContainer) {
 		return 1
 	}
 	return 0

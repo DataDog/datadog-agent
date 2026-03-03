@@ -13,6 +13,7 @@ import (
 	"sort"
 	"sync"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -50,9 +51,10 @@ type KubeServiceListener struct {
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
 	entity          string
+	metadata        *workloadfilter.KubeService
 	tags            []string
 	hosts           map[string]string
-	ports           []ContainerPort
+	ports           []workloadmeta.ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
 	namespace       string
@@ -253,14 +255,14 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 		namespace: ksvc.Namespace,
 	}
 
-	filterableService := workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
-	svc.metricsExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableService)
-	svc.globalExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableService)
+	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metricsExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
+	svc.globalExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
 
 	// Service tags
 	svc.tags = []string{
-		fmt.Sprintf("kube_service:%s", ksvc.Name),
-		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
+		"kube_service:" + ksvc.Name,
+		"kube_namespace:" + ksvc.Namespace,
 	}
 
 	// Standard tags from the service's labels
@@ -270,9 +272,9 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
 
 	// Ports
-	var ports []ContainerPort
+	var ports []workloadmeta.ContainerPort
 	for _, port := range ksvc.Spec.Ports {
-		ports = append(ports, ContainerPort{int(port.Port), port.Name})
+		ports = append(ports, workloadmeta.ContainerPort{Port: int(port.Port), Name: port.Name})
 	}
 	sort.Slice(ports, func(i, j int) bool {
 		return ports[i].Port < ports[j].Port
@@ -329,7 +331,7 @@ func (s *KubeServiceService) GetServiceID() string {
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() []string {
 	// Only the entity for now, to match on annotation
-	return []string{s.entity}
+	return []string{s.entity, string(types.CelServiceIdentifier)}
 }
 
 // GetHosts returns the pod hosts
@@ -343,7 +345,7 @@ func (s *KubeServiceService) GetPid() (int, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -389,8 +391,14 @@ func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
-// FilterTemplates does nothing.
-func (s *KubeServiceService) FilterTemplates(map[string]integration.Config) {
+// FilterTemplates filters the given configs based on the service's CEL selector.
+func (s *KubeServiceService) FilterTemplates(configs map[string]integration.Config) {
+	filterTemplatesMatched(s, configs)
+}
+
+// GetFilterableEntity returns the filterable entity of the service
+func (s *KubeServiceService) GetFilterableEntity() workloadfilter.Filterable {
+	return s.metadata
 }
 
 // GetImageName does nothing

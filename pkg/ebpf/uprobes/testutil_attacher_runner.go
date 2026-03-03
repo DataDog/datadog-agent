@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -105,7 +106,8 @@ type AttacherTestConfigName string
 
 const (
 	// LibraryAndMainAttacherTestConfigName is the name of the test configuration for the attacher that attaches to a libssl library and the main executable
-	LibraryAndMainAttacherTestConfigName AttacherTestConfigName = "library-and-main"
+	LibraryAndMainAttacherTestConfigName         AttacherTestConfigName = "library-and-main"
+	LibraryAndMainAttacherWithSyncTestConfigName AttacherTestConfigName = "library-and-main-with-sync"
 )
 
 // AttacherTestConfigs is a map of attacher test config names to attacher configs.
@@ -201,7 +203,7 @@ func (r *ContainerizedFmapperRunner) Run(t *testing.T, paths ...string) {
 		mounts[filepath.Dir(path)] = filepath.Dir(path)
 	}
 
-	r.containerName = fmt.Sprintf("fmapper-testutil-%s", utils.RandString(10))
+	r.containerName = "fmapper-testutil-" + utils.RandString(10)
 	scanner := sharedlibstestutil.BuildFmapperScanner(t)
 	dockerConfig := dockerutils.NewRunConfig(
 		dockerutils.NewBaseConfig(
@@ -275,6 +277,7 @@ func (r *FmapperRunner) Stop(t *testing.T) {
 // SameProcessAttacherRunner runs the attacher in the same process as the caller code
 type SameProcessAttacherRunner struct {
 	attachedProbes []attachedProbe
+	useEventStream bool
 }
 
 type attachedProbe struct {
@@ -285,8 +288,8 @@ type attachedProbe struct {
 var _ AttacherRunner = &SameProcessAttacherRunner{}
 
 // NewSameProcessAttacherRunner creates a new runner that executes the attacher in the same process as the caller code
-func NewSameProcessAttacherRunner() AttacherRunner {
-	return &SameProcessAttacherRunner{}
+func NewSameProcessAttacherRunner(useEventStream bool) AttacherRunner {
+	return &SameProcessAttacherRunner{useEventStream: useEventStream}
 }
 
 func (r *SameProcessAttacherRunner) onAttach(probe *manager.Probe, fpath *usmutils.FilePath) {
@@ -296,11 +299,14 @@ func (r *SameProcessAttacherRunner) onAttach(probe *manager.Probe, fpath *usmuti
 // RunAttacher starts the attacher in the same process as the test
 func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName AttacherTestConfigName) {
 	mgr := manager.Manager{}
-	procMon := launchProcessMonitor(t, false)
+	procMon := launchProcessMonitor(t, r.useEventStream)
 
 	cfg := GetAttacherTestConfig(t, configName)
 
-	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, &NativeBinaryInspector{}, procMon)
+	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, AttacherDependencies{
+		Inspector:      &NativeBinaryInspector{},
+		ProcessMonitor: procMon,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, attacher)
 
@@ -335,18 +341,20 @@ func (r *SameProcessAttacherRunner) GetProbes(_ assert.TestingT) []ProbeStatus {
 type ContainerizedAttacherRunner struct {
 	containerName  string
 	probesEndpoint string
+	useEventStream bool
 }
 
 // NewContainerizedAttacherRunner creates a new runner that executes the attacher in a container
-func NewContainerizedAttacherRunner() AttacherRunner {
+func NewContainerizedAttacherRunner(useEventStream bool) AttacherRunner {
 	return &ContainerizedAttacherRunner{
+		useEventStream: useEventStream,
 		probesEndpoint: "http://localhost:8080/probes",
 	}
 }
 
 // RunAttacher starts the attacher in a container
 func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName AttacherTestConfigName) {
-	r.containerName = fmt.Sprintf("uprobe-attacher-testutil-%s", utils.RandString(10))
+	r.containerName = "uprobe-attacher-testutil-" + utils.RandString(10)
 	attacherBin := testutil.BuildStandaloneAttacher(t)
 
 	// Get the ebpf config to ensure we have the same paths and config
@@ -400,6 +408,7 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 			[]string{
 				"-test.v", // Ensure the test framework doesn't suppress output
 				"-config", string(configName),
+				"-use-event-stream=" + strconv.FormatBool(r.useEventStream),
 			},
 		),
 		dockerutils.WithMounts(mounts),
@@ -465,6 +474,16 @@ func loadAttacherTestConfigs() {
 		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
 		EnableDetailedLogging: true,
 		SharedLibsLibsets:     []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+	}
+
+	// Same config, but with scan enabled in case we're using the event stream, which can lose events sometimes.
+	AttacherTestConfigs[LibraryAndMainAttacherWithSyncTestConfigName] = AttacherConfig{
+		Rules:                          AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].Rules,
+		ExcludeTargets:                 AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].ExcludeTargets,
+		EnableDetailedLogging:          AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].EnableDetailedLogging,
+		SharedLibsLibsets:              AttacherTestConfigs[LibraryAndMainAttacherTestConfigName].SharedLibsLibsets,
+		ScanProcessesInterval:          500 * time.Millisecond,
+		EnablePeriodicScanNewProcesses: true,
 	}
 }
 

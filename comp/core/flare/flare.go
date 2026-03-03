@@ -7,6 +7,7 @@ package flare
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -99,11 +100,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]
 	if !found {
-		return true, fmt.Errorf("Case ID was not provided in the flare agent task")
+		return true, errors.New("Case ID was not provided in the flare agent task")
 	}
 	userHandle, found := task.Config.TaskArgs["user_handle"]
 	if !found {
-		return true, fmt.Errorf("User handle was not provided in the flare agent task")
+		return true, errors.New("User handle was not provided in the flare agent task")
 	}
 
 	flareArgs := types.FlareArgs{}
@@ -178,13 +179,10 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	f.log.Infof("Making a flare")
 	filePath, err := f.Create(profile, providerTimeout, nil, []byte{})
 
-	if err != nil || filePath == "" {
-		if err != nil {
-			f.log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			f.log.Warnf("The flare failed to be created")
-		}
+	if err != nil {
+		f.log.Errorf("The flare failed to be created: %s", err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 	w.Write([]byte(filePath))
 }

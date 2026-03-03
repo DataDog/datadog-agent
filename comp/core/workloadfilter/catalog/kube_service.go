@@ -7,33 +7,16 @@
 package catalog
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// LegacyServiceMetricsProgram creates a program for filtering service metrics
-func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
-	programName := "LegacyServiceMetricsProgram"
-	include := config.GetStringSlice("container_include_metrics")
-	exclude := config.GetStringSlice("container_exclude_metrics")
-	return createFromOldFilters(programName, include, exclude, workloadfilter.ServiceType, logger)
+// ServiceCELMetricsProgram creates a program for filtering services metrics via CEL rules
+func ServiceCELMetricsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeServiceCELMetrics, workloadfilter.ProductMetrics)
 }
 
-// LegacyServiceGlobalProgram creates a program for filtering services globally
-func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
-	programName := "LegacyServiceGlobalProgram"
-
-	includeList := config.GetStringSlice("container_include")
-	excludeList := config.GetStringSlice("container_exclude")
-	if len(includeList) == 0 {
-		// fallback and support legacy "ac_include" config
-		includeList = config.GetStringSlice("ac_include")
-	}
-	if len(excludeList) == 0 {
-		// fallback and support legacy "ac_exclude" config
-		excludeList = config.GetStringSlice("ac_exclude")
-	}
-	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.ServiceType, logger)
+// ServiceCELGlobalProgram creates a program for filtering services globally via CEL rules
+func ServiceCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeServiceCELGlobal, workloadfilter.ProductGlobal)
 }

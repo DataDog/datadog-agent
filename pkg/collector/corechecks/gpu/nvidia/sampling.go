@@ -10,16 +10,19 @@ package nvidia
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // processSample handles the complex time-weighted averaging logic for NVML sample types
-func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
 	// GetSamples returns a list of samples (timestamp + value) for the
 	// given counter type (GPU utilization, memory activity, etc).
 	// Note that timestamps are in microseconds always.
@@ -27,6 +30,13 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	// we need to average them.
 	valueType, samples, err := device.GetSamples(samplingType, lastTimestamp)
 	if err != nil {
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			// NOT_FOUND is a valid scenario when no samples are available, such as vGPU. Ignore it and treat it the same way as
+			// if there were no samples returned.
+			return nil, lastTimestamp, nil
+		}
+
 		return nil, 0, fmt.Errorf("failed to get samples for %s: %w", metricName, err)
 	}
 
@@ -77,21 +87,22 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	total /= float64(currentTimestamp - lastTimestamp)
 
 	metric := Metric{
-		Name:  metricName,
-		Value: total,
-		Type:  ddmetrics.GaugeType,
+		Name:     metricName,
+		Value:    total,
+		Type:     ddmetrics.GaugeType,
+		Priority: priority,
 	}
 
 	return []Metric{metric}, currentTimestamp, multiErr
 }
 
 // processUtilizationSample handles process utilization sampling logic
-func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
-	currentTime := uint64(time.Now().Unix())
+func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+	currentTime := uint64(time.Now().UnixMicro())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
 	var allMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 	var maxSmUtil, sumSmUtil uint32
 
 	// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
@@ -102,18 +113,17 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 		}
 	} else {
 		for _, sample := range processSamples {
-			// Create PID tag for this process
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", sample.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(sample.Pid)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
+				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.encoder_active", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.decoder_active", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 			)
 
 			if sample.SmUtil > maxSmUtil {
@@ -130,46 +140,46 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 	deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
 
 	allMetrics = append(allMetrics,
-		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType},
-		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
+		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, AssociatedWorkloads: allWorkloadIDs},
 	)
 
 	return allMetrics, currentTime, err
 }
 
 // createSampleAPIs creates API call definitions for all sampling metrics on demand
-func createSampleAPIs(nsPidCache *NsPidCache) []apiCallInfo {
+func createSampleAPIs() []apiCallInfo {
 	return []apiCallInfo{
 		// Process utilization APIs (sample - requires timestamp tracking)
 		{
 			Name: "process_utilization",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processUtilizationSample(device, lastTimestamp, nsPidCache)
+				return processUtilizationSample(device, lastTimestamp)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
 		{
 			Name: "gr_engine_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
 			},
 		},
 		{
 			Name: "dram_active_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "encoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "decoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		}}
 }
@@ -183,7 +193,7 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 	}
 
 	// Initialize timestamps for sampling collectors
-	currentTime := uint64(time.Now().Unix())
+	currentTime := uint64(time.Now().UnixMicro())
 	for _, apiCall := range c.supportedAPIs {
 		c.lastTimestamps[apiCall.Name] = currentTime
 	}
@@ -195,6 +205,6 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 var sampleAPIFactory = createSampleAPIs
 
 // newSamplingCollector creates a collector that consolidates all sampling collector types
-func newSamplingCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	return newStatefulCollector(sampling, device, sampleAPIFactory(deps.NsPidCache))
+func newSamplingCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+	return newStatefulCollector(sampling, device, sampleAPIFactory())
 }

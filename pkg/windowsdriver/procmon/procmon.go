@@ -9,7 +9,7 @@
 package procmon
 
 import (
-	"fmt"
+	"errors"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -76,10 +76,10 @@ var (
 func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification, onError chan bool, bufsize, numbufs int) (*WinProcmon, error) {
 
 	if bufsize == 0 {
-		return nil, fmt.Errorf("invalid buffer size")
+		return nil, errors.New("invalid buffer size")
 	}
 	if numbufs == 0 {
-		return nil, fmt.Errorf("invalid number of buffers")
+		return nil, errors.New("invalid number of buffers")
 	}
 	wp := &WinProcmon{
 		onStart: onStart,

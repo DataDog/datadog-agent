@@ -18,12 +18,14 @@ func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, sour
 	origGetSource := sourceDetectors
 	orighostIDDetectors := hostIDDetectors
 	origHostCCRIDDecectors := hostCCRIDDetectors
+	origInstanceTypeDetectors := hostInstanceTypeDetectors
 
 	t.Cleanup(func() {
 		cloudProviderDetectors = origDetectors
 		sourceDetectors = origGetSource
 		hostIDDetectors = orighostIDDetectors
 		hostCCRIDDetectors = origHostCCRIDDecectors
+		hostInstanceTypeDetectors = origInstanceTypeDetectors
 	})
 
 	cloudProviderDetectors = []cloudProviderDetector{
@@ -41,5 +43,8 @@ func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, sour
 	}
 	hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 		cloudProviderName: func(context.Context) (string, error) { return "test_ccrid", nil },
+	}
+	hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
+		cloudProviderName: func(context.Context) (string, error) { return "m5.medium", nil },
 	}
 }

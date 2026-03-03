@@ -23,12 +23,14 @@ import (
 // ReceiverStats is used to store all the stats per tags.
 type ReceiverStats struct {
 	sync.RWMutex
-	Stats map[Tags]*TagStats
+	Stats        map[Tags]*TagStats
+	SendAllStats bool // if true, all stats will be published even those stats that are zero, otherwise some less-frequently-used stats will be omitted when zero to save costs
 }
 
 // NewReceiverStats returns a new ReceiverStats
-func NewReceiverStats() *ReceiverStats {
-	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}}
+// sendAllStats is a boolean that controls whether all stats will be published even those stats that are zero, otherwise some less-frequently-used stats will be omitted when zero to save costs
+func NewReceiverStats(sendAllStats bool) *ReceiverStats {
+	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}, sendAllStats}
 }
 
 // GetTagStats returns the struct in which the stats will be stored depending of their tags.
@@ -58,7 +60,7 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 func (rs *ReceiverStats) PublishAndReset(statsd statsd.ClientInterface) {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publishAndReset(statsd)
+		tagStats.publishAndReset(statsd, rs.SendAllStats)
 	}
 	rs.RUnlock()
 }
@@ -120,7 +122,15 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
+// publishNonZeroStats publishes a metric if the value is greater than 0 or if sendAllStats is true
+// This saves costs significantly for metrics that are frequently just zero
+func publishNonZeroStats(statsd statsd.ClientInterface, tags []string, value int64, metricName string, sendAllStats bool) {
+	if sendAllStats || value > 0 {
+		_ = statsd.Count(metricName, value, tags, 1)
+	}
+}
+
+func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface, sendAllStats bool) {
 	// Atomically load and reset any metrics used multiple times from ts
 	tracesReceived := ts.TracesReceived.Swap(0)
 
@@ -129,8 +139,7 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 
 	_ = statsd.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.traces_filtered",
-		ts.TracesFiltered.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.TracesFiltered.Swap(0), "datadog.trace_agent.receiver.traces_filtered", sendAllStats)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
 		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_bytes",
@@ -139,20 +148,16 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 		ts.SpansReceived.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.spans_dropped",
 		ts.SpansDropped.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.spans_filtered",
-		ts.SpansFiltered.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_extracted",
-		ts.EventsExtracted.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled",
-		ts.EventsSampled.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.SpansFiltered.Swap(0), "datadog.trace_agent.receiver.spans_filtered", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.EventsExtracted.Swap(0), "datadog.trace_agent.receiver.events_extracted", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.EventsSampled.Swap(0), "datadog.trace_agent.receiver.events_sampled", sendAllStats)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted",
 		ts.PayloadAccepted.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
 		ts.PayloadRefused.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
-		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
-		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.PayloadTimeout.Swap(0), "datadog.trace_agent.receiver.payload_timeout", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Spans.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_spans", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Traces.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_traces", sendAllStats)
 
 	for reason, counter := range ts.TracesDropped.tagCounters() {
 		count := counter.Swap(0)
@@ -413,6 +418,8 @@ type Stats struct {
 	PayloadAccepted atomic.Int64
 	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
 	PayloadRefused atomic.Int64
+	// PayloadTimeout counts the number of payloads that have been rejected due to request context timeout.
+	PayloadTimeout atomic.Int64
 	// TracesDropped contains stats about the count of dropped traces by reason
 	TracesDropped *TracesDropped
 	// SpansMalformed contains stats about the count of malformed traces by reason
@@ -466,6 +473,7 @@ func (s *Stats) update(recent *Stats) {
 	s.EventsSampled.Add(recent.EventsSampled.Load())
 	s.PayloadAccepted.Add(recent.PayloadAccepted.Load())
 	s.PayloadRefused.Add(recent.PayloadRefused.Load())
+	s.PayloadTimeout.Add(recent.PayloadTimeout.Load())
 	s.TracesPerSamplingPriority.update(&recent.TracesPerSamplingPriority)
 }
 
@@ -517,6 +525,7 @@ func (ts *TagStats) WarnString() string {
 type Tags struct {
 	Lang, LangVersion, LangVendor, Interpreter, TracerVersion string
 	EndpointVersion                                           string
+	ConnectionType                                            string
 	Service                                                   string
 }
 
@@ -542,6 +551,9 @@ func (t *Tags) toArray() []string {
 	}
 	if t.EndpointVersion != "" {
 		tags = append(tags, "endpoint_version:"+t.EndpointVersion)
+	}
+	if t.ConnectionType != "" {
+		tags = append(tags, "connection_type:"+t.ConnectionType)
 	}
 	if t.Service != "" {
 		tags = append(tags, "service:"+t.Service)

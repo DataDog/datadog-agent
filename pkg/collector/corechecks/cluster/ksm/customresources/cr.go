@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -112,20 +112,28 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 	return mapstructure.Decode(d.data, v)
 }
 
-// GetCustomResourceFactories returns a list of custom resource factories
-func GetCustomResourceFactories(resources customresourcestate.Metrics, c *apiserver.APIClient) (factories []customresource.RegistryFactory) {
+// StartDiscovery starts the custom resource discovery and returns a discoverer instance
+func StartDiscovery() *discovery.CRDiscoverer {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
 		CRDsDeleteEventsCounter: crdsDeleteEventsCounter,
 		CRDsCacheCountGauge:     crdsCacheCountGauge,
 	}
+
 	clientConfig, err := apiserver.GetClientConfig(time.Duration(setup.Datadog().GetInt64("kubernetes_apiserver_client_timeout"))*time.Second, 10, 20)
 	if err != nil {
 		panic(err)
 	}
+
 	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
 		log.Errorf("failed to start custom resource discovery: %v", err)
 	}
+
+	return discovererInstance
+}
+
+// GetCustomResourceFactories returns a list of custom resource factories
+func GetCustomResourceFactories(discovererInstance *discovery.CRDiscoverer, resources customresourcestate.Metrics, c *apiserver.APIClient) (factories []customresource.RegistryFactory) {
 	customResourceStateMetricFactoriesFunc, err := customresourcestate.FromConfig(customResourceDecoder{resources}, discovererInstance)
 
 	if err != nil {
@@ -146,19 +154,26 @@ func GetCustomResourceFactories(resources customresourcestate.Metrics, c *apiser
 }
 
 // GetCustomResourceClientsAndCollectors returns a map of custom resource clients and a list of collectors
-func GetCustomResourceClientsAndCollectors(resources []customresourcestate.Resource, c *apiserver.APIClient) (clients map[string]interface{}, collectors []string) {
+func GetCustomResourceClientsAndCollectors(factories []customresource.RegistryFactory, c *apiserver.APIClient) (clients map[string]interface{}, collectors []string) {
 	clients = make(map[string]interface{})
-	collectors = make([]string, 0, len(resources))
+	collectors = make([]string, 0, len(factories))
 
-	for _, cr := range resources {
+	for _, factory := range factories {
+		u, ok := factory.ExpectedType().(*unstructured.Unstructured)
+		if !ok {
+			log.Errorf("expected type *unstructured.Unstructured, got %T", factory.ExpectedType())
+			continue
+		}
+
+		gvk := u.GroupVersionKind()
 		gvr := schema.GroupVersionResource{
-			Group:    cr.GroupVersionKind.Group,
-			Version:  cr.GroupVersionKind.Version,
-			Resource: cr.GetResourceName(),
+			Group:    gvk.Group,
+			Version:  gvk.Version,
+			Resource: factory.Name(),
 		}
 
 		cl := c.DynamicCl.Resource(gvr)
-		clients[cr.GetResourceName()] = cl
+		clients[factory.Name()] = cl
 		collectors = append(collectors, gvr.String())
 	}
 

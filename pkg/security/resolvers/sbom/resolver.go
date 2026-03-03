@@ -214,7 +214,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case sbom := <-r.scanChan:
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
+				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond), retry.DelayType(retry.FixedDelay)); err != nil {
 					if errors.Is(err, errNoProcessForContainerID) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
@@ -495,7 +495,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	id := workload.ContainerID
+	id := workload.GCroupCacheEntry.GetContainerID()
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -504,7 +504,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	_, ok := r.sboms.Get(id)
 	if !ok {
 		workloadKey := getWorkloadKey(workload.Selector.Copy())
-		sbom := r.newSBOM(id, workload.CacheEntry, workloadKey)
+		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
 		r.queueWorkload(sbom)
 	}
 }
@@ -524,8 +524,8 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	if cgroup.ContainerID != "" {
-		r.Delete(cgroup.ContainerID)
+	if !cgroup.IsContainerContextNull() {
+		r.Delete(cgroup.GetContainerContext().ContainerID)
 	}
 }
 

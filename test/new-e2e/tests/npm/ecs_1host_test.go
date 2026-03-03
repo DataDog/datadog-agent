@@ -10,23 +10,21 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
-
-	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+	npmtools "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/npm-tools"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 )
 
 type ecsHttpbinEnv struct {
@@ -69,16 +67,15 @@ func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 			return err
 		}
 
-		params := envecs.GetProvisionerParams(
-			envecs.WithAwsEnv(&awsEnv),
-			envecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
-			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
-			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+		params := ecs.GetRunParams(
+			ecs.WithECSOptions(ecs.WithLinuxNodeGroup()),
+			ecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				testURL := "http://" + env.HTTPBinHost.Address + "/"
 				return npmtools.EcsAppDefinition(e, clusterArn, testURL)
 			}),
 		)
-		envecs.Run(ctx, &env.ECS, params)
+		ecs.RunWithEnv(ctx, awsEnv, &env.ECS, params)
 		return nil
 	}
 }

@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -52,11 +52,11 @@ type ddExtension struct {
 var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
 
 func extensionType(s string) string {
-	index := strings.Index(s, "/")
-	if index == -1 {
+	before, _, ok := strings.Cut(s, "/")
+	if !ok {
 		return s
 	}
-	return s[:index]
+	return before
 }
 
 // NotifyConfig implements the ConfigWatcher interface, which allows this extension
@@ -184,7 +184,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 	}
 
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ipcComp)
+	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, ipcComp)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 
 // Start is called when the extension is started.
 func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
-	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
+	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.NetAddr.Endpoint))
 
 	go func() {
 		if err := ext.server.start(); err != nil && err != http.ErrServerClosed {

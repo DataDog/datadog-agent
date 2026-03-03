@@ -112,6 +112,9 @@ func TestDisabled(t *testing.T) {
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
 	config := configmock.New(t)
 
+	// enable the remote agent registry
+	config.SetWithoutSource("remote_agent_registry.enabled", true)
+
 	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
 	return provides, lc, config, telemetry, ipc
 }

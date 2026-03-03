@@ -46,6 +46,7 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	int8variableNames := []string{
 		"Buf",
 		"Cgroup",
+		"Prev_cgroup_name",
 		"Cgroup_name",
 		"LocalAddr",
 		"LocalAddress",
@@ -130,9 +131,6 @@ func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	if err := scanner.Err(); err != nil {
 		return err
 	}
-	if len(typeNames) == 0 {
-		return nil
-	}
 
 	dst, err := os.Create(dstFile)
 	if err != nil {
@@ -141,9 +139,11 @@ func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	defer dst.Close()
 	fmt.Fprintf(dst, testHeaderTemplate, packageName)
 
-	fmt.Fprint(dst, testImportTemplate)
-	for _, typeName := range typeNames {
-		fmt.Fprintf(dst, testTemplate, typeName)
+	if len(typeNames) > 0 {
+		fmt.Fprint(dst, testImportTemplate)
+		for _, typeName := range typeNames {
+			fmt.Fprintf(dst, testTemplate, typeName)
+		}
 	}
 	return nil
 }

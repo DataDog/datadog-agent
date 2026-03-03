@@ -9,10 +9,12 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+)
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -35,13 +37,9 @@ def build(
     """
     Build Dogstatsd
     """
-    build_include = (
-        get_default_build_tags(build="dogstatsd", flavor=AgentFlavor.dogstatsd)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    build_tags = compute_build_tags_for_flavor(
+        build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags, env = get_build_flags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 
@@ -70,6 +68,7 @@ def build(
         build_tags=build_tags,
         bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
 
     # Render the configuration file template
@@ -123,27 +122,6 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run(f"{target} start")
-
-
-@task
-def system_tests(ctx, skip_build=False, go_mod="readonly"):
-    """
-    Run the system testsuite.
-    """
-    if not skip_build:
-        print("Building dogstatsd...")
-        build(ctx)
-
-    env = {
-        "DOGSTATSD_BIN": os.path.join(get_root(), DOGSTATSD_BIN_PATH, bin_name("dogstatsd")),
-    }
-    cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
-    args = {
-        "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags(build="system-tests", flavor=AgentFlavor.dogstatsd)),
-        "REPO_PATH": REPO_PATH,
-    }
-    ctx.run(cmd.format(**args), env=env)
 
 
 @task

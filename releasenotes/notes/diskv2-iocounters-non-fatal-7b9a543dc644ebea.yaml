@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fixed a regression in the Go-native disk check (diskv2) where a failure
+    in IO counter collection (e.g. ``ERROR_INVALID_FUNCTION`` from
+    ``DeviceIoControl`` on Windows Server 2016) caused all disk metrics to be
+    discarded, including successfully collected partition/usage metrics such as
+    ``system.disk.total``, ``system.disk.used``, and ``system.disk.free``.
+    IO counter collection is now best-effort: known errors such as
+    ``ERROR_INVALID_FUNCTION`` are logged at debug level, while unexpected
+    errors are logged as warnings. Neither prevent partition metrics from
+    being reported.

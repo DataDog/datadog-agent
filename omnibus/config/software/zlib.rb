@@ -15,11 +15,7 @@
 #
 
 name "zlib"
-default_version "1.3.1"
 
 build do
-  license "Zlib"
-  license_file "https://gist.githubusercontent.com/remh/77877aa00b45c1ebc152/raw/372a65de9f4c4ed376771b8d2d0943da83064726/zlib.license"
-
-  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}'"
 end

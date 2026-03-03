@@ -71,28 +71,30 @@ type Config struct {
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
 type DatadogConfig struct {
-	APIKey               string                     `yaml:"api_key"`
+	APIKey               string                     `yaml:"api_key,omitempty"`
 	Hostname             string                     `yaml:"hostname,omitempty"`
 	Site                 string                     `yaml:"site,omitempty"`
 	Proxy                DatadogConfigProxy         `yaml:"proxy,omitempty"`
 	Env                  string                     `yaml:"env,omitempty"`
 	Tags                 []string                   `yaml:"tags,omitempty"`
 	ExtraTags            []string                   `yaml:"extra_tags,omitempty"`
-	LogsEnabled          bool                       `yaml:"logs_enabled,omitempty"`
+	LogsEnabled          *bool                      `yaml:"logs_enabled,omitempty"`
 	DJM                  DatadogConfigDJM           `yaml:"djm_config,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
-	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
+	RemoteUpdates        *bool                      `yaml:"remote_updates,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
+	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
+	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
 type GPUCheckConfig struct {
-	Enabled     bool   `yaml:"enabled,omitempty"`
+	Enabled     *bool  `yaml:"enabled,omitempty"`
 	NvmlLibPath string `yaml:"nvml_lib_path,omitempty"`
 }
 
@@ -105,7 +107,7 @@ type DatadogConfigProxy struct {
 
 // DatadogConfigDJM represents the configuration for the Data Jobs Monitoring
 type DatadogConfigDJM struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // DatadogConfigProcessConfig represents the configuration for the process agent
@@ -138,7 +140,7 @@ type IntegrationConfigLogs struct {
 	Service                string              `yaml:"service,omitempty"`
 	Source                 string              `yaml:"source,omitempty"`
 	Tags                   string              `yaml:"tags,omitempty"`
-	AutoMultiLineDetection bool                `yaml:"auto_multi_line_detection,omitempty"`
+	AutoMultiLineDetection *bool               `yaml:"auto_multi_line_detection,omitempty"`
 	LogProcessingRules     []LogProcessingRule `yaml:"log_processing_rules,omitempty"`
 }
 
@@ -173,34 +175,40 @@ type InjectTracerConfigEnvVar struct {
 type SystemProbeConfig struct {
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
+	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
 type RuntimeSecurityConfig struct {
-	Enabled bool       `yaml:"enabled,omitempty"`
+	Enabled *bool      `yaml:"enabled,omitempty"`
 	SBOM    SBOMConfig `yaml:"sbom,omitempty"`
 }
 
 // SBOMConfig represents the configuration for the SBOM
 type SBOMConfig struct {
-	Enabled        bool                     `yaml:"enabled,omitempty"`
+	Enabled        *bool                    `yaml:"enabled,omitempty"`
 	ContainerImage SBOMContainerImageConfig `yaml:"container_image,omitempty"`
 	Host           SBOMHostConfig           `yaml:"host,omitempty"`
 }
 
 // SBOMContainerImageConfig represents the configuration for the SBOM container image
 type SBOMContainerImageConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // SBOMHostConfig represents the configuration for the SBOM host
 type SBOMHostConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // GPUMonitoringConfig represents the configuration for GPU monitoring
 type GPUMonitoringConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// PrivilegedLogsConfig represents the configuration for privileged logs
+type PrivilegedLogsConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // SecurityAgentConfig represents the configuration to write in /etc/datadog-agent/security-agent.yaml
@@ -211,7 +219,7 @@ type SecurityAgentConfig struct {
 
 // SecurityAgentComplianceConfig represents the configuration for the compliance
 type SecurityAgentComplianceConfig struct {
-	Enabled bool `yaml:"enabled,omitempty"`
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // LogsConfig represents the configuration for global log processing rules
@@ -224,6 +232,22 @@ type LogProcessingRule struct {
 	Type    string `yaml:"type" json:"type"`
 	Name    string `yaml:"name" json:"name"`
 	Pattern string `yaml:"pattern" json:"pattern"`
+}
+
+// DatadogAPMConfig represents the config for the APM agent
+type DatadogAPMConfig struct {
+	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation,omitempty"`
+}
+
+// ObfuscationConfig represents the configuration for obfuscation
+type ObfuscationConfig struct {
+	CreditCards CreditCardObfuscationConfig `yaml:"credit_cards,omitempty"`
+}
+
+// CreditCardObfuscationConfig represents the configuration for credit card obfuscation
+type CreditCardObfuscationConfig struct {
+	Enabled    *bool    `yaml:"enabled,omitempty"`
+	KeepValues []string `yaml:"keep_values,omitempty"`
 }
 
 // ApplicationMonitoringConfig represents the configuration for the application monitoring
@@ -246,6 +270,12 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
+	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`
+	RumApplicationID              string  `yaml:"DD_RUM_APPLICATION_ID,omitempty"`
+	RumClientToken                string  `yaml:"DD_RUM_CLIENT_TOKEN,omitempty"`
+	RumRemoteConfigurationID      string  `yaml:"DD_RUM_REMOTE_CONFIGURATION_ID,omitempty"`
+	RumSite                       string  `yaml:"DD_RUM_SITE,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install

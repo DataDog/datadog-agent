@@ -1,0 +1,49 @@
+name: "host-profiler-with-agent"
+
+services:
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    privileged: true
+    environment:
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - agent-ipc:/etc/datadog-agent:rw
+    secrets:
+      - dd-api-key
+    entrypoint: [ '/bin/sh', '-c', 'export DD_API_KEY=$$(cat /run/secrets/dd-api-key) ; /bin/entrypoint.sh' ]
+
+  host-profiler:
+    build:
+      context: ../..
+      dockerfile: tools/host-profiler/Dockerfile
+      args:
+        UID: ${UID}
+        GID: ${GID}
+    privileged: true
+    pid: "host"
+    cgroup: "host"
+    # host-profiler needs to share agent's loopback
+    network_mode: "service:datadog-agent"
+    environment:
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DO_NOT_START_PROFILER:
+    volumes:
+      - ../..:/app
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - agent-ipc:/etc/datadog-agent:ro
+    secrets:
+      - dd-api-key
+      - dd-app-key
+
+volumes:
+  agent-ipc:
+
+secrets:
+  dd-api-key:
+    environment: DD_API_KEY
+  dd-app-key:
+    environment: DD_APP_KEY

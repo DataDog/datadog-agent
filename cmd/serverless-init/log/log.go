@@ -34,6 +34,9 @@ const (
 	aasLoggingDescriptor  = "DD_AAS_INSTANCE_LOG_FILE_DESCRIPTOR"
 	sourceEnvVar          = "DD_SOURCE"
 	sourceName            = "Datadog Agent"
+	// Log files are persisted between instance restarts in AAS, so we want to start tailing logs from the end to prevent duplicates.
+	// For ephemeral environments (Cloud Run, Azure Container Apps, etc.), we also want "end".
+	tailingMode = "end"
 )
 
 // Config holds the log configuration
@@ -65,38 +68,41 @@ func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component
 
 	tagsArray := serverlessTag.MapToArray(tags)
 
-	addFileTailing(logsAgent, conf.source, tagsArray, origin)
+	if src := createFileTailingSource(conf.source, tagsArray, origin); src != nil {
+		logsAgent.GetSources().AddSource(src)
+	}
 
 	serverlessLogs.SetLogsTags(tagsArray)
 	return logsAgent
 }
 
-func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string, origin string) {
-
+// createFileTailingSource creates a log source for file tailing based on origin and environment
+func createFileTailingSource(source string, tags []string, origin string) *sources.LogSource {
 	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
+
 	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
 	// To avoid this, we want to add the azure instance ID to the filepath so each instance tails their respective system log files.
 	// Users can also add $COMPUTERNAME to their custom files to achieve the same result.
 	if appServiceDefaultLoggingEnabled {
-		src := sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
-			Type:    logConfig.FileType,
-			Path:    setAasInstanceTailingPath(),
-			Service: os.Getenv("DD_SERVICE"),
-			Tags:    tags,
-			Source:  source,
+		return sources.NewLogSource("aas-instance-file-tail", &logConfig.LogsConfig{
+			Type:        logConfig.FileType,
+			Path:        setAasInstanceTailingPath(),
+			TailingMode: tailingMode,
+			Service:     os.Getenv("DD_SERVICE"),
+			Tags:        tags,
+			Source:      source,
 		})
-		logsAgent.GetSources().AddSource(src)
-		// If we are not in Azure or the aas instance env var is not set, we fall back to the previous behavior
 	} else if filePath, set := os.LookupEnv(envVarTailFilePath); set {
-		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
-			Type:    logConfig.FileType,
-			Path:    filePath,
-			Service: os.Getenv("DD_SERVICE"),
-			Tags:    tags,
-			Source:  source,
+		return sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
+			Type:        logConfig.FileType,
+			Path:        filePath,
+			TailingMode: tailingMode,
+			Service:     os.Getenv("DD_SERVICE"),
+			Tags:        tags,
+			Source:      source,
 		})
-		logsAgent.GetSources().AddSource(src)
 	}
+	return nil
 }
 
 func isEnabled(envValue string) bool {

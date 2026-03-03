@@ -22,21 +22,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type multiFakeIntakeEnv struct {
@@ -68,8 +68,8 @@ const (
 	logService              = "custom_logs"
 	connectionResetInterval = 20 // seconds
 
-	intakeMaxWaitTime    = 60 * time.Second
-	intakeUnusedWaitTime = 30 * time.Second
+	intakeMaxWaitTime    = 2 * time.Minute
+	intakeUnusedWaitTime = 20 * time.Second
 	intakeTick           = 5 * time.Second
 )
 
@@ -256,13 +256,14 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		assert.NotEmpty(t, metricNames)
 
 		// check logs
-		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute("echo 'totoro' >> " + logFile)
 		logs, err := intake.FilterLogs(logService)
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
 
 		// check traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		defer teardownTraceGen()
 		traces, err := intake.GetTraces()
 		require.NoError(t, err)
 		assert.NotEmpty(t, traces)
@@ -274,8 +275,6 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
 		assert.NoError(t, err)
-
-		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent contacts intake at %s", intake.URL())
@@ -290,23 +289,23 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		intake.FlushServerAndResetAggregators()
 
 		// write a log
-		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute("echo 'totoro' >> " + logFile)
 
 		// send a flare
 		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 		// send traces
 		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		defer teardownTraceGen()
 
 		// give time to the agent to flush to the intake
+		v.T().Logf("waiting for the agent to flush to ensure the intake %s is not used", intake.URL())
 		time.Sleep(intakeUnusedWaitTime)
 
 		stats, err := intake.RouteStats()
 		require.NoError(t, err)
 
 		assert.Empty(t, stats)
-
-		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent doesn't contact intake at %s", intake.URL())

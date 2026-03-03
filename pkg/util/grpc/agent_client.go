@@ -10,15 +10,21 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
+
+	"github.com/mdlayher/vsock"
 )
 
 var defaultBackoffConfig = backoff.Config{
@@ -37,8 +43,23 @@ func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, t
 
 	opts = append(opts, grpc.WithTransportCredentials(cred))
 
-	target := net.JoinHostPort(ipcAddress, cmdPort)
+	if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+		cid, err := socket.ParseVSockAddress(vsockAddr)
+		if err != nil {
+			return nil, err
+		}
 
+		port, err := strconv.ParseUint(cmdPort, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cmd_port %s", cmdPort)
+		}
+
+		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			return vsock.Dial(cid, uint32(port), &vsock.Config{})
+		}))
+	}
+
+	target := net.JoinHostPort(ipcAddress, cmdPort)
 	log.Debugf("attempting to create grpc agent client connection to: %s", target)
 	return grpc.DialContext(ctx, target, opts...) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 }

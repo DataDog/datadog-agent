@@ -9,21 +9,18 @@
 package process
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -32,15 +29,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -67,9 +66,7 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient           *http.Client
-	startTime                time.Time
-	startupTimeout           time.Duration
+	sysProbeClient           *sysprobeclient.CheckClient
 	serviceRetries           map[int32]uint
 	ignoredPids              core.PidSet
 	pidHeartbeats            map[int32]time.Time
@@ -106,9 +103,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:           sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:                clock.Now().UTC(),
-		startupTimeout:           pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		sysProbeClient:           sysprobeclient.GetCheckClient(),
 		serviceRetries:           make(map[int32]uint),
 		ignoredPids:              make(core.PidSet),
 		pidHeartbeats:            make(map[int32]time.Time),
@@ -167,6 +162,11 @@ func (c *collector) isServiceDiscoveryEnabled() bool {
 	return c.systemProbeConfig.GetBool("discovery.enabled")
 }
 
+// isGPUMonitoringEnabled returns a boolean indicating if GPU monitoring is enabled
+func (c *collector) isGPUMonitoringEnabled() bool {
+	return c.config.GetBool("gpu.enabled")
+}
+
 func (c *collector) getServiceCollectionInterval() time.Duration {
 	return c.systemProbeConfig.GetDuration("discovery.service_collection_interval")
 }
@@ -194,15 +194,8 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
-	// we want to gate everything for this new collector by the use_wlm config, but eventually
-	// this collector will be gated separately for process_collector OR service discovery
-	if !c.config.GetBool("process_config.process_collection.use_wlm") {
-		return errors.NewDisabled(componentName, "wlm process collection disabled")
-	}
-
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
-		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() && !c.isGPUMonitoringEnabled() {
+		return errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled")
 	}
 
 	if c.containerProvider == nil {
@@ -214,7 +207,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
+	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() || c.isGPUMonitoringEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
@@ -281,7 +274,8 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
-// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
+// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
+// It uses PID, creation time, and command line hash to detect new processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -292,13 +286,15 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	}
 	newProcs := make([]*procutil.Process, 0, diffSize)
 	for pid, procA := range procCacheA {
-		procB, exists := procCacheB[pid]
+		procB, pidExists := procCacheB[pid]
 
-		// new process
-		if !exists {
+		// New process - PID not in cache
+		if !pidExists {
 			newProcs = append(newProcs, procA)
-		} else if procB.Stats.CreateTime != procA.Stats.CreateTime {
-			// same process PID exists, but different process due to creation time
+			continue
+		}
+
+		if !procutil.IsSameProcess(procA, procB) {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -358,47 +354,18 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
 func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
-	var responseData model.ServicesResponse
-
-	// Create params with categorized PIDs and convert to JSON
-	params := core.Params{}
-	params.NewPids = newPids
-	params.HeartbeatPids = heartbeatPids
-
-	jsonBody, err := params.ToJSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create JSON request body: %w", err)
+	// Create params with categorized PIDs
+	params := core.Params{
+		NewPids:       newPids,
+		HeartbeatPids: heartbeatPids,
 	}
 
-	url := getDiscoveryURL("services")
-	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(jsonBody))
+	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set content type for JSON
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.sysProbeClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
-	}
-
-	err = json.Unmarshal(body, &responseData)
-	if err != nil {
-		return nil, err
-	}
-
-	return &responseData, nil
+	return &response, nil
 }
 
 func (c *collector) handleServiceRetries(pid int32) {
@@ -414,7 +381,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet, gpuPids core.PidSet) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
@@ -448,6 +415,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            pid,
 			InjectionState: injectionState,
+			UsesGPU:        gpuPids.Has(pid),
 		}
 
 		if service != nil {
@@ -487,6 +455,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 		preservedService.UDPPorts = newService.UDPPorts
 		preservedService.LogFiles = newService.LogFiles
 
+		// The following fields are preserved across the lifetime of the process.
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
@@ -494,9 +463,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            int32(service.PID),
 			Service:        &preservedService,
-			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
-			// Preserve language from existing process
-			Language: existingProcess.Language,
+			InjectionState: existingProcess.InjectionState,
+			Language:       existingProcess.Language,
+			UsesGPU:        existingProcess.UsesGPU,
 		}
 
 		entities = append(entities, entity)
@@ -514,11 +483,12 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 
 	resp, err := c.getDiscoveryServices(newPids, heartbeatPids)
 	if err != nil {
-		if time.Since(c.startTime) < c.startupTimeout {
-			log.Warnf("service collector: system-probe not started yet: %v", err)
-		} else {
-			log.Errorf("failed to get services: %s", err)
+		// CheckClient handles startup warnings internally, but we still need to suppress
+		// the error if system-probe hasn't started yet
+		if sysprobeclient.IgnoreStartupError(err) == nil {
+			return nil, nil
 		}
+		log.Errorf("failed to get services: %s", err)
 		return nil, nil
 	}
 
@@ -526,17 +496,26 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
 		injectedPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
+	gpuPids := make(core.PidSet)
+	for _, pid := range resp.GPUPIDs {
+		gpuPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
 	entities, _ := c.updateServices(alivePids, procs)
+	if len(entities) == 0 {
+		return nil
+	}
+
+	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 
 	for _, entity := range entities {
 		if proc, exists := procs[entity.Pid]; exists {
@@ -551,6 +530,14 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
 			entity.Uids = proc.Uids
 			entity.Gids = proc.Gids
+		}
+
+		if cid, exists := pidToCid[int(entity.Pid)]; exists {
+			entity.ContainerID = cid
+			entity.Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
 		}
 	}
 
@@ -635,55 +622,47 @@ func (c *collector) updateDiscoveredServicesMetric() {
 	c.metricDiscoveredServices.Set(float64(count))
 }
 
-// getDiscoveryURL builds the URL for the discovery endpoint
-func getDiscoveryURL(endpoint string) string {
-	URL := &url.URL{
-		Scheme: "http",
-		Host:   "sysprobe",
-		Path:   "/discovery/" + endpoint,
-	}
-
-	return URL.String()
-}
-
 // collectProcesses captures all the required process data for the process check
 func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
+	// Run collection immediately on startup, then wait for ticker to repeat
 	for {
+		// fetch process data and submit events to streaming channel for asynchronous processing
+		procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
+		if err != nil {
+			log.Errorf("Error getting processes by pid: %v", err)
+			return
+		}
+
+		// some processes are in a container so we want to store the container_id for them
+		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+		// TODO: potentially scrub process data here instead of in the check?
+
+		// categorize the processes into events for workloadmeta
+		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
+		languages := c.detectLanguages(createdProcs)
+		wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
+
+		wlmDeletedProcs := c.findDeletedProcesses(procs)
+
+		// send these events to the channel
+		c.processEventsCh <- &Event{
+			Type:    EventTypeProcess,
+			Created: wlmCreatedProcs,
+			Deleted: wlmDeletedProcs,
+		}
+
+		// store latest collected processes
+		c.mux.Lock()
+		c.lastCollectedProcesses = procs
+		c.mux.Unlock()
+
 		select {
 		case <-collectionTicker.C:
-			// fetch process data and submit events to streaming channel for asynchronous processing
-			procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
-			if err != nil {
-				log.Errorf("Error getting processes by pid: %v", err)
-				return
-			}
-
-			// some processes are in a container so we want to store the container_id for them
-			pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
-			// TODO: potentially scrub process data here instead of in the check?
-
-			// categorize the processes into events for workloadmeta
-			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			languages := c.detectLanguages(createdProcs)
-			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
-
-			wlmDeletedProcs := c.findDeletedProcesses(procs)
-
-			// send these events to the channel
-			c.processEventsCh <- &Event{
-				Type:    EventTypeProcess,
-				Created: wlmCreatedProcs,
-				Deleted: wlmDeletedProcs,
-			}
-
-			// store latest collected processes
-			c.mux.Lock()
-			c.lastCollectedProcesses = procs
-			c.mux.Unlock()
+			// Continue to next iteration
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return
@@ -864,18 +843,72 @@ func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Proce
 	}
 }
 
+func normalizeNames(serviceName string, additionalNames []string, lang string) (string, []string) {
+	// NormalizeService returns the fallback service name ("unknown-service")
+	// for empty languages, without this check it would return
+	// "unnamed-unknown-service" for language.Unknown.
+	if lang == string(language.Unknown) {
+		lang = ""
+	}
+
+	serviceName, _ = normalize.NormalizeService(serviceName, lang)
+	additionalNames = normalizeAdditionalServiceNames(additionalNames)
+	return serviceName, additionalNames
+}
+
+func normalizeAdditionalServiceNames(names []string) []string {
+	if len(names) == 0 {
+		return names
+	}
+
+	out := make([]string, 0, len(names))
+	for _, v := range names {
+		if len(strings.TrimSpace(v)) == 0 {
+			continue
+		}
+
+		// lang is only used for fallback names, which we don't use since we
+		// check for errors.
+		norm, err := normalize.NormalizeService(v, "")
+		if err == nil {
+			out = append(out, norm)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// tracerCollectsLogs checks if any tracer metadata indicates the tracer is already collecting logs.
+func tracerCollectsLogs(tracerMetadata []tracermetadata.TracerMetadata) bool {
+	for _, tm := range tracerMetadata {
+		if tm.LogsCollected {
+			return true
+		}
+	}
+	return false
+}
+
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	generatedName, additionalNames := normalizeNames(modelService.GeneratedName, modelService.AdditionalGeneratedNames, modelService.Language)
+
+	var logFiles []string
+	if !tracerCollectsLogs(modelService.TracerMetadata) {
+		logFiles = modelService.LogFiles
+	} else {
+		log.Debugf("Skipping log file for pid %d: tracer is already collecting logs, files: %v", modelService.PID, modelService.LogFiles)
+	}
+
 	return &workloadmeta.Service{
-		GeneratedName:            modelService.GeneratedName,
+		GeneratedName:            generatedName,
 		GeneratedNameSource:      modelService.GeneratedNameSource,
-		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
+		AdditionalGeneratedNames: additionalNames,
 		TracerMetadata:           modelService.TracerMetadata,
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
-		LogFiles:                 modelService.LogFiles,
+		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,
 			Env:     modelService.UST.Env,

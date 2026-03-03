@@ -1,0 +1,9 @@
+{
+  "type": "unsupported",
+  "operation": "lt",
+  "argument": [
+    1,
+    2
+  ],
+  "error": ""
+}

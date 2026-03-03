@@ -9,7 +9,6 @@ package inventoryagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -20,7 +19,7 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -83,13 +83,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
 type inventoryagent struct {
@@ -186,12 +179,13 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
+	ia.data["package_version"] = version.AgentPackageVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// agent-configuration: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "none"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}
@@ -251,6 +245,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
+	ia.data["feature_remote_updates_enabled"] = ia.conf.GetBool("remote_updates")
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
@@ -368,6 +363,28 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 }
 
+func (ia *inventoryagent) fetchApplicationMonitoringMetadata() {
+	scrubber := scrubber.NewWithDefaults()
+	applicationMonitoringConfig, err := tracers.ApplicationMonitoringConfig(ia.conf)
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration: %s", err)
+	}
+	applicationMonitoringConfigFleet, err := tracers.ApplicationMonitoringConfigFleet(ia.conf)
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration fleet: %s", err)
+	}
+	scrubbedApplicationMonitoringConfig, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfig))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration: %s", err)
+	}
+	scrubbedApplicationMonitoringConfigFleet, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfigFleet))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration fleet: %s", err)
+	}
+	ia.data["application_monitoring_config"] = scrubbedApplicationMonitoringConfig
+	ia.data["application_monitoring_config_fleet"] = scrubbedApplicationMonitoringConfigFleet
+}
+
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
 // Times out after 5 seconds to avoid blocking the agent startup.
 func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
@@ -411,6 +428,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 	// Fleet
 	ia.fetchFleetMetadata()
+	// Application Monitoring (tracers)
+	ia.fetchApplicationMonitoringMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
@@ -495,10 +514,6 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
-
-	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
-		delete(data, "diagnostics")
-	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

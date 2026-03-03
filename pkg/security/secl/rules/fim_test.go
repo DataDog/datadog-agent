@@ -30,11 +30,11 @@ func TestExpandFIM(t *testing.T) {
 				},
 				{
 					id:   "__fim_expanded_chmod__test",
-					expr: "chmod.file.path == \"/tmp/test\"",
+					expr: "(chmod.file.path == \"/tmp/test\") && (chmod.file.destination.mode != chmod.file.mode)",
 				},
 				{
 					id:   "__fim_expanded_chown__test",
-					expr: "chown.file.path == \"/tmp/test\"",
+					expr: "(chown.file.path == \"/tmp/test\") && ((chown.file.destination.uid != -1 && chown.file.destination.uid != chown.file.uid) || (chown.file.destination.gid != -1 && chown.file.destination.gid != chown.file.gid))",
 				},
 				{
 					id:   "__fim_expanded_link__test",
@@ -68,11 +68,11 @@ func TestExpandFIM(t *testing.T) {
 				},
 				{
 					id:   "__fim_expanded_chmod__complex",
-					expr: "(chmod.file.path == \"/tmp/test\" || chmod.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
+					expr: "((chmod.file.path == \"/tmp/test\" || chmod.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\") && (chmod.file.destination.mode != chmod.file.mode)",
 				},
 				{
 					id:   "__fim_expanded_chown__complex",
-					expr: "(chown.file.path == \"/tmp/test\" || chown.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\"",
+					expr: "((chown.file.path == \"/tmp/test\" || chown.file.name == \"abc\") && process.file.name == \"def\" && container.id != \"\") && ((chown.file.destination.uid != -1 && chown.file.destination.uid != chown.file.uid) || (chown.file.destination.gid != -1 && chown.file.destination.gid != chown.file.gid))",
 				},
 				{
 					id:   "__fim_expanded_link__complex",

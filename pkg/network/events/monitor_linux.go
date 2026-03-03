@@ -21,9 +21,17 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	if ev.GetEventType() == model.ForkEventType {
 		return ev.GetProcessForkTime()
 	}
+	if ev.GetEventType() == model.TracerMemfdSealEventType {
+		exec := ev.GetProcessExecTime()
+		fork := ev.GetProcessForkTime()
+		if exec.After(fork) {
+			return exec
+		}
+		return fork
+	}
 	return time.Time{}
 }
 
-func getAPMTags(_ map[string]struct{}, _ string) []*intern.Value {
+func getAPMTags(_ map[string]string, _ string) []*intern.Value {
 	return nil
 }

@@ -69,7 +69,7 @@ func TestSetSocketEnvs(t *testing.T) {
 			res, err := setSocketEnvs(context.TODO(), []byte(tt.input))
 			assert.NoError(t, err)
 			envVarsCount := 0
-			for _, line := range strings.Split(string(res), "\n") {
+			for line := range strings.SplitSeq(string(res), "\n") {
 				if line == "" {
 					continue
 				}

@@ -13,7 +13,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -57,7 +57,7 @@ func NewServerlessConfig(path string) (Component, error) {
 
 	d := dependencies{
 		Params: NewParams(path, options...),
-		Secret: secretsnoop.NewComponent().Comp,
+		Secret: &secretnooptypes.SecretNoop{},
 	}
 	return newConfig(d)
 }
@@ -72,13 +72,11 @@ func newComponent(deps dependencies) (provides, error) {
 
 func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
+	warnings := &pkgconfigmodel.Warnings{}
 
-	warnings, err := setupConfig(config, deps.Secret, deps.Params)
+	err := setupConfig(config, deps.Secret, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
-			if warnings == nil {
-				warnings = &pkgconfigmodel.Warnings{}
-			}
 			warnings.Errors = []error{e}
 			e = nil
 		}

@@ -28,9 +28,11 @@ const (
 	EventPairingExpectationNone                  EventPairingExpectation = 0
 	EventPairingExpectationEntryPairingExpected  EventPairingExpectation = 1
 	EventPairingExpectationReturnPairingExpected EventPairingExpectation = 2
-	EventPairingExpectationCallMapFull           EventPairingExpectation = 3
-	EventPairingExpectationCallCountExceeded     EventPairingExpectation = 4
+	EventPairingExpectationCallCountExceeded     EventPairingExpectation = 3
+	EventPairingExpectationCallMapFull           EventPairingExpectation = 4
 	EventPairingExpectationBufferFull            EventPairingExpectation = 5
+	EventPairingExpectationNoneInlined           EventPairingExpectation = 6
+	EventPairingExpectationNoneNoBody            EventPairingExpectation = 7
 )
 
 const (
@@ -170,8 +172,8 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 			dataLen := int(header.Length)
 			if idx+dataLen > len(e) {
 				yield(DataItem{}, fmt.Errorf(
-					"not enough bytes to read data item: %d < %d",
-					len(e), idx+int(header.Length),
+					"not enough bytes to read data item (%d bytes): %d < %d",
+					header.Length, len(e), idx+int(header.Length),
 				))
 				return
 			}

@@ -9,7 +9,6 @@
 package activitytree
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -56,28 +55,29 @@ var (
 )
 
 func (at *ActivityTree) getGraphTitle(name string, selector string) string {
-	title := tableHeader
-	title += "<TR><TD>Name</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">" + name + "</FONT></TD></TR>"
+	var builder strings.Builder
+	builder.WriteString(tableHeader)
+	builder.WriteString("<TR><TD>Name</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">" + name + "</FONT></TD></TR>")
 	for i, t := range strings.Split(selector, ",") {
 		if i%3 == 0 {
 			if i != 0 {
-				title += "</TD></TR>"
+				builder.WriteString("</TD></TR>")
 			}
-			title += "<TR>"
+			builder.WriteString("<TR>")
 			if i == 0 {
-				title += "<TD>Selector</TD>"
+				builder.WriteString("<TD>Selector</TD>")
 			} else {
-				title += "<TD></TD>"
+				builder.WriteString("<TD></TD>")
 			}
-			title += "<TD>"
+			builder.WriteString("<TD>")
 		} else {
-			title += ", "
+			builder.WriteString(", ")
 		}
-		title += t
+		builder.WriteString(t)
 	}
-	title += "</TD></TR>"
-	title += "</TABLE>>"
-	return title
+	builder.WriteString("</TD></TR>")
+	builder.WriteString("</TABLE>>")
+	return builder.String()
 }
 
 // PrepareGraphData returns a graph from the activity tree
@@ -269,11 +269,14 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		// save guard, this should never happen
 		return utils.GraphID{}, false
 	}
-	name := n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String())
+	var nameBuilder strings.Builder
+	nameBuilder.WriteString(n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String()))
 	for _, req := range n.Requests[1:] {
-		name += ", " + model.QType(req.Question.Type).String()
+		nameBuilder.WriteString(", ")
+		nameBuilder.WriteString(model.QType(req.Question.Type).String())
 	}
-	name += ")"
+	nameBuilder.WriteString(")")
+	name := nameBuilder.String()
 
 	dnsNode := &utils.Node{
 		ID:    processID.Derive(utils.NewNodeIDFromPtr(n)),
@@ -309,7 +312,7 @@ func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processI
 		label += "<TR><TD>Host</TD><TD>" + n.Event.Host + "</TD></TR>"
 	}
 	if n.Event.CloudProvider == model.IMDSAWSCloudProvider {
-		label += "<TR><TD>IMDSv2</TD><TD>" + fmt.Sprintf("%v", n.Event.AWS.IsIMDSv2) + "</TD></TR>"
+		label += "<TR><TD>IMDSv2</TD><TD>" + strconv.FormatBool(n.Event.AWS.IsIMDSv2) + "</TD></TR>"
 		if len(n.Event.AWS.SecurityCredentials.AccessKeyID) > 0 {
 			label += "<TR><TD> AccessKeyID </TD><TD>" + n.Event.AWS.SecurityCredentials.AccessKeyID + "</TD></TR>"
 		}
@@ -362,11 +365,11 @@ func (at *ActivityTree) prepareNetworkDeviceNode(n *NetworkDeviceNode, data *uti
 
 func (at *ActivityTree) prepareNetworkFlowNode(n *FlowNode, data *utils.SubGraph, deviceID utils.GraphID) {
 	label := tableHeader
-	label += "<TR><TD>Source</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Source.IPNet.String(), n.Flow.Source.Port) + "</TD></TR>"
+	label += "<TR><TD>Source</TD><TD>" + n.Flow.Source.IPNet.String() + ":" + strconv.FormatUint(uint64(n.Flow.Source.Port), 10) + "</TD></TR>"
 	if n.Flow.Source.IsPublicResolved {
 		label += "<TR><TD>Is src public ?</TD><TD>" + strconv.FormatBool(n.Flow.Source.IsPublic) + "</TD></TR>"
 	}
-	label += "<TR><TD>Destination</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Destination.IPNet.String(), n.Flow.Destination.Port) + "</TD></TR>"
+	label += "<TR><TD>Destination</TD><TD>" + n.Flow.Destination.IPNet.String() + ":" + strconv.FormatUint(uint64(n.Flow.Destination.Port), 10) + "</TD></TR>"
 	if n.Flow.Destination.IsPublicResolved {
 		label += "<TR><TD>Is dst public ?</TD><TD>" + strconv.FormatBool(n.Flow.Destination.IsPublic) + "</TD></TR>"
 	}
@@ -423,7 +426,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	for i, node := range n.Bind {
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label: fmt.Sprintf("[%s]:%d", node.IP, node.Port),
+			Label: "[" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
 			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,
@@ -469,24 +472,25 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.SubGraph, proce
 }
 
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
-	label := tableHeader
+	var labelBuilder strings.Builder
+	labelBuilder.WriteString(tableHeader)
 	for i, s := range p.Syscalls {
 		if i%5 == 0 {
 			if i != 0 {
-				label += "</TD></TR>"
+				labelBuilder.WriteString("</TD></TR>")
 			}
-			label += "<TR><TD>"
+			labelBuilder.WriteString("<TR><TD>")
 		} else {
-			label += ", "
+			labelBuilder.WriteString(", ")
 		}
-		label += model.Syscall(s.Syscall).String()
+		labelBuilder.WriteString(model.Syscall(s.Syscall).String())
 	}
-	label += "</TD></TR>"
-	label += "</TABLE>>"
+	labelBuilder.WriteString("</TD></TR>")
+	labelBuilder.WriteString("</TABLE>>")
 
 	syscallsNode := &utils.Node{
 		ID:        utils.NewGraphIDWithDescription("syscalls", utils.NewNodeIDFromPtr(p)),
-		Label:     label,
+		Label:     labelBuilder.String(),
 		Size:      smallText,
 		Color:     processCategoryColor,
 		FillColor: processCategorySnapshotColor,
@@ -499,18 +503,19 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 }
 
 func (at *ActivityTree) prepareCapabilitiesNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
-	label := tableHeader
+	var labelBuilder strings.Builder
+	labelBuilder.WriteString(tableHeader)
 
 	for _, capabilityNode := range p.Capabilities {
 		kernelCap := model.KernelCapability(1 << capabilityNode.Capability)
-		label += "<TR><TD>" + kernelCap.String() + "</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) + "</TD></TR>"
+		labelBuilder.WriteString("<TR><TD>" + kernelCap.String() + "</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) + "</TD></TR>")
 	}
 
-	label += "</TABLE>>"
+	labelBuilder.WriteString("</TABLE>>")
 
 	capNode := &utils.Node{
 		ID:        utils.NewGraphIDWithDescription("capabilities", utils.NewNodeIDFromPtr(p)),
-		Label:     label,
+		Label:     labelBuilder.String(),
 		Size:      smallText,
 		Color:     processCategoryColor,
 		FillColor: processCategorySnapshotColor,

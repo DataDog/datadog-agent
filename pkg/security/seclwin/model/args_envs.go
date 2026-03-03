@@ -9,6 +9,7 @@ package model
 import (
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
@@ -22,8 +23,11 @@ type ArgsEnvs struct {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	Values    []string
-	Truncated bool
+	sync.Mutex
+
+	Values           []string
+	Truncated        bool
+	ScrubbedResolved bool
 }
 
 // Equals compares two ArgsEntry

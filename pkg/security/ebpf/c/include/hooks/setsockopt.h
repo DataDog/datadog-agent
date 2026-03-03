@@ -5,10 +5,13 @@
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
 #include <uapi/linux/filter.h>
-long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
+#include <helpers/approvers.h>
+
+static long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
     }
+
     struct policy_t policy = fetch_policy(EVENT_SETSOCKOPT);
     struct syscall_cache_t syscall = {
         .type = EVENT_SETSOCKOPT,
@@ -24,9 +27,12 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_
     return 0;
 }
 
-int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
+        return 0;
+    }
+    if (approve_syscall(syscall, setsockopt_approvers) == DISCARDED) {
         return 0;
     }
     int key = 0;
@@ -65,7 +71,7 @@ HOOK_SYSCALL_EXIT(setsockopt) {
     return sys_set_sock_opt_ret(ctx, retval);
 }
 HOOK_ENTRY("sk_attach_filter")
-int hook_sk_attach_filter(ctx_t *ctx) {
+static int hook_sk_attach_filter(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;
@@ -80,7 +86,7 @@ int hook_sk_attach_filter(ctx_t *ctx) {
 }
 
 HOOK_ENTRY("security_socket_setsockopt")
-int hook_security_socket_setsockopt(ctx_t *ctx) {
+static int hook_security_socket_setsockopt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
 
     if (!syscall) {
@@ -99,7 +105,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_sysca
     return sys_set_sock_opt_ret(args, args->ret);
 }
 HOOK_ENTRY("release_sock")
-int hook_release_sock(ctx_t *ctx) {
+static int hook_release_sock(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;
@@ -115,7 +121,7 @@ int hook_release_sock(ctx_t *ctx) {
     return 0;
 }
 HOOK_EXIT("release_sock")
-int rethook_release_sock(ctx_t *ctx) {
+static int rethook_release_sock(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;

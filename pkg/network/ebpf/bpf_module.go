@@ -24,10 +24,10 @@ var telemetryMu sync.Mutex
 // ModuleFileName constructs the module file name based on the module name
 func ModuleFileName(moduleName string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", moduleName)
+		return moduleName + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", moduleName)
+	return moduleName + ".o"
 }
 
 func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {

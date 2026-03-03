@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"sync"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,6 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+)
+
+const (
+	celEndpointID = "cel://endpoint"
 )
 
 type store struct {
@@ -37,7 +43,7 @@ func newStore() *store {
 
 type epConfig struct {
 	templates     []integration.Config
-	ep            *v1.Endpoints
+	eps           map[*v1.Endpoints]struct{}
 	shouldCollect bool
 	resolveMode   endpointResolveMode
 }
@@ -53,9 +59,10 @@ func newEpConfig() *epConfig {
 // KubeEndpointsFileConfigProvider generates endpoints checks from check configurations defined in files.
 type KubeEndpointsFileConfigProvider struct {
 	sync.RWMutex
-	epLister listersv1.EndpointsLister
-	upToDate bool
-	store    *store
+	epLister     listersv1.EndpointsLister
+	upToDate     bool
+	store        *store
+	configErrors map[string]types.ErrorMsgSet
 }
 
 // NewKubeEndpointsFileConfigProvider returns a new KubeEndpointsFileConfigProvider
@@ -115,9 +122,17 @@ func (p *KubeEndpointsFileConfigProvider) String() string {
 	return names.KubeEndpointsFile
 }
 
-// GetConfigErrors is not implemented for the KubeEndpointsFileConfigProvider.
+// GetConfigErrors returns a map of errors that occurred when building the config store,
+// indexed by the integration name that generated the error.
 func (p *KubeEndpointsFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+	p.RLock()
+	defer p.RUnlock()
+
+	errors := make(map[string]types.ErrorMsgSet, len(p.configErrors))
+	for k, v := range p.configErrors {
+		errors[k] = v
+	}
+	return errors
 }
 
 func (p *KubeEndpointsFileConfigProvider) setUpToDate(v bool) {
@@ -162,6 +177,7 @@ func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
 	}
 
 	if !equality.Semantic.DeepEqual(newEp.Subsets, oldEp.Subsets) {
+		p.deleteHandler(oldEp)
 		shouldUpdate := p.store.insertEp(newEp)
 		if shouldUpdate {
 			p.setUpToDate(false)
@@ -182,6 +198,7 @@ func (p *KubeEndpointsFileConfigProvider) deleteHandler(obj interface{}) {
 // buildConfigStore initializes the config templates store.
 func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integration.Config) {
 	p.store = newStore()
+	p.configErrors = make(map[string]types.ErrorMsgSet)
 	for _, tpl := range templates {
 		for _, advancedAD := range tpl.AdvancedADIdentifiers {
 			if advancedAD.KubeEndpoints.IsEmpty() {
@@ -195,7 +212,50 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 
 			p.store.insertTemplate(epID(advancedAD.KubeEndpoints.Namespace, advancedAD.KubeEndpoints.Name), tpl, resolveMode)
 		}
+
+		// Configuration defined using only CEL selectors
+		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
+			// Create matching program from CEL rules
+			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
+			if celADID != adtypes.CelEndpointIdentifier {
+				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
+				continue
+			}
+			if compileErr != nil {
+				errMsg := fmt.Sprintf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
+				continue
+			}
+			if recError != nil {
+				errMsg := fmt.Sprintf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
+				continue
+			}
+			tpl.SetMatchingProgram(matchingProg)
+
+			p.store.insertTemplate(celEndpointID, tpl, kubeEndpointResolveAuto)
+		}
 	}
+}
+
+// matchesAnyCELTemplate checks if an endpoint matches any CEL template.
+func (s *store) matchesAnyCELTemplate(ep *v1.Endpoints) bool {
+	celEpConfig, celFound := s.epConfigs[celEndpointID]
+	if !celFound || len(celEpConfig.templates) == 0 {
+		return false
+	}
+
+	filterableEp := workloadfilter.CreateKubeEndpoint(ep.Name, ep.Namespace, ep.GetAnnotations())
+	for _, tpl := range celEpConfig.templates {
+		if tpl.IsMatched(filterableEp) {
+			return true
+		}
+	}
+	return false
 }
 
 // shouldHandle returns whether an endpoints object should be tracked.
@@ -203,8 +263,9 @@ func (s *store) shouldHandle(ep *v1.Endpoints) bool {
 	s.RLock()
 	defer s.RUnlock()
 
+	// Check for AdvancedADIdentifer OR CEL Selector based match
 	_, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	return found
+	return found || s.matchesAnyCELTemplate(ep)
 }
 
 // insertTemplate caches config templates with a specific resolve mode.
@@ -228,15 +289,28 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 	s.Lock()
 	defer s.Unlock()
 
-	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	if !found {
-		return false
+	// Configuration defined using Advanced AD identifiers (exact namespace/name match)
+	epConfig, adFound := s.epConfigs[epID(ep.Namespace, ep.Name)]
+	if adFound {
+		if epConfig.eps == nil {
+			epConfig.eps = make(map[*v1.Endpoints]struct{})
+		}
+		epConfig.eps[ep] = struct{}{}
+		epConfig.shouldCollect = true
 	}
 
-	epConfig.ep = ep
-	epConfig.shouldCollect = true
+	// Endpoint matches any CEL template (CEL Selector based match)
+	celFound := s.matchesAnyCELTemplate(ep)
+	if celFound {
+		celEpConfig := s.epConfigs[celEndpointID]
+		if celEpConfig.eps == nil {
+			celEpConfig.eps = make(map[*v1.Endpoints]struct{})
+		}
+		celEpConfig.eps[ep] = struct{}{}
+		celEpConfig.shouldCollect = true
+	}
 
-	return true
+	return adFound || celFound
 }
 
 // deleteEp handles endpoint objects deletion.
@@ -245,13 +319,23 @@ func (s *store) deleteEp(ep *v1.Endpoints) {
 	s.Lock()
 	defer s.Unlock()
 
-	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	if !found {
-		return
+	celEpConfig, celFound := s.epConfigs[celEndpointID]
+	if celFound {
+		delete(celEpConfig.eps, ep)
+		if len(celEpConfig.eps) == 0 {
+			// No more endpoints object to monitor for this config, mark it as not collectable
+			celEpConfig.shouldCollect = false
+		}
 	}
 
-	epConfig.ep = nil
-	epConfig.shouldCollect = false
+	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
+	if found {
+		delete(epConfig.eps, ep)
+		if len(epConfig.eps) == 0 {
+			// No more endpoints object to monitor for this config, mark it as not collectable
+			epConfig.shouldCollect = false
+		}
+	}
 }
 
 func (s *store) isEmpty() bool {
@@ -270,11 +354,12 @@ func (s *store) generateConfigs() []integration.Config {
 	for _, epConfig := range s.epConfigs {
 		if epConfig.shouldCollect {
 			for _, tpl := range epConfig.templates {
-				configs = append(configs, endpointChecksFromTemplate(tpl, epConfig.ep, epConfig.resolveMode)...)
+				for ep := range epConfig.eps {
+					configs = append(configs, endpointChecksFromTemplate(tpl, ep, epConfig.resolveMode)...)
+				}
 			}
 		}
 	}
-
 	return configs
 }
 
@@ -298,6 +383,7 @@ func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints, resolv
 				InitConfig:              tpl.InitConfig,
 				MetricConfig:            tpl.MetricConfig,
 				LogsConfig:              tpl.LogsConfig,
+				CELSelector:             tpl.CELSelector,
 				ADIdentifiers:           []string{entity},
 				AdvancedADIdentifiers:   nil,
 				ClusterCheck:            true,

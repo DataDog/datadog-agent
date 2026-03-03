@@ -51,7 +51,7 @@ func (d *Monitor) SendStats() error {
 	}
 
 	for eventType, inflight := range statsByEventType {
-		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
+		eventTypeTag := "event_type:" + model.EventType(eventType).String()
 		tagsEvents := []string{
 			eventTypeTag,
 		}

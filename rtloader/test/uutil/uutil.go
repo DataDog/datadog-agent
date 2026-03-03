@@ -26,13 +26,33 @@ static void init_utilTests(rtloader_t *rtloader) {
    set_cgo_free_cb(rtloader, _free);
    set_get_subprocess_output_cb(rtloader, getSubprocessOutput);
 }
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
 var (
 	rtloader *C.rtloader_t
 	tmpfile  *os.File
+	stdout       string
+	stderr       string
+	setException bool
+	exception    string
+	retCode      int
+	args         []string
+	env          []string
 )
+
+func resetTest() {
+	stdout = ""
+	stderr = ""
+	setException = false
+	exception = ""
+	retCode = 0
+	args = nil
+}
 
 func setUp() error {
 	// Initialize memory tracking
@@ -67,7 +87,7 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
+	code := helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import _util
 	import sys
@@ -75,13 +95,13 @@ try:
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+`, call, tmpfile.Name()))
+	defer C.call_free(code)
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, code) == 1
+	ret := C.run_simple_string(rtloader, (*C.char)(code)) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

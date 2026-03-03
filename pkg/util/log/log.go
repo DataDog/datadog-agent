@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package log implements logging for the datadog agent.  It wraps seelog, and
-// supports logging to multiple destinations, buffering messages logged before
-// setup, and scrubbing secrets from log messages.
+// Package log implements logging for the datadog agent. It supports logging to
+// multiple destinations, buffering messages logged before setup, and scrubbing
+// secrets from log messages.
 //
 // # Compatibility
 //
@@ -18,12 +18,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -52,7 +54,7 @@ var (
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner LoggerInterface
-	level LogLevel
+	level *slog.LevelVar
 	l     sync.RWMutex
 }
 
@@ -62,7 +64,20 @@ type DatadogLogger struct {
 
 // SetupLogger setup agent wide logger
 func SetupLogger(i LoggerInterface, level string) {
-	logger.Store(setupCommonLogger(i, level))
+	logLevel, err := ValidateLogLevel(level)
+	if err != nil {
+		logLevel = InfoLvl
+	}
+
+	levelVar := &slog.LevelVar{}
+	levelVar.Set(types.ToSlogLevel(logLevel))
+
+	SetupLoggerWithLevelVar(i, levelVar)
+}
+
+// SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
+func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
+	setupCommonLogger(i, level)
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -73,16 +88,11 @@ func SetupLogger(i LoggerInterface, level string) {
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
+func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
 	l := &DatadogLogger{
 		inner: i,
+		level: level,
 	}
-
-	lvl, ok := LogLevelFromString(level)
-	if !ok {
-		lvl = InfoLvl
-	}
-	l.level = LogLevel(lvl)
 
 	// We're not going to call DatadogLogger directly, but using the
 	// exported functions, that will give us two frames in the stack
@@ -93,7 +103,16 @@ func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	// below cannot be performed.
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	return l
+	oldLogger := logger.Load()
+	logger.Store(l)
+
+	if oldLogger != nil {
+		oldLogger.l.Lock()
+		if oldLogger.inner != nil {
+			oldLogger.inner.Close()
+		}
+		oldLogger.l.Unlock()
+	}
 }
 
 func addLogToBuffer(logHandle func()) {
@@ -115,24 +134,12 @@ func (sw *DatadogLogger) scrub(s string) string {
  */
 
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
-// info, warn, error, critical and off, it requires a new seelog logger because
-// an existing one cannot be updated
-func ChangeLogLevel(li LoggerInterface, level string) error {
-	if err := logger.changeLogLevel(level); err != nil {
-		return err
-	}
-
-	// See detailed explanation in SetupLogger(...)
-	if err := li.SetAdditionalStackDepth(defaultStackDepth); err != nil {
-		return err
-	}
-
-	logger.replaceInnerLogger(li)
-	return nil
-
-	// need to return something, just set to Info (expected default)
+// info, warn, error, critical and off.
+func ChangeLogLevel(level LogLevel) error {
+	return logger.changeLogLevel(level)
 }
-func (sw *loggerPointer) changeLogLevel(level string) error {
+
+func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
@@ -145,11 +152,8 @@ func (sw *loggerPointer) changeLogLevel(level string) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	lvl, ok := LogLevelFromString(strings.ToLower(level))
-	if !ok {
-		return errors.New("bad log level")
-	}
-	l.level = LogLevel(lvl)
+	l.level.Set(types.ToSlogLevel(level))
+
 	return nil
 }
 
@@ -170,7 +174,7 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return l.level, nil
+	return types.FromSlogLevel(l.level.Level()), nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
@@ -187,46 +191,28 @@ func ShouldLog(lvl LogLevel) bool {
 
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
-	return level >= sw.level
+	return level >= types.FromSlogLevel(sw.level.Level())
 }
 
 // ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
 // If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
 // If the log level is not recognized, an error is returned.
-func ValidateLogLevel(logLevel string) (string, error) {
+func ValidateLogLevel(logLevel string) (LogLevel, error) {
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
 		seelogLogLevel = "warn"
 	}
 
-	if _, found := LogLevelFromString(seelogLogLevel); !found {
-		return "", fmt.Errorf("unknown log level: %s", seelogLogLevel)
+	lvl, found := logLevelFromString(seelogLogLevel)
+	if !found {
+		return Off, fmt.Errorf("unknown log level: %s", seelogLogLevel)
 	}
-	return seelogLogLevel, nil
+	return lvl, nil
 }
 
 /*
 *	Operation on the **logger**
  */
-
-func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) LoggerInterface {
-	l := sw.Load()
-	if l == nil {
-		return nil // Return nil if logger is not initialized
-	}
-
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.inner == nil {
-		return nil // Return nil if logger.inner is not initialized
-	}
-
-	old := l.inner
-	l.inner = li
-
-	return old
-}
 
 // Flush flushes the underlying inner log
 func Flush() {

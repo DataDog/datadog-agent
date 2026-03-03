@@ -8,6 +8,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -19,16 +20,18 @@ import (
 )
 
 func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
-	values := ""
+	var valuesBuilder strings.Builder
 	for i := 0; i < nbValuePerMessage; i++ {
-		values += ":666"
+		valuesBuilder.WriteString(":666")
 	}
-	rawPacket := "daemon" + values + "|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
-	packets := rawPacket
+	rawPacket := "daemon" + valuesBuilder.String() + "|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"
+	var packetsBuilder strings.Builder
+	packetsBuilder.WriteString(rawPacket)
 	for i := 1; i < numberOfMetrics; i++ {
-		packets += "\n" + rawPacket
+		packetsBuilder.WriteString("\n")
+		packetsBuilder.WriteString(rawPacket)
 	}
-	return []byte(packets)
+	return []byte(packetsBuilder.String())
 }
 
 func benchParsePackets(b *testing.B, rawPacket []byte) {

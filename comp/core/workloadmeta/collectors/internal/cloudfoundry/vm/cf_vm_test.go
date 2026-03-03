@@ -463,7 +463,7 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
 	require.NoError(t, err)
 
-	assert.Contains(t, container.CollectorTags, fmt.Sprintf("container_name:%s", activeContainerWithoutProperties.Handle()))
+	assert.Contains(t, container.CollectorTags, "container_name:"+activeContainerWithoutProperties.Handle())
 }
 
 func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
@@ -500,5 +500,5 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	container, err := workloadmetaStore.GetContainer(activeContainerWithProperties.Handle())
 	require.NoError(t, err)
 
-	assert.Contains(t, container.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
+	assert.Contains(t, container.CollectorTags, "container_name:"+"app-name-1")
 }

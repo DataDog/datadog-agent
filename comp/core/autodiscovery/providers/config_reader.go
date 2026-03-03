@@ -19,19 +19,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type configFormat struct {
 	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
 	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
+	CELSelector             workloadfilter.Rules               `yaml:"cel_selector,omitempty"`
 	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
 	InitConfig              interface{}                        `yaml:"init_config,omitempty"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics,omitempty"`
@@ -113,10 +116,16 @@ type FilterFunc func(integration.Config) bool
 var GetAll FilterFunc = func(_ integration.Config) bool { return true }
 
 // WithAdvancedADOnly makes ReadConfigFiles return the configurations with AdvancedADIdentifiers only.
-var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) > 0 }
+// This includes configurations with CEL selectors targeting kubernetes services or endpoints.
+var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool {
+	return len(c.AdvancedADIdentifiers) > 0 || len(c.CELSelector.KubeServices) > 0 || len(c.CELSelector.KubeEndpoints) > 0
+}
 
-// WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers.
-var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) == 0 }
+// WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers
+// or CEL selectors targeting kubernetes services or endpoints.
+var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool {
+	return len(c.AdvancedADIdentifiers) == 0 && len(c.CELSelector.KubeServices) == 0 && len(c.CELSelector.KubeEndpoints) == 0
+}
 
 // ReadConfigFiles returns integration configs read from config files, a mapping integration config error strings and an error.
 // The filter argument allows returing a subset of configs depending on the caller preferences.
@@ -161,14 +170,13 @@ func ReadConfigFormats() []ConfigFormatWrapper {
 		return []ConfigFormatWrapper{}
 	}
 
-	cachedFormats, found := reader.cache.Get("configFormats")
+	_, found := reader.cache.Get("configFormats")
 	if !found {
 		reader.readAndCacheAll()
-	} else {
-		cachedFormats, found = reader.cache.Get("configFormats")
-		if !found {
-			return []ConfigFormatWrapper{}
-		}
+	}
+	cachedFormats, found := reader.cache.Get("configFormats")
+	if !found {
+		return []ConfigFormatWrapper{}
 	}
 
 	typedCachedFormats, ok := cachedFormats.([]ConfigFormatWrapper)
@@ -212,7 +220,11 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 
 		entries, err := os.ReadDir(path)
 		if err != nil {
-			log.Warnf("Skipping, %s", err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Debugf("Skipping, %s", err)
+			} else {
+				log.Warnf("Skipping, %s", err)
+			}
 			continue
 		}
 
@@ -449,8 +461,8 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		dataConf := (integration.Data)(rawConf)
-		if fargate.IsFargateInstance() {
-			// In Fargate, since no host tags are applied in the backend,
+		if fargate.IsSidecar() {
+			// In sidecar, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
 			tags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 			err := dataConf.MergeAdditionalTags(tags)
@@ -478,6 +490,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	conf.ADIdentifiers = cf.ADIdentifiers
 	conf.AdvancedADIdentifiers = cf.AdvancedADIdentifiers
 
+	// Copy CEL selectors
+	conf.CELSelector = cf.CELSelector
+
 	// Copy cluster_check status
 	conf.ClusterCheck = cf.ClusterCheck
 
@@ -495,8 +510,8 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
 	e := configresolver.SubstituteTemplateEnvVars(&conf)
 	if e != nil {
-		// Ignore NoServiceError since service is always nil for integration configs from files.
-		if _, ok := e.(*configresolver.NoServiceError); !ok {
+		// Ignore NoResolverError since service is always nil for integration configs from files.
+		if _, ok := e.(*tmplvar.NoResolverError); !ok {
 			log.Errorf("Failed to substitute template var %s", e)
 		}
 	}
