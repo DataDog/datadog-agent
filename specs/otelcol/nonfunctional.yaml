@@ -5,12 +5,12 @@ requirements:
     short: Expose internal metrics via Prometheus on port 8888
     long: |
       The Collector shall expose its own operational metrics in Prometheus format on
-      port 8888 at the /metrics endpoint by default.
+      port `8888` at the `/metrics` endpoint by default.
       These metrics cover receiver acceptance and refusal rates, processor throughput,
       exporter queue depth and send failures, and process-level resource usage (CPU,
       memory).
-      The verbosity level of emitted metrics (none, basic, normal, detailed) shall be
-      configurable under service.telemetry.metrics.
+      The verbosity level of emitted metrics (`none`, `basic`, `normal`, `detailed`) shall be
+      configurable under `service.telemetry.metrics`.
     client_statement: >-
       Internal metrics are exposed using a Prometheus interface which defaults to
       port 8888.
@@ -19,8 +19,8 @@ requirements:
   - id: OTELCOL020
     short: Expose a health check endpoint
     long: |
-      The Collector shall provide an HTTP health check endpoint (via the health_check
-      extension) that returns a 200 OK response when all configured components are running
+      The Collector shall provide an HTTP health check endpoint (via the `health_check`
+      extension) that returns a `200 OK` response when all configured components are running
       successfully.
       This endpoint is intended for use by load balancers, orchestrators (e.g. Kubernetes
       liveness/readiness probes), and monitoring systems.
@@ -31,7 +31,7 @@ requirements:
     short: Expose a pprof profiling endpoint
     long: |
       The Collector shall provide a Go pprof-compatible HTTP profiling endpoint (via the
-      pprof extension) on port 1777 by default.
+      `pprof` extension) on port `1777` by default.
       This endpoint allows operators to collect CPU profiles, heap profiles, and goroutine
       dumps from a running Collector for performance analysis and troubleshooting.
     client_statement: >-
@@ -43,8 +43,8 @@ requirements:
   - id: OTELCOL022
     short: Expose a zPages debug UI
     long: |
-      The Collector shall provide a zPages HTTP interface (via the zpages extension) on
-      port 55679 by default.
+      The Collector shall provide a zPages HTTP interface (via the `zpages` extension) on
+      port `55679` by default.
       zPages expose live trace and RPC statistics useful for diagnosing latency issues,
       deadlocks, and instrumentation problems without requiring an external backend.
     client_statement: >-

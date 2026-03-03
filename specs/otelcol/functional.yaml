@@ -7,7 +7,7 @@ requirements:
       The user shall be able to send traces, metrics, and logs from any OpenTelemetry SDK
       or instrumented application to the Collector using the OTLP/gRPC transport.
       The Collector shall accept unary gRPC requests on the OTLP receiver endpoint (default
-      port 4317) and process the received data through the configured pipelines.
+      port `4317`) and process the received data through the configured pipelines.
     client_statement: >-
       The default network port for OTLP/gRPC is 4317.
     tags: [input, protocol:otlp, protocol:grpc]
@@ -20,7 +20,7 @@ requirements:
       or instrumented application to the Collector using the OTLP/HTTP transport, with
       either protobuf or JSON encoding.
       The Collector shall accept HTTP POST requests on the OTLP receiver endpoint (default
-      port 4318) at the signal-specific paths (/v1/traces, /v1/metrics, /v1/logs) and
+      port `4318`) at the signal-specific paths (`/v1/traces`, `/v1/metrics`, `/v1/logs`) and
       process the received data through the configured pipelines.
     client_statement: >-
       OTLP/HTTP uses HTTP POST requests to send telemetry data from clients to servers.
@@ -36,21 +36,21 @@ requirements:
       and the pipelines that connect them.
       The Collector shall read the file at startup and use it as the source of truth for
       its runtime behavior.
-      The default configuration file location is /etc/<otel-directory>/config.yaml; an
-      alternative path can be provided via the --config flag.
+      The default configuration file location is `/etc/<otel-directory>/config.yaml`; an
+      alternative path can be provided via the `--config` flag.
     client_statement: >-
-      The --config flag accepts either a file path or values in the form of a config URI
-      <scheme>:<opaque_data>.
+      The `--config` flag accepts either a file path or values in the form of a config URI
+      `<scheme>:<opaque_data>`.
     tags: [config]
 
   - id: OTELCOL013
     short: Substitute environment variables in configuration
     long: |
       The user shall be able to reference environment variables anywhere in the
-      configuration file using the ${env:VARIABLE_NAME} syntax.
+      configuration file using the `${env:VARIABLE_NAME}` syntax.
       The Collector shall substitute these references with the corresponding environment
       variable values at startup.
-      A default value may be provided using the ${env:VARIABLE_NAME:-default} syntax, and
+      A default value may be provided using the `${env:VARIABLE_NAME:-default}` syntax, and
       will be used when the variable is not set.
     tags: [config]
     ref: [OTELCOL012]
@@ -63,7 +63,7 @@ requirements:
       HTTP/HTTPS URIs.
       The Collector shall merge all provided sources in the order they are specified; later
       sources take precedence over earlier ones for overlapping keys.
-      Multiple sources are specified by repeating the --config flag on the command line.
+      Multiple sources are specified by repeating the `--config` flag on the command line.
     tags: [config]
     ref: [OTELCOL012]
 

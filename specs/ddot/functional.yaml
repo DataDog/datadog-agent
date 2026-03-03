@@ -61,17 +61,17 @@ requirements:
       The user shall be able to configure DDOT with a Datadog API key that is included in
       all outbound requests to Datadog intake endpoints as an authentication credential.
       The API key may be specified directly in the OTel configuration file (under the
-      Datadog exporter settings) or via the DD_API_KEY environment variable.
+      Datadog exporter settings) or via the `DD_API_KEY` environment variable.
     tags: [config, auth]
     ref: [DDOT001]
 
   - id: DDOT008
     short: Route to the correct Datadog endpoints based on configured site
     long: |
-      The user shall be able to configure the target Datadog site (e.g. datadoghq.com,
-      datadoghq.eu, us3.datadoghq.com) and have DDOT automatically derive and use the
+      The user shall be able to configure the target Datadog site (e.g. `datadoghq.com`,
+      `datadoghq.eu`, `us3.datadoghq.com`) and have DDOT automatically derive and use the
       correct intake URLs for traces, metrics, logs, and metadata.
-      The site is read from the Datadog exporter configuration or from the datadog.yaml
+      The site is read from the Datadog exporter configuration or from the `datadog.yaml`
       site setting.
     tags: [config, routing]
     ref: [DDOT007]
@@ -80,7 +80,7 @@ requirements:
     short: Configure the collector via OTel YAML merged with datadog.yaml
     long: |
       The user shall be able to configure DDOT using an OTel Collector YAML file, while
-      settings present in the Datadog Agent configuration file (datadog.yaml) are
+      settings present in the Datadog Agent configuration file (`datadog.yaml`) are
       automatically merged in.
       Datadog Agent settings (API key, site, proxy, log level, etc.) take effect in DDOT
       without requiring duplication in the OTel configuration file.
@@ -92,8 +92,8 @@ requirements:
     short: Auto-configure Datadog-specific OTel extensions
     long: |
       The user shall benefit from DDOT automatically injecting and configuring the
-      Datadog-specific OTel extensions (ddflare, ddprofiling) and standard debug
-      extensions (health_check, pprof, zpages) into the running pipeline, without
+      Datadog-specific OTel extensions (`ddflare`, `ddprofiling`) and standard debug
+      extensions (`health_check`, `pprof`, `zpages`) into the running pipeline, without
       requiring explicit declaration in the OTel configuration file.
       This ensures that diagnostic and monitoring capabilities are always available.
     tags: [config, extensions]
@@ -105,8 +105,8 @@ requirements:
       The user shall be able to control DDOT's log verbosity through the standard Datadog
       log level setting, without configuring it separately in the OTel configuration file.
       The log level is resolved in the following order of precedence:
-        1. DD_LOG_LEVEL environment variable
-        2. log_level setting in datadog.yaml
+        1. `DD_LOG_LEVEL` environment variable
+        2. `log_level` setting in `datadog.yaml`
         3. The default log level in the OTel configuration
     tags: [config, logging]
     ref: [DDOT009]
@@ -115,9 +115,9 @@ requirements:
     short: Configure proxy from environment variables or datadog.yaml
     long: |
       The user shall be able to route DDOT's outbound HTTP traffic through an HTTP proxy
-      by setting standard environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY) or
-      the proxy settings in datadog.yaml.
-      Proxy configuration in datadog.yaml takes precedence over environment variables.
+      by setting standard environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) or
+      the proxy settings in `datadog.yaml`.
+      Proxy configuration in `datadog.yaml` takes precedence over environment variables.
     tags: [config, network]
     ref: [DDOT009]
 
@@ -164,7 +164,7 @@ requirements:
       producing a ZIP archive that contains:
         - The effective OTel configuration (as provided and at runtime)
         - Environment variable values relevant to the Collector
-        - Responses from debug extensions (health_check, pprof, zpages)
+        - Responses from debug extensions (`health_check`, `pprof`, `zpages`)
         - Build information and version details
       The flare can be submitted to Datadog support to assist with troubleshooting.
     tags: [debug, ops]
@@ -185,8 +185,8 @@ requirements:
     long: |
       The user shall be able to enable or disable the OTel Collector component of DDOT
       independently of the rest of the Datadog Agent, using the
-      DD_OTELCOLLECTOR_ENABLED environment variable or the otelcollector.enabled setting
-      in datadog.yaml.
+      `DD_OTELCOLLECTOR_ENABLED` environment variable or the `otelcollector.enabled` setting
+      in `datadog.yaml`.
       When disabled, no OTel pipeline is started and no OTLP ports are opened.
     tags: [config, lifecycle]
     ref: [DDOT001, DDOT009]
