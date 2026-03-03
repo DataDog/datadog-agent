@@ -1939,7 +1939,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "211"
+        - "230"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1954,7 +1954,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "218"
+        - "237"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1969,7 +1969,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "223"
+        - "242"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2432,5 +2432,28 @@ probes:
           dsl: "x"
           json:
             ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  # Test for error interface at line probe - captures error variable in scope
+  - id: testErrorAtLineLine
+    type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testErrorAtLine
+      sourceFile: complex.go
+      lines:
+        - "108"
+    template: "x={x}, err={err}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", err="
+      - json:
+          ref: "err"
+        dsl: "err"
+    captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
