@@ -58,7 +58,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
 			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute, eventPlatform),
-			"com.datadoghq.ddagent.sandboxed-shell":    com_datadoghq_ddagent_sandboxed_shell.NewSandboxedShellBundle(),
+			"com.datadoghq.ddagent.sandboxedshell":     com_datadoghq_ddagent_sandboxed_shell.NewSandboxedShellBundle(),
 			"com.datadoghq.ddagent.shell":              com_datadoghq_ddagent_shell.NewShellBundle(),
 			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
