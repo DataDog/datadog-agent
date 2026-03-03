@@ -26,7 +26,6 @@ def _code_sign_jar_macos_impl(ctx):
 
     # Check if signing should be performed
     do_signing = env_vars.SIGN_MAC == "true"
-    hardened_runtime = env_vars.HARDENED_RUNTIME_MAC == "true"
 
     if not do_signing:
         # Just copy the JAR without signing
@@ -51,8 +50,7 @@ def _code_sign_jar_macos_impl(ctx):
         args.add(input_jar)
         args.add(output_jar)
         args.add(signing_identity)
-        if hardened_runtime:
-            args.add(ctx.file.entitlements_file.path)
+        args.add(ctx.file.entitlements_file.path)
 
         ctx.actions.run(
             inputs = [input_jar, ctx.file.entitlements_file],
@@ -102,7 +100,6 @@ code_sign_jar_macos = rule(
 
     Environment variables:
       - SIGN_MAC: Set to "true" to sign (otherwise just copy the JAR)
-      - HARDENED_RUNTIME_MAC: Set to "true" to apply hardened runtime entitlements
 
     Example:
         code_sign_jar_macos(

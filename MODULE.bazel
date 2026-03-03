@@ -17,8 +17,6 @@ env_vars(
         "PACKAGE_VERSION",
         # macOS code signing: control whether to enable code signing
         "SIGN_MAC",
-        # macOS code signing: control whether to enable hardened runtime entitlements
-        "HARDENED_RUNTIME_MAC",
     ],
 )
 
