@@ -8,7 +8,7 @@ requirements:
       backend, where they will be available in Datadog APM.
       DDOT converts OTLP spans to the Datadog protobuf trace format, compresses payloads
       with gzip, and authenticates each request with the configured API key.
-    tags: [output, traces]
+    tags: [output, telemetry:traces]
     ref: [DDOT001, DDOT007, OTELCOL006]
 
   - id: DDOT003
@@ -18,7 +18,7 @@ requirements:
       backend, where they will be available in Datadog Metrics.
       DDOT routes metrics through the Datadog Agent serializer, which handles batching,
       compression, and authenticated delivery to the Datadog metrics intake.
-    tags: [output, metrics]
+    tags: [output, telemetry:metrics]
     ref: [DDOT001, DDOT007, OTELCOL006]
 
   - id: DDOT004
@@ -30,7 +30,7 @@ requirements:
       gzip compression, and authenticated delivery to the Datadog logs intake.
       OTLP log fields (body, severity, trace context, resource attributes) are mapped to
       the corresponding Datadog log fields.
-    tags: [output, logs]
+    tags: [output, telemetry:logs]
     ref: [DDOT001, DDOT007, OTELCOL006]
 
   - id: DDOT005
@@ -41,7 +41,7 @@ requirements:
       resource) from ingested trace data and export them to the Datadog APM stats intake.
       APM stats are serialized in msgpack format and compressed with gzip before
       transmission.
-    tags: [output, traces, apm]
+    tags: [output, telemetry:traces, apm]
     ref: [DDOT002]
 
   - id: DDOT006

@@ -8,7 +8,9 @@ requirements:
       or instrumented application to the Collector using the OTLP/gRPC transport.
       The Collector shall accept unary gRPC requests on the OTLP receiver endpoint (default
       port 4317) and process the received data through the configured pipelines.
-    tags: [input, otlp, grpc]
+    client_statement: >-
+      The default network port for OTLP/gRPC is 4317.
+    tags: [input, protocol:otlp, protocol:grpc]
     ref: [OTELCOL004, OTELCOL009]
 
   - id: OTELCOL011
@@ -20,7 +22,10 @@ requirements:
       The Collector shall accept HTTP POST requests on the OTLP receiver endpoint (default
       port 4318) at the signal-specific paths (/v1/traces, /v1/metrics, /v1/logs) and
       process the received data through the configured pipelines.
-    tags: [input, otlp, http]
+    client_statement: >-
+      OTLP/HTTP uses HTTP POST requests to send telemetry data from clients to servers.
+      Implementations MAY use HTTP/1.1 or HTTP/2 transports.
+    tags: [input, protocol:otlp, protocol:http]
     ref: [OTELCOL004, OTELCOL009]
 
   - id: OTELCOL012
@@ -33,6 +38,9 @@ requirements:
       its runtime behavior.
       The default configuration file location is /etc/<otel-directory>/config.yaml; an
       alternative path can be provided via the --config flag.
+    client_statement: >-
+      The --config flag accepts either a file path or values in the form of a config URI
+      <scheme>:<opaque_data>.
     tags: [config]
 
   - id: OTELCOL013
@@ -67,6 +75,9 @@ requirements:
       Language).
       Filtering is applied via the filter processor; data matching the specified condition
       is dropped before reaching downstream processors and exporters.
+    client_statement: >-
+      The filter processor allows users to filter telemetry using OTTL. Telemetry that
+      matches any condition is dropped.
     tags: [processing, filter]
     ref: [OTELCOL005]
 
@@ -78,6 +89,9 @@ requirements:
       a pipeline.
       This is achieved via the attributes processor (for span and metric attributes) or
       the resource processor (for resource-level attributes).
+    client_statement: >-
+      The attributes processor can be used to update, insert, delete, or replace existing
+      attributes on metrics or traces.
     tags: [processing, attributes]
     ref: [OTELCOL005]
 
@@ -89,6 +103,10 @@ requirements:
       resource attributes.
       This enrichment is provided by the resource detection processor and the Kubernetes
       attributes processor, and does not require changes to the instrumented application.
+    client_statement: >-
+      These processors can be used for enriching telemetry with relevant infrastructure
+      metadata to help teams quickly identify when underlying infrastructure is impacting
+      service health or performance.
     tags: [processing, enrichment]
     ref: [OTELCOL005]
 
@@ -98,5 +116,8 @@ requirements:
       The user shall be able to configure the Collector to forward processed traces,
       metrics, and logs to any downstream endpoint that accepts the OTLP protocol, using
       either OTLP/gRPC or OTLP/HTTP transport.
-    tags: [output, otlp]
+    client_statement: >-
+      OTLP allows telemetry data to be reliably transmitted between client and server
+      with acknowledgment-based delivery guarantees for individual request/response pairs.
+    tags: [output, protocol:otlp]
     ref: [OTELCOL006, OTELCOL009]

@@ -12,6 +12,9 @@ requirements:
       application code.
       The Collector is composed of a configurable set of components (receivers, processors,
       exporters, extensions, and connectors) assembled into one or more pipelines.
+    client_statement: >-
+      The OpenTelemetry Collector offers a vendor-agnostic implementation of how to
+      receive, process and export telemetry data.
 
   - id: OTELCOL002
     short: Signal
@@ -26,6 +29,8 @@ requirements:
         - Logs: represent discrete timestamped events with a severity level, a body, and
           optional structured attributes.
       Each signal flows through its own independent pipeline within the Collector.
+    client_statement: >-
+      OpenTelemetry is structured around signals, or categories of telemetry.
 
   - id: OTELCOL003
     short: Pipeline
@@ -36,6 +41,8 @@ requirements:
       processors applied in order between them.
       Multiple pipelines can exist in a single Collector instance; each pipeline is
       independent and processes its signal type in isolation.
+    client_statement: >-
+      A pipeline consists of a set of receivers, processors and exporters.
 
   - id: OTELCOL004
     short: Receiver
@@ -47,6 +54,9 @@ requirements:
       A receiver must be declared in the `receivers` section of the configuration and
       referenced in at least one pipeline to be active.
       Multiple pipelines may share the same receiver instance.
+    client_statement: >-
+      Receivers collect telemetry from one or more sources. They can be pull or push
+      based, and may support one or more data sources.
 
   - id: OTELCOL005
     short: Processor
@@ -57,6 +67,9 @@ requirements:
       is significant and affects the data seen by downstream processors and exporters.
       A processor may drop data, add or remove attributes, batch records for efficiency, or
       sample spans. Processors are optional: a pipeline can have zero processors.
+    client_statement: >-
+      Processors take the data collected by receivers and modify or transform it before
+      sending it to the exporters.
 
   - id: OTELCOL006
     short: Exporter
@@ -67,6 +80,9 @@ requirements:
       referenced in at least one pipeline to be active.
       Multiple pipelines may share the same exporter instance, and a single pipeline may
       have multiple exporters (fan-out).
+    client_statement: >-
+      Exporters send data to one or more backends or destinations. Exporters can be pull
+      or push based, and may support one or more data sources.
 
   - id: OTELCOL007
     short: Extension
@@ -78,6 +94,9 @@ requirements:
       pipelines for the lifetime of the Collector process.
       Extensions must be declared in the `extensions` section and listed under
       `service.extensions` to be activated.
+    client_statement: >-
+      Extensions are optional components that expand the capabilities of the Collector to
+      accomplish tasks not directly involved with processing telemetry data.
 
   - id: OTELCOL008
     short: Connector
@@ -88,6 +107,10 @@ requirements:
       the same signal type (e.g. routing, replicating).
       They replace the pattern of processors that directly export data, providing a cleaner
       abstraction for cross-pipeline data flow.
+    client_statement: >-
+      Connectors join two pipelines, acting as both exporter and receiver. A connector
+      consumes data as an exporter at the end of one pipeline and emits data as a receiver
+      at the beginning of another pipeline.
 
   - id: OTELCOL009
     short: OTLP — OpenTelemetry Protocol
@@ -99,3 +122,7 @@ requirements:
         - OTLP/HTTP: HTTP/1.1 with protobuf or JSON encoding, default port 4318.
       OTLP defines separate request/response message pairs for each signal type (traces,
       metrics, logs, profiles) and specifies retry semantics for transient failures.
+    client_statement: >-
+      The OpenTelemetry Protocol (OTLP) specification describes the encoding, transport,
+      and delivery mechanism of telemetry data between telemetry sources, intermediate
+      nodes such as collectors and telemetry backends.
