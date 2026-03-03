@@ -146,11 +146,6 @@ type Runner struct {
 	// keepRedirs is used so that "exec" can make any redirections
 	// apply to the current shell, and not just the command.
 	keepRedirs bool
-
-	// allowedCommands is a set of external command names permitted to run.
-	// When non-nil, only commands in this set may be executed via exec;
-	// builtins are always allowed.
-	allowedCommands map[string]bool
 }
 
 // exitStatus holds the state of the shell after running one command.
@@ -473,22 +468,6 @@ func StatHandler(f StatHandlerFunc) RunnerOption {
 	}
 }
 
-// AllowedCommands restricts which external commands the interpreter may
-// execute. Builtins and shell functions are always permitted. When cmds is
-// nil or empty, all external commands are allowed.
-func AllowedCommands(cmds []string) RunnerOption {
-	return func(r *Runner) error {
-		if len(cmds) == 0 {
-			return nil
-		}
-		r.allowedCommands = make(map[string]bool, len(cmds))
-		for _, c := range cmds {
-			r.allowedCommands[c] = true
-		}
-		return nil
-	}
-}
-
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {
 	case *os.File:
@@ -760,7 +739,7 @@ func (r *Runner) Reset() {
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
 		statHandler:     r.statHandler,
-		allowedCommands: r.allowedCommands,
+
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -937,7 +916,7 @@ func (r *Runner) subshell(background bool) *Runner {
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
 		statHandler:     r.statHandler,
-		allowedCommands: r.allowedCommands,
+
 		stdin:          r.stdin,
 		stdout:         r.stdout,
 		stderr:         r.stderr,

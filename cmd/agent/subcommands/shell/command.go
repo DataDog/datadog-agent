@@ -22,24 +22,16 @@ import (
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	var (
-		commandFlag     string
-		allowedCommands string
-	)
+	var commandFlag string
 
 	shellCmd := &cobra.Command{
 		Use:    "shell [script-file ...]",
 		Short:  "[experimental] Run an embedded shell",
 		Hidden: true,
 		RunE: func(_ *cobra.Command, args []string) error {
-			var opts []interp.RunnerOption
-			opts = append(opts, interp.StdIO(os.Stdin, os.Stdout, os.Stderr))
-			if allowedCommands != "" {
-				cmds := strings.Split(allowedCommands, ",")
-				opts = append(opts, interp.AllowedCommands(cmds))
-			}
-
-			r, err := interp.New(opts...)
+			r, err := interp.New(
+				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+			)
 			if err != nil {
 				return err
 			}
@@ -53,7 +45,6 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	shellCmd.Flags().StringVar(&commandFlag, "command", "", "command string to execute")
-	shellCmd.Flags().StringVar(&allowedCommands, "allowed-commands", "", "comma-separated list of allowed external commands")
 
 	return []*cobra.Command{shellCmd}
 }
