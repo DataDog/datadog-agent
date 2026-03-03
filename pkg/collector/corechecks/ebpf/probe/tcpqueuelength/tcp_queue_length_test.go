@@ -67,9 +67,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 			if afterStats.ReadBufferMaxUsage > maxReadUsage {
 				maxReadUsage = afterStats.ReadBufferMaxUsage
 			}
-			if maxReadUsage < 1000 {
-				c.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", maxReadUsage)
-			}
+			assert.GreaterOrEqual(c, maxReadUsage, uint32(1000), "max usage of read buffer is too low after the stress test")
 		}, 5*time.Second, 500*time.Millisecond)
 	})
 }
