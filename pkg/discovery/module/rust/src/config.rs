@@ -1479,7 +1479,10 @@ system_probe_config:
 
         let dd_path = Some(temp_dir.path().to_path_buf());
         let result = load_core_config(&dd_path, &None).unwrap();
-        assert!(result.is_some(), "Should load datadog.yaml from explicit directory");
+        assert!(
+            result.is_some(),
+            "Should load datadog.yaml from explicit directory"
+        );
     }
 
     #[test]
@@ -1490,7 +1493,10 @@ system_probe_config:
 
         let dd_path = Some(core_yaml.clone());
         let result = load_core_config(&dd_path, &None).unwrap();
-        assert!(result.is_some(), "Should load datadog.yaml when path ends with .yaml");
+        assert!(
+            result.is_some(),
+            "Should load datadog.yaml when path ends with .yaml"
+        );
     }
 
     #[test]
@@ -1503,7 +1509,10 @@ system_probe_config:
 
         let sp_path = Some(sp_yaml);
         let result = load_core_config(&None, &sp_path).unwrap();
-        assert!(result.is_some(), "Should fallback to sysprobe dir for datadog.yaml");
+        assert!(
+            result.is_some(),
+            "Should fallback to sysprobe dir for datadog.yaml"
+        );
     }
 
     #[test]
@@ -1536,19 +1545,14 @@ system_probe_config:
 
     #[test]
     fn test_resolve_core_config_path_fallback_sysprobe_yaml() {
-        let resolved = resolve_core_config_path(
-            &None,
-            &Some(PathBuf::from("/custom/dir/system-probe.yaml")),
-        );
+        let resolved =
+            resolve_core_config_path(&None, &Some(PathBuf::from("/custom/dir/system-probe.yaml")));
         assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
     }
 
     #[test]
     fn test_resolve_core_config_path_fallback_sysprobe_dir() {
-        let resolved = resolve_core_config_path(
-            &None,
-            &Some(PathBuf::from("/custom/dir")),
-        );
+        let resolved = resolve_core_config_path(&None, &Some(PathBuf::from("/custom/dir")));
         assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
     }
 
