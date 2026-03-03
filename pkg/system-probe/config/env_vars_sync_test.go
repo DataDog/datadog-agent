@@ -109,7 +109,7 @@ func TestEnableModulesVars(t *testing.T) {
 		t.Logf("  %s", v)
 	}
 
-	txtPath := filepath.Join("..", "..", "discovery", "module", "testdata", "non_discovery_env_vars.txt")
+	txtPath := filepath.Join("..", "..", "discovery", "module", "rust", "testdata", "non_discovery_env_vars.txt")
 	txtBytes, err := os.ReadFile(txtPath)
 	require.NoErrorf(t, err,
 		"Cannot read canonical list at %s.\n"+
