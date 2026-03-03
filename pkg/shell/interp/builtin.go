@@ -32,7 +32,7 @@ func (e errBuiltinExitStatus) Error() string {
 //
 // Note that a non-nil error may be returned in cases where the builtin
 // alters the control flow of the runner, even if the builtin did not fail.
-// For example, this is the case with `exit 0` or `return`.
+// For example, this is the case with `exit 0`.
 func (hc HandlerContext) Builtin(ctx context.Context, args []string) error {
 	if hc.kind != handlerKindExec {
 		return fmt.Errorf("HandlerContext.Builtin can only be called via an ExecHandlerFunc")

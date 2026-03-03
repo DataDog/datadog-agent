@@ -60,13 +60,9 @@ type Runner struct {
 	tempDir string
 
 	// Params are the current shell parameters, e.g. from running a shell
-	// file or calling a function. Accessible via the $@/$* family of vars.
+	// file. Accessible via the $@/$* family of vars.
 	// It can only be set via [Params].
 	Params []string
-
-	// callHandler is a function allowing to replace a simple command's
-	// arguments. It may be nil.
-	callHandler CallHandlerFunc
 
 	// execHandler is responsible for executing programs. It must not be nil.
 	execHandler ExecHandlerFunc
@@ -360,14 +356,6 @@ func Params(args ...string) RunnerOption {
 	}
 }
 
-// CallHandler sets the call handler. See [CallHandlerFunc] for more info.
-func CallHandler(f CallHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.callHandler = f
-		return nil
-	}
-}
-
 // ExecHandlers appends middlewares to handle command execution.
 // The middlewares are chained from first to last, and the first is called by the runner.
 // Each middleware is expected to call the "next" middleware at most once.
@@ -580,7 +568,6 @@ func (r *Runner) Reset() {
 	*r = Runner{
 		Env:             r.Env,
 		tempDir:         r.tempDir,
-		callHandler:     r.callHandler,
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
@@ -699,7 +686,7 @@ func (r *Runner) Exited() bool {
 
 // Subshell makes a copy of the given [Runner], suitable for use concurrently
 // with the original. The copy will have the same environment, including
-// variables and functions, but they can all be modified without affecting the
+// variables, but they can all be modified without affecting the
 // original.
 //
 // Subshell is not safe to use concurrently with [Run]. Orchestrating this is
@@ -724,7 +711,6 @@ func (r *Runner) subshell(background bool) *Runner {
 		Dir:             r.Dir,
 		tempDir:         r.tempDir,
 		Params:          r.Params,
-		callHandler:     r.callHandler,
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,

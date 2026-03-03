@@ -538,15 +538,6 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 	if r.stop(ctx) {
 		return
 	}
-	if r.callHandler != nil {
-		var err error
-		args, err = r.callHandler(r.handlerCtx(ctx, handlerKindCall, pos), args)
-		if err != nil {
-			// handler's custom fatal error
-			r.exit.fatal(err)
-			return
-		}
-	}
 	name := args[0]
 	if IsBuiltin(name) {
 		r.exit = r.builtin(ctx, pos, name, args[1:])

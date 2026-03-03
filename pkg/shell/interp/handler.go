@@ -36,7 +36,6 @@ type handlerKind int
 const (
 	_                  handlerKind = iota
 	handlerKindExec                // [ExecHandlerFunc]
-	handlerKindCall                // [CallHandlerFunc]
 	handlerKindOpen                // [OpenHandlerFunc]
 	handlerKindReadDir             // [ReadDirHandlerFunc2]
 )
@@ -50,8 +49,7 @@ type HandlerContext struct {
 	kind handlerKind
 
 	// Env is a read-only version of the interpreter's environment,
-	// including environment variables, global variables, and local function
-	// variables.
+	// including environment variables and global variables.
 	Env expand.Environ
 
 	// Dir is the interpreter's current directory.
@@ -74,30 +72,9 @@ type HandlerContext struct {
 	Stderr io.Writer
 }
 
-// CallHandlerFunc is a handler which runs on every [syntax.CallExpr].
-// It is called once variable assignments and field expansion have occurred.
-// The call's arguments are replaced by what the handler returns,
-// and then the call is executed by the Runner as usual.
-// At this time, returning an empty slice without an error is not supported.
-//
-// This handler is similar to [ExecHandlerFunc], but has two major differences:
-//
-// First, it runs for all simple commands, including function calls and builtins.
-//
-// Second, it is not expected to execute the simple command, but instead to
-// allow running custom code which allows replacing the argument list.
-// Shell builtins touch on many internals of the Runner, after all.
-//
-// Returning a non-nil error will halt the [Runner] and will be returned via the API.
-type CallHandlerFunc func(ctx context.Context, args []string) ([]string, error)
-
-// TODO: consistently treat handler errors as non-fatal by default,
-// but have an interface or API to specify fatal errors which should make
-// the shell exit with a particular status code.
-
 // ExecHandlerFunc is a handler which executes simple commands.
 // It is called for all [syntax.CallExpr] nodes
-// where the first argument is neither a declared function nor a builtin.
+// where the first argument is not a builtin.
 //
 // Returning a nil error means a zero exit status.
 // Other exit statuses can be set by returning or wrapping a [NewExitStatus] error,
