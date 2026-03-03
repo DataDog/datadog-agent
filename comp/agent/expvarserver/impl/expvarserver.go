@@ -11,32 +11,29 @@ import (
 	"errors"
 	"net/http"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
+	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newExpvarServer),
-	)
-}
-
-type dependencies struct {
-	fx.In
-	Lc     fx.Lifecycle
+// Requires defines the dependencies for the expvarserver component.
+type Requires struct {
+	LC     compdef.Lifecycle
 	Config config.Component
 	Log    log.Component
 }
 
-func newExpvarServer(deps dependencies) expvarserver.Component {
-	expvarPort := deps.Config.GetString("expvar_port")
+// Provides defines the output of the expvarserver component.
+type Provides struct {
+	Comp expvarserver.Component
+}
+
+// NewComponent creates a new expvarserver component.
+func NewComponent(reqs Requires) Provides {
+	expvarPort := reqs.Config.GetString("expvar_port")
 	var expvarServer *http.Server
-	deps.Lc.Append(fx.Hook{
+	reqs.LC.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			expvarServer = &http.Server{
 				Addr:    "127.0.0.1:" + expvarPort,
@@ -44,17 +41,17 @@ func newExpvarServer(deps dependencies) expvarserver.Component {
 			}
 			go func() {
 				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-					deps.Log.Errorf("Error creating expvar server on %v: %v", expvarServer.Addr, err)
+					reqs.Log.Errorf("Error creating expvar server on %v: %v", expvarServer.Addr, err)
 				}
 			}()
 			return nil
 		},
 		OnStop: func(context.Context) error {
 			if err := expvarServer.Shutdown(context.Background()); err != nil {
-				deps.Log.Errorf("Error shutting down expvar server: %v", err)
+				reqs.Log.Errorf("Error shutting down expvar server: %v", err)
 			}
 			return nil
-		}})
-
-	return struct{}{}
+		},
+	})
+	return Provides{Comp: struct{}{}}
 }
