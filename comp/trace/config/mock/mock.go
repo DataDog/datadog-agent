@@ -24,7 +24,9 @@ type Mock interface {
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(traceconfigimpl.NewMock),
+		fxutil.ProvideComponentConstructor(
+			traceconfigimpl.NewMock,
+		),
 		fx.Supply(traceconfig.Params{
 			FailIfAPIKeyMissing: true,
 		}),
