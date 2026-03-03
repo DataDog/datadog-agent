@@ -43,6 +43,10 @@ type workloadmeta struct {
 	collectors            map[string]wmdef.Collector
 	collectorsInitialized wmdef.CollectorStatus
 
+	// firstCollectorReady is closed when at least one collector has been started.
+	firstCollectorReady     chan struct{}
+	firstCollectorReadyOnce sync.Once
+
 	eventCh chan []wmdef.CollectorEvent
 
 	ongoingPullsMut sync.Mutex
