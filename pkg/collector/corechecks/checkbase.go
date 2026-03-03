@@ -60,11 +60,14 @@ func NewCheckBase(name string) CheckBase {
 
 // NewCheckBaseWithInterval returns a check base struct with a given check name and interval
 func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
+	// Intern the check name so that all instances of the same check type share
+	// a single backing string allocation instead of holding independent copies.
+	internedName := checkid.InternCheckName(name)
 	return CheckBase{
-		checkName:     name,
-		checkID:       checkid.ID(name),
+		checkName:     internedName,
+		checkID:       checkid.ID(internedName),
 		checkInterval: defaultInterval,
-		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		telemetry:     utils.IsCheckTelemetryEnabled(internedName, pkgconfigsetup.Datadog()),
 	}
 }
 
