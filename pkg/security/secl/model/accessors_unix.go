@@ -38988,7 +38988,7 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "accept.addr.hostname":
 		return "accept", reflect.String, "string", true, nil
 	case "accept.addr.hostname.length":
-		return "accept", reflect.Int, "int", true, nil
+		return "accept", reflect.Int, "int", false, nil
 	case "accept.addr.hostname.root_domain":
 		return "accept", reflect.String, "string", true, nil
 	case "accept.addr.ip":
@@ -39290,7 +39290,7 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "connect.addr.hostname":
 		return "connect", reflect.String, "string", true, nil
 	case "connect.addr.hostname.length":
-		return "connect", reflect.Int, "int", true, nil
+		return "connect", reflect.Int, "int", false, nil
 	case "connect.addr.hostname.root_domain":
 		return "connect", reflect.String, "string", true, nil
 	case "connect.addr.ip":
@@ -40196,7 +40196,7 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "network_flow_monitor.flows.l4_protocol":
 		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.length":
-		return "network_flow_monitor", reflect.Int, "int", true, nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.source.ip":
 		return "network_flow_monitor", reflect.Struct, "net.IPNet", false, nil
 	case "network_flow_monitor.flows.source.is_public":

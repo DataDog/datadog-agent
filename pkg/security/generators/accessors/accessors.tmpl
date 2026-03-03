@@ -344,7 +344,7 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{$Field.IsArray}}, nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{and $Field.IsArray (not $Field.IsLength)}}, nil
 	{{end}}
 	}
 
