@@ -18,15 +18,6 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// TODO(recorder): Update this interface with possibly a ms timestamp / rely on another interface
-// storedLogEntry is a raw log entry stored in memory.
-type storedLogEntry struct {
-	Timestamp int64    `json:"timestamp"`
-	Status    string   `json:"status"`
-	Content   string   `json:"content"`
-	Tags      []string `json:"tags"`
-}
-
 // TestBenchConfig configures the test bench.
 type TestBenchConfig struct {
 	ScenariosDir string
@@ -61,15 +52,15 @@ type TestBench struct {
 
 	// Results (computed eagerly on scenario load)
 	metricsAnomalies  []observerdef.Anomaly                          // all anomalies from metrics detectors
-	correlations      []observerdef.ActiveCorrelation                      // from correlators
+	correlations      []observerdef.ActiveCorrelation                // from correlators
 	metricsByDetector map[string][]observerdef.Anomaly               // metric anomalies grouped by detector
 	metricsBySeriesID map[observerdef.SeriesID][]observerdef.Anomaly // metric anomalies grouped by source series id
 
 	// Raw log entries (collected during log loading)
-	rawLogs []storedLogEntry
+	rawLogs []recorderdef.LogData
 
 	// Log anomalies (collected during log loading, independent of metrics detection reruns)
-	logAnomalies            []observerdef.Anomaly            // all anomalies from log detectors
+	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Async correlator processing
@@ -147,11 +138,11 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			&ConnectionErrorExtractor{},
 		},
 
-		components:              make(map[string]*registeredComponent),
-		metricsAnomalies:        []observerdef.Anomaly{},
-		metricsByDetector:       make(map[string][]observerdef.Anomaly),
-		metricsBySeriesID:       make(map[observerdef.SeriesID][]observerdef.Anomaly),
-		logAnomalies:            []observerdef.Anomaly{},
+		components:             make(map[string]*registeredComponent),
+		metricsAnomalies:       []observerdef.Anomaly{},
+		metricsByDetector:      make(map[string][]observerdef.Anomaly),
+		metricsBySeriesID:      make(map[observerdef.SeriesID][]observerdef.Anomaly),
+		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 	}
 
@@ -363,6 +354,14 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		}
 	}
 
+	// Load logs from parquet files
+	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read parquet logs: %w", err)
+	}
+
+	tb.rawLogs = append(tb.rawLogs, parquetLogs...)
+
 	return nil
 }
 
@@ -467,11 +466,12 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 			if tags == nil {
 				tags = []string{}
 			}
-			tb.rawLogs = append(tb.rawLogs, storedLogEntry{
+			tb.rawLogs = append(tb.rawLogs, recorderdef.LogData{
 				Timestamp: timestamp,
 				Status:    log.GetStatus(),
-				Content:   string(log.GetContent()),
+				Content:   log.GetContent(),
 				Tags:      tags,
+				Hostname:  log.GetHostname(),
 			})
 
 			// Process through log detectors
@@ -796,11 +796,12 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			copy(tagsCopy, logTags)
 			tagsCopy = append(tagsCopy, "detector:"+detectorName)
 			tagsCopy = append(tagsCopy, "telemetry:true")
-			log := storedLogEntry{
-				Content:   string(telemetryEvent.Log.GetContent()),
+			log := recorderdef.LogData{
+				Content:   telemetryEvent.Log.GetContent(),
 				Status:    telemetryEvent.Log.GetStatus(),
 				Tags:      tagsCopy,
 				Timestamp: timestamp,
+				Hostname:  telemetryEvent.Log.GetHostname(),
 			}
 			if log.Status == "" {
 				log.Status = "info"
@@ -1171,11 +1172,12 @@ func (tb *TestBench) loadDemoScenario() error {
 			} else {
 				servicetag = "service:service_b"
 			}
-			tb.rawLogs = append(tb.rawLogs, storedLogEntry{
+			tb.rawLogs = append(tb.rawLogs, recorderdef.LogData{
 				Timestamp: timestamp,
 				Status:    "error",
-				Content:   content,
+				Content:   []byte(content),
 				Tags:      []string{servicetag},
+				Hostname:  "host:web-1",
 			})
 		}
 	}
@@ -1225,13 +1227,11 @@ func (tb *TestBench) loadDemoScenario() error {
 }
 
 // GetRawLogs returns all stored raw log entries.
-func (tb *TestBench) GetRawLogs() []storedLogEntry {
+func (tb *TestBench) GetRawLogs() []recorderdef.LogData {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make([]storedLogEntry, len(tb.rawLogs))
-	copy(result, tb.rawLogs)
-	return result
+	return tb.rawLogs
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

@@ -443,11 +443,11 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 		response = append(response, logAnomalyResponse{
 			Source:       string(a.Source),
 			DetectorName: a.DetectorName,
-			Title:         a.Title,
-			Description:   a.Description,
-			Tags:          a.Tags,
-			Timestamp:     a.Timestamp,
-			Score:         a.Score,
+			Title:        a.Title,
+			Description:  a.Description,
+			Tags:         a.Tags,
+			Timestamp:    a.Timestamp,
+			Score:        a.Score,
 		})
 	}
 
@@ -462,6 +462,7 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		Timestamp int64    `json:"timestamp"`
 		Status    string   `json:"status"`
 		Content   string   `json:"content"`
+		Hostname  string   `json:"hostname"`
 		Tags      []string `json:"tags"`
 	}
 
@@ -475,10 +476,13 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
 			tags = []string{}
 		}
+		// Add host / status tags
+		tags = append(tags, "host:"+l.Hostname, "status:"+l.Status)
 		response = append(response, logEntryResponse{
 			Timestamp: l.Timestamp,
 			Status:    l.Status,
-			Content:   l.Content,
+			Content:   string(l.Content),
+			Hostname:  l.Hostname,
 			Tags:      tags,
 		})
 	}
