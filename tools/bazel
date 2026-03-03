@@ -26,9 +26,6 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
     >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
     exit 2
   fi
-  unset GOCACHE                              # https://pkg.go.dev/os#UserCacheDir
-  export GOMODCACHE="$XDG_CACHE_HOME"/go/mod # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  unset PIP_CACHE_DIR                        # https://pip.pypa.io/en/stable/topics/caching/#default-paths
 
   [ -n "${CI:-}" ] && exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
 fi
