@@ -19,6 +19,10 @@ code_sign_jar_macos(
     # identity to "-", to get a mock signing. Then build with
     #    SIGN_MAC=true bazel build //:whatever
     # signing_identity = "-",
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )
 
 # TODO: Some day we might build an "is_true()" function that unifies
@@ -39,6 +43,7 @@ pkg_files(
     # the code is under a different license.
     package_metadata = ["@jmxfetch//:license"],
     prefix = "bin/agent/dist/jmx",
+    tags = ["manual"],
 )
 
 pkg_filegroup(
@@ -46,6 +51,7 @@ pkg_filegroup(
     srcs = [
         ":jar_file",
     ],
+    tags = ["manual"],
 )
 
 pkg_install(
@@ -53,6 +59,7 @@ pkg_install(
     srcs = [
         ":all_files",
     ],
+    tags = ["manual"],
 )
 
 # Bazel library declarations
