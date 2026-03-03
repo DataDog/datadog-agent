@@ -97,6 +97,12 @@ func (g *istioNativeGatewayPattern) Deleted(ctx context.Context, obj *unstructur
 	// Coordination checks — "skip if other gateways still exist" — only apply to watch events.
 	// In cleanup mode we must always proceed to delete the EnvoyFilter.
 	_, errGet := g.client.Resource(istioGatewayGVR).Namespace(objNamespace).Get(ctx, name, metav1.GetOptions{})
+	if errGet != nil && !k8serrors.IsNotFound(errGet) {
+		// On a transient API error we cannot determine the calling context. Return the error
+		// so the work item is requeued; this prevents accidentally entering cleanup mode and
+		// prematurely deleting the shared EnvoyFilter during watch-event processing.
+		return fmt.Errorf("could not determine calling context for Istio Gateway %s/%s: %w", objNamespace, name, errGet)
+	}
 	isWatchEvent := k8serrors.IsNotFound(errGet)
 
 	if isWatchEvent {

@@ -494,6 +494,51 @@ func TestDeleted_GetFilterError(t *testing.T) {
 // TestDeleted_CleanupMode_WithNativeGateways tests that cleanupPattern can delete the
 // EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
 // cleanupPattern calls Deleted on live GatewayClasses, so Get(gwClass) returns found (cleanup mode).
+// TestDeleted_APIErrorInContextDetection verifies that a transient API error during
+// cleanup-mode detection causes Deleted() to return an error rather than silently
+// entering cleanup mode and prematurely deleting the shared EnvoyFilter.
+func TestDeleted_APIErrorInContextDetection(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	client := newFakeDynamicClient(scheme, existingFilter)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestIstioPattern(client, logger, config)
+	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+
+	// Simulate transient API error on the context-detection Get call
+	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, errors.New("connection reset by peer")
+	})
+
+	deleteCalled := false
+	client.PrependReactor("delete", "*", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteCalled = true
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwClass)
+
+	require.Error(t, err, "Should return error when context detection API call fails")
+	assert.Contains(t, err.Error(), "could not determine calling context")
+	assert.False(t, deleteCalled, "Should NOT delete EnvoyFilter when context cannot be determined")
+}
+
 func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)

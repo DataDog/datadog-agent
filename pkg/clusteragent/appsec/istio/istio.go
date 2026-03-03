@@ -148,6 +148,12 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 	// The cross-pattern coordination check only applies to watch events: in cleanup mode
 	// we always proceed to delete the EnvoyFilter so it is not left behind.
 	_, errGet := i.client.Resource(gatewayClassGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	if errGet != nil && !k8serrors.IsNotFound(errGet) {
+		// On a transient API error we cannot determine the calling context. Return the error
+		// so the work item is requeued; this prevents accidentally entering cleanup mode and
+		// prematurely deleting the shared EnvoyFilter during watch-event processing.
+		return fmt.Errorf("could not determine calling context for GatewayClass %s: %w", obj.GetName(), errGet)
+	}
 	isWatchEvent := k8serrors.IsNotFound(errGet)
 
 	if isWatchEvent {
