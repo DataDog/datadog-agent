@@ -1,8 +1,14 @@
-module github.com/DataDog/datadog-agent/pkg/tagger/types
+module github.com/DataDog/datadog-agent/pkg/config/lite
 
 go 1.25.0
 
-require github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
+require github.com/stretchr/testify v1.11.1
+
+require (
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -84,7 +90,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
-	github.com/DataDog/datadog-agent/pkg/config/lite => ../../../pkg/config/lite
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
@@ -132,6 +137,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils => ../../../pkg/ssi/testutils
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
