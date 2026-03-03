@@ -7,7 +7,6 @@ package version
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -63,36 +62,55 @@ func New(version, commit string) (Version, error) {
 }
 
 func (v *Version) String() string {
-	ver := v.GetNumber()
+	var b strings.Builder
+	b.WriteString(strconv.FormatInt(v.Major, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Minor, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Patch, 10))
 	if v.Pre != "" {
-		ver = fmt.Sprintf("%s-%s", ver, v.Pre)
+		b.WriteByte('-')
+		b.WriteString(v.Pre)
 	}
 	if v.Meta != "" {
-		ver = fmt.Sprintf("%s+%s", ver, v.Meta)
+		b.WriteByte('+')
+		b.WriteString(v.Meta)
 	}
 	if v.Commit != "" {
 		if v.Meta != "" {
-			ver = fmt.Sprintf("%s.commit.%s", ver, v.Commit)
+			b.WriteString(".commit.")
 		} else {
-			ver = fmt.Sprintf("%s+commit.%s", ver, v.Commit)
+			b.WriteString("+commit.")
 		}
+		b.WriteString(v.Commit)
 	}
-
-	return ver
+	return b.String()
 }
 
 // GetNumber returns a string containing version numbers only, e.g. `0.0.0`
 func (v *Version) GetNumber() string {
-	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	var b strings.Builder
+	b.WriteString(strconv.FormatInt(v.Major, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Minor, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Patch, 10))
+	return b.String()
 }
 
 // GetNumberAndPre returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
 func (v *Version) GetNumberAndPre() string {
-	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	var b strings.Builder
+	b.WriteString(strconv.FormatInt(v.Major, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Minor, 10))
+	b.WriteByte('.')
+	b.WriteString(strconv.FormatInt(v.Patch, 10))
 	if v.Pre != "" {
-		version = fmt.Sprintf("%s-%s", version, v.Pre)
+		b.WriteByte('-')
+		b.WriteString(v.Pre)
 	}
-	return version
+	return b.String()
 }
 
 // Compare returns an integer comparing the curernt Agent version to the one given.
