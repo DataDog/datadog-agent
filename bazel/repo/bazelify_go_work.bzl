@@ -18,7 +18,8 @@ load("@re.bzl", "re")
 def _filter_lines(rctx):
     """Filter the lines of the go.work file to only include the modules that are used in the build file."""
     workspace = rctx.path(rctx.attr.go_work).dirname
-    exclusions = set([m.group(1) for line in rctx.read(rctx.attr.build_file).splitlines() for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
+    build_file = rctx.read(rctx.attr.build_file).splitlines()
+    exclusions = set([m.group(1) for line in build_file for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
 
     def _is_excluded(path):
         if path in exclusions or any([path.startswith(exclusion + "/") for exclusion in exclusions]):
