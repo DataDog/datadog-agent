@@ -1393,6 +1393,11 @@ event_monitoring_config:
     fn test_non_discovery_env_vars_match_canonical_list() {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
         let txt_path = std::path::PathBuf::from(manifest_dir)
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("system-probe")
+            .join("config")
             .join("testdata")
             .join("non_discovery_env_vars.txt");
 
