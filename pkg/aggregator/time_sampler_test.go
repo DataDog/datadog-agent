@@ -746,7 +746,7 @@ func testFlushSketchesTagStripBasic(t *testing.T, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 
@@ -770,8 +770,8 @@ func testFlushSketchesTagStripMerge(t *testing.T, store *tags.Store) {
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
 	// Two contexts differ only in the stripped "strip" tag.
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 1.0, 1001.0), 1001.0)
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 2.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 2.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 
@@ -796,8 +796,8 @@ func testFlushSketchesTagStripNoMerge(t *testing.T, store *tags.Store) {
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
 	// Two contexts differ in "keep" tag (not stripped) and in "strip" tag (stripped).
-	sampler.sample(&newDistSample("my.dist", []string{"keep:1", "strip:val"}, 1.0, 1001.0), 1001.0)
-	sampler.sample(&newDistSample("my.dist", []string{"keep:2", "strip:val"}, 2.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:1", "strip:val"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:2", "strip:val"}, 2.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 
@@ -830,7 +830,7 @@ func testFlushSketchesTagStripUnmatchedMetric(t *testing.T, store *tags.Store) {
 	// The filter only applies to "my.dist", not to "other.metric".
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
-	sampler.sample(&newDistSample("other.metric", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("other.metric", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 
@@ -852,11 +852,11 @@ func testFlushSketchesTagStripMultipleBuckets(t *testing.T, store *tags.Store) {
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
 	// Bucket 1 (ts 1001-1009): context A value 1.0, context B value 2.0.
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 1.0, 1001.0), 1001.0)
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 2.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 2.0, 1001.0), 1001.0)
 	// Bucket 2 (ts 1011-1019): context A value 3.0, context B value 4.0.
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 3.0, 1011.0), 1011.0)
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 4.0, 1011.0), 1011.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:a"}, 3.0, 1011.0), 1011.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:b"}, 4.0, 1011.0), 1011.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1030.0, tagFilter, false)
 
@@ -890,10 +890,10 @@ func testFlushSketchesTagStripMixedContexts(t *testing.T, store *tags.Store) {
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
 	// Group A: same stripped key (keep:1).
-	sampler.sample(&newDistSample("my.dist", []string{"keep:1", "strip:x"}, 1.0, 1001.0), 1001.0)
-	sampler.sample(&newDistSample("my.dist", []string{"keep:1", "strip:y"}, 2.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:1", "strip:x"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:1", "strip:y"}, 2.0, 1001.0), 1001.0)
 	// Group B: different stripped key (keep:2) – stays separate.
-	sampler.sample(&newDistSample("my.dist", []string{"keep:2", "strip:x"}, 10.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:2", "strip:x"}, 10.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 
@@ -936,7 +936,7 @@ func testFlushSketchesTagStripContextKeyReflectsStrippedTags(t *testing.T, store
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	tagFilter := stripTagFilter("my.dist", []string{"strip"})
 
-	sampler.sample(&newDistSample("my.dist", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
+	sampler.sample(newDistSample("my.dist", []string{"keep:yes", "strip:val"}, 1.0, 1001.0), 1001.0)
 
 	_, sketches := flushWithTagFilter(sampler, 1020.0, tagFilter, false)
 	require.Len(t, sketches, 1)
