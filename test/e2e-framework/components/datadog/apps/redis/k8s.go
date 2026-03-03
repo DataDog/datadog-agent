@@ -6,7 +6,7 @@
 package redis
 
 import (
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -56,7 +56,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			Name:      pulumi.String("redis"),
 			Namespace: pulumi.String(namespace),
 			Labels: pulumi.StringMap{
-				"app": pulumi.String("redis"),
+				"app":  pulumi.String("redis"),
+				"team": pulumi.String("container-integrations"), // Test auto_team_tag_collection feature (default enabled)
 			},
 		},
 		Spec: &appsv1.DeploymentSpecArgs{
@@ -107,6 +108,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									Port: pulumi.Int(6379),
 								},
 							},
+							VolumeMounts: &corev1.VolumeMountArray{
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("redis-data"),
+									MountPath: pulumi.String("/data"),
+								},
+							},
+						},
+					},
+					Volumes: corev1.VolumeArray{
+						&corev1.VolumeArgs{
+							Name:     pulumi.String("redis-data"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 						},
 					},
 				},

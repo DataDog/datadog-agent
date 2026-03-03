@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
@@ -167,5 +168,63 @@ func TestCloudProviderInstanceType(t *testing.T) {
 	assert.False(t, detector1Called, "instance type callback for 'detector1' should not be called")
 	assert.False(t, detector2Called, "instance type callback for 'detector2' should not be called")
 	assert.Equal(t, "", instanceType)
+	clearDetectors()
+}
+
+func TestCloudProviderPreemptionTerminationTime(t *testing.T) {
+	origDetectors := preemptionDetectors
+	defer func() { preemptionDetectors = origDetectors }()
+
+	expectedTime := time.Now()
+
+	detector1Called := false
+	detector2Called := false
+	clearDetectors := func() {
+		detector1Called = false
+		detector2Called = false
+	}
+
+	preemptionDetectors = map[string]cloudProviderPreemptionDetector{
+		"detector1": func(_ context.Context) (time.Time, error) {
+			detector1Called = true
+			return expectedTime, nil
+		},
+		"detector2": func(_ context.Context) (time.Time, error) {
+			detector2Called = true
+			return time.Time{}, errors.New("no preemption scheduled")
+		},
+	}
+
+	// Case 1: known cloud provider "detector1" with termination scheduled
+	terminationTime, err := GetPreemptionTerminationTime(context.TODO(), "detector1")
+	assert.True(t, detector1Called, "preemption callback for 'detector1' was not called")
+	assert.False(t, detector2Called, "preemption callback for 'detector2' should not be called")
+	require.NoError(t, err)
+	assert.Equal(t, expectedTime, terminationTime)
+	clearDetectors()
+
+	// Case 2: known cloud provider "detector2" with no termination scheduled (returns error)
+	terminationTime, err = GetPreemptionTerminationTime(context.TODO(), "detector2")
+	assert.False(t, detector1Called, "preemption callback for 'detector1' should not be called")
+	assert.True(t, detector2Called, "preemption callback for 'detector2' was not called")
+	require.Error(t, err)
+	assert.Equal(t, time.Time{}, terminationTime)
+	clearDetectors()
+
+	// Case 3: unknown provider should return error
+	terminationTime, err = GetPreemptionTerminationTime(context.TODO(), "unknown")
+	assert.False(t, detector1Called, "preemption callback for 'detector1' should not be called")
+	assert.False(t, detector2Called, "preemption callback for 'detector2' should not be called")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not supported")
+	assert.Equal(t, time.Time{}, terminationTime)
+	clearDetectors()
+
+	// Case 4: empty cloud provider should return error
+	terminationTime, err = GetPreemptionTerminationTime(context.TODO(), "")
+	assert.False(t, detector1Called, "preemption callback for 'detector1' should not be called")
+	assert.False(t, detector2Called, "preemption callback for 'detector2' should not be called")
+	require.Error(t, err)
+	assert.Equal(t, time.Time{}, terminationTime)
 	clearDetectors()
 }

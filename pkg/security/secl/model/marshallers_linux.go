@@ -78,7 +78,7 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 	if len(data) < PathKeySize {
 		return 0, ErrNotEnoughSpace
 	}
-	e.CGroup.CGroupFile.Write(data)
+	e.CGroup.CGroupPathKey.Write(data)
 	written := PathKeySize
 
 	// marshal file_t executable of size 72

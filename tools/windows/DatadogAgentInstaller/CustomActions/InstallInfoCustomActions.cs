@@ -1,6 +1,6 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.IO;
 using System.Reflection;

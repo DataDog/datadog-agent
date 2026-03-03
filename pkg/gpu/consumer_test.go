@@ -315,7 +315,8 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	// Remove the process from fake procfs (simulate process exit) by just deleting its folder
 	os.RemoveAll(filepath.Join(fakeProcFS, strconv.Itoa(int(pid))))
 
-	// Wait for the process sync ticker to trigger checkClosedProcesses and mark the stream as ended
+	// Wait for the background process checker to discover the closed process and send it through
+	// the processExitChannel, which will then be handled by the main consumer loop
 	require.Eventually(t, func() bool { return stream.ended }, 5*cfg.ScanProcessesInterval, 50*time.Millisecond)
 
 	// Stop the consumer

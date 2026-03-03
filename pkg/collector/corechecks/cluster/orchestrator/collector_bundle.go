@@ -39,9 +39,12 @@ const (
 	defaultMaximumCRDs      = 100
 	datadogAPIGroup         = "datadoghq.com"
 	ArgoAPIGroup            = "argoproj.io"
+	FluxAPIGroup            = "source.toolkit.fluxcd.io"
+	FluxKustomizeAPIGroup   = "kustomize.toolkit.fluxcd.io"
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
+	EKSAPIGroup             = "eks.amazonaws.com"
 )
 
 var (
@@ -88,6 +91,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		Config:       chk.orchestratorConfig,
 		MsgGroupRef:  chk.groupID,
 		AgentVersion: chk.agentVersion,
+		StopCh:       chk.stopCh,
 	}
 	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
@@ -96,7 +100,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		MsgGroupRef:           runCfg.MsgGroupRef,
 		TerminatedResources:   true,
 	}
+
 	manifestBuffer := NewManifestBuffer(chk)
+	terminatedResourceBundle := NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer)
+	runCfg.TerminatedResourceHandler = terminatedResourceBundle.Add
 
 	bundle := &CollectorBundle{
 		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
@@ -107,8 +114,9 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:           manifestBuffer,
 		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors:      map[string]struct{}{},
-		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+		terminatedResourceBundle: terminatedResourceBundle,
 	}
+
 	bundle.prepare()
 
 	return bundle
@@ -316,6 +324,12 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
+		// special case of improved terminated pod collector that is not using an informer
+		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
+		if informer == nil {
+			continue
+		}
+
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
@@ -362,7 +376,6 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender sender.Sender) {
-
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
 		cb.manifestBuffer.Start(sender)
@@ -496,11 +509,26 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 
 		// Argo resources
 		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applications", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applicationsets", isOOTBCRDEnabled, "v1alpha1"),
+		// appprojects also exists, but unclear if they are need for resource location identification.
+
+		// Flux resources
+		newBuiltinCRDConfig(FluxAPIGroup, "buckets", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmcharts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "externalartifacts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "gitrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "ocirepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxKustomizeAPIGroup, "kustomizations", isOOTBCRDEnabled, "v1"),
 
 		// Karpenter resources (empty kind = all resources in group)
 		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+
+		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
+		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
 	}
 }
 

@@ -6,6 +6,7 @@
 package health
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,13 +35,13 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 
 	var output string
 	var err error
-	err = backoff.Retry(func() error {
-		output, err = v.Env().Agent.Client.Health()
+	output, err = backoff.Retry(context.Background(), func() (string, error) {
+		out, err := v.Env().Agent.Client.Health()
 		if err != nil {
-			return err
+			return "", err
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(15)))
+		return out, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(15))
 
 	assert.NoError(v.T(), err)
 	assert.Contains(v.T(), output, "Agent health: PASS")

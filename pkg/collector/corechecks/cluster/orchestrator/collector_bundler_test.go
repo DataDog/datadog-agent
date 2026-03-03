@@ -321,32 +321,58 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 		})
 
 	for _, testCase := range []struct {
-		name          string
-		enabled       bool
-		unassignedPod bool
-		expected      collectors.K8sCollector
+		name                          string
+		terminatedPodsEnabled         bool
+		terminatedPodsImprovedEnabled bool
+		unassignedPod                 bool
+		expected                      collectors.K8sCollector
 	}{
 		{
-			name:          "Terminated pods collector enabled",
-			enabled:       true,
-			unassignedPod: true,
-			expected:      k8s.NewTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+			name:                          "Terminated pods collector enabled",
+			terminatedPodsEnabled:         true,
+			terminatedPodsImprovedEnabled: false,
+			unassignedPod:                 true,
+			expected:                      k8s.NewTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
 		},
 		{
-			name:          "Terminated pods collector disabled",
-			enabled:       false,
-			unassignedPod: true,
-			expected:      nil,
+			name:                          "Terminated pods improved collector enabled",
+			terminatedPodsEnabled:         false,
+			terminatedPodsImprovedEnabled: true,
+			unassignedPod:                 true,
+			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
 		},
 		{
-			name:          "Terminated pods collector enabled without unassigned pod collector",
-			enabled:       true,
-			unassignedPod: false,
-			expected:      nil,
+			name:                          "Terminated pods improved collector takes precedence",
+			terminatedPodsEnabled:         true,
+			terminatedPodsImprovedEnabled: true,
+			unassignedPod:                 true,
+			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil, utils.GetMetadataAsTags(cfg)),
+		},
+		{
+			name:                          "Terminated pods collector disabled",
+			terminatedPodsEnabled:         false,
+			terminatedPodsImprovedEnabled: false,
+			unassignedPod:                 true,
+			expected:                      nil,
+		},
+		{
+			name:                          "Terminated pods collector enabled without unassigned pod collector",
+			terminatedPodsEnabled:         true,
+			terminatedPodsImprovedEnabled: false,
+			unassignedPod:                 false,
+			expected:                      nil,
+		},
+		{
+			name:                          "Terminated pods improved collector enabled without unassigned pod collector",
+			terminatedPodsEnabled:         false,
+			terminatedPodsImprovedEnabled: true,
+			unassignedPod:                 false,
+			expected:                      nil,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", testCase.enabled)
+			cfg.SetWithoutSource("orchestrator_explorer.terminated_pods.enabled", testCase.terminatedPodsEnabled)
+			cfg.SetWithoutSource("orchestrator_explorer.terminated_pods_improved.enabled", testCase.terminatedPodsImprovedEnabled)
 
 			cb := CollectorBundle{
 				collectors:         []collectors.K8sCollector{},
@@ -384,11 +410,25 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 
 		// Argo
 		"argoproj.io/v1alpha1/rollouts",
+		"argoproj.io/v1alpha1/applications",
+		"argoproj.io/v1alpha1/applicationsets",
+
+		// Flux
+		"source.toolkit.fluxcd.io/v1/buckets",
+		"source.toolkit.fluxcd.io/v1/helmcharts",
+		"source.toolkit.fluxcd.io/v1/externalartifacts",
+		"source.toolkit.fluxcd.io/v1/gitrepositories",
+		"source.toolkit.fluxcd.io/v1/helmrepositories",
+		"source.toolkit.fluxcd.io/v1/ocirepositories",
+		"kustomize.toolkit.fluxcd.io/v1/kustomizations",
 
 		// karpenter all resources
 		"karpenter.sh/v1/",
 		"karpenter.k8s.aws/v1/",
 		"karpenter.azure.com/v1beta1/",
+
+		// EKS Auto Mode NodeClass resource
+		"eks.amazonaws.com/v1/nodeclasses",
 	}
 
 	// Verify all expected configs are present

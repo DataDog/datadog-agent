@@ -61,16 +61,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_thp", true)
 
-	// SBOM configuration
-	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
-	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
-	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -94,13 +84,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	cfg.BindEnvAndSetDefault("disable_file_logging", false)
 	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
-	cfg.BindEnvAndSetDefault("log_use_slog", true)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -177,7 +166,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interval", 1*time.Second)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.per_probe_cpu_limit", 0.1)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", 0.5)
-	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breakerinterrupt_overhead", 5*time.Microsecond)
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -209,6 +198,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.collect_dns_domains", true, "DD_COLLECT_DNS_DOMAINS")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_dns_stats", 20000)
 	cfg.BindEnvAndSetDefault("system_probe_config.dns_timeout_in_s", 15)
+	cfg.BindEnvAndSetDefault("network_config.dns_monitoring_ports", []int{53})
 
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_conntrack", true)
 	cfg.BindEnvAndSetDefault("system_probe_config.conntrack_max_state_size", 65536*2)
@@ -274,6 +264,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault("ebpf_check.enabled", false)
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
+	// noisy neighbor module
+	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
@@ -338,7 +330,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.enabled", true)
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.max_containers_tracked", 1024)
 
-	cfg.BindEnvAndSetDefault("compliance_config.enabled", false)
+	cfg.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault("network_config.enable_root_netns", true)
@@ -357,6 +349,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// Discovery config
 	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("discovery.use_sd_agent", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.ignored_command_names", []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
@@ -382,6 +375,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("gpu_monitoring.device_cache_refresh_interval", 5*time.Second)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_interval", 30*time.Second)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_infinitely", false)
+
+	// Windows Injector telemetry, enabled by default
+	cfg.BindEnvAndSetDefault("injector.enable_telemetry", true)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault("gpu_monitoring.streams.max_kernel_launches", 1000)

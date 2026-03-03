@@ -17,19 +17,36 @@
 cloud.google.com/*: Copyright 2019 Google LLC
 code.cloudfoundry.org/*: Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
 github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc.
+github.com/Azure/azure-sdk-for-go: Copyright (c) Microsoft Corporation.
+github.com/Azure/go-autorest: Copyright 2015 Microsoft Corporation
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/aws/smithy-go: "Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 github.com/awslabs/amazon-ecr-credential-helper/*: "Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+github.com/cenkalti/backoff/v3: "Copyright (c) 2014 Cenk Altı"
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
+github.com/dimchansky/utfbom: "Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
 github.com/docker/*: Copyright 2012-2017 Docker, Inc.
 github.com/elastic/*: Copyright 2017-2018 Elasticsearch B.V.
+github.com/emicklei/dot: Copyright(c) Ernest Micklei
+github.com/go-jose/go-jose/v3: "Copyright 2014 Square Inc"
+github.com/go-jose/go-jose/v3/json: ["Copyright 2014 Square Inc", "Copyright (c) 2012 The Go Authors. All rights reserved"]
 github.com/golang/*: Copyright (c) 2009 The Go Authors. All rights reserved.
+github.com/golang-jwt/jwt/v4: ["Copyright (c) 2012 Dave Grijalva", "Copyright (c) 2021 golang-jwt maintainers"]
+github.com/golang/groupcache: Copyright 2013 Google Inc.
 github.com/googleapis/*: Copyright 2017 Google Inc.
 github.com/google/go-cmp/*: Copyright (c) 2017 The Go Authors. All rights reserved.
 github.com/hashicorp/*: Copyright © 2014-2018 HashiCorp, Inc
+github.com/jmespath/go-jmespath: "Copyright 2015 James Saryerwinnie"
+github.com/mattn/go-colorable: "Copyright (c) 2016 Yasuhiro Matsumoto"
+github.com/mattn/go-isatty: "Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>"
+github.com/mitchellh/*: "Copyright (c) 2013 Mitchell Hashimoto"
 github.com/prometheus/*: Copyright 2012-2015 The Prometheus Authors
+github.com/rs/zerolog: "Copyright (c) 2017 Olivier Poitrey"
+github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
+github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
 github.com/open-telemetry/*: Copyright The OpenTelemetry Authors
 go.etcd.io/*: Copyright 2016 The etcd Authors
 google.golang.org/appengine: Copyright 2011 Google Inc. All rights reserved.
@@ -37,7 +54,9 @@ google.golang.org/appengine/*: Copyright 2011 Google Inc. All rights reserved.
 google.golang.org/genproto: Copyright 2020 Google LLC
 google.golang.org/genproto/*: Copyright 2020 Google LLC
 go.opentelemetry.io/*: Copyright The OpenTelemetry Authors
+golang.org/x/*: "Copyright (c) 2009 The Go Authors. All rights reserved"
 gopkg.in/DataDog/*: Copyright 2016-Present Datadog, Inc.
+gopkg.in/yaml.v2: "Copyright 2011-2016 Canonical Ltd"
 k8s.io/*: Copyright 2014 The Kubernetes Authors.
 sigs.k8s.io/*: Copyright 2017 The Kubernetes Authors.
 contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors
@@ -438,3 +457,6 @@ cel.dev/expr: TristonianJones <tswadell@google.com>
 github.com/google/go-tpm: Copyright (c) 2014, Google LLC All rights reserved.
 
 istio.io/*: Copyright Istio Authors
+
+# Copyright information is in the source file headers
+github.com/petermattis/goid: "Copyright 2016 Peter Mattis."

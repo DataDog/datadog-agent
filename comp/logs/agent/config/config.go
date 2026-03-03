@@ -32,6 +32,10 @@ const (
 	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
 
+// DefaultDiagnosticPrefix is the default prefix for diagnostic endpoints, and will resolve to the endpoints customarily expected by the logs agent.
+// Is expected to always be safe for both TCP and HTTP diagnostic variants
+const DefaultDiagnosticPrefix = httpEndpointPrefix
+
 // legacyPathPrefixes are the path prefixes that match existing log intake endpoints present
 // at the time that logs_dd_url was extended to support the ability to specify a path prefix.
 // Users with these set are assumed to be relying on legacy logs_dd_url behavior and will
@@ -58,6 +62,11 @@ const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.com.": 10516,
+	"agent-intake.logs.datadoghq.eu.":  443,
+	"agent-intake.logs.datad0g.com.":   10516,
+	"agent-intake.logs.datad0g.eu.":    443,
+
 	"agent-intake.logs.datadoghq.com": 10516,
 	"agent-intake.logs.datadoghq.eu":  443,
 	"agent-intake.logs.datad0g.com":   10516,
@@ -131,7 +140,7 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 		"To benefit from increased reliability and better network performances, "+
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
 		logsConfig.getConfigKey("force_use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
-	return buildTCPEndpoints(coreConfig, logsConfig)
+	return buildTCPEndpoints(coreConfig, logsConfig, true)
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
@@ -222,9 +231,9 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	return nil
 }
 
-func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
+func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, registerCallback bool) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	main := newTCPEndpoint(logsConfig)
+	main := newTCPEndpoint(logsConfig, registerCallback)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -253,7 +262,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		main.useSSL = !logsConfig.devModeNoSSL()
 	}
 
-	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
+	additionals := loadTCPAdditionalEndpoints(main, logsConfig, registerCallback)
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
@@ -269,7 +278,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 
 		apiKeyConfigPath := "multi_region_failover.api_key"
 
-		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", !logsConfig.logsNoSSL())
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel
@@ -301,20 +310,45 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 
 // BuildHTTPEndpointsWithCompressionOverride returns the HTTP endpoints to send logs to with compression options.
 func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
-	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions)
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions, true)
 }
 
 // BuildHTTPEndpointsWithConfig returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
-	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{})
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, true)
+}
+
+// BuildEndpointsForDiagnostic builds endpoints for diagnostic/transient use without
+// registering config update callbacks. The protocol parameter explicitly specifies
+// whether to build HTTP or TCP endpoints, bypassing all dynamic protocol selection logic.
+//
+// Use this for connectivity checks, diagnostic commands, and other short-lived operations
+// where endpoints will be discarded after use.
+func BuildEndpointsForDiagnostic(
+	coreConfig pkgconfigmodel.Reader,
+	logsConfig *LogsConfigKeys,
+	endpointPrefix string,
+	protocol DiagnosticProtocol,
+	intakeTrackType IntakeTrackType,
+	intakeProtocol IntakeProtocol,
+	intakeOrigin IntakeOrigin,
+) (*Endpoints, error) {
+	if protocol == DiagnosticHTTP {
+		return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{}, false)
+	}
+
+	// Note: Any change to TCP endpoint construction that allows for a custom endpoint prefix requires alteration of the DefaultDiagnosticPrefix to maintain safety.
+	return buildTCPEndpoints(coreConfig, logsConfig, false)
 }
 
 // buildHTTPEndpoints uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
-func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
+// If registerCallback is true, the endpoints will register for config updates to receive API key rotations.
+// Use registerCallback=false for transient/diagnostic endpoints that will be discarded after use.
+func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions, registerCallback bool) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := newHTTPEndpoint(logsConfig)
+	main := newHTTPEndpoint(logsConfig, registerCallback)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -359,7 +393,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		main.useSSL = useSSL
 	}
 
-	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
+	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback)
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
@@ -482,4 +516,9 @@ func AggregationTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
 // MaxMessageSizeBytes is used to cap the maximum log message size in bytes
 func MaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
 	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
+}
+
+// DefaultLogsConfigKeysWithVectorOverride returns the default logs config keys with vector override (exported for diagnostic use)
+func DefaultLogsConfigKeysWithVectorOverride(coreConfig pkgconfigmodel.Reader) *LogsConfigKeys {
+	return defaultLogsConfigKeysWithVectorOverride(coreConfig)
 }

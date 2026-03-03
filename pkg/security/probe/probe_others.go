@@ -53,8 +53,8 @@ func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error) {
-	return nil, nil
+func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
+	return nil, false, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
@@ -83,6 +83,10 @@ func (p *Probe) GetEventTags(_ containerutils.ContainerID) []string {
 // IsNetworkEnabled returns whether network is enabled
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
+}
+
+// ReplayEvents replays the events from the rule set
+func (p *Probe) ReplayEvents() {
 }
 
 // IsNetworkRawPacketEnabled returns whether network raw packet is enabled

@@ -72,6 +72,7 @@ const (
 	DDAgentExtraEnvVars                  = "extraEnvVars" // extraEnvVars is expected in the format: <key1>=<value1>,<key2>=<value2>,...
 	DDAgentJMX                           = "jmx"
 	DDAgentFIPS                          = "fips"
+	DDAgentLinuxOnly                     = "linuxOnly"
 	DDAgentConfigPathParamName           = "configPath"
 	DDAgentHelmConfig                    = "helmConfig"
 
@@ -126,6 +127,7 @@ type Env interface {
 	AgentDeploy() bool
 	AgentVersion() string
 	AgentFIPS() bool
+	AgentLinuxOnly() bool
 	AgentLocalPackage() string
 	AgentLocalChartPath() string
 	PipelineID() string
@@ -231,11 +233,11 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.32")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.34")
 }
 
 func (e *CommonEnvironment) KindVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.30.0")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.31.0")
 }
 
 func (e *CommonEnvironment) KubeNodeURL() string {
@@ -400,9 +402,9 @@ func (e *CommonEnvironment) AgentExtraEnvVars() map[string]string {
 		return result
 	}
 
-	extraEnvVarsList := strings.Split(strings.Trim(envVars, " "), ",")
+	extraEnvVarsList := strings.SplitSeq(strings.Trim(envVars, " "), ",")
 
-	for _, envVar := range extraEnvVarsList {
+	for envVar := range extraEnvVarsList {
 		name, value, ok := strings.Cut(envVar, "=")
 		if !ok {
 			e.Ctx().Log.Warn(fmt.Sprintf("Invalid extraEnvVar format: %s", envVar), nil)
@@ -500,6 +502,10 @@ func (e *CommonEnvironment) GetIntWithDefault(config *sdkconfig.Config, paramNam
 
 func (e *CommonEnvironment) AgentFIPS() bool {
 	return e.GetBoolWithDefault(e.AgentConfig, DDAgentFIPS, false)
+}
+
+func (e *CommonEnvironment) AgentLinuxOnly() bool {
+	return e.GetBoolWithDefault(e.AgentConfig, DDAgentLinuxOnly, true)
 }
 
 func (e *CommonEnvironment) AgentJMX() bool {

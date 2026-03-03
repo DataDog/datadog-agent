@@ -1,5 +1,6 @@
 """dd_agent_expand_template. Expand a template, splicing in agent specific flags."""
 
+load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilesInfo")
@@ -13,8 +14,9 @@ DEFAULT_PRODUCT_DIR = "/opt/datadog-agent"
 
 def _dd_agent_expand_template_impl(ctx):
     # Set up a fallback default.
-    # TODO: should this be different for windows? Or should we have different variables for windows?
     subs = {}
+
+    # TODO: should this be different for windows? Or should we have different variables for windows?
     subs["{output_config_dir}"] = DEFAULT_OUTPUT_CONFIG_DIR
     if ctx.attr._output_config_dir:
         if BuildSettingInfo in ctx.attr._output_config_dir:
@@ -32,14 +34,31 @@ def _dd_agent_expand_template_impl(ctx):
     # but this matches what is done in the current product packaging.
     subs["{etc_dir}"] = subs["{output_config_dir}"] + "/etc/datadog-agent"
 
-    # Now let local substitutions override the flags.
-    subs.update(ctx.attr.substitutions)
+    # Now add local substitutions.
+    # For extra oomph, we apply the flag substitutions first. That allows us to
+    # reuse tmplates which might have <% install_dir %> by declaring a local
+    # substitution   "<% install_dir %>": "{install_dir}".
+    # That is an affordance during migration.
+    computed_subs = {}
+    for key, value in ctx.attr.substitutions.items():
+        for flag, flag_value in subs.items():
+            value = value.replace(flag, flag_value)
+        computed_subs[key] = value
+    subs.update(computed_subs)
 
     # let's add a little flavor. We don't need this today but it will be
     # needed if we expand things like the file name of an artifact and we want
     # to show compliation mode. This mostly shows the technique.
     subs["{TARGET_CPU}"] = ctx.var["TARGET_CPU"]
     subs["{COMPILATION_MODE}"] = ctx.var["COMPILATION_MODE"]
+
+    # The environment variable is PACKAGE_VERSION but the omnibus scripts
+    # use build_version. Let's unify that in the future. For now, it is not
+    # clear which direction we should move towards.
+    subs["{build_version}"] = env_vars.PACKAGE_VERSION or "_build_version_unset_"
+
+    # TODO(https://datadoghq.atlassian.net/browse/ABLD-378): Make this dynmamic.
+    subs["{year}"] = "2026"
 
     ctx.actions.expand_template(
         template = ctx.file.template,

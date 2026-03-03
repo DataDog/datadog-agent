@@ -1,0 +1,6 @@
+go 1.25.7
+
+use (
+	./old/module1
+	./old/module2
+)

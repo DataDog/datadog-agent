@@ -19,7 +19,6 @@
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
 # Go linters and pre-commit config
 /.golangci.yml                          @DataDog/agent-devx
-/.custom-gcl.yml                        @DataDog/agent-devx
 /.pre-commit-config.yaml                @DataDog/agent-devx
 /.vscode/                               @DataDog/agent-devx
 
@@ -355,7 +354,7 @@
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
-/comp/networkdeviceconfig @DataDog/network-device-monitoring
+/comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
@@ -447,7 +446,6 @@
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/agent-security @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/snmp/         @DataDog/ndm-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
@@ -541,9 +539,6 @@
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
-/pkg/linters/                           @DataDog/agent-devx
-/pkg/linters/components/                @DataDog/agent-runtimes
-/pkg/linters/components/pkgconfigusage  @DataDog/agent-configuration
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
@@ -732,8 +727,6 @@
 /test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
-/test/system/                                 @DataDog/agent-runtimes
-/test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations

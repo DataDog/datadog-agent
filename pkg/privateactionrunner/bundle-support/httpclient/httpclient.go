@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	httpRequestAuthTimeout = time.Second * 30
-	minTLSVersion          = tls.VersionTLS12
+	minTLSVersion = tls.VersionTLS12
 )
 
 type RunnerHttpClient struct{}
@@ -25,6 +24,7 @@ type RunnerHttpClientConfig struct {
 	MaxRedirect        int
 	Transport          *RunnerHttpTransportConfig
 	AllowIMDSEndpoints bool
+	HTTPTimeout        time.Duration
 }
 
 type RunnerHttpTransportConfig struct {
@@ -45,7 +45,7 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 	}
 
 	client := &http.Client{
-		Timeout:   httpRequestAuthTimeout,
+		Timeout:   clientConfig.HTTPTimeout,
 		Transport: transport,
 	}
 	if clientConfig.MaxRedirect != 0 {

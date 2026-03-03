@@ -66,6 +66,8 @@ func (exp *traceExporter) consumeTraces(
 	ctx context.Context,
 	td ptrace.Traces,
 ) (err error) {
+	OTLPIngestDDOTTracesRequests.Inc()
+	OTLPIngestDDOTTracesEvents.Add(float64(td.SpanCount()))
 	rspans := td.ResourceSpans()
 	hosts := make(map[string]struct{})
 	ecsFargateArns := make(map[string]struct{})
@@ -92,7 +94,6 @@ func (exp *traceExporter) consumeTraces(
 		case source.InvalidKind:
 		}
 	}
-
 	exp.exportUsageMetrics(hosts, ecsFargateArns)
 	return nil
 }

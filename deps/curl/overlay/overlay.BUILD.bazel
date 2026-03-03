@@ -1,0 +1,305 @@
+""" Agent specific curl build."""
+
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load(
+    "lib_contents.bzl",
+    "HDRS",
+    "LIB_CURLTOOL_SRCS_DARWIN",
+    "LIB_CURLTOOL_SRCS_LINUX",
+    "LIB_CURLU_SRCS_DARWIN",
+    "LIB_CURLU_SRCS_LINUX",
+    "LIB_CURL_SRCS_LINUX",
+)
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["@@//packages:__subpackages__"],
+)
+
+VERSION = "8.18.0"
+
+SO_VERSION = "4.8.0"
+
+license(
+    name = "license",
+    # The "curl" license is a specially designated type.
+    license_kinds = ["@rules_license//licenses/spdx:curl"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+SONAME = "libcurl.so.%s" % VERSION
+
+PUBLIC_HEADERS = [
+    "include/curl/curl.h",
+    "include/curl/curlver.h",
+    "include/curl/easy.h",
+    "include/curl/header.h",
+    "include/curl/mprintf.h",
+    "include/curl/multi.h",
+    "include/curl/options.h",
+    "include/curl/stdcheaders.h",
+    "include/curl/system.h",
+    "include/curl/typecheck-gcc.h",
+    "include/curl/urlapi.h",
+    "include/curl/websockets.h",
+]
+
+LOCAL_DEFINES = [
+    "HAVE_CONFIG_H",
+    "CURL_DISABLE_DIGEST_AUTH",
+    "BSAES_ASM",
+    "ECP_NISTZ256_ASM",
+    "ECP_SM2P256_ASM",
+    "KECCAK1600_ASM",
+    "L_ENDIAN",
+    "OPENSSL_CPUID_OBJ",
+    "OPENSSL_PIC",
+    "SHA1_ASM",
+    "SHA256_ASM",
+    "SHA512_ASM",
+    "SM4_ASM",
+    "VPAES_ASM",
+    "VPSM4_ASM",
+]
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@platforms//os:linux": "linux/lib/curl_config.h",
+        "@platforms//os:macos": "darwin/lib/curl_config.h",
+    }),
+    out = "lib/curl_config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = ["lib/curl_config.h"],
+    includes = ["lib"],
+)
+
+cc_binary(
+    name = "curl_bin",
+    srcs = HDRS + PUBLIC_HEADERS + select({
+        "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
+    }),
+    defines = LOCAL_DEFINES,
+    includes = [
+        ".",
+        "include",
+        "lib",
+    ],
+    copts = [
+        "-I.",
+    ],
+    dynamic_deps = [
+        ":curl",
+        "@nghttp2//:nghttp2_shared",
+        "@openssl//:openssl_shared",
+        "@zlib//:z",
+    ],
+    deps = [
+        ":config_h",
+    ],
+    linkstatic = False,
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,SystemConfiguration",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "curl_static",
+    srcs = ["lib/curl_config.h"] + HDRS + select({
+        "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
+    }),
+    hdrs = PUBLIC_HEADERS,
+    # Using includes because -I just does not work with bzlmod.
+    # But yuch. What we need is to  port local_incudes concept from Google out
+    # to rules_cc.
+    includes = [
+        "include",
+    ],
+    local_defines = LOCAL_DEFINES + [
+        "BUILDING_LIBCURL",
+        "NDEBUG",
+        "CURL_STATICLIB",
+    ] + select({
+        "@platforms//os:macos": [
+            "CURL_MACOS_CALL_COPYPROXIES",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-Wno-int-conversion",
+        "-Wno-system-headers",
+        "-I.",
+        "-O2",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@nghttp2//:nghttp2",
+        "@openssl//:openssl",
+        "@zlib//:zlib",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    # Do not build in ... expansion. It triggers an incompatiblity between
+    # the toolchain decls, rules_cc, and the compiler we use.  rules_cc
+    # ends up using --start-lib/--end-lib options, which are not recognize
+    # by the compiler we use as of 2026-02-03.
+    tags = ["manual"],
+)
+
+cc_library(
+    name = "curlu_static",
+    srcs = HDRS + select({
+        "@platforms//os:linux": LIB_CURLU_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
+    }),
+    hdrs = PUBLIC_HEADERS,
+    # Using includes because -I just does not work with bzlmod.
+    # But yuch. What we need is to  port local_incudes concept from Google out
+    # to rules_cc.
+    includes = [
+        "include",
+    ],
+    local_defines = LOCAL_DEFINES + [
+        "BUILDING_LIBCURL",
+        "NDEBUG",
+    ] + select({
+        "@platforms//os:macos": [
+            "CURL_MACOS_CALL_COPYPROXIES",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-Wno-int-conversion",
+        "-Wno-system-headers",
+        "-I.",
+        "-O2",
+    ],
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,SystemConfiguration",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        ":curl_static",
+        "@nghttp2//:nghttp2",
+        "@openssl//:openssl",
+        "@zlib//:zlib",
+    ],
+    # Do not build in ... expansion. It triggers an incompatiblity between
+    # the toolchain decls, rules_cc, and the compiler we use.  rules_cc
+    # ends up using --start-lib/--end-lib options, which are not recognize
+    # by the compiler we use as of 2026-02-03.
+    tags = ["manual"],
+)
+
+cc_shared_library(
+    name = "curl",
+    deps = [
+        ":curl_static",
+        ":curlu_static",
+    ],
+    dynamic_deps = [
+        "@nghttp2//:nghttp2_shared",
+        "@openssl//:openssl_shared",
+        "@zlib//:z",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_expand_template(
+    name = "gen_pkgconfig",
+    out = "libcurl.pc",
+    template = ":libcurl.pc.in",
+    substitutions = {
+        "@prefix@": "{install_dir}",
+        "@exec_prefix@": "${prefix}",
+        "@libdir@": "${prefix}/embedded/lib",
+        "@includedir@": "${prefix}/embedded/include",
+        "@CURLVERSION@": VERSION,
+        "@SUPPORT_PROTOCOLS@": "",
+        "@SUPPORT_FEATURES@": "",
+        "@LIBCURL_PC_REQUIRES@": "",
+        "@LIBCURL_PC_REQUIRES_PRIVATE@": "",
+        "@LIBCURL_PC_LIBS@": "",
+        "@LIBCURL_PC_LDFLAGS_PRIVATE@": "",
+        "@LIBCURL_PC_LIBS_PRIVATE@": "",
+        "@LIBCURL_PC_CFLAGS@": "",
+        "@LIBCURL_PC_CFLAGS_PRIVATE@": "",
+    },
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":curl_bin",
+    ],
+    attributes = pkg_attributes(mode = "0755"),
+    renames = {
+        "curl_bin": "curl",
+    },
+    prefix = "embedded/bin",
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":curl",
+    libname = "libcurl",
+    version = SO_VERSION,
+    prefix = "embedded",
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "embedded/include/curl",
+)
+
+pkg_files(
+    name = "pc_files",
+    srcs = [":gen_pkgconfig"],
+    prefix = "embedded/lib/pkgconfig",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":bin_files",
+        ":hdr_files",
+        ":lib_files",
+        ":pc_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)

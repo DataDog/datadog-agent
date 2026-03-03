@@ -72,8 +72,8 @@ func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 	}
 	current := o
 	oid = strings.TrimLeft(oid, ".")
-	digits := strings.Split(oid, ".")
-	for _, digit := range digits {
+	digits := strings.SplitSeq(oid, ".")
+	for digit := range digits {
 		num, err := strconv.Atoi(digit)
 		if err != nil {
 			return nil, fmt.Errorf("invalid OID: %s", err)

@@ -1,0 +1,34 @@
+exporters:
+    otlphttp/datadoghq.com_0:
+        headers:
+            dd-api-key: test_api_key_123
+        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: test_api_key_123
+                  site: datadoghq.com
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp/datadoghq.com_0
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

@@ -63,17 +63,18 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts         *Opts
-	wg           sync.WaitGroup
-	cancel       context.Context
-	cancelFnc    context.CancelFunc
-	containerID  containerutils.ContainerID
-	probeAddr    string
-	client       net.Conn
-	clientReady  chan bool
-	msgDataChan  chan []byte
-	helloMsg     *ebpfless.Message
-	processCache *ProcessCache
+	opts            *Opts
+	wg              sync.WaitGroup
+	cancel          context.Context
+	cancelFnc       context.CancelFunc
+	containerID     containerutils.ContainerID
+	probeAddr       string
+	client          net.Conn
+	clientReady     chan bool
+	msgDataChan     chan []byte
+	helloMsg        *ebpfless.Message
+	processCache    *ProcessCache
+	traceesReported []int
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -136,7 +137,7 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	err = retry.Do(func() error {
 		client, err = net.DialTCP("tcp", nil, tcpAddr)
 		return err
-	}, retry.Delay(time.Second), retry.Attempts(nbAttempts))
+	}, retry.Delay(time.Second), retry.Attempts(nbAttempts), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return nil, err
 	}

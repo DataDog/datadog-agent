@@ -1,0 +1,5 @@
+ad_identifiers:
+  - _end_user_device
+init_config:
+instances:
+  - {}

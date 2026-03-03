@@ -18,12 +18,11 @@ import (
 	"time"
 
 	"github.com/moby/sys/mountinfo"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/sys/unix"
 )
 
 func openTreeIsSupported() bool {

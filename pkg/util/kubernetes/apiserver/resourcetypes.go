@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -28,29 +29,37 @@ var (
 	cacheErr      error
 )
 
+type ClusterResource struct {
+	Group      string
+	APIVersion string
+	Kind       string
+}
+
 // ResourceTypeCache is a global cache to store Kubernetes resource types.
 type ResourceTypeCache struct {
 	// kindGroupToType maps a resource kind (singular name) and api group to resource type (plural name)
 	// this mapping is assumed bijective.
 	kindGroupToType map[string]string
 	// typeGroupToKind is a reverse map of kindGroupToType
-	typeGroupToKind map[string]string
-	lock            sync.RWMutex
-	discoveryClient discovery.DiscoveryInterface
-	refreshing      bool
-	refreshWaitCh   chan struct{}
-	refreshErr      error
-	refreshTTL      time.Duration
+	typeGroupToKind  map[string]string
+	clusterResources map[string]ClusterResource
+	lock             sync.RWMutex
+	discoveryClient  discovery.DiscoveryInterface
+	refreshing       bool
+	refreshWaitCh    chan struct{}
+	refreshErr       error
+	refreshTTL       time.Duration
 }
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
 func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterface) error {
 	cacheOnce.Do(func() {
 		resourceCache = &ResourceTypeCache{
-			kindGroupToType: make(map[string]string),
-			typeGroupToKind: make(map[string]string),
-			discoveryClient: discoveryClient,
-			refreshTTL:      5 * time.Second,
+			kindGroupToType:  make(map[string]string),
+			typeGroupToKind:  make(map[string]string),
+			clusterResources: make(map[string]ClusterResource),
+			discoveryClient:  discoveryClient,
+			refreshTTL:       5 * time.Second,
 		}
 
 		err := initRetry.SetupRetrier(&retry.Config{
@@ -108,6 +117,22 @@ func GetAPIGroup(apiVersion string) string {
 		apiGroup = ""
 	}
 	return apiGroup
+}
+
+// GetAPIVersion extracts the version from an API version string (e.g., "apps/v1" → "v1").
+func GetAPIVersion(apiVersion string) string {
+	if index := strings.Index(apiVersion, "/"); index > 0 {
+		return apiVersion[index+1:]
+	}
+	return apiVersion
+}
+
+// GetClusterResources return all known resources from the cache
+func GetClusterResources() (map[string]ClusterResource, error) {
+	if resourceCache == nil {
+		return nil, errors.New("resource type cache is not initialized")
+	}
+	return resourceCache.getClusterResources(), nil
 }
 
 // getResourceType is the instance method to retrieve a resource type.
@@ -173,6 +198,13 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 		return kind, nil
 	}
 	return "", fmt.Errorf("resource kind not found for resource %q and group %q", resource, apiGroup)
+}
+
+func (r *ResourceTypeCache) getClusterResources() map[string]ClusterResource {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	return maps.Clone(r.clusterResources)
 }
 
 func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
@@ -288,6 +320,14 @@ func (r *ResourceTypeCache) prepopulateCache() error {
 
 			r.kindGroupToType[getCacheKey(kind, group)] = trimmedResourceType
 			r.typeGroupToKind[getCacheKey(trimmedResourceType, group)] = resource.Kind
+
+			if !resource.Namespaced {
+				r.clusterResources[trimmedResourceType] = ClusterResource{
+					Group:      group,
+					APIVersion: GetAPIVersion(list.GroupVersion),
+					Kind:       kind,
+				}
+			}
 		}
 	}
 

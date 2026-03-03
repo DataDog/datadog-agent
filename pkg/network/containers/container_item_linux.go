@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -51,13 +51,11 @@ type resolvConfReader interface {
 type containerReader struct {
 	resolvConfReader
 	isProcessStillRunning func(ctx context.Context, entry *events.Process) (bool, error)
-	debugLimit            *log.Limit
 }
 
-func newContainerReader(reader resolvConfReader, debugLimit *log.Limit) containerReader {
+func newContainerReader(reader resolvConfReader) containerReader {
 	cr := containerReader{
 		resolvConfReader: reader,
-		debugLimit:       debugLimit,
 	}
 	cr.isProcessStillRunning = cr.isProcessStillRunningImpl
 	return cr
@@ -127,7 +125,7 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
 
 	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
@@ -144,6 +142,7 @@ func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 
 	stat, err := file.Stat()
 	if err != nil {
@@ -199,36 +198,12 @@ func errIsProcessNotRunning(err error) bool {
 }
 
 func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
-	proc, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
+	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
 	if errIsProcessNotRunning(err) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("isProcessStillRunning failed to create NewProcessWithContext: %w", err)
 	}
-
-	createTime, err := proc.CreateTimeWithContext(ctx)
-	if errIsProcessNotRunning(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("isProcessStillRunning failed to get createTime: %w", err)
-	}
-	// StartTime is recorded as nanoseconds by security's EBPFResolver
-	createTime *= int64(time.Millisecond)
-
-	// detect (rare) PID reuse by comparing the StartTime
-	if entry.StartTime != createTime {
-		if log.ShouldLog(log.DebugLvl) && cr.debugLimit.ShouldLog() {
-			logDetectedProcessReuse(entry, createTime)
-		}
-		return false, nil
-	}
-
 	return true, nil
-}
-
-// logDetectedProcessReuse logs in a separate function to avoid allocation
-func logDetectedProcessReuse(entry *events.Process, newTime int64) {
-	log.Debugf("CNM ContainerStore detected process reuse on pid=%d: timestamps %d vs %d", entry.Pid, entry.StartTime, newTime)
 }

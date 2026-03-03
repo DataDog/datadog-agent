@@ -38,7 +38,6 @@ type EBPFProgramStats struct {
 	XlatedProgLen   uint32
 	Name            string
 	Module          string
-	Tag             string
 	RSS             uint64
 	RunCount        uint64
 	RecursionMisses uint64

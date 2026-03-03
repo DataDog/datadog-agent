@@ -151,6 +151,28 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 		}
 		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
+		// check if the PID is for the same process as last time
+		if cp.createTime != 0 {
+			if cp.createTime != ctime {
+				// the PID was reused for a new process
+				cp.close()
+				cp = &cachedProcess{
+					createTime: ctime,
+				}
+				defer cp.close()
+
+				if err := cp.fillFromProcEntry(&pe32); err != nil {
+					log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
+					continue
+				}
+				p.cachedProcesses[pid] = cp
+				procHandle = cp.procHandle
+			}
+		} else {
+			// this a newly discovered process
+			cp.createTime = ctime
+		}
+
 		var stats *Stats
 		if collectStats {
 			var handleCount uint32
@@ -228,22 +250,26 @@ type cachedProcess struct {
 	comm           string
 	procHandle     windows.Handle
 	parsedArgs     []string
+	createTime     int64
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err error) {
 	var isProtected bool
+
+	// do not override err below, otherwise the handle will be leaked.
 	cp.procHandle, isProtected, err = OpenProcessHandle(int32(pe32.ProcessID))
 	if err != nil {
 		return err
 	}
+
 	var usererr error
 	cp.userName, usererr = GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
-		log.Debugf("Couldn't get process username %v %v", pe32.ProcessID, err)
+		log.Debugf("Couldn't get process username %v %v", pe32.ProcessID, usererr)
 	}
-	imagePath, err := winutil.GetImagePathForProcess(cp.procHandle)
-	if err != nil {
-		log.Debugf("Error retrieving exe path for pid %v %v", pe32.ProcessID, err)
+	imagePath, imgerr := winutil.GetImagePathForProcess(cp.procHandle)
+	if imgerr != nil {
+		log.Debugf("Error retrieving exe path for pid %v %v", pe32.ProcessID, imgerr)
 	} else {
 		cp.comm = getFileDescriptionCached(imagePath)
 	}
@@ -265,7 +291,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err er
 		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.ProcessID)
 	}
 
-	return
+	return err
 }
 
 func (cp *cachedProcess) close() {

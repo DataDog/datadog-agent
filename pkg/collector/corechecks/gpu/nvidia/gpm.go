@@ -43,7 +43,9 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_UTIL: {
-		name:       "sm_active",
+		// Despite the name, this GPM metric returns the percentage of SMs that were in use, not whether any of them were
+		// active in the interval like gr_engine_active does.
+		name:       "sm_utilization",
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_OCCUPANCY: {
@@ -255,7 +257,7 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 			Name:     metricData.name,
 			Value:    metric.Value,
 			Type:     metricData.metricType,
-			Priority: Medium, // All GPM metrics have priority over other collectors
+			Priority: High, // All GPM metrics have priority over other collectors
 		})
 	}
 

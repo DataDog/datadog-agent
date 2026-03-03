@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -44,7 +45,8 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), logscompressionmock.NewMockCompressor()))
 	taggerComponent := nooptagger.NewComponent()
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, "")
+	filterList := filterlist.NewNoopFilterList()
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")
 }
 
 // NewMockSenderWithSenderManager returns a functional mocked Sender for testing
@@ -66,6 +68,7 @@ func SetSender(sender *MockSender, id checkid.ID) {
 type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
+	checkTags     []string
 }
 
 // GetSenderManager returns the instance of sender.SenderManager

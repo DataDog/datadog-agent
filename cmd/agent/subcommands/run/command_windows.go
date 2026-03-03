@@ -53,7 +53,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -65,6 +64,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
@@ -72,7 +72,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -108,7 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
-			_ sysprobeconfig.Component,
+			sysprobeConf sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
@@ -126,7 +125,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
-			_ inventoryotel.Component,
 			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
@@ -148,8 +146,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
+			healthplatformComp healthplatform.Component,
 		) error {
-			defer StopAgentWithDefaults()
+			defer StopAgentWithDefaults(config, sysprobeConf)
 
 			err := startAgent(
 				log,
@@ -166,6 +165,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				logsReceiver,
 				collector,
 				config,
+				sysprobeConf,
 				jmxlogger,
 				settings,
 				agenttelemetryComponent,
@@ -173,6 +173,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				ipc,
 				snmpScanManager,
 				traceroute,
+				healthplatformComp,
 			)
 			if err != nil {
 				return err
@@ -201,7 +202,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
-			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

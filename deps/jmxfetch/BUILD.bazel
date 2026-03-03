@@ -1,0 +1,50 @@
+# jmxfetch JAR file.
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load(":module_utils_test.bzl", "jmxfetch_module_utils_test_suite")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_files(
+    name = "jar_file",
+    srcs = [
+        "@jmxfetch//:jmxfetch.jar",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    # This is essentially redundant, but it serves to document that
+    # the code is under a different license.
+    package_metadata = ["@jmxfetch//:license"],
+    prefix = "bin/agent/dist/jmx",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":jar_file",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)
+
+# Bazel library declarations
+bzl_library(
+    name = "module_utils_bzl",
+    srcs = ["module_utils.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "test_helpers_bzl",
+    srcs = ["test_helpers.bzl"],
+    deps = [":module_utils_bzl"],
+)
+
+# Tests
+jmxfetch_module_utils_test_suite(name = "_jmxfetch_module_utils_tests")

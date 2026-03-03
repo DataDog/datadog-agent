@@ -24,6 +24,7 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
+      project.extra_package_file '/etc/init.d/datadog-agent-action'
     elsif redhat_target? || suse_target?
       command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}"
     end
@@ -33,5 +34,6 @@ build do
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'
     project.extra_package_file '/etc/init/datadog-agent-security.conf'
     project.extra_package_file '/etc/init/datadog-agent-data-plane.conf'
+    project.extra_package_file '/etc/init/datadog-agent-action.conf'
   end
 end

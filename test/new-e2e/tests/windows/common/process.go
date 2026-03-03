@@ -31,7 +31,7 @@ func FindPID(host *components.RemoteHost, pattern string) ([]int, error) {
 		return nil, err
 	}
 	var pids []int
-	for _, strPID := range strings.Split(out, "\n") {
+	for strPID := range strings.SplitSeq(out, "\n") {
 		strPID = strings.TrimSpace(strPID)
 		if strPID == "" {
 			continue

@@ -14,36 +14,21 @@ end
 
 default_version jmxfetch_version
 
-source sha256: jmxfetch_hash
-
-if jmxfetch_parsed_version = Regexp.new('(?<snapshot_version>(?<base_version>\d+\.\d+\.\d+)-[^-]*)-(?<timestamp>.*)').freeze.match(jmxfetch_version)
-    license_file_version = 'master'
-    jmxfetch_base_version = jmxfetch_parsed_version['base_version']
-    jmxfetch_snapshot_version = jmxfetch_parsed_version['snapshot_version']
-    jmxfetch_timestamp = jmxfetch_parsed_version['timestamp']
-    jmxfetch_timestamped_version = "#{jmxfetch_base_version}-#{jmxfetch_timestamp}"
-    source url: "https://central.sonatype.com/repository/maven-snapshots/com/datadoghq/jmxfetch/#{jmxfetch_snapshot_version}/jmxfetch-#{jmxfetch_timestamped_version}-jar-with-dependencies.jar",
-           target_filename: "jmxfetch.jar"
-else
-    license_file_version = jmxfetch_version
-    source url: "https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
-           target_filename: "jmxfetch.jar"
-end
+skip_transitive_dependency_licensing true
 
 jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 
 relative_path "jmxfetch"
 
 build do
-  license "BSD-3-Clause"
-  license_file "https://raw.githubusercontent.com/DataDog/jmxfetch/#{license_file_version}/LICENSE"
-
   mkdir jar_dir
+  command_on_repo_root "bazelisk run -- //deps/jmxfetch:install --verbose --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
+  # TOOD(https://datadoghq.atlassian.net/browse/ABLD-386): figure this out and fold into /deps/jmxfetch
   if osx_target? && code_signing_identity
     # Also sign binaries and libraries inside the .jar, because they're detected by the Apple notarization service.
-    command "unzip jmxfetch.jar -d ."
-    delete "jmxfetch.jar"
+    command "unzip #{jar_dir}/jmxfetch.jar -d ."
+    delete "#{jar_dir}/jmxfetch.jar"
 
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
@@ -53,8 +38,7 @@ build do
 
     command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
     command "zip jmxfetch.jar -r ."
+    copy "jmxfetch.jar", "#{jar_dir}/jmxfetch.jar"
+    block { File.chmod(0644, "#{jar_dir}/jmxfetch.jar") }
   end
-
-  copy "jmxfetch.jar", "#{jar_dir}/jmxfetch.jar"
-  block { File.chmod(0644, "#{jar_dir}/jmxfetch.jar") }
 end

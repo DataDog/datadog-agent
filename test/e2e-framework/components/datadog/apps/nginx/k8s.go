@@ -8,7 +8,7 @@ package nginx
 import (
 	"strconv"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apiextensions"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -134,7 +134,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa))
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap())
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +321,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 	}
 
-	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace), opts...); err != nil {
+	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace, nginxPort), opts...); err != nil {
 		return nil, err
 	}
 
@@ -338,7 +338,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 }
 
 // K8sRolloutAppDefinition only creates a rollout workload for a Kubernetes application.
-func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
 	k8sComponent := &componentskube.Workload{}
@@ -358,6 +358,55 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 	}
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
+
+	// openshift requires a non-default service account tighted to the privileged scc
+	sa, err := corev1.NewServiceAccount(e.Ctx(), namespace+"/nginx-sa", &corev1.ServiceAccountArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.StringPtr("nginx-sa"),
+			Namespace: pulumi.StringPtr(namespace),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a clusterRoleBinding to bind the new service account with the existing privileged scc
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), namespace+"/nginx-scc-binding", &rbacv1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("nginx-scc-binding"),
+			Namespace: pulumi.StringPtr(namespace),
+		},
+		RoleRef: &rbacv1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:restricted-v2"),
+		},
+		Subjects: rbacv1.SubjectArray{
+			rbacv1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      sa.Metadata.Name().Elem(),
+				Namespace: pulumi.String(namespace),
+			},
+		},
+	}, opts...); err != nil {
+		return nil, err
+	}
+
+	cm, err := corev1.NewConfigMap(e.Ctx(), namespace+"/nginx", &corev1.ConfigMapArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("nginx"),
+			Namespace: pulumi.String(namespace),
+			Labels: pulumi.StringMap{
+				"app": pulumi.String("nginx"),
+			},
+		},
+		Data: pulumi.StringMap{
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	err = argorollouts.RolloutFromDeployment(e.Ctx(), namespace+"/nginx", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
@@ -388,16 +437,48 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),
-									ContainerPort: pulumi.Int(80),
+									ContainerPort: pulumi.Int(nginxPort),
 									Protocol:      pulumi.String("TCP"),
 								},
 							},
+							VolumeMounts: &corev1.VolumeMountArray{
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("conf"),
+									MountPath: pulumi.String("/etc/nginx/nginx.conf"),
+									SubPath:   pulumi.String("nginx.conf"),
+								},
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("cache"),
+									MountPath: pulumi.String("/var/cache/nginx"),
+								},
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("var-run"),
+									MountPath: pulumi.String("/var/run"),
+								},
+							},
+						},
+					},
+					ServiceAccount: sa.Metadata.Name(),
+					Volumes: &corev1.VolumeArray{
+						&corev1.VolumeArgs{
+							Name: pulumi.String("conf"),
+							ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+								Name: pulumi.String("nginx"),
+							},
+						},
+						&corev1.VolumeArgs{
+							Name:     pulumi.String("cache"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
+						},
+						&corev1.VolumeArgs{
+							Name:     pulumi.String("var-run"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 						},
 					},
 				},
 			},
 		},
-	}, opts...)
+	}, append(opts, utils.PulumiDependsOn(cm))...)
 	if err != nil {
 		return nil, err
 	}

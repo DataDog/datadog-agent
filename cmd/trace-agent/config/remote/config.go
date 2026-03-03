@@ -46,7 +46,7 @@ func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.A
 	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
-		tags := r.TagStats(api.V07, req.Header, "").AsTags()
+		tags := r.TagStats(api.V07, req, "").AsTags()
 		statusCode := http.StatusOK
 		defer func() {
 			tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))

@@ -1,15 +1,29 @@
 # openscap
 
-http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 
 http_archive(
     name = "openscap",
     files = {
-        "BUILD.bazel": "//deps/openscap:overlay/overlay.BUILD.bazel",
+        "BUILD.bazel": "//deps:openscap/openscap.BUILD.bazel",
     },
-    sha256 = "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d",
-    strip_prefix = "openscap-{version}".format(version = VERSION),
-    url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz".format(version = VERSION),
+    patch_strip = 1,
+    patch_tool = "patch",
+    patches = [
+        "//deps:openscap/patches/fsdev-ignore-host.patch",
+        "//deps:openscap/patches/systemd-dbus-address.patch",
+        "//deps:openscap/patches/rpm-verbosity-err.patch",
+        "//deps:openscap/patches/session-print-syschar.patch",
+        "//deps:openscap/patches/memusage-cgroup.patch",
+        "//deps:openscap/patches/oval_probe_session_reset.patch",
+        "//deps:openscap/patches/sysctl-probe-offline-skip.patch",
+        "//deps:openscap/patches/probes-no-procfs.patch",
+        "//deps:openscap/patches/oscap-io.patch",
+        "//deps:openscap/patches/dpkginfo-virtual-packages-revert.patch",
+    ],
+    sha256 = "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba",
+    strip_prefix = "openscap-1.4.3",
+    url = "https://github.com/OpenSCAP/openscap/releases/download/1.4.3/openscap-1.4.3.tar.gz",
 )

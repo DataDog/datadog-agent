@@ -101,7 +101,7 @@ int hook_security_mmap_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
     syscall->mmap.dentry = get_file_dentry(f);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
-    set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
+    set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->resolver.key = syscall->mmap.file.path_key;
     syscall->resolver.dentry = syscall->mmap.dentry;

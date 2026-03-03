@@ -19,8 +19,8 @@ func GetFamilyAddress(path string) string {
 func GetSocketAddress(path string) (string, string) {
 	if strings.HasPrefix(path, "/") {
 		return "unix", path
-	} else if strings.HasPrefix(path, "vsock:") {
-		return "vsock", strings.TrimPrefix(path, "vsock:")
+	} else if after, ok := strings.CutPrefix(path, "vsock:"); ok {
+		return "vsock", after
 	}
 	return "tcp", path
 }

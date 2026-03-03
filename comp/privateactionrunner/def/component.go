@@ -6,8 +6,13 @@
 // Package privateactionrunner provides a component that enables private actions executions
 package privateactionrunner
 
+import "errors"
+
 // team: action-platform
 
 // Component is the component type.
 type Component interface {
 }
+
+// ErrNotEnabled is returned when the private action runner is not enabled
+var ErrNotEnabled = errors.New("private action runner is not enabled")

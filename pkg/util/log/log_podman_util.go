@@ -18,10 +18,10 @@ const (
 
 // ExtractPodmanRootDirFromDBPath extracts the podman base path for the containers directory based on the user-provided `podman_db_path`.
 func ExtractPodmanRootDirFromDBPath(podmanDBPath string) string {
-	if strings.HasSuffix(podmanDBPath, sqlDBSuffix) {
-		return strings.TrimSuffix(podmanDBPath, sqlDBSuffix)
-	} else if strings.HasSuffix(podmanDBPath, boltDBSuffix) {
-		return strings.TrimSuffix(podmanDBPath, boltDBSuffix)
+	if before, ok := strings.CutSuffix(podmanDBPath, sqlDBSuffix); ok {
+		return before
+	} else if before, ok := strings.CutSuffix(podmanDBPath, boltDBSuffix); ok {
+		return before
 	}
 	return ""
 }

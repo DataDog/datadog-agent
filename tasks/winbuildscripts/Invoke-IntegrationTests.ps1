@@ -26,6 +26,11 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
+trap {
+    Write-Host "trap: $($_.InvocationInfo.Line.Trim()) - $_" -ForegroundColor Yellow
+    continue
+}
+
 Invoke-BuildScript `
     -BuildOutOfSource $BuildOutOfSource `
     -InstallDeps $InstallDeps `

@@ -47,6 +47,8 @@ const (
 	GetRingbufUsageOp
 	// UserSessionContextOp is used to inject the Kubernetes User context
 	UserSessionContextOp
+	// DiscardPrctlOp is used to discard prctl PR_SET_NAME
+	DiscardPrctlOp
 	// NopEventOp is used to nop an event
 	NopEventOp
 )

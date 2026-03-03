@@ -1,0 +1,45 @@
+---
+include:
+  - .gitlab/.pre/common/macos.yml
+
+.tests_macos_gitlab:
+  stage: source_test
+  extends:
+    - .bazel:defs:cache:macos
+    - .macos_gitlab
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  variables:
+    FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
+    TEST_OUTPUT_FILE: test_output.json
+  script:
+    - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - FAST_TESTS_FLAG=""
+    - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
+    - dda inv -- -e agent.build
+    - dda inv -- -e test --rerun-fails=2 --race --profile --cpus 12 --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --test-washer --coverage
+  after_script:
+    - !reference [.vault_login]
+    - !reference [.install_python_dependencies]
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $TEST_OUTPUT_FILE
+      - junit-*.tgz
+    reports:
+      junit: "**/junit-out-*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
+
+tests_macos_gitlab_amd64:
+  extends: .tests_macos_gitlab
+  tags: ["macos:sonoma-amd64", "specific:true"]
+
+tests_macos_gitlab_arm64:
+  extends: .tests_macos_gitlab
+  tags: ["macos:sonoma-arm64", "specific:true"]

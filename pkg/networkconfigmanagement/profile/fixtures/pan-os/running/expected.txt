@@ -3,7 +3,7 @@
   <mgt-config>
     <users>
       <entry name="admin">
-        <phash><redacted></phash>
+        <phash><secret hidden></phash>
         <permissions>
           <role-based>
             <superuser>yes</superuser>
@@ -16,7 +16,7 @@
             <superuser>yes</superuser>
           </role-based>
         </permissions>
-        <phash><redacted></phash>
+        <phash><secret hidden></phash>
       </entry>
     </users>
   </mgt-config>

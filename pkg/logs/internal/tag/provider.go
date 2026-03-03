@@ -60,7 +60,7 @@ func (p *provider) GetTags() []string {
 	p.Do(func() {
 		// Warmup duration
 		// Make sure the tagger collects all the service tags
-		// TODO: remove this once AD and Tagger use the same PodWatcher instance
+		// TODO AGNTLOG-475: remove this once AD and Tagger use the same PodWatcher instance
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 

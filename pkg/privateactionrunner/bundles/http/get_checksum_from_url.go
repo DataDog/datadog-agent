@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -40,9 +41,9 @@ type GetChecksumFromURLOutputs struct {
 	Checksum string `json:"checksum"`
 }
 
-func NewGetChecksumFromURLHandler() types.Action {
+func NewGetChecksumFromURLHandler(runnerConfig *config.Config) types.Action {
 	return &GetChecksumFromURLHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
 	}
 }
 

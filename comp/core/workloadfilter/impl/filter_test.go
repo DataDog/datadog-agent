@@ -1345,6 +1345,7 @@ func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
 	// Setup Compliance Config
 	mockConfig.SetWithoutSource("compliance_config.container_include", []string{"image:compliance-agent"})
 	mockConfig.SetWithoutSource("compliance_config.container_exclude", []string{"image:malicious"})
+	mockConfig.SetWithoutSource("compliance_config.exclude_pause_container", false)
 
 	// Setup Runtime Security Config
 	mockSystemProbe.SetWithoutSource("runtime_security_config.container_include", []string{"image:security-agent"})
@@ -1357,12 +1358,14 @@ func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
 		includedContainer := workloadfilter.CreateContainerImage("compliance-agent")
 		excludedContainer := workloadfilter.CreateContainerImage("malicious")
 		unknownContainer := workloadfilter.CreateContainerImage("security-agent")
+		pauseContainer := workloadfilter.CreateContainerImage("kubernetes/pause")
 
 		filterBundle := filterStore.GetContainerComplianceFilters()
 
 		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
 		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pauseContainer))
 	})
 
 	// Test Runtime Security Filter
@@ -1370,12 +1373,14 @@ func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
 		includedContainer := workloadfilter.CreateContainerImage("security-agent")
 		excludedContainer := workloadfilter.CreateContainerImage("suspicious")
 		unknownContainer := workloadfilter.CreateContainerImage("malicious")
+		pauseContainer := workloadfilter.CreateContainerImage("kubernetes/pause")
 
 		filterBundle := filterStore.GetContainerRuntimeSecurityFilters()
 
 		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
 		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
 		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(pauseContainer))
 	})
 
 }

@@ -25,6 +25,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -74,6 +76,14 @@ func CreateTestFile(tempDir string, fileName string, fileContent string) *os.Fil
 	return file
 }
 
+type testDeps struct {
+	fx.In
+	AC          autodiscovery.Mock
+	WMeta       workloadmeta.Component
+	TaggerComp  taggermock.Mock
+	FilterStore workloadfilter.Component
+}
+
 func TestRunAnalyzeLogs(t *testing.T) {
 	tempDir := "tmp"
 	defer os.RemoveAll(tempDir)
@@ -116,7 +126,7 @@ Auto-discovery IDs:
 	config := config.NewMock(t)
 
 	adsched := scheduler.NewController()
-	ac := fxutil.Test[autodiscovery.Mock](t,
+	deps := fxutil.Test[testDeps](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		autodiscoveryimpl.MockModule(),
@@ -131,7 +141,7 @@ Auto-discovery IDs:
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
-	outputChan, launcher, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	outputChan, launcher, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, deps.AC, deps.WMeta, deps.TaggerComp, deps.FilterStore)
 	assert.Nil(t, err)
 	expectedOutput := []string{
 		"=== apm check ===",
@@ -188,7 +198,7 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
 	config := config.NewMock(t)
 
 	adsched := scheduler.NewController()
-	ac := fxutil.Test[autodiscovery.Mock](t,
+	deps := fxutil.Test[testDeps](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		autodiscoveryimpl.MockModule(),
@@ -203,6 +213,6 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
-	_, _, _, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	_, _, _, err := runAnalyzeLogsHelper(cliParams, config, deps.AC, deps.WMeta, deps.TaggerComp, deps.FilterStore)
 	assert.Error(t, err)
 }

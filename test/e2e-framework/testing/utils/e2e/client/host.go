@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -139,10 +139,10 @@ func (h *sshExecutor) Reconnect() error {
 	if h.privileged != nil {
 		_ = h.privileged.Close()
 	}
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		client, err := getSSHClient(h.username, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		h.client = client
 
@@ -152,8 +152,9 @@ func (h *sshExecutor) Reconnect() error {
 			// Ignore this error for now, since SSH connection as root are not enable on some providers
 		}
 		h.privileged = privileged
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(sshRetryInterval)), backoff.WithMaxTries(sshMaxRetries))
+	return err
 }
 
 // Execute executes a command and returns an error if any.

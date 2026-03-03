@@ -112,8 +112,11 @@ func (c *cudaEventConsumer) Stop() {
 	}
 	c.once.Do(func() {
 		close(c.closed)
+		c.wg.Wait()
+		// Close the channel after both goroutines have exited to avoid
+		// sending on a closed channel if checkClosedProcesses is still running
+		close(c.processExitChannel)
 	})
-	c.wg.Wait()
 }
 
 // Start starts the CUDA event consumer.
@@ -121,34 +124,63 @@ func (c *cudaEventConsumer) Start() {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness(consts.GpuConsumerHealthName)
 
-	// Send events to the main event loop asynchronously, so that all process handling is done in the same goroutine.
-	// That way we avoid race conditions between the process monitor and the event consumer.
-	cleanupExit := c.deps.processMonitor.SubscribeExit(func(pid uint32) {
-		select {
-		case c.processExitChannel <- pid:
-		default:
-			// If the channel is full, we don't want to block the main event
-			// loop, so we just drop the event. The process exit will be caught
-			// later with the full process scan. We increase a telemetry metric to track this.
-			c.telemetry.droppedProcessExits.Inc()
+	c.startProcessChecker()
+	c.startMainLoop()
+	log.Trace("CUDA event consumer started")
+}
+
+// startProcessChecker starts a goroutine that periodically checks for closed processes
+// and sends their PIDs through the processExitChannel. This avoids blocking the main
+// consumer loop with process scanning.
+func (c *cudaEventConsumer) startProcessChecker() {
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		processSync := time.NewTicker(c.deps.cfg.ScanProcessesInterval)
+		defer processSync.Stop()
+
+		for {
+			select {
+			case <-c.closed:
+				return
+			case <-processSync.C:
+				c.checkClosedProcesses()
+			}
 		}
-	})
+	}()
+}
 
+// startMainLoop starts the main consumer loop goroutine that processes CUDA events
+// and handles various control signals.
+func (c *cudaEventConsumer) startMainLoop() {
 	c.wg.Add(1)
 	go func() {
 		c.running.Store(true)
-		processSync := time.NewTicker(c.deps.cfg.ScanProcessesInterval)
+		health := health.RegisterLiveness(consts.GpuConsumerHealthName)
+
+		// Send events to the main event loop asynchronously, so that all process handling is done in the same goroutine.
+		// That way we avoid race conditions between the process monitor and the event consumer.
+		cleanupExit := c.deps.processMonitor.SubscribeExit(func(pid uint32) {
+			select {
+			case c.processExitChannel <- pid:
+			default:
+				// If the channel is full, we don't want to block the main event
+				// loop, so we just drop the event. The process exit will be caught
+				// later with the full process scan. We increase a telemetry metric to track this.
+				c.telemetry.droppedProcessExits.Inc()
+			}
+		})
+
 		ringBufferFlush := time.NewTicker(c.deps.cfg.RingBufferFlushInterval)
 
 		defer func() {
 			cleanupExit()
+			ringBufferFlush.Stop()
 			err := health.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
-			close(c.processExitChannel)
 			c.wg.Done()
 			log.Trace("CUDA event consumer stopped")
 			c.running.Store(false)
@@ -161,9 +193,6 @@ func (c *cudaEventConsumer) Start() {
 			case <-c.closed:
 				return
 			case <-health.C:
-			case <-processSync.C:
-				c.checkClosedProcesses()
-				c.deps.sysCtx.cleanOld()
 			case <-ringBufferFlush.C:
 				c.deps.ringFlusher.Flush()
 			case pid, ok := <-c.processExitChannel:
@@ -208,7 +237,6 @@ func (c *cudaEventConsumer) Start() {
 			}
 		}
 	}()
-	log.Trace("CUDA event consumer started")
 }
 
 func isStreamSpecificEvent(et gpuebpf.CudaEventType) bool {
@@ -349,9 +377,20 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 		return nil
 	})
 
+	// Track which PIDs we've already sent to avoid duplicates in this scan
+	sentPIDs := make(map[uint32]struct{})
 	for _, handler := range c.deps.streamHandlers.allStreams() {
-		if _, ok := seenPIDs[handler.metadata.pid]; !ok {
-			c.deps.streamHandlers.markProcessStreamsAsEnded(handler.metadata.pid)
+		pid := handler.metadata.pid
+		if _, ok := seenPIDs[pid]; !ok {
+			if _, sent := sentPIDs[pid]; !sent {
+				select {
+				case c.processExitChannel <- pid:
+					sentPIDs[pid] = struct{}{}
+				default:
+					// Channel is full, the process exit will be caught in the next scan
+					c.telemetry.droppedProcessExits.Inc()
+				}
+			}
 		}
 	}
 }

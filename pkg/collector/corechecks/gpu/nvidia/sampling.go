@@ -22,7 +22,7 @@ import (
 )
 
 // processSample handles the complex time-weighted averaging logic for NVML sample types
-func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processSample(device ddnvml.Device, metricName string, samplingType nvml.SamplingType, lastTimestamp uint64, priority MetricPriority) ([]Metric, uint64, error) {
 	// GetSamples returns a list of samples (timestamp + value) for the
 	// given counter type (GPU utilization, memory activity, etc).
 	// Note that timestamps are in microseconds always.
@@ -87,9 +87,10 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	total /= float64(currentTimestamp - lastTimestamp)
 
 	metric := Metric{
-		Name:  metricName,
-		Value: total,
-		Type:  ddmetrics.GaugeType,
+		Name:     metricName,
+		Value:    total,
+		Type:     ddmetrics.GaugeType,
+		Priority: priority,
 	}
 
 	return []Metric{metric}, currentTimestamp, multiErr
@@ -119,10 +120,10 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
 				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.encoder_active", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.decoder_active", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 			)
 
 			if sample.SmUtil > maxSmUtil {
@@ -139,7 +140,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 	deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
 
 	allMetrics = append(allMetrics,
-		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType},
+		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType, Priority: Medium}, // There's an ebpf based fallback for this metric which should have lower priority
 		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, AssociatedWorkloads: allWorkloadIDs},
 	)
 
@@ -160,25 +161,25 @@ func createSampleAPIs() []apiCallInfo {
 		{
 			Name: "gr_engine_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, lastTimestamp, Medium)
 			},
 		},
 		{
 			Name: "dram_active_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "encoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		},
 		{
 			Name: "decoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp, Low)
 			},
 		}}
 }

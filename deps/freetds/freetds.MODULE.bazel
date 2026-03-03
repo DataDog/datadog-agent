@@ -1,0 +1,19 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "1.1.36"
+
+http_archive(
+    name = "freetds",
+    files = {
+        "BUILD.bazel": "//deps/freetds:overlay/freetds.BUILD.bazel",
+        "linux/include/config.h": "//deps/freetds:overlay/linux/include/config.h",
+    },
+    # TODO: This patch normalizes an #include with .. in the path. We can do that
+    # with a custom patch command.
+    patches = [
+        "//deps/freetds:sqlwchar.patch",
+    ],
+    sha256 = "1c306e658e10a325eefddfd662cec3a6d9065fe61c515f26d4f1fb6c4c62405d",
+    strip_prefix = "freetds-{version}".format(version = VERSION),
+    url = "https://www.freetds.org/files/stable/freetds-{version}.tar.gz".format(version = VERSION),
+)

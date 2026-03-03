@@ -19,8 +19,8 @@ import (
 	"regexp"
 	"strings"
 
+	"go.yaml.in/yaml/v2"
 	patch "gopkg.in/evanphx/json-patch.v4"
-	"gopkg.in/yaml.v2"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -100,8 +100,7 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	}
 	defer root.Close()
 	for _, operation := range o.FileOperations {
-		// TODO (go.1.25): we won't need rootPath in 1.25
-		err := operation.apply(ctx, root, rootPath)
+		err := operation.apply(ctx, root)
 		if err != nil {
 			return err
 		}
@@ -117,7 +116,7 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath string) error {
+func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 	spec := getConfigFileSpec(a.FilePath)
 	if spec == nil {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
@@ -188,13 +187,11 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 		// Set proper ownership and permissions for the file
-		fullPath := filepath.Join(rootPath, path)
-		if err := setFileOwnershipAndPermissions(ctx, fullPath, spec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
 			return err
 		}
 		return nil
 	case FileOperationCopy:
-		// TODO(go.1.25): os.Root.MkdirAll and os.Root.WriteFile are only available starting go 1.25
 		destSpec := getConfigFileSpec(a.DestinationPath)
 		if destSpec == nil {
 			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
@@ -216,26 +213,17 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 
-		// Create the destination with os.Root to ensure the path is clean
-		destFile, err := root.Create(destinationPath)
-		if err != nil {
-			return err
-		}
-		defer destFile.Close()
-
-		_, err = destFile.Write(srcContent)
+		err = root.WriteFile(destinationPath, srcContent, 0640)
 		if err != nil {
 			return err
 		}
 
 		// Set proper ownership and permissions for the destination file
-		fullDestPath := filepath.Join(rootPath, destinationPath)
-		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
 	case FileOperationMove:
-		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
 		destSpec := getConfigFileSpec(a.DestinationPath)
 		if destSpec == nil {
 			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
@@ -246,37 +234,13 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 
-		srcFile, err := root.Open(path)
-		if err != nil {
-			return err
-		}
-		defer srcFile.Close()
-
-		srcContent, err := io.ReadAll(srcFile)
-		if err != nil {
-			return err
-		}
-
-		// Create the destination with os.Root to ensure the path is clean
-		destFile, err := root.Create(destinationPath)
-		if err != nil {
-			return err
-		}
-		defer destFile.Close()
-
-		_, err = destFile.Write(srcContent)
-		if err != nil {
-			return err
-		}
-
-		err = root.Remove(path)
+		err = root.Rename(path, destinationPath)
 		if err != nil {
 			return err
 		}
 
 		// Set proper ownership and permissions for the destination file
-		fullDestPath := filepath.Join(rootPath, destinationPath)
-		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
@@ -287,9 +251,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 		}
 		return nil
 	case FileOperationDeleteAll:
-		// TODO(go.1.25): os.Root.RemoveAll is only available starting go 1.25 so we'll use it instead
-		// We can't get the path from os.Root, so we have to use the rootPath.
-		err := os.RemoveAll(filepath.Join(rootPath, path))
+		err := root.RemoveAll(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -308,36 +270,7 @@ func ensureDir(root *os.Root, filePath string) error {
 	if dir == "." {
 		return nil
 	}
-	currentRoot := root
-	for part := range strings.SplitSeq(dir, "/") {
-		if part == "" {
-			continue
-		}
-
-		// Try to create the directory
-		err := currentRoot.Mkdir(part, 0755)
-		if err != nil && !os.IsExist(err) {
-			return err
-		}
-
-		// Open the directory for the next iteration
-		nextRoot, err := currentRoot.OpenRoot(part)
-		if err != nil {
-			return err
-		}
-
-		// Close the previous root if it's not the original root
-		if currentRoot != root {
-			currentRoot.Close()
-		}
-		currentRoot = nextRoot
-	}
-
-	// Close the final root if it's not the original root
-	if currentRoot != root {
-		currentRoot.Close()
-	}
-	return nil
+	return root.MkdirAll(dir, 0755)
 }
 
 // configFileSpec specifies a config file pattern, its ownership, and permissions.
@@ -352,8 +285,8 @@ var (
 	allowedConfigFiles = []configFileSpec{
 		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
-		{pattern: "/security-agent.yaml", owner: "root", group: "root", mode: 0640},
-		{pattern: "/system-probe.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "dd-agent", mode: 0640},
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},

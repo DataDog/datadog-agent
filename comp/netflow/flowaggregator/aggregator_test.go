@@ -1212,3 +1212,245 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 		})
 	}
 }
+
+func TestAggregatorFlushing(t *testing.T) {
+	t.Run("it respects FlowCollectionDuration when rescheduling flows", func(t *testing.T) {
+		// This test verifies that the aggregator correctly passes the flush config to the flow scheduler
+		// by checking that flows are rescheduled with the correct interval after being flushed.
+		//
+		// Context: The bug that prompted this test was in aggregator.go:98-100 where the ImmediateFlowScheduler
+		// was created without passing the flushConfig. This caused RefreshFlushTime() to use a zero-valued
+		// FlowCollectionDuration, breaking the flow scheduling logic.
+		//
+		// This is a behavior-driven test that verifies:
+		// 1. A flow is flushed immediately on first occurrence
+		// 2. When the same flow arrives again, it's not flushed until FlowCollectionDuration has elapsed
+		// 3. After FlowCollectionDuration has elapsed, the flow is flushed correctly
+
+		flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
+		sender := mocksender.NewMockSender("")
+		sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("Commit").Return()
+
+		conf := config.NetflowConfig{
+			StopTimeout:                            10,
+			AggregatorBufferSize:                   20,
+			AggregatorFlushInterval:                2, // 2 seconds FlowCollectionDuration
+			AggregatorPortRollupThreshold:          10,
+			AggregatorRollupTrackerRefreshInterval: 3600,
+			AggregatorMaxFlowsPerPeriod:            0, // Use ImmediateFlowScheduler
+		}
+
+		ctrl := gomock.NewController(t)
+		epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		logger := logmock.New(t)
+		rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+
+		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier)
+		aggregator.TimeNowFunction = func() time.Time {
+			return flushTime
+		}
+
+		// Create a flow that will be sent multiple times
+		flow := &common.Flow{
+			Namespace:      "test-ns",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 1},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          100,
+			Packets:        10,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			EtherType:      uint32(0x0800),
+		}
+
+		// First flush: Add flow and flush immediately
+		setMockTimeNow(flushTime)
+		aggregator.flowAcc.add(flow)
+
+		flushCtx1 := common.FlushContext{
+			FlushTime:     flushTime,
+			LastFlushedAt: time.Time{},
+			NumFlushes:    1,
+		}
+		flushedCount := aggregator.flush(flushCtx1)
+		assert.Equal(t, 1, flushedCount, "First flush should return 1 flow")
+
+		// Second flush: Add the same flow again and attempt to flush before FlowCollectionDuration
+		// The flow should NOT be flushed yet because it's scheduled for later
+		earlyFlushTime := flushTime.Add(1 * time.Second) // Only 1 second passed, but FlowCollectionDuration is 2 seconds
+		setMockTimeNow(earlyFlushTime)
+
+		flow2 := *flow // Copy the flow
+		flow2.Bytes = 200
+		flow2.Packets = 20
+		aggregator.flowAcc.add(&flow2)
+
+		flushCtx2 := common.FlushContext{
+			FlushTime:     earlyFlushTime,
+			LastFlushedAt: flushTime,
+			NumFlushes:    1,
+		}
+		flushedCount = aggregator.flush(flushCtx2)
+		assert.Equal(t, 0, flushedCount, "Second flush should return 0 flows because FlowCollectionDuration hasn't elapsed yet")
+
+		// Third flush: Flush after FlowCollectionDuration has passed
+		// Now the flow should be flushed
+		correctFlushTime := flushTime.Add(2 * time.Second) // FlowCollectionDuration = 2 seconds
+		setMockTimeNow(correctFlushTime)
+
+		flushCtx3 := common.FlushContext{
+			FlushTime:     correctFlushTime,
+			LastFlushedAt: earlyFlushTime,
+			NumFlushes:    1,
+		}
+		flushedCount = aggregator.flush(flushCtx3)
+		assert.Equal(t, 1, flushedCount, "Third flush should return 1 flow after FlowCollectionDuration has elapsed")
+	})
+
+	t.Run("it respects FlowCollectionDuration when using TopN/JitterFlowScheduler", func(t *testing.T) {
+		// This test verifies that when Top-N is enabled, flushConfig is properly passed to JitterFlowScheduler.
+		//
+		// Test approach:
+		// 1. Add a flow and tick through flushes until it gets flushed
+		// 2. Record the flush time (t_flush)
+		// 3. Add another flow with the same key
+		// 4. Verify it's NOT ready before t_flush + FlowCollectionDuration
+		// 5. Verify it IS ready at t_flush + FlowCollectionDuration
+		//
+		// This directly tests RefreshFlushTime behavior: after flushing, flows should be
+		// rescheduled for nextFlush + FlowCollectionDuration (with NO jitter).
+
+		startTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:00Z")
+		sender := mocksender.NewMockSender("")
+		sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+		sender.On("Commit").Return()
+
+		conf := config.NetflowConfig{
+			StopTimeout:                            10,
+			AggregatorBufferSize:                   20,
+			AggregatorFlushInterval:                30, // 30 seconds FlowCollectionDuration
+			AggregatorPortRollupThreshold:          10,
+			AggregatorRollupTrackerRefreshInterval: 3600,
+			AggregatorMaxFlowsPerPeriod:            100, // High limit so TopN doesn't interfere
+		}
+
+		ctrl := gomock.NewController(t)
+		epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		logger := logmock.New(t)
+		rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+
+		aggregator := NewFlowAggregator(sender, epForwarder, &conf, "test-hostname", logger, rdnsQuerier)
+		aggregator.TimeNowFunction = func() time.Time {
+			return startTime
+		}
+
+		// Step 1: Create a flow that will be aggregated
+		flow := &common.Flow{
+			Namespace:      "test-ns",
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 1},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          100,
+			Packets:        10,
+			SrcAddr:        []byte{10, 10, 10, 10},
+			DstAddr:        []byte{10, 10, 10, 20},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+			EtherType:      uint32(0x0800),
+		}
+
+		setMockTimeNow(startTime)
+		aggregator.flowAcc.add(flow)
+
+		// Step 2: Tick through flushes until the flow is flushed
+		// JitterFlowScheduler schedules with random jitter [0, FlowCollectionDuration)
+		// So we need to tick up to the full FlowCollectionDuration to guarantee it's flushed
+		var actualFlushTime time.Time
+		flushInterval := 10 * time.Second // FlushTickFrequency
+
+		for i := 0; i < 4; i++ { // Tick 4 times (0s, 10s, 20s, 30s)
+			currentTime := startTime.Add(time.Duration(i) * flushInterval)
+			setMockTimeNow(currentTime)
+
+			flushCtx := common.FlushContext{
+				FlushTime:     currentTime,
+				LastFlushedAt: startTime.Add(time.Duration(i-1) * flushInterval),
+				NumFlushes:    1,
+			}
+
+			if i == 0 {
+				flushCtx.LastFlushedAt = time.Time{}
+			}
+
+			flushedCount := aggregator.flush(flushCtx)
+			if flushedCount > 0 {
+				actualFlushTime = currentTime
+				assert.Equal(t, 1, flushedCount, "Should flush exactly 1 flow")
+				break
+			}
+		}
+
+		assert.False(t, actualFlushTime.IsZero(), "Flow should have been flushed within FlowCollectionDuration")
+
+		// Step 3: Add another flow with the same key (will be aggregated with the first)
+		flow2 := *flow
+		flow2.Bytes = 200
+		flow2.Packets = 20
+
+		aggregator.flowAcc.add(&flow2)
+
+		// Step 4: Verify flow is NOT ready before actualFlushTime + FlowCollectionDuration
+		// This is the critical test: RefreshFlushTime should add FlowCollectionDuration.
+		// It should not flush at t + 10s nor t + 20s
+		tick1 := actualFlushTime.Add(10 * time.Second)
+		setMockTimeNow(tick1)
+		flushCtx := common.FlushContext{
+			FlushTime:     tick1,
+			LastFlushedAt: actualFlushTime,
+			NumFlushes:    1,
+		}
+		flushedCount := aggregator.flush(flushCtx)
+		assert.Equal(t, 0, flushedCount, "Flow should NOT be ready before actualFlushTime + FlowCollectionDuration")
+
+		tick2 := actualFlushTime.Add(20 * time.Second)
+		setMockTimeNow(tick2)
+		flushCtx = common.FlushContext{
+			FlushTime:     tick2,
+			LastFlushedAt: actualFlushTime.Add(10 * time.Second),
+			NumFlushes:    1,
+		}
+		flushedCount = aggregator.flush(flushCtx)
+		assert.Equal(t, 0, flushedCount, "Flow should NOT be ready before actualFlushTime + FlowCollectionDuration")
+
+		// Step 5: Verify flow IS ready at actualFlushTime + FlowCollectionDuration
+		tick3 := actualFlushTime.Add(30 * time.Second) // Full FlowCollectionDuration
+		setMockTimeNow(tick3)
+		flushCtx = common.FlushContext{
+			FlushTime:     tick3,
+			LastFlushedAt: actualFlushTime.Add(20 * time.Second),
+			NumFlushes:    1,
+		}
+		flushedCount = aggregator.flush(flushCtx)
+		assert.Equal(t, 1, flushedCount, "Flow should be ready at actualFlushTime + FlowCollectionDuration")
+
+		// Verify TopN metrics were submitted
+		sender.AssertCalled(t, "Histogram", "datadog.netflow.flow_truncation.runtime_ms", mock.Anything, mock.Anything, mock.Anything)
+		sender.AssertCalled(t, "Gauge", "datadog.netflow.flow_truncation.threshold_value", float64(100), mock.Anything, mock.Anything)
+	})
+}

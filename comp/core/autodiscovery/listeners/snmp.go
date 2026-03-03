@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -605,9 +606,9 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the device port
-func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
+func (s *SNMPService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	port := int(s.config.Port)
-	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
+	return []workloadmeta.ContainerPort{{Port: port, Name: fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty

@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
@@ -116,7 +116,7 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 }
 
 // Start starts tailing the event log.
-func (t *Tailer) Start(bookmark string) {
+func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
 	t.done = make(chan struct{})
@@ -125,6 +125,8 @@ func (t *Tailer) Start(bookmark string) {
 	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
+	// Load initial bookmark from registry; the subscription start loop will handle initialization and retries.
+	bookmark := t.registry.GetOffset(t.Identifier())
 	go t.tail(ctx, bookmark)
 }
 
@@ -223,14 +225,16 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	t.eventLoop(ctx)
 }
 
-func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
+func retryForeverWithCancel(ctx context.Context, operation func() error) error {
 	resetBackoff := backoff.NewExponentialBackOff()
 	resetBackoff.InitialInterval = 1 * time.Second
 	resetBackoff.MaxInterval = 1 * time.Minute
-	// retry never stops if MaxElapsedTime == 0
-	resetBackoff.MaxElapsedTime = 0
 
-	return backoff.Retry(operation, backoff.WithContext(resetBackoff, ctx))
+	// retry never stops if MaxElapsedTime == 0
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(resetBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (t *Tailer) eventLoop(ctx context.Context) {

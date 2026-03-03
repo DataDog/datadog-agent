@@ -261,13 +261,13 @@ func TestGetDomainInfo(t *testing.T) {
 		{
 			name:     "main site",
 			apiKey:   "test-api-key",
-			site:     "datadOg.com",
-			expected: "datadOg.com",
+			site:     "datad0g.com",
+			expected: "datad0g.com",
 			expectedKeys: []domain{
 				{
-					site:          "datadOg.com",
+					site:          "datad0g.com",
 					defaultAPIKey: "test-api-key",
-					infraEndpoint: "https://app.datadOg.com",
+					infraEndpoint: "https://app.datad0g.com.",
 					useAltAPIKey:  true,
 				},
 			},

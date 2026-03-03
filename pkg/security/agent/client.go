@@ -19,13 +19,14 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/mdlayher/vsock"
+	empty "google.golang.org/protobuf/types/known/emptypb"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/mdlayher/vsock"
 )
 
 // RuntimeSecurityCmdClient is used to send request to security module

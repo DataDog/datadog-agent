@@ -38,15 +38,8 @@ def expected_golangci_lint_repo_v(ctx: Context) -> str:
     go_mod_json = json.loads(ctx.run(f"go mod edit -json {GOLANGCI_LINT_VPATH}", hide=True).stdout)
     for mod in go_mod_json['Require']:
         if mod['Path'] == mod_name:
-            return mod['Version']
+            return mod['Version'].lstrip('v')
     return ""
-
-
-def custom_golangci_v(v: str) -> str:
-    """
-    Returns the golangci-lint version with the custom suffix.
-    """
-    return f"{v}-custom-gcl"
 
 
 def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
@@ -56,7 +49,7 @@ def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
     debug_flag = "--debug" if debug else ""
     cmd = f"golangci-lint version {debug_flag}"
     version_output = ctx.run(cmd, hide=True).stdout
-    return version_output if debug else version_output.split(' ')[3].rsplit("-", 1)[0]
+    return version_output if debug else version_output.split(' ')[3]
 
 
 def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False) -> bool:
@@ -74,7 +67,7 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
         },
         'golangci-lint': {
             'current_v': current_golangci_lint_v(ctx),
-            'expected_v': custom_golangci_v(expected_golangci_lint_repo_v(ctx)),
+            'expected_v': expected_golangci_lint_repo_v(ctx),
             'debug': '' if not debug else current_golangci_lint_v(ctx, debug=debug),
             'exit_on_error': True,
             'error_msg': "Error: The golanci-lint version you are using is not the correct one. Please run dda inv -e setup to install the correct version.",

@@ -84,6 +84,14 @@ var (
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
 	}
 
+	containerDDTags = (func() map[string]struct{} {
+		m := make(map[string]struct{}, len(ContainerMappings))
+		for _, ddKey := range ContainerMappings {
+			m[ddKey] = struct{}{}
+		}
+		return m
+	})()
+
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
 	// and Datadog Agent conventions. The Datadog Agent conventions can be found at
 	// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/tagger/collectors/const.go and
@@ -282,8 +290,8 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 			ddtags[datadogKey] = value.Str()
 		}
 		// Custom (datadog.container.tag namespace)
-		if strings.HasPrefix(key, customContainerTagPrefix) {
-			customKey := strings.TrimPrefix(key, customContainerTagPrefix)
+		if after, ok := strings.CutPrefix(key, customContainerTagPrefix); ok {
+			customKey := after
 			if customKey != "" && value.Str() != "" {
 				// Do not replace if set via semantic conventions mappings.
 				if _, found := ddtags[customKey]; !found {
@@ -294,6 +302,78 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 		return true
 	})
 	return ddtags
+}
+
+type containerTagSource int
+
+const (
+	containerTagSourceNone containerTagSource = iota
+	containerTagSourceDD
+	containerTagSourceCustom
+	containerTagSourceOTel
+)
+
+// ConsumeContainerTagsFromResource extracts container tags from the attributes of the given resource.
+//
+// Container tags are extracted from 3 sources:
+// 1. OTel semantic conventions;
+// 2. Custom container tags prefixed by datadog.container.tag;
+// 3. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
+//
+// Only string-type resource attributes will be extracted as container tags.
+// In the case of duplicates between the three sources, OTel conventions take priority over custom tags,
+// which take priority over pre-mapped tags.
+//
+// This function also returns a copy of the input resource, with sources 2 and 3 filtered out.
+// This filtered resource should be used when converting spans to Datadog format,
+// to avoid attributes being duplicated as both span attributes and container tags.
+func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, pcommon.Resource) {
+	ddtags := make(map[string]string)
+	tagSources := make(map[string]containerTagSource)
+	filteredRes := pcommon.NewResource()
+	res.CopyTo(filteredRes)
+
+	filteredRes.Attributes().RemoveIf(func(key string, value pcommon.Value) bool {
+		valueStr := value.Str()
+		if valueStr == "" {
+			return false
+		}
+
+		var tagSource containerTagSource
+		var mappedKey string
+
+		// Semantic Conventions
+		if datadogKey, found := ContainerMappings[key]; found {
+			tagSource = containerTagSourceOTel
+			mappedKey = datadogKey
+		}
+
+		// Custom (datadog.container.tag namespace)
+		if strings.HasPrefix(key, customContainerTagPrefix) {
+			tagSource = containerTagSourceCustom
+			mappedKey = strings.TrimPrefix(key, customContainerTagPrefix)
+		}
+
+		// Pre-mapped Datadog-convention container tag
+		if _, found := containerDDTags[key]; found {
+			tagSource = containerTagSourceDD
+			mappedKey = key
+		}
+
+		if tagSource == containerTagSourceNone {
+			return false
+		}
+
+		if tagSource > tagSources[mappedKey] {
+			ddtags[mappedKey] = valueStr
+			tagSources[mappedKey] = tagSource
+		}
+
+		// Filter out custom and pre-mapped tags, but keep OTel convention attributes
+		return tagSource != containerTagSourceOTel
+	})
+
+	return ddtags, filteredRes
 }
 
 // ContainerTagFromAttributes extracts the value of _dd.tags.container from the given

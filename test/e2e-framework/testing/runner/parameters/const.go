@@ -67,6 +67,8 @@ const (
 	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
 	// DevMode allows to keep the stack after the test completes
 	DevMode StoreKey = "dev_mode"
+	// DevLocal uses local Kind cluster instead of AWS for faster development
+	DevLocal StoreKey = "dev_local"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
 	// TeardownOnly config flag parameter name
@@ -81,6 +83,8 @@ const (
 	CoveragePipeline StoreKey = "coverage_pipeline"
 	// CoverageOutDir config flag parameter name
 	CoverageOutDir StoreKey = "coverage_out_dir"
+	// SkipWindows skips Windows infrastructure and workloads in tests
+	SkipWindows StoreKey = "skip_windows"
 )
 
 const (

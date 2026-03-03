@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Check `bazelisk` properly bootstraps `bazel` or fail with instructions
+if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
+  >&2 cat "$(dirname "$0")/bazelisk.md"
+  exit 2
+fi
+
+# Ensure `XDG_CACHE_HOME` denotes a directory
+if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+  if [ -n "${CI:-}" ]; then
+    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
+    exit 2
+  fi
+  if [[ -e /.dockerenv || -e /run/.containerenv ]]; then
+    >&2 echo "💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:"
+    # shellcheck disable=SC2016
+    >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
+  fi
+fi
+
+# Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
+if [ -n "${XDG_CACHE_HOME:-}" ]; then
+  if [[ "$XDG_CACHE_HOME" != /* ]]; then
+    >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
+    exit 2
+  fi
+
+  [ -n "${CI:-}" ] && exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
+fi
+
+exec "$BAZEL_REAL" "$@"

@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/shirou/gopsutil/v4/process"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const version = "202403"
@@ -82,7 +82,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 		node.Manifests.KubeApiserver = c
 	}
 	if c, ok := l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-controller-manager.yaml")); ok {
-		node.Manifests.KubeContollerManager = c
+		node.Manifests.KubeControllerManager = c
 	}
 	if c, ok := l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-scheduler.yaml")); ok {
 		node.Manifests.KubeScheduler = c
@@ -97,7 +97,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 			node.Components.Etcd = l.newK8sEtcdConfig(proc.flags)
 		case "apiserver":
 			// excludes apiserver process that is running on Bottlerocket OS.
-			// identitied via --datastore-path flag that is not a valid flag of K8s's apiserver
+			// identified via --datastore-path flag that is not a valid flag of K8s's apiserver
 			if _, ok := proc.flags["--datastore-path"]; !ok {
 				node.Components.KubeApiserver = l.newK8sKubeApiserverConfig(proc.flags)
 			}
@@ -145,7 +145,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
 	nodeLabels, ok := flags["--node-labels"]
 	if ok {
-		for _, label := range strings.Split(nodeLabels, ",") {
+		for label := range strings.SplitSeq(nodeLabels, ",") {
 			label = strings.TrimSpace(label)
 			switch {
 			case strings.HasPrefix(label, "cloud.google.com/gke"):

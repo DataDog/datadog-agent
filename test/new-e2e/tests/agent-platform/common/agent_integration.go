@@ -6,11 +6,12 @@
 package common
 
 import (
+	"context"
 	"regexp"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -85,10 +86,10 @@ func installIntegration(t *testing.T, client *TestClient, integration string) {
 	interval := 30 * time.Second
 	maxRetries := 6
 
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "--unsafe-disable-verification", "-r", integration}))
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+		return nil, err
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(uint(maxRetries)))
 
 	require.NoError(t, err)
 }

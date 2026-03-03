@@ -52,6 +52,7 @@ const (
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
+	cacheDir            string
 	clearCacheOnClose   bool
 	maxCacheSize        int
 	computeDependencies bool
@@ -90,6 +91,8 @@ func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 	}
 
 	artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
+	// agent specific config, needed so that we don't download the Java DB at runtime
+	artifactOption.OfflineJar = true
 
 	return artifactOption
 }
@@ -145,6 +148,7 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
+			cacheDir:            cfg.GetString("sbom.cache_directory"),
 			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
@@ -218,7 +222,7 @@ func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	c.cacheInitialized.Do(func() {
 		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
 			c.wmeta,
-			defaultCacheDir(),
+			c.config.cacheDir,
 			c.config.maxCacheSize,
 		)
 	})
@@ -247,7 +251,7 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
 	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)

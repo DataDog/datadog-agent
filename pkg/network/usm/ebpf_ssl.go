@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,6 +53,7 @@ const (
 	sslShutdownProbe            = "uprobe__SSL_shutdown"
 	bioNewSocketProbe           = "uprobe__BIO_new_socket"
 	bioNewSocketRetprobe        = "uretprobe__BIO_new_socket"
+	bioFreeProbe                = "uprobe__BIO_free"
 	gnutlsHandshakeProbe        = "uprobe__gnutls_handshake"
 	gnutlsHandshakeRetprobe     = "uretprobe__gnutls_handshake"
 	gnutlsTransportSetInt2Probe = "uprobe__gnutls_transport_set_int2"
@@ -219,6 +221,11 @@ var cryptoProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: bioNewSocketRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: bioFreeProbe,
 				},
 			},
 		},
@@ -416,6 +423,11 @@ var opensslSpec = &protocols.ProtocolSpec{
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioFreeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: gnutlsHandshakeProbe,
 			},
 		},
@@ -552,7 +564,11 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 	}
 
 	var err error
-	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
+	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: monitor.GetProcessMonitor(),
+		Telemetry:      telemetry.GetCompatComponent(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
 	}

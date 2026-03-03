@@ -54,9 +54,9 @@ import csv
 import json
 import os
 
-_DEBUG = 0
-
 from tasks.licenses import find_copyright_in_text
+
+_DEBUG = 0
 
 
 def repo_of_target(target):
@@ -66,21 +66,53 @@ def repo_of_target(target):
     return target[:split]
 
 
-def normalize_repo(repo):
-    # get rid of bzlmod's wacky rewriting.
-    # E.g. @@+_repo_rules+bzip2, @rules_license+
-    while repo.startswith("@"):
-        repo = repo[1:]
-    plus = repo.rfind("+")
+def origin_to_module(origin):
+    """Turn the origin of the license back to a module name.
+
+    Args:
+        origin: str, maybe a bazel target, maybe a purl
+    Returns:
+        A name
+    """
+    if origin.startswith("pkg:"):
+        return purl_to_package(origin)
+
+    # Now we might see any of these forms
+    #  @+_repo_rules+bzip2//:license
+    #  @rules_flex+//:license
+    #  @@//third_party/some/package:license
+    #  //deps/package:license
+
+    # It is a label, get rid of the target name.
+    colon = origin.rfind(":")
+    if colon > 0:
+        origin = origin[0:colon]
+    # and now that everything after the colon is gone, we
+    # have new cruft at the end to strip.
+    origin = origin.rstrip("+/")
+    # and the cruft at the start
+    origin = origin.lstrip("@")
+
+    # Is the license in our repo? Like this? @@//deps/msodbcsql18
+    if origin.startswith("//"):
+        # All we need is the package
+        package = origin.split("/")[-1]
+        return package
+
+    # Now we hit the bzlmod ugly names, +_repo_rules+bzip2 or rules_flex
+    # Take the word after the last +.
+    plus = origin.rfind("+")
     if plus >= 0:
-        repo = repo[plus + 1 :]
-    return repo
+        remainder = origin[plus + 1 :]
+        if remainder:
+            return remainder
+        # If there's nothing after the +, strip it and continue
+        origin = origin[:plus]
+    return origin
 
 
 def purl_to_package(purl):
     # pkg:https/download.savannah.nongnu.org/attr@2.5.1?url=https://download.savannah.nongnu.org/releases/attr/attr-%2.5.1.tar.xz
-    if not purl.startswith("pkg:"):
-        return purl
     base = purl.split("?")[0]
     package_version = base.split("/")[-1]
     package = package_version.split("@")[0]
@@ -150,7 +182,7 @@ class AttrUsage:
         #  'license_kinds': [{'identifier': '@rules_license//licenses/spdx:Zlib', 'name': 'zlib License'}],
         #  'text': 'external/+_repo_rules+zlib/LICENSE'}
         origin = purl or attr["label"]
-        with open(attr["text"], encoding="UTF-8") as license_text:
+        with open(attr["text"], "rb") as license_text:
             text = license_text.read()
             # TODO: We should use the identifier for more precision, but we can't do that until we
             # rebuild the downstream processing of LICENSES.CSV
@@ -198,7 +230,8 @@ def main():
         # Sample: '@@+_repo_rules+libffi//:license': ('@rules_license+//licenses/spdx:GPL-2.0', "libffi - Copyright (c) 1996-2024  ...)
         origin = license_target
         license_type = data[0]
-        license_text = data[1]
+        # The license text is just bytes, not always UTF-8, so be forgiving.
+        license_text = data[1].decode(encoding="utf-8", errors="ignore")
         copyright = find_copyright_in_text(license_text.split("\n")) or ""
         licenses.append(["core", origin, license_type, copyright])
 
@@ -224,10 +257,9 @@ def main():
 
     if options.licenses_dir:
         for origin, data in attrs.licenses.items():
-            # If origin is a PURL, this may just be a name, like "acl"
-            licensed_package = purl_to_package(origin)
-            # but if we get it through bazel repos, use that name - falling back to the package name if from the PURL
-            canonical_package = normalize_repo(repo_of_target(licensed_package)) or licensed_package
+            canonical_package = origin_to_module(origin)
+            if _DEBUG > 2:
+                print(f"{origin} => {canonical_package}")
             # This good enough for today. The DD policy is that all licenses have SPDX
             # identifiers, so the repo name is always constant.
             license_type = data[0].replace("@rules_license+//licenses/spdx:", "")
@@ -237,7 +269,7 @@ def main():
             copy_to = os.path.join(options.licenses_dir, f"{canonical_package}-{license_file_short}")
             if _DEBUG > 1:
                 print(f"writing for {canonical_package} to {copy_to}")
-            with open(copy_to, "w", encoding="UTF-8") as out:
+            with open(copy_to, "wb") as out:
                 out.write(license_text)
 
 

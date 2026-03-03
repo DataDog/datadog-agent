@@ -4,20 +4,28 @@ load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:util.bzl", "util")
 load(":dd_agent_expand_template.bzl", "dd_agent_expand_template")
 
-def _test_basics(name):
+def template_test_suite(name):
+    test_suite(
+        name = name,
+        tests = [
+            _dd_expand_basics_test,
+            _dd_expand_package_info_test,
+            _dd_expand_flags_in_vars_test,
+        ],
+    )
+
+def _dd_expand_basics_test(name):
     util.helper_target(
         dd_agent_expand_template,
-        name = name + "_subject",
+        name = name + "_basics_test",
         template = "ignored",
         substitutions = {"@BIZ@": "BAZ"},
-        out = "placeholder.out",
-        attributes = json.encode({"owner": "toot"}),
-        prefix = "put/them/here",
+        out = "basics_test.out",
     )
     analysis_test(
         name = name,
-        impl = _test_basics_impl,
-        target = name + "_subject",
+        impl = _basics_test_impl,
+        target = name + "_basics_test",
         attr_values = {
             "expect_cpu": select({
                 "@platforms//cpu:arm64": "arm64",
@@ -30,17 +38,12 @@ def _test_basics(name):
         },
     )
 
-def _test_basics_impl(env, target):
+def _basics_test_impl(env, target):
     subject = env.expect.that_target(target)
-    expect_output_path = target.label.package + "/placeholder.out"
+    expect_output_path = target.label.package + "/basics_test.out"
 
     # Writing the correct output file
     env.expect.that_target(target).default_outputs().contains(expect_output_path)
-
-    # Did we put the right things in the rule_pkg provider.
-    pfi = target[PackageFilesInfo]
-    env.expect.that_dict(pfi.attributes).contains_exactly({"owner": "toot"})
-    env.expect.that_dict(pfi.dest_src_map).keys().contains("put/them/here/placeholder.out")
 
     # Did we built the right substitution dictionary
     # Are all the expected keys here.
@@ -76,10 +79,59 @@ def _test_basics_impl(env, target):
     install_dir_actual = env.ctx.attr._install_dir_actual[BuildSettingInfo].value
     env.expect.that_str(install_dir).equals(install_dir_actual)
 
-def template_test_suite(name):
-    test_suite(
-        name = name,
-        tests = [
-            _test_basics,
-        ],
+def _dd_expand_package_info_test(name):
+    util.helper_target(
+        dd_agent_expand_template,
+        name = name + "_package_info_test",
+        template = "ignored",
+        out = "package_info_test.out",
+        attributes = json.encode({"owner": "toot"}),
+        prefix = "put/them/here",
     )
+    analysis_test(
+        name = name,
+        impl = _package_info_test_impl,
+        target = name + "_package_info_test",
+    )
+
+def _package_info_test_impl(env, target):
+    # Did we put the right things in the rules_pkg provider.
+    pfi = target[PackageFilesInfo]
+    env.expect.that_dict(pfi.attributes).contains_exactly({"owner": "toot"})
+    env.expect.that_dict(pfi.dest_src_map).keys().contains("put/them/here/package_info_test.out")
+
+def _dd_expand_flags_in_vars_test(name):
+    util.helper_target(
+        dd_agent_expand_template,
+        name = name + "_flags_in_vars_test",
+        template = "ignored",
+        substitutions = {
+            "@CAP_INSTALL_DIR@": "{install_dir}",
+            "@X@": "{x}",
+            "@NO_CHAINING@": "@CAP_INSTALL_DIR@",
+        },
+        out = "flags_in_vars_test.out",
+    )
+    analysis_test(
+        name = name,
+        impl = _flags_in_vars_test_impl,
+        target = name + "_flags_in_vars_test",
+        attrs = {
+            "_install_dir_actual": attr.label(default = "@@//:install_dir"),
+        },
+    )
+
+def _flags_in_vars_test_impl(env, target):
+    subject = env.expect.that_target(target)
+
+    # Get the value of install_dir from the current flag setting
+    install_dir_actual = env.ctx.attr._install_dir_actual[BuildSettingInfo].value
+    biz_val = subject.actual.actions[0].substitutions.get("@CAP_INSTALL_DIR@")
+    env.expect.that_str(biz_val).equals(install_dir_actual)
+
+    no_chaining_value = subject.actual.actions[0].substitutions.get("@NO_CHAINING@")
+    env.expect.that_str(no_chaining_value).equals("@CAP_INSTALL_DIR@")
+
+    # Since there is no flag for "x", @X@ should pass through unchanged
+    value = subject.actual.actions[0].substitutions.get("@X@")
+    env.expect.that_str(value).equals("{x}")

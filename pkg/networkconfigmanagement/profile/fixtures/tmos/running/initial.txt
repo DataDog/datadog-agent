@@ -1,0 +1,47 @@
+sys global-settings {
+    hostname bigip1.example.net
+}
+
+ltm virtual /Common/web_vip {
+    destination 10.10.20.30:https
+    ip-protocol tcp
+    pool /Common/web_pool
+    profiles {
+        /Common/http { }
+        /Common/clientssl {
+            passphrase mySuperSecretPassphrase
+        }
+    }
+}
+
+ltm pool /Common/web_pool {
+    members {
+        10.10.30.10:80 {
+            address 10.10.30.10
+        }
+    }
+}
+
+sys snmp {
+    communities {
+        public {
+            community publicString
+        }
+        secure {
+            community-name mySecretCommunity
+        }
+    }
+}
+
+auth user admin {
+    password $1$kjsdf9234kjsdf9234
+    encrypted $M$YxZk9AABBBCCC112233445566
+}
+
+radius-server /Common/radius1 {
+    secret myRadiusSharedSecret
+}
+
+tacacs-server /Common/tac1 {
+    secret anotherTacacsSecret
+}

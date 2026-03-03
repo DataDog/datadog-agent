@@ -26,9 +26,9 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 	// Arrange
 
 	// Act
-	s.Require().NoError(s.Installer().Install(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile("fresh-install.log"),
-	))
+	)
 
 	// Assert
 	s.requireInstalled()
