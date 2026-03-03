@@ -8,22 +8,47 @@
 package logondurationimpl
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tekert/goetw/etw"
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
-// makeEvent creates a synthetic etw.Event for testing.
-func makeEvent(providerGUID etw.GUID, eventID uint16, ts time.Time, eventData ...etw.EventProperty) *etw.Event {
-	e := &etw.Event{
-		EventData: eventData,
+// mockEvent implements eventWithProperties for testing.
+type mockEvent struct {
+	providerID windows.GUID
+	eventID    uint16
+	timestamp  time.Time
+	props      map[string]interface{}
+}
+
+func (m *mockEvent) GetPropertyString(name string) string {
+	if v, ok := m.props[name]; ok {
+		return fmt.Sprintf("%v", v)
 	}
-	e.System.Provider.Guid = providerGUID
-	e.System.EventID = eventID
-	e.System.TimeCreated.SystemTime = ts
-	return e
+	return ""
+}
+
+func (m *mockEvent) GetProviderID() windows.GUID { return m.providerID }
+func (m *mockEvent) GetEventID() uint16          { return m.eventID }
+func (m *mockEvent) GetTimestamp() time.Time     { return m.timestamp }
+
+// makeEvent creates a synthetic event for testing.
+func makeEvent(providerGUID windows.GUID, eventID uint16, ts time.Time, eventData ...etw.Property) *mockEvent {
+	props := make(map[string]interface{})
+	for _, p := range eventData {
+		props[p.Name] = p.Value
+	}
+	return &mockEvent{
+		providerID: providerGUID,
+		eventID:    eventID,
+		timestamp:  ts,
+		props:      props,
+	}
 }
 
 func newCollector() *collector {
@@ -34,46 +59,27 @@ func newCollector() *collector {
 
 func TestGetEventPropString(t *testing.T) {
 	t.Run("finds property in EventData", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "ImageFileName", Value: "smss.exe"},
-			},
-		}
+		e := makeEvent(guidKernelProcess, 1, time.Now(), etw.Property{Name: "ImageFileName", Value: "smss.exe"})
 		assert.Equal(t, "smss.exe", getEventPropString(e, "ImageFileName"))
 	})
 
 	t.Run("finds property in UserData", func(t *testing.T) {
-		e := &etw.Event{
-			UserData: []etw.EventProperty{
-				{Name: "SubscriberName", Value: "GPClient"},
-			},
-		}
+		e := &mockEvent{props: map[string]interface{}{"SubscriberName": "GPClient"}}
 		assert.Equal(t, "GPClient", getEventPropString(e, "SubscriberName"))
 	})
 
 	t.Run("prefers EventData over UserData", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "Name", Value: "from_event_data"},
-			},
-			UserData: []etw.EventProperty{
-				{Name: "Name", Value: "from_user_data"},
-			},
-		}
+		e := &mockEvent{props: map[string]interface{}{"Name": "from_event_data"}}
 		assert.Equal(t, "from_event_data", getEventPropString(e, "Name"))
 	})
 
 	t.Run("returns empty string when not found", func(t *testing.T) {
-		e := &etw.Event{}
+		e := &mockEvent{props: map[string]interface{}{}}
 		assert.Equal(t, "", getEventPropString(e, "NonExistent"))
 	})
 
 	t.Run("converts non-string values", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "PID", Value: int64(1234)},
-			},
-		}
+		e := &mockEvent{props: map[string]interface{}{"PID": int64(1234)}}
 		assert.Equal(t, "1234", getEventPropString(e, "PID"))
 	})
 }
@@ -103,9 +109,9 @@ func TestParseKernelGeneral(t *testing.T) {
 func TestParseKernelProcess(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
-	makeProcessEvent := func(imageName string, timestamp time.Time) *etw.Event {
-		return makeEvent(*guidKernelProcess, evtProcessStart, timestamp,
-			etw.EventProperty{Name: "ImageFileName", Value: imageName},
+	makeProcessEvent := func(imageName string, timestamp time.Time) *mockEvent {
+		return makeEvent(guidKernelProcess, evtProcessStart, timestamp,
+			etw.Property{Name: "ImageName", Value: imageName},
 		)
 	}
 
@@ -203,8 +209,8 @@ func TestParseKernelProcess(t *testing.T) {
 	t.Run("tries alternative property names", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &kernelProcessParser{timeline: tl}
-		e := makeEvent(*guidKernelProcess, evtProcessStart, ts,
-			etw.EventProperty{Name: "ImageName", Value: "explorer.exe"},
+		e := makeEvent(guidKernelProcess, evtProcessStart, ts,
+			etw.Property{Name: "ImageName", Value: "explorer.exe"},
 		)
 
 		p.Parse(e, evtProcessStart, ts)
@@ -363,8 +369,8 @@ func TestParseGroupPolicy(t *testing.T) {
 func TestParseShellCore(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 1, 30, 0, time.UTC)
 
-	makeShellCoreEvent := func(id uint16, timestamp time.Time, props ...etw.EventProperty) *etw.Event {
-		return makeEvent(*guidShellCore, id, timestamp, props...)
+	makeShellCoreEvent := func(id uint16, timestamp time.Time, props ...etw.Property) *mockEvent {
+		return makeEvent(guidShellCore, id, timestamp, props...)
 	}
 
 	t.Run("event 9601 sets ExplorerInitStart", func(t *testing.T) {
@@ -407,7 +413,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9648 WaitForDesktopVisuals sets DesktopVisibleStart", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"})
+		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.Property{Name: "psz", Value: "WaitForDesktopVisuals"})
 		p.Parse(e, evtExplorerStepStart, ts)
 		assert.Equal(t, ts, tl.DesktopVisibleStart)
 	})
@@ -415,7 +421,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9649 WaitForDesktopVisuals sets DesktopVisibleEnd", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"})
+		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.Property{Name: "psz", Value: "WaitForDesktopVisuals"})
 		p.Parse(e, evtExplorerStepEnd, ts)
 		assert.Equal(t, ts, tl.DesktopVisibleEnd)
 	})
@@ -423,7 +429,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9648 Finalize sets DesktopReadyStart", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.EventProperty{Name: "psz", Value: "Finalize"})
+		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.Property{Name: "psz", Value: "Finalize"})
 		p.Parse(e, evtExplorerStepStart, ts)
 		assert.Equal(t, ts, tl.DesktopReadyStart)
 	})
@@ -431,7 +437,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9649 Finalize sets DesktopReadyEnd", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.EventProperty{Name: "psz", Value: "Finalize"})
+		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.Property{Name: "psz", Value: "Finalize"})
 		p.Parse(e, evtExplorerStepEnd, ts)
 		assert.Equal(t, ts, tl.DesktopReadyEnd)
 	})
@@ -439,7 +445,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9648 DesktopStartupApps sets DesktopStartupAppsStart", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.EventProperty{Name: "psz", Value: "DesktopStartupApps"})
+		e := makeShellCoreEvent(evtExplorerStepStart, ts, etw.Property{Name: "psz", Value: "DesktopStartupApps"})
 		p.Parse(e, evtExplorerStepStart, ts)
 		assert.Equal(t, ts, tl.DesktopStartupAppsStart)
 	})
@@ -447,7 +453,7 @@ func TestParseShellCore(t *testing.T) {
 	t.Run("event 9649 DesktopStartupApps sets DesktopStartupAppsEnd", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &shellCoreParser{timeline: tl}
-		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.EventProperty{Name: "psz", Value: "DesktopStartupApps"})
+		e := makeShellCoreEvent(evtExplorerStepEnd, ts, etw.Property{Name: "psz", Value: "DesktopStartupApps"})
 		p.Parse(e, evtExplorerStepEnd, ts)
 		assert.Equal(t, ts, tl.DesktopStartupAppsEnd)
 	})
@@ -458,7 +464,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Kernel-General event 12 to kernelGeneralParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidKernelGeneral, 12, ts)
+		e := makeEvent(guidKernelGeneral, 12, ts)
 
 		processEvent(coll, e)
 
@@ -467,8 +473,8 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Kernel-Process event 1 to kernelProcessParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidKernelProcess, 1, ts,
-			etw.EventProperty{Name: "ImageFileName", Value: "explorer.exe"},
+		e := makeEvent(guidKernelProcess, 1, ts,
+			etw.Property{Name: "ImageFileName", Value: "explorer.exe"},
 		)
 
 		processEvent(coll, e)
@@ -478,7 +484,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Winlogon event to winlogonParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidWinlogon, 5001, ts)
+		e := makeEvent(guidWinlogon, 5001, ts)
 
 		processEvent(coll, e)
 
@@ -487,7 +493,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes UserProfile event to userProfileParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidUserProfile, 1001, ts)
+		e := makeEvent(guidUserProfile, 1001, ts)
 
 		processEvent(coll, e)
 
@@ -496,7 +502,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes GroupPolicy event to groupPolicyParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidGroupPolicy, 4000, ts)
+		e := makeEvent(guidGroupPolicy, 4000, ts)
 
 		processEvent(coll, e)
 
@@ -505,7 +511,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Shell-Core event to shellCoreParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidShellCore, 9601, ts)
+		e := makeEvent(guidShellCore, 9601, ts)
 
 		processEvent(coll, e)
 
@@ -514,7 +520,7 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("ignores event with unknown provider GUID", func(t *testing.T) {
 		coll := newCollector()
-		unknownGUID := *etw.MustParseGUID("{00000000-0000-0000-0000-000000000001}")
+		unknownGUID := etw.MustParseGUID("{00000000-0000-0000-0000-000000000001}")
 		e := makeEvent(unknownGUID, 1, ts)
 
 		processEvent(coll, e)
@@ -527,37 +533,37 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 	coll := newCollector()
 
-	events := []*etw.Event{
-		makeEvent(*guidKernelGeneral, 12, boot),
-		makeEvent(*guidKernelProcess, 1, boot.Add(1*time.Second),
-			etw.EventProperty{Name: "ImageFileName", Value: "smss.exe"}),
-		makeEvent(*guidWinlogon, 101, boot.Add(4*time.Second)),
-		makeEvent(*guidWinlogon, 103, boot.Add(8*time.Second)),
-		makeEvent(*guidWinlogon, 104, boot.Add(10*time.Second)),
-		makeEvent(*guidGroupPolicy, 4000, boot.Add(12*time.Second)),
-		makeEvent(*guidGroupPolicy, 8000, boot.Add(20*time.Second)),
-		makeEvent(*guidKernelProcess, 1, boot.Add(25*time.Second),
-			etw.EventProperty{Name: "ImageFileName", Value: "winlogon.exe"}),
-		makeEvent(*guidWinlogon, 5001, boot.Add(30*time.Second)),
-		makeEvent(*guidUserProfile, 1001, boot.Add(31*time.Second)),
-		makeEvent(*guidUserProfile, 1002, boot.Add(35*time.Second)),
-		makeEvent(*guidWinlogon, 9, boot.Add(40*time.Second)),
-		makeEvent(*guidKernelProcess, 1, boot.Add(42*time.Second),
-			etw.EventProperty{Name: "ImageFileName", Value: "userinit.exe"}),
-		makeEvent(*guidWinlogon, 10, boot.Add(45*time.Second)),
-		makeEvent(*guidKernelProcess, 1, boot.Add(50*time.Second),
-			etw.EventProperty{Name: "ImageFileName", Value: "explorer.exe"}),
-		makeEvent(*guidShellCore, 9601, boot.Add(51*time.Second)),
-		makeEvent(*guidShellCore, 9602, boot.Add(53*time.Second)),
-		makeEvent(*guidShellCore, 9648, boot.Add(55*time.Second),
-			etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"}),
-		makeEvent(*guidShellCore, 9649, boot.Add(60*time.Second),
-			etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"}),
-		makeEvent(*guidWinlogon, 5002, boot.Add(60*time.Second)),
-		makeEvent(*guidShellCore, 9648, boot.Add(61*time.Second),
-			etw.EventProperty{Name: "psz", Value: "Finalize"}),
-		makeEvent(*guidShellCore, 9649, boot.Add(65*time.Second),
-			etw.EventProperty{Name: "psz", Value: "Finalize"}),
+	events := []*mockEvent{
+		makeEvent(guidKernelGeneral, 12, boot),
+		makeEvent(guidKernelProcess, 1, boot.Add(1*time.Second),
+			etw.Property{Name: "ImageFileName", Value: "smss.exe"}),
+		makeEvent(guidWinlogon, 101, boot.Add(4*time.Second)),
+		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
+		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
+		makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)),
+		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
+		makeEvent(guidKernelProcess, 1, boot.Add(25*time.Second),
+			etw.Property{Name: "ImageFileName", Value: "winlogon.exe"}),
+		makeEvent(guidWinlogon, 5001, boot.Add(30*time.Second)),
+		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
+		makeEvent(guidUserProfile, 1002, boot.Add(35*time.Second)),
+		makeEvent(guidWinlogon, 9, boot.Add(40*time.Second)),
+		makeEvent(guidKernelProcess, 1, boot.Add(42*time.Second),
+			etw.Property{Name: "ImageFileName", Value: "userinit.exe"}),
+		makeEvent(guidWinlogon, 10, boot.Add(45*time.Second)),
+		makeEvent(guidKernelProcess, 1, boot.Add(50*time.Second),
+			etw.Property{Name: "ImageFileName", Value: "explorer.exe"}),
+		makeEvent(guidShellCore, 9601, boot.Add(51*time.Second)),
+		makeEvent(guidShellCore, 9602, boot.Add(53*time.Second)),
+		makeEvent(guidShellCore, 9648, boot.Add(55*time.Second),
+			etw.Property{Name: "psz", Value: "WaitForDesktopVisuals"}),
+		makeEvent(guidShellCore, 9649, boot.Add(60*time.Second),
+			etw.Property{Name: "psz", Value: "WaitForDesktopVisuals"}),
+		makeEvent(guidWinlogon, 5002, boot.Add(60*time.Second)),
+		makeEvent(guidShellCore, 9648, boot.Add(61*time.Second),
+			etw.Property{Name: "psz", Value: "Finalize"}),
+		makeEvent(guidShellCore, 9649, boot.Add(65*time.Second),
+			etw.Property{Name: "psz", Value: "Finalize"}),
 	}
 
 	for _, e := range events {

@@ -315,6 +315,8 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 		haveLogon = true
 	}
 
+	// Total Boot Duration is the sum of Boot Duration and Logon Duration
+	// This is to ensure that the time spent idling in the login UI is not included in the total boot duration.
 	if haveBoot && haveLogon {
 		durations["Total Boot Duration (ms)"] = bootMs + logonMs
 	}

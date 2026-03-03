@@ -13,11 +13,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tekert/goetw/etw"
-
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 const (
@@ -28,7 +27,7 @@ const (
 
 // stopAutologger stops the running ETW trace session
 func stopAutologger(sessionName string) error {
-	if err := etw.StopSession(sessionName); err != nil {
+	if err := etw.StopETWSession(sessionName); err != nil {
 		return fmt.Errorf("stopping session '%s': %w", sessionName, err)
 	}
 	return nil

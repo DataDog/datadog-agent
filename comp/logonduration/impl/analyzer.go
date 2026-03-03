@@ -17,13 +17,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tekert/goetw/etw"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 // Provider GUIDs for filtering events from the ETL file.
-// MustParseGUID returns *GUID.
 var (
 	guidKernelProcess = etw.MustParseGUID("{22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716}")
 	guidKernelGeneral = etw.MustParseGUID("{A68CA8B7-004F-D7B6-A698-07E2DE0F1F5D}")
@@ -113,9 +113,22 @@ type BootTimeline struct {
 	DesktopStartupAppsEnd   time.Time // Shell-Core Event 9649 (desktopstartupapps step)
 }
 
+// eventWithProperties is satisfied by events that provide property lookup.
+type eventWithProperties interface {
+	GetPropertyString(name string) string
+}
+
+// processableEvent is an event that can be dispatched to parsers.
+type processableEvent interface {
+	eventWithProperties
+	GetProviderID() windows.GUID
+	GetEventID() uint16
+	GetTimestamp() time.Time
+}
+
 // eventParser processes filtered events for a single ETW provider.
 type eventParser interface {
-	Parse(e *etw.Event, id uint16, ts time.Time)
+	Parse(e eventWithProperties, id uint16, ts time.Time)
 }
 
 // providerConfig ties together the set of accepted event IDs and
@@ -128,23 +141,23 @@ type providerConfig struct {
 // collector accumulates events during ETL processing.
 type collector struct {
 	timeline  BootTimeline
-	providers map[etw.GUID]providerConfig
+	providers map[windows.GUID]providerConfig
 }
 
 // buildProviders wires each provider's accepted event IDs together with
 // its parser, creating a single source of truth for both filtering and
 // dispatching.
-func buildProviders(timeline *BootTimeline) map[etw.GUID]providerConfig {
-	return map[etw.GUID]providerConfig{
-		*guidKernelGeneral: {
+func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
+	return map[windows.GUID]providerConfig{
+		guidKernelGeneral: {
 			acceptedIDs: map[uint16]struct{}{evtBootStart: {}},
 			parser:      &kernelGeneralParser{timeline: timeline},
 		},
-		*guidKernelProcess: {
+		guidKernelProcess: {
 			acceptedIDs: map[uint16]struct{}{evtProcessStart: {}},
 			parser:      &kernelProcessParser{timeline: timeline},
 		},
-		*guidWinlogon: {
+		guidWinlogon: {
 			acceptedIDs: map[uint16]struct{}{
 				evtWinlogonShellCmdStart: {}, evtWinlogonShellCmdEnd: {},
 				evtWinlogonInit: {}, evtWinlogonInitDone: {},
@@ -153,21 +166,21 @@ func buildProviders(timeline *BootTimeline) map[etw.GUID]providerConfig {
 			},
 			parser: &winlogonParser{timeline: timeline},
 		},
-		*guidUserProfile: {
+		guidUserProfile: {
 			acceptedIDs: map[uint16]struct{}{
 				evtProfileLoadStart: {}, evtProfileLoadEnd: {},
 				evtProfileCreationStart: {}, evtProfileCreationEnd: {},
 			},
 			parser: &userProfileParser{timeline: timeline},
 		},
-		*guidGroupPolicy: {
+		guidGroupPolicy: {
 			acceptedIDs: map[uint16]struct{}{
 				evtMachineGPStart: {}, evtMachineGPEnd: {},
 				evtUserGPStart: {}, evtUserGPEnd: {},
 			},
 			parser: &groupPolicyParser{timeline: timeline},
 		},
-		*guidShellCore: {
+		guidShellCore: {
 			acceptedIDs: map[uint16]struct{}{
 				evtExplorerInitStart: {}, evtExplorerInitEnd: {},
 				evtDesktopCreateStart: {}, evtDesktopCreateEnd: {},
@@ -185,7 +198,7 @@ type AnalysisResult struct {
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
 // boot timeline analysis.
-func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
+func analyzeETL(_ context.Context, etlPath string) (*AnalysisResult, error) {
 	absPath, err := filepath.Abs(etlPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving path: %w", err)
@@ -204,49 +217,24 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 
 	var totalEvents atomic.Int64
 
-	c := etw.NewConsumer(ctx)
-	defer func() {
-		if err := c.Stop(); err != nil {
-			log.Errorf("error stopping ETL consumer: %v", err)
-		}
-	}()
-
-	c.FromTraceNames(absPath)
-
-	// EventRecordCallback: fast filter on provider GUID + Event ID.
-	// Returns true only for events we care about; the rest are skipped entirely.
-	c.EventRecordCallback = func(er *etw.EventRecord) bool {
+	filter := func(providerID windows.GUID, eventID uint16) bool {
 		totalEvents.Add(1)
-		cfg, ok := coll.providers[er.EventHeader.ProviderId]
+		cfg, ok := coll.providers[providerID]
 		if !ok {
 			return false
 		}
-		_, ok = cfg.acceptedIDs[er.EventHeader.EventDescriptor.Id]
+		_, ok = cfg.acceptedIDs[eventID]
 		return ok
 	}
 
 	startTime := time.Now()
 
-	log.Debugf("Starting ETL consumer")
-	if err := c.Start(); err != nil {
-		return nil, fmt.Errorf("starting ETL consumer: %w", err)
-	}
-
-	// When the trace processing goroutine finishes (file fully read), close the
-	// events channel so ProcessEvents can return. Without this, ProcessEvents
-	// blocks forever because the channel is only closed during Stop(), and Stop()
-	// is deferred after ProcessEvents — creating a deadlock.
-	go func() {
-		c.Wait()               // block until all trace goroutines finish
-		c.CloseEventsChannel() // unblock ProcessEvents
-	}()
-
 	log.Debugf("Processing ETL events")
-	err = c.ProcessEvents(func(e *etw.Event) {
+	err = etw.ProcessETLFile(absPath, func(e *etw.Event) {
 		processEvent(coll, e)
-	})
+	}, etw.WithEventRecordFilter(filter))
 	if err != nil {
-		return nil, fmt.Errorf("processing ETL events: %w", err)
+		return nil, fmt.Errorf("processing ETL file: %w", err)
 	}
 
 	elapsed := time.Since(startTime)
@@ -261,13 +249,20 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	}, nil
 }
 
+// directPropertyLookup is optionally implemented by events that support
+// looking up a single property by name (via TdhGetProperty), bypassing
+// sequential parsing that can fail on schema-mismatched properties.
+type directPropertyLookup interface {
+	GetPropertyByName(name string) (string, error)
+}
+
 // processEvent dispatches a filtered event to the appropriate provider parser.
-func processEvent(coll *collector, e *etw.Event) {
-	cfg, ok := coll.providers[e.System.Provider.Guid]
+func processEvent(coll *collector, e processableEvent) {
+	cfg, ok := coll.providers[e.GetProviderID()]
 	if !ok {
 		return
 	}
-	cfg.parser.Parse(e, e.System.EventID, e.System.TimeCreated.SystemTime)
+	cfg.parser.Parse(e, e.GetEventID(), e.GetTimestamp())
 }
 
 // --- Per-provider parser structs ---
@@ -277,7 +272,7 @@ type kernelGeneralParser struct {
 	timeline *BootTimeline
 }
 
-func (p *kernelGeneralParser) Parse(_ *etw.Event, _ uint16, ts time.Time) {
+func (p *kernelGeneralParser) Parse(_ eventWithProperties, _ uint16, ts time.Time) {
 	if p.timeline.BootStart.IsZero() {
 		p.timeline.BootStart = ts
 	}
@@ -291,16 +286,19 @@ type kernelProcessParser struct {
 	winlogonCount int
 }
 
-func (p *kernelProcessParser) Parse(e *etw.Event, _ uint16, ts time.Time) {
-	imageName := getEventPropString(e, "ImageFileName")
-	if imageName == "" {
+func (p *kernelProcessParser) Parse(e eventWithProperties, _ uint16, ts time.Time) {
+	var imageName string
+	if dl, ok := e.(directPropertyLookup); ok {
+		val, err := dl.GetPropertyByName("ImageName")
+		if err != nil {
+			log.Debugf("GetPropertyByName(ImageName) failed: %v", err)
+		}
+		imageName = val
+	} else {
 		imageName = getEventPropString(e, "ImageName")
 	}
-	if imageName == "" {
-		imageName = getEventPropString(e, "FileName")
-	}
-
 	imageName = strings.ToLower(filepath.Base(imageName))
+	log.Debugf("Parsing kernel process event: imageName: %s", imageName)
 
 	switch {
 	case strings.Contains(imageName, "smss.exe"):
@@ -333,7 +331,7 @@ type winlogonParser struct {
 	timeline *BootTimeline
 }
 
-func (p *winlogonParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
+func (p *winlogonParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtWinlogonInit:
 		if p.timeline.WinlogonInit.IsZero() {
@@ -375,7 +373,7 @@ type userProfileParser struct {
 	timeline *BootTimeline
 }
 
-func (p *userProfileParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
+func (p *userProfileParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtProfileLoadStart:
 		if p.timeline.ProfileLoadStart.IsZero() {
@@ -401,7 +399,7 @@ type groupPolicyParser struct {
 	timeline *BootTimeline
 }
 
-func (p *groupPolicyParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
+func (p *groupPolicyParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtMachineGPStart:
 		if p.timeline.MachineGPStart.IsZero() {
@@ -427,7 +425,7 @@ type shellCoreParser struct {
 	timeline *BootTimeline
 }
 
-func (p *shellCoreParser) Parse(e *etw.Event, id uint16, ts time.Time) {
+func (p *shellCoreParser) Parse(e eventWithProperties, id uint16, ts time.Time) {
 	switch id {
 	case evtExplorerInitStart:
 		if p.timeline.ExplorerInitStart.IsZero() {
@@ -481,22 +479,12 @@ func (p *shellCoreParser) Parse(e *etw.Event, id uint16, ts time.Time) {
 }
 
 // getEventPropString finds a named property in the Event and returns its string value.
-func getEventPropString(e *etw.Event, name string) string {
-	for _, prop := range e.EventData {
-		if prop.Name == name {
-			return fmt.Sprintf("%v", prop.Value)
-		}
-	}
-	for _, prop := range e.UserData {
-		if prop.Name == name {
-			return fmt.Sprintf("%v", prop.Value)
-		}
-	}
-	return ""
+func getEventPropString(e eventWithProperties, name string) string {
+	return e.GetPropertyString(name)
 }
 
 // explorerStepName extracts the step name from the "psz" property of a
 // Shell-Core 9648/9649 Explorer_Startup_Step event.
-func explorerStepName(e *etw.Event) string {
+func explorerStepName(e eventWithProperties) string {
 	return getEventPropString(e, "psz")
 }

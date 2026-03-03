@@ -119,9 +119,37 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 		milestones := buildTimelineMilestones(tl)
 
-		assert.Len(t, milestones, 20)
-		assert.Equal(t, "Boot Start", milestones[0].Name)
-		assert.Equal(t, "Desktop Ready", milestones[19].Name)
+		require.Len(t, milestones, 20)
+
+		expected := []struct {
+			name    string
+			offsetS float64
+		}{
+			{"Boot Start", 0},
+			{"SMSS Start", 1},
+			{"User Session SMSS Start", 5},
+			{"Winlogon Start", 3},
+			{"Winlogon Init", 4},
+			{"Login UI Start", 8},
+			{"Computer Group Policy", 12},
+			{"User Group Policy", 32},
+			{"User Session Winlogon Start", 25},
+			{"User Logon", 30},
+			{"Profile Loaded", 31},
+			{"Profile Created", 33},
+			{"Execute Shell Commands", 40},
+			{"Userinit.exe", 42},
+			{"Explorer.exe Start", 50},
+			{"Explorer Initializing", 51},
+			{"Desktop Created", 53},
+			{"Desktop Visible", 55},
+			{"Desktop Startup Apps", 58},
+			{"Desktop Ready", 59},
+		}
+		for i, exp := range expected {
+			assert.Equal(t, exp.name, milestones[i].Name, "milestone %d name", i)
+			assert.InDelta(t, exp.offsetS, milestones[i].OffsetS, 0.001, "milestone %d offset", i)
+		}
 	})
 }
 
