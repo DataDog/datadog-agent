@@ -12,6 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	tagNames "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +45,7 @@ func (p *taggerBasedTagsProvider) GetTags(ctx context.Context, runnerID, hostnam
 	tags := []string{
 		"runner-id:" + runnerID,
 		"hostname:" + hostname,
+		"agent_flavor:" + flavor.GetFlavor(),
 	}
 
 	// Only attempt to get cluster tags if cluster_agent is enabled

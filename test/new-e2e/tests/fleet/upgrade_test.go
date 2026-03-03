@@ -30,7 +30,30 @@ func newUpgradeSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetUpgrade(t *testing.T) {
-	suite.Run(t, newUpgradeSuite, suite.AllPlatforms)
+	suite.Run(t, newUpgradeSuite, suite.Platforms())
+}
+
+func (s *upgradeSuite) TestUpgrade() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	originalVersion, err := s.Agent.Version()
+	s.Require().NoError(err)
+
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	version, err := s.Agent.Version()
+	s.Require().NoError(err)
+	s.Require().NotEqual(originalVersion, version)
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, targetVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
 }
 
 func (s *upgradeSuite) TestIntegrationPreservationDuringExperiment() {
