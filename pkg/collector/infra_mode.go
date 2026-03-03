@@ -6,7 +6,6 @@
 package collector
 
 import (
-	"slices"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -24,8 +23,19 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 	infraMode := cfg.GetString("infrastructure_mode")
 
+	// Read slices once to avoid repeated allocations.
+	excludedSlice := cfg.GetStringSlice("integration.excluded")
+	allowedSlice := cfg.GetStringSlice("integration." + infraMode + ".allowed")
+	additionalSlice := cfg.GetStringSlice("integration.additional")
+
+	// Build O(1) lookup sets.
+	excluded := make(map[string]struct{}, len(excludedSlice))
+	for _, s := range excludedSlice {
+		excluded[s] = struct{}{}
+	}
+
 	// Check excluded list
-	if slices.Contains(cfg.GetStringSlice("integration.excluded"), checkName) {
+	if _, ok := excluded[checkName]; ok {
 		return false
 	}
 
@@ -35,10 +45,23 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// If allowed checks is empty, all checks are allowed
-	if allowedChecks := cfg.GetStringSlice("integration." + infraMode + ".allowed"); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
+	if len(allowedSlice) == 0 {
+		return true
+	}
+
+	allowed := make(map[string]struct{}, len(allowedSlice))
+	for _, s := range allowedSlice {
+		allowed[s] = struct{}{}
+	}
+	if _, ok := allowed[checkName]; ok {
 		return true
 	}
 
 	// Check additional list
-	return slices.Contains(cfg.GetStringSlice("integration.additional"), checkName)
+	additional := make(map[string]struct{}, len(additionalSlice))
+	for _, s := range additionalSlice {
+		additional[s] = struct{}{}
+	}
+	_, ok := additional[checkName]
+	return ok
 }
