@@ -525,7 +525,6 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 
 }
 
-
 // SetObserverHandle sets the observer handle for mirroring check metrics.
 // The handle will be passed to newly created CheckSamplers.
 func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
