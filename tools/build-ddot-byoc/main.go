@@ -8,6 +8,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"debug/elf"
+	"debug/pe"
 	"flag"
 	"fmt"
 	"io"
@@ -145,6 +147,10 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string, pushKe
 		return fmt.Errorf("reading otel-agent binary: %w", err)
 	}
 
+	if err := validateBinary(newBinaryData, targetOS, targetArch); err != nil {
+		return err
+	}
+
 	// The binary inside the extension layer lives at embedded/bin/otel-agent[.exe].
 	binaryName := "otel-agent"
 	if targetOS == "windows" {
@@ -184,6 +190,33 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string, pushKe
 		return fmt.Errorf("computing digest: %w", err)
 	}
 	fmt.Printf("Successfully pushed: %s@%s\n", dstRef, digest)
+	return nil
+}
+
+// validateBinary performs a check that the binary's format and machine type match
+// the target OS and architecture, catching common mistakes before pushing.
+func validateBinary(data []byte, targetOS, targetArch string) error {
+	r := bytes.NewReader(data)
+	switch targetOS {
+	case "linux":
+		f, err := elf.NewFile(r)
+		if err != nil {
+			return fmt.Errorf("otel-agent binary does not appear to be a valid Linux ELF executable (--os linux): %w", err)
+		}
+		archChecks := map[string]elf.Machine{"amd64": elf.EM_X86_64, "arm64": elf.EM_AARCH64}
+		if expected, ok := archChecks[targetArch]; ok && f.Machine != expected {
+			return fmt.Errorf("otel-agent binary architecture does not match --arch %s", targetArch)
+		}
+	case "windows":
+		f, err := pe.NewFile(r)
+		if err != nil {
+			return fmt.Errorf("otel-agent binary does not appear to be a valid Windows PE executable (--os windows): %w", err)
+		}
+		archChecks := map[string]uint16{"amd64": pe.IMAGE_FILE_MACHINE_AMD64, "arm64": pe.IMAGE_FILE_MACHINE_ARM64}
+		if expected, ok := archChecks[targetArch]; ok && f.Machine != expected {
+			return fmt.Errorf("otel-agent binary architecture does not match --arch %s", targetArch)
+		}
+	}
 	return nil
 }
 
