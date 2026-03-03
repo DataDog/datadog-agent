@@ -7,11 +7,8 @@
 package spec
 
 import (
-	"errors"
+	"embed"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 
 	"go.yaml.in/yaml/v2"
 )
@@ -20,6 +17,9 @@ const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
 )
+
+//go:embed gpu_metrics.yaml architectures.yaml
+var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
 type DeviceMode string
@@ -119,19 +119,14 @@ func IsModeSupportedByArchitecture(archSpec ArchitectureSpec, mode DeviceMode) b
 
 // LoadMetricsSpec loads the canonical GPU metrics specification file.
 func LoadMetricsSpec() (*MetricsSpec, error) {
-	path, err := getSpecPath(metricsSpecFile)
+	data, err := embeddedSpecs.ReadFile(metricsSpecFile)
 	if err != nil {
-		return nil, fmt.Errorf("resolve metrics spec path: %w", err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read metrics spec %q: %w", path, err)
+		return nil, fmt.Errorf("read metrics spec %q: %w", metricsSpecFile, err)
 	}
 
 	var parsed MetricsSpec
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		return nil, fmt.Errorf("unmarshal metrics spec %q: %w", path, err)
+		return nil, fmt.Errorf("unmarshal metrics spec %q: %w", metricsSpecFile, err)
 	}
 
 	return &parsed, nil
@@ -139,30 +134,15 @@ func LoadMetricsSpec() (*MetricsSpec, error) {
 
 // LoadArchitecturesSpec loads the canonical GPU architectures specification file.
 func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
-	path, err := getSpecPath(architecturesSpecFile)
+	data, err := embeddedSpecs.ReadFile(architecturesSpecFile)
 	if err != nil {
-		return nil, fmt.Errorf("resolve architectures spec path: %w", err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read architectures spec %q: %w", path, err)
+		return nil, fmt.Errorf("read architectures spec %q: %w", architecturesSpecFile, err)
 	}
 
 	var parsed ArchitecturesSpec
 	if err := yaml.Unmarshal(data, &parsed); err != nil {
-		return nil, fmt.Errorf("unmarshal architectures spec %q: %w", path, err)
+		return nil, fmt.Errorf("unmarshal architectures spec %q: %w", architecturesSpecFile, err)
 	}
 
 	return &parsed, nil
-}
-
-func getSpecPath(specFile string) (string, error) {
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("cannot resolve current file path from runtime.Caller")
-	}
-
-	specDir := filepath.Dir(currentFile)
-	return filepath.Clean(filepath.Join(specDir, specFile)), nil
 }
