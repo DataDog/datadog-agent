@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
+	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
