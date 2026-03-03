@@ -9,6 +9,7 @@
 package admission
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -16,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -122,6 +124,15 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	// Start the admission probe to periodically verify webhook connectivity.
+	admissionProbe := admprobe.New(ctx.Client, isLeaderFunc)
+	probeCtx, probeCancel := context.WithCancel(context.Background())
+	go func() {
+		<-ctx.StopCh
+		probeCancel()
+	}()
+	go admissionProbe.Run(probeCtx)
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }
