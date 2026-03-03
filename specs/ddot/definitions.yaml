@@ -1,0 +1,17 @@
+kind: requirements
+category: definition
+requirements:
+  - id: DDOT001
+    short: DDOT — Datadog Distribution of the OpenTelemetry Collector
+    long: |
+      DDOT (Datadog Distribution of the OpenTelemetry Collector) is a standalone binary
+      that packages the OpenTelemetry Collector together with Datadog-specific components:
+      custom exporters, processors, and extensions that integrate natively with the
+      Datadog platform.
+      DDOT is the implementation described by the DDOT specifications in this document.
+      It satisfies the OTELCOL specifications (OpenTelemetry Collector requirements) while
+      adding Datadog-specific behaviors for authentication, routing, enrichment, and
+      diagnostics.
+      DDOT can operate either as a fully standalone binary or as a component embedded
+      within the Datadog Agent process.
+    ref: [OTELCOL001]

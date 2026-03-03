@@ -1,0 +1,101 @@
+kind: requirements
+category: definition
+requirements:
+  - id: OTELCOL001
+    short: OpenTelemetry Collector
+    long: |
+      The OpenTelemetry Collector is a vendor-agnostic, standalone binary that receives,
+      processes, and exports telemetry data (traces, metrics, and logs) from instrumented
+      applications and infrastructure.
+      It acts as an intermediary between telemetry sources and observability backends,
+      enabling retries, batching, filtering, enrichment, and fan-out without modifying
+      application code.
+      The Collector is composed of a configurable set of components (receivers, processors,
+      exporters, extensions, and connectors) assembled into one or more pipelines.
+
+  - id: OTELCOL002
+    short: Signal
+    long: |
+      A signal is a category of telemetry data handled by the OpenTelemetry Collector.
+      The three main signals are:
+        - Traces: represent the execution of a distributed request as a directed acyclic
+          graph of spans, each describing a single operation with timing, attributes, and
+          status.
+        - Metrics: represent measurements of a system at a point in time, expressed as
+          counters, gauges, or histograms.
+        - Logs: represent discrete timestamped events with a severity level, a body, and
+          optional structured attributes.
+      Each signal flows through its own independent pipeline within the Collector.
+
+  - id: OTELCOL003
+    short: Pipeline
+    long: |
+      A pipeline is a directed sequence of components through which a single signal type
+      (traces, metrics, or logs) flows.
+      A pipeline connects one or more receivers to one or more exporters, with zero or more
+      processors applied in order between them.
+      Multiple pipelines can exist in a single Collector instance; each pipeline is
+      independent and processes its signal type in isolation.
+
+  - id: OTELCOL004
+    short: Receiver
+    long: |
+      A receiver is a Collector component responsible for ingesting telemetry data from an
+      external source into a pipeline.
+      Receivers can operate in push mode (the source sends data to the Collector) or pull
+      mode (the Collector fetches data from the source).
+      A receiver must be declared in the `receivers` section of the configuration and
+      referenced in at least one pipeline to be active.
+      Multiple pipelines may share the same receiver instance.
+
+  - id: OTELCOL005
+    short: Processor
+    long: |
+      A processor is a Collector component that transforms, filters, or enriches telemetry
+      data as it flows through a pipeline.
+      Processors are applied in the order they are listed in the pipeline definition; order
+      is significant and affects the data seen by downstream processors and exporters.
+      A processor may drop data, add or remove attributes, batch records for efficiency, or
+      sample spans. Processors are optional: a pipeline can have zero processors.
+
+  - id: OTELCOL006
+    short: Exporter
+    long: |
+      An exporter is a Collector component responsible for sending processed telemetry data
+      to an external destination (an observability backend, a message queue, a file, etc.).
+      An exporter must be declared in the `exporters` section of the configuration and
+      referenced in at least one pipeline to be active.
+      Multiple pipelines may share the same exporter instance, and a single pipeline may
+      have multiple exporters (fan-out).
+
+  - id: OTELCOL007
+    short: Extension
+    long: |
+      An extension is a Collector component that provides auxiliary capabilities outside of
+      the telemetry pipeline, such as health checking, profiling, authentication, or
+      diagnostic data collection.
+      Extensions do not participate in the data flow of any pipeline; they run alongside
+      pipelines for the lifetime of the Collector process.
+      Extensions must be declared in the `extensions` section and listed under
+      `service.extensions` to be activated.
+
+  - id: OTELCOL008
+    short: Connector
+    long: |
+      A connector is a Collector component that simultaneously acts as an exporter for one
+      pipeline and as a receiver for another, enabling data to flow between two pipelines.
+      Connectors can bridge different signal types (e.g. converting spans to metrics) or
+      the same signal type (e.g. routing, replicating).
+      They replace the pattern of processors that directly export data, providing a cleaner
+      abstraction for cross-pipeline data flow.
+
+  - id: OTELCOL009
+    short: OTLP — OpenTelemetry Protocol
+    long: |
+      OTLP (OpenTelemetry Protocol) is the native wire protocol for transmitting telemetry
+      data between OpenTelemetry components: SDKs, Collectors, and backends.
+      It uses Protocol Buffers for payload encoding and supports two transports:
+        - OTLP/gRPC: unary requests over gRPC, default port 4317.
+        - OTLP/HTTP: HTTP/1.1 with protobuf or JSON encoding, default port 4318.
+      OTLP defines separate request/response message pairs for each signal type (traces,
+      metrics, logs, profiles) and specifies retry semantics for transient failures.
