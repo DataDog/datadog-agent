@@ -542,3 +542,19 @@ type AnalyticsInterfaceMetrics struct {
 	BandwidthTx float64
 	Bandwidth   float64
 }
+
+// LldpNeighborInterfaceDetailResponse /versa/ncs-services/vnms/dashboard/appliance/<applianceName>/live?uuid=<UUID>&command=lldp/neighbor/detail/interface-detail
+type LldpNeighborInterfaceDetailResponse struct {
+}
+
+// Neighbor encapsulates metadata for a Versa neighbor device
+type Neighbor struct {
+	SystemName string
+	SystemDescription string
+	ChassisID string
+	DeviceIDType string
+	IPAddress string
+	PortID string
+	PortIDType string
+	PortDescription string
+}

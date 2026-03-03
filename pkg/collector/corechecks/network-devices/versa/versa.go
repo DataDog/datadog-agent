@@ -53,6 +53,7 @@ type checkCfg struct {
 	ExcludedTenants                       []string `yaml:"excluded_tenants"`
 	SendDeviceMetadata                    *bool    `yaml:"send_device_metadata"`
 	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
+	SendTopologyMetadata                  *bool    `yaml:"send_topology_metadata"`
 	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
 	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
 	CollectDirectorInterfaceMetrics       *bool    `yaml:"collect_director_interface_metrics"`
@@ -202,9 +203,43 @@ func (v *VersaCheck) Run() error {
 		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
 	}
 
+
+	var topologyMetadata []devicemetadata.TopologyLinkMetadata
+	log.Infof("SendTopologyMetadata config value: %v", *v.config.SendTopologyMetadata)
+
+	// Get topology link metadata
+	if *v.config.SendTopologyMetadata {
+		for _, device := range appliances {
+
+			neighbors, err := c.GetTopology(device.Name)
+			if err != nil {
+				log.Errorf("error getting topology metadata for device %s from director", device.Name)
+				continue
+			}
+
+			deviceTopologyMetadata, err := payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, device, neighbors)
+			
+			if err != nil {
+				log.Errorf("failed to parse all topology metadata for device %s", device.Name)
+				continue
+			} else {
+				topologyMetadata = append(topologyMetadata, deviceTopologyMetadata...)
+			}
+		}
+
+		log.Tracef("topology metadata is as follows:")
+		for _, link := range topologyMetadata {
+			log.Tracef("link: %+v", link)
+			log.Tracef("local: %+v", link.Local.Device)
+			log.Tracef("remote: %+v", link.Remote.Device)
+			log.Tracef("local interface: %+v", link.Local.Interface)
+			log.Tracef("remote interface: %+v", link.Remote.Interface)
+		}
+	}
+
 	// Send the metadata to the metrics sender
 	if len(deviceMetadata) > 0 || len(interfaceMetadata) > 0 {
-		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
+		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil, topologyMetadata)
 	}
 
 	// Send interface status metrics
@@ -417,6 +452,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
 	instanceConfig.SendInterfaceMetadata = boolPointer(false)
+	instanceConfig.SendTopologyMetadata = boolPointer(false)
 	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(false)
 
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
