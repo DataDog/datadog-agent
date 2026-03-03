@@ -32,8 +32,11 @@ import (
 )
 
 var (
+	// schedulerErrs is the expvar map for the CheckScheduler. It is kept as a
+	// package-level variable because expvar names must be globally unique and
+	// are registered once at init time; moving it to the struct would require
+	// dynamic name generation or lazy registration, which is a broader refactor.
 	schedulerErrs  *expvar.Map
-	errorStats     = newCollectorErrors()
 	checkScheduler *CheckScheduler
 )
 
@@ -48,10 +51,16 @@ type commonInstanceConfig struct {
 func init() {
 	schedulerErrs = expvar.NewMap("CheckScheduler")
 	schedulerErrs.Set("LoaderErrors", expvar.Func(func() interface{} {
-		return errorStats.getLoaderErrors()
+		if checkScheduler == nil {
+			return map[string]map[string]string{}
+		}
+		return checkScheduler.errorStats.getLoaderErrors()
 	}))
 	schedulerErrs.Set("RunErrors", expvar.Func(func() interface{} {
-		return errorStats.getRunErrors()
+		if checkScheduler == nil {
+			return map[string]string{}
+		}
+		return checkScheduler.errorStats.getRunErrors()
 	}))
 }
 
@@ -61,6 +70,7 @@ type CheckScheduler struct {
 	loaders        []check.Loader
 	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
+	errorStats     *collectorErrors
 	m              sync.RWMutex
 }
 
@@ -71,6 +81,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		errorStats:     newCollectorErrors(),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
@@ -94,7 +105,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 			_, err := coll.RunCheck(c)
 			if err != nil {
 				log.Errorf("Unable to run Check %s: %v", c, err)
-				errorStats.setRunError(c.ID(), err.Error())
+				s.errorStats.setRunError(c.ID(), err.Error())
 				continue
 			}
 		}
@@ -124,7 +135,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 				err := coll.StopCheck(id)
 				if err != nil {
 					log.Errorf("Error stopping check %s: %s", id, err)
-					errorStats.setRunError(id, err.Error())
+					s.errorStats.setRunError(id, err.Error())
 				} else {
 					stopped[id] = struct{}{}
 				}
@@ -219,7 +230,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			var concatErr strings.Builder
 			for loaderName, err := range loaderErrors {
 				errMsg := err.Error()
-				errorStats.setLoaderError(config.Name, loaderName, errMsg)
+				s.errorStats.setLoaderError(config.Name, loaderName, errMsg)
 
 				concatErr.WriteString(loaderName)
 				concatErr.WriteString(": ")
@@ -228,7 +239,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			}
 			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
 		} else {
-			errorStats.removeLoaderErrors(config.Name)
+			s.errorStats.removeLoaderErrors(config.Name)
 		}
 	}
 
@@ -289,5 +300,8 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 
 // GetLoaderErrors returns the check loader errors
 func GetLoaderErrors() map[string]map[string]string {
-	return errorStats.getLoaderErrors()
+	if checkScheduler == nil {
+		return map[string]map[string]string{}
+	}
+	return checkScheduler.errorStats.getLoaderErrors()
 }
