@@ -216,7 +216,7 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 // Make sure any `return` has the proper store Unlock
 // podAutoscaler is read-only, any changes require a DeepCopy
 func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
-	podAutoscalerInternal, podAutoscalerInternalFound, _ := c.store.LockRead(key, true)
+	podAutoscalerInternal, podAutoscalerInternalFound, storeUnlock := c.store.LockRead(key, true)
 
 	// Object is missing from our store
 	if !podAutoscalerInternalFound {
@@ -227,7 +227,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
 			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
-			c.store.Unlock(key)
+			storeUnlock()
 		}
 
 		return autoscaling.NoRequeue, nil
@@ -247,7 +247,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		log.Infof("Object %s has remote owner and not present in Kubernetes, creating it", key)
 		createdGeneration, creationTimestamp, err := c.createPodAutoscaler(ctx, podAutoscalerInternal)
 		if err != nil {
-			c.store.Unlock(key)
+			storeUnlock()
 			return autoscaling.Requeue, err
 		}
 
@@ -274,7 +274,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			// In all other cases, we requeue and wait for the object to be deleted from store with next reconcile
-			c.store.Unlock(key)
+			storeUnlock()
 			return autoscaling.Requeue, err
 		}
 
@@ -285,7 +285,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
 			updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 			if err != nil {
-				c.store.Unlock(key)
+				storeUnlock()
 				return autoscaling.Requeue, err
 			}
 
@@ -308,20 +308,20 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
-				c.store.Unlock(key)
+				storeUnlock()
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
 			}
 
 			remoteHash, err := autoscaling.ObjectHash(&podAutoscaler.Spec)
 			if err != nil {
-				c.store.Unlock(key)
+				storeUnlock()
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
 			}
 
 			if localHash != remoteHash {
 				updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 				if err != nil {
-					c.store.Unlock(key)
+					storeUnlock()
 					return autoscaling.Requeue, err
 				}
 

@@ -176,11 +176,6 @@ func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool, func()) {
 	return res, ok, s.lock.Unlock
 }
 
-// Unlock allows to unlock after a read that does not require any modification to the internal object
-func (s *Store[T]) Unlock(string) {
-	s.lock.Unlock()
-}
-
 // UnlockSet sets the new object value and releases the lock (previously acquired by `LockRead`)
 func (s *Store[T]) UnlockSet(id string, obj T, sender SenderID) {
 	s.store[id] = obj
