@@ -1,4 +1,4 @@
-load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
+load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
@@ -232,7 +232,7 @@ configure_make(
     }),
 )
 
-cc_shared_library_wrapper(
+foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
 )
