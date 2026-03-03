@@ -4,6 +4,8 @@ description "Enforce building dependencies as soon as possible so they can be ca
 
 if heroku_target?
   flavor_flag = "--//packages/agent:flavor=heroku"
+elif ENV['AGENT_FLAVOR'] == 'iot'
+  flavor_flag = "--//packages/agent:flavor=iot"
 else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end

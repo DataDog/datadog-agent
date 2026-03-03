@@ -13,6 +13,8 @@ name 'datadog-agent'
 # Flavor flag for bazel actions
 if heroku_target?
   flavor_flag = "--//packages/agent:flavor=heroku"
+elif ENV['AGENT_FLAVOR'] == 'iot'
+  flavor_flag = "--//packages/agent:flavor=iot"
 else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
@@ -24,8 +26,6 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 
   dependency "python3"
-
-  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
   dependency 'datadog-agent-dependencies'
 end
