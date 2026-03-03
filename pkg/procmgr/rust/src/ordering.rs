@@ -5,7 +5,7 @@
 
 use crate::config::ProcessConfig;
 use log::warn;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 /// Resolve the startup order of processes using a topological sort on the
 /// dependency graph built from `after` and `before` fields.
@@ -13,9 +13,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 /// Returns the indices into `configs` in the order they should be started.
 /// If there is a cycle, returns an error listing the involved processes.
 ///
-/// Processes without explicit ordering constraints are sorted alphabetically
-/// (the existing default), then appended after all constrained processes
-/// whose dependencies are satisfied.
+/// Among processes whose dependencies are equally satisfied, ties are broken
+/// alphabetically by name (globally, not per batch).
 pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, CycleError> {
     let name_to_idx: HashMap<&str, usize> = configs
         .iter()
@@ -29,7 +28,6 @@ pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, 
     let mut in_degree: Vec<u32> = vec![0; n];
 
     for (idx, (name, cfg)) in configs.iter().enumerate() {
-        // "after: [X]" means X must start before this process (edge X -> idx)
         for dep in &cfg.after {
             match name_to_idx.get(dep.as_str()) {
                 Some(&dep_idx) => {
@@ -43,7 +41,6 @@ pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, 
             }
         }
 
-        // "before: [Y]" means this process must start before Y (edge idx -> Y)
         for dep in &cfg.before {
             match name_to_idx.get(dep.as_str()) {
                 Some(&dep_idx) => {
@@ -58,25 +55,22 @@ pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, 
         }
     }
 
-    // Kahn's algorithm with alphabetical tie-breaking
-    let mut queue: VecDeque<usize> = VecDeque::new();
+    // Kahn's algorithm: keep ready set sorted in reverse so pop() yields the
+    // alphabetically smallest name. Re-sort after inserting newly-ready nodes.
     let mut ready: Vec<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
-    ready.sort_by(|a, b| configs[*a].0.cmp(&configs[*b].0));
-    queue.extend(ready);
+    ready.sort_by(|a, b| configs[*b].0.cmp(&configs[*a].0));
 
     let mut order: Vec<usize> = Vec::with_capacity(n);
-    while let Some(idx) = queue.pop_front() {
+    while let Some(idx) = ready.pop() {
         order.push(idx);
 
-        let mut next_ready: Vec<usize> = Vec::new();
         for &dep_idx in &edges[idx] {
             in_degree[dep_idx] -= 1;
             if in_degree[dep_idx] == 0 {
-                next_ready.push(dep_idx);
+                ready.push(dep_idx);
             }
         }
-        next_ready.sort_by(|a, b| configs[*a].0.cmp(&configs[*b].0));
-        queue.extend(next_ready);
+        ready.sort_by(|a, b| configs[*b].0.cmp(&configs[*a].0));
     }
 
     if order.len() != n {
@@ -252,5 +246,19 @@ mod tests {
         let order = resolve_order(&configs).unwrap();
         let names = names_in_order(&configs, &order);
         assert_eq!(names, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_global_tiebreak_newly_ready_before_queued() {
+        // b -> a (b must start before a), c is unconstrained
+        // After b is popped, a becomes ready. a < c alphabetically, so a should come before c.
+        // expected: b, a, c (not b, c, a)
+        let configs = vec![
+            ("a".to_string(), cfg(&["b"], &[])),
+            ("b".to_string(), cfg(&[], &[])),
+            ("c".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["b", "a", "c"]);
     }
 }
