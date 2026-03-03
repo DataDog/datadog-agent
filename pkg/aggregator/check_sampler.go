@@ -64,7 +64,7 @@ func newCheckSampler(
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
-	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
+	contextKey := cs.contextResolver.trackContext(metricSample)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return
@@ -76,11 +76,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, ok := cs.contextResolver.get(ck)
-	if !ok {
-		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
-		return nil
-	}
+	ctx, _ := cs.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags(),
@@ -93,7 +89,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList filterlist.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -116,7 +112,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket, tagFilterList)
+	contextKey := cs.contextResolver.trackContext(bucket)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -212,9 +208,6 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	})
 	for ck, points := range pointsByCtx {
 		series := cs.newSketchSeries(ck, points)
-		if series == nil {
-			continue
-		}
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()

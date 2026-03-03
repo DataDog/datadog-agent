@@ -109,7 +109,7 @@ func (w *timeSamplerWorker) run() {
 			t := timeNowNano()
 
 			for i := 0; i < len(ms); i++ {
-				w.sampler.sample(&ms[i], t, w.tagFilterList)
+				w.sampler.sample(&ms[i], t)
 			}
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
@@ -130,7 +130,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, &w.flushFilterList, trigger.forceFlushAll)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, &w.flushFilterList, trigger.forceFlushAll, w.tagFilterList)
 	trigger.blockChan <- struct{}{}
 }
 
