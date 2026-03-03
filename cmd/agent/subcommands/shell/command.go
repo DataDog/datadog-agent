@@ -22,7 +22,7 @@ import (
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	var commandFlag string
+	var scriptFlag string
 
 	shellCmd := &cobra.Command{
 		Use:    "shell",
@@ -38,8 +38,8 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 			}
 
 			var reader io.Reader = os.Stdin
-			if commandFlag != "" {
-				reader = strings.NewReader(commandFlag)
+			if scriptFlag != "" {
+				reader = strings.NewReader(scriptFlag)
 			}
 			err = run(r, reader)
 			var es interp.ExitStatus
@@ -49,7 +49,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 			return err
 		},
 	}
-	shellCmd.Flags().StringVar(&commandFlag, "command", "", "command string to execute")
+	shellCmd.Flags().StringVar(&scriptFlag, "script", "", "script string to execute")
 
 	return []*cobra.Command{shellCmd}
 }
