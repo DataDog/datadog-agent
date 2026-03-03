@@ -19,6 +19,15 @@ function formatTimestamp(ts: number): string {
   });
 }
 
+function formatTimestampMs(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
 function levelBadgeColor(status: string): string {
   switch (status.toLowerCase()) {
     case 'error':
@@ -88,7 +97,7 @@ function LogRateChart({
 
   const logBuckets = new Array(bucketCount).fill(0);
   for (const l of logs) {
-    const idx = Math.min(Math.floor((l.timestamp - scenarioStart) / bucketSize), bucketCount - 1);
+    const idx = Math.min(Math.floor((l.timestamp / 1000 - scenarioStart) / bucketSize), bucketCount - 1);
     if (idx >= 0) logBuckets[idx]++;
   }
 
@@ -96,7 +105,7 @@ function LogRateChart({
 
   const hoveredBucket =
     hoveredTimestamp != null
-      ? Math.min(Math.floor((hoveredTimestamp - scenarioStart) / bucketSize), bucketCount - 1)
+      ? Math.min(Math.floor((hoveredTimestamp / 1000 - scenarioStart) / bucketSize), bucketCount - 1)
       : null;
 
   // Derive unique detectors for the legend
@@ -199,7 +208,7 @@ function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHover
       >
         <div className="flex items-start gap-2">
           <span className="flex-shrink-0 text-xs text-slate-500 font-mono pt-0.5 w-20 text-right">
-            {formatTimestamp(entry.timestamp)}
+            {formatTimestampMs(entry.timestamp)}
           </span>
           <span className={`flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(entry.status)}`}>
             {entry.status}

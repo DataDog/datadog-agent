@@ -544,15 +544,15 @@ func (tb *TestBench) GetStatus() StatusResponse {
 			continue
 		}
 		if !hasBounds {
-			scenarioStart = l.Timestamp
-			scenarioEnd = l.Timestamp
+			scenarioStart = l.Timestamp / 1000
+			scenarioEnd = l.Timestamp / 1000
 			hasBounds = true
 		} else {
-			if l.Timestamp < scenarioStart {
-				scenarioStart = l.Timestamp
+			if l.Timestamp/1000 < scenarioStart {
+				scenarioStart = l.Timestamp / 1000
 			}
-			if l.Timestamp > scenarioEnd {
-				scenarioEnd = l.Timestamp
+			if l.Timestamp/1000 > scenarioEnd {
+				scenarioEnd = l.Timestamp / 1000
 			}
 		}
 	}
