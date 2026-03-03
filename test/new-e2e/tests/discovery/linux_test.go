@@ -50,8 +50,8 @@ var systemProbeConfigFallbackStr string
 type discoveryMode string
 
 const (
-	discoveryModeSdAgent     discoveryMode = "sd-agent"
-	discoveryModeSystemProbe discoveryMode = "system-probe"
+	discoveryModeSystemProbeLite discoveryMode = "system-probe-lite"
+	discoveryModeSystemProbe     discoveryMode = "system-probe"
 )
 
 type linuxTestSuite struct {
@@ -87,7 +87,7 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
 			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigByMode[mode], mode)
 		})
@@ -95,7 +95,7 @@ func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
 			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigByMode[mode], mode)
 		})
@@ -539,21 +539,21 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 }
 
 var systemProbeConfigByMode = map[discoveryMode]string{
-	discoveryModeSdAgent:     systemProbeConfigStr,
-	discoveryModeSystemProbe: systemProbeConfigFallbackStr,
+	discoveryModeSystemProbeLite: systemProbeConfigStr,
+	discoveryModeSystemProbe:     systemProbeConfigFallbackStr,
 }
 
 func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
-	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|sd-agent)' | grep -v grep")
+	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|system-probe-lite)' | grep -v grep")
 	s.T().Logf("Process list:\n%s", ps)
 
-	// sd-agent execs into system-probe (process replacement), they don't run simultaneously
-	if mode == discoveryModeSdAgent {
-		// In sd-agent mode, sd-agent runs its own server (no exec)
-		require.Contains(s.T(), ps, "sd-agent", "sd-agent should be running in sd-agent mode")
-		s.T().Logf("Found sd-agent process (mode: %s)", mode)
+	// system-probe-lite execs into system-probe (process replacement), they don't run simultaneously
+	if mode == discoveryModeSystemProbeLite {
+		// In system-probe-lite mode, system-probe-lite runs its own server (no exec)
+		require.Contains(s.T(), ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
+		s.T().Logf("Found system-probe-lite process (mode: %s)", mode)
 	} else if mode == discoveryModeSystemProbe {
-		// In system-probe mode, sd-agent exec'd into system-probe (replaced itself)
+		// In system-probe mode, system-probe-lite exec'd into system-probe (replaced itself)
 		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
 		s.T().Logf("Found system-probe process (mode: %s)", mode)
 	}

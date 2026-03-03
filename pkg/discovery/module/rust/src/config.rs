@@ -12,10 +12,10 @@ use std::io::Read;
 use std::path::PathBuf;
 use yaml_rust2::{Yaml, YamlLoader};
 
-/// Represents the decision for whether to run sd-agent, fallback, or exit
+/// Represents the decision for whether to run system-probe-lite, fallback, or exit
 #[derive(Debug, PartialEq)]
 pub enum FallbackDecision {
-    RunSdAgent,
+    RunSystemProbeLite,
     FallbackToSystemProbe,
     ExitCleanly,
 }
@@ -264,20 +264,20 @@ pub fn get_log_level(config: &Result<Option<Yaml>>) -> log::Level {
         .unwrap_or(log::Level::Info)
 }
 
-/// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly
+/// Determines whether to run system-probe-lite, fallback to system-probe, or exit cleanly
 pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
     let Some(yaml_doc) = config.as_ref().ok() else {
         warn!("Failed to load YAML config. Falling back to system-probe.");
         return FallbackDecision::FallbackToSystemProbe;
     };
-    let use_sd_agent = is_config_enabled(
-        "DD_DISCOVERY_USE_SD_AGENT",
-        "discovery.use_sd_agent",
+    let use_system_probe_lite = is_config_enabled(
+        "DD_DISCOVERY_USE_SYSTEM_PROBE_LITE",
+        "discovery.use_system_probe_lite",
         yaml_doc,
     );
 
-    if use_sd_agent.is_none_or(|enabled| !enabled) {
-        warn!("Falling back to system-probe: sd-agent killswitch is not enabled");
+    if use_system_probe_lite.is_none_or(|enabled| !enabled) {
+        warn!("Falling back to system-probe: system-probe-lite killswitch is not enabled");
         return FallbackDecision::FallbackToSystemProbe;
     }
     if let Some(var) = find_non_discovery_env_var() {
@@ -295,8 +295,8 @@ pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
         return FallbackDecision::ExitCleanly;
     }
 
-    // Only discovery is enabled (or no config at all) - run sd-agent
-    FallbackDecision::RunSdAgent
+    // Only discovery is enabled (or no config at all) - run system-probe-lite
+    FallbackDecision::RunSystemProbeLite
 }
 
 #[cfg(test)]
@@ -327,11 +327,11 @@ mod tests {
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
-                assert_eq!(decision, FallbackDecision::RunSdAgent);
+                assert_eq!(decision, FallbackDecision::RunSystemProbeLite);
             },
         );
     }
@@ -418,11 +418,14 @@ discovery:
 
     #[test]
     fn test_no_modules_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            // Use an empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-            let decision = determine_action_no_config();
-            assert_eq!(decision, FallbackDecision::RunSdAgent);
-        });
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                // Use an empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
+                let decision = determine_action_no_config();
+                assert_eq!(decision, FallbackDecision::RunSystemProbeLite);
+            },
+        );
     }
 
     // New tests for determine_action() and helper functions
@@ -636,16 +639,19 @@ system_probe_config:
 
     #[test]
     fn test_determine_action_discovery_only_yaml() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
                 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
-            assert_eq!(decision, FallbackDecision::RunSdAgent);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                let decision = determine_action(&config);
+                assert_eq!(decision, FallbackDecision::RunSystemProbeLite);
+            },
+        );
     }
 
     #[test]
@@ -653,21 +659,24 @@ discovery:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
-                assert_eq!(decision, FallbackDecision::RunSdAgent);
+                assert_eq!(decision, FallbackDecision::RunSystemProbeLite);
             },
         );
     }
 
     #[test]
-    fn test_determine_action_no_config_runs_sd_agent() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let decision = determine_action_no_config();
-            assert!(decision == FallbackDecision::RunSdAgent);
-        });
+    fn test_determine_action_no_config_runs_system_probe_lite() {
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let decision = determine_action_no_config();
+                assert!(decision == FallbackDecision::RunSystemProbeLite);
+            },
+        );
     }
 
     #[test]
@@ -725,7 +734,7 @@ discovery:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("false")),
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
@@ -749,18 +758,18 @@ network_config:
     }
 
     #[test]
-    fn test_empty_yaml_file_runs_sd_agent() {
+    fn test_empty_yaml_file_runs_system_probe_lite() {
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
             let yaml = "";
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
             let decision = determine_action(&config);
             match decision {
-                FallbackDecision::RunSdAgent => {}
+                FallbackDecision::RunSystemProbeLite => {}
                 FallbackDecision::FallbackToSystemProbe => {
                     // This is OK if there are DD_* vars in the environment
                 }
-                _ => panic!("Expected RunSdAgent, got {:?}", decision),
+                _ => panic!("Expected RunSystemProbeLite, got {:?}", decision),
             }
         });
     }
@@ -1035,7 +1044,7 @@ log_level: 12345
     fn test_killswitch_disabled_forces_fallback() {
         temp_env::with_vars(
             [
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("false")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("false")),
                 ("DD_DISCOVERY_ENABLED", Some("true")),
             ],
             || {
@@ -1062,18 +1071,18 @@ log_level: 12345
     }
 
     #[test]
-    fn test_killswitch_enabled_allows_sd_agent() {
+    fn test_killswitch_enabled_allows_system_probe_lite() {
         temp_env::with_vars(
             [
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
                 ("DD_DISCOVERY_ENABLED", Some("true")),
             ],
             || {
                 let decision = determine_action(&Ok(None));
                 assert_eq!(
                     decision,
-                    FallbackDecision::RunSdAgent,
-                    "Should run sd-agent when killswitch is true via env var"
+                    FallbackDecision::RunSystemProbeLite,
+                    "Should run system-probe-lite when killswitch is true via env var"
                 );
             },
         );
@@ -1083,7 +1092,7 @@ log_level: 12345
     fn test_killswitch_enabled_respects_other_fallback_logic() {
         temp_env::with_vars(
             [
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
                 ("DD_DISCOVERY_ENABLED", Some("true")),
                 ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")), // Non-discovery module
             ],
@@ -1102,7 +1111,7 @@ log_level: 12345
     fn test_killswitch_enabled_with_discovery_disabled_exits_cleanly() {
         temp_env::with_vars(
             [
-                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true")),
                 ("DD_DISCOVERY_ENABLED", Some("false")),
             ],
             || {
@@ -1123,7 +1132,7 @@ log_level: 12345
         let yaml = r#"
 discovery:
   enabled: true
-  use_sd_agent: true
+  use_system_probe_lite: true
 network_config:
   enabled: false
 service_monitoring_config:
@@ -1154,8 +1163,8 @@ log_level: info
             let decision = determine_action(&config);
             assert_eq!(
                 decision,
-                FallbackDecision::RunSdAgent,
-                "Helm chart with only discovery enabled should run sd-agent"
+                FallbackDecision::RunSystemProbeLite,
+                "Helm chart with only discovery enabled should run system-probe-lite"
             );
         });
     }
@@ -1165,7 +1174,7 @@ log_level: info
         let yaml = r#"
 discovery:
   enabled: true
-  use_sd_agent: true
+  use_system_probe_lite: true
 network_config:
   enabled: true
 service_monitoring_config:
@@ -1204,60 +1213,74 @@ log_level: info
 
     #[test]
     fn test_system_probe_config_tcp_queue_length_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
   enable_tcp_queue_length: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe
+                );
+            },
+        );
     }
 
     #[test]
     fn test_system_probe_config_oom_kill_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
   enable_oom_kill: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe
+                );
+            },
+        );
     }
 
     #[test]
     fn test_system_probe_config_probes_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
   enable_tcp_queue_length: false
   enable_oom_kill: false
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::RunSystemProbeLite
+                );
+            },
+        );
     }
 
     #[test]
     fn test_system_probe_config_general_settings_only() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
@@ -1266,110 +1289,134 @@ system_probe_config:
   conntrack:
     enabled: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::RunSystemProbeLite
+                );
+            },
+        );
     }
 
     #[test]
     fn test_feature_section_without_enabled_key() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 network_config:
   some_other_setting: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe,
-                "Feature section without explicit enabled: false should trigger fallback"
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe,
+                    "Feature section without explicit enabled: false should trigger fallback"
+                );
+            },
+        );
     }
 
     #[test]
     fn test_system_probe_config_process_config_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
   process_config:
     enabled: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe
+                );
+            },
+        );
     }
 
     #[test]
     fn test_system_probe_config_process_config_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 system_probe_config:
   process_config:
     enabled: false
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::RunSystemProbeLite
+                );
+            },
+        );
     }
 
     // event_monitoring_config tests
 
     #[test]
     fn test_event_monitoring_config_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 event_monitoring_config:
   process:
     enabled: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe
+                );
+            },
+        );
     }
 
     #[test]
     fn test_event_monitoring_config_network_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 event_monitoring_config:
   network_process:
     enabled: true
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::FallbackToSystemProbe
+                );
+            },
+        );
     }
 
     #[test]
     fn test_event_monitoring_config_both_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
+        temp_env::with_vars(
+            [("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", Some("true"))],
+            || {
+                let yaml = r#"
 discovery:
   enabled: true
 event_monitoring_config:
@@ -1378,9 +1425,13 @@ event_monitoring_config:
   network_process:
     enabled: false
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                assert_eq!(
+                    determine_action(&config),
+                    FallbackDecision::RunSystemProbeLite
+                );
+            },
+        );
     }
 }
