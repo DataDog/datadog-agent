@@ -104,10 +104,8 @@ func TestEnableModulesVars(t *testing.T) {
 	envVars = append(envVars, spCfgCollector.resolveEnvVars()...)
 	sort.Strings(envVars)
 
-	discoveredList := envVars
-
-	t.Logf("Discovered %d env vars that trigger non-discovery modules:", len(discoveredList))
-	for _, v := range discoveredList {
+	t.Logf("Discovered %d env vars that trigger non-discovery modules:", len(envVars))
+	for _, v := range envVars {
 		t.Logf("  %s", v)
 	}
 
@@ -117,15 +115,9 @@ func TestEnableModulesVars(t *testing.T) {
 		"Cannot read canonical list at %s.\n"+
 			"Create it with the discovered env vars listed above.", txtPath)
 
-	var canonicalSorted []string
-	for _, line := range strings.Split(strings.TrimSpace(string(txtBytes)), "\n") {
-		if line != "" {
-			canonicalSorted = append(canonicalSorted, line)
-		}
-	}
-	sort.Strings(canonicalSorted)
+	canonical := strings.Split(strings.TrimSpace(string(txtBytes)), "\n")
 
-	assert.Equal(t, canonicalSorted, discoveredList,
+	assert.Equal(t, canonical, envVars,
 		"Mismatch between discovered env vars and canonical list at %s.\n"+
 			"Update the file with the discovered list shown above.\n"+
 			"Then update NON_DISCOVERY_ENV_VARS in pkg/discovery/module/rust/src/config.rs.",
