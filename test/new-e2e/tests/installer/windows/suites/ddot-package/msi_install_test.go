@@ -29,8 +29,41 @@ func TestAgentMSIInstallsDDOTPackage(t *testing.T) {
 		))
 }
 
-func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, _testName string) {
-	s.Installer().Purge()
+func (s *testAgentMSIInstallsDDOT) BeforeTest(_suiteName, testName string) {
+	s.BaseSuite.BeforeTest(_suiteName, testName)
+	s.T().Logf("=== BeforeTest Diagnostics for %s ===", testName)
+
+	// Log packages.db and installer state BEFORE the test starts
+	s.logPackagesDBFile("START of test")
+	s.logPackagesState("START of test")
+	s.logInstallerServiceState()
+}
+
+func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, testName string) {
+	s.T().Logf("=== AfterTest Diagnostics for %s ===", testName)
+
+	// Log packages.db file state BEFORE purge
+	s.logPackagesDBFile("BEFORE purge")
+
+	// Log package entries BEFORE purge
+	s.logPackagesState("BEFORE purge")
+
+	// Log installer service state
+	s.logInstallerServiceState()
+
+	// Execute purge via remote command to capture output
+	output, err := s.Env().RemoteHost.Execute(
+		`& 'C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe' purge 2>&1`)
+	s.T().Logf("Purge output:\n%s", output)
+	if err != nil {
+		s.T().Logf("Purge error: %v", err)
+	}
+
+	// Log packages.db file state AFTER purge
+	s.logPackagesDBFile("AFTER purge")
+
+	// Log package entries AFTER purge
+	s.logPackagesState("AFTER purge")
 }
 
 func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
@@ -79,6 +112,61 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 
 	// Assert: DDOT package directory removed
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(stableDir, "ddot package directory should be removed on uninstall when requested")
+}
+
+// logPackagesDBFile checks the packages.db file directly to see its state
+func (s *testAgentMSIInstallsDDOT) logPackagesDBFile(when string) {
+	s.T().Helper()
+	s.T().Logf("--- packages.db file state %s ---", when)
+
+	// Check if the file exists and get its metadata
+	output, err := s.Env().RemoteHost.Execute(
+		`$dbPath = 'C:\ProgramData\Datadog\Installer\packages\packages.db'
+		if (Test-Path $dbPath) {
+			$file = Get-Item $dbPath
+			Write-Output "EXISTS: $dbPath"
+			Write-Output "Size: $($file.Length) bytes"
+			Write-Output "LastWriteTime: $($file.LastWriteTime)"
+		} else {
+			Write-Output "NOT FOUND: $dbPath"
+		}`)
+	s.T().Logf("packages.db %s:\n%s", when, output)
+	if err != nil {
+		s.T().Logf("Error checking packages.db: %v", err)
+	}
+
+	// Also check if the packages directory exists and list its contents
+	output2, _ := s.Env().RemoteHost.Execute(
+		`$pkgDir = 'C:\ProgramData\Datadog\Installer\packages'
+		if (Test-Path $pkgDir) {
+			Write-Output "Packages directory contents:"
+			Get-ChildItem $pkgDir -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "  $_" }
+		} else {
+			Write-Output "Packages directory NOT FOUND: $pkgDir"
+		}`)
+	s.T().Logf("Packages directory %s:\n%s", when, output2)
+}
+
+// logPackagesState queries datadog-installer status to see which packages are registered in packages.db
+func (s *testAgentMSIInstallsDDOT) logPackagesState(when string) {
+	s.T().Helper()
+	s.T().Logf("--- Package entries %s ---", when)
+
+	// Query installer for registered packages
+	output, err := s.Env().RemoteHost.Execute(
+		`& 'C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe' status 2>&1`)
+	s.T().Logf("Installer status %s:\n%s", when, output)
+	if err != nil {
+		s.T().Logf("Error getting installer status: %v", err)
+	}
+}
+
+// logInstallerServiceState checks if the Datadog Installer service is running
+func (s *testAgentMSIInstallsDDOT) logInstallerServiceState() {
+	s.T().Helper()
+	output, _ := s.Env().RemoteHost.Execute(
+		`Get-Service 'Datadog Installer' -ErrorAction SilentlyContinue | Select-Object Status, Name`)
+	s.T().Logf("Installer service state: %s", output)
 }
 
 // installPreviousAgentVersion mirrors the helper used in other MSI suites to lay down the stable agent first.
