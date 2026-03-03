@@ -76,10 +76,10 @@ func (m *MetricData) CloneVT() *MetricData {
 		copy(tmpBytes, rhs)
 		r.DictNameStr = tmpBytes
 	}
-	if rhs := m.DictTagsStr; rhs != nil {
+	if rhs := m.DictTagStr; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
-		r.DictTagsStr = tmpBytes
+		r.DictTagStr = tmpBytes
 	}
 	if rhs := m.DictTagsets; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
@@ -121,20 +121,20 @@ func (m *MetricData) CloneVT() *MetricData {
 		copy(tmpContainer, rhs)
 		r.Types = tmpContainer
 	}
-	if rhs := m.Names; rhs != nil {
+	if rhs := m.NameRefs; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
-		r.Names = tmpContainer
+		r.NameRefs = tmpContainer
 	}
-	if rhs := m.Tags; rhs != nil {
+	if rhs := m.TagsetRefs; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
-		r.Tags = tmpContainer
+		r.TagsetRefs = tmpContainer
 	}
-	if rhs := m.Resources; rhs != nil {
+	if rhs := m.ResourcesRefs; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
-		r.Resources = tmpContainer
+		r.ResourcesRefs = tmpContainer
 	}
 	if rhs := m.Intervals; rhs != nil {
 		tmpContainer := make([]uint64, len(rhs))
@@ -146,15 +146,15 @@ func (m *MetricData) CloneVT() *MetricData {
 		copy(tmpContainer, rhs)
 		r.NumPoints = tmpContainer
 	}
-	if rhs := m.SourceTypeNames; rhs != nil {
+	if rhs := m.SourceTypeNameRefs; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
-		r.SourceTypeNames = tmpContainer
+		r.SourceTypeNameRefs = tmpContainer
 	}
-	if rhs := m.OriginInfos; rhs != nil {
+	if rhs := m.OriginInfoRefs; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
-		r.OriginInfos = tmpContainer
+		r.OriginInfoRefs = tmpContainer
 	}
 	if rhs := m.Timestamps; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
@@ -267,7 +267,7 @@ func (this *MetricData) EqualVT(that *MetricData) bool {
 	if string(this.DictNameStr) != string(that.DictNameStr) {
 		return false
 	}
-	if string(this.DictTagsStr) != string(that.DictTagsStr) {
+	if string(this.DictTagStr) != string(that.DictTagStr) {
 		return false
 	}
 	if len(this.DictTagsets) != len(that.DictTagsets) {
@@ -330,29 +330,29 @@ func (this *MetricData) EqualVT(that *MetricData) bool {
 			return false
 		}
 	}
-	if len(this.Names) != len(that.Names) {
+	if len(this.NameRefs) != len(that.NameRefs) {
 		return false
 	}
-	for i, vx := range this.Names {
-		vy := that.Names[i]
+	for i, vx := range this.NameRefs {
+		vy := that.NameRefs[i]
 		if vx != vy {
 			return false
 		}
 	}
-	if len(this.Tags) != len(that.Tags) {
+	if len(this.TagsetRefs) != len(that.TagsetRefs) {
 		return false
 	}
-	for i, vx := range this.Tags {
-		vy := that.Tags[i]
+	for i, vx := range this.TagsetRefs {
+		vy := that.TagsetRefs[i]
 		if vx != vy {
 			return false
 		}
 	}
-	if len(this.Resources) != len(that.Resources) {
+	if len(this.ResourcesRefs) != len(that.ResourcesRefs) {
 		return false
 	}
-	for i, vx := range this.Resources {
-		vy := that.Resources[i]
+	for i, vx := range this.ResourcesRefs {
+		vy := that.ResourcesRefs[i]
 		if vx != vy {
 			return false
 		}
@@ -438,20 +438,20 @@ func (this *MetricData) EqualVT(that *MetricData) bool {
 			return false
 		}
 	}
-	if len(this.SourceTypeNames) != len(that.SourceTypeNames) {
+	if len(this.SourceTypeNameRefs) != len(that.SourceTypeNameRefs) {
 		return false
 	}
-	for i, vx := range this.SourceTypeNames {
-		vy := that.SourceTypeNames[i]
+	for i, vx := range this.SourceTypeNameRefs {
+		vy := that.SourceTypeNameRefs[i]
 		if vx != vy {
 			return false
 		}
 	}
-	if len(this.OriginInfos) != len(that.OriginInfos) {
+	if len(this.OriginInfoRefs) != len(that.OriginInfoRefs) {
 		return false
 	}
-	for i, vx := range this.OriginInfos {
-		vy := that.OriginInfos[i]
+	for i, vx := range this.OriginInfoRefs {
+		vy := that.OriginInfoRefs[i]
 		if vx != vy {
 			return false
 		}
@@ -514,7 +514,7 @@ func (m *Payload) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x12
 	}
 	return len(dAtA) - i, nil
 }
@@ -600,14 +600,14 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.OriginInfos) > 0 {
+	if len(m.OriginInfoRefs) > 0 {
 		var pksize2 int
-		for _, num := range m.OriginInfos {
+		for _, num := range m.OriginInfoRefs {
 			pksize2 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize2
 		j1 := i
-		for _, num := range m.OriginInfos {
+		for _, num := range m.OriginInfoRefs {
 			x3 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x3 >= 1<<7 {
 				dAtA[j1] = uint8(uint64(x3)&0x7f | 0x80)
@@ -623,14 +623,14 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xc2
 	}
-	if len(m.SourceTypeNames) > 0 {
+	if len(m.SourceTypeNameRefs) > 0 {
 		var pksize5 int
-		for _, num := range m.SourceTypeNames {
+		for _, num := range m.SourceTypeNameRefs {
 			pksize5 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize5
 		j4 := i
-		for _, num := range m.SourceTypeNames {
+		for _, num := range m.SourceTypeNameRefs {
 			x6 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x6 >= 1<<7 {
 				dAtA[j4] = uint8(uint64(x6)&0x7f | 0x80)
@@ -823,14 +823,14 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x72
 	}
-	if len(m.Resources) > 0 {
+	if len(m.ResourcesRefs) > 0 {
 		var pksize27 int
-		for _, num := range m.Resources {
+		for _, num := range m.ResourcesRefs {
 			pksize27 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize27
 		j26 := i
-		for _, num := range m.Resources {
+		for _, num := range m.ResourcesRefs {
 			x28 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x28 >= 1<<7 {
 				dAtA[j26] = uint8(uint64(x28)&0x7f | 0x80)
@@ -844,14 +844,14 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x6a
 	}
-	if len(m.Tags) > 0 {
+	if len(m.TagsetRefs) > 0 {
 		var pksize30 int
-		for _, num := range m.Tags {
+		for _, num := range m.TagsetRefs {
 			pksize30 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize30
 		j29 := i
-		for _, num := range m.Tags {
+		for _, num := range m.TagsetRefs {
 			x31 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x31 >= 1<<7 {
 				dAtA[j29] = uint8(uint64(x31)&0x7f | 0x80)
@@ -865,14 +865,14 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x62
 	}
-	if len(m.Names) > 0 {
+	if len(m.NameRefs) > 0 {
 		var pksize33 int
-		for _, num := range m.Names {
+		for _, num := range m.NameRefs {
 			pksize33 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize33
 		j32 := i
-		for _, num := range m.Names {
+		for _, num := range m.NameRefs {
 			x34 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x34 >= 1<<7 {
 				dAtA[j32] = uint8(uint64(x34)&0x7f | 0x80)
@@ -1025,10 +1025,10 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.DictTagsStr) > 0 {
-		i -= len(m.DictTagsStr)
-		copy(dAtA[i:], m.DictTagsStr)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DictTagsStr)))
+	if len(m.DictTagStr) > 0 {
+		i -= len(m.DictTagStr)
+		copy(dAtA[i:], m.DictTagStr)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DictTagStr)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1090,7 +1090,7 @@ func (m *Payload) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x12
 	}
 	return len(dAtA) - i, nil
 }
@@ -1176,14 +1176,14 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.OriginInfos) > 0 {
+	if len(m.OriginInfoRefs) > 0 {
 		var pksize2 int
-		for _, num := range m.OriginInfos {
+		for _, num := range m.OriginInfoRefs {
 			pksize2 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize2
 		j1 := i
-		for _, num := range m.OriginInfos {
+		for _, num := range m.OriginInfoRefs {
 			x3 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x3 >= 1<<7 {
 				dAtA[j1] = uint8(uint64(x3)&0x7f | 0x80)
@@ -1199,14 +1199,14 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xc2
 	}
-	if len(m.SourceTypeNames) > 0 {
+	if len(m.SourceTypeNameRefs) > 0 {
 		var pksize5 int
-		for _, num := range m.SourceTypeNames {
+		for _, num := range m.SourceTypeNameRefs {
 			pksize5 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize5
 		j4 := i
-		for _, num := range m.SourceTypeNames {
+		for _, num := range m.SourceTypeNameRefs {
 			x6 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x6 >= 1<<7 {
 				dAtA[j4] = uint8(uint64(x6)&0x7f | 0x80)
@@ -1399,14 +1399,14 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x72
 	}
-	if len(m.Resources) > 0 {
+	if len(m.ResourcesRefs) > 0 {
 		var pksize27 int
-		for _, num := range m.Resources {
+		for _, num := range m.ResourcesRefs {
 			pksize27 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize27
 		j26 := i
-		for _, num := range m.Resources {
+		for _, num := range m.ResourcesRefs {
 			x28 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x28 >= 1<<7 {
 				dAtA[j26] = uint8(uint64(x28)&0x7f | 0x80)
@@ -1420,14 +1420,14 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x6a
 	}
-	if len(m.Tags) > 0 {
+	if len(m.TagsetRefs) > 0 {
 		var pksize30 int
-		for _, num := range m.Tags {
+		for _, num := range m.TagsetRefs {
 			pksize30 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize30
 		j29 := i
-		for _, num := range m.Tags {
+		for _, num := range m.TagsetRefs {
 			x31 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x31 >= 1<<7 {
 				dAtA[j29] = uint8(uint64(x31)&0x7f | 0x80)
@@ -1441,14 +1441,14 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x62
 	}
-	if len(m.Names) > 0 {
+	if len(m.NameRefs) > 0 {
 		var pksize33 int
-		for _, num := range m.Names {
+		for _, num := range m.NameRefs {
 			pksize33 += protohelpers.SizeOfZigzag(uint64(num))
 		}
 		i -= pksize33
 		j32 := i
-		for _, num := range m.Names {
+		for _, num := range m.NameRefs {
 			x34 := (uint64(num) << 1) ^ uint64((num >> 63))
 			for x34 >= 1<<7 {
 				dAtA[j32] = uint8(uint64(x34)&0x7f | 0x80)
@@ -1601,10 +1601,10 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.DictTagsStr) > 0 {
-		i -= len(m.DictTagsStr)
-		copy(dAtA[i:], m.DictTagsStr)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DictTagsStr)))
+	if len(m.DictTagStr) > 0 {
+		i -= len(m.DictTagStr)
+		copy(dAtA[i:], m.DictTagStr)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DictTagStr)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1668,7 +1668,7 @@ func (m *MetricData) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.DictTagsStr)
+	l = len(m.DictTagStr)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -1722,23 +1722,23 @@ func (m *MetricData) SizeVT() (n int) {
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
 	}
-	if len(m.Names) > 0 {
+	if len(m.NameRefs) > 0 {
 		l = 0
-		for _, e := range m.Names {
+		for _, e := range m.NameRefs {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
 	}
-	if len(m.Tags) > 0 {
+	if len(m.TagsetRefs) > 0 {
 		l = 0
-		for _, e := range m.Tags {
+		for _, e := range m.TagsetRefs {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
 	}
-	if len(m.Resources) > 0 {
+	if len(m.ResourcesRefs) > 0 {
 		l = 0
-		for _, e := range m.Resources {
+		for _, e := range m.ResourcesRefs {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
@@ -1798,16 +1798,16 @@ func (m *MetricData) SizeVT() (n int) {
 		}
 		n += 2 + protohelpers.SizeOfVarint(uint64(l)) + l
 	}
-	if len(m.SourceTypeNames) > 0 {
+	if len(m.SourceTypeNameRefs) > 0 {
 		l = 0
-		for _, e := range m.SourceTypeNames {
+		for _, e := range m.SourceTypeNameRefs {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 2 + protohelpers.SizeOfVarint(uint64(l)) + l
 	}
-	if len(m.OriginInfos) > 0 {
+	if len(m.OriginInfoRefs) > 0 {
 		l = 0
-		for _, e := range m.OriginInfos {
+		for _, e := range m.OriginInfoRefs {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 2 + protohelpers.SizeOfVarint(uint64(l)) + l
@@ -1845,7 +1845,7 @@ func (m *Payload) UnmarshalVT(dAtA []byte) error {
 			return fmt.Errorf("proto: Payload: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
 			}
@@ -2119,7 +2119,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DictTagsStr", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DictTagStr", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -2146,9 +2146,9 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.DictTagsStr = append(m.DictTagsStr[:0], dAtA[iNdEx:postIndex]...)
-			if m.DictTagsStr == nil {
-				m.DictTagsStr = []byte{}
+			m.DictTagStr = append(m.DictTagStr[:0], dAtA[iNdEx:postIndex]...)
+			if m.DictTagStr == nil {
+				m.DictTagStr = []byte{}
 			}
 			iNdEx = postIndex
 		case 3:
@@ -2699,7 +2699,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Names = append(m.Names, int64(v))
+				m.NameRefs = append(m.NameRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -2734,8 +2734,8 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Names) == 0 {
-					m.Names = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.NameRefs) == 0 {
+					m.NameRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -2754,10 +2754,10 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Names = append(m.Names, int64(v))
+					m.NameRefs = append(m.NameRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Names", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field NameRefs", wireType)
 			}
 		case 12:
 			if wireType == 0 {
@@ -2777,7 +2777,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Tags = append(m.Tags, int64(v))
+				m.TagsetRefs = append(m.TagsetRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -2812,8 +2812,8 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Tags) == 0 {
-					m.Tags = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.TagsetRefs) == 0 {
+					m.TagsetRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -2832,10 +2832,10 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Tags = append(m.Tags, int64(v))
+					m.TagsetRefs = append(m.TagsetRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Tags", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TagsetRefs", wireType)
 			}
 		case 13:
 			if wireType == 0 {
@@ -2855,7 +2855,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Resources = append(m.Resources, int64(v))
+				m.ResourcesRefs = append(m.ResourcesRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -2890,8 +2890,8 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Resources) == 0 {
-					m.Resources = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.ResourcesRefs) == 0 {
+					m.ResourcesRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -2910,10 +2910,10 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Resources = append(m.Resources, int64(v))
+					m.ResourcesRefs = append(m.ResourcesRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesRefs", wireType)
 			}
 		case 14:
 			if wireType == 0 {
@@ -3579,7 +3579,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.SourceTypeNames = append(m.SourceTypeNames, int64(v))
+				m.SourceTypeNameRefs = append(m.SourceTypeNameRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -3614,8 +3614,8 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.SourceTypeNames) == 0 {
-					m.SourceTypeNames = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.SourceTypeNameRefs) == 0 {
+					m.SourceTypeNameRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -3634,10 +3634,10 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.SourceTypeNames = append(m.SourceTypeNames, int64(v))
+					m.SourceTypeNameRefs = append(m.SourceTypeNameRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field SourceTypeNames", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceTypeNameRefs", wireType)
 			}
 		case 24:
 			if wireType == 0 {
@@ -3657,7 +3657,7 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.OriginInfos = append(m.OriginInfos, int64(v))
+				m.OriginInfoRefs = append(m.OriginInfoRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -3692,8 +3692,8 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.OriginInfos) == 0 {
-					m.OriginInfos = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.OriginInfoRefs) == 0 {
+					m.OriginInfoRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -3712,10 +3712,10 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.OriginInfos = append(m.OriginInfos, int64(v))
+					m.OriginInfoRefs = append(m.OriginInfoRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfoRefs", wireType)
 			}
 		default:
 			iNdEx = preIndex
@@ -3768,7 +3768,7 @@ func (m *Payload) UnmarshalVTUnsafe(dAtA []byte) error {
 			return fmt.Errorf("proto: Payload: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
 			}
@@ -4047,7 +4047,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DictTagsStr", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DictTagStr", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -4074,7 +4074,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.DictTagsStr = dAtA[iNdEx:postIndex]
+			m.DictTagStr = dAtA[iNdEx:postIndex]
 			iNdEx = postIndex
 		case 3:
 			if wireType == 0 {
@@ -4618,7 +4618,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Names = append(m.Names, int64(v))
+				m.NameRefs = append(m.NameRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -4653,8 +4653,8 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Names) == 0 {
-					m.Names = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.NameRefs) == 0 {
+					m.NameRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -4673,10 +4673,10 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Names = append(m.Names, int64(v))
+					m.NameRefs = append(m.NameRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Names", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field NameRefs", wireType)
 			}
 		case 12:
 			if wireType == 0 {
@@ -4696,7 +4696,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Tags = append(m.Tags, int64(v))
+				m.TagsetRefs = append(m.TagsetRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -4731,8 +4731,8 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Tags) == 0 {
-					m.Tags = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.TagsetRefs) == 0 {
+					m.TagsetRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -4751,10 +4751,10 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Tags = append(m.Tags, int64(v))
+					m.TagsetRefs = append(m.TagsetRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Tags", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field TagsetRefs", wireType)
 			}
 		case 13:
 			if wireType == 0 {
@@ -4774,7 +4774,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.Resources = append(m.Resources, int64(v))
+				m.ResourcesRefs = append(m.ResourcesRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -4809,8 +4809,8 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.Resources) == 0 {
-					m.Resources = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.ResourcesRefs) == 0 {
+					m.ResourcesRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -4829,10 +4829,10 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.Resources = append(m.Resources, int64(v))
+					m.ResourcesRefs = append(m.ResourcesRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesRefs", wireType)
 			}
 		case 14:
 			if wireType == 0 {
@@ -5498,7 +5498,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.SourceTypeNames = append(m.SourceTypeNames, int64(v))
+				m.SourceTypeNameRefs = append(m.SourceTypeNameRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -5533,8 +5533,8 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.SourceTypeNames) == 0 {
-					m.SourceTypeNames = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.SourceTypeNameRefs) == 0 {
+					m.SourceTypeNameRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -5553,10 +5553,10 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.SourceTypeNames = append(m.SourceTypeNames, int64(v))
+					m.SourceTypeNameRefs = append(m.SourceTypeNameRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field SourceTypeNames", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceTypeNameRefs", wireType)
 			}
 		case 24:
 			if wireType == 0 {
@@ -5576,7 +5576,7 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-				m.OriginInfos = append(m.OriginInfos, int64(v))
+				m.OriginInfoRefs = append(m.OriginInfoRefs, int64(v))
 			} else if wireType == 2 {
 				var packedLen int
 				for shift := uint(0); ; shift += 7 {
@@ -5611,8 +5611,8 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.OriginInfos) == 0 {
-					m.OriginInfos = make([]int64, 0, elementCount)
+				if elementCount != 0 && len(m.OriginInfoRefs) == 0 {
+					m.OriginInfoRefs = make([]int64, 0, elementCount)
 				}
 				for iNdEx < postIndex {
 					var v uint64
@@ -5631,10 +5631,10 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 						}
 					}
 					v = (v >> 1) ^ uint64((int64(v&1)<<63)>>63)
-					m.OriginInfos = append(m.OriginInfos, int64(v))
+					m.OriginInfoRefs = append(m.OriginInfoRefs, int64(v))
 				}
 			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfos", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfoRefs", wireType)
 			}
 		default:
 			iNdEx = preIndex

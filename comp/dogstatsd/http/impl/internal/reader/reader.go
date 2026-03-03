@@ -66,7 +66,7 @@ type MetricDataReader struct {
 
 	// Dicts are pre-loaded with empty element at index zero
 	dictNameStr        []string
-	dictTagsStr        []string
+	dictTagStr         []string
 	dictTagsets        [][]string
 	dictResourceStr    []string
 	dictResources      [][]*resource
@@ -88,7 +88,7 @@ func (r *MetricDataReader) Initialize() error {
 	if err != nil {
 		return err
 	}
-	r.dictTagsStr, err = unpackStrDict(r.data.DictTagsStr)
+	r.dictTagStr, err = unpackStrDict(r.data.DictTagStr)
 	if err != nil {
 		return err
 	}
@@ -168,10 +168,10 @@ func (r *MetricDataReader) unpackTagsetsDict() ([][]string, error) {
 				}
 				tags = append(tags, tagsets[-idx]...)
 			} else {
-				if idx >= int64(len(r.dictTagsStr)) {
+				if idx >= int64(len(r.dictTagStr)) {
 					return nil, errBadReference
 				}
-				tags = append(tags, r.dictTagsStr[idx])
+				tags = append(tags, r.dictTagStr[idx])
 			}
 		}
 		packed = packed[size:]
@@ -261,11 +261,11 @@ func (r *MetricDataReader) NextMetric() error {
 	r.metricIdx++
 
 	if r.metricIdx > len(r.data.Types) ||
-		r.metricIdx > len(r.data.Names) ||
-		r.metricIdx > len(r.data.Tags) ||
-		r.metricIdx > len(r.data.Resources) ||
-		r.metricIdx > len(r.data.SourceTypeNames) ||
-		r.metricIdx > len(r.data.OriginInfos) ||
+		r.metricIdx > len(r.data.NameRefs) ||
+		r.metricIdx > len(r.data.TagsetRefs) ||
+		r.metricIdx > len(r.data.ResourcesRefs) ||
+		r.metricIdx > len(r.data.SourceTypeNameRefs) ||
+		r.metricIdx > len(r.data.OriginInfoRefs) ||
 		r.metricIdx > len(r.data.Intervals) ||
 		r.metricIdx > len(r.data.NumPoints) {
 		return errUnexpectedEOF
@@ -273,27 +273,27 @@ func (r *MetricDataReader) NextMetric() error {
 
 	r.pointsRemaining = int(r.NumPoints())
 
-	r.nameRef += r.data.Names[r.metricIdx-1]
+	r.nameRef += r.data.NameRefs[r.metricIdx-1]
 	if r.nameRef < 0 || r.nameRef >= int64(len(r.dictNameStr)) {
 		return errBadReference
 	}
 
-	r.tagsRef += r.data.Tags[r.metricIdx-1]
+	r.tagsRef += r.data.TagsetRefs[r.metricIdx-1]
 	if r.tagsRef < 0 || r.tagsRef >= int64(len(r.dictTagsets)) {
 		return errBadReference
 	}
 
-	r.resourcesRef += r.data.Resources[r.metricIdx-1]
+	r.resourcesRef += r.data.ResourcesRefs[r.metricIdx-1]
 	if r.resourcesRef < 0 || r.resourcesRef >= int64(len(r.dictResources)) {
 		return errBadReference
 	}
 
-	r.sourceTypeNameRef += r.data.SourceTypeNames[r.metricIdx-1]
+	r.sourceTypeNameRef += r.data.SourceTypeNameRefs[r.metricIdx-1]
 	if r.sourceTypeNameRef < 0 || r.sourceTypeNameRef >= int64(len(r.dictSourceTypeName)) {
 		return errBadReference
 	}
 
-	r.originInfoRef += r.data.OriginInfos[r.metricIdx-1]
+	r.originInfoRef += r.data.OriginInfoRefs[r.metricIdx-1]
 	if r.originInfoRef < 0 || r.originInfoRef >= int64(len(r.dictOriginInfo)) {
 		return errBadReference
 	}

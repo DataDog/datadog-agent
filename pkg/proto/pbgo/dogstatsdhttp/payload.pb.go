@@ -25,10 +25,10 @@ type MetricType int32
 
 const (
 	MetricType_UNUSED MetricType = 0
-	MetricType_Count  MetricType = 1 // matches current metrics intake types
+	MetricType_Count  MetricType = 1
 	MetricType_Rate   MetricType = 2
 	MetricType_Gauge  MetricType = 3
-	MetricType_Sketch MetricType = 4 // new
+	MetricType_Sketch MetricType = 4
 )
 
 // Enum value maps for MetricType.
@@ -80,7 +80,7 @@ type ValueType int32
 
 const (
 	ValueType_Zero    ValueType = 0  // value is zero, not stored explicitly
-	ValueType_Sint64  ValueType = 16 // value is stored in valsInt64
+	ValueType_Sint64  ValueType = 16 // value is stored in valsSint64
 	ValueType_Float32 ValueType = 32 // value is stored in valsFloat32
 	ValueType_Float64 ValueType = 48 // value is stored in valsFloat64
 )
@@ -131,19 +131,19 @@ func (ValueType) EnumDescriptor() ([]byte, []int) {
 type MetricFlags int32
 
 const (
-	MetricFlags_FlagNone    MetricFlags = 0
-	MetricFlags_FlagNoIndex MetricFlags = 256
+	MetricFlags_flagNone    MetricFlags = 0
+	MetricFlags_flagNoIndex MetricFlags = 256 // metric should not be indexed (equivalent to origin metric type == agent_hidden in v2)
 )
 
 // Enum value maps for MetricFlags.
 var (
 	MetricFlags_name = map[int32]string{
-		0:   "FlagNone",
-		256: "FlagNoIndex",
+		0:   "flagNone",
+		256: "flagNoIndex",
 	}
 	MetricFlags_value = map[string]int32{
-		"FlagNone":    0,
-		"FlagNoIndex": 256,
+		"flagNone":    0,
+		"flagNoIndex": 256,
 	}
 )
 
@@ -176,7 +176,7 @@ func (MetricFlags) EnumDescriptor() ([]byte, []int) {
 
 type Payload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Metadata      *Metadata              `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Metadata      *Metadata              `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	MetricData    *MetricData            `protobuf:"bytes,3,opt,name=metricData,proto3" json:"metricData,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -281,25 +281,25 @@ func (x *Metadata) GetResources() []string {
 type MetricData struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Dictionaries
-	DictNameStr []byte  `protobuf:"bytes,1,opt,name=dictNameStr,proto3" json:"dictNameStr,omitempty"`           // varint length + value
-	DictTagsStr []byte  `protobuf:"bytes,2,opt,name=dictTagsStr,proto3" json:"dictTagsStr,omitempty"`           // varint length + value
-	DictTagsets []int64 `protobuf:"zigzag64,3,rep,packed,name=dictTagsets,proto3" json:"dictTagsets,omitempty"` // length,
-	// delta encoded set of indexes itno dictTagsStr
+	// All dictionary indexes are base-1, zero implicitly represents an empty value.
+	DictNameStr        []byte  `protobuf:"bytes,1,opt,name=dictNameStr,proto3" json:"dictNameStr,omitempty"`                     // varint length + value
+	DictTagStr         []byte  `protobuf:"bytes,2,opt,name=dictTagStr,proto3" json:"dictTagStr,omitempty"`                       // varint length + value
+	DictTagsets        []int64 `protobuf:"zigzag64,3,rep,packed,name=dictTagsets,proto3" json:"dictTagsets,omitempty"`           // length, delta encoded set of indexes into dictTagsStr
 	DictResourceStr    []byte  `protobuf:"bytes,4,opt,name=dictResourceStr,proto3" json:"dictResourceStr,omitempty"`             // varint length + value
-	DictResourceLen    []int64 `protobuf:"varint,5,rep,packed,name=dictResourceLen,proto3" json:"dictResourceLen,omitempty"`     // number  of elements in Type and Name arrays
+	DictResourceLen    []int64 `protobuf:"varint,5,rep,packed,name=dictResourceLen,proto3" json:"dictResourceLen,omitempty"`     // number of elements in Type and Name arrays
 	DictResourceType   []int64 `protobuf:"zigzag64,6,rep,packed,name=dictResourceType,proto3" json:"dictResourceType,omitempty"` // delta encoded set of indexes into dictResourceStr
 	DictResourceName   []int64 `protobuf:"zigzag64,7,rep,packed,name=dictResourceName,proto3" json:"dictResourceName,omitempty"` // delta encoded set of indexes into dictResourceStr
 	DictSourceTypeName []byte  `protobuf:"bytes,8,opt,name=dictSourceTypeName,proto3" json:"dictSourceTypeName,omitempty"`       // varint length + value
 	DictOriginInfo     []int32 `protobuf:"varint,9,rep,packed,name=dictOriginInfo,proto3" json:"dictOriginInfo,omitempty"`       // (product, category, service) tuples
 	// One entry per time series
-	Types           []uint64 `protobuf:"varint,10,rep,packed,name=types,proto3" json:"types,omitempty"`           // type = metricType | valueType | metricFlags
-	Names           []int64  `protobuf:"zigzag64,11,rep,packed,name=names,proto3" json:"names,omitempty"`         // index into dictNameStr, entire array is delta encoded
-	Tags            []int64  `protobuf:"zigzag64,12,rep,packed,name=tags,proto3" json:"tags,omitempty"`           // index into dictTagsets, entire array is delta encoded
-	Resources       []int64  `protobuf:"zigzag64,13,rep,packed,name=resources,proto3" json:"resources,omitempty"` // index into dictResourceLen, entire array is delta encoded
-	Intervals       []uint64 `protobuf:"varint,14,rep,packed,name=intervals,proto3" json:"intervals,omitempty"`
-	NumPoints       []uint64 `protobuf:"varint,15,rep,packed,name=numPoints,proto3" json:"numPoints,omitempty"`
-	SourceTypeNames []int64  `protobuf:"zigzag64,23,rep,packed,name=sourceTypeNames,proto3" json:"sourceTypeNames,omitempty"` // index into dictSourceTypeName, entire array is delta encoded
-	OriginInfos     []int64  `protobuf:"zigzag64,24,rep,packed,name=originInfos,proto3" json:"originInfos,omitempty"`         // index into dictOriginInfo, entire array is delta encoded
+	Types              []uint64 `protobuf:"varint,10,rep,packed,name=types,proto3" json:"types,omitempty"`                   // type = metricType | valueType | metricFlags
+	NameRefs           []int64  `protobuf:"zigzag64,11,rep,packed,name=nameRefs,proto3" json:"nameRefs,omitempty"`           // index into dictNameStr, entire array is delta encoded
+	TagsetRefs         []int64  `protobuf:"zigzag64,12,rep,packed,name=tagsetRefs,proto3" json:"tagsetRefs,omitempty"`       // index into dictTagsets, entire array is delta encoded
+	ResourcesRefs      []int64  `protobuf:"zigzag64,13,rep,packed,name=resourcesRefs,proto3" json:"resourcesRefs,omitempty"` // index into dictResourceLen, entire array is delta encoded
+	Intervals          []uint64 `protobuf:"varint,14,rep,packed,name=intervals,proto3" json:"intervals,omitempty"`
+	NumPoints          []uint64 `protobuf:"varint,15,rep,packed,name=numPoints,proto3" json:"numPoints,omitempty"`
+	SourceTypeNameRefs []int64  `protobuf:"zigzag64,23,rep,packed,name=sourceTypeNameRefs,proto3" json:"sourceTypeNameRefs,omitempty"` // index into dictSourceTypeName, entire array is delta encoded
+	OriginInfoRefs     []int64  `protobuf:"zigzag64,24,rep,packed,name=originInfoRefs,proto3" json:"originInfoRefs,omitempty"`         // index into dictOriginInfo, entire array is delta encoded
 	// each metric has numPoints values in this section
 	Timestamps    []int64   `protobuf:"zigzag64,16,rep,packed,name=timestamps,proto3" json:"timestamps,omitempty"`  // entire array delta encoded
 	ValsSint64    []int64   `protobuf:"zigzag64,17,rep,packed,name=valsSint64,proto3" json:"valsSint64,omitempty"`  // or
@@ -349,9 +349,9 @@ func (x *MetricData) GetDictNameStr() []byte {
 	return nil
 }
 
-func (x *MetricData) GetDictTagsStr() []byte {
+func (x *MetricData) GetDictTagStr() []byte {
 	if x != nil {
-		return x.DictTagsStr
+		return x.DictTagStr
 	}
 	return nil
 }
@@ -412,23 +412,23 @@ func (x *MetricData) GetTypes() []uint64 {
 	return nil
 }
 
-func (x *MetricData) GetNames() []int64 {
+func (x *MetricData) GetNameRefs() []int64 {
 	if x != nil {
-		return x.Names
+		return x.NameRefs
 	}
 	return nil
 }
 
-func (x *MetricData) GetTags() []int64 {
+func (x *MetricData) GetTagsetRefs() []int64 {
 	if x != nil {
-		return x.Tags
+		return x.TagsetRefs
 	}
 	return nil
 }
 
-func (x *MetricData) GetResources() []int64 {
+func (x *MetricData) GetResourcesRefs() []int64 {
 	if x != nil {
-		return x.Resources
+		return x.ResourcesRefs
 	}
 	return nil
 }
@@ -447,16 +447,16 @@ func (x *MetricData) GetNumPoints() []uint64 {
 	return nil
 }
 
-func (x *MetricData) GetSourceTypeNames() []int64 {
+func (x *MetricData) GetSourceTypeNameRefs() []int64 {
 	if x != nil {
-		return x.SourceTypeNames
+		return x.SourceTypeNameRefs
 	}
 	return nil
 }
 
-func (x *MetricData) GetOriginInfos() []int64 {
+func (x *MetricData) GetOriginInfoRefs() []int64 {
 	if x != nil {
-		return x.OriginInfos
+		return x.OriginInfoRefs
 	}
 	return nil
 }
@@ -514,19 +514,21 @@ var File_datadog_dogstatsdhttp_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"\n" +
-	"#datadog/dogstatsdhttp/payload.proto\x12\x02pb\"c\n" +
+	"#datadog/dogstatsdhttp/payload.proto\x12\x02pb\"i\n" +
 	"\aPayload\x12(\n" +
-	"\bmetadata\x18\x01 \x01(\v2\f.pb.MetadataR\bmetadata\x12.\n" +
+	"\bmetadata\x18\x02 \x01(\v2\f.pb.MetadataR\bmetadata\x12.\n" +
 	"\n" +
 	"metricData\x18\x03 \x01(\v2\x0e.pb.MetricDataR\n" +
-	"metricData\"<\n" +
+	"metricDataJ\x04\b\x01\x10\x02\"<\n" +
 	"\bMetadata\x12\x12\n" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x12\x1c\n" +
-	"\tresources\x18\x02 \x03(\tR\tresources\"\xd2\x06\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\"\xf6\x06\n" +
 	"\n" +
 	"MetricData\x12 \n" +
-	"\vdictNameStr\x18\x01 \x01(\fR\vdictNameStr\x12 \n" +
-	"\vdictTagsStr\x18\x02 \x01(\fR\vdictTagsStr\x12 \n" +
+	"\vdictNameStr\x18\x01 \x01(\fR\vdictNameStr\x12\x1e\n" +
+	"\n" +
+	"dictTagStr\x18\x02 \x01(\fR\n" +
+	"dictTagStr\x12 \n" +
 	"\vdictTagsets\x18\x03 \x03(\x12R\vdictTagsets\x12(\n" +
 	"\x0fdictResourceStr\x18\x04 \x01(\fR\x0fdictResourceStr\x12(\n" +
 	"\x0fdictResourceLen\x18\x05 \x03(\x03R\x0fdictResourceLen\x12*\n" +
@@ -535,14 +537,16 @@ const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"\x12dictSourceTypeName\x18\b \x01(\fR\x12dictSourceTypeName\x12&\n" +
 	"\x0edictOriginInfo\x18\t \x03(\x05R\x0edictOriginInfo\x12\x14\n" +
 	"\x05types\x18\n" +
-	" \x03(\x04R\x05types\x12\x14\n" +
-	"\x05names\x18\v \x03(\x12R\x05names\x12\x12\n" +
-	"\x04tags\x18\f \x03(\x12R\x04tags\x12\x1c\n" +
-	"\tresources\x18\r \x03(\x12R\tresources\x12\x1c\n" +
+	" \x03(\x04R\x05types\x12\x1a\n" +
+	"\bnameRefs\x18\v \x03(\x12R\bnameRefs\x12\x1e\n" +
+	"\n" +
+	"tagsetRefs\x18\f \x03(\x12R\n" +
+	"tagsetRefs\x12$\n" +
+	"\rresourcesRefs\x18\r \x03(\x12R\rresourcesRefs\x12\x1c\n" +
 	"\tintervals\x18\x0e \x03(\x04R\tintervals\x12\x1c\n" +
-	"\tnumPoints\x18\x0f \x03(\x04R\tnumPoints\x12(\n" +
-	"\x0fsourceTypeNames\x18\x17 \x03(\x12R\x0fsourceTypeNames\x12 \n" +
-	"\voriginInfos\x18\x18 \x03(\x12R\voriginInfos\x12\x1e\n" +
+	"\tnumPoints\x18\x0f \x03(\x04R\tnumPoints\x12.\n" +
+	"\x12sourceTypeNameRefs\x18\x17 \x03(\x12R\x12sourceTypeNameRefs\x12&\n" +
+	"\x0eoriginInfoRefs\x18\x18 \x03(\x12R\x0eoriginInfoRefs\x12\x1e\n" +
 	"\n" +
 	"timestamps\x18\x10 \x03(\x12R\n" +
 	"timestamps\x12\x1e\n" +
@@ -570,8 +574,8 @@ const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"\aFloat32\x10 \x12\v\n" +
 	"\aFloat64\x100*-\n" +
 	"\vmetricFlags\x12\f\n" +
-	"\bFlagNone\x10\x00\x12\x10\n" +
-	"\vFlagNoIndex\x10\x80\x02B\x1eZ\x1cpkg/proto/pbgo/dogstatsdhttpb\x06proto3"
+	"\bflagNone\x10\x00\x12\x10\n" +
+	"\vflagNoIndex\x10\x80\x02B\x1eZ\x1cpkg/proto/pbgo/dogstatsdhttpb\x06proto3"
 
 var (
 	file_datadog_dogstatsdhttp_payload_proto_rawDescOnce sync.Once
