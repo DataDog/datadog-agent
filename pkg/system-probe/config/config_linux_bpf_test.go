@@ -86,7 +86,7 @@ func TestHTTP2MonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
 		npm, usm, ccm, eudm, csm, csmNpm bool
-		npmEnabled                        bool
+		npmEnabled                       bool
 	}{
 		{false, false, false, false, false, false, false},
 		{false, false, true, false, false, false, true},
