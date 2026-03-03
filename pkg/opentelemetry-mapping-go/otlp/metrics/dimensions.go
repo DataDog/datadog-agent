@@ -76,17 +76,6 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 	return d.originProductDetail
 }
 
-// getTags maps an attributeMap into a slice of Datadog tags
-func getTags(labels pcommon.Map) []string {
-	tags := make([]string, 0, labels.Len())
-	labels.Range(func(key string, value pcommon.Value) bool {
-		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
-		return true
-	})
-	return tags
-}
-
 // AddTags to metrics dimensions.
 func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	// defensively copy the tags
@@ -105,8 +94,23 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 }
 
 // WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
+// It combines the tag-building and dimension-copying into a single allocation.
 func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+	newTags := make([]string, 0, labels.Len()+len(d.tags))
+	labels.Range(func(key string, value pcommon.Value) bool {
+		newTags = append(newTags, utils.FormatKeyValueTag(key, value.AsString()))
+		return true
+	})
+	newTags = append(newTags, d.tags...)
+	return &Dimensions{
+		name:                d.name,
+		tags:                newTags,
+		host:                d.host,
+		originID:            d.originID,
+		originProduct:       d.originProduct,
+		originSubProduct:    d.originSubProduct,
+		originProductDetail: d.originProductDetail,
+	}
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.
@@ -153,4 +157,54 @@ func (d *Dimensions) String() string {
 		concatDimensionValue(&metricKeyBuilder, dim)
 	}
 	return metricKeyBuilder.String()
+}
+
+// stringKey builds the dimensions key string used by the cache hot path.
+// It sorts the tags in-place (the local copy) to avoid an extra allocation,
+// and writes the fixed fields (name/host/originID) inline to the builder
+// instead of pre-concatenating them.
+// The tags order does not matter.
+func (d *Dimensions) stringKey() string {
+	// Copy tags into a local slice so we can sort without mutating the original.
+	tags := make([]string, len(d.tags))
+	copy(tags, d.tags)
+	sort.Strings(tags)
+
+	// Pre-compute total length:
+	//   tags + separators
+	//   + "name:" + d.name + sep
+	//   + "host:" + d.host + sep
+	//   + "originID:" + d.originID + sep
+	const (
+		namePrefix     = "name:"
+		hostPrefix     = "host:"
+		originIDPrefix = "originID:"
+		sepLen         = 1 // len(dimensionSeparator)
+	)
+	totalLen := len(namePrefix) + len(d.name) + sepLen +
+		len(hostPrefix) + len(d.host) + sepLen +
+		len(originIDPrefix) + len(d.originID) + sepLen
+	for _, tag := range tags {
+		totalLen += len(tag) + sepLen
+	}
+
+	var b strings.Builder
+	b.Grow(totalLen)
+
+	// Write sorted tags first, then the three fixed fields.
+	// (The exact order doesn't matter for cache key correctness as long as it's consistent.)
+	for _, tag := range tags {
+		b.WriteString(tag)
+		b.WriteString(dimensionSeparator)
+	}
+	b.WriteString(namePrefix)
+	b.WriteString(d.name)
+	b.WriteString(dimensionSeparator)
+	b.WriteString(hostPrefix)
+	b.WriteString(d.host)
+	b.WriteString(dimensionSeparator)
+	b.WriteString(originIDPrefix)
+	b.WriteString(d.originID)
+	b.WriteString(dimensionSeparator)
+	return b.String()
 }

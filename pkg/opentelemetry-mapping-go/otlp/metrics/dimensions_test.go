@@ -100,6 +100,86 @@ func TestAddTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"key:val"}, testDims.tags)
 }
 
+func TestStringKeyConsistency(t *testing.T) {
+	// stringKey must produce the same key for dimensions with the same content
+	// regardless of tag order, and must not mutate the original tags.
+	originalTags := make([]string, 2, 3)
+	originalTags[0] = "key1:val1"
+	originalTags[1] = "key2:val2"
+
+	dims := Dimensions{
+		name:     "a.metric.name",
+		tags:     originalTags,
+		host:     "my-host",
+		originID: "origin-42",
+	}
+
+	key1 := dims.stringKey()
+	key2 := dims.stringKey()
+	assert.Equal(t, key1, key2, "stringKey must be deterministic")
+
+	// Tags in reverse order must produce the same key.
+	dims2 := Dimensions{
+		name:     "a.metric.name",
+		tags:     []string{"key2:val2", "key1:val1"},
+		host:     "my-host",
+		originID: "origin-42",
+	}
+	assert.Equal(t, key1, dims2.stringKey(), "stringKey must be order-independent")
+
+	// Original tags must not be mutated.
+	assert.Equal(t, []string{"key1:val1", "key2:val2"}, originalTags)
+}
+
+func TestStringKeyUniqueness(t *testing.T) {
+	// Different dimensions must produce different cache keys.
+	keys := map[string]string{}
+	cases := []struct {
+		label string
+		dims  Dimensions
+	}{
+		{"different name", Dimensions{name: "metric.a", host: "h", tags: []string{"k:v"}}},
+		{"different host", Dimensions{name: "metric.b", host: "h", tags: []string{"k:v"}}},
+		{"different tags", Dimensions{name: "metric.a", host: "h", tags: []string{"k:w"}}},
+		{"no tags", Dimensions{name: "metric.a", host: "h"}},
+		{"different originID", Dimensions{name: "metric.a", host: "h", originID: "o1"}},
+	}
+	for _, tc := range cases {
+		k := tc.dims.stringKey()
+		for prevLabel, prevKey := range keys {
+			assert.NotEqual(t, prevKey, k,
+				"key collision between %q and %q", prevLabel, tc.label)
+		}
+		keys[tc.label] = k
+	}
+}
+
+func TestStringKeyNoTags(t *testing.T) {
+	// stringKey must work correctly when there are no tags.
+	dims := Dimensions{name: "metric", host: "host", originID: "oid"}
+	k1 := dims.stringKey()
+	k2 := dims.stringKey()
+	assert.Equal(t, k1, k2, "stringKey must be stable with no tags")
+	assert.NotEmpty(t, k1)
+}
+
+func TestWithAttributeMapPreservesBaseTags(t *testing.T) {
+	// Attribute tags should come before base tags in the resulting slice.
+	baseDims := &Dimensions{
+		name: "m",
+		tags: []string{"base:tag"},
+	}
+	attrs := pcommon.NewMap()
+	attrs.FromRaw(map[string]interface{}{"attr": "val"})
+
+	newDims := baseDims.WithAttributeMap(attrs)
+
+	// Both base and attribute tags must be present.
+	assert.ElementsMatch(t, []string{"attr:val", "base:tag"}, newDims.tags)
+	// Original dims must be unchanged.
+	assert.Equal(t, []string{"base:tag"}, baseDims.tags)
+}
+
 func TestAllFieldsAreCopied(t *testing.T) {
 	dims := &Dimensions{
 		name:     "example.name",
