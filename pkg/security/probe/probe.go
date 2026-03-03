@@ -250,6 +250,13 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 	p.PlatformProbe.OnNewDiscarder(rs, ev, field, eventType)
 }
 
+func (p *Probe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if platform, ok := p.PlatformProbe.(interface{ ShouldEvaluateDiscarders(*model.Event) bool }); ok {
+		return platform.ShouldEvaluateDiscarders(ev)
+	}
+	return true
+}
+
 // DumpDiscarders removes all the discarders
 func (p *Probe) DumpDiscarders() (string, error) {
 	seclog.Debugf("Dumping discarders")
