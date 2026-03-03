@@ -19,7 +19,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
-	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
