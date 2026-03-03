@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
+	jmxloggerimpl "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
@@ -515,6 +516,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		process.Bundle(),
 		guiimpl.Module(),
+		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		agent.Bundle(),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
