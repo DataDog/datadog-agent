@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rawotlpexporter provides an OpenTelemetry Collector exporter that
+// sends OTLP trace payloads as raw bytes to the trace agent's RawTraceService.
 package rawotlpexporter
 
 import (
-	"fmt"
+	"errors"
 
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -29,7 +31,7 @@ type Config struct {
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
 	if c.Endpoint == "" {
-		return fmt.Errorf("endpoint is required")
+		return errors.New("endpoint is required")
 	}
 	return nil
 }

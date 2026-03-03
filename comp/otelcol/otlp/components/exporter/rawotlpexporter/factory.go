@@ -54,7 +54,7 @@ func createTracesExporter(
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.DialContext(ctx, config.Endpoint, opts...)
+	conn, err := grpc.NewClient(config.Endpoint, opts...)
 	if err != nil {
 		return nil, err
 	}
