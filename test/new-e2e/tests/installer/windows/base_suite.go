@@ -159,14 +159,14 @@ func (s *BaseSuite) createCurrentAgent() {
 	currentOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithPipeline(s.Env().Environment.PipelineID()),
-		WithDevEnvOverrides("CURRENT_AGENT"),
+		WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "failed to lookup OCI package for current agent version")
 
 	// Get current version MSI package
 	currentMSI, err := windowsagent.NewPackage(
 		windowsagent.WithPipelineID(s.Env().Environment.PipelineID()),
-		windowsagent.WithDevEnvOverrides("CURRENT_AGENT"),
+		windowsagent.WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for current agent version")
 	s.Require().NotEmpty(currentMSI.URL, "Agent MSI URL is required but not set, set E2E_PIPELINE_ID or CURRENT_AGENT devenv overrides")
@@ -211,14 +211,14 @@ func (s *BaseSuite) createStableAgent() {
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithVersion(agentVersionPackage),
-		WithDevEnvOverrides("STABLE_AGENT"),
+		WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+		windowsagent.WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 

@@ -75,7 +75,7 @@
 // _ASSERT_PACKAGE_VERSION is the url-safe package version, used for Fleet status assertions.
 // This assertion is currently a "contains" check, so it can be shortened for convenience.
 //
-// _PIPELINE and _SOURCE_VERSION are resolution variables that tell WithDevEnvOverrides how to
+// _PIPELINE and _SOURCE_VERSION are resolution variables that tell WithArtifactOverrides how to
 // find the package. They are mutually exclusive. _PIPELINE resolves from S3/pipeline OCI registry,
 // _SOURCE_VERSION resolves from installers_v2.json/stable OCI registry.
 //
@@ -94,12 +94,12 @@
 //	STABLE_AGENT_ASSERT_VERSION          - Agent version (e.g. "7.75.0") for version command assertions
 //	STABLE_AGENT_ASSERT_PACKAGE_VERSION  - Package version (e.g. "7.75.0-1") for Fleet status assertions
 //
-// MSI-specific overrides (see common/agent WithDevEnvOverrides):
+// MSI-specific overrides (see common/agent WithArtifactOverrides):
 //
 //	STABLE_AGENT_MSI_URL, STABLE_AGENT_MSI_PIPELINE, STABLE_AGENT_MSI_VERSION,
 //	STABLE_AGENT_MSI_CHANNEL, STABLE_AGENT_MSI_FLAVOR, STABLE_AGENT_MSI_PRODUCT, STABLE_AGENT_MSI_ARCH
 //
-// OCI-specific overrides (see WithDevEnvOverrides in this package):
+// OCI-specific overrides (see WithArtifactOverrides in this package):
 //
 //	STABLE_AGENT_OCI_URL, STABLE_AGENT_OCI_PIPELINE, STABLE_AGENT_OCI_VERSION,
 //	STABLE_AGENT_OCI_REGISTRY, STABLE_AGENT_OCI_AUTH
@@ -168,7 +168,11 @@
 //	CURRENT_AGENT_MSI_URL="file:///path/to/agent.msi"
 //	STABLE_AGENT_OCI_URL="file:///path/to/oci/package.tar"
 //
-// See `WithDevEnvOverrides()` here for more OCI options and and in `common/agent/` for more MSI options.
+// See `WithArtifactOverrides()` / `WithDevEnvOverrides()` here for more OCI options
+// and in `common/agent/` for more MSI options.
+//
+// WithArtifactOverrides always applies overrides (for CI flows).
+// WithDevEnvOverrides skips overrides when CI is set (for pinned-version tests).
 //
 // # Contents Overview
 //
