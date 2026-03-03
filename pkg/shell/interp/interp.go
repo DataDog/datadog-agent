@@ -103,7 +103,13 @@ func (r *Runner) Run(ctx context.Context, script string) error {
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)
 	}
-	return r.run(ctx, f)
+	err = r.run(ctx, f)
+	var exit *exitError
+	if errors.As(err, &exit) {
+		r.exitCode = exit.code
+		return nil
+	}
+	return err
 }
 
 // run executes a parsed file (compound_list of statements).

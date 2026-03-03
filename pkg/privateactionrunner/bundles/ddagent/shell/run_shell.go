@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -59,6 +61,9 @@ func (h *RunShellHandler) Run(
 		opts = append(opts, executor.WithTimeout(time.Duration(inputs.Timeout)*time.Second))
 	}
 	opts = append(opts, executor.WithEnv(safeEnv()))
+	if p := safeshellBinaryPath(); p != "" {
+		opts = append(opts, executor.WithBinaryExec(p))
+	}
 
 	result, err := executor.Execute(ctx, inputs.Script, opts...)
 	if err != nil {
@@ -105,4 +110,22 @@ func safeEnv() []string {
 		}
 	}
 	return env
+}
+
+const safeshellBinaryName = "safe-shell"
+
+// safeshellBinaryPath returns the path to the safe-shell binary if it can be
+// found. It first checks next to the current executable, then falls back to
+// exec.LookPath. Returns empty string if not found.
+func safeshellBinaryPath() string {
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), safeshellBinaryName)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	if p, err := exec.LookPath(safeshellBinaryName); err == nil {
+		return p
+	}
+	return ""
 }

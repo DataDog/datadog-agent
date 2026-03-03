@@ -8,12 +8,31 @@ package executor
 import (
 	"bytes"
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var testBinaryPath string
+
+func TestMain(m *testing.M) {
+	// Build the safe-shell binary for subprocess tests.
+	dir, err := os.MkdirTemp("", "safe-shell-test")
+	if err == nil {
+		binPath := filepath.Join(dir, "safe-shell")
+		cmd := exec.Command("go", "build", "-o", binPath, "github.com/DataDog/datadog-agent/cmd/safe-shell")
+		if err := cmd.Run(); err == nil {
+			testBinaryPath = binPath
+		}
+		defer os.RemoveAll(dir)
+	}
+	os.Exit(m.Run())
+}
 
 func TestExecute_BasicCommand(t *testing.T) {
 	result, err := Execute(context.Background(), `echo hello`)
@@ -119,4 +138,50 @@ func TestLimitedWriter(t *testing.T) {
 		w.Write([]byte(" world"))
 		assert.Equal(t, "hello wo", buf.String())
 	})
+}
+
+// =============================================================================
+// Subprocess mode tests
+// =============================================================================
+
+func skipIfNoBinary(t *testing.T) {
+	t.Helper()
+	if testBinaryPath == "" {
+		t.Skip("safe-shell binary not built; skipping subprocess test")
+	}
+}
+
+func TestExecuteSubprocess_BasicCommand(t *testing.T) {
+	skipIfNoBinary(t)
+	result, err := Execute(context.Background(), `echo hello`, WithBinaryExec(testBinaryPath))
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestExecuteSubprocess_ExitCode(t *testing.T) {
+	skipIfNoBinary(t)
+	result, err := Execute(context.Background(), `exit 42`, WithBinaryExec(testBinaryPath))
+	require.NoError(t, err)
+	assert.Equal(t, 42, result.ExitCode)
+}
+
+func TestExecuteSubprocess_Timeout(t *testing.T) {
+	skipIfNoBinary(t)
+	// Short loop that completes within timeout.
+	result, err := Execute(context.Background(),
+		`for i in 1 2 3; do echo $i; done`,
+		WithBinaryExec(testBinaryPath),
+		WithTimeout(5*time.Second),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Contains(t, result.Stdout, "1")
+}
+
+func TestExecuteSubprocess_BinaryNotFound(t *testing.T) {
+	_, err := Execute(context.Background(), `echo hello`,
+		WithBinaryExec("/nonexistent/safe-shell"),
+	)
+	require.Error(t, err)
 }

@@ -146,11 +146,11 @@ func TestInterp_FalseCommand(t *testing.T) {
 }
 
 func TestInterp_ExitCommand(t *testing.T) {
-	_, _, err := runScript(t, `exit 42`)
-	require.Error(t, err)
-	exitErr, ok := err.(*exitError)
-	require.True(t, ok)
-	assert.Equal(t, 42, exitErr.code)
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}))
+	err := r.Run(context.Background(), `exit 42`)
+	require.NoError(t, err)
+	assert.Equal(t, 42, r.ExitCode())
 }
 
 func TestInterp_TestFileExists(t *testing.T) {

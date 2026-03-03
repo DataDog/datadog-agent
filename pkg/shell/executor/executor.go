@@ -10,6 +10,9 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
@@ -38,6 +41,7 @@ type options struct {
 	timeout       time.Duration
 	maxOutputSize int
 	env           []string
+	binaryPath    string
 }
 
 // WithTimeout sets the execution timeout.
@@ -61,8 +65,18 @@ func WithEnv(env []string) Option {
 	}
 }
 
+// WithBinaryExec enables subprocess mode: the script is run by invoking the
+// safe-shell binary at path instead of the in-process interpreter. The
+// subprocess is launched with platform-specific SysProcAttr sandboxing.
+func WithBinaryExec(path string) Option {
+	return func(o *options) {
+		o.binaryPath = path
+	}
+}
+
 // Execute interprets a shell script using the restricted interpreter.
 // Only allowed commands, pipes, &&/||, and for-in loops are supported.
+// If WithBinaryExec was used, the script is run as a subprocess instead.
 func Execute(ctx context.Context, script string, opts ...Option) (*Result, error) {
 	o := &options{
 		timeout:       DefaultTimeout,
@@ -72,7 +86,14 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 		opt(o)
 	}
 
-	// Create a timeout context.
+	if o.binaryPath != "" {
+		return executeSubprocess(ctx, script, o)
+	}
+	return executeInProcess(ctx, script, o)
+}
+
+// executeInProcess runs the script using the in-process restricted interpreter.
+func executeInProcess(ctx context.Context, script string, o *options) (*Result, error) {
 	execCtx := ctx
 	if o.timeout > 0 {
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > o.timeout {
@@ -105,6 +126,63 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 	}
 
 	return result, nil
+}
+
+// executeSubprocess runs the script by invoking the safe-shell binary as a
+// subprocess with platform-specific SysProcAttr sandboxing. If the sandbox
+// fails to start (e.g., namespace creation denied), it falls back to running
+// the subprocess without SysProcAttr.
+func executeSubprocess(ctx context.Context, script string, o *options) (*Result, error) {
+	execCtx := ctx
+	if o.timeout > 0 {
+		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > o.timeout {
+			var cancel context.CancelFunc
+			execCtx, cancel = context.WithTimeout(ctx, o.timeout)
+			defer cancel()
+		}
+	}
+
+	// Try with sandbox first.
+	result, err := runSubprocess(execCtx, script, o, sandboxSysProcAttr())
+	if err != nil && !errors.As(err, new(*exec.ExitError)) {
+		// The process failed to start (not a script exit code error).
+		// Retry without sandbox as a fallback.
+		result, err = runSubprocess(execCtx, script, o, nil)
+	}
+	return result, err
+}
+
+// runSubprocess executes the safe-shell binary with the given SysProcAttr.
+func runSubprocess(ctx context.Context, script string, o *options, sysProcAttr *syscall.SysProcAttr) (*Result, error) {
+	var stdout, stderr bytes.Buffer
+	stdoutW := &limitedWriter{buf: &stdout, limit: o.maxOutputSize}
+	stderrW := &limitedWriter{buf: &stderr, limit: o.maxOutputSize}
+
+	cmd := exec.CommandContext(ctx, o.binaryPath, "-c", script)
+	cmd.Stdout = stdoutW
+	cmd.Stderr = stderrW
+	cmd.Env = o.env
+	cmd.SysProcAttr = sysProcAttr
+
+	start := time.Now()
+	err := cmd.Run()
+	duration := time.Since(start)
+
+	exitCode := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+			err = nil // non-zero exit is not an error
+		}
+	}
+
+	return &Result{
+		ExitCode:       exitCode,
+		Stdout:         stdout.String(),
+		Stderr:         stderr.String(),
+		DurationMillis: duration.Milliseconds(),
+	}, err
 }
 
 // limitedWriter wraps a bytes.Buffer and stops writing after a limit is reached.
