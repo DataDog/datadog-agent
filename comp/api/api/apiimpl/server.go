@@ -28,7 +28,11 @@ func startServer(listener net.Listener, srv *http.Server, name string) {
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
-	go srv.Serve(tlsListener) //nolint:errcheck
+	go func() {
+		if err := srv.Serve(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("HTTP server '%s' exited with error: %s", name, err)
+		}
+	}()
 
 	log.Infof("Started HTTP server '%s' on %s", name, listener.Addr().String())
 }
