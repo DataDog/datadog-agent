@@ -116,38 +116,50 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
 		ids := s.configToChecks[digest]
-		stopped := map[checkid.ID]struct{}{}
-		for _, id := range ids {
-			if coll, ok := s.collector.Get(); ok {
-				// `StopCheck` might time out so we don't risk to block
-				// the polling loop forever
-				err := coll.StopCheck(id)
-				if err != nil {
-					log.Errorf("Error stopping check %s: %s", id, err)
-					errorStats.setRunError(id, err.Error())
-				} else {
-					stopped[id] = struct{}{}
-				}
-			} else {
-				log.Errorf("Collector not available, unable to stop check %s", id)
-			}
-		}
+		stopped := s.stopChecks(ids)
+		s.cleanupDanglingChecks(digest, stopped)
+	}
+}
 
-		// remove the entry from `configToChecks`
-		if len(stopped) == len(s.configToChecks[digest]) {
-			// we managed to stop all the checks for this config
-			delete(s.configToChecks, digest)
-		} else {
-			// keep the checks we failed to stop in `configToChecks`
-			dangling := []checkid.ID{}
-			for _, id := range s.configToChecks[digest] {
-				if _, found := stopped[id]; !found {
-					dangling = append(dangling, id)
-				}
+// stopChecks attempts to stop each check in ids and returns the set of
+// successfully stopped IDs.
+func (s *CheckScheduler) stopChecks(ids []checkid.ID) map[checkid.ID]struct{} {
+	stopped := make(map[checkid.ID]struct{}, len(ids))
+	for _, id := range ids {
+		if coll, ok := s.collector.Get(); ok {
+			// `StopCheck` might time out so we don't risk to block
+			// the polling loop forever
+			err := coll.StopCheck(id)
+			if err != nil {
+				log.Errorf("Error stopping check %s: %s", id, err)
+				errorStats.setRunError(id, err.Error())
+			} else {
+				stopped[id] = struct{}{}
 			}
-			s.configToChecks[digest] = dangling
+		} else {
+			log.Errorf("Collector not available, unable to stop check %s", id)
 		}
 	}
+	return stopped
+}
+
+// cleanupDanglingChecks removes the config digest entry from configToChecks
+// when all checks were stopped successfully, or retains only the checks that
+// could not be stopped.
+func (s *CheckScheduler) cleanupDanglingChecks(digest string, stopped map[checkid.ID]struct{}) {
+	if len(stopped) == len(s.configToChecks[digest]) {
+		// we managed to stop all the checks for this config
+		delete(s.configToChecks, digest)
+		return
+	}
+	// keep the checks we failed to stop in `configToChecks`
+	dangling := []checkid.ID{}
+	for _, id := range s.configToChecks[digest] {
+		if _, found := stopped[id]; !found {
+			dangling = append(dangling, id)
+		}
+	}
+	s.configToChecks[digest] = dangling
 }
 
 // Stop is a stub to satisfy the scheduler interface
