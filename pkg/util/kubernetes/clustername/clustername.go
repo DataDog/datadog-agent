@@ -87,6 +87,9 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 					"and \"%s\" must not exceed 255 chars", data.clusterName, hostAlias)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
+			} else if !IsRFC1123CompliantClusterName(data.clusterName) {
+				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted", data.clusterName)
+				data.clusterName = MakeClusterNameRFC1123Compliant(data.clusterName)
 			}
 		}
 
