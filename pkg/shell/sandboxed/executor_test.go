@@ -9,44 +9,16 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	agentfs "github.com/tursodatabase/agentfs/sdk/go"
 )
 
-func requireAgentFS(t *testing.T) {
-	t.Helper()
-	if _, err := exec.LookPath("agentfs"); err != nil {
-		t.Skip("agentfs binary not found, skipping integration test")
-	}
-}
-
-func TestCheckAvailability(t *testing.T) {
-	err := CheckAvailability()
-	if _, lookErr := exec.LookPath("agentfs"); lookErr != nil {
-		assert.ErrorIs(t, err, ErrAgentFSNotFound)
-	} else {
-		assert.NoError(t, err)
-	}
-}
-
-func TestCheckAvailability_Absent(t *testing.T) {
-	// Temporarily clear PATH so agentfs cannot be found.
-	origPath := os.Getenv("PATH")
-	t.Setenv("PATH", "")
-	defer os.Setenv("PATH", origPath)
-
-	err := CheckAvailability()
-	assert.ErrorIs(t, err, ErrAgentFSNotFound)
-}
-
 func TestExecute_ValidScript(t *testing.T) {
-	requireAgentFS(t)
-
 	result, err := Execute(context.Background(), `echo hello`)
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ExitCode)
@@ -54,26 +26,27 @@ func TestExecute_ValidScript(t *testing.T) {
 	assert.Empty(t, result.Stderr)
 	assert.Greater(t, result.DurationMillis, int64(0))
 	assert.NotEmpty(t, result.SessionID)
+
+	// Clean up.
+	_ = CloseSession(result.SessionID)
 }
 
 func TestExecute_VerificationFailure(t *testing.T) {
-	// Verification happens before agentfs is called, so no binary needed.
 	_, err := Execute(context.Background(), `echo $(whoami)`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "verification failed")
 }
 
 func TestExecute_NonZeroExitCode(t *testing.T) {
-	requireAgentFS(t)
-
 	result, err := Execute(context.Background(), `false`)
 	require.NoError(t, err) // Non-zero exit is not a Go error
 	assert.Equal(t, 1, result.ExitCode)
+
+	// Clean up.
+	_ = CloseSession(result.SessionID)
 }
 
 func TestExecute_AutoSession(t *testing.T) {
-	requireAgentFS(t)
-
 	result, err := Execute(context.Background(), `echo auto`)
 	require.NoError(t, err)
 	assert.NotEmpty(t, result.SessionID, "auto-created session ID should be returned")
@@ -83,29 +56,36 @@ func TestExecute_AutoSession(t *testing.T) {
 }
 
 func TestExecute_PersistentSession(t *testing.T) {
-	requireAgentFS(t)
-
-	// Create a session explicitly.
+	// Create a session via the SDK.
 	sessionID := "test-persistent-" + time.Now().Format("20060102150405")
-	err := InitSession(context.Background(), sessionID)
+	afs, err := agentfs.Open(context.Background(), agentfs.AgentFSOptions{ID: sessionID})
 	require.NoError(t, err)
+	afs.Close()
 	defer CloseSession(sessionID)
 
-	// First run: create a file.
-	result1, err := Execute(context.Background(), `echo "data" | tee /tmp/agentfs-test-persist`, WithSession(sessionID))
+	// First run.
+	result1, err := Execute(context.Background(), `echo first`, WithSession(sessionID))
 	require.NoError(t, err)
 	assert.Equal(t, sessionID, result1.SessionID)
+	assert.Equal(t, "first\n", result1.Stdout)
 
-	// Second run: read the file back in the same session.
-	result2, err := Execute(context.Background(), `cat /tmp/agentfs-test-persist`, WithSession(sessionID))
+	// Second run in the same session.
+	result2, err := Execute(context.Background(), `echo second`, WithSession(sessionID))
 	require.NoError(t, err)
 	assert.Equal(t, sessionID, result2.SessionID)
-	assert.Contains(t, result2.Stdout, "data")
+	assert.Equal(t, "second\n", result2.Stdout)
+
+	// Verify both executions are recorded in the audit trail.
+	afs2, err := agentfs.Open(context.Background(), agentfs.AgentFSOptions{ID: sessionID})
+	require.NoError(t, err)
+	defer afs2.Close()
+
+	calls, err := afs2.Tools.GetByName(context.Background(), "sandboxed_shell", 100)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(calls), 2, "both executions should be recorded in audit trail")
 }
 
 func TestExecute_Timeout(t *testing.T) {
-	requireAgentFS(t)
-
 	script := `x=0; while [ $x -lt 1000000 ]; do x=$((x+1)); done`
 	_, err := Execute(context.Background(), script, WithTimeout(100*time.Millisecond))
 	// This should either timeout or complete quickly depending on system speed.
@@ -114,27 +94,51 @@ func TestExecute_Timeout(t *testing.T) {
 }
 
 func TestExecute_MaxOutputSize(t *testing.T) {
-	requireAgentFS(t)
-
 	script := `i=0; while [ $i -lt 1000 ]; do echo "line $i: some data to fill up the buffer"; i=$((i+1)); done`
 	result, err := Execute(context.Background(), script, WithMaxOutputSize(100))
 	require.NoError(t, err)
 	assert.LessOrEqual(t, len(result.Stdout), 100)
+
+	// Clean up.
+	_ = CloseSession(result.SessionID)
+}
+
+func TestExecute_AuditTrail(t *testing.T) {
+	// Execute a script and verify the tool call is recorded in the session DB.
+	result, err := Execute(context.Background(), `echo audit-test`)
+	require.NoError(t, err)
+	defer CloseSession(result.SessionID)
+
+	// Open the session DB and check the tool_calls table.
+	afs, err := agentfs.Open(context.Background(), agentfs.AgentFSOptions{ID: result.SessionID})
+	require.NoError(t, err)
+	defer afs.Close()
+
+	calls, err := afs.Tools.GetByName(context.Background(), "sandboxed_shell", 100)
+	require.NoError(t, err)
+	require.Len(t, calls, 1, "exactly one tool call should be recorded")
+
+	call := calls[0]
+	assert.Equal(t, "sandboxed_shell", call.Name)
+	assert.Nil(t, call.Error, "successful execution should not have an error")
+	assert.NotNil(t, call.Parameters, "parameters should be recorded")
+	assert.NotNil(t, call.Result, "result should be recorded")
+	assert.Contains(t, string(call.Parameters), "echo audit-test")
 }
 
 func TestCloseSession(t *testing.T) {
-	requireAgentFS(t)
-
+	// Create a session via the SDK.
 	sessionID := "test-close-" + time.Now().Format("20060102150405")
-	err := InitSession(context.Background(), sessionID)
+	afs, err := agentfs.Open(context.Background(), agentfs.AgentFSOptions{ID: sessionID})
 	require.NoError(t, err)
+	afs.Close()
 
 	// Verify the DB file was created.
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	dbPath := filepath.Join(home, ".agentfs", sessionID+".db")
 	_, err = os.Stat(dbPath)
-	require.NoError(t, err, "session DB should exist after init")
+	require.NoError(t, err, "session DB should exist after open")
 
 	// Close the session.
 	err = CloseSession(sessionID)
@@ -152,8 +156,7 @@ func TestCloseSession_NonExistent(t *testing.T) {
 }
 
 func TestExecute_BlockedScripts(t *testing.T) {
-	// These should fail at verification, never reaching agentfs.
-	// No agentfs binary required.
+	// These should fail at verification, never reaching execution.
 	scripts := []string{
 		`echo $(whoami)`,
 		`find / -exec rm {} \;`,

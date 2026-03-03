@@ -40,16 +40,12 @@ type RunSandboxedOutputs struct {
 	SessionID      string `json:"sessionId"` // always returned (created or reused)
 }
 
-// Run executes a sandboxed shell command inside an agentfs overlay.
+// Run executes a sandboxed shell command with agentfs session tracking.
 func (h *RunSandboxedHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	if err := sandboxed.CheckAvailability(); err != nil {
-		return nil, util.DefaultActionError(fmt.Errorf("sandboxed shell unavailable: %w", err))
-	}
-
 	inputs, err := types.ExtractInputs[RunSandboxedInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionError(fmt.Errorf("failed to extract inputs: %w", err))

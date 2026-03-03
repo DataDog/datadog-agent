@@ -96,7 +96,7 @@ func getFullManual() *GetManualOutputs {
 		Limits: map[string]string{
 			"defaultTimeout": "30s",
 			"maxOutputBytes": "1048576",
-			"sandboxing":     "agentfs overlay filesystem (copy-on-write)",
+			"sandboxing":     "agentfs session tracking (audit trail, virtual filesystem)",
 		},
 	}
 }

@@ -4,8 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package sandboxed provides sandboxed shell script execution. It verifies
-// scripts using the verifier package and executes them inside an agentfs
-// overlay filesystem sandbox via the agentfs CLI.
+// scripts using the verifier package and executes them with agentfs session
+// tracking via the Go SDK.
 package sandboxed
 
 import (
@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/shell/verifier"
 	"github.com/google/uuid"
+	agentfs "github.com/tursodatabase/agentfs/sdk/go"
 )
 
 const (
@@ -29,9 +30,6 @@ const (
 	// DefaultMaxOutputBytes is the maximum output size (1MB).
 	DefaultMaxOutputBytes = 1 << 20 // 1MB
 )
-
-// ErrAgentFSNotFound is returned when the agentfs binary is not on PATH.
-var ErrAgentFSNotFound = errors.New("agentfs binary not found in PATH")
 
 // Result contains the output of an executed sandboxed script.
 type Result struct {
@@ -81,25 +79,6 @@ func WithSession(id string) Option {
 	}
 }
 
-// CheckAvailability verifies that the agentfs binary is available on PATH.
-func CheckAvailability() error {
-	_, err := exec.LookPath("agentfs")
-	if err != nil {
-		return ErrAgentFSNotFound
-	}
-	return nil
-}
-
-// InitSession creates a new agentfs session by running `agentfs init <id>`.
-func InitSession(ctx context.Context, sessionID string) error {
-	cmd := exec.CommandContext(ctx, "agentfs", "init", sessionID)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("agentfs init failed: %w: %s", err, string(output))
-	}
-	return nil
-}
-
 // CloseSession removes the agentfs session database and associated WAL/SHM files.
 func CloseSession(sessionID string) error {
 	home, err := os.UserHomeDir()
@@ -124,9 +103,10 @@ func CloseSession(sessionID string) error {
 	return nil
 }
 
-// Execute verifies and executes a shell script inside an agentfs sandbox.
+// Execute verifies and executes a shell script with agentfs session tracking.
 // The script is first verified for safety using the verifier package.
-// If verification passes, the script is executed via agentfs run --session <id> /bin/sh -c <script>.
+// If verification passes, the script is executed via /bin/sh -c with the
+// execution recorded in the agentfs session's audit trail.
 func Execute(ctx context.Context, script string, opts ...Option) (*Result, error) {
 	// Verify the script first.
 	if err := verifier.Verify(script); err != nil {
@@ -146,9 +126,21 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 	sessionID := o.sessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
-		if err := InitSession(ctx, sessionID); err != nil {
-			return nil, fmt.Errorf("failed to create agentfs session: %w", err)
-		}
+	}
+
+	// Open the agentfs session (creates DB if it doesn't exist).
+	afs, err := agentfs.Open(ctx, agentfs.AgentFSOptions{ID: sessionID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to open agentfs session: %w", err)
+	}
+	defer afs.Close()
+
+	// Start tracking this execution in the audit trail.
+	pending, err := afs.Tools.Start(ctx, "sandboxed_shell", map[string]string{
+		"script": script,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start tool call tracking: %w", err)
 	}
 
 	// Create a timeout context if the parent doesn't already have a deadline
@@ -162,9 +154,9 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 		}
 	}
 
-	// Execute via agentfs run.
+	// Execute via /bin/sh -c.
 	start := time.Now()
-	cmd := exec.CommandContext(execCtx, "agentfs", "run", "--session", sessionID, "/bin/sh", "-c", script)
+	cmd := exec.CommandContext(execCtx, "/bin/sh", "-c", script)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &limitedWriter{buf: &stdout, limit: o.maxOutputSize}
@@ -174,7 +166,7 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 		cmd.Env = o.env
 	}
 
-	err := cmd.Run()
+	err = cmd.Run()
 	duration := time.Since(start)
 
 	result := &Result{
@@ -187,9 +179,16 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
+			// Record the non-zero exit as a successful tool call (non-zero exit is not an execution failure).
+			pending.Success(ctx, result) //nolint:errcheck
 		} else {
+			// Record the execution failure in the audit trail.
+			pending.Error(ctx, err) //nolint:errcheck
 			return result, fmt.Errorf("execution failed: %w", err)
 		}
+	} else {
+		// Record successful execution in the audit trail.
+		pending.Success(ctx, result) //nolint:errcheck
 	}
 
 	return result, nil
