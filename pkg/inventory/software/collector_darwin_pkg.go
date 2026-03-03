@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // pkgReceiptsCollector collects software from PKG installer receipts
@@ -30,9 +32,10 @@ type pkgFilesCacheEntry struct {
 
 // pkgFilesCache holds cached results from pkgutil --files queries
 type pkgFilesCache struct {
-	mu    sync.RWMutex
-	cache map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
-	ttl   time.Duration                  // Time-to-live for cache entries
+	mu       sync.RWMutex
+	cache    map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
+	ttl      time.Duration                 // Time-to-live for cache entries
+	sfGroup  singleflight.Group            // deduplicates fetchPkgFiles per pkgID across goroutines
 }
 
 // Default TTL for pkgutil --files cache entries
@@ -76,18 +79,21 @@ func (c *pkgFilesCache) get(pkgID string) []string {
 	}
 	c.mu.RUnlock()
 
-	// Not in cache or expired, fetch it
-	files := fetchPkgFiles(pkgID)
-
-	// Update cache with write lock
-	c.mu.Lock()
-	c.cache[pkgID] = &pkgFilesCacheEntry{
-		Files:     files,
-		Timestamp: now,
+	// Not in cache or expired: use singleflight so only one goroutine runs pkgutil per pkgID
+	v, err, _ := c.sfGroup.Do(pkgID, func() (interface{}, error) {
+		files := fetchPkgFiles(pkgID)
+		c.mu.Lock()
+		c.cache[pkgID] = &pkgFilesCacheEntry{
+			Files:     files,
+			Timestamp: time.Now(),
+		}
+		c.mu.Unlock()
+		return files, nil
+	})
+	if err != nil {
+		return nil
 	}
-	c.mu.Unlock()
-
-	return files
+	return v.([]string)
 }
 
 // prefetch fetches pkgutil --files for multiple packages in parallel

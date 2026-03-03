@@ -9,6 +9,7 @@ package software
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"os"
 	"os/exec"
@@ -48,6 +49,9 @@ const (
 	// installSourceManual indicates the app was installed manually (drag-and-drop, etc.)
 	installSourceManual = "manual"
 )
+
+// plutilConvertTimeout is the max time allowed for plutil to convert a binary plist to XML.
+const plutilConvertTimeout = 10 * time.Second
 
 // defaultCollectors returns the default collectors for production use on macOS
 // These collectors focus on system-level software relevant to IT professionals:
@@ -139,7 +143,9 @@ func readPlistFile(path string) (map[string]string, error) {
 	// Check if it's a binary plist (starts with "bplist")
 	if bytes.HasPrefix(data, []byte("bplist")) {
 		// Convert binary plist to XML using plutil
-		cmd := exec.Command("plutil", "-convert", "xml1", "-o", "-", path)
+		ctx, cancel := context.WithTimeout(context.Background(), plutilConvertTimeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "plutil", "-convert", "xml1", "-o", "-", path)
 		output, err := cmd.Output()
 		if err != nil {
 			return nil, err

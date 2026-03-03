@@ -26,6 +26,26 @@ const softwareTypeMacPorts = "macports"
 // MacPorts stores its registry in a SQLite database at /opt/local/var/macports/registry/registry.db
 type macPortsCollector struct{}
 
+// isMacPortsPort64Bit returns whether the port is 64-bit from its archs value.
+// archs can be a single arch (e.g. "x86_64", "arm64", "noarch", "i386") or space-separated (e.g. "x86_64 arm64").
+// When archs is null or empty (e.g. older registry schema), host64Bit is used as fallback.
+func isMacPortsPort64Bit(archs sql.NullString, host64Bit bool) bool {
+	if !archs.Valid || archs.String == "" {
+		return host64Bit
+	}
+	s := strings.TrimSpace(archs.String)
+	// Explicit 64-bit architectures
+	if strings.Contains(s, "x86_64") || strings.Contains(s, "arm64") {
+		return true
+	}
+	// Architecture-independent; treat as 64-bit when host is 64-bit
+	if s == "noarch" || strings.Contains(s, "noarch") {
+		return host64Bit
+	}
+	// 32-bit or other (e.g. i386, ppc)
+	return false
+}
+
 // Collect reads the MacPorts registry database to enumerate installed ports
 func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 	var entries []*Entry
@@ -46,8 +66,8 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 		macPortsPrefixes = append(macPortsPrefixes, filepath.Join(userHome, ".macports"))
 	}
 
-	// Determine architecture
-	is64Bit := runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
+	// Host 64-bit capability; used when port archs is missing or noarch
+	host64Bit := runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
 
 	for _, prefix := range macPortsPrefixes {
 		// MacPorts registry database location
@@ -80,7 +100,7 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 		// Query installed ports from the registry
 		// The ports table contains: id, name, portfile, url, location, epoch, version, revision, variants, negated_variants, state, date, installtype, archs, requested, os_platform, os_major, cxx_stdlib, cxx_stdlib_overridden
 		rows, err := db.Query(`
-			SELECT name, version, revision, variants, date, requested, state, location
+			SELECT name, version, revision, variants, date, requested, state, location, archs
 			FROM ports
 			WHERE state = 'installed'
 		`)
@@ -95,8 +115,9 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 			var installDate int64
 			var requested int
 			var location sql.NullString
+			var archs sql.NullString
 
-			if err := rows.Scan(&name, &version, &revision, &variants, &installDate, &requested, &state, &location); err != nil {
+			if err := rows.Scan(&name, &version, &revision, &variants, &installDate, &requested, &state, &location, &archs); err != nil {
 				warnings = append(warnings, warnf("failed to scan MacPorts row: %v", err))
 				continue
 			}
@@ -133,6 +154,9 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 				status = status + " (dependency)"
 			}
 
+			// Per-port 64-bit from archs when available; fall back to host when archs is null/empty
+			entryIs64Bit := isMacPortsPort64Bit(archs, host64Bit)
+
 			entry := &Entry{
 				DisplayName: name,
 				Version:     fullVersion,
@@ -140,7 +164,7 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 				Source:      softwareTypeMacPorts,
 				ProductCode: name, // MacPorts uses name as identifier
 				Status:      status,
-				Is64Bit:     is64Bit,
+				Is64Bit:     entryIs64Bit,
 				InstallPath: installPath,
 				UserSID:     username,
 			}
@@ -148,6 +172,9 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 			entries = append(entries, entry)
 		}
 
+		if err := rows.Err(); err != nil {
+			warnings = append(warnings, warnf("error iterating MacPorts registry: %v", err))
+		}
 		rows.Close()
 		db.Close()
 	}
