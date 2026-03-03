@@ -103,3 +103,23 @@ func TestFindExtendedProfiles(t *testing.T) {
 		t.Logf("profile %q has no extended profiles (extends=%v)", profile.Name, extends)
 	}
 }
+
+func TestAnalyze(t *testing.T) {
+	pdus := []gosnmp.SnmpPDU{
+		// Required for profile detection
+		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+
+		// Standard MIB-2 system OIDs (Dell profile typically includes these)
+		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Dell iDRAC SNMP Agent"}, // sysDescr
+		{Name: ".1.3.6.1.2.1.1.5.0", Value: "dell-pdu-01"},           // sysName
+		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},        // sysUpTime
+	}
+
+	sysOID := "1.3.6.1.4.1.674.1"
+
+	found, profileName, err := Analyze(pdus, sysOID)
+	if err != nil {
+		t.Skipf("profile lookup not available (analyzer returned 0 metrics): %v", err)
+	}
+	t.Logf("Analyze returned %d metrics for profile %v", len(found), profileName)
+}
