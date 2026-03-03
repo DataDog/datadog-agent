@@ -16,7 +16,29 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 )
 
+type mockService struct {
+	client ddgostatsd.ClientInterface
+}
+
+func (m *mockService) Get() (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+func (m *mockService) Create(_ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+func (m *mockService) CreateForAddr(_ string, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+func (m *mockService) CreateForHostPort(_ string, _ int, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+var _ statsd.Component = (*mockService)(nil)
+
 // Mock returns a mock for statsd component.
 func Mock(_ *testing.T) statsd.Component {
-	return &ddgostatsd.NoOpClient{}
+	return &mockService{client: &ddgostatsd.NoOpClient{}}
 }
