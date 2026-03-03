@@ -16,10 +16,11 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude internal/tools/independent-lint
 # gazelle:exclude internal/tools/modformatter
 # gazelle:exclude pkg
-# gazelle:exclude rtloader/test
+# gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test
 # gazelle:exclude tools
+# gazelle:exclude .gitlab
 # gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
     name = "gazelle",
@@ -30,6 +31,12 @@ gazelle(
 alias(
     name = "go",
     actual = "@rules_go//go",
+)
+
+# bazel run //:go_mod_tidy_all -- -x
+alias(
+    name = "go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
 )
 
 run_binary(

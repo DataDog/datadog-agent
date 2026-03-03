@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -46,6 +48,39 @@ const (
 
 	maxStartupWaitTimeout = 15 * time.Second
 )
+
+var (
+	// apiKeyRegex matches valid Datadog API keys (32 hexadecimal characters)
+	apiKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
+	// appKeyRegex matches valid Datadog application keys (40 hexadecimal characters)
+	appKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
+)
+
+func validateAPIKey(key string) error {
+	if key == "" {
+		return errors.New("api_key is required but not set")
+	}
+	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
+		return errors.New("api_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
+	}
+	if !apiKeyRegex.MatchString(key) {
+		return fmt.Errorf("api_key has invalid format (expected 32 hexadecimal characters, got %d characters)", len(key))
+	}
+	return nil
+}
+
+func validateAppKey(key string) error {
+	if key == "" {
+		return errors.New("app_key is required but not set")
+	}
+	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
+		return errors.New("app_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
+	}
+	if !appKeyRegex.MatchString(key) {
+		return fmt.Errorf("app_key has invalid format (expected 40 hexadecimal characters, got %d characters)", len(key))
+	}
+	return nil
+}
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
@@ -251,6 +286,14 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	appKey := p.coreConfig.GetString("app_key")
+
+	if err := validateAPIKey(apiKey); err != nil {
+		return nil, fmt.Errorf("invalid api_key: %w", err)
+	}
+
+	if err := validateAppKey(appKey); err != nil {
+		return nil, fmt.Errorf("invalid app_key: %w", err)
+	}
 
 	runnerHostname, err := p.hostnameGetter.Get(ctx)
 	if err != nil {
