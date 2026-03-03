@@ -1,5 +1,6 @@
 # jmxfetch JAR file.
 
+load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -20,10 +21,17 @@ code_sign_jar_macos(
     # signing_identity = "-",
 )
 
+# TODO: Some day we might build an "is_true()" function that unifies
+# the bazel/starlark "True/1" values with the omnibus "true/false".
+# But maybe, the difference will just go away over time.
+sign_jar = env_vars.SIGN_MAC == "true" or env_vars.SIGN_MAC == "1"
+
 pkg_files(
     name = "jar_file",
     srcs = select({
-        "@platforms//os:macos": [":signed_jmxfetch_jar"],
+        "@platforms//os:macos": [
+            ":signed_jmxfetch_jar" if sign_jar else "@jmxfetch//:jmxfetch.jar",
+        ],
         "//conditions:default": ["@jmxfetch//:jmxfetch.jar"],
     }),
     attributes = pkg_attributes(mode = "0644"),

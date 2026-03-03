@@ -6,13 +6,8 @@ entitlements and can skip signing entirely if configured.
 
 The signing identity and entitlements file default to values from
 bazel/constants.bzl but can be overridden per-rule.
-
-Environment variables:
-  - SIGN_MAC: If "true", performs code signing. If not set or "false", just copies the JAR
-  - HARDENED_RUNTIME_MAC: If "true", applies hardened runtime entitlements
 """
 
-load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("//bazel:constants.bzl", "apple_signing_identity")
 
 def _code_sign_jar_macos_impl(ctx):
@@ -24,44 +19,23 @@ def _code_sign_jar_macos_impl(ctx):
     # Get signing parameters, using defaults from constants if not provided
     signing_identity = ctx.attr.signing_identity or apple_signing_identity
 
-    # Check if signing should be performed
-    do_signing = env_vars.SIGN_MAC == "true"
+    # Sign the JAR
+    sign_script = ctx.executable._sign_script
+    args = ctx.actions.args()
+    args.add(input_jar)
+    args.add(output_jar)
+    args.add(signing_identity)
+    args.add(ctx.file.entitlements_file.path)
 
-    if not do_signing:
-        # Just copy the JAR without signing
-        args = ctx.actions.args()
-        args.add(input_jar)
-        args.add(output_jar)
-
-        ctx.actions.run(
-            inputs = [input_jar],
-            outputs = [output_jar],
-            executable = "/bin/cp",
-            arguments = [args],
-            mnemonic = "CopyJar",
-            progress_message = "Copying JAR (signing skipped): {}".format(input_jar.short_path),
-        )
-    else:
-        # Sign the JAR
-        sign_script = ctx.executable._sign_script
-
-        # Build arguments for the signing script
-        args = ctx.actions.args()
-        args.add(input_jar)
-        args.add(output_jar)
-        args.add(signing_identity)
-        args.add(ctx.file.entitlements_file.path)
-
-        ctx.actions.run(
-            inputs = [input_jar, ctx.file.entitlements_file],
-            outputs = [output_jar],
-            tools = [sign_script],
-            executable = sign_script,
-            arguments = [args],
-            mnemonic = "CodeSignJarMacOS",
-            progress_message = "Code-signing JAR: {}".format(input_jar.short_path),
-        )
-
+    ctx.actions.run(
+        inputs = [input_jar, ctx.file.entitlements_file],
+        outputs = [output_jar],
+        tools = [sign_script],
+        executable = sign_script,
+        arguments = [args],
+        mnemonic = "CodeSignJarMacOS",
+        progress_message = "Code-signing JAR: {}".format(input_jar.short_path),
+    )
     return [DefaultInfo(files = depset([output_jar]))]
 
 code_sign_jar_macos = rule(
@@ -97,9 +71,6 @@ code_sign_jar_macos = rule(
 
     This rule unpacks a JAR, signs all native libraries (.so, .dylib, .jnilib),
     and repacks the JAR. The original JAR is never modified.
-
-    Environment variables:
-      - SIGN_MAC: Set to "true" to sign (otherwise just copy the JAR)
 
     Example:
         code_sign_jar_macos(
