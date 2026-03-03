@@ -25,10 +25,11 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	var commandFlag string
 
 	shellCmd := &cobra.Command{
-		Use:    "shell [script-file ...]",
+		Use:    "shell",
 		Short:  "[experimental] Run an embedded shell",
 		Hidden: true,
-		RunE: func(_ *cobra.Command, args []string) error {
+		Args:   cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
 			r, err := interp.New(
 				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
 			)
@@ -36,7 +37,11 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 				return err
 			}
 
-			err = runAll(r, commandFlag, args)
+			var reader io.Reader = os.Stdin
+			if commandFlag != "" {
+				reader = strings.NewReader(commandFlag)
+			}
+			err = run(r, reader)
 			var es interp.ExitStatus
 			if errors.As(err, &es) {
 				os.Exit(int(es))
@@ -49,35 +54,11 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{shellCmd}
 }
 
-func runAll(r *interp.Runner, commandStr string, args []string) error {
-	if commandStr != "" {
-		return run(r, strings.NewReader(commandStr), "")
-	}
-	if len(args) == 0 {
-		return run(r, os.Stdin, "")
-	}
-	for _, path := range args {
-		if err := runPath(r, path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func run(r *interp.Runner, reader io.Reader, name string) error {
-	prog, err := syntax.NewParser().Parse(reader, name)
+func run(r *interp.Runner, reader io.Reader) error {
+	prog, err := syntax.NewParser().Parse(reader, "")
 	if err != nil {
 		return err
 	}
 	r.Reset()
 	return r.Run(context.Background(), prog)
-}
-
-func runPath(r *interp.Runner, path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return run(r, f, path)
 }
