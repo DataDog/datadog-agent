@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"fmt"
@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerhost "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 	wincommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -32,7 +31,7 @@ import (
 
 // testInstallExeSuite is a test suite that uses the exe installer
 type testInstallExeSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestInstallExe tests the usage of the Datadog installer exe to install the Datadog Agent package.
@@ -51,21 +50,21 @@ func TestInstallExe(t *testing.T) {
 // BeforeTest sets up the test
 func (s *testInstallExeSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-	s.SetInstallScriptImpl(installerwindows.NewDatadogInstallExe(s.Env().RemoteHost,
-		installerwindows.WithInstallScriptDevEnvOverrides("CURRENT_AGENT"),
+	s.SetInstallScriptImpl(NewDatadogInstallExe(s.Env().RemoteHost,
+		WithInstallScriptDevEnvOverrides("CURRENT_AGENT"),
 	))
 }
 
 // TestInstallAgentPackage tests installing the Datadog Agent using the Datadog installer exe.
 func (s *testInstallExeSuite) TestInstallAgentPackage() {
 	// Arrange
-	packageConfig, err := installerwindows.NewPackageConfig(
-		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	packageConfig, err := NewPackageConfig(
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 	s.Require().NoError(err)
 
 	// Act
-	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
 	}))
@@ -95,7 +94,7 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 // TestInstallAgentFails asserts various system state when the installer fails to install the Agent package (it's not available)
 func (s *testInstallExeSuite) TestInstallAgentFails() {
 	// Act
-	_, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+	_, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE": "does-not-exist.internal",
 	}))
 	s.Require().Error(err, "expected install to fail because Agent package is not available")
@@ -139,7 +138,7 @@ func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
 	// do not overwrite config values (WINA-2118).
 	output, err := s.InstallScript().Run(
 		// explicitly unset some values that are always set by this Run helper method
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_API_KEY":        "",
 			"DD_SITE":           "",
 			"DD_REMOTE_UPDATES": "",
@@ -197,7 +196,7 @@ func proxyEnvProvisioner() provisioners.PulumiEnvRunFunc[proxyEnv] {
 
 // testInstallExeProxySuite installs via the installer exe while using an HTTP(S) proxy
 //
-// TODO: Can't use installerwindows.BaseSuite because we have a custom env. Would need to make a lot of changes to make it work.
+// TODO: Can't use BaseSuite because we have a custom env. Would need to make a lot of changes to make it work.
 type testInstallExeProxySuite struct {
 	e2e.BaseSuite[proxyEnv]
 }
@@ -247,7 +246,7 @@ func (s *testInstallExeProxySuite) TestInstallAgentPackageWithProxy() {
 		"DD_PROXY_HTTP":  proxyURL,
 		"DD_PROXY_HTTPS": proxyURL,
 	}
-	installExe := installerwindows.NewDatadogInstallExe(windowsHost, installerwindows.WithExtraEnvVars(envVars))
+	installExe := NewDatadogInstallExe(windowsHost, WithExtraEnvVars(envVars))
 	_, err := installExe.Run()
 	s.Require().NoError(err)
 

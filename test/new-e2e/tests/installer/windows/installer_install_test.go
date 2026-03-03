@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installertests implements E2E tests for the Datadog installer package on Windows
-package installertests
+package installer
 
 import (
 	"testing"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
@@ -102,7 +100,7 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 
 	// Act
 	s.InstallWithDiagnostics(
-		installerwindows.WithMSILogFile(logFilename),
+		WithMSILogFile(logFilename),
 	)
 
 	// Assert
@@ -117,7 +115,7 @@ func (s *testInstallerSuite) repair() {
 
 	// Act
 	s.InstallWithDiagnostics(
-		installerwindows.WithMSILogFile("repair.log"),
+		WithMSILogFile("repair.log"),
 	)
 
 	// Assert

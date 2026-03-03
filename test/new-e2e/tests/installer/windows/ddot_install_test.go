@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ddottests implements a minimal E2E test for installing the DDOT OCI package on Windows.
-package ddottests
+package installer
 
 import (
 	"path/filepath"
@@ -12,13 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testDDOTInstallSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestDDOTInstalls installs the DDOT (otel) OCI package via the Datadog installer and verifies files exist.

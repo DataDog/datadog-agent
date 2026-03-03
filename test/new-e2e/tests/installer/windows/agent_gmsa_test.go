@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"fmt"
@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
@@ -70,7 +69,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
+		WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -105,7 +104,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
+		WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 

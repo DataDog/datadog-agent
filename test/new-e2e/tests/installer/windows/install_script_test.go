@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"fmt"
@@ -12,13 +12,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testInstallScriptSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
@@ -53,7 +52,7 @@ func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
 	// Arrange
 	// Act
 	_, err := s.InstallScript().Run(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			// install pre 7.65 version
 			"DD_AGENT_MAJOR_VERSION": "7",
 			"DD_AGENT_MINOR_VERSION": "64.0",
@@ -71,13 +70,13 @@ func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
 		})
 }
 
-func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...installerwindows.PackageOption) {
+func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...PackageOption) {
 	// Arrange
-	packageConfig, err := installerwindows.NewPackageConfig(opts...)
+	packageConfig, err := NewPackageConfig(opts...)
 	s.Require().NoError(err)
 
 	// Act
-	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
 	}))
@@ -99,14 +98,14 @@ func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opt
 func (s *testInstallScriptSuite) installPrevious() {
 	s.mustInstallVersion(
 		s.StableAgentVersion().Version(),
-		installerwindows.WithPackage(s.StableAgentVersion().OCIPackage()),
+		WithPackage(s.StableAgentVersion().OCIPackage()),
 	)
 }
 
 func (s *testInstallScriptSuite) installCurrent() {
 	s.mustInstallVersion(
 		s.CurrentAgentVersion().Version(),
-		installerwindows.WithPackage(s.CurrentAgentVersion().OCIPackage()),
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 }
 

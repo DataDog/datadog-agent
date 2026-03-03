@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package injecttests
+package installer
 
 import (
 	"time"
@@ -12,8 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 
 	"testing"
 )
@@ -32,8 +31,8 @@ func TestAPMInjectInstalls(t *testing.T) {
 func (s *testAPMInjectInstallSuite) BeforeTest(suiteName, testName string) {
 	s.baseSuite.BeforeTest(suiteName, testName)
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSILogFile(testName+"-msiinstall.log"),
-		installerwindows.WithMSIArg("DD_REMOTE_UPDATES=true"),
+		WithMSILogFile(testName+"-msiinstall.log"),
+		WithMSIArg("DD_REMOTE_UPDATES=true"),
 	))
 }
 
@@ -49,8 +48,8 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 
 	// install initial version
 	output, err := s.Installer().InstallPackage("apm-inject-package",
-		installer.WithVersion(initialVersion),
-		installer.WithRegistry("install.datad0g.com"),
+		unixinstaller.WithVersion(initialVersion),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
 
@@ -59,8 +58,8 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
-		installer.WithVersion(upgradeVersion),
-		installer.WithRegistry("install.datad0g.com"),
+		unixinstaller.WithVersion(upgradeVersion),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
 
@@ -79,8 +78,8 @@ func (s *testAPMInjectInstallSuite) TestStopExperiment() {
 
 	// install initial version
 	output, err := s.Installer().InstallPackage("apm-inject-package",
-		installer.WithVersion(initialVersion),
-		installer.WithRegistry("install.datad0g.com"),
+		unixinstaller.WithVersion(initialVersion),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
 
@@ -89,8 +88,8 @@ func (s *testAPMInjectInstallSuite) TestStopExperiment() {
 
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
-		installer.WithVersion(upgradeVersion),
-		installer.WithRegistry("install.datad0g.com"),
+		unixinstaller.WithVersion(upgradeVersion),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
 

@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installertests
+package installer
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
 
 type testInstallerRollbackSuite struct {
@@ -35,8 +34,8 @@ func (s *testInstallerRollbackSuite) installRollback() {
 
 	// Act
 	msiErr := s.Installer().Install(
-		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSILogFile("install-rollback.log"),
+		WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		WithMSILogFile("install-rollback.log"),
 	)
 	s.Require().Error(msiErr)
 
@@ -50,8 +49,8 @@ func (s *testInstallerRollbackSuite) uninstallRollback() {
 
 	// Act
 	msiErr := s.Installer().Uninstall(
-		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSILogFile("uninstall-rollback.log"),
+		WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		WithMSILogFile("uninstall-rollback.log"),
 	)
 	s.Require().Error(msiErr)
 

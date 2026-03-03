@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"os"
@@ -14,7 +14,6 @@ import (
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -54,8 +53,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
-		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
+		WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -91,8 +90,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
-		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
+		WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -159,11 +158,11 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	// Install old Agent version (must be < 7.66.0, which is the first version with LSA support)
 	// This is initial install so we must pass the username and passsord
 	agentVersion := s.StableAgentVersion().Version()
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestUser),
-		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD=" + TestPassword),
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-previous-version.log"),
+		WithMSIArg("DDAGENTUSER_NAME=" + TestUser),
+		WithMSIArg("DDAGENTUSER_PASSWORD=" + TestPassword),
 	}
 	s.Require().NoError(s.Installer().Install(options...))
 	s.Require().Host(s.Env().RemoteHost).
@@ -178,9 +177,9 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	secondVersion, err := s.createSecondStableAgent()
 	s.Require().NoError(err)
 	s.T().Logf("second agent version: %s", secondVersion)
-	options = []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(secondVersion.MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-second-version.log"),
+	options = []MsiOption{
+		WithOption(WithInstallerURL(secondVersion.MSIPackage().URL)),
+		WithMSILogFile("install-second-version.log"),
 	}
 	s.Require().NoError(s.Installer().Install(options...))
 	s.Require().Host(s.Env().RemoteHost).
@@ -211,15 +210,15 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	// should assert that it contains the above error, too.
 }
 
-func (s *testUpgradeWithMissingPasswordSuite) createSecondStableAgent() (*installerwindows.AgentVersionManager, error) {
+func (s *testUpgradeWithMissingPasswordSuite) createSecondStableAgent() (*AgentVersionManager, error) {
 	return s.createStableAgentWithVersion("7.66.1", "7.66.1-1", "SECOND_STABLE_AGENT")
 }
 
-func (s *testUpgradeWithMissingPasswordSuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
+func (s *testUpgradeWithMissingPasswordSuite) createStableAgent() (*AgentVersionManager, error) {
 	return s.createStableAgentWithVersion("7.64.3", "7.64.3-1", "STABLE_AGENT")
 }
 
-func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(version string, versionPackage string, devEnvOverride string) (*installerwindows.AgentVersionManager, error) {
+func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(version string, versionPackage string, devEnvOverride string) (*AgentVersionManager, error) {
 
 	// Get previous version MSI package
 	url, err := windowsagent.GetChannelURL("stable")
@@ -243,10 +242,10 @@ func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(versi
 	}
 
 	// Setup previous Agent artifacts
-	agent, err := installerwindows.NewAgentVersionManager(
+	agent, err := NewAgentVersionManager(
 		version,
 		versionPackage,
-		installerwindows.TestPackageConfig{},
+		TestPackageConfig{},
 		previousMSI,
 	)
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")

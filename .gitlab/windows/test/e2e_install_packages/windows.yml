@@ -132,7 +132,8 @@ new-e2e-windows-ddot-package-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_agent_a7
   variables:
-    TARGETS: ./tests/installer/windows/suites/ddot-package
+    TARGETS: ./tests/installer/windows
+    EXTRA_PARAMS: --run "TestDDOTInstalls|TestAgentMSIInstallsDDOTPackage"
     TEAM: windows-products
   needs:
     - !reference [.needs_new_e2e_template]

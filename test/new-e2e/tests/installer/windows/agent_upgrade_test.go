@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"context"
@@ -16,8 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -28,7 +27,7 @@ import (
 )
 
 type testAgentUpgradeSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestAgentUpgrades tests the usage of the Datadog installer to upgrade the Datadog Agent package.
@@ -122,8 +121,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
-		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+		WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
 
 	// Act
@@ -155,17 +154,17 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	// TODO: build into AgentVersionManager?
 	url := fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", s.StableAgentVersion().PackageVersion())
-	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	installExe := NewDatadogInstallExe(s.Env().RemoteHost)
 	output, err := installExe.Run(
-		installerwindows.WithInstallerURL(url),
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithInstallerURL(url),
+		WithExtraEnvVars(map[string]string{
 			"DD_PROJECTLOCATION":          altInstallPath,
 			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
 			// TODO: these need to be overridden here so they're not overridden by installer.InstallScriptEnv
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
 			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
 		}),
-		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
+		WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
 	s.Require().NoError(s.WaitForInstallerService("Running"))
@@ -243,7 +242,7 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 
 	// Act
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSILogFile("install-current-version-again.log"),
+		WithMSILogFile("install-current-version-again.log"),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
@@ -435,9 +434,9 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
-		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
-		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+		WithOption(WithAgentUser(agentUser)),
+		WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
@@ -510,9 +509,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
-		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
-		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+		WithOption(WithAgentUser(agentUser)),
+		WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
 
 	// Act
@@ -592,7 +591,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	agentUser := "customuser"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		WithOption(WithAgentUser(agentUser)),
 	)
 	// sanity check that the agent is running as the custom user
 	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
@@ -631,7 +630,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 	agentUserExpected := "SYSTEM"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUserInput, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUserInput)),
+		WithOption(WithAgentUser(agentUserInput)),
 	)
 	// sanity check that the agent is running as the custom user
 	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUserInput)
@@ -710,11 +709,11 @@ func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
 	s.Require().NoError(err)
 }
 
-func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
+func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-previous-version.log"),
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
 	s.InstallWithDiagnostics(options...)
@@ -728,12 +727,12 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 		})
 }
 
-func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
+func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...MsiOption) {
 	agentVersion := s.CurrentAgentVersion().Version()
 
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-current-version.log"),
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
 	s.InstallWithDiagnostics(options...)
@@ -755,7 +754,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
 	// Ensure the API key is set for telemetry
-	apiKey := installer.GetAPIKey()
+	apiKey := unixinstaller.GetAPIKey()
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: `+apiKey+`
 site: datadoghq.com
@@ -851,22 +850,22 @@ func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 	s.setTerminatePolicy(false)
 
 	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
-	s.SetInstaller(&installerwindows.DatadogInstallerGA{
-		DatadogInstaller: s.Installer().(*installerwindows.DatadogInstaller),
+	s.SetInstaller(&DatadogInstallerGA{
+		DatadogInstaller: s.Installer().(*DatadogInstaller),
 	})
 }
 
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
-func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
+func (s *testAgentUpgradeFromGASuite) createStableAgent() (*AgentVersionManager, error) {
 	previousVersion := "7.65.2"
 	previousVersionPackage := "7.65.2-1"
 
 	// Get previous version OCI package
-	previousOCI, err := installerwindows.NewPackageConfig(
-		installerwindows.WithName(consts.AgentPackage),
-		installerwindows.WithVersion(previousVersion),
-		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
+	previousOCI, err := NewPackageConfig(
+		WithName(consts.AgentPackage),
+		WithVersion(previousVersion),
+		WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
@@ -892,7 +891,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	}
 
 	// Setup previous Agent artifacts
-	agent, err := installerwindows.NewAgentVersionManager(
+	agent, err := NewAgentVersionManager(
 		previousVersion,
 		previousVersionPackage,
 		previousOCI,

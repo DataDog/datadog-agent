@@ -3,20 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dotnettests
+package installer
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
 )
 
 type testDotnetLibraryInstallSuiteWithoutIIS struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestDotnetInstalls tests the usage of the Datadog installer to install the apm-library-dotnet-package package.
@@ -32,8 +31,8 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 
 	// TODO: remove override once image is published in prod
 	_, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
-		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		unixinstaller.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
+		unixinstaller.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoError(err, "Installing the dotnet library package without IIS should not fail")
 }
@@ -41,11 +40,11 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestMSIInstallDotnetLibraryFailsWithoutIIS() {
 	version := "3.19.0-pipeline.67351320.beta.sha-c05ddfb1"
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version),
-		installerwindows.WithMSILogFile("install-rollback.log"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version),
+		WithMSILogFile("install-rollback.log"),
 	))
 	defer s.Installer().Purge()
 

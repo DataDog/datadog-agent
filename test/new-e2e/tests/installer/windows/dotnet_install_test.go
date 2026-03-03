@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dotnettests
+package installer
 
 import (
 	_ "embed"
@@ -12,17 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
 )
 
 var (
-	//go:embed resources/web.config
+	//go:embed resources/dotnet/web.config
 	webConfigFile []byte
-	//go:embed resources/index.aspx
+	//go:embed resources/dotnet/index.aspx
 	aspxFile []byte
 )
 
@@ -39,7 +38,7 @@ func TestDotnetLibraryInstalls(t *testing.T) {
 
 func (s *testDotnetLibraryInstallSuite) BeforeTest(suiteName, testName string) {
 	s.baseIISSuite.BeforeTest(suiteName, testName)
-	s.Require().NoError(s.Installer().Install(installerwindows.WithMSILogFile(testName + "-msiinstall.log")))
+	s.Require().NoError(s.Installer().Install(WithMSILogFile(testName + "-msiinstall.log")))
 }
 
 func (s *testDotnetLibraryInstallSuite) AfterTest(suiteName, testName string) {
@@ -181,8 +180,8 @@ func (s *testDotnetLibraryInstallSuite) TestRemoveCorruptedPackageFails() {
 func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibrary() {
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
-		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		unixinstaller.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
+		unixinstaller.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
 }
@@ -190,8 +189,8 @@ func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibrary() {
 func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibraryWithVersion(version string) {
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion(version),
-		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		unixinstaller.WithVersion(version),
+		unixinstaller.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
 }

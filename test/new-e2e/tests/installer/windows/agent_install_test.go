@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agenttests implements E2E tests for the Datadog Agent package on Windows
-package agenttests
+package installer
 
 import (
 	"path/filepath"
@@ -13,14 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"testing"
 )
 
 type testAgentInstallSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
@@ -58,7 +56,7 @@ func (s *testAgentInstallSuite) installAgent() {
 }
 
 func (s *testAgentInstallSuite) installAgentViaSetupScript() {
-	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	installExe := NewDatadogInstallExe(s.Env().RemoteHost)
 
 	// Act - This calls the same path as Fleet Automation setup script: installer.exe setup --flavor default
 	output, err := installExe.Run()

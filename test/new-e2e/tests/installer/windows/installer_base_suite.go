@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installertests
+package installer
 
 import (
 	"embed"
 
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -19,7 +18,7 @@ var fixturesFS embed.FS
 
 // baseInstallerPackageSuite is the base test suite for tests of the installer MSI
 type baseInstallerPackageSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 func (s *baseInstallerPackageSuite) freshInstall() {
@@ -27,7 +26,7 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 
 	// Act
 	s.InstallWithDiagnostics(
-		installerwindows.WithMSILogFile("fresh-install.log"),
+		WithMSILogFile("fresh-install.log"),
 	)
 
 	// Assert

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package injecttests
+package installer
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 
 	"testing"
 )
@@ -38,7 +37,7 @@ func (s *testAgentScriptInstallsAPMInject) AfterTest(suiteName, testName string)
 func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 	// Act
 	s.installCurrentAgentVersionWithAPMInject(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "host",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
@@ -54,7 +53,7 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
-func (s *testAgentScriptInstallsAPMInject) installCurrentAgentVersionWithAPMInject(opts ...installerwindows.Option) {
+func (s *testAgentScriptInstallsAPMInject) installCurrentAgentVersionWithAPMInject(opts ...Option) {
 	output, err := s.InstallScript().Run(opts...)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)

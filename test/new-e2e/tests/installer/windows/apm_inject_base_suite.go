@@ -3,34 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package injecttests contains the E2E tests for the APM Inject package.
-package injecttests
+package installer
 
 import (
 	"os"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
-
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
 
 type baseSuite struct {
-	installerwindows.BaseSuite
-	currentAPMInjectVersion  installerwindows.PackageVersion
-	previousAPMInjectVersion installerwindows.PackageVersion
+	BaseSuite
+	currentAPMInjectVersion  PackageVersion
+	previousAPMInjectVersion PackageVersion
 }
 
 func (s *baseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
-	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
+	s.currentAPMInjectVersion = NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b282e14.glci1291404213.g7ff18a26-1")
+		s.currentAPMInjectVersion = NewVersionFromPackageVersion("0.52.0-dev.b282e14.glci1291404213.g7ff18a26-1")
 	}
-	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
+	s.previousAPMInjectVersion = NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
-		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
+		s.previousAPMInjectVersion = NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
 	}
 }
 func (s *baseSuite) assertSuccessfulPromoteExperiment() {

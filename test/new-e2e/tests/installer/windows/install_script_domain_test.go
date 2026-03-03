@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"fmt"
@@ -12,21 +12,14 @@ import (
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
 	"testing"
 )
 
-const (
-	TestDomain   = "datadogqalab.com"
-	TestUser     = "TestUser"
-	TestPassword = "Test1234#"
-)
-
 type testInstallScriptOnDCSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestInstallScriptWithAgentUserOnDC tests tests the Datadog Install script with a custom user and password on a Domain Controller.
@@ -50,7 +43,7 @@ func (s *testInstallScriptOnDCSuite) TestInstallScriptWithAgentUser() {
 	// Arrange
 
 	// Act
-	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+	out, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
 		"DD_AGENT_USER_NAME":     TestUser,
 		"DD_AGENT_USER_PASSWORD": TestPassword,
 	}))

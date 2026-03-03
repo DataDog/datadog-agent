@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ddottests implements E2E tests for installing the DDOT OCI package via the Agent MSI on Windows.
-package ddottests
+package installer
 
 import (
 	"path/filepath"
@@ -12,13 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 )
 
 type testAgentMSIInstallsDDOT struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestAgentMSIInstallsDDOTPackage verifies the Agent MSI can install and remove the DDOT OCI package.
@@ -39,12 +37,12 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 
 	// Act: install current Agent MSI; opt-in to DDOT via DD_OTELCOLLECTOR_ENABLED
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-ddot.log"),
-		installerwindows.WithMSIArg("APIKEY="+installer.GetAPIKey()),
-		installerwindows.WithMSIArg("SITE=datadoghq.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
+		WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-ddot.log"),
+		WithMSIArg("APIKEY="+unixinstaller.GetAPIKey()),
+		WithMSIArg("SITE=datadoghq.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
 	))
 
 	// Assert: DDOT package stable directory exists and contains otel-agent.exe
@@ -61,12 +59,12 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 	s.installPreviousAgentVersion()
 	// Install current Agent MSI with DDOT enabled via DD_OTELCOLLECTOR_ENABLED
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-ddot.log"),
-		installerwindows.WithMSIArg("APIKEY="+installer.GetAPIKey()),
-		installerwindows.WithMSIArg("SITE=datadoghq.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
+		WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-ddot.log"),
+		WithMSIArg("APIKEY="+unixinstaller.GetAPIKey()),
+		WithMSIArg("SITE=datadoghq.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
 	))
 
 	stableDir := consts.GetStableDirFor("datadog-agent-ddot")
@@ -74,7 +72,7 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 
 	// Act: uninstall the Agent (DDOT and other OCI packages are purged by default)
 	s.Require().NoError(s.Installer().Uninstall(
-		installerwindows.WithMSILogFile("uninstall-ddot.log"),
+		WithMSILogFile("uninstall-ddot.log"),
 	))
 
 	// Assert: DDOT package directory removed
@@ -82,13 +80,13 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 }
 
 // installPreviousAgentVersion mirrors the helper used in other MSI suites to lay down the stable agent first.
-func (s *testAgentMSIInstallsDDOT) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
+func (s *testAgentMSIInstallsDDOT) installPreviousAgentVersion(opts ...MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg("APIKEY=" + installer.GetAPIKey()),
-		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-previous-version.log"),
+		WithMSIArg("APIKEY=" + unixinstaller.GetAPIKey()),
+		WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
 	s.Require().NoError(s.Installer().Install(options...))

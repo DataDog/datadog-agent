@@ -3,16 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package dotnettests contains the E2E tests for the .NET APM Library package.
-package dotnettests
-
-import (
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
-)
+package installer
 
 type baseIISSuite struct {
-	installerwindows.BaseSuite
-	iisHelper *installerwindows.IISHelper
+	BaseSuite
+	iisHelper *IISHelper
 }
 
 func (s *baseIISSuite) SetupSuite() {
@@ -20,7 +15,7 @@ func (s *baseIISSuite) SetupSuite() {
 	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
-	s.iisHelper = installerwindows.NewIISHelper(s)
+	s.iisHelper = NewIISHelper(s)
 	s.iisHelper.SetupIIS()
 }
 

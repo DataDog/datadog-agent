@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dotnettests
+package installer
 
 import (
 	"fmt"
@@ -11,15 +11,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 
 	"testing"
 )
 
 type testAgentScriptInstallsDotnetLibrary struct {
 	baseIISSuite
-	previousDotnetLibraryVersion installerwindows.PackageVersion
-	currentDotnetLibraryVersion  installerwindows.PackageVersion
+	previousDotnetLibraryVersion PackageVersion
+	currentDotnetLibraryVersion  PackageVersion
 }
 
 // TestDotnetInstalls tests the usage of the Datadog installer and the MSI to install the apm-library-dotnet-package package.
@@ -32,13 +31,13 @@ func TestAgentScriptInstallsDotnetLibrary(t *testing.T) {
 func (s *testAgentScriptInstallsDotnetLibrary) SetupSuite() {
 	s.baseIISSuite.SetupSuite()
 
-	s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_DOTNET_VERSION_PACKAGE"))
+	s.previousDotnetLibraryVersion = NewVersionFromPackageVersion(os.Getenv("PREVIOUS_DOTNET_VERSION_PACKAGE"))
 	if s.previousDotnetLibraryVersion.PackageVersion() == "" {
-		s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1")
+		s.previousDotnetLibraryVersion = NewVersionFromPackageVersion("3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1")
 	}
-	s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_DOTNET_VERSION_PACKAGE"))
+	s.currentDotnetLibraryVersion = NewVersionFromPackageVersion(os.Getenv("CURRENT_DOTNET_VERSION_PACKAGE"))
 	if s.currentDotnetLibraryVersion.PackageVersion() == "" {
-		s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1")
+		s.currentDotnetLibraryVersion = NewVersionFromPackageVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1")
 	}
 }
 
@@ -54,7 +53,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 
 	// Act
 	s.installCurrentAgentVersion(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
@@ -73,7 +72,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 }
 
 // installCurrentAgentVersion installs the current agent version with script
-func (s *testAgentScriptInstallsDotnetLibrary) installCurrentAgentVersion(opts ...installerwindows.Option) {
+func (s *testAgentScriptInstallsDotnetLibrary) installCurrentAgentVersion(opts ...Option) {
 	output, err := s.InstallScript().Run(opts...)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)

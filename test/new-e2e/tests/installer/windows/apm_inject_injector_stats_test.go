@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package injecttests contains E2E tests for the Injector package.
 // This file tests the injector statistics reporting functionality through system-probe.
-package injecttests
+package installer
 
 import (
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -44,7 +42,7 @@ func (s *testInjectorStats) AfterTest(suiteName, testName string) {
 func (s *testInjectorStats) TestQueryStatsViaSystemProbe() {
 	// Install agent with APM inject enabled
 	s.installCurrentAgentVersionWithAPMInject(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "host",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
@@ -69,7 +67,7 @@ func (s *testInjectorStats) TestQueryStatsViaSystemProbe() {
 func (s *testInjectorStats) TestQueryStatsAfterInjection() {
 	// Install agent with APM inject enabled
 	s.installCurrentAgentVersionWithAPMInject(
-		installerwindows.WithExtraEnvVars(map[string]string{
+		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "host",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
@@ -259,7 +257,7 @@ func (s *testInjectorStats) writeYamlConfig(path string, config map[string]inter
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
-func (s *testInjectorStats) installCurrentAgentVersionWithAPMInject(opts ...installerwindows.Option) {
+func (s *testInjectorStats) installCurrentAgentVersionWithAPMInject(opts ...Option) {
 	output, err := s.InstallScript().Run(opts...)
 	if s.NoError(err) {
 		fmt.Printf("%s\n", output)

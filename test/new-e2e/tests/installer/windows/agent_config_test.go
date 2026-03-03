@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"encoding/json"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -55,9 +54,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	configSDDLBeforeExperiment := perms.SDDL
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -113,9 +112,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	configSDDLBeforeExperiment := perms.SDDL
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path: "/datadog.yaml",
 				// TODO: This used to trigger an "unknown secret" error that would
@@ -179,9 +178,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 
 	// Act
 	// Set config values that will cause the Agent to start the non-default services
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"process_config": {"process_collection": {"enabled": true}}}`),
@@ -231,9 +230,9 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -277,9 +276,9 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.setWatchdogTimeout(2)
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -329,9 +328,9 @@ func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
 		WithValueEqual("log_to_console", true)
 
 	// Set up a custom configuration
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "pre-upgrade-config",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -373,8 +372,8 @@ func (s *testAgentConfigSuite) TestConfigAltDir() {
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
-		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+		WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
 
 	// Assert that setup was successful
@@ -384,9 +383,9 @@ func (s *testAgentConfigSuite) TestConfigAltDir() {
 		WithValueEqual("log_to_console", true)
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -422,7 +421,7 @@ func (s *testAgentConfigSuite) TestConfigCustomUser() {
 	agentUser := "customuser"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installCurrentAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		WithOption(WithAgentUser(agentUser)),
 	)
 	// sanity check that the agent is running as the custom user
 	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
@@ -441,9 +440,9 @@ func (s *testAgentConfigSuite) TestConfigCustomUser() {
 		WithValueEqual("log_to_console", true)
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -480,9 +479,9 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installCurrentAgentVersion(
-		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
-		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
-		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+		WithOption(WithAgentUser(agentUser)),
+		WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
 
 	// Assert that setup was successful
@@ -492,9 +491,9 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 		WithValueEqual("log_to_console", true)
 
 	// Act
-	config := installerwindows.ConfigExperiment{
+	config := ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.ConfigExperimentFile{
+		Files: []ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_to_console": false}`),
@@ -522,7 +521,7 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
 
-func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
+func (s *testAgentConfigSuite) mustStartConfigExperiment(config ConfigExperiment) {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
 		s.Require().NoError(err, "daemon should stop cleanly")
@@ -531,7 +530,7 @@ func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows
 	s.AssertSuccessfulConfigStartExperiment(config.ID)
 }
 
-func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config installerwindows.ConfigExperiment) {
+func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config ConfigExperiment) {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().PromoteConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")

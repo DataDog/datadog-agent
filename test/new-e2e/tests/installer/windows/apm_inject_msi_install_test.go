@@ -3,27 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package injecttests
+package installer
 
 import (
 	_ "embed"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
+	unixinstaller "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
 )
 
 var (
-	//go:embed resources/web.config
-	webConfigFile []byte
-	//go:embed resources/index.aspx
-	aspxFile []byte
-	//go:embed resources/DummyApp.java
-	javaAppFile []byte
+	//go:embed resources/apm-inject/web.config
+	apmInjectWebConfigFile []byte
+	//go:embed resources/apm-inject/index.aspx
+	apmInjectAspxFile []byte
+	//go:embed resources/apm-inject/DummyApp.java
+	apmInjectJavaAppFile []byte
 )
 
 type testAgentMSIInstallsAPMInject struct {
@@ -46,12 +45,12 @@ func (s *testAgentMSIInstallsAPMInject) AfterTest(suiteName, testName string) {
 func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 	// Act
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
-		installerwindows.WithMSILogFile("install.log"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
+		WithMSILogFile("install.log"),
 	)
 
 	// Verify the package is installed
@@ -64,12 +63,12 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 	// Act
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
-		installerwindows.WithMSILogFile("install.log"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
+		WithMSILogFile("install.log"),
 	)
 
 	// Verify the package is installed
@@ -91,17 +90,17 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 // TestInstallFromMSIWithIIS tests the Agent MSI can install the APM inject package with IIS instrumentation
 func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
 	// Setup IIS
-	iisHelper := installerwindows.NewIISHelper(s)
+	iisHelper := NewIISHelper(s)
 	iisHelper.SetupIIS()
 
 	// Install with IIS instrumentation
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3"),
-		installerwindows.WithMSILogFile("install.log"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3"),
+		WithMSILogFile("install.log"),
 	)
 
 	// Verify the package is installed
@@ -109,7 +108,7 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
 
 	// Start the IIS app to load the library
 	defer iisHelper.StopIISApp()
-	iisHelper.StartIISApp(webConfigFile, aspxFile)
+	iisHelper.StartIISApp(apmInjectWebConfigFile, apmInjectAspxFile)
 
 	// Check that the .NET tracer is loaded
 	libraryPath := iisHelper.GetLibraryPathFromInstrumentedIIS()
@@ -120,36 +119,36 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
 // TestInstallFromMSIWithJava tests the Agent MSI can install the APM inject package with Java instrumentation
 func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithJava() {
 	// Setup Java
-	javaHelper := installerwindows.NewJavaHelper(s)
+	javaHelper := NewJavaHelper(s)
 	javaHelper.SetupJava()
 
 	// Install with Java instrumentation
 	s.installCurrentAgentVersion(
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
-		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
-		installerwindows.WithMSILogFile("install.log"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
+		WithMSILogFile("install.log"),
 	)
 
 	// Verify the package is installed
 	s.assertSuccessfulPromoteExperiment()
 
 	// Start the Java app and check that the Datadog tracer is loaded
-	output := javaHelper.StartJavaApp(javaAppFile)
+	output := javaHelper.StartJavaApp(apmInjectJavaAppFile)
 	s.Require().Contains(output, "Datadog Tracer is available", "Datadog tracer should be loaded when instrumentation is enabled")
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
-func (s *testAgentMSIInstallsAPMInject) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
+func (s *testAgentMSIInstallsAPMInject) installCurrentAgentVersion(opts ...MsiOption) {
 	agentVersion := s.CurrentAgentVersion().Version()
 
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-current-version.log"),
-		installerwindows.WithMSIArg("APIKEY=" + installer.GetAPIKey()),
-		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-current-version.log"),
+		WithMSIArg("APIKEY=" + unixinstaller.GetAPIKey()),
+		WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
 	s.Require().NoError(s.Installer().Install(
