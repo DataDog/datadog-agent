@@ -12,6 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
+const (
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
+	maxActive = 512
+)
+
 // NewTracer returns a new Tracer
 func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, error) {
 	if cfg.EnableEbpfless {

@@ -90,15 +90,6 @@ const (
 	connStatEstablished
 )
 
-// connStatusLabels is used by labelForState in tests (tcp_processor_test.go).
-//
-//nolint:unused
-var connStatusLabels = []string{
-	"Closed",
-	"Attempted",
-	"Established",
-}
-
 type synState uint8
 
 const (
@@ -136,17 +127,6 @@ func (ss *synState) update(synFlag, ackFlag bool) {
 }
 func (ss *synState) isSynAcked() bool {
 	return *ss == synStateAcked || *ss == synStateMissed
-}
-
-// labelForState is used in tcp_processor_test.go.
-//
-//nolint:unused
-func labelForState(tcpState connStatus) string {
-	idx := int(tcpState)
-	if idx < len(connStatusLabels) {
-		return connStatusLabels[idx]
-	}
-	return "BadState-" + strconv.Itoa(idx)
 }
 
 func isSeqBefore(prev, cur uint32) bool {
