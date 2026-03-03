@@ -9,7 +9,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,17 +30,17 @@ func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
 	return nil
 }
 
-// getRemoteProcessTags returns process tags for a remote PID using the tagger.
-func getRemoteProcessTags(pid int32, _ map[uint32][]string, processTagProvider func(int32) ([]string, error)) []string {
-	if processTagProvider == nil {
-		return nil
-	}
-	tags, err := processTagProvider(pid)
+// getRemoteProcessTags returns process tags for a remote PID by reading DD_SERVICE directly from /proc/<pid>/environ.
+func getRemoteProcessTags(pid int32, _ map[uint32][]string, _ func(int32) ([]string, error)) []string {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(int(pid)), "environ"))
 	if err != nil {
-		log.Debugf("error getting process tags for remote pid %d: %v", pid, err)
+		log.Debugf("Unable to read environ for pid %d: %v", pid, err)
 		return nil
 	}
-	return tags
+	if svc, ok := parser.ChooseServiceNameFromEnvs(strings.Split(string(data), "\x00")); ok {
+		return []string{"process_context:" + svc}
+	}
+	return nil
 }
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
