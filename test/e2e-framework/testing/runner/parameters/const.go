@@ -83,6 +83,8 @@ const (
 	CoveragePipeline StoreKey = "coverage_pipeline"
 	// CoverageOutDir config flag parameter name
 	CoverageOutDir StoreKey = "coverage_out_dir"
+	// SkipWindows skips Windows infrastructure and workloads in tests
+	SkipWindows StoreKey = "skip_windows"
 )
 
 const (

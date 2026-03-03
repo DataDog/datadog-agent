@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

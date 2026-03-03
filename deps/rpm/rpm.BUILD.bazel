@@ -322,6 +322,7 @@ pkg_filegroup(
         ":librpm_files",
         ":misc_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

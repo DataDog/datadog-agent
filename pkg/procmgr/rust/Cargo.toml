@@ -12,5 +12,12 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 log.workspace = true
+nix = { workspace = true, features = ["signal", "process"] }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
 simple_logger = { workspace = true, features = ["timestamps"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
+
+[dev-dependencies]
+nix = { workspace = true, features = ["signal", "process", "user"] }
+tempfile.workspace = true
