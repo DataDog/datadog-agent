@@ -618,6 +618,7 @@ func (o *observerImpl) processProfile(source string, p *profileObs) {
 // GetHandle returns a lightweight handle for a named source.
 // If a recorder is configured, the handle will be wrapped to record metrics.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
+	pkglog.Infof("[observer] getting handle for %s", name)
 	return o.handleFunc(name)
 }
 
