@@ -283,6 +283,8 @@ function App() {
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
+            timeRange={activeTimeRange}
+            onTimeRangeChange={setTimeRange}
           />
         </div>
       </div>
