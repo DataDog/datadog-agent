@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-istio-gateway
+  namespace: appsec-gw-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-istio-gateway
+      istio: ingressgateway
+  template:
+    metadata:
+      labels:
+        app: test-istio-gateway
+        istio: ingressgateway
+    spec:
+      containers:
+      - name: istio-proxy
+        image: nginx:alpine
+        ports:
+        - containerPort: 80

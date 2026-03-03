@@ -304,7 +304,7 @@ func TestDeleted_SuccessfulDeletion(t *testing.T) {
 
 	// Pre-create the EnvoyFilter
 	existingFilter := newTestEnvoyFilter("istio-system")
-	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
+	client := newFakeDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -343,7 +343,7 @@ func TestDeleted_FilterAlreadyDeleted(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme) // No existing filter
+	client := newFakeDynamicClient(scheme) // No existing filter
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -459,7 +459,7 @@ func TestDeleted_GetFilterError(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
-	client := dynamicfake.NewSimpleDynamicClient(scheme)
+	client := newFakeDynamicClient(scheme)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
@@ -498,7 +498,7 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 
 	// Pre-create the EnvoyFilter
 	existingFilter := newTestEnvoyFilter("istio-system")
-	client := dynamicfake.NewSimpleDynamicClient(scheme, existingFilter)
+	client := newFakeDynamicClient(scheme, existingFilter)
 
 	config := appsecconfig.Config{
 		Product: appsecconfig.Product{
