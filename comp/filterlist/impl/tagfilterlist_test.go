@@ -85,10 +85,10 @@ func TestPrefixAlternation(t *testing.T) {
 			// Verify matching behaviour via the full regex.
 			re := buildTagRegex(tc.input)
 			for _, s := range tc.match {
-				assert.True(t, re.MatchString(s), "expected %q to match", s)
+				assert.True(t, re.isMatch(s), "expected %q to match", s)
 			}
 			for _, s := range tc.nomatch {
-				assert.False(t, re.MatchString(s), "expected %q not to match", s)
+				assert.False(t, re.isMatch(s), "expected %q not to match", s)
 			}
 		})
 	}
@@ -115,9 +115,9 @@ func TestNewTagMatcher(t *testing.T) {
 	m1 := matcher.MetricTags["metric1"]
 	assert.Equal(t, Exclude, m1.action)
 	assert.NotNil(t, m1.tagRegex)
-	assert.True(t, m1.tagRegex.MatchString("env"))
-	assert.True(t, m1.tagRegex.MatchString("host"))
-	assert.False(t, m1.tagRegex.MatchString("pod"))
+	assert.True(t, m1.tagRegex.isMatch("env"))
+	assert.True(t, m1.tagRegex.isMatch("host"))
+	assert.False(t, m1.tagRegex.isMatch("pod"))
 
 	m2 := matcher.MetricTags["metric2"]
 	assert.Equal(t, Include, m2.action)
@@ -126,8 +126,8 @@ func TestNewTagMatcher(t *testing.T) {
 	m3 := matcher.MetricTags["metric3"]
 	assert.Equal(t, Exclude, m3.action)
 	assert.NotNil(t, m3.tagRegex)
-	assert.True(t, m3.tagRegex.MatchString("pod"))
-	assert.False(t, m3.tagRegex.MatchString("env"))
+	assert.True(t, m3.tagRegex.isMatch("pod"))
+	assert.False(t, m3.tagRegex.isMatch("env"))
 }
 
 func TestTagNameExtraction(t *testing.T) {

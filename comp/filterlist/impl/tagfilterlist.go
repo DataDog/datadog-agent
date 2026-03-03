@@ -41,7 +41,7 @@ const (
 
 // hashedMetricTagList contains a compiled regex that matches configured tag names.
 type hashedMetricTagList struct {
-	tagRegex *regexp.Regexp
+	tagRegex *rustRegex
 	action   action
 }
 
@@ -89,14 +89,14 @@ func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 // buildTagRegex compiles a regex that matches any of the given tag names exactly,
 // with common prefixes factored out for efficiency.
 // Returns nil if the list is empty.
-func buildTagRegex(tags []string) *regexp.Regexp {
+func buildTagRegex(tags []string) *rustRegex {
 	if len(tags) == 0 {
 		return nil
 	}
 	sorted := make([]string, len(tags))
 	copy(sorted, tags)
 	slices.Sort(sorted)
-	return regexp.MustCompile(`^` + prefixAlternation(sorted) + `$`)
+	return newRustRegex(`^` + prefixAlternation(sorted) + `$`)
 }
 
 // prefixAlternation builds a regex alternation pattern that matches exactly the
@@ -188,7 +188,7 @@ func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, 
 	}
 
 	keepTag := func(tag string) bool {
-		matched := tm.tagRegex != nil && tm.tagRegex.MatchString(tagName(tag))
+		matched := tm.tagRegex != nil && tm.tagRegex.isMatch(tagName(tag))
 		return matched != bool(tm.action)
 	}
 

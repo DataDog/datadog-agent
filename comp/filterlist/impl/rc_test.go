@@ -720,11 +720,11 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 
 	require.Equal(Include, hashedResult.action)
 	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.MatchString("env"))
-	require.True(hashedResult.tagRegex.MatchString("host"))
-	require.True(hashedResult.tagRegex.MatchString("pod"))
-	require.True(hashedResult.tagRegex.MatchString("cluster"))
-	require.False(hashedResult.tagRegex.MatchString("service"))
+	require.True(hashedResult.tagRegex.isMatch("env"))
+	require.True(hashedResult.tagRegex.isMatch("host"))
+	require.True(hashedResult.tagRegex.isMatch("pod"))
+	require.True(hashedResult.tagRegex.isMatch("cluster"))
+	require.False(hashedResult.tagRegex.isMatch("service"))
 
 	require.Equal(MetricTagListEntry{
 		MetricName: "test.metric",
@@ -762,11 +762,11 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 
 	require.Equal(Exclude, hashedResult.action)
 	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.MatchString("env"))
-	require.True(hashedResult.tagRegex.MatchString("host"))
-	require.True(hashedResult.tagRegex.MatchString("pod"))
-	require.True(hashedResult.tagRegex.MatchString("cluster"))
-	require.False(hashedResult.tagRegex.MatchString("service"))
+	require.True(hashedResult.tagRegex.isMatch("env"))
+	require.True(hashedResult.tagRegex.isMatch("host"))
+	require.True(hashedResult.tagRegex.isMatch("pod"))
+	require.True(hashedResult.tagRegex.isMatch("cluster"))
+	require.False(hashedResult.tagRegex.isMatch("service"))
 
 	require.Equal(MetricTagListEntry{
 		MetricName: "test.metric",
@@ -804,9 +804,9 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 
 	require.Equal(Exclude, hashedResult.action)
 	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.MatchString("pod"))
-	require.False(hashedResult.tagRegex.MatchString("env"))
-	require.False(hashedResult.tagRegex.MatchString("host"))
+	require.True(hashedResult.tagRegex.isMatch("pod"))
+	require.False(hashedResult.tagRegex.isMatch("env"))
+	require.False(hashedResult.tagRegex.isMatch("host"))
 
 	require.Equal(MetricTagListEntry{
 		MetricName: "test.metric",
@@ -845,9 +845,9 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	// Results should be the original exclude
 	require.Equal(Exclude, hashedResult.action)
 	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.MatchString("env"))
-	require.True(hashedResult.tagRegex.MatchString("host"))
-	require.False(hashedResult.tagRegex.MatchString("pod"))
+	require.True(hashedResult.tagRegex.isMatch("env"))
+	require.True(hashedResult.tagRegex.isMatch("host"))
+	require.False(hashedResult.tagRegex.isMatch("pod"))
 
 	require.Equal(MetricTagListEntry{
 		MetricName: "test.metric",

@@ -1,0 +1,37 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+
+rust_shared_library(
+    name = "libdd_tagmatcher",
+    srcs = glob(["src/**/*.rs"]),
+    crate_name = "dd_tagmatcher",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:regex",
+    ],
+)
+
+filegroup(
+    name = "dd_tagmatcher_headers",
+    srcs = ["include/dd_tagmatcher.h"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "libdd_tagmatcher_pkg",
+    srcs = [":libdd_tagmatcher"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":libdd_tagmatcher_pkg"],
+)
