@@ -31,7 +31,6 @@ type Tracer struct {
 	connTracer     connection.Tracer
 	state          network.State
 	reverseDNS     dns.ReverseDNS
-	staticTableSet bool //nolint:unused // reserved for interface compatibility with Linux tracer
 	sourceExcludes []*networkfilter.ConnectionFilter
 	destExcludes   []*networkfilter.ConnectionFilter
 }
