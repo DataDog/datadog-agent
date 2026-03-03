@@ -263,6 +263,82 @@ fn test_discovery_enabled_with_fallback() {
     );
 }
 
+// Core config (datadog.yaml) integration tests
+#[test]
+fn test_core_config_key_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with both system-probe.yaml and datadog.yaml
+    let config_dir = TempDir::new().unwrap();
+
+    // system-probe.yaml with only discovery enabled
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // datadog.yaml with a core config key that should trigger fallback
+    let core_config_path = config_dir.path().join("datadog.yaml");
+    fs::write(&core_config_path, "software_inventory:\n  enabled: true\n").unwrap();
+
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Core config key (software_inventory.enabled) in datadog.yaml should trigger fallback"
+    );
+}
+
+#[test]
+fn test_core_config_absent_no_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with only system-probe.yaml (no datadog.yaml)
+    let config_dir = TempDir::new().unwrap();
+
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // No datadog.yaml - should be fine, sd-agent should run
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "Missing datadog.yaml should NOT trigger fallback"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
+}
+
 // Killswitch integration tests
 #[test]
 fn test_killswitch_disabled_fallback() {

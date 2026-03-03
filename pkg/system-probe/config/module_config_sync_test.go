@@ -24,8 +24,9 @@ import (
 )
 
 type canonicalConfig struct {
-	EnvVars  []string `json:"env_vars"`
-	YAMLKeys []string `json:"yaml_keys"`
+	EnvVars          []string `json:"env_vars"`
+	SysprobeYAMLKeys []string `json:"sysprobe_yaml_keys"`
+	CoreYAMLKeys     []string `json:"core_yaml_keys"`
 }
 
 type testConfig struct {
@@ -114,11 +115,9 @@ func TestEnableModulesConfig(t *testing.T) {
 
 	enableModules(&c, coreCfgCollector, spCfgCollector)
 
-	// Collect YAML keys from both config collectors.
-	var yamlKeys []string
-	yamlKeys = append(yamlKeys, coreCfgCollector.sortedKeys()...)
-	yamlKeys = append(yamlKeys, spCfgCollector.sortedKeys()...)
-	sort.Strings(yamlKeys)
+	// Collect YAML keys from each config collector separately.
+	sysprobeYAMLKeys := spCfgCollector.sortedKeys()
+	coreYAMLKeys := coreCfgCollector.sortedKeys()
 
 	// Collect env vars from both config collectors.
 	var envVars []string
@@ -130,8 +129,12 @@ func TestEnableModulesConfig(t *testing.T) {
 	for _, v := range envVars {
 		t.Logf("  %s", v)
 	}
-	t.Logf("Discovered %d YAML keys:", len(yamlKeys))
-	for _, v := range yamlKeys {
+	t.Logf("Discovered %d sysprobe YAML keys:", len(sysprobeYAMLKeys))
+	for _, v := range sysprobeYAMLKeys {
+		t.Logf("  %s", v)
+	}
+	t.Logf("Discovered %d core YAML keys:", len(coreYAMLKeys))
+	for _, v := range coreYAMLKeys {
 		t.Logf("  %s", v)
 	}
 
@@ -151,10 +154,16 @@ func TestEnableModulesConfig(t *testing.T) {
 			"Then update NON_DISCOVERY_ENV_VARS in pkg/discovery/module/rust/src/config.rs.",
 		jsonPath)
 
-	assert.Equal(t, canonical.YAMLKeys, yamlKeys,
-		"Mismatch between discovered YAML keys and canonical list at %s.\n"+
-			"Update the yaml_keys array with the discovered list shown above.\n"+
-			"Then update NON_DISCOVERY_YAML_KEYS in pkg/discovery/module/rust/src/config.rs.",
+	assert.Equal(t, canonical.SysprobeYAMLKeys, sysprobeYAMLKeys,
+		"Mismatch between discovered sysprobe YAML keys and canonical list at %s.\n"+
+			"Update the sysprobe_yaml_keys array with the discovered list shown above.\n"+
+			"Then update NON_DISCOVERY_SYSPROBE_YAML_KEYS in pkg/discovery/module/rust/src/config.rs.",
+		jsonPath)
+
+	assert.Equal(t, canonical.CoreYAMLKeys, coreYAMLKeys,
+		"Mismatch between discovered core YAML keys and canonical list at %s.\n"+
+			"Update the core_yaml_keys array with the discovered list shown above.\n"+
+			"Then update NON_DISCOVERY_CORE_YAML_KEYS in pkg/discovery/module/rust/src/config.rs.",
 		jsonPath)
 }
 

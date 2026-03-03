@@ -22,11 +22,9 @@
     "DD_TRACEROUTE_ENABLED",
     "DD_WINDOWS_CRASH_DETECTION_ENABLED"
   ],
-  "yaml_keys": [
+  "sysprobe_yaml_keys": [
     "ccm_network_config.enabled",
     "compliance_config.database_benchmarks.enabled",
-    "compliance_config.enabled",
-    "compliance_config.run_in_system_probe",
     "dynamic_instrumentation.enabled",
     "ebpf_check.enabled",
     "gpu_monitoring.enabled",
@@ -37,12 +35,16 @@
     "runtime_security_config.enabled",
     "runtime_security_config.fim_enabled",
     "service_monitoring_config.enabled",
-    "software_inventory.enabled",
     "system_probe_config.enable_oom_kill",
     "system_probe_config.enable_tcp_queue_length",
     "system_probe_config.language_detection.enabled",
     "system_probe_config.process_config.enabled",
     "traceroute.enabled",
     "windows_crash_detection.enabled"
+  ],
+  "core_yaml_keys": [
+    "compliance_config.enabled",
+    "compliance_config.run_in_system_probe",
+    "software_inventory.enabled"
   ]
 }
