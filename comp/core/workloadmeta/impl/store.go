@@ -79,7 +79,6 @@ func (w *workloadmeta) start(ctx context.Context) {
 
 	go func() {
 		pullTicker := time.NewTicker(pullCollectorInterval)
-		health := health.RegisterLiveness("workloadmeta-puller")
 
 		// Wait for at least one collector or timeout before first pull, so we
 		// don't signal CollectorsInitialized after an empty pull
@@ -89,13 +88,15 @@ func (w *workloadmeta) start(ctx context.Context) {
 		case <-time.After(firstPullWaitTimeout):
 		case <-ctx.Done():
 			pullTicker.Stop()
-			_ = health.Deregister()
 			w.unsubscribeAll()
 			w.log.Infof("stopped workloadmeta store")
 			return
 		}
 		w.pull(ctx)
 		w.updateCollectorStatus(wmdef.CollectorsInitialized)
+
+		// Register liveness only after we're in the pull loop.
+		health := health.RegisterLiveness("workloadmeta-puller")
 
 		for {
 			select {
