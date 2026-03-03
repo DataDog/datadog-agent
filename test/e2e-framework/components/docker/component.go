@@ -203,8 +203,8 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 		return nil, err
 	}
 
-	// When a private registry is configured (e.g. pull-through cache), run docker login so that
-	// docker pull/run and docker-compose can pull images without relying only on ECR helper.
+	// When a private registry is configured (e.g. pull-through cache), run docker login for both
+	// the SSH user (docker-compose) and root so pulls work regardless of which user runs Docker.
 	if e.ImagePullRegistry() != "" {
 		registries := strings.Split(e.ImagePullRegistry(), ",")
 		usernames := strings.Split(e.ImagePullUsername(), ",")
@@ -217,23 +217,29 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 			}
 			return pwd
 		}).(pulumi.StringOutput)
-		registryLoginCmd, err := d.Host.OS.Runner().Command(
+		env := pulumi.StringMap{
+			"REGISTRY":          pulumi.String(registry),
+			"REGISTRY_USERNAME": pulumi.String(username),
+			"REGISTRY_PASSWORD": password,
+		}
+		loginCreate := pulumi.String("echo \"$REGISTRY_PASSWORD\" | docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\"")
+		userLogin, err := d.Host.OS.Runner().Command(
 			d.namer.ResourceName("registry-login"),
-			&command.Args{
-				Create: pulumi.Sprintf("echo \"$REGISTRY_PASSWORD\" | sudo docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\""),
-				Sudo:   false,
-				Environment: pulumi.StringMap{
-					"REGISTRY":          pulumi.String(registry),
-					"REGISTRY_USERNAME": pulumi.String(username),
-					"REGISTRY_PASSWORD": password,
-				},
-			},
+			&command.Args{Create: loginCreate, Sudo: false, Environment: env},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(groupCmd))...,
 		)
 		if err != nil {
 			return nil, err
 		}
-		return registryLoginCmd, nil
+		sudoLogin, err := d.Host.OS.Runner().Command(
+			d.namer.ResourceName("registry-login-sudo"),
+			&command.Args{Create: loginCreate, Sudo: true, Environment: env},
+			utils.MergeOptions(opts, utils.PulumiDependsOn(userLogin))...,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return sudoLogin, nil
 	}
 
 	return groupCmd, err
