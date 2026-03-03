@@ -228,13 +228,13 @@ func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(versi
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 
-	// Allow override of version and version package via environment variables
+	// Allow override of assertion values via environment variables
 	// if not running in the CI, to reduce risk of accidentally using the wrong version in the CI.
 	if os.Getenv("CI") == "" {
-		if val := os.Getenv(devEnvOverride + "_VERSION"); val != "" {
+		if val := os.Getenv(devEnvOverride + "_ASSERT_VERSION"); val != "" {
 			version = val
 		}
-		if val := os.Getenv(devEnvOverride + "_VERSION_PACKAGE"); val != "" {
+		if val := os.Getenv(devEnvOverride + "_ASSERT_PACKAGE_VERSION"); val != "" {
 			versionPackage = val
 		}
 	}
