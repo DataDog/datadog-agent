@@ -26,6 +26,6 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "sta.a: [1, 2, 3] sta.b: 1 sta.c: [1, 2, 3, ...]"
+    "message": "sta.a: [1, 2, 3] sta.b: 4 sta.c: [6, 7, 8, ...]"
   }
 ]

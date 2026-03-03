@@ -75,6 +75,86 @@ func testCorruptedLocationRecovery(t *testing.T, cfg testprogs.Config) {
 	)
 }
 
+// TestMultiFieldStructExpressionEncoding tests that when a template like
+// "{a.a} {a.b} {a.c}" references multiple fields of a struct, the compiler
+// emits read ops for every field — not just the first one. This is the
+// regression test for DEBUG-5245 where EncodeLocationOp only processed the
+// first layout piece when a single CFA loclist piece covered multiple fields.
+func TestMultiFieldStructExpressionEncoding(t *testing.T) {
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	for _, cfg := range cfgs {
+		t.Run(cfg.String(), func(t *testing.T) {
+			testMultiFieldStructExpressionEncoding(t, cfg)
+		})
+	}
+}
+
+func testMultiFieldStructExpressionEncoding(t *testing.T, cfg testprogs.Config) {
+	binPath := testprogs.MustGetBinary(t, "sample", cfg)
+	probeDefs := testprogs.MustGetProbeDefinitions(t, "sample")
+	probeDefs = slices.DeleteFunc(probeDefs, testprogs.HasIssueTag)
+
+	// Keep only the testThreeStringsInStructExpr probe.
+	probeDefs = slices.DeleteFunc(probeDefs, func(p ir.ProbeDefinition) bool {
+		return p.GetID() != "testThreeStringsInStructExpr"
+	})
+	require.Len(t, probeDefs, 1, "expected exactly one probe definition for testThreeStringsInStructExpr")
+
+	obj, err := object.OpenElfFileWithDwarf(binPath)
+	require.NoError(t, err)
+	defer func() { _ = obj.Close() }()
+
+	irProg, err := irgen.GenerateIR(1, obj, probeDefs)
+	require.NoError(t, err)
+
+	compiled, err := GenerateProgram(irProg)
+	require.NoError(t, err)
+
+	// Collect ProcessExpression functions for this probe (one per expression: a.a, a.b, a.c).
+	var exprFuncs []Function
+	for _, fn := range compiled.Functions {
+		if _, ok := fn.ID.(ProcessExpression); ok {
+			exprFuncs = append(exprFuncs, fn)
+		}
+	}
+	require.Len(t, exprFuncs, 3, "expected 3 ProcessExpression functions for {a.a} {a.b} {a.c}")
+
+	// For each expression function, collect the read ops (CFA dereference or register read)
+	// that occur between ExprPrepareOp and ExprSaveOp.
+	outputOffsets := make([]uint32, 0, 3)
+	for i, fn := range exprFuncs {
+		var readOps []Op
+		for _, op := range fn.Ops {
+			switch op.(type) {
+			case ExprDereferenceCfaOp, ExprReadRegisterOp:
+				readOps = append(readOps, op)
+			}
+		}
+		assert.NotEmpty(t, readOps,
+			"expression %d has no read ops — field would be silently dropped (DEBUG-5245 regression)", i)
+
+		// Record the OutputOffset of the first read op for distinctness check.
+		if len(readOps) > 0 {
+			switch op := readOps[0].(type) {
+			case ExprDereferenceCfaOp:
+				outputOffsets = append(outputOffsets, op.OutputOffset)
+			case ExprReadRegisterOp:
+				outputOffsets = append(outputOffsets, op.OutputOffset)
+			}
+		}
+	}
+
+	// The three expressions should write to distinct output offsets since
+	// they capture different struct fields at different positions.
+	require.Len(t, outputOffsets, 3, "expected 3 output offsets")
+	assert.NotEqual(t, outputOffsets[0], outputOffsets[1],
+		"expressions 0 and 1 should have different OutputOffset values")
+	assert.NotEqual(t, outputOffsets[1], outputOffsets[2],
+		"expressions 1 and 2 should have different OutputOffset values")
+	assert.NotEqual(t, outputOffsets[0], outputOffsets[2],
+		"expressions 0 and 2 should have different OutputOffset values")
+}
+
 // corruptRegisterPieceSize walks the IR program to find a Register location
 // piece and sets its Size to an invalid value (> 8). Returns true if a piece
 // was corrupted.

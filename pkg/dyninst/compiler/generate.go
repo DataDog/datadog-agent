@@ -682,34 +682,41 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			if layoutIdx >= len(layoutPieces) {
 				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
 			}
-			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
+			startPaddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
+			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-startPaddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
-			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				switch p := piece.Op.(type) {
-				case ir.Register:
-					if piece.Size > 8 {
-						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
+			// We need to iterate over each layout piece to check if it's within our target range,
+			// because a single loclist piece may cover multiple layout pieces (e.g., a struct on stack).
+			for i := layoutIdx; i < nextLayoutIdx; i++ {
+				paddedOffset := layoutPieces[i].PaddedOffset
+				if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
+					switch p := piece.Op.(type) {
+					case ir.Register:
+						if piece.Size > 8 {
+							return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
+						}
+						ops = append(ops, ExprReadRegisterOp{
+							Register:     p.RegNo,
+							Size:         uint8(piece.Size),
+							OutputOffset: paddedOffset - op.Offset,
+						})
+					case ir.Cfa:
+						// Calculate the offset within the CFA piece for this layout piece.
+						pieceInternalOffset := int32(paddedOffset - startPaddedOffset)
+						ops = append(ops, ExprDereferenceCfaOp{
+							Offset:       p.CfaOffset + pieceInternalOffset,
+							Len:          layoutPieces[i].Size,
+							OutputOffset: paddedOffset - op.Offset,
+						})
+					case ir.Addr:
+						return nil, errUnsupportedAddrLocationOp
 					}
-					ops = append(ops, ExprReadRegisterOp{
-						Register:     p.RegNo,
-						Size:         uint8(piece.Size),
-						OutputOffset: paddedOffset - op.Offset,
-					})
-				case ir.Cfa:
-					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       p.CfaOffset,
-						Len:          piece.Size,
-						OutputOffset: paddedOffset - op.Offset,
-					})
-				case ir.Addr:
-					return nil, errUnsupportedAddrLocationOp
 				}
 			}
+			layoutIdx = nextLayoutIdx
 		}
 		return ops, nil
 	}
