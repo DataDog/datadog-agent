@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/zstd"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -431,7 +432,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	compressed := false
 	if s.compress {
 		// In case of failed to compress continue with uncompress body
-		reqBodyCompressed, errTemp := zstdCompressLevel(reqBodyRaw, s.compressionLevel)
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
 		if errTemp == nil {
 			compressed = true
 			reqBody = reqBodyCompressed

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/zstd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -144,7 +145,11 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 
 	var r io.Reader = bufio.NewReader(f)
 
-	r = maybeDecompressZstd(r, path)
+	if strings.HasSuffix(path, ".zstd") {
+		d := zstd.NewReader(r)
+		defer d.Close()
+		r = d
+	}
 
 	dec := json.NewDecoder(r)
 

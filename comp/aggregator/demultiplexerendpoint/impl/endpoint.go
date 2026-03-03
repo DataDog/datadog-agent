@@ -13,6 +13,8 @@ import (
 	"os"
 	"path"
 
+	"github.com/DataDog/zstd"
+
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -76,7 +78,7 @@ func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, err
 		return "", err
 	}
 
-	c := newZstdWriter(f)
+	c := zstd.NewWriter(f)
 
 	w := bufio.NewWriter(c)
 

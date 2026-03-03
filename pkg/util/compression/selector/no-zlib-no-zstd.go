@@ -25,12 +25,6 @@ func NewCompressor(kind string, level int) common.Compressor {
 		})
 	case common.NoneKind:
 		return implnoop.New()
-	case common.ZstdKind, common.ZlibKind:
-		// zstd/zlib require CGO or build tags not present in this build; fall back to gzip
-		log.Warnf("compression kind %s is not available in this build, falling back to gzip", kind)
-		return implgzip.New(implgzip.Requires{
-			Level: 6,
-		})
 	default:
 		log.Errorf("unknown compression kind %q, falling back to noop", kind)
 		return implnoop.New()
