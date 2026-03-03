@@ -56,7 +56,7 @@ func (m *mockEventPlatformForwarder) Purge() map[string][]*message.Message {
 	return nil
 }
 
-func TestGetNetworkPathHandlerRun(t *testing.T) {
+func TestRunNetworkPathHandlerRun(t *testing.T) {
 	tracerouteStub := &mockTraceroute{
 		path: payload.NetworkPath{
 			Source: payload.NetworkPathSource{Service: "old-source"},
@@ -77,7 +77,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
+	handler := NewRunNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -125,7 +125,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 	require.Equal(t, expectedCfg, tracerouteStub.cfg)
 }
 
-func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
+func TestRunNetworkPathHandlerRunDefaults(t *testing.T) {
 	tracerouteStub := &mockTraceroute{
 		path: payload.NetworkPath{
 			Source: payload.NetworkPathSource{Service: "old-source"},
@@ -146,7 +146,7 @@ func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
+	handler := NewRunNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -172,7 +172,7 @@ func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
 	require.Equal(t, expectedCfg, tracerouteStub.cfg)
 }
 
-func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
+func TestRunNetworkPathHandlerRunInvalidPath(t *testing.T) {
 	tracerouteStub := &mockTraceroute{
 		path: payload.NetworkPath{
 			Destination: payload.NetworkPathDestination{
@@ -188,7 +188,7 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
+	handler := NewRunNetworkPathHandler(tracerouteStub, option.NonePtr[eventplatform.Forwarder]())
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -202,7 +202,7 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 	require.ErrorContains(t, err, "invalid destination IP address")
 }
 
-func TestGetNetworkPathHandlerRunSendToBackend(t *testing.T) {
+func TestRunNetworkPathHandlerRunSendToBackend(t *testing.T) {
 	tracerouteStub := &mockTraceroute{
 		path: payload.NetworkPath{
 			Destination: payload.NetworkPathDestination{
@@ -223,7 +223,7 @@ func TestGetNetworkPathHandlerRunSendToBackend(t *testing.T) {
 	}
 	forwarder := &mockEventPlatformForwarder{}
 	eventPlatform := option.NewPtr[eventplatform.Forwarder](forwarder)
-	handler := NewGetNetworkPathHandler(tracerouteStub, eventPlatform)
+	handler := NewRunNetworkPathHandler(tracerouteStub, eventPlatform)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{

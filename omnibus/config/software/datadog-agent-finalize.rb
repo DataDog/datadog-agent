@@ -93,6 +93,7 @@ build do
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
+            mkdir "#{output_config_dir}/etc/datadog-agent/processes.d"
             mkdir "/var/log/datadog"
 
             # remove unused configs

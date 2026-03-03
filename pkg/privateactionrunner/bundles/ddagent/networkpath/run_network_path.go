@@ -22,19 +22,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GetNetworkPathHandler struct {
+type RunNetworkPathHandler struct {
 	traceroute    traceroute.Component
 	eventPlatform eventplatform.Component
 }
 
-func NewGetNetworkPathHandler(traceroute traceroute.Component, eventPlatform eventplatform.Component) *GetNetworkPathHandler {
-	return &GetNetworkPathHandler{
+func NewRunNetworkPathHandler(traceroute traceroute.Component, eventPlatform eventplatform.Component) *RunNetworkPathHandler {
+	return &RunNetworkPathHandler{
 		traceroute:    traceroute,
 		eventPlatform: eventPlatform,
 	}
 }
 
-type GetNetworkPathInputs struct {
+type RunNetworkPathInputs struct {
 	Hostname           string            `json:"hostname"`
 	Port               uint16            `json:"port"`
 	SourceService      string            `json:"sourceService,omitempty"`
@@ -50,7 +50,7 @@ type GetNetworkPathInputs struct {
 	SendToBackend bool `json:"sendToBackend,omitempty"`
 }
 
-func (h *GetNetworkPathHandler) Run(
+func (h *RunNetworkPathHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
@@ -59,7 +59,7 @@ func (h *GetNetworkPathHandler) Run(
 		return nil, errors.New("traceroute component is not available")
 	}
 
-	inputs, err := types.ExtractInputs[GetNetworkPathInputs](task)
+	inputs, err := types.ExtractInputs[RunNetworkPathInputs](task)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (h *GetNetworkPathHandler) Run(
 	return &path, nil
 }
 
-func (h *GetNetworkPathHandler) sendToBackend(path payload.NetworkPath) error {
+func (h *RunNetworkPathHandler) sendToBackend(path payload.NetworkPath) error {
 	if h.eventPlatform == nil {
 		return errors.New("event platform forwarder is not available")
 	}

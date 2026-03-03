@@ -4,6 +4,7 @@ After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-ddot.service
 ConditionPathExists=/opt/datadog-packages/datadog-agent/experiment/ext/ddot/embedded/bin/otel-agent
+ConditionPathExists=!/etc/datadog-agent-exp/processes.d/datadog-agent-ddot.yaml
 
 [Service]
 Type=simple

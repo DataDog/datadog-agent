@@ -50,7 +50,7 @@ build do
 
     files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded #{files_to_patch.join(' ')}"
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
 
     command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \

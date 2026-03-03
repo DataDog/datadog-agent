@@ -31,3 +31,6 @@ coverage:
 ignore:
   - "pkg/trace/testutil"  # code only used in tests
   - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.
+  - "**/*.pb.go"
+  - test/e2e-framework
+  - test/new-e2e

@@ -11,6 +11,7 @@ BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-ddot.service
 {{- end}}
 ConditionPathExists={{.InstallDir}}/ext/ddot/embedded/bin/otel-agent
+ConditionPathExists=!{{.EtcDir}}/processes.d/datadog-agent-ddot.yaml
 
 [Service]
 Type=simple
