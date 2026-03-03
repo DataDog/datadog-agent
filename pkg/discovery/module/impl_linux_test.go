@@ -246,9 +246,9 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 		return nil, err
 	}
 
-	TCP, _ := proc.NetTCP()
+	TCP, _ := proc.NetTCP() //nolint:staticcheck
 	UDP, _ := proc.NetUDP()
-	TCP6, _ := proc.NetTCP6()
+	TCP6, _ := proc.NetTCP6() //nolint:staticcheck
 	UDP6, _ := proc.NetUDP6()
 
 	tcpSockets := make(map[uint64]socketInfo)
