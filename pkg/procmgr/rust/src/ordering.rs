@@ -1,0 +1,256 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+use crate::config::ProcessConfig;
+use log::warn;
+use std::collections::{HashMap, HashSet, VecDeque};
+
+/// Resolve the startup order of processes using a topological sort on the
+/// dependency graph built from `after` and `before` fields.
+///
+/// Returns the indices into `configs` in the order they should be started.
+/// If there is a cycle, returns an error listing the involved processes.
+///
+/// Processes without explicit ordering constraints are sorted alphabetically
+/// (the existing default), then appended after all constrained processes
+/// whose dependencies are satisfied.
+pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, CycleError> {
+    let name_to_idx: HashMap<&str, usize> = configs
+        .iter()
+        .enumerate()
+        .map(|(i, (name, _))| (name.as_str(), i))
+        .collect();
+    let n = configs.len();
+
+    // adjacency: edges[a] contains b means "a must start before b"
+    let mut edges: Vec<HashSet<usize>> = vec![HashSet::new(); n];
+    let mut in_degree: Vec<u32> = vec![0; n];
+
+    for (idx, (name, cfg)) in configs.iter().enumerate() {
+        // "after: [X]" means X must start before this process (edge X -> idx)
+        for dep in &cfg.after {
+            match name_to_idx.get(dep.as_str()) {
+                Some(&dep_idx) => {
+                    if edges[dep_idx].insert(idx) {
+                        in_degree[idx] += 1;
+                    }
+                }
+                None => {
+                    warn!("[{name}] after dependency '{dep}' not found, ignoring");
+                }
+            }
+        }
+
+        // "before: [Y]" means this process must start before Y (edge idx -> Y)
+        for dep in &cfg.before {
+            match name_to_idx.get(dep.as_str()) {
+                Some(&dep_idx) => {
+                    if edges[idx].insert(dep_idx) {
+                        in_degree[dep_idx] += 1;
+                    }
+                }
+                None => {
+                    warn!("[{name}] before dependency '{dep}' not found, ignoring");
+                }
+            }
+        }
+    }
+
+    // Kahn's algorithm with alphabetical tie-breaking
+    let mut queue: VecDeque<usize> = VecDeque::new();
+    let mut ready: Vec<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
+    ready.sort_by(|a, b| configs[*a].0.cmp(&configs[*b].0));
+    queue.extend(ready);
+
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    while let Some(idx) = queue.pop_front() {
+        order.push(idx);
+
+        let mut next_ready: Vec<usize> = Vec::new();
+        for &dep_idx in &edges[idx] {
+            in_degree[dep_idx] -= 1;
+            if in_degree[dep_idx] == 0 {
+                next_ready.push(dep_idx);
+            }
+        }
+        next_ready.sort_by(|a, b| configs[*a].0.cmp(&configs[*b].0));
+        queue.extend(next_ready);
+    }
+
+    if order.len() != n {
+        let cycle_members: Vec<String> = (0..n)
+            .filter(|i| in_degree[*i] > 0)
+            .map(|i| configs[i].0.clone())
+            .collect();
+        return Err(CycleError(cycle_members));
+    }
+
+    Ok(order)
+}
+
+#[derive(Debug)]
+pub struct CycleError(pub Vec<String>);
+
+impl std::fmt::Display for CycleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "dependency cycle detected among processes: {}",
+            self.0.join(", ")
+        )
+    }
+}
+
+impl std::error::Error for CycleError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProcessConfig;
+    use std::collections::HashMap;
+
+    fn cfg(after: &[&str], before: &[&str]) -> ProcessConfig {
+        ProcessConfig {
+            description: None,
+            command: "/bin/true".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            environment_file: None,
+            working_dir: None,
+            pidfile: None,
+            stdout: "inherit".to_string(),
+            stderr: "inherit".to_string(),
+            auto_start: true,
+            condition_path_exists: None,
+            stop_timeout: None,
+            restart: crate::config::RestartPolicy::Never,
+            restart_sec: None,
+            restart_max_delay_sec: None,
+            start_limit_burst: None,
+            start_limit_interval_sec: None,
+            runtime_success_sec: None,
+            after: after.iter().map(|s| s.to_string()).collect(),
+            before: before.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn names_in_order(configs: &[(String, ProcessConfig)], order: &[usize]) -> Vec<String> {
+        order.iter().map(|&i| configs[i].0.clone()).collect()
+    }
+
+    #[test]
+    fn test_no_constraints_alphabetical() {
+        let configs = vec![
+            ("charlie".to_string(), cfg(&[], &[])),
+            ("alpha".to_string(), cfg(&[], &[])),
+            ("bravo".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(
+            names_in_order(&configs, &order),
+            vec!["alpha", "bravo", "charlie"]
+        );
+    }
+
+    #[test]
+    fn test_after_constraint() {
+        let configs = vec![
+            ("api".to_string(), cfg(&["db"], &[])),
+            ("db".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["db", "api"]);
+    }
+
+    #[test]
+    fn test_before_constraint() {
+        let configs = vec![
+            ("db".to_string(), cfg(&[], &["api"])),
+            ("api".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["db", "api"]);
+    }
+
+    #[test]
+    fn test_chain_a_before_b_before_c() {
+        let configs = vec![
+            ("c".to_string(), cfg(&["b"], &[])),
+            ("a".to_string(), cfg(&[], &["b"])),
+            ("b".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_cycle_detected() {
+        let configs = vec![
+            ("a".to_string(), cfg(&["b"], &[])),
+            ("b".to_string(), cfg(&["a"], &[])),
+        ];
+        let err = resolve_order(&configs).unwrap_err();
+        assert!(err.0.contains(&"a".to_string()));
+        assert!(err.0.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_missing_dependency_ignored() {
+        let configs = vec![
+            ("api".to_string(), cfg(&["nonexistent"], &[])),
+            ("db".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(order.len(), 2);
+    }
+
+    #[test]
+    fn test_diamond_dependency() {
+        // a -> b, a -> c, b -> d, c -> d
+        let configs = vec![
+            ("a".to_string(), cfg(&[], &["b", "c"])),
+            ("b".to_string(), cfg(&[], &["d"])),
+            ("c".to_string(), cfg(&[], &["d"])),
+            ("d".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        let names = names_in_order(&configs, &order);
+        assert_eq!(names[0], "a");
+        assert_eq!(names[3], "d");
+        // b and c can be in either order between a and d
+        let mid: HashSet<&str> = [names[1].as_str(), names[2].as_str()].into();
+        assert!(mid.contains("b"));
+        assert!(mid.contains("c"));
+    }
+
+    #[test]
+    fn test_single_process() {
+        let configs = vec![("solo".to_string(), cfg(&[], &[]))];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(order, vec![0]);
+    }
+
+    #[test]
+    fn test_empty() {
+        let configs: Vec<(String, ProcessConfig)> = vec![];
+        let order = resolve_order(&configs).unwrap();
+        assert!(order.is_empty());
+    }
+
+    #[test]
+    fn test_alphabetical_tiebreak_with_constraints() {
+        // d depends on a; b and c are unconstrained
+        // expected: a, b, c, d (a first because d depends on it; b,c alphabetical; d last)
+        let configs = vec![
+            ("d".to_string(), cfg(&["a"], &[])),
+            ("c".to_string(), cfg(&[], &[])),
+            ("b".to_string(), cfg(&[], &[])),
+            ("a".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        let names = names_in_order(&configs, &order);
+        assert_eq!(names, vec!["a", "b", "c", "d"]);
+    }
+}

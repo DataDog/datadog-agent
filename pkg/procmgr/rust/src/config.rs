@@ -62,6 +62,10 @@ pub struct ProcessConfig {
     pub start_limit_burst: Option<u32>,
     pub start_limit_interval_sec: Option<u64>,
     pub runtime_success_sec: Option<u64>,
+    #[serde(default)]
+    pub after: Vec<String>,
+    #[serde(default)]
+    pub before: Vec<String>,
 }
 
 const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;

@@ -5,6 +5,7 @@
 
 mod config;
 mod env;
+mod ordering;
 mod process;
 mod shutdown;
 mod state;
@@ -30,7 +31,8 @@ async fn main() -> Result<()> {
     );
 
     let configs = load_configs();
-    let mut processes = start_processes(configs);
+    let startup_order = resolve_startup_order(&configs);
+    let mut processes = start_processes(configs, &startup_order);
 
     let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
     for (i, proc) in processes.iter_mut().enumerate() {
@@ -64,7 +66,8 @@ async fn main() -> Result<()> {
     }
 
     info!("dd-procmgrd shutting down");
-    shutdown::shutdown_all(&mut processes).await;
+    let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+    shutdown::shutdown_ordered(&mut processes, &shutdown_order).await;
     info!("dd-procmgrd stopped");
     Ok(())
 }
@@ -118,16 +121,36 @@ fn load_configs() -> Vec<(String, ProcessConfig)> {
     configs
 }
 
-fn start_processes(configs: Vec<(String, ProcessConfig)>) -> Vec<ManagedProcess> {
-    let mut processes = Vec::new();
-    for (name, cfg) in configs {
-        let mut proc = ManagedProcess::new(name, cfg);
+fn resolve_startup_order(configs: &[(String, ProcessConfig)]) -> Vec<usize> {
+    match ordering::resolve_order(configs) {
+        Ok(order) => {
+            let names: Vec<&str> = order.iter().map(|&i| configs[i].0.as_str()).collect();
+            info!("startup order: {}", names.join(" -> "));
+            order
+        }
+        Err(e) => {
+            warn!("{e}, falling back to alphabetical order");
+            (0..configs.len()).collect()
+        }
+    }
+}
+
+fn start_processes(
+    configs: Vec<(String, ProcessConfig)>,
+    startup_order: &[usize],
+) -> Vec<ManagedProcess> {
+    let mut processes: Vec<ManagedProcess> = configs
+        .into_iter()
+        .map(|(name, cfg)| ManagedProcess::new(name, cfg))
+        .collect();
+
+    for &idx in startup_order {
+        let proc = &mut processes[idx];
         if proc.should_start()
             && let Err(e) = proc.spawn()
         {
             warn!("{e:#}");
         }
-        processes.push(proc);
     }
     processes
 }

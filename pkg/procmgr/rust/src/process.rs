@@ -404,6 +404,8 @@ pub mod tests {
             start_limit_burst: None,
             start_limit_interval_sec: None,
             runtime_success_sec: None,
+            after: vec![],
+            before: vec![],
         }
     }
 
