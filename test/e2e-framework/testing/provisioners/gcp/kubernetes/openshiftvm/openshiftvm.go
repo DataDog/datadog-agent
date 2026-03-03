@@ -7,6 +7,8 @@
 package gcpopenshiftvm
 
 import (
+	"fmt"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
@@ -66,9 +67,9 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		return err
 	}
 
-	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
+	crcImage := fmt.Sprintf("projects/%s/global/images/family/crc-openshift", gcpEnv.Project())
 	vm, err := compute.NewVM(gcpEnv, "openshift",
-		compute.WithOS(osDesc),
+		compute.WithImageName(crcImage),
 		compute.WithInstancetype("n2-standard-16"),
 		compute.WithNestedVirt(true),
 	)

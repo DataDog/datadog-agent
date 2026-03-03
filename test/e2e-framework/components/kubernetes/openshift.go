@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
@@ -65,11 +64,6 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		runner := vm.OS.Runner()
 		commonEnvironment := env
 
-		openShiftInstallBinary, err := InstallOpenShiftBinary(env, vm, opts...)
-		if err != nil {
-			return err
-		}
-
 		pullSecretContent, err := utils.ReadSecretFile(pullSecretPath)
 		if err != nil {
 			return err
@@ -82,24 +76,27 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			return err
 		}
 
-		installLibvirt, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-libvirt"), &command.Args{
-			Create: pulumi.String(`
-		sudo dnf install -y libvirt NetworkManager`),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(openShiftInstallBinary))...)
-		if err != nil {
-			return err
-		}
 		// To avoid the crc-daemon.service being stopped when the user session ends, we enable linger for the user
 		enableLinger, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("enable-linger"), &command.Args{
 			Create: pulumi.String("loginctl enable-linger"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(installLibvirt))...)
+		}, opts...)
+		if err != nil {
+			return err
+		}
+
+		// Restore CRC cache from pre-baked image location.
+		// The pre-baked GCP image caches CRC data at /opt/crc-cache during image build (as packer user).
+		// We restore it to the runtime user's home so crc setup skips the ~4GB bundle download.
+		restoreCache, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("restore-crc-cache"), &command.Args{
+			Create: pulumi.String("cp -a /opt/crc-cache/.crc ~/ 2>/dev/null || true"),
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(enableLinger))...)
 		if err != nil {
 			return err
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
 			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, restoreCache))...)
 		if err != nil {
 			return err
 		}
@@ -114,18 +111,12 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		if err != nil {
 			return err
 		}
-		socatInstall, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-socat"), &command.Args{
-			Create: pulumi.String("sudo dnf install -y socat"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC))...)
-		if err != nil {
-			return err
-		}
 
 		socatForwarding, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("socat-kubeapi-proxy"), &command.Args{
 			Create: pulumi.String(`
                 sudo nohup socat TCP-LISTEN:8443,bind=0.0.0.0,fork TCP:127.0.0.1:6443 > /tmp/socat.log 2>&1 &
             `),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(socatInstall))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC))...)
 		if err != nil {
 			return err
 		}
@@ -199,17 +190,4 @@ exit 0
 		clusterComp.ClusterName = openShiftClusterName.ToStringOutput()
 		return nil
 	}, opts...)
-}
-
-func InstallOpenShiftBinary(env config.Env, vm *remote.Host, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	openShiftArch := vm.OS.Descriptor().Architecture
-	if openShiftArch == oscomp.AMD64Arch {
-		openShiftArch = "amd64"
-	}
-	return vm.OS.Runner().Command(
-		env.CommonNamer().ResourceName("crc-install"),
-		&command.Args{
-			Create: pulumi.Sprintf(`curl -fsSL https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/2.52.0/crc-linux-%s.tar.xz | \
-	sudo tar -xJ -C /usr/local/bin --strip-components=1 crc-linux-2.52.0-%s/crc`, openShiftArch, openShiftArch),
-		}, opts...)
 }

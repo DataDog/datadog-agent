@@ -52,6 +52,16 @@ func WithOSArch(osDesc os.Descriptor, arch os.Architecture) VMOption {
 	}
 }
 
+// WithImageName sets the GCP image name directly, bypassing OS-based resolution.
+// Use a GCP image family URL like "projects/{project}/global/images/family/{family}"
+// to always resolve to the latest image in the family.
+func WithImageName(imageName string) VMOption {
+	return func(p *vmArgs) error {
+		p.imageName = imageName
+		return nil
+	}
+}
+
 // WithNestedVirt sets if the VM allows nested virtualization
 // This is useful in case of openshift as it only runs on a VM.
 func WithNestedVirt(enabled bool) VMOption {

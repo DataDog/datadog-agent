@@ -198,6 +198,11 @@ func (e *Environment) OpenShiftPullSecretPath() string {
 	return e.InfraConfig.Get(DDInfraOpenShiftPullSecretPath)
 }
 
+// Project returns the GCP project ID for this environment
+func (e *Environment) Project() string {
+	return e.envDefault.gcp.project
+}
+
 // EnableNestedVirtualization returns whether to enable nested virtualization
 func (e *Environment) EnableNestedVirtualization() bool {
 	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEnableNestedVirtualization, e.envDefault.ddInfra.openshift.nestedVirtualization)
