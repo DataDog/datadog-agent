@@ -22,7 +22,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func generateTracegenTCPSpec(namespace string) *appsv1.DeploymentArgs {
+func generateTracegenTCPSpec(namespace string, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
 	return &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("tracegen-tcp"),
@@ -45,6 +45,7 @@ func generateTracegenTCPSpec(namespace string) *appsv1.DeploymentArgs {
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("tracegen-tcp"),
@@ -77,7 +78,7 @@ func generateTracegenTCPSpec(namespace string) *appsv1.DeploymentArgs {
 	}
 }
 
-func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringPtrInput) *appsv1.DeploymentArgs {
+func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringPtrInput, imagePullSecrets corev1.LocalObjectReferenceArray) *appsv1.DeploymentArgs {
 	return &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("tracegen-uds"),
@@ -101,6 +102,7 @@ func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringP
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: serviceAccountName,
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("tracegen-uds"),
@@ -197,11 +199,22 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-uds", generateTracegenUdsSpec(namespace, sa.Metadata.Name().Elem()), opts...); err != nil {
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
+	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-uds", generateTracegenUdsSpec(namespace, sa.Metadata.Name().Elem(), imagePullSecrets), opts...); err != nil {
 		return nil, err
 	}
 
-	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-tcp", generateTracegenTCPSpec(namespace), opts...); err != nil {
+	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/tracegen-tcp", generateTracegenTCPSpec(namespace, imagePullSecrets), opts...); err != nil {
 		return nil, err
 	}
 

@@ -86,6 +86,20 @@ func Scenario(e config.Env, kubeProvider *kubernetes.Provider, scenarioName stri
 			return nil, fmt.Errorf("could not create namespace %s: %w", namespace.Name, err)
 		}
 
+		o = append(o, utils.PulumiDependsOn(ns))
+
+		var imagePullSecrets corev1.LocalObjectReferenceArray
+		if e.ImagePullRegistry() != "" {
+			imgPullSecret, err := utils.NewImagePullSecret(e, namespace.Name, o...)
+			if err != nil {
+				return nil, fmt.Errorf("could not create image pull secret in namespace %s: %w", namespace.Name, err)
+			}
+			imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+				Name: imgPullSecret.Metadata.Name(),
+			})
+			o = append(o, utils.PulumiDependsOn(imgPullSecret))
+		}
+
 		// Create the apps in the namespace.
 		for _, app := range namespace.Apps {
 			// Sanitize the input.
@@ -97,7 +111,6 @@ func Scenario(e config.Env, kubeProvider *kubernetes.Provider, scenarioName stri
 			}
 
 			// Create the deployment.
-			o = append(o, utils.PulumiDependsOn(ns))
 			app.PodLabels["app"] = app.Name
 			_, err = appsv1.NewDeployment(e.Ctx(), fmt.Sprintf("%s:deployment:%s", namespace.Name, app.Name), &appsv1.DeploymentArgs{
 				Metadata: &metav1.ObjectMetaArgs{
@@ -116,6 +129,7 @@ func Scenario(e config.Env, kubeProvider *kubernetes.Provider, scenarioName stri
 							Annotations: pulumi.ToStringMap(app.PodAnnotations),
 						},
 						Spec: &corev1.PodSpecArgs{
+							ImagePullSecrets: imagePullSecrets,
 							Containers: corev1.ContainerArray{
 								corev1.ContainerArgs{
 									Name:  pulumi.String(app.Name),
