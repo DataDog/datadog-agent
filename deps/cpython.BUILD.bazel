@@ -1,3 +1,4 @@
+load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
@@ -5,7 +6,7 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -84,7 +85,8 @@ run_binary(
         "MSBUILD": "$(location @visual_studio//:msbuild)",
     },
     outs = [
-        "build/{}".format(file) for file in [
+        "build/{}".format(file)
+        for file in [
             "python.exe",
             "python3.dll",
             "python{}.dll".format(VERSION_STR_FLAT),
@@ -95,7 +97,8 @@ run_binary(
         ]
     ],
     out_dirs = [
-        "build/{}".format(dir) for dir in [
+        "build/{}".format(dir)
+        for dir in [
             "DLLs",
             "include",
             "Lib",
@@ -104,6 +107,28 @@ run_binary(
         ]
     ],
     tool = "build_python.bat",
+    visibility = ["//visibility:public"],
+)
+
+select_file(
+    name = "headers_win",
+    srcs = "python_win",
+    subpath = "build/include",
+)
+
+cc_import(
+    name = "_python313_dll",
+    shared_library = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:private"],
+)
+
+# The extra cc_library layer on top of the cc_import is needed so that
+# relative paths (like the one for the includes) are resolved correctly
+cc_library(
+    name = "lib_win",
+    hdrs = [":headers_win"],
+    includes = ["build/include"],
+    deps = [":_python313_dll"],
     visibility = ["//visibility:public"],
 )
 
@@ -265,6 +290,12 @@ configure_make(
                      ]),
 )
 
+foreign_cc_shared_wrapper(
+    name = "python_unix_shared",
+    input = ":python_unix",
+    visibility = ["//visibility:public"],
+)
+
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
@@ -374,7 +405,7 @@ pkg_files(
     name = "install_libs_unix",
     srcs = [
         ":python_lib_dir_unix",
-        ":python_lib_unix"
+        ":python_lib_unix",
     ] + select({
         "@platforms//os:linux": [":python_stable_lib_linux"],
         "//conditions:default": [],
@@ -398,8 +429,8 @@ pkg_files(
     attributes = pkg_attributes("0755"),
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = select({
         "@platforms//os:windows": [
             ":install_files_win",
@@ -413,4 +444,15 @@ pkg_install(
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
     }),
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )

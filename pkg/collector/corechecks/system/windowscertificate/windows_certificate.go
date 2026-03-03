@@ -21,9 +21,9 @@ import (
 	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
