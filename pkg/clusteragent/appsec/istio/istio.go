@@ -197,7 +197,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	i.eventRecorder.recordExtensionPolicyDeleted(namespace, name)
 
-	return err
+	return nil
 }
 
 // anyIstioNativeGatewayExists checks if any networking.istio.io/v1 Gateway exists across all namespaces

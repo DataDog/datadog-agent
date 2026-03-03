@@ -107,7 +107,8 @@ func (g *istioNativeGatewayPattern) Deleted(ctx context.Context, obj *unstructur
 
 	if isWatchEvent {
 		// Watch-event mode: only delete the filter if no other gateways still need it.
-		list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{})
+		// Limit: 1 is sufficient — we only need to know whether any gateway remains.
+		list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return fmt.Errorf("could not list remaining Istio gateways: %w", err)
 		}
