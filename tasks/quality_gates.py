@@ -4,6 +4,7 @@ import re
 import traceback
 import typing
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 import yaml
@@ -717,11 +718,20 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 if pr_author:
                     print(color_message(f"PR author: {pr_author}", "cyan"))
 
+    # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
+    gate_results: dict[StaticQualityGate, dict] = {}
+    with ThreadPoolExecutor(max_workers=int(os.environ.get("KUBERNETES_CPU_REQUEST", 1))) as executor:
+        future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
+        for future in as_completed(future_to_gate):
+            gate_results[future_to_gate[future]] = future.result()
+
+    # Process results in original gate order
     for gate in gate_list:
-        gate_result = _run_gate(ctx, gate)
+        gate_result = gate_results[gate]
+        gate_states.append(gate_result)
         if 'blocking' in gate_result and gate_result['blocking']:
             final_state = "failure"
-        result = gate_result['result']
+        result = gate_result.get('result')
         # Build tags dict - only include pr_number and pr_author if we have a PR
         gate_tags = {
             "gate_name": gate.config.gate_name,
