@@ -15,6 +15,8 @@ requirements:
     client_statement: >-
       The OpenTelemetry Collector offers a vendor-agnostic implementation of how to
       receive, process and export telemetry data.
+    properties:
+      source: https://opentelemetry.io/docs/collector/
 
   - id: OTELCOL002
     short: Signal
@@ -31,6 +33,8 @@ requirements:
       Each signal flows through its own independent pipeline within the Collector.
     client_statement: >-
       OpenTelemetry is structured around signals, or categories of telemetry.
+    properties:
+      source: https://opentelemetry.io/docs/specs/otel/glossary/
 
   - id: OTELCOL003
     short: Pipeline
@@ -43,6 +47,8 @@ requirements:
       independent and processes its signal type in isolation.
     client_statement: >-
       A pipeline consists of a set of receivers, processors and exporters.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#pipelines
 
   - id: OTELCOL004
     short: Receiver
@@ -57,6 +63,8 @@ requirements:
     client_statement: >-
       Receivers collect telemetry from one or more sources. They can be pull or push
       based, and may support one or more data sources.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#receivers
 
   - id: OTELCOL005
     short: Processor
@@ -70,6 +78,8 @@ requirements:
     client_statement: >-
       Processors take the data collected by receivers and modify or transform it before
       sending it to the exporters.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#processors
 
   - id: OTELCOL006
     short: Exporter
@@ -83,6 +93,8 @@ requirements:
     client_statement: >-
       Exporters send data to one or more backends or destinations. Exporters can be pull
       or push based, and may support one or more data sources.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#exporters
 
   - id: OTELCOL007
     short: Extension
@@ -97,6 +109,8 @@ requirements:
     client_statement: >-
       Extensions are optional components that expand the capabilities of the Collector to
       accomplish tasks not directly involved with processing telemetry data.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#extensions
 
   - id: OTELCOL008
     short: Connector
@@ -111,6 +125,8 @@ requirements:
       Connectors join two pipelines, acting as both exporter and receiver. A connector
       consumes data as an exporter at the end of one pipeline and emits data as a receiver
       at the beginning of another pipeline.
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#connectors
 
   - id: OTELCOL009
     short: OTLP — OpenTelemetry Protocol
@@ -126,3 +142,5 @@ requirements:
       The OpenTelemetry Protocol (OTLP) specification describes the encoding, transport,
       and delivery mechanism of telemetry data between telemetry sources, intermediate
       nodes such as collectors and telemetry backends.
+    properties:
+      source: https://opentelemetry.io/docs/specs/otlp/#protocol-details

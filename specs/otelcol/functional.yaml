@@ -11,6 +11,8 @@ requirements:
     client_statement: >-
       The default network port for OTLP/gRPC is 4317.
     tags: [input, protocol:otlp, protocol:grpc]
+    properties:
+      source: https://opentelemetry.io/docs/specs/otlp/#otlpgrpc
     ref: [OTELCOL004, OTELCOL009]
 
   - id: OTELCOL011
@@ -26,6 +28,8 @@ requirements:
       OTLP/HTTP uses HTTP POST requests to send telemetry data from clients to servers.
       Implementations MAY use HTTP/1.1 or HTTP/2 transports.
     tags: [input, protocol:otlp, protocol:http]
+    properties:
+      source: https://opentelemetry.io/docs/specs/otlp/#otlphttp
     ref: [OTELCOL004, OTELCOL009]
 
   - id: OTELCOL012
@@ -42,6 +46,8 @@ requirements:
       The `--config` flag accepts either a file path or values in the form of a config URI
       `<scheme>:<opaque_data>`.
     tags: [config]
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#location
 
   - id: OTELCOL013
     short: Substitute environment variables in configuration
@@ -54,6 +60,8 @@ requirements:
       will be used when the variable is not set.
     tags: [config]
     ref: [OTELCOL012]
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#environment-variables
 
   - id: OTELCOL014
     short: Merge multiple configuration sources
@@ -66,6 +74,8 @@ requirements:
       Multiple sources are specified by repeating the `--config` flag on the command line.
     tags: [config]
     ref: [OTELCOL012]
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#basics
 
   - id: OTELCOL015
     short: Filter telemetry using OTTL expressions
@@ -79,6 +89,8 @@ requirements:
       The filter processor allows users to filter telemetry using OTTL. Telemetry that
       matches any condition is dropped.
     tags: [processing, filter]
+    properties:
+      source: https://opentelemetry.io/docs/collector/transforming-telemetry/#basic-filtering
     ref: [OTELCOL005]
 
   - id: OTELCOL016
@@ -93,6 +105,8 @@ requirements:
       The attributes processor can be used to update, insert, delete, or replace existing
       attributes on metrics or traces.
     tags: [processing, attributes]
+    properties:
+      source: https://opentelemetry.io/docs/collector/transforming-telemetry/#adding-or-deleting-attributes
     ref: [OTELCOL005]
 
   - id: OTELCOL017
@@ -108,6 +122,8 @@ requirements:
       metadata to help teams quickly identify when underlying infrastructure is impacting
       service health or performance.
     tags: [processing, enrichment]
+    properties:
+      source: https://opentelemetry.io/docs/collector/transforming-telemetry/#enriching-telemetry-with-resource-attributes
     ref: [OTELCOL005]
 
   - id: OTELCOL018
@@ -120,4 +136,6 @@ requirements:
       OTLP allows telemetry data to be reliably transmitted between client and server
       with acknowledgment-based delivery guarantees for individual request/response pairs.
     tags: [output, protocol:otlp]
+    properties:
+      source: https://opentelemetry.io/docs/specs/otlp/#protocol-details
     ref: [OTELCOL006, OTELCOL009]

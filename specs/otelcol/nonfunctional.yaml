@@ -15,6 +15,8 @@ requirements:
       Internal metrics are exposed using a Prometheus interface which defaults to
       port 8888.
     tags: [observability]
+    properties:
+      source: https://opentelemetry.io/docs/collector/internal-telemetry/#prometheus-endpoint-for-internal-metrics
 
   - id: OTELCOL020
     short: Expose a health check endpoint
@@ -26,6 +28,8 @@ requirements:
       liveness/readiness probes), and monitoring systems.
     tags: [observability]
     ref: [OTELCOL007]
+    properties:
+      source: https://opentelemetry.io/docs/collector/troubleshooting/#extensions
 
   - id: OTELCOL021
     short: Expose a pprof profiling endpoint
@@ -39,6 +43,8 @@ requirements:
       the Collector as it runs.
     tags: [observability, debug]
     ref: [OTELCOL007]
+    properties:
+      source: https://opentelemetry.io/docs/collector/troubleshooting/#performance-profiler-pprof
 
   - id: OTELCOL022
     short: Expose a zPages debug UI
@@ -52,6 +58,8 @@ requirements:
       inspect live data from the Collector's receivers and exporters.
     tags: [observability, debug]
     ref: [OTELCOL007]
+    properties:
+      source: https://opentelemetry.io/docs/collector/troubleshooting/#zpages
 
   - id: OTELCOL023
     short: Reject invalid configuration with a clear error message
@@ -63,3 +71,5 @@ requirements:
       pipelines referencing undeclared components, and malformed YAML.
     tags: [config, reliability]
     ref: [OTELCOL012]
+    properties:
+      source: https://opentelemetry.io/docs/collector/configuration/#basics
