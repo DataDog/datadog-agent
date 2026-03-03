@@ -88,15 +88,15 @@ func (v *Version) GetNumber() string {
 
 // GetNumberAndPre returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
 func (v *Version) GetNumberAndPre() string {
-	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	version := v.GetNumber()
 	if v.Pre != "" {
 		version = fmt.Sprintf("%s-%s", version, v.Pre)
 	}
 	return version
 }
 
-// Compare returns an integer comparing the curernt Agent version to the one given.
-// The result will be 0 if agent == v, -1 if agent < v, and +1 if agent > v.
+// CompareTo returns an integer comparing the current version to the one given.
+// The result will be 0 if v == version, -1 if v < version, and +1 if v > version.
 func (v *Version) CompareTo(version string) (int, error) {
 	b, errB := New(version, "")
 	if errB != nil {
