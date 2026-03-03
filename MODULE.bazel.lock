@@ -226,7 +226,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
-        "bzlTransitiveDigest": "1EqlvLMsXc9SmdJwuH1LmOHrKN/1VU/SzoT5jzL/dmQ=",
+        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
         "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -242,7 +242,7 @@
     },
     "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
       "general": {
-        "bzlTransitiveDigest": "h/34iJRsppuwRgke9QA2KoAGS7yIA0wXxQxbSaS7UKU=",
+        "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
         "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
