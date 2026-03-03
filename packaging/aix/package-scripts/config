@@ -1,0 +1,15 @@
+#!/bin/sh
+chown -R dd-agent:dd-agent /etc/datadog-agent \
+                           /var/log/datadog \
+                           /var/run/datadog \
+                           /opt/datadog-agent 2>/dev/null || true
+
+if [ -f /etc/datadog-agent/datadog.yaml ]; then
+    startsrc -s datadog-agent
+else
+    echo ""
+    echo "Datadog Agent installed."
+    echo "Create /etc/datadog-agent/datadog.yaml with your api_key to start."
+    echo "Then run:  startsrc -s datadog-agent"
+    echo ""
+fi

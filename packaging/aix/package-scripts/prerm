@@ -1,0 +1,6 @@
+#!/bin/sh
+stopsrc -s datadog-agent 2>/dev/null || true
+COMPILED_LIST=/opt/datadog-agent/embedded/.pyc_compiled_files.txt
+if [ -f "$COMPILED_LIST" ]; then
+    while IFS= read -r f; do rm -f "$f" 2>/dev/null; done < "$COMPILED_LIST"
+fi

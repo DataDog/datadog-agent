@@ -1,0 +1,26 @@
+Package Name: datadog-agent
+Package VRMF: AGENT_VRMF_PLACEHOLDER
+Update: N
+Fileset
+ Fileset Name: datadog-agent
+ Fileset VRMF: AGENT_VRMF_PLACEHOLDER
+ Fileset Description: Datadog Infrastructure Monitoring Agent
+ USRLIBLPPFiles
+ Pre-installation Script: /opt/datadog-agent/embedded/share/installp/preinst
+ Post-installation Script: /opt/datadog-agent/embedded/share/installp/postinst
+ Configuration Script: /opt/datadog-agent/embedded/share/installp/config
+ Unconfiguration Script: /opt/datadog-agent/embedded/share/installp/unconfig
+ Pre_rm Script: /opt/datadog-agent/embedded/share/installp/prerm
+ EOUSRLIBLPPFiles
+ Bosboot required: N
+ License agreement acceptance required: N
+ Include license files in this package: N
+ Requisites:
+ ROOT Part: Y
+ USRFiles
+ /opt/datadog-agent
+ /etc/datadog-agent
+ /var/log/datadog
+ /var/run/datadog
+ EOUSRFiles
+EOFileset

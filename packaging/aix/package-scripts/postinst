@@ -1,0 +1,35 @@
+#!/bin/sh
+# Create dd-agent group
+lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
+
+# Create dd-agent user (no login shell)
+id dd-agent > /dev/null 2>&1 || {
+    grep -q '/usr/bin/false' /etc/security/login.cfg || \
+        printf '\n/usr/bin/false:\n\tregistry = files\n' >> /etc/security/login.cfg
+    mkuser pgrp=dd-agent shell=/usr/bin/false home=/var/lib/datadog-agent id=9001 dd-agent
+}
+
+# Add dd-agent to adm group (required for sar — used by the CPU check)
+chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
+
+# Remove stale SRC entry then register fresh
+odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
+
+LIBPATH=/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib
+LIBPATH=${LIBPATH}:/opt/mqm/lib64:/opt/mqm/lib
+LIBPATH=${LIBPATH}:/opt/ibm/db2/clidriver/lib
+LIBPATH=${LIBPATH}:/opt/freeware/lib64:/opt/freeware/lib
+
+mkssys -s datadog-agent \
+       -p /opt/datadog-agent/bin/agent \
+       -a "run -c /etc/datadog-agent/datadog.yaml" \
+       -e "LIBPATH=${LIBPATH}" \
+       -e "PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/bin:/bin" \
+       -u dd-agent \
+       -R -S -n 15 -f 9
+
+# Compile Python bytecode
+PYTHON=/opt/datadog-agent/embedded/bin/python3.13
+[ -x "$PYTHON" ] && \
+    $PYTHON -m compileall /opt/datadog-agent/embedded/lib/python3.13/site-packages \
+            -x 'test/' -q 2>/dev/null || true
