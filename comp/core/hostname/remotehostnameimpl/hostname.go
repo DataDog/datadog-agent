@@ -80,7 +80,10 @@ func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
 }
 
 func (r *remotehostimpl) GetSafe(ctx context.Context) string {
-	h, _ := r.Get(ctx)
+	h, err := r.Get(ctx)
+	if err != nil {
+		return "unknown host"
+	}
 	return h
 }
 

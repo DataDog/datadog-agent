@@ -150,6 +150,7 @@ type encodingContext struct {
 	currentlyEncoding    map[typeAndAddr]struct{}
 	dataItems            map[typeAndAddr]output.DataItem
 	typeResolver         TypeNameResolver
+	missingTypeCollector MissingTypeCollector
 }
 
 // ResolveTypeName implements encodingContext.
@@ -1540,17 +1541,17 @@ func (s *goSliceHeaderType) encodeValueFields(
 		)
 	}
 	length := binary.NativeEndian.Uint64(data[8:16])
-	if length == 0 {
-		return writeTokens(enc,
-			jsontext.String("elements"),
-			jsontext.BeginArray,
-			jsontext.EndArray)
-	}
 	if err := writeTokens(enc,
 		jsontext.String("size"),
 		jsontext.String(strconv.FormatInt(int64(length), 10)),
 	); err != nil {
 		return err
+	}
+	if length == 0 {
+		return writeTokens(enc,
+			jsontext.String("elements"),
+			jsontext.BeginArray,
+			jsontext.EndArray)
 	}
 
 	elementSize := int(s.Data.Element.GetByteSize())
@@ -1940,6 +1941,15 @@ func encodeInterface(
 		return fmt.Errorf("go interface data must be 16 bytes, got %d", len(data))
 	}
 
+	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
+	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
+	if runtimeType == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+		)
+	}
+
 	if err := writeTokens(enc,
 		jsontext.String("fields"),
 		jsontext.BeginObject,
@@ -1949,17 +1959,6 @@ func encodeInterface(
 		return err
 	}
 
-	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
-	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
-	if runtimeType == 0 {
-		return writeTokens(enc,
-			jsontext.String("isNull"),
-			jsontext.Bool(true),
-			jsontext.EndObject,
-			jsontext.EndObject,
-		)
-	}
-
 	typeID, ok := c.getTypeIDByGoRuntimeType(uint32(runtimeType))
 	if !ok {
 		name, err := c.ResolveTypeName(gotype.TypeID(runtimeType))
@@ -1967,6 +1966,8 @@ func encodeInterface(
 			name = fmt.Sprintf(
 				"UnknownType(0x%x): %v", runtimeType, err,
 			)
+		} else if c.missingTypeCollector != nil {
+			c.missingTypeCollector.RecordMissingType(name)
 		}
 		if err := writeTokens(enc,
 			jsontext.String("type"),
@@ -2034,6 +2035,8 @@ func formatInterface(
 			name = fmt.Sprintf(
 				"UnknownType(0x%x): %v", runtimeType, err,
 			)
+		} else if c.missingTypeCollector != nil {
+			c.missingTypeCollector.RecordMissingType(name)
 		}
 		msg := "unknown type " + name
 		writeBoundedError(buf, limits, "interface", msg)

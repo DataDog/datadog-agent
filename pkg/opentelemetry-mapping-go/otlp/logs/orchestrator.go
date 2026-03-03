@@ -126,6 +126,21 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 
 	resourceVersion, _ := metadata["resourceVersion"].(string)
 	apiVersion, _ := k8sResource["apiVersion"].(string)
+	var nodeName string
+	switch kind {
+	case "Pod":
+		if spec, ok := k8sResource["spec"].(map[string]interface{}); ok {
+			if n, ok := spec["nodeName"].(string); ok {
+				nodeName = n
+			}
+		}
+	case "Node":
+		if n, ok := metadata["name"].(string); ok {
+			nodeName = n
+		}
+	default:
+		nodeName = ""
+	}
 
 	// Convert the Kubernetes resource to JSON bytes for the manifest content
 	content, err := json.Marshal(k8sResource)
@@ -151,6 +166,7 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 		IsTerminated:    isTerminated,
 		ApiVersion:      apiVersion,
 		Kind:            kind,
+		NodeName:        nodeName,
 	}
 	return manifest, nil
 }
@@ -357,8 +373,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	// Handle CPU millicores (e.g., "500m")
-	if strings.HasSuffix(quantityStr, "m") {
-		valueStr := strings.TrimSuffix(quantityStr, "m")
+	if before, ok := strings.CutSuffix(quantityStr, "m"); ok {
+		valueStr := before
 		if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 			return value
 		}
@@ -376,8 +392,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	for suffix, multiplier := range binarySuffixes {
-		if strings.HasSuffix(quantityStr, suffix) {
-			valueStr := strings.TrimSuffix(quantityStr, suffix)
+		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
+			valueStr := before
 			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 				return value * multiplier
 			}
@@ -396,8 +412,8 @@ func parseQuantity(quantityStr string, asMillis bool) uint64 {
 	}
 
 	for suffix, multiplier := range decimalSuffixes {
-		if strings.HasSuffix(quantityStr, suffix) {
-			valueStr := strings.TrimSuffix(quantityStr, suffix)
+		if before, ok := strings.CutSuffix(quantityStr, suffix); ok {
+			valueStr := before
 			if value, err := strconv.ParseUint(valueStr, 10, 64); err == nil {
 				return value * multiplier
 			}

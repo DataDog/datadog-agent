@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -22,10 +22,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
+// eventConfig is a pseudo-event used in snapshot tests to configure state
+// machine parameters (e.g. discoveredTypesLimit) before processing real events.
+type eventConfig struct {
+	baseEvent
+	discoveredTypesLimit   int
+	recompilationRateLimit float64
+	recompilationRateBurst int
+}
+
+func (e eventConfig) String() string {
+	return fmt.Sprintf("eventConfig{discoveredTypesLimit: %d, recompilationRateLimit: %g, recompilationRateBurst: %d}",
+		e.discoveredTypesLimit, e.recompilationRateLimit, e.recompilationRateBurst)
+}
+
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
 // YAML.
 type yamlEvent struct {
 	event event
+}
+
+type eventRuntimeStatsUpdated struct {
+	baseEvent
+	programID    ir.ProgramID
+	runtimeStats []loader.RuntimeStats
+}
+
+func (e eventRuntimeStatsUpdated) String() string {
+	return fmt.Sprintf(
+		"eventRuntimeStatsUpdated{programID: %v}",
+		e.programID,
+	)
+}
+
+type runtimeStatsUpdater interface {
+	setRuntimeStats([]loader.RuntimeStats)
 }
 
 // wrapEventForYAML wraps an event for YAML marshaling
@@ -52,6 +83,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 				PID int `yaml:"pid"`
 			} `yaml:"process_id"`
 			Executable Executable       `yaml:"executable"`
+			Service    string           `yaml:"service,omitempty"`
 			Probes     []map[string]any `yaml:"probes"`
 		}
 
@@ -80,6 +112,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 					PID int `yaml:"pid"`
 				}{PID: int(proc.ProcessID.PID)},
 				Executable: proc.Executable,
+				Service:    proc.Info.Service,
 				Probes:     probes,
 			})
 		}
@@ -127,8 +160,32 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 	case eventHeartbeatCheck:
 		return encodeNodeTag("!heartbeat-check", map[string]any{})
 
+	case eventRuntimeStatsUpdated:
+		return encodeNodeTag("!runtime-stats", map[string]any{
+			"program_id":    int(ev.programID),
+			"runtime_stats": runtimeStatsToYAML(ev.runtimeStats),
+		})
+
+	case eventMissingTypesReported:
+		return encodeNodeTag("!missing-types-reported", map[string]any{
+			"process_id": int(ev.processID.PID),
+			"type_names": ev.typeNames,
+		})
+
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
+
+	case eventConfig:
+		data := map[string]any{
+			"discovered_types_limit": ev.discoveredTypesLimit,
+		}
+		if ev.recompilationRateLimit != 0 {
+			data["recompilation_rate_limit"] = ev.recompilationRateLimit
+		}
+		if ev.recompilationRateBurst != 0 {
+			data["recompilation_rate_burst"] = ev.recompilationRateBurst
+		}
+		return encodeNodeTag("!config", data)
 
 	default:
 		return nil, fmt.Errorf("unknown event type: %T", ev)
@@ -159,7 +216,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 					} `yaml:"file_cookie"`
 				} `yaml:"key"`
 			} `yaml:"executable"`
-			Probes []map[string]any `yaml:"probes"`
+			Service string           `yaml:"service,omitempty"`
+			Probes  []map[string]any `yaml:"probes"`
 		}
 
 		var eventData struct {
@@ -189,6 +247,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			updated = append(updated, ProcessUpdate{
 				Info: procinfo.Info{
 					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Service:   proc.Service,
 					Executable: Executable{
 						Path: proc.Executable.Path,
 						Key: procinfo.FileKey{
@@ -220,7 +279,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	case "loaded":
 		var eventData struct {
-			ProgramID int `yaml:"program_id"`
+			ProgramID    int                `yaml:"program_id"`
+			RuntimeStats []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode loaded event: %w", err)
@@ -229,7 +289,11 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
 				programID: ir.ProgramID(eventData.ProgramID),
-				loaded:    &fakeLoadedProgram{},
+				loaded: &fakeLoadedProgram{
+					runtimeStats: runtimeStatsFromYAML(
+						eventData.RuntimeStats,
+					),
+				},
 			},
 		}
 
@@ -304,8 +368,51 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 	case "heartbeat-check":
 		ye.event = eventHeartbeatCheck{}
 
+	case "runtime-stats":
+		var eventData struct {
+			ProgramID    int                `yaml:"program_id"`
+			RuntimeStats []runtimeStatsYAML `yaml:"runtime_stats,omitempty"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode runtime-stats event: %w", err)
+		}
+		ye.event = eventRuntimeStatsUpdated{
+			programID: ir.ProgramID(eventData.ProgramID),
+			runtimeStats: runtimeStatsFromYAML(
+				eventData.RuntimeStats,
+			),
+		}
+
+	case "missing-types-reported":
+		var eventData struct {
+			ProcessID int      `yaml:"process_id"`
+			TypeNames []string `yaml:"type_names"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode missing-types-reported event: %w", err)
+		}
+		ye.event = eventMissingTypesReported{
+			processID: ProcessID{PID: int32(eventData.ProcessID)},
+			typeNames: eventData.TypeNames,
+		}
+
 	case "shutdown":
 		ye.event = eventShutdown{}
+
+	case "config":
+		var eventData struct {
+			DiscoveredTypesLimit   int     `yaml:"discovered_types_limit"`
+			RecompilationRateLimit float64 `yaml:"recompilation_rate_limit"`
+			RecompilationRateBurst int     `yaml:"recompilation_rate_burst"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode config event: %w", err)
+		}
+		ye.event = eventConfig{
+			discoveredTypesLimit:   eventData.DiscoveredTypesLimit,
+			recompilationRateLimit: eventData.RecompilationRateLimit,
+			recompilationRateBurst: eventData.RecompilationRateBurst,
+		}
 
 	default:
 		return fmt.Errorf("unknown event type: %s", eventType)
@@ -314,13 +421,24 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-type fakeLoadedProgram struct{}
+type runtimeStatsYAML struct {
+	CPU          time.Duration `yaml:"cpu"`
+	HitCnt       uint64        `yaml:"hit_cnt"`
+	ThrottledCnt uint64        `yaml:"throttled_cnt"`
+}
+
+type fakeLoadedProgram struct {
+	runtimeStats []loader.RuntimeStats
+}
 
 func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error) {
 	return nil, nil
 }
 
 func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
+	if len(p.runtimeStats) > 0 {
+		return p.runtimeStats
+	}
 	return []loader.RuntimeStats{
 		{
 			HitCnt:       1000,
@@ -330,8 +448,46 @@ func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
 	}
 }
 
+func (p *fakeLoadedProgram) setRuntimeStats(stats []loader.RuntimeStats) {
+	p.runtimeStats = append([]loader.RuntimeStats(nil), stats...)
+}
+
 func (*fakeLoadedProgram) Close() error {
 	return nil
 }
 
 var _ LoadedProgram = (*fakeLoadedProgram)(nil)
+
+func runtimeStatsFromYAML(
+	stats []runtimeStatsYAML,
+) []loader.RuntimeStats {
+	if len(stats) == 0 {
+		return nil
+	}
+	converted := make([]loader.RuntimeStats, len(stats))
+	for i, stat := range stats {
+		converted[i] = loader.RuntimeStats{
+			CPU:          stat.CPU,
+			HitCnt:       stat.HitCnt,
+			ThrottledCnt: stat.ThrottledCnt,
+		}
+	}
+	return converted
+}
+
+func runtimeStatsToYAML(
+	stats []loader.RuntimeStats,
+) []runtimeStatsYAML {
+	if len(stats) == 0 {
+		return nil
+	}
+	converted := make([]runtimeStatsYAML, len(stats))
+	for i, stat := range stats {
+		converted[i] = runtimeStatsYAML{
+			CPU:          stat.CPU,
+			HitCnt:       stat.HitCnt,
+			ThrottledCnt: stat.ThrottledCnt,
+		}
+	}
+	return converted
+}

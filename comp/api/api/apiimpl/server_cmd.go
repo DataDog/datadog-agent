@@ -7,12 +7,14 @@ package apiimpl
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
@@ -25,12 +27,13 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	server.cmdListener, err = getListener(cmdAddr)
+	cmdListener, err := listener.GetListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
+	server.cmdAddr = cmdListener.Addr().(*net.TCPAddr)
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
@@ -67,7 +70,8 @@ func (server *apiServer) startCMDServer(
 		srv = helpers.NewMuxedGRPCServer(cmdAddr, tlsConfig, grpcServer, cmdMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second)
 	}
 
-	startServer(server.cmdListener, srv, cmdServerName)
+	server.cmdServer = srv
+	startServer(cmdListener, srv, cmdServerName)
 
 	return nil
 }

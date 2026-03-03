@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -39,6 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -51,7 +53,7 @@ var newClock = clock.New
 var templatesFS embed.FS
 
 // this is overridden by tests when needed
-var checkRightsFunc = checkRights
+var checkRightsFunc = filesystem.CheckRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -278,19 +280,17 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "secret-generic-connector")
+			} else {
+				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			}
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
 	r.responseMaxSize = params.MaxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
@@ -302,9 +302,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
-	if r.auditFileMaxSize == 0 {
-		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
-	}
 
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
@@ -407,7 +404,7 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 // We enforce 3 type of limitation (each giving different level of control to the user). These limitations
 // are active when using either:
 // `k8s_secret@namespace/secret-name/key`
-// `namespace/secret-name;key` (for datadog-secret-backend)
+// `namespace/secret-name;key` (for secret-generic-connector)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
@@ -926,7 +923,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["refreshIntervalEnabled"] = r.refreshInterval > 0
 	if r.refreshInterval > 0 {
 		stats["refreshInterval"] = r.refreshInterval.String()
-		stats["scatterDuration"] = r.scatterDuration.String()
+		stats["scatterDuration"] = fmt.Sprintf("%.2fs", r.scatterDuration.Seconds())
 	}
 
 	stats["unresolvedSecrets"] = r.unresolvedSecrets

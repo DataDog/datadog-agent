@@ -283,4 +283,8 @@ func (p testProbeDefinition) GetTemplate() ir.TemplateDefinition {
 	return nil
 }
 
+func (p testProbeDefinition) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
+	return nil
+}
+
 var _ ir.ProbeDefinition = testProbeDefinition{}

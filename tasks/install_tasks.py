@@ -1,6 +1,5 @@
 import os
 import platform
-import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -11,16 +10,17 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import bin_name, environ, gitlab_section
+from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
+    'github.com/bazelbuild/bazelisk',
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest',
+    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'github.com/vektra/mockery/v2',
+    'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
@@ -28,7 +28,8 @@ TOOL_LIST = [
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/golang/protobuf/protoc-gen-go',
+    'google.golang.org/protobuf/cmd/protoc-gen-go',
+    'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
@@ -62,29 +63,8 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
-        # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
-        install_custom_golanci_lint(ctx)
-
-
-def install_custom_golanci_lint(ctx):
-    res = ctx.run("golangci-lint custom -v")
-    if res.ok:
-        gopath = os.getenv('GOPATH')
-        gobin = os.getenv('GOBIN')
-        default_gopath = os.path.join(Path.home(), "go")
-
-        golintci_binary = bin_name('golangci-lint')
-        golintci_lint_backup_binary = bin_name('golangci-lint-backup')
-
-        go_binaries_folder = gobin or os.path.join(gopath or default_gopath, "bin")
-
-        shutil.move(
-            os.path.join(go_binaries_folder, golintci_binary),
-            os.path.join(go_binaries_folder, golintci_lint_backup_binary),
-        )
-        shutil.move(golintci_binary, os.path.join(go_binaries_folder, golintci_binary))
-
-        print("Installed custom golangci-lint binary successfully")
+        for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
+            link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 
 
 @task
@@ -107,6 +87,16 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task
+def install_rust_license_tool(ctx):
+    """
+    Install dd-rust-license-tool and cargo-deny for Rust license verification.
+    Required to run the lint-rust-licenses task.
+    """
+    ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
+    ctx.run("cargo install cargo-deny --locked")
 
 
 @task

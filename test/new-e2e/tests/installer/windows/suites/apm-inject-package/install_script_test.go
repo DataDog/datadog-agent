@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -68,5 +68,5 @@ func (s *testAgentScriptInstallsAPMInject) installCurrentAgentVersionWithAPMInje
 			s.Require().Contains(version, s.CurrentAgentVersion().Version())
 		})
 
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }

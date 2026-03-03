@@ -15,7 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 // Client is a client for ECS
@@ -47,24 +47,24 @@ func (c *Client) ExecCommand(task, containerName string, cmd string) (string, er
 	}
 
 	// Check that ExecCommand Agent is running
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		tasks, err := c.DescribeTasks(context.Background(), &ecs.DescribeTasksInput{
 			Cluster: aws.String(c.clusterName),
 			Tasks:   []string{task},
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		for _, container := range tasks.Tasks[0].Containers {
 			if *container.Name == containerName {
 				if *container.ManagedAgents[0].LastStatus != "RUNNING" {
-					return errors.New("agent not running")
+					return nil, errors.New("agent not running")
 				}
 			}
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 5))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(5))
 	if err != nil {
 		return "", err
 	}

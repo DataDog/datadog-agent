@@ -96,10 +96,9 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	*Releasable
-	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool                       `field:"-"`
+	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Hash returns a unique key for the entity
@@ -107,6 +106,16 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
 		String: string(c.ContainerID),
 	}
+}
+
+// UnixCreatedAt returns the creation time of the container
+func (c *ContainerContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(c.CreatedAt))
+}
+
+// IsNull returns true if the container context is null
+func (c *ContainerContext) IsNull() bool {
+	return c.ContainerID == ""
 }
 
 // ParentScope returns the parent entity scope
@@ -385,6 +394,7 @@ type SSHSessionContext struct {
 	SSHClientIP   net.IPNet `field:"ssh_client_ip" json:"client_ip,omitempty"`       // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
 	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`   // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
 	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`     // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
+	SSHDPid       uint32    `field:"-" json:"-"`                                     // Internal field
 }
 
 // MatchedRule contains the identification of one rule that has match
@@ -396,11 +406,16 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
+type DelayabledEvent interface {
+	IsResolved() error
+	MaxRetry() int
+}
+
 // ActionReport defines an action report
 type ActionReport interface {
+	DelayabledEvent
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -623,11 +638,11 @@ type ExitEvent struct {
 
 // DNSQuestion represents the dns question
 type DNSQuestion struct {
-	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
-	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+	Name  string `field:"name,opts:length|root_domain" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                               // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                              // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                             // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                              // SECLDoc[count] Definition:`the total count of questions in the DNS request`
 }
 
 // DNSEvent represents a DNS request event
@@ -686,7 +701,6 @@ type AWSSecurityCredentials struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
-	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -694,11 +708,6 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*Proces
 	if ev.ProcessCacheEntry != nil {
 		return ev.ProcessCacheEntry, true
 	}
-	return nil, false
-}
-
-// ResolveContainerContext stub implementation
-func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 

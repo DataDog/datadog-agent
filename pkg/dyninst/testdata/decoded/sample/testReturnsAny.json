@@ -52,11 +52,7 @@
             "arguments": {
               "v": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           },
@@ -64,11 +60,7 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }

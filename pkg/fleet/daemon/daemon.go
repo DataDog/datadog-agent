@@ -9,6 +9,8 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/nacl/box"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -69,7 +73,7 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
+	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -80,8 +84,7 @@ type Daemon interface {
 }
 
 type daemonImpl struct {
-	m        sync.Mutex
-	stopChan chan struct{}
+	m sync.Mutex
 
 	env             *env.Env
 	installer       func(*env.Env) installer.Installer
@@ -96,6 +99,10 @@ type daemonImpl struct {
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
+	ctx             context.Context
+	cancel          context.CancelFunc
+
+	secretsPubKey, secretsPrivKey *[32]byte
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -106,7 +113,7 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 
 // NewDaemon returns a new daemon.
 func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}
@@ -151,10 +158,17 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
 	gcInterval := config.GetDuration("installer.gc_interval")
-	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval), nil
+
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate box key: %w", err)
+	}
+
+	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
+	ctx, cancel := context.WithCancel(context.Background())
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -165,12 +179,14 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		catalogOverride: catalog{},
 		configs:         make(map[string]installerConfig),
 		configsOverride: make(map[string]installerConfig),
-		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
+		secretsPubKey:   secretsPubKey,
+		secretsPrivKey:  secretsPrivKey,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
-	i.refreshState(context.Background())
 	return i
 }
 
@@ -275,6 +291,44 @@ func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
 	return config, nil
 }
 
+// decryptSecrets decrypts the encrypted secrets and returns them as a map.
+// It does NOT replace them in the operations - that will be done by the installer binary.
+// This is to avoid leaking the secrets in argv/envp.
+func (d *daemonImpl) decryptSecrets(operations config.Operations, encryptedSecrets map[string]string) (map[string]string, error) {
+	decryptedSecrets := make(map[string]string)
+
+	for key, encoded := range encryptedSecrets {
+		// 1. Check if any file operation in the config contains SEC[key]
+		found := false
+		for _, operation := range operations.FileOperations {
+			if strings.Contains(string(operation.Patch), fmt.Sprintf("SEC[%s]", key)) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		// 2. Decode the base64 encoded secret
+		raw, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode secret %s: %w", key, err)
+		}
+
+		// 3. Decrypt the secret
+		decrypted, ok := box.OpenAnonymous(nil, raw, d.secretsPubKey, d.secretsPrivKey)
+		if !ok {
+			return nil, fmt.Errorf("could not decrypt secret %s", key)
+		}
+
+		// 4. Store the decrypted secret
+		decryptedSecrets[key] = string(decrypted)
+	}
+
+	return decryptedSecrets, nil
+}
+
 // SetCatalog sets the catalog.
 func (d *daemonImpl) SetCatalog(c catalog) {
 	d.m.Lock()
@@ -291,6 +345,8 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
+	d.refreshState(d.ctx)
+
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -317,19 +373,19 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		defer refreshStateTicker.Stop()
 		for {
 			select {
+			case <-d.ctx.Done():
+				return
 			case <-gcTicker.C:
 				d.m.Lock()
-				err := d.installer(d.env).GarbageCollect(context.Background())
+				err := d.installer(d.env).GarbageCollect(d.ctx)
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
 			case <-refreshStateTicker.C:
 				d.m.Lock()
-				d.refreshState(context.Background())
+				d.refreshState(d.ctx)
 				d.m.Unlock()
-			case <-d.stopChan:
-				return
 			case request := <-d.requests:
 				err := d.handleRemoteAPIRequest(request)
 				if err != nil {
@@ -344,6 +400,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (d *daemonImpl) Stop(_ context.Context) error {
+	d.cancel()
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -364,8 +421,6 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 		return d.taskDB.Close()
 	}
 
-	// Stop the background goroutine
-	close(d.stopChan)
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
 }
@@ -480,20 +535,29 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, pkg, operations)
+	return d.startConfigExperiment(ctx, pkg, operations, encryptedSecrets)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
+
+	// Decrypt secrets but don't replace them in operations yet
+	decryptedSecrets, err := d.decryptSecrets(operations, encryptedSecrets)
+	if err != nil {
+		return fmt.Errorf("could not decrypt secrets: %w", err)
+	}
+
+	// Pass operations with placeholders and decrypted secrets to installer
+	// The installer will do the replacement
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations, decryptedSecrets)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -665,7 +729,11 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				Patch:             operation.Patch,
 			})
 		}
-		return d.startConfigExperiment(ctx, request.Package, ops)
+		encryptedSecrets := make(map[string]string)
+		for _, secret := range params.EncryptedSecrets {
+			encryptedSecrets[secret.Key] = secret.EncryptedValue
+		}
+		return d.startConfigExperiment(ctx, request.Package, ops, encryptedSecrets)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
@@ -810,6 +878,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		packages = append(packages, p)
 	}
 	d.rc.SetState(&pbgo.ClientUpdater{
+		SecretsPubKey:      base64.StdEncoding.EncodeToString(d.secretsPubKey[:]),
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})

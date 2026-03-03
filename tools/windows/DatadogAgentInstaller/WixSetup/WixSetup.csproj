@@ -2,7 +2,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net462</TargetFramework>
+    <!-- WiX 5 migration: Upgraded from net462 to net472 for WixSharp_wix4 compatibility -->
+    <TargetFramework>net472</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <RootNamespace>$(MSBuildProjectName.Replace(" ", "_").Replace("-", "_"))</RootNamespace>
     <Platforms>x64</Platforms>
@@ -19,8 +20,9 @@
     <None Remove="*.wixobj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NineDigit.WixSharpExtensions" Version="1.0.14" />
-    <PackageReference Include="WixSharp.bin" Version="1.20.3" />
+    <!-- WiX 5 migration: Replaced WixSharp.bin 1.20.3 with WixSharp_wix4 2.12.0 -->
+    <!-- NineDigit.WixSharpExtensions removed - equivalent methods implemented in WixSharpCompatExtensions.cs -->
+    <PackageReference Include="WixSharp_wix4" Version="2.12.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgentCustomActions\AgentCustomActions.csproj" />

@@ -20,7 +20,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RemediationEvent) {
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RemediationProcessContext) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -33,38 +33,119 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
+		switch key {
+		case "pid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.PID = uint32(in.Uint32())
+			}
+		default:
+			in.SkipRecursive()
 		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RemediationProcessContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.PID != 0 {
+		const prefix string = ",\"pid\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.Uint32(uint32(in.PID))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v RemediationProcessContext) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *RemediationProcessContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *RemediationEvent) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
 		switch key {
 		case "date":
-			out.Date = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Date = string(in.String())
+			}
+		case "process":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Process).UnmarshalEasyJSON(in)
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
-				out.Container = nil
 			} else {
-				if out.Container == nil {
-					out.Container = new(RemediationContainerContext)
-				}
-				(*out.Container).UnmarshalEasyJSON(in)
+				(out.Container).UnmarshalEasyJSON(in)
 			}
 		case "agent":
-			(out.Agent).UnmarshalEasyJSON(in)
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Agent).UnmarshalEasyJSON(in)
+			}
 		case "event_type":
-			out.EventType = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.EventType = string(in.String())
+			}
 		case "service":
-			out.Service = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Service = string(in.String())
+			}
 		case "scope":
-			out.Scope = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Scope = string(in.String())
+			}
 		case "remediation_action":
-			out.RemediationAction = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Remediation = string(in.String())
+			}
 		case "status":
-			out.Status = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Status = string(in.String())
+			}
 		case "timestamp":
-			out.Timestamp = int64(in.Int64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Timestamp = int64(in.Int64())
+			}
 		case "rule_tags":
 			if in.IsNull() {
 				in.Skip()
@@ -79,7 +160,11 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 					key := string(in.String())
 					in.WantColon()
 					var v1 string
-					v1 = string(in.String())
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						v1 = string(in.String())
+					}
 					(out.RuleTags)[key] = v1
 					in.WantComma()
 				}
@@ -95,7 +180,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 		in.Consumed()
 	}
 }
-func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RemediationEvent) {
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in RemediationEvent) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -104,10 +189,15 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.RawString(prefix[1:])
 		out.String(string(in.Date))
 	}
-	if in.Container != nil {
+	if true {
+		const prefix string = ",\"process\":"
+		out.RawString(prefix)
+		(in.Process).MarshalEasyJSON(out)
+	}
+	if true {
 		const prefix string = ",\"container\":"
 		out.RawString(prefix)
-		(*in.Container).MarshalEasyJSON(out)
+		(in.Container).MarshalEasyJSON(out)
 	}
 	{
 		const prefix string = ",\"agent\":"
@@ -132,7 +222,7 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 	{
 		const prefix string = ",\"remediation_action\":"
 		out.RawString(prefix)
-		out.String(string(in.RemediationAction))
+		out.String(string(in.Remediation))
 	}
 	{
 		const prefix string = ",\"status\":"
@@ -168,14 +258,14 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RemediationEvent) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *RemediationEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
 }
-func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *RemediationContainerContext) {
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jlexer.Lexer, out *RemediationContainerContext) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -188,16 +278,19 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "created_at":
-			out.CreatedAt = uint64(in.Uint64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CreatedAt = uint64(in.Uint64())
+			}
 		case "id":
-			out.ID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ID = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -208,7 +301,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 		in.Consumed()
 	}
 }
-func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in RemediationContainerContext) {
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jwriter.Writer, in RemediationContainerContext) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -233,14 +326,14 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RemediationContainerContext) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *RemediationContainerContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
 }
-func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jlexer.Lexer, out *RemediationAgentContext) {
+func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *RemediationAgentContext) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -253,26 +346,49 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "rule_id":
-			out.RuleID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuleID = string(in.String())
+			}
 		case "os":
-			out.OS = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.OS = string(in.String())
+			}
 		case "kernel_version":
-			out.KernelVersion = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.KernelVersion = string(in.String())
+			}
 		case "origin":
-			out.Origin = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Origin = string(in.String())
+			}
 		case "arch":
-			out.Arch = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Arch = string(in.String())
+			}
 		case "distribution":
-			out.Distribution = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Distribution = string(in.String())
+			}
 		case "version":
-			out.Version = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Version = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -283,7 +399,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		in.Consumed()
 	}
 }
-func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jwriter.Writer, in RemediationAgentContext) {
+func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jwriter.Writer, in RemediationAgentContext) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -327,10 +443,10 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v RemediationAgentContext) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
+	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *RemediationAgentContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
+	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(l, v)
 }

@@ -2,7 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -120,13 +120,14 @@ namespace Datadog.CustomActions
 
         private ActionResult InstallPackages()
         {
-            if (!ShouldInstall())
-            {
-                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
             try
             {
+                if (!ShouldInstall())
+                {
+                    _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                    return ActionResult.Success;
+                }
+
                 _session.Log("Running datadog-installer setup");
 
                 // add purge command to the rollback data store

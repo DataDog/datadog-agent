@@ -9,6 +9,7 @@ package nodetreemodel
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -18,10 +19,12 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
@@ -48,6 +51,9 @@ func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(mod
 
 		ntmConf.SetConfigType("yaml")
 		ntmConf.ReadConfig(bytes.NewBuffer([]byte(content)))
+	} else {
+		viperConf.ReadInConfig()
+		ntmConf.ReadInConfig()
 	}
 
 	return viperConf, ntmConf
@@ -65,6 +71,21 @@ func TestCompareGetInt(t *testing.T) {
 	})
 	assert.Equal(t, 345, viperConf.GetInt("port"))
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
+}
+
+func TestCompareGetTypesLikeDefault(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, viperConf.Get("port"))
+
+	assert.Equal(t, true, ntmConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, ntmConf.Get("port"))
 }
 
 func TestCompareIsSet(t *testing.T) {
@@ -134,6 +155,90 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText = string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceID(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	expectmap := map[string]interface{}{
+		"my_feature.enabled": true,
+		"port":               345,
+	}
+	assert.Equal(t, expectmap, vipermap)
+	assert.Equal(t, expectmap, ntmmap)
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDDottedMapKeys(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	endpoints := map[string]interface{}{
+		"https://url1.com": []interface{}{"api_key_1"},
+		"https://url2.eu":  []interface{}{"api_key_2"},
+	}
+	viperConf.Set("additional_endpoints", endpoints, model.SourceFile)
+	ntmConf.Set("additional_endpoints", endpoints, model.SourceFile)
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	assert.Contains(t, vipermap, "additional_endpoints")
+	assert.Contains(t, ntmmap, "additional_endpoints")
+	for key := range vipermap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in viper map: %s", key)
+	}
+	for key := range ntmmap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in ntm map: %s", key)
+	}
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDKnownLeafParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("apm_config.foo", "")
+		cfg.BindEnvAndSetDefault("apm_config.bar.baz", "")
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	expectedKeys := []string{"apm_config.foo", "apm_config.bar.baz", "proxy.http"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
+	assert.NotContains(t, viperKeys, "apm_config")
+	assert.NotContains(t, viperKeys, "apm_config.bar")
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDUnknownParentChildParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	// Reading unknown keys tracks them in both implementations.
+	_ = viperConf.Get("unknown_section")
+	_ = viperConf.Get("unknown_section.info")
+	_ = ntmConf.Get("unknown_section")
+	_ = ntmConf.Get("unknown_section.info")
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	expectedKeys := []string{"proxy.http", "unknown_section", "unknown_section.info"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
 }
 
 func TestCompareGetEnvVars(t *testing.T) {
@@ -219,6 +324,24 @@ func TestCompareGetEnvVars(t *testing.T) {
 		sort.Strings(ntmEnvVars)
 
 		expected := []string{"DD_LOG_LEVEL"}
+		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
+		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
+	})
+
+	t.Run("Duplicate env vars", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.BindEnv("test", "ABC")  //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test2", "ABC") //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test3")        //nolint:forbidigo // testing behavior
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		expected := []string{"ABC", "DD_TEST3"}
 		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
 		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
 	})
@@ -392,7 +515,7 @@ log:
 	t.Run("Includes unknown YAML keys", func(t *testing.T) {
 		dataYaml := `
 port: 8080
-host: 
+host:
 customKey1:
 customKey2: unused
 `
@@ -666,17 +789,16 @@ c: 1234
 	})
 
 	cvalue := viperConf.Get("c")
-	assert.Equal(t, cvalue, 1234)
+	assert.Equal(t, 1234, cvalue)
 
 	dvalue := viperConf.Get("c.d")
-	assert.Equal(t, dvalue, nil)
+	assert.Equal(t, nil, dvalue)
 
-	// NOTE: Behavior difference, but it requires an error in the config
 	cvalue = ntmConf.Get("c")
-	assert.Equal(t, cvalue, map[string]interface{}{"d": true})
+	assert.Equal(t, 1234, cvalue)
 
 	dvalue = ntmConf.Get("c.d")
-	assert.Equal(t, dvalue, true)
+	assert.Equal(t, nil, dvalue)
 }
 
 func TestCompareTimeDuration(t *testing.T) {
@@ -780,6 +902,25 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
 }
 
+func TestReadInConfigExactError(t *testing.T) {
+	// Invalid YAML that will fail to parse
+	dataYaml := `site:datadoghq.eu
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("site", "datadoghq.com")
+	})
+
+	// Both config implementations should return "Config File Not Found" when
+	// a parsing error is encountered
+	err := viperConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+	err = ntmConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+
+	assert.Equal(t, "datadoghq.com", viperConf.GetString("site"))
+	assert.Equal(t, "datadoghq.com", ntmConf.GetString("site"))
+}
+
 func TestCompareEnvVarsSubfields(t *testing.T) {
 	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
 		data, _ := json.Marshal(map[string]string{"a": "apple"})
@@ -876,4 +1017,91 @@ additional_endpoints:
 	}
 	assert.Equal(t, expectEndpoints, viperConf.GetStringMapStringSlice("additional_endpoints"))
 	assert.Equal(t, expectEndpoints, ntmConf.GetStringMapStringSlice("additional_endpoints"))
+}
+
+func TestGetViperCombineInvalidFileData(t *testing.T) {
+	// The setting in the yaml file has the wrong shape
+	// It is a list of an object, but it is supposed to not be a list
+	// The implementation should handle this predictabily and compatibly with Viper
+	// The rule when merging conflicts is that higher layers have branches kept, so
+	// the invalid file data will be kept rather than the default values.
+	configData := `network_path:
+  collector:
+    - input_chan_size: 23456
+`
+	// Two settings at path, but the file source has the wrong shape
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0) //nolint:forbidigo // used to test behavior
+		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)         //nolint:forbidigo // used to test behavior
+	})
+
+	// Value at the path is a list of map
+	expectCollector := []interface{}{
+		map[interface{}]interface{}{
+			"input_chan_size": 23456,
+		},
+	}
+	// Parent of that element
+	expectNetworkPath := map[string]interface{}{
+		"collector": []interface{}{
+			map[interface{}]interface{}{
+				"input_chan_size": 23456,
+			},
+		},
+	}
+
+	// Test what the methods `Get, GetViperCombine, AllSettings` return for each impl
+	for _, cfg := range []model.Reader{viperConf, ntmConf} {
+		assert.Equal(t, expectCollector, cfg.Get("network_path.collector"))
+		assert.Equal(t, expectCollector, helper.GetViperCombine(cfg, "network_path.collector"))
+		assert.Equal(t, expectCollector, cfg.AllSettings()["network_path"].(map[string]interface{})["collector"])
+
+		// Test parent element as well
+		actual := helper.GetViperCombine(cfg, "network_path")
+		assert.Equal(t, expectNetworkPath, actual)
+	}
+}
+
+func TestUnsetForSourceWithFile(t *testing.T) {
+	yamlExample := []byte(`
+some:
+  setting: file_value
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+
+	tempfile.Write(yamlExample)
+
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("some.setting", "default_value")
+		cfg.SetConfigFile(tempfile.Name())
+	})
+
+	for name, cfg := range map[string]model.BuildableConfig{"ntm": ntmConf, "viper": viperConf} {
+		t.Run(name, func(t *testing.T) {
+			fmt.Printf("%v\n", cfg.GetAllSources("some.setting"))
+			cfg.Set("some.setting", "runtime_value", model.SourceAgentRuntime)
+			cfg.Set("some.setting", "process_value", model.SourceLocalConfigProcess)
+			cfg.Set("some.setting", "RC_value", model.SourceRC)
+
+			assert.Equal(t, "RC_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceRC)
+			assert.Equal(t, "process_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
+			assert.Equal(t, "runtime_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceAgentRuntime)
+			assert.Equal(t, "file_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceFile)
+			assert.Equal(t, "default_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceDefault)
+			assert.Equal(t, "", cfg.GetString("some.setting"))
+		})
+	}
 }

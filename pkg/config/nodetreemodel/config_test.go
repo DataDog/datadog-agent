@@ -293,9 +293,11 @@ func TestAllSettings(t *testing.T) {
 		"b": map[string]interface{}{
 			"c": 123, // agent-runtime
 			"d": 0,   // default
+			// b.e is not included
 		},
 		"f": map[string]interface{}{
 			"g": "456", // env-var defined
+			// f.h is not included
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettings())
@@ -601,9 +603,9 @@ secret_backend_command: ./my_secret_fetcher.sh
   > collector
     inner(#ptr<000016>)
     > input_chan_size
-        leaf(#ptr<000017>), val:"23456", source:environment-variable
+        leaf(#ptr<000017>), val:23456, source:environment-variable
 > secret_backend_timeout
-    leaf(#ptr<000018>), val:"60", source:environment-variable`
+    leaf(#ptr<000018>), val:60, source:environment-variable`
 	assert.Equal(t, expect, txt)
 
 	txt = cfg.(*ntmConfig).Stringify("root", model.OmitPointerAddr)
@@ -613,7 +615,7 @@ secret_backend_command: ./my_secret_fetcher.sh
   > collector
     inner(#ptr<000021>)
     > input_chan_size
-        leaf(#ptr<000017>), val:"23456", source:environment-variable
+        leaf(#ptr<000017>), val:23456, source:environment-variable
     > processing_chan_size
         leaf(#ptr<000004>), val:100000, source:default
     > workers
@@ -621,7 +623,7 @@ secret_backend_command: ./my_secret_fetcher.sh
 > secret_backend_command
     leaf(#ptr<000013>), val:"./my_secret_fetcher.sh", source:file
 > secret_backend_timeout
-    leaf(#ptr<000018>), val:"60", source:environment-variable
+    leaf(#ptr<000018>), val:60, source:environment-variable
 > server_timeout
     leaf(#ptr<000008>), val:30, source:default`
 	assert.Equal(t, expect, txt)
@@ -650,7 +652,7 @@ func TestStringifyAll(t *testing.T) {
   > collector
     inner(#ptr<000002>)
     > input_chan_size
-        leaf(#ptr<000003>), val:"23456", source:environment-variable
+        leaf(#ptr<000003>), val:23456, source:environment-variable
     > workers
         leaf(#ptr<000004>), val:6, source:file
 > secret_backend_command
@@ -679,7 +681,7 @@ tree(#ptr<000014>) source=environment-variable
   > collector
     inner(#ptr<000016>)
     > input_chan_size
-        leaf(#ptr<000003>), val:"23456", source:environment-variable`
+        leaf(#ptr<000003>), val:23456, source:environment-variable`
 	assert.Equal(t, expect, txt)
 }
 
@@ -1088,11 +1090,11 @@ func TestUnsetForSource(t *testing.T) {
   > collector
     inner(#ptr<000002>)
     > input_chan_size
-        leaf(#ptr<000003>), val:"23456", source:environment-variable
+        leaf(#ptr<000003>), val:23456, source:environment-variable
     > pathtest_contexts_limit
-        leaf(#ptr<000004>), val:"654321", source:environment-variable
+        leaf(#ptr<000004>), val:654321, source:environment-variable
     > processing_chan_size
-        leaf(#ptr<000005>), val:"78900", source:environment-variable
+        leaf(#ptr<000005>), val:78900, source:environment-variable
     > workers
         leaf(#ptr<000006>), val:6, source:file`
 	assert.Equal(t, expect, txt)
@@ -1120,9 +1122,9 @@ func TestUnsetForSource(t *testing.T) {
     > input_chan_size
         leaf(#ptr<000007>), val:100000, source:default
     > pathtest_contexts_limit
-        leaf(#ptr<000004>), val:"654321", source:environment-variable
+        leaf(#ptr<000004>), val:654321, source:environment-variable
     > processing_chan_size
-        leaf(#ptr<000005>), val:"78900", source:environment-variable
+        leaf(#ptr<000005>), val:78900, source:environment-variable
     > workers
         leaf(#ptr<000006>), val:6, source:file`
 	assert.Equal(t, expect, txt)
@@ -1138,9 +1140,9 @@ func TestUnsetForSource(t *testing.T) {
     > input_chan_size
         leaf(#ptr<000007>), val:100000, source:default
     > pathtest_contexts_limit
-        leaf(#ptr<000004>), val:"654321", source:environment-variable
+        leaf(#ptr<000004>), val:654321, source:environment-variable
     > processing_chan_size
-        leaf(#ptr<000005>), val:"78900", source:environment-variable
+        leaf(#ptr<000005>), val:78900, source:environment-variable
     > workers
         leaf(#ptr<000008>), val:4, source:default`
 	assert.Equal(t, expect, txt)
@@ -1156,7 +1158,7 @@ func TestUnsetForSource(t *testing.T) {
     > input_chan_size
         leaf(#ptr<000007>), val:100000, source:default
     > pathtest_contexts_limit
-        leaf(#ptr<000004>), val:"654321", source:environment-variable
+        leaf(#ptr<000004>), val:654321, source:environment-variable
     > processing_chan_size
         leaf(#ptr<000009>), val:45678, source:file
     > workers
@@ -1174,7 +1176,7 @@ func TestUnsetForSource(t *testing.T) {
     > input_chan_size
         leaf(#ptr<000007>), val:100000, source:default
     > pathtest_contexts_limit
-        leaf(#ptr<000004>), val:"654321", source:environment-variable
+        leaf(#ptr<000004>), val:654321, source:environment-variable
     > processing_chan_size
         leaf(#ptr<000010>), val:100000, source:default
     > workers
@@ -1249,7 +1251,7 @@ func TestUnsetForSourceAllLayers(t *testing.T) {
   > collector
     inner(#ptr<000002>)
     > input_chan_size
-        leaf(#ptr<000003>), val:"23456", source:environment-variable
+        leaf(#ptr<000003>), val:23456, source:environment-variable
     > pathtest_contexts_limit
         leaf(#ptr<000004>), val:100000, source:default
     > processing_chan_size
@@ -1278,7 +1280,7 @@ tree(#ptr<000014>) source=environment-variable
   > collector
     inner(#ptr<000016>)
     > input_chan_size
-        leaf(#ptr<000003>), val:"23456", source:environment-variable`
+        leaf(#ptr<000003>), val:23456, source:environment-variable`
 	assert.Equal(t, expect, txt)
 
 	// Remove a setting from the env source, nothing in the file source, it goes to default
@@ -1294,7 +1296,7 @@ tree(#ptr<000014>) source=environment-variable
   > collector
     inner(#ptr<000002>)
     > input_chan_size
-        leaf(#ptr<000017>), val:100000, source:default
+        leaf(#ptr<000009>), val:100000, source:default
     > pathtest_contexts_limit
         leaf(#ptr<000004>), val:100000, source:default
     > processing_chan_size
@@ -1531,7 +1533,7 @@ func TestEnvVarTransformers(t *testing.T) {
 
 	cfg.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
 		vals := []interface{}{}
-		for _, str := range strings.Split(in, ",") {
+		for str := range strings.SplitSeq(in, ",") {
 			f, err := strconv.ParseFloat(str, 64)
 			if err != nil {
 				continue
@@ -1695,6 +1697,8 @@ fruit:
   cherry:
   donut:
     12
+  egg:
+    - foo: bar
 `
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	// default wins over invalid file
@@ -1703,16 +1707,31 @@ fruit:
 	cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
 	// env wins over file
 	cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	// env var is defined
 	t.Setenv("TEST_FRUIT_CHERRY_SEED_NUM", "1")
+	// default setting will be overridden by invalid file data
+	cfg.BindEnvAndSetDefault("fruit.egg.yoke", "yellow")
 	cfg.BuildSchema()
 
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
+	// invalid file data is preserved in merged tree
+	// maintains compatibility with viper
+	actualEgg := cfg.Get("fruit.egg")
+	expectEgg := []interface{}{
+		map[interface{}]interface{}{
+			"foo": "bar",
+		},
+	}
+	assert.Equal(t, expectEgg, actualEgg)
+
 	// In the merged tree, the following appears:
 	// fruit.apple.core.seeds from default
-	// fruit.banana           from file (invalid data)
+	// fruit.banana           from file (empty section)
 	// fruit.cherry.seed.num  from env
+	// fruit.donut            from file (unknown)
+	// fruit.egg              from file (wrong shape)
 	txt := cfg.(*ntmConfig).Stringify("all", model.OmitPointerAddr)
 	expect := `tree(#ptr<000000>) source=root
 > fruit
@@ -1733,29 +1752,37 @@ fruit:
           leaf(#ptr<000008>), val:"1", source:environment-variable
   > donut
       leaf(#ptr<000009>), val:12, source:file
-tree(#ptr<000010>) source=default
+  > egg
+      leaf(#ptr<000010>), val:[map[foo:bar]], source:file
+tree(#ptr<000011>) source=default
 > fruit
-  inner(#ptr<000011>)
+  inner(#ptr<000012>)
   > apple
     inner(#ptr<000002>)
     > core
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-tree(#ptr<000012>) source=file
+  > egg
+    inner(#ptr<000013>)
+    > yoke
+        leaf(#ptr<000014>), val:"yellow", source:default
+tree(#ptr<000015>) source=file
 > fruit
-  inner(#ptr<000013>)
+  inner(#ptr<000016>)
   > apple
-      leaf(#ptr<000014>), val:<nil>, source:file
+      leaf(#ptr<000017>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000015>), val:<nil>, source:file
+      leaf(#ptr<000018>), val:<nil>, source:file
   > donut
       leaf(#ptr<000009>), val:12, source:file
-tree(#ptr<000016>) source=environment-variable
+  > egg
+      leaf(#ptr<000010>), val:[map[foo:bar]], source:file
+tree(#ptr<000019>) source=environment-variable
 > fruit
-  inner(#ptr<000017>)
+  inner(#ptr<000020>)
   > cherry
     inner(#ptr<000006>)
     > seed
@@ -1788,5 +1815,47 @@ tree(#ptr<000002>) source=default
 tree(#ptr<000004>) source=file
 > kubernetes_node_annotations_as_tags
     leaf(#ptr<000001>), val:map[cluster.k8s.io/machine:different], source:file`
+	assert.Equal(t, expect, txt)
+}
+
+func TestFileLayerConvertsToDefaultType(t *testing.T) {
+	// YAML quoted string "345" for a setting that uses an int default
+	configData := `my_int_setting: "345"
+my_bool_setting: "true"
+`
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("my_int_setting", 0)
+	cfg.BindEnvAndSetDefault("my_bool_setting", false)
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	// shows the file layer stores the correctly typed int values
+	txt := cfg.(*ntmConfig).Stringify(model.SourceFile, model.OmitPointerAddr)
+	expect := `tree(#ptr<000000>) source=file
+> my_bool_setting
+    leaf(#ptr<000001>), val:true, source:file
+> my_int_setting
+    leaf(#ptr<000002>), val:345, source:file`
+	assert.Equal(t, expect, txt)
+}
+
+func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
+	// env vars are always strings and they should be converted to match the default type
+	t.Setenv("TEST_MY_INT_SETTING", "789")
+	t.Setenv("TEST_MY_BOOL_SETTING", "true")
+
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("my_int_setting", 0)
+	cfg.BindEnvAndSetDefault("my_bool_setting", false)
+	cfg.BuildSchema()
+
+	// shows the file layer stores the correctly typed int values
+	txt := cfg.(*ntmConfig).Stringify(model.SourceEnvVar, model.OmitPointerAddr)
+	expect := `tree(#ptr<000000>) source=environment-variable
+> my_bool_setting
+    leaf(#ptr<000001>), val:true, source:environment-variable
+> my_int_setting
+    leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
 }

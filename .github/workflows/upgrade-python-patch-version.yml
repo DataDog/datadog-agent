@@ -21,7 +21,7 @@ jobs:
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
-          policy: self.update-dependencies.create-pr
+          policy: self.upgrade-python-version.create-pr
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -36,9 +36,6 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Install Python dependencies
-        run: pip install packaging httpx orjson
-
       - name: Update Python version
         id: update
         run: |
@@ -46,8 +43,8 @@ jobs:
           CURRENT_VERSION=$(dda inv python-version.get)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           
-          # Run update task (exits gracefully if no update available)
-          dda inv python-version.update || true
+          # Run update task (exits cleanly if already up-to-date)
+          dda inv python-version.update
           
           # Check if files were modified
           if git diff --quiet; then

@@ -8,8 +8,10 @@ SHA256 hashes from Python.org SBOM files, and updates all relevant files.
 
 from __future__ import annotations
 
-import asyncio
+import json
 import re
+import ssl
+import urllib.request
 from pathlib import Path
 
 from invoke import task
@@ -21,6 +23,11 @@ from tasks.libs.common.color import color_message
 # Python.org URLs
 PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
 PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Python-{version}.tgz.spdx.json"
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    """Convert a version string like '3.13.8' to a comparable tuple (3, 13, 8)."""
+    return tuple(int(x) for x in version.split('.'))
 
 
 @task
@@ -50,18 +57,6 @@ def update(
     Example:
         dda inv python-version.update
     """
-    # Check all optional dependencies upfront
-    try:
-        import httpx  # noqa: F401
-        import orjson  # noqa: F401
-        from packaging.version import Version
-    except ImportError as e:
-        raise Exit(
-            f"Missing required dependency: {e}\n\n"
-            "To use this task, install the required dependencies:\n"
-            "  pip install packaging httpx orjson"
-        ) from e
-
     current_version = _get_current_python_version()
     current_major_minor = _get_major_minor_version(current_version)
 
@@ -72,7 +67,7 @@ def update(
         raise Exit(f"Could not find latest Python version for {current_major_minor}")
 
     # Check if update is needed
-    if Version(target_version) <= Version(current_version):
+    if _version_tuple(target_version) <= _version_tuple(current_version):
         print(color_message(f"Already at Python {current_version} (target: {target_version})", "yellow"))
         return
 
@@ -125,10 +120,10 @@ def _get_current_python_version() -> str:
 
 def _get_major_minor_version(version: str) -> str:
     """Extract major.minor version from full version string."""
-    from packaging.version import Version
-
-    ver = Version(version)
-    return f"{ver.major}.{ver.minor}"
+    parts = version.split('.')
+    if len(parts) < 2:
+        raise Exit(f"Invalid version format: {version}")
+    return f"{parts[0]}.{parts[1]}"
 
 
 def _validate_version_string(version: str) -> bool:
@@ -141,6 +136,14 @@ def _validate_sha256(hash_str: str) -> bool:
     return bool(re.match(r'^[0-9A-Fa-f]{64}$', hash_str))
 
 
+def _url_get(url: str, timeout: int = 30) -> str:
+    """Fetch a URL and return its text content."""
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
+        return response.read().decode('utf-8')
+
+
 def _get_latest_python_version(major_minor: str) -> str | None:
     """
     Get the latest Python patch version from python.org FTP directory.
@@ -151,12 +154,8 @@ def _get_latest_python_version(major_minor: str) -> str | None:
     Returns:
         Latest version string (e.g., "3.13.8") or None if not found
     """
-    import httpx
-    from packaging.version import Version
-
     try:
-        response = httpx.get(PYTHON_FTP_URL, timeout=30, verify=True)
-        response.raise_for_status()
+        html = _url_get(PYTHON_FTP_URL)
     except Exception as e:
         print(color_message(f"Error fetching Python versions: {e}", "red"))
         return None
@@ -165,20 +164,18 @@ def _get_latest_python_version(major_minor: str) -> str | None:
     pattern = rf'<a href="({re.escape(major_minor)}\.\d+)/">'
     versions = []
 
-    for line in response.text.split("\n"):
+    for line in html.split("\n"):
         match = re.search(pattern, line)
         if match:
             version_str = match.group(1)
-            try:
-                versions.append(Version(version_str))
-            except Exception:
-                continue
+            if _validate_version_string(version_str):
+                versions.append(version_str)
 
     if not versions:
         return None
 
-    versions.sort()
-    return str(versions[-1])
+    versions.sort(key=_version_tuple)
+    return versions[-1]
 
 
 def _get_python_sha256_hash(version: str) -> str:
@@ -195,29 +192,21 @@ def _get_python_sha256_hash(version: str) -> str:
         ValueError: If version format is invalid
         RuntimeError: If SBOM file cannot be fetched or parsed
     """
-    import httpx
-    import orjson
-
     if not _validate_version_string(version):
         raise ValueError(f"Invalid version format: {version}")
 
     sbom_url = PYTHON_SBOM_LINUX_URL_TEMPLATE.format(version=version)
 
-    async def fetch_sbom():
-        async with httpx.AsyncClient(verify=True) as client:
-            try:
-                response = await client.get(sbom_url, timeout=30.0)
-                response.raise_for_status()
-                data = orjson.loads(response.text)
+    try:
+        text = _url_get(sbom_url)
+        data = json.loads(text)
 
-                if not isinstance(data, dict) or 'packages' not in data:
-                    raise ValueError("Invalid SBOM format")
+        if not isinstance(data, dict) or 'packages' not in data:
+            raise ValueError("Invalid SBOM format")
 
-                return data.get('packages', [])
-            except Exception as e:
-                raise RuntimeError(f'Error fetching SBOM from {sbom_url}: {e}') from e
-
-    packages = asyncio.run(fetch_sbom())
+        packages = data.get('packages', [])
+    except Exception as e:
+        raise RuntimeError(f'Error fetching SBOM from {sbom_url}: {e}') from e
 
     # Find CPython package and extract SHA256
     cpython_package = next((pkg for pkg in packages if pkg.get('name') == "CPython"), None)

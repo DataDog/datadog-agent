@@ -697,9 +697,38 @@ func TestClient(t *testing.T) {
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		agentHealthPayloads, err := client.GetAgentHealth()
+		err := client.getAgentHealth()
 		require.NoError(t, err)
-		require.NotEmpty(t, agentHealthPayloads)
+		assert.True(t, client.agentHealthAggregator.ContainsPayloadName("test-hostname"))
+		assert.False(t, client.agentHealthAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("GetAgentHealth", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2AgentHealth)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		healthPayloads, err := client.GetAgentHealth()
+		require.NoError(t, err)
+		require.Len(t, healthPayloads, 1)
+
+		payload := healthPayloads[0]
+		assert.Equal(t, "test-hostname", payload.Host.Hostname)
+		assert.Equal(t, "7.50.0", payload.Host.GetAgentVersion())
+		assert.Equal(t, "agent-health-issues", payload.EventType)
+		assert.Len(t, payload.Issues, 1)
+
+		issue, ok := payload.Issues["check-id-123"]
+		require.True(t, ok)
+		assert.Equal(t, "docker-permissions-issue", issue.Id)
+		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
+		assert.Equal(t, "Docker socket permissions error", issue.Title)
+		assert.Equal(t, "permissions", issue.Category)
+		assert.Equal(t, "error", issue.Severity)
+		assert.Contains(t, issue.Tags, "os:linux")
+		assert.Contains(t, issue.Tags, "docker:installed")
 	})
 
 }

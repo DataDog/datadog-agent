@@ -3,46 +3,38 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [labeled, unlabeled, synchronize]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_REPO: ${{ github.repository }}
 
 permissions: {}
 
 jobs:
-  assign-team-label:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
-      - name: Auto assign team label
-        env:
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
+      # Checkout base repo for trusted code (tasks, dda install)
+      # NOTE: Do NOT use sparse-checkout here — reno uses dulwich which doesn't
+      # support the extensions.worktreeConfig that sparse-checkout enables.
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: main
           fetch-depth: 0
           persist-credentials: false
+      # Fetch and checkout only releasenotes folders from PR (data only, no code execution)
+      # Using refs/pull/NUMBER/head works for both fork and non-fork PRs
+      - name: Fetch PR head
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch origin "refs/pull/${PR_NUMBER}/head"
+      - name: Checkout releasenotes from PR
+        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca releasenotes-installscript 2>/dev/null || true
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
@@ -52,8 +44,8 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref }}
           PR_ID: ${{ github.event.pull_request.number }}
         run: dda inv -- -e linter.releasenote
+
   fetch-labels:
-    needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:
@@ -62,16 +54,16 @@ jobs:
       - name: Get PR labels
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
         run: |
           labels="$(curl --retry 4 -fsSL \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GH_REPO/pulls/$PR_NUMBER" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
             | jq -r '[.labels[].name] | join(" ")')"
-          echo "Fetched labels for PR $EVENT_NUMBER: $labels"
+          echo "Fetched labels for PR $PR_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
+
   team-label-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -89,10 +81,11 @@ jobs:
               exit 0
             fi
           done
-          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          echo "PR ${{ github.event.pull_request.number }} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
+
   skip-qa-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -101,6 +94,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: main
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/actions/install-dda
+            tasks
           persist-credentials: false
       - name: Install dda
         uses: ./.github/actions/install-dda
@@ -108,7 +106,7 @@ jobs:
           features: legacy-tasks
       - name: Check qa/[done|no-code-change] labels are not set together
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
         run: |
           dda inv -- -e github.check-qa-labels --labels "${LABELS[@]}"
 
@@ -126,21 +124,3 @@ jobs:
           features: legacy-tasks
       - name: Check agent telemetry metric list
         run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
-
-  ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
-      - name: Ask for code reviews
-        env:
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          PR_REQUESTED_TEAMS: ${{ toJSON(github.event.pull_request.requested_teams) }}
-        run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}

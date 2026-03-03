@@ -32,7 +32,7 @@ endif()
 set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/three/ ${CGO_LDFLAGS}\")
 add_custom_command(
     OUTPUT testPy3
-    COMMAND ${CMAKE_COMMAND} -E env CGO_CFLAGS=${CGO_CFLAGS} CGO_LDFLAGS=${CGO_LDFLAGS} DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -mod=readonly -tags "three" -count=1 -p=1 ${PKGS}
+    COMMAND ${CMAKE_COMMAND} -E env CGO_CFLAGS=${CGO_CFLAGS} CGO_LDFLAGS=${CGO_LDFLAGS} DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -mod=readonly -count=1 -p=1 ${PKGS}
 )
 list(APPEND TARGETS "testPy3")
 

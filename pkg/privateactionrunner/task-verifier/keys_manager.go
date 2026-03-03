@@ -16,11 +16,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 type KeysManager interface {
@@ -30,7 +29,7 @@ type KeysManager interface {
 }
 
 type keysManager struct {
-	rcClient               RcClient
+	rcClient               rcclient.Client
 	stopChan               chan bool
 	keys                   map[string]types.DecodedKey
 	mu                     sync.RWMutex
@@ -38,11 +37,7 @@ type keysManager struct {
 	firstCallbackCompleted bool
 }
 
-type RcClient interface {
-	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-}
-
-func NewKeyManager(rcClient RcClient) KeysManager {
+func NewKeyManager(rcClient rcclient.Client) KeysManager {
 	return &keysManager{
 		stopChan: make(chan bool),
 		keys:     make(map[string]types.DecodedKey),

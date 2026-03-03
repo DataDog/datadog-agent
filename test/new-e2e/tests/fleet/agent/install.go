@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
@@ -28,13 +29,16 @@ const (
 type InstallOption func(*installParams)
 
 type installParams struct {
-	remoteUpdates  bool
-	stablePackages bool
+	remoteUpdates   bool
+	stablePackages  bool
+	stagingPackages string
+	pipelineID      string
 }
 
 var defaultInstallParams = &installParams{
 	remoteUpdates:  false,
 	stablePackages: false,
+	pipelineID:     os.Getenv("E2E_PIPELINE_ID"),
 }
 
 // WithRemoteUpdates enables remote updates.
@@ -48,6 +52,20 @@ func WithRemoteUpdates() InstallOption {
 func WithStablePackages() InstallOption {
 	return func(p *installParams) {
 		p.stablePackages = true
+	}
+}
+
+// WithStagingPackages uses the staging packages.
+func WithStagingPackages(version string) InstallOption {
+	return func(p *installParams) {
+		p.stagingPackages = version
+	}
+}
+
+// WithPipelineID overrides the pipeline ID of the agent to install.
+func WithPipelineID(pipelineID string) InstallOption {
+	return func(p *installParams) {
+		p.pipelineID = pipelineID
 	}
 }
 
@@ -81,10 +99,19 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 			return fmt.Errorf("error reexecuting systemd: %w", err)
 		}
 	}
-	// reset failure from previous tests
-	_, err := a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
+	// reset failure from previous tests (try up to 3 times)
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
+		if err == nil {
+			break
+		}
+		if i < 2 { // Don't sleep after the last attempt
+			time.Sleep(time.Second)
+		}
+	}
 	if err != nil {
-		return fmt.Errorf("error resetting failed units: %w", err)
+		return fmt.Errorf("error resetting failed units after 3 attempts: %w", err)
 	}
 
 	env := map[string]string{
@@ -94,13 +121,18 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	if params.remoteUpdates {
 		env["DD_REMOTE_UPDATES"] = "true"
 	}
-	if !params.stablePackages {
+	if !params.stablePackages && params.stagingPackages == "" {
 		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
-		env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID"))
+		env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", params.pipelineID)
 		env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", a.host.RemoteHost.Architecture)
 		env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
-		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
-		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
+		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", params.pipelineID)
+		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = params.pipelineID
+	} else if params.stagingPackages != "" {
+		env["DD_REPO_URL"] = "datad0g.com"
+		env["DD_AGENT_MAJOR_VERSION"] = "7"
+		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
+		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
 	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err
@@ -115,8 +147,8 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		env["DD_REMOTE_UPDATES"] = "true"
 	}
 	scriptURL := windowsInstallScriptURL
-	if !params.stablePackages {
-		artifactURL, err := pipeline.GetPipelineArtifact(os.Getenv("E2E_PIPELINE_ID"), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+	if !params.stablePackages && params.stagingPackages == "" {
+		artifactURL, err := pipeline.GetPipelineArtifact(params.pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
 		})
 		if err != nil {
@@ -124,9 +156,15 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		}
 		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = artifactURL
-		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
 		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
+	} else if params.stagingPackages != "" {
+		env["DD_SITE"] = "datad0g.com"
+		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-") + "-1"
+		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
+		scriptURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/Install-Datadog-%s-1.ps1", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 	}
 	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;

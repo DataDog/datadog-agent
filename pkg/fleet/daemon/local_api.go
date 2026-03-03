@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/gorilla/mux"
 
@@ -24,6 +25,13 @@ import (
 type StatusResponse struct {
 	APIResponse
 	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
+	SecretsPubKey     string               `json:"secrets_pub_key"`
+}
+
+// startConfigExperimentRequest is the request to the start config experiment endpoint.
+type startConfigExperimentRequest struct {
+	Operations       string            `json:"operations"`
+	EncryptedSecrets map[string]string `json:"encrypted_secrets"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -74,18 +82,35 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 }
 
 func (l *localAPIImpl) handler() http.Handler {
-	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
-	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
-	r.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
-	r.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
+	r := mux.NewRouter()
+
+	// API routes with Content-Type requirement
+	api := r.Headers("Content-Type", "application/json").Subrouter()
+	api.HandleFunc("/status", l.status).Methods(http.MethodGet)
+	api.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
+	api.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
+
+	// pprof debug endpoints
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	r.Handle("/debug/pprof/block", pprof.Handler("block"))
+	r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	r.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	r.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+
 	return r
 }
 
@@ -95,8 +120,10 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
+	rcState := l.daemon.GetRemoteConfigState()
 	response = StatusResponse{
-		RemoteConfigState: l.daemon.GetRemoteConfigState().Packages,
+		RemoteConfigState: rcState.Packages,
+		SecretsPubKey:     rcState.SecretsPubKey,
 	}
 }
 
@@ -202,7 +229,7 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request config.Operations
+	var request startConfigExperimentRequest
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -213,7 +240,14 @@ func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Requ
 		response.Error = &APIError{Message: err.Error()}
 		return
 	}
-	err = l.daemon.StartConfigExperiment(r.Context(), pkg, request)
+	var ops config.Operations
+	err = json.Unmarshal([]byte(request.Operations), &ops)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	err = l.daemon.StartConfigExperiment(r.Context(), pkg, ops, request.EncryptedSecrets)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -329,7 +363,7 @@ type LocalAPIClient interface {
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
-	StartConfigExperiment(pkg, version string) error
+	StartConfigExperiment(pkg, operations string, encryptedSecrets map[string]string) error
 	StopConfigExperiment(pkg string) error
 	PromoteConfigExperiment(pkg string) error
 }
@@ -492,8 +526,16 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 }
 
 // StartConfigExperiment starts a config experiment for a package.
-func (c *localAPIClientImpl) StartConfigExperiment(pkg, operations string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer([]byte(operations)))
+func (c *localAPIClientImpl) StartConfigExperiment(pkg string, operations string, encryptedSecrets map[string]string) error {
+	request := startConfigExperimentRequest{
+		Operations:       operations,
+		EncryptedSecrets: encryptedSecrets,
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

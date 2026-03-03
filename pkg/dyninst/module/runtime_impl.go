@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -28,6 +29,7 @@ import (
 type runtimeImpl struct {
 	store                    *processStore
 	diagnostics              *diagnosticsManager
+	actuator                 Actuator
 	decoderFactory           DecoderFactory
 	irGenerator              IRGenerator
 	programCompiler          ProgramCompiler
@@ -76,6 +78,7 @@ func (rt *runtimeImpl) Load(
 	executable actuator.Executable,
 	processID actuator.ProcessID,
 	probes []ir.ProbeDefinition,
+	opts actuator.LoadOptions,
 ) (_ actuator.LoadedProgram, retErr error) {
 	if rt.tombstoneFilePath != "" {
 		// Write a tombstone file so that, if we crash in the middle of loading a
@@ -100,7 +103,10 @@ func (rt *runtimeImpl) Load(
 
 	runtimeID, ok := rt.store.updateOnLoad(processID, executable, programID)
 	if !ok {
-		return nil, nil
+		// This can happen if the process has gone away after the load call was
+		// initiated. Such a race is unavoidable because loading happens
+		// asynchronously.
+		return nil, fmt.Errorf("process %v not found", processID)
 	}
 
 	rt.procRuntimeIDbyProgramID.Store(programID, runtimeID)
@@ -135,7 +141,11 @@ func (rt *runtimeImpl) Load(
 		}
 	}()
 
-	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes)
+	var irgenOpts []irgen.Option
+	if len(opts.AdditionalTypes) > 0 {
+		irgenOpts = append(irgenOpts, irgen.WithAdditionalTypes(opts.AdditionalTypes))
+	}
+	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
 	}
@@ -190,6 +200,7 @@ func (rt *runtimeImpl) Load(
 		decoder:      decoder,
 		symbolicator: rt.store.getSymbolicator(programID),
 		programID:    programID,
+		processID:    processID,
 		service:      runtimeID.service,
 		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
 			Tags:        tags,

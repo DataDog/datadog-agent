@@ -41,6 +41,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	PulumiLogToStdErr:            "E2E_PULUMI_LOG_TO_STDERR",
 	PulumiVerboseProgressStreams: "E2E_PULUMI_VERBOSE_PROGRESS_STREAMS",
 	DevMode:                      "E2E_DEV_MODE",
+	DevLocal:                     "E2E_DEV_LOCAL",
 	InitOnly:                     "E2E_INIT_ONLY",
 	TeardownOnly:                 "E2E_TEARDOWN_ONLY",
 	MajorVersion:                 "E2E_MAJOR_VERSION",
@@ -48,6 +49,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	FIPS:                         "E2E_FIPS",
 	CoveragePipeline:             "E2E_COVERAGE_PIPELINE",
 	CoverageOutDir:               "E2E_COVERAGE_OUT_DIR",
+	SkipWindows:                  "E2E_SKIP_WINDOWS",
 }
 
 type envValueStore struct {

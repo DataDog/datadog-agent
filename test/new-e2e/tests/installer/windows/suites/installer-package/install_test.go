@@ -77,7 +77,7 @@ func (s *testInstallerSuite) startServiceWithConfigFileUpdatesEnabled() {
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
-	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
+	s.requireRunning()
 	status, err := s.Installer().Status()
 	s.Require().NoError(err)
 	// with no packages installed just prints version
@@ -101,15 +101,13 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Arrange
 
 	// Act
-	s.Require().NoError(s.Installer().Install(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile(logFilename),
-	))
+	)
 
 	// Assert
 	s.requireInstalled()
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Running")
+	s.requireRunning()
 }
 
 func (s *testInstallerSuite) repair() {
@@ -118,15 +116,13 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Env().RemoteHost.Remove(consts.BinaryPath))
 
 	// Act
-	s.Require().NoError(s.Installer().Install(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile("repair.log"),
-	))
+	)
 
 	// Assert
 	s.requireInstalled()
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Running")
+	s.requireRunning()
 }
 
 func (s *testInstallerSuite) purge() {

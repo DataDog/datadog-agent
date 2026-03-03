@@ -648,7 +648,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 		defer os.Remove(testFile)
 
 		// not check that we still have the open allowed
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
 			// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
 			// retention period to expire, we're making sure that a newly created discarder will properly take effect.
@@ -658,7 +658,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
-		})
+		}, "test_mask_open_rule")
 
 		utimbuf := &syscall.Utimbuf{
 			Actime:  123,
@@ -689,7 +689,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 		}
 
 		// now check that we still have the open allowed
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
 			if err != nil {
 				return err
@@ -697,7 +697,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
-		})
+		}, "test_mask_open_rule")
 	}))
 }
 
@@ -955,6 +955,65 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenRdOnlyApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `(open.flags & O_ACCMODE) == O_RDONLY`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	const testFile = "/dev/null"
+
+	// test that O_RDONLY event is approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err != nil {
+		t.Error(err)
+	}
+
+	// test that O_RDONLY and O_CLOEXEC event is also approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY|syscall.O_CLOEXEC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err != nil {
+		t.Error(err)
+	}
+
+	// test that O_RDWR event isn't approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDWR)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err == nil {
+		t.Error("shouldn't get an event")
+	}
+}
+
 func TestFilterInUpperLayerApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1151,7 +1210,7 @@ func TestFilterBpfCmd(t *testing.T) {
 		}
 	}()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		m, err = ebpf.NewMap(&ebpf.MapSpec{Name: "test_bpf_map", Type: ebpf.Array, KeySize: 4, ValueSize: 4, MaxEntries: 1})
 		if err != nil {
 			return err
@@ -1159,7 +1218,7 @@ func TestFilterBpfCmd(t *testing.T) {
 		return nil
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_bpf_map_create")
-	})
+	}, "test_bpf_map_create")
 
 	err = test.GetProbeEvent(func() error {
 		if m.Update(uint32(0), uint32(1), ebpf.UpdateAny) != nil {

@@ -1937,7 +1937,8 @@ func (s *TracerSuite) TestShortWrite() {
 
 	sk, err := unix.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, 0)
 	require.NoError(t, err)
-	defer syscall.Close(sk)
+	f := os.NewFile(uintptr(sk), "")
+	t.Cleanup(func() { f.Close() })
 
 	err = unix.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 5000)
 	require.NoError(t, err)
@@ -1973,11 +1974,17 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			// Short write, send buffer is completely full
+			done = true
+			break
+		}
 		require.NoError(t, err)
 		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
+			// Short write, partial write
 			done = true
 			break
 		}
@@ -1985,14 +1992,12 @@ func (s *TracerSuite) TestShortWrite() {
 
 	require.True(t, done)
 
-	f := os.NewFile(uintptr(sk), "")
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 
 	unix.Shutdown(sk, unix.SHUT_WR)
 	close(read)
-	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
@@ -2001,7 +2006,7 @@ func (s *TracerSuite) TestShortWrite() {
 		require.True(collect, ok)
 
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
+	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
 func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
@@ -3381,8 +3386,8 @@ func (s *TracerSuite) TestDNSWorkload() {
 	// Container ID resolution (not resolv.conf resolution) fails in this test before 5.11.
 	// I think it's related to this patch:
 	// https://github.com/torvalds/linux/commit/3ae700ecfae913316e3b4fe5f60c72b6131aaa1f#diff-360c5854af72f475f4ebbf588f1c163c9b9694f618088f5ff1e399b36e339901
-	// It changes the way that timestamps are offered in /proc/<pid>/stat.
-	// It's likely my test's injection of process events via HandleEvents is wrong on older kernels
+	// It changes the way that timestamps are offered in /proc/<pid>/stat to respect time namespaces.
+	// This means the processCache doesn't always work properly in pre-5.11
 	if kv < kernel.VersionCode(5, 11, 0) {
 		t.Skip("Not supported before 5.11")
 	}

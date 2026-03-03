@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -22,6 +23,13 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	helmValues := `
+datadog:
+    logLevel: DEBUG
+clusterAgent:
+    envDict:
+        DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
+`
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
 			scenkind.WithVMOptions(
@@ -29,11 +37,14 @@ func TestKindSuite(t *testing.T) {
 			),
 			scenkind.WithFakeintakeOptions(
 				fakeintake.WithMemory(2048),
+				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),
 			scenkind.WithDeployTestWorkload(),
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
+				kubernetesagentparams.WithHelmValues(helmValues),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),
@@ -82,6 +93,21 @@ func (suite *kindSuite) TestControlPlane() {
 			Tags: &[]string{
 				`^contentType:`,
 			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kube_apiserver.api_resource",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^api_resource_kind:.*`,
+				`^api_resource_group:.*`,
+				`^api_resource_version:.*`,
+				`^api_resource_name:.*`,
+			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -135,4 +161,38 @@ func (suite *kindSuite) TestControlPlane() {
 			},
 		},
 	})
+}
+
+func (suite *kindSuite) TestHostTags() {
+	expectedTags := []string{
+		`^os:linux$`,
+		`^arch:amd64$`,
+		`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^kube_node:` + regexp.QuoteMeta(suite.clusterName) + `-control-plane`,
+		`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		`^orch_cluster_id:[0-9a-f-]{36}$`,
+	}
+
+	// depending on the kubernetes version the expected tags for kube_node_rol varies.
+	k8sVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
+	suite.NoError(err, "failed to request k8s server version to specify the appropriate expected host-tags")
+
+	// depending on kube version we expect different 'kube_node_role' tag value
+	// we only handle version we actually test (v1.19, v1.22, ...)
+	switch {
+	case k8sVersion.Minor == "19":
+		expectedTags = append(expectedTags, "^kube_node_role:master$")
+	case k8sVersion.Minor == "22":
+		expectedTags = append(expectedTags, "^kube_node_role:master$", "^kube_node_role:control-plane$")
+	default:
+		expectedTags = append(expectedTags, "^kube_node_role:control-plane$")
+	}
+
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: expectedTags,
+	}
+
+	suite.testHostTags(args)
 }

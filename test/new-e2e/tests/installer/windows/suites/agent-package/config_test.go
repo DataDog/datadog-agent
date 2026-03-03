@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -131,13 +131,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Wait for watchdog to restart the services with the stable config
-	s.WaitForServicesWithBackoff("Running", backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10),
-		consts.ServiceName,
-		"datadogagent",
-	)
+	s.WaitForServicesWithBackoff("Running", []string{consts.ServiceName, "datadogagent"},
+		backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 	s.AssertSuccessfulConfigStopExperiment()
 
 	// Config should be reverted to the stable config
@@ -152,7 +150,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
 		s.AssertSuccessfulConfigStopExperiment()
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// assert that the config dir permissions have not changed
 	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
@@ -171,12 +169,12 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
 
 	// Assert that the non-default services are not running
-	err := s.WaitForServicesWithBackoff("Stopped", &backoff.StopBackOff{},
+	err := s.WaitForServicesWithBackoff("Stopped", []string{
 		"datadog-system-probe",
 		"datadog-security-agent",
 		"ddnpm",
 		"ddprocmon",
-	)
+	}, backoff.WithBackOff(&backoff.StopBackOff{}))
 	s.Require().NoError(err, "non-default services should not be running")
 
 	// Act
@@ -212,8 +210,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 		"ddnpm",
 		"ddprocmon",
 	}
-	b := backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10)
-	err = s.WaitForServicesWithBackoff("Running", b, expectedServices...)
+	retryOpts := []backoff.RetryOption{backoff.WithBackOff(backoff.NewConstantBackOff(30 * time.Second)), backoff.WithMaxTries(10)}
+	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
 	s.Require().NoError(err, "Failed waiting for services to start")
 
 	// Promote config experiment (restarts the services)
@@ -221,7 +219,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 
 	// Wait for all services to be running
 	// 30*10 -> 300 seconds (5 minutes)
-	err = s.WaitForServicesWithBackoff("Running", b, expectedServices...)
+	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
 	s.Require().NoError(err, "Failed waiting for services to start")
 }
 
@@ -266,7 +264,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 }
 
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
@@ -297,7 +295,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 		WithValueEqual("log_to_console", false)
 
 	// wait for the timeout
-	s.WaitForDaemonToStop(func() {}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	s.WaitForDaemonToStop(func() {}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Assert
 	s.AssertSuccessfulConfigStopExperiment()
@@ -312,7 +310,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 }
 
 // TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.
@@ -528,7 +526,7 @@ func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	s.AssertSuccessfulConfigStartExperiment(config.ID)
 }
@@ -537,7 +535,7 @@ func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config installerwindo
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().PromoteConfigExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
 }

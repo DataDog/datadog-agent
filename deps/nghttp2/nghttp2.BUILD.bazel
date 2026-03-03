@@ -1,9 +1,12 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:public"],
+    default_visibility = ["//visibility:private"],
 )
 
 license(
@@ -14,19 +17,73 @@ license(
     visibility = ["//visibility:public"],
 )
 
-SO_VERSION = 14
+SO_VERSION = "14.25.1"
+VERSION = "1.58"
+
+PUBLIC_HEADERS = [
+    "lib/includes/nghttp2/nghttp2ver.h",
+    "lib/includes/nghttp2/nghttp2.h",
+]
 
 # This builds only the nghttp2 C library, not the C++ application code.
 # Following the omnibus build configuration which uses:
 # --disable-app --disable-examples --disable-hpack-tools
 cc_library(
     name = "nghttp2",
-    srcs = glob(
-        [
-            "lib/*.c",
-            "lib/*.h",
-        ],
-    ),
+    srcs = [
+        "lib/nghttp2_buf.c",
+        "lib/nghttp2_buf.h",
+        "lib/nghttp2_callbacks.c",
+        "lib/nghttp2_callbacks.h",
+        "lib/nghttp2_debug.c",
+        "lib/nghttp2_debug.h",
+        "lib/nghttp2_extpri.c",
+        "lib/nghttp2_extpri.h",
+        "lib/nghttp2_frame.c",
+        "lib/nghttp2_frame.h",
+        "lib/nghttp2_hd_huffman_data.c",
+        "lib/nghttp2_hd_huffman.c",
+        "lib/nghttp2_hd_huffman.h",
+        "lib/nghttp2_hd.c",
+        "lib/nghttp2_hd.h",
+        "lib/nghttp2_helper.c",
+        "lib/nghttp2_helper.h",
+        "lib/nghttp2_http.c",
+        "lib/nghttp2_http.h",
+        "lib/nghttp2_int.h",
+        "lib/nghttp2_map.c",
+        "lib/nghttp2_map.h",
+        "lib/nghttp2_mem.c",
+        "lib/nghttp2_mem.h",
+        "lib/nghttp2_net.h",
+        "lib/nghttp2_npn.c",
+        "lib/nghttp2_npn.h",
+        "lib/nghttp2_option.c",
+        "lib/nghttp2_option.h",
+        "lib/nghttp2_outbound_item.c",
+        "lib/nghttp2_outbound_item.h",
+        "lib/nghttp2_pq.c",
+        "lib/nghttp2_pq.h",
+        "lib/nghttp2_priority_spec.c",
+        "lib/nghttp2_priority_spec.h",
+        "lib/nghttp2_queue.c",
+        "lib/nghttp2_queue.h",
+        "lib/nghttp2_ratelim.c",
+        "lib/nghttp2_ratelim.h",
+        "lib/nghttp2_rcbuf.c",
+        "lib/nghttp2_rcbuf.h",
+        "lib/nghttp2_session.c",
+        "lib/nghttp2_session.h",
+        "lib/nghttp2_stream.c",
+        "lib/nghttp2_stream.h",
+        "lib/nghttp2_submit.c",
+        "lib/nghttp2_submit.h",
+        "lib/nghttp2_time.c",
+        "lib/nghttp2_time.h",
+        "lib/nghttp2_version.c",
+        "lib/sfparse.c",
+        "lib/sfparse.h",
+    ],
     hdrs = glob([
         "lib/includes/**/*.h",
     ]) + [
@@ -37,9 +94,12 @@ cc_library(
         "lib/includes",
     ],
     visibility = ["//visibility:public"],
-    # The library is pure C, no need for C++ linking
+    # Options gleaned from the generated Makefile
     copts = [
+        "-O2",
         "-DHAVE_CONFIG_H",
+        "-DBUILDING_NGHTTP2",
+        "-fvisibility=hidden",
     ],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
@@ -49,6 +109,40 @@ cc_library(
 
 cc_shared_library(
     name = "nghttp2_shared",
-    shared_lib_name = "nghttp2.so.%s" % SO_VERSION,
+    shared_lib_name = "libnghttp2.so.%s" % SO_VERSION,
     deps = ["nghttp2"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":nghttp2_shared",
+    libname = "libnghttp2",
+    # Lands in embedded/lib. so_symlink FR, prefix should be able to override the automatic 'lib/'.
+    prefix = "embedded",
+    version = SO_VERSION,
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_files(
+    name = "header_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "embedded/include/nghttp2",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":header_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+#  This is generally installed with destdir={install_dir}
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )

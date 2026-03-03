@@ -6,10 +6,10 @@
 package uptime
 
 import (
-	"testing"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/shirou/gopsutil/v4/host"
+	"testing"
 )
 
 func uptimeSampler() (uint64, error) {
@@ -17,25 +17,27 @@ func uptimeSampler() (uint64, error) {
 }
 
 func TestUptimeCheckLinux(t *testing.T) {
+	uptime = uptimeSampler
+	defer func() { uptime = host.Uptime }()
+
 	// we have to init the mocked sender here before fileHandleCheck.Configure(...)
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
-	mock := mocksender.NewMockSender("")
-	mock.On("FinalizeCheckServiceTag").Return()
+	mockSender := mocksender.NewMockSender("")
+	mockSender.On("FinalizeCheckServiceTag").Return()
 
-	uptime = uptimeSampler
 	uptimeCheck := new(Check)
-	uptimeCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	uptimeCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	// reset the check ID for the sake of correctness
-	mocksender.SetSender(mock, uptimeCheck.ID())
+	mocksender.SetSender(mockSender, uptimeCheck.ID())
 
-	mock.On("Gauge", "system.uptime", 555.0, "", []string(nil)).Return().Times(1)
-	mock.On("Commit").Return().Times(1)
+	mockSender.On("Gauge", "system.uptime", 555.0, "", []string(nil)).Return().Times(1)
+	mockSender.On("Commit").Return().Times(1)
 
 	uptimeCheck.Run()
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 1)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }

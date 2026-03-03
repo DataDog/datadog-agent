@@ -85,7 +85,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "[{anotherInt: 42, anotherString: foo}, {anotherInt: 24, anotherString: bar}]"

@@ -24,6 +24,12 @@ import (
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
+// errors for ADP OTLP proxy configuration validation
+var (
+	ErrProxyGRPCEndpointNotConfigured = errors.New("data plane OTLP proxy enabled but gRPC endpoint is not configured")
+	ErrProxyGRPCEndpointCollision     = errors.New("data plane OTLP proxy gRPC endpoint conflicts with receiver endpoint")
+)
+
 func portToUint(v int) (port uint, err error) {
 	if v < 0 || v > 65535 {
 		err = fmt.Errorf("%d is out of [0, 65535] range", v)
@@ -35,7 +41,38 @@ func portToUint(v int) (port uint, err error) {
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
+
+	proxyEnabled := cfg.GetBool(coreconfig.DataPlaneOTLPProxyEnabled)
+
 	otlpReceiverConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	otlpReceiverConfigMap := otlpReceiverConfig.ToStringMap()
+
+	if proxyEnabled {
+		// ADP OTLP proxy will own the configured gRPC endpoint, so we need to assign a different endpoint to be used by the core agent
+		protocols, ok := otlpReceiverConfigMap["protocols"].(map[string]interface{})
+		if !ok {
+			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but receiver protocols not configured")
+		}
+		grpc, ok := protocols["grpc"].(map[string]interface{})
+		if !ok {
+			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but gRPC protocol not configured")
+		}
+
+		proxyGRPCEndpoint := cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint)
+		originalGRPCEndpoint, _ := grpc["endpoint"].(string)
+
+		if proxyGRPCEndpoint == "" {
+			errs = append(errs, ErrProxyGRPCEndpointNotConfigured)
+		}
+
+		// Check for endpoint collision
+		if proxyGRPCEndpoint != "" && proxyGRPCEndpoint == originalGRPCEndpoint {
+			errs = append(errs, fmt.Errorf("%w: %q", ErrProxyGRPCEndpointCollision, proxyGRPCEndpoint))
+		}
+
+		grpc["endpoint"] = proxyGRPCEndpoint
+	}
+
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
@@ -43,6 +80,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	metricsEnabled := cfg.GetBool(coreconfig.OTLPMetricsEnabled)
 	tracesEnabled := cfg.GetBool(coreconfig.OTLPTracesEnabled)
 	logsEnabled := cfg.GetBool(coreconfig.OTLPLogsEnabled)
+	TracesInfraAttributesEnabled := cfg.GetBool(coreconfig.OTLPTracesInfraAttrEnabled)
+
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, errors.New("at least one OTLP signal needs to be enabled"))
 	}
@@ -70,15 +109,16 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpReceiverConfig.ToStringMap(),
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		LogsEnabled:        logsEnabled,
-		Metrics:            mc,
-		MetricsBatch:       metricsBatchConfig.ToStringMap(),
-		Logs:               logsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
+		OTLPReceiverConfig:           otlpReceiverConfigMap,
+		TracePort:                    tracePort,
+		MetricsEnabled:               metricsEnabled,
+		TracesEnabled:                tracesEnabled,
+		LogsEnabled:                  logsEnabled,
+		Metrics:                      mc,
+		TracesInfraAttributesEnabled: TracesInfraAttributesEnabled,
+		MetricsBatch:                 metricsBatchConfig.ToStringMap(),
+		Logs:                         logsConfig.ToStringMap(),
+		Debug:                        debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 

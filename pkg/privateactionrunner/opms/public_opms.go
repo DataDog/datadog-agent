@@ -30,31 +30,46 @@ const (
 
 // PublicClient exposes endpoint that don't require JWT authentication
 type PublicClient interface {
-	EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error)
+	EnrollWithApiKey(
+		ctx context.Context,
+		apiKey string,
+		appKey string,
+		runnerName string,
+		runnerModes []modes.Mode,
+		publicJwk *jose.JSONWebKey,
+	) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
-	ddBaseURL  string
+	ddApiHost  string
 	httpClient *http.Client
 }
 
 func NewPublicClient(ddBaseURL string) PublicClient {
+	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
-		ddBaseURL: ddBaseURL,
+		ddApiHost: apiHost,
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(30_000),
 		},
 	}
 }
 
-func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error) {
+func (p *publicClient) EnrollWithApiKey(
+	ctx context.Context,
+	apiKey string,
+	appKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
 	createRunnerUrl := url.URL{
-		Host:   strings.Replace(p.ddBaseURL, "https://", "", 1),
+		Host:   p.ddApiHost,
 		Scheme: "https",
 		Path:   createPARPath,
 	}

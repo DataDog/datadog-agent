@@ -27,9 +27,8 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
-	// TODO: should be moved out
-	Regex       *regexp.Regexp
-	Placeholder []byte
+	Regex              *regexp.Regexp
+	Placeholder        []byte
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.

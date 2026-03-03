@@ -2,7 +2,7 @@
 Description=Datadog Agent
 After=network.target
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-ddot.service
+Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-ddot.service datadog-agent-action.service datadog-agent-procmgrd.service
 
 [Service]
 Type=simple

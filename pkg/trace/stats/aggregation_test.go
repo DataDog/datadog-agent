@@ -231,12 +231,38 @@ func TestNewAggregation(t *testing.T) {
 	} {
 		traceutil.SetMeasured(tt.in, true) // mark span as measured to ensure we calculate stats on it
 		sc := &SpanConcentrator{}
-		statSpan, _ := sc.NewStatSpanFromPB(tt.in, tt.peerTags)
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, tt.peerTags, nil)
 		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
 	}
+}
+
+func TestSpanDerivedPrimaryTags(t *testing.T) {
+	spanDerivedPrimaryTagsHash := tagsFnvHash([]string{"customer_tier:premium", "datacenter:us-east-1"})
+	sc := &SpanConcentrator{}
+
+	span := &pb.Span{
+		Service:  "checkout-service",
+		Name:     "checkout.process",
+		Resource: "POST /checkout/process",
+		Type:     "web",
+		Meta: map[string]string{
+			"customer_tier": "premium",
+			"datacenter":    "us-east-1",
+			"request_id":    "ignored",
+		},
+	}
+	traceutil.SetMeasured(span, true)
+
+	spanDerivedPrimaryTags := []string{"datacenter", "customer_tier"}
+	statSpan, ok := sc.NewStatSpanFromPB(span, nil, spanDerivedPrimaryTags)
+	assert.True(t, ok)
+	assert.Equal(t, []string{"datacenter:us-east-1", "customer_tier:premium"}, statSpan.matchingSpanDerivedPrimaryTags)
+
+	agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
+	assert.Equal(t, spanDerivedPrimaryTagsHash, agg.SpanDerivedPrimaryTagsHash)
 }
 
 func TestPeerTagsToAggregateForSpan(t *testing.T) {
@@ -286,7 +312,7 @@ func TestIsRootSpan(t *testing.T) {
 		},
 	} {
 		traceutil.SetMeasured(tt.in, true)
-		statSpan, _ := sc.NewStatSpanFromPB(tt.in, nil)
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, nil, nil)
 		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}

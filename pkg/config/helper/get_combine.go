@@ -29,6 +29,10 @@ func GetViperCombine(cfg model.Reader, key string) interface{} {
 		// If the setting has a scalar non-nil value, return it
 		return rawval
 	}
+	if reflect.ValueOf(rawval).Kind() == reflect.Slice {
+		// If the setting has a slice, return it
+		return rawval
+	}
 
 	// If the setting is a map, copy to the tree (return value)
 	tree := make(map[string]interface{})

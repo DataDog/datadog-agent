@@ -199,9 +199,9 @@ func bitmaskCombinations(bitmasks []int) []int {
 		return nil
 	}
 
-	combinationCount := 1 << len(bitmasks)
+	combinationCount := (1 << len(bitmasks)) - 1
 	result := make([]int, 0, combinationCount)
-	for i := 0; i < combinationCount; i++ {
+	for i := 1; i <= combinationCount; i++ {
 		var mask int
 		for j, value := range bitmasks {
 			if (i & (1 << j)) > 0 {

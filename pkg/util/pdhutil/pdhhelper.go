@@ -106,10 +106,11 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// Only refresh at most every refresh_interval seconds
 	// or when forceRefresh=true
 	if !forceRefresh {
-		// TODO: use TryLock in golang 1.18
-		//       we don't need to block here
-		//       worst case the counter is skipped again until next interval.
-		lockLastPdhRefreshTime.Lock()
+		if !lockLastPdhRefreshTime.TryLock() {
+			// we don't need to block here
+			// worst case the counter is skipped again until next interval.
+			return false, nil
+		}
 		defer lockLastPdhRefreshTime.Unlock()
 		timenow := time.Now()
 		// time.Time.Sub() uses a monotonic clock

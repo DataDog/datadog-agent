@@ -8,6 +8,7 @@
 package dyninst_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -35,11 +36,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
-
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
@@ -69,27 +69,14 @@ func TestDyninst(t *testing.T) {
 
 	sem := dyninsttest.MakeSemaphore()
 
-	// The debug variants of the tests spew logs to the trace_pipe, so we need
-	// to clear it after the tests to avoid interfering with other tests.
-	// Leave the option to disable this behavior for debugging purposes.
-	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
-	if !dontClear {
-		t.Logf("clearing trace_pipe!")
-		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			for {
-				deadline := time.Now().Add(100 * time.Millisecond)
-				require.NoError(t, tp.SetReadDeadline(deadline))
-				n, err := io.Copy(io.Discard, tp)
-				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
-				if n == 0 {
-					break
-				}
-			}
-			t.Logf("closing trace_pipe!")
-			require.NoError(t, tp.Close())
-		})
+	// The debug variants of the tests spew logs to the trace_pipe. We collect
+	// these logs organized by PID so they can be output on test failure.
+	// Set DONT_COLLECT_TRACE_PIPE=1 to disable collection (e.g., for manual debugging).
+	var collector *tracePipeCollector
+	dontCollect, _ := strconv.ParseBool(os.Getenv("DONT_COLLECT_TRACE_PIPE"))
+	if !dontCollect {
+		collector = newTracePipeCollector(t)
+		t.Cleanup(func() { collector.Close() })
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 
@@ -100,7 +87,7 @@ func TestDyninst(t *testing.T) {
 		}
 		t.Run(svc, func(t *testing.T) {
 			runIntegrationTestSuite(
-				t, svc, rewrite, sem, cfgs...,
+				t, svc, rewrite, sem, collector, cfgs...,
 			)
 		})
 	}
@@ -117,6 +104,7 @@ func testDyninst(
 	expOut map[string][]json.RawMessage,
 	debug bool,
 	sem dyninsttest.Semaphore,
+	collector *tracePipeCollector,
 ) map[string][]json.RawMessage {
 	defer sem.Acquire()()
 	start := time.Now()
@@ -163,20 +151,45 @@ func testDyninst(
 			MaxBackoffTime: time.Millisecond.Seconds(),
 		},
 	}
+	cfg.ActuatorConfig.RecompilationRateLimit = -1 // disable recompilation
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
 
 	// Launch the sample service.
-	t.Logf("launching %s", service)
 	ctx := context.Background()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, servicePath,
 	)
+	pid := sampleProc.Process.Pid
+	t.Logf("launched %s with pid %d", service, pid)
 	defer func() {
 		_ = sampleProc.Process.Kill()
 		_ = sampleProc.Wait()
 	}()
+
+	// On failure in debug mode, output trace_pipe logs for this process.
+	t.Cleanup(func() {
+		if collector == nil || !t.Failed() || !debug {
+			return
+		}
+		if err := collector.Flush(); err != nil {
+			t.Logf("trace pipe flush error: %v", err)
+		}
+		f, err := collector.GetLogs(pid)
+		if err != nil {
+			t.Logf("trace pipe GetLogs error: %v", err)
+			return
+		}
+		if f == nil {
+			return
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			t.Log(scanner.Text())
+		}
+	})
 
 	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(sampleProc.Process.Pid))
 	require.NoError(t, err)
@@ -190,7 +203,7 @@ func testDyninst(
 					Service:    service,
 				},
 				RuntimeID:         runtimeID,
-				Probes:            probes,
+				Probes:            slices.Clone(probes),
 				ShouldUploadSymDB: false,
 			},
 		},
@@ -295,6 +308,7 @@ func runIntegrationTestSuite(
 	service string,
 	rewrite bool,
 	sem dyninsttest.Semaphore,
+	collector *tracePipeCollector,
 	cfgs ...testprogs.Config,
 ) {
 	var outputs = struct {
@@ -376,9 +390,10 @@ func runIntegrationTestSuite(
 			for _, debug := range []bool{false, true} {
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
+					probeSlice = slices.Clone(probeSlice)
 					actual := testDyninst(
 						t, service, cfg, bin, probeSlice, resultNames, rewrite, expectedOutput,
-						debug, sem,
+						debug, sem, collector,
 					)
 					if t.Failed() {
 						return nil
@@ -562,9 +577,9 @@ type outputSavingIRGenerator struct {
 
 // GenerateIR implements module.IRGenerator.
 func (o *outputSavingIRGenerator) GenerateIR(
-	programID ir.ProgramID, binaryPath string, probes []ir.ProbeDefinition,
+	programID ir.ProgramID, binaryPath string, probes []ir.ProbeDefinition, options ...irgen.Option,
 ) (*ir.Program, error) {
-	ir, err := o.irGenerator.GenerateIR(programID, binaryPath, probes)
+	ir, err := o.irGenerator.GenerateIR(programID, binaryPath, probes, options...)
 	if err != nil {
 		return nil, err
 	}

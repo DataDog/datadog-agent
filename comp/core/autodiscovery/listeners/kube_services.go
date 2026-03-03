@@ -13,6 +13,7 @@ import (
 	"sort"
 	"sync"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -53,7 +54,7 @@ type KubeServiceService struct {
 	metadata        *workloadfilter.KubeService
 	tags            []string
 	hosts           map[string]string
-	ports           []ContainerPort
+	ports           []workloadmeta.ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
 	namespace       string
@@ -271,9 +272,9 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
 
 	// Ports
-	var ports []ContainerPort
+	var ports []workloadmeta.ContainerPort
 	for _, port := range ksvc.Spec.Ports {
-		ports = append(ports, ContainerPort{int(port.Port), port.Name})
+		ports = append(ports, workloadmeta.ContainerPort{Port: int(port.Port), Name: port.Name})
 	}
 	sort.Slice(ports, func(i, j int) bool {
 		return ports[i].Port < ports[j].Port
@@ -344,7 +345,7 @@ func (s *KubeServiceService) GetPid() (int, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 

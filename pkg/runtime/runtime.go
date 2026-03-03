@@ -50,9 +50,9 @@ func SetMaxProcs() bool {
 			return set
 		}
 
-		if strings.HasSuffix(max, "m") {
+		if before, ok := strings.CutSuffix(max, "m"); ok {
 			// Value represented as millicpus.
-			trimmed := strings.TrimSuffix(max, "m")
+			trimmed := before
 			milliCPUs, err := strconv.Atoi(trimmed)
 			if err != nil {
 				log.Errorf("runtime: error parsing GOMAXPROCS milliCPUs value: %v", max)

@@ -1,11 +1,11 @@
-import json
 import os
 import random
 import re
+from collections import defaultdict
 
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
@@ -13,46 +13,83 @@ from tasks.libs.pipeline.notifications import (
 )
 
 
-@task
-def ask_reviews(_, pr_id):
+@task(iterable=["team_slugs"])
+def ask_reviews(_, pr_id, action, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if 'backport' in pr.title.casefold():
-        print("This is a backport PR, we don't need to ask for reviews.")
+    if pr.base.ref != 'main':
+        print("We don't ask for reviews on non main target PRs.")
         return
-    if any(label.name == 'ask-review' for label in pr.get_labels()):
-        actor = ask_review_actor(pr)
-        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
-        print(f"Reviewers: {reviewers}")
+    if action != "labeled" and _is_revert(pr):
+        print("We don't ask for reviews on revert PRs creation, only on label requests.")
+        return
+    if any(label.name == 'no-review' for label in pr.get_labels()):
+        print("This PR has the no-review label, we don't need to ask for reviews.")
+        return
+    # team_slugs is a list[str] thanks to @task(iterable=["team_slugs"])
+    if not team_slugs:
+        print("No requested teams provided, skipping.")
+        return
 
-        from slack_sdk import WebClient
+    cleaned = []
+    for slug in team_slugs:
+        slug = (slug or "").strip()
+        slug = slug.removeprefix("@datadog/").removeprefix("@DataDog/")  # tolerate callers passing full team handles
+        if slug:
+            cleaned.append(slug)
+    if not cleaned:
+        print("No requested teams provided, skipping.")
+        return
 
-        client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
-        emojis = client.emoji_list()
-        waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
+    reviewers = [f"@datadog/{slug}" for slug in cleaned]
+    print(f"Reviewers: {reviewers}")
 
-        channels = set()
-        for reviewer in reviewers:
-            channel = next(
-                (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
-                DEFAULT_SLACK_CHANNEL,
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    emojis = client.emoji_list()
+    waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
+
+    channels = defaultdict(list)
+    for reviewer in reviewers:
+        channel = next(
+            (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
+            DEFAULT_SLACK_CHANNEL,
+        )
+        channels[channel].append(reviewer)
+
+    actor = pr.user.name or pr.user.login
+    for channel, reviewers in channels.items():
+        stop_updating = ""
+        if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
+            "chore(deps): update integrations-core"
+        ):
+            stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
+        message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
+        if channel == DEFAULT_SLACK_CHANNEL:
+            missing = ", ".join(reviewers)
+            message = (
+                f'Hello :{random.choice(waves)}:!\n'
+                f'A review channel is missing for {missing}, can you please ask them to update '
+                '`github_slack_review_map.yaml` and transfer them this review '
+                f'<{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             )
-            channels.add((channel, reviewer))
+        try:
+            client.chat_postMessage(channel=channel, text=message)
+        except Exception as e:
+            message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
+            client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
 
-        for channel, reviewer in channels:
-            stop_updating = ""
-            if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
-                "chore(deps): update integrations-core"
-            ):
-                stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
-            message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
-            if channel == DEFAULT_SLACK_CHANNEL:
-                message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
-            try:
-                client.chat_postMessage(channel=channel, text=message)
-            except Exception as e:
-                message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
-                client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
+
+def _is_revert(pr) -> bool:
+    """
+    Check if a PR is a revert PR.
+    """
+    commits = pr.get_commits()
+    # Only check the first commit message
+    if re.match(r"^Revert \"(.*)\"\n\nThis reverts commit (\w+).", commits[0].commit.message):
+        return True
+    return False
 
 
 @task
@@ -92,8 +129,8 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
             folder = match_folder.group(1).removeprefix("/")
     dependency = match.group(1)
 
-    # Find the responsible person for each file
-    owners = set()
+    # Find the responsible team for each file that uses the dependency; count uses per team.
+    owner_usage_count = {}
     git_files = ctx.run("git ls-files | grep -e \"^.*.go$\"", hide=True).stdout
     for file in git_files.splitlines():
         if not file.startswith(folder):
@@ -110,10 +147,13 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, owner_file)))
+                            for owner in search_owners(file, owner_file):
+                                slug = owner.casefold().removeprefix("@datadog/")
+                                owner_usage_count[slug] = owner_usage_count.get(slug, 0) + 1
                             break
     if dry_run:
-        print(f"Owners for {dependency}: {owners}")
+        print(f"Owner usage for {dependency}: {owner_usage_count}")
         return
-    # Teams are added by slug, so we need to remove the @DataDog/ prefix
-    pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
+    # Cap reviewers to avoid asking too many teams
+    team_slugs = sorted(owner_usage_count, key=lambda s: -owner_usage_count[s])[:3]
+    pr.create_review_request(team_reviewers=team_slugs)

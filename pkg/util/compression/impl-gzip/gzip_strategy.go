@@ -53,10 +53,12 @@ func (s *GzipStrategy) Compress(src []byte) (result []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	err = gzipWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
+	// Close calls Flush internally, writing out the final stored
+	// block. There is no need to call Flush explicitly before Close. Doing
+	// so only writes a 5-byte sync block, inflating the output but to not
+	// purpose.
+	//
+	// Should Go's internals change FuzzGzipCompressBound will fail.
 	err = gzipWriter.Close()
 	if err != nil {
 		return nil, err
@@ -84,18 +86,35 @@ func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
 }
 
 // CompressBound returns the worst case size needed for a destination buffer
-// when using gzip
-//
-// The worst case expansion is a few bytes for the gzip file header, plus
-// 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
-// The additional 18 bytes comes from the header (10 bytes) and trailer
-// (8 bytes). There is no theoretical maximum to the header,
-// but we don't set any extra header fields so it is safe to assume
-//
-// Source: https://www.gnu.org/software/gzip/manual/html_node/Overview.html
-// More details are in the linked RFC: https://www.ietf.org/rfc/rfc1952.txt
+// when using gzip. Return value will be > `sourceLen`.
 func (s *GzipStrategy) CompressBound(sourceLen int) int {
-	return sourceLen + (sourceLen/32768)*5 + 18
+	// The formula is: sourceLen + ceil(sourceLen/65535)*5 + 23
+	//
+	// Stored block overhead (ceil(sourceLen/65535)*5):
+	//
+	//   - 65535 bytes: maximum data per deflate stored block (16-bit LEN field)
+	//   - 5 bytes per block: header (3 bits type + 5 bits padding + 16 bits LEN + 16 bits NLEN)
+	//
+	// When deflate cannot compress data, it falls back to stored blocks. Each
+	// block holds up to 65535 bytes with a 5-byte header. We compute
+	// ceil(sourceLen/65535) via (sourceLen+65534)/65535, minimum 1 block.
+	//
+	// Constant 23 breakdown:
+	//
+	//   - 10 bytes: gzip header (magic, method, flags, mtime, xfl, os)
+	//   - 8 bytes: gzip trailer (CRC32 + ISIZE)
+	//   - 5 bytes: Go's compress/flate empty final block on Close()
+	//
+	// Go's compress/flate writes an empty stored block (01 00 00 ff ff) when
+	// Close() is called.
+	//
+	// REF https://www.ietf.org/rfc/rfc1952.txt
+	// REF compress/flate/deflate.go compressor.close() -> writeStoredHeader(0, true)
+	storedBlocks := (sourceLen + 65534) / 65535
+	if storedBlocks == 0 {
+		storedBlocks = 1
+	}
+	return sourceLen + storedBlocks*5 + 23
 }
 
 // ContentEncoding returns the content encoding value for gzip

@@ -26,7 +26,8 @@ type probeParams struct {
 	Has_associated_return bool
 	Kind                  int8
 	Top_pc_offset         int8
-	X__padding            [4]int8
+	No_return_reason      int8
+	X__padding            [3]int8
 }
 type throttlerParams struct {
 	Ns     uint64

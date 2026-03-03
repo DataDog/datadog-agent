@@ -22,10 +22,11 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
+  datadog/user-defined:
   ddprofiling:
     profiler_options:
       service: test_svc
-    
+
 service:
   extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, ddprofiling]
   pipelines:

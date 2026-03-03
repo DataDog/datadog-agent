@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/extension"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -43,7 +44,10 @@ func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, c
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
-			Endpoint: fmt.Sprintf("localhost:%d", defaultHTTPPort),
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  fmt.Sprintf("localhost:%d", defaultHTTPPort),
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 }

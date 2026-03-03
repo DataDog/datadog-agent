@@ -13,13 +13,15 @@ import (
 
 type locking struct {
 	inner slog.Handler
-	sync.Mutex
+	// The mutex is shared between instances of the locking handler sharing the same inner handler,
+	// so that the inner handler is still protected from concurrent access.
+	*sync.Mutex
 }
 
 // NewLocking returns a new locking handler that wraps the given inner handler.
 // Only the Handle method is synchronized, Enabled is not.
 func NewLocking(inner slog.Handler) slog.Handler {
-	return &locking{inner: inner}
+	return &locking{inner: inner, Mutex: &sync.Mutex{}}
 }
 
 func (s *locking) Handle(ctx context.Context, record slog.Record) error {
@@ -34,11 +36,11 @@ func (s *locking) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 // WithAttrs returns a new handler with the given attributes.
-func (s *locking) WithAttrs([]slog.Attr) slog.Handler {
-	panic("not implemented")
+func (s *locking) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &locking{inner: s.inner.WithAttrs(attrs), Mutex: s.Mutex}
 }
 
 // WithGroup returns a new handler with the given group name.
-func (s *locking) WithGroup(string) slog.Handler {
-	panic("not implemented")
+func (s *locking) WithGroup(name string) slog.Handler {
+	return &locking{inner: s.inner.WithGroup(name), Mutex: s.Mutex}
 }

@@ -1794,15 +1794,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
 				)
 				secprof.ActivityTree = activity_tree.NewActivityTree(secprof, nil, "security_profile")
+				cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(defaultContainerID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(defaultContainerID)}, 0)
 				secprof.Instances = append(secprof.Instances, &tags.Workload{
-					CacheEntry: &cgroupModel.CacheEntry{ContainerContext: model.ContainerContext{
-						ContainerID: containerutils.ContainerID(defaultContainerID),
-					},
-						CGroupContext: model.CGroupContext{
-							CGroupID: containerutils.CGroupID(defaultContainerID),
-						},
-					},
-					Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+					GCroupCacheEntry: cgce,
+					Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
 				secprof.LoadedNano.Store(uint64(t0.UnixNano()))
 			}

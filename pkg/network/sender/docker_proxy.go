@@ -14,15 +14,28 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/util/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/os"
+	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+const dockerProxySubsystem = "sender__docker_proxy"
+
+var dockerProxyTelemetry = struct {
+	processesDetected   telemetry.Counter
+	ipsFound            telemetry.Counter
+	connectionsFiltered telemetry.Counter
+	activeProxies       telemetry.Gauge
+}{
+	telemetry.NewCounter(dockerProxySubsystem, "processes_detected", nil, ""),
+	telemetry.NewCounter(dockerProxySubsystem, "ips_found", nil, ""),
+	telemetry.NewCounter(dockerProxySubsystem, "connections_filtered", nil, ""),
+	telemetry.NewGauge(dockerProxySubsystem, "active_proxies", nil, ""),
+}
 
 type containerAddr struct {
 	addr  netip.AddrPort
@@ -36,13 +49,6 @@ type proxy struct {
 	alive  bool
 }
 
-var _ eventmonitor.EventConsumerHandler = &dockerProxyFilter{}
-var _ eventmonitor.EventConsumer = &dockerProxyFilter{}
-
-// proxyFilterInstance contains the instance of the docker proxy filter (if there is one).
-// this is necessary due to the out-of-order initialization between CNM and Event Monitor.
-var proxyFilterInstance atomic.Pointer[dockerProxyFilter]
-
 type dockerProxyFilter struct {
 	log log.Component
 
@@ -53,82 +59,20 @@ type dockerProxyFilter struct {
 	pidAliveFunc func(pid int) bool
 }
 
-// NewDockerProxyConsumer creates the docker proxy filter and returns it for event monitor registration
-func NewDockerProxyConsumer(em *eventmonitor.EventMonitor, log log.Component) (eventmonitor.EventConsumer, error) {
-	pf := newDockerProxyFilter(log)
-	err := em.AddEventConsumerHandler(pf)
-	if err != nil {
-		return nil, err
-	}
-	proxyFilterInstance.Store(pf)
-	return pf, nil
-}
-
 func newDockerProxyFilter(log log.Component) *dockerProxyFilter {
 	return &dockerProxyFilter{
 		log:           log,
 		proxyByTarget: make(map[containerAddr]*proxy),
 		proxyByPID:    make(map[uint32]*proxy),
-		pidAliveFunc:  os.PidExists,
+		pidAliveFunc:  ddos.PidExists,
 	}
 }
 
-// ID implements eventmonitor.EventConsumer and eventmonitor.EventConsumerHandler
-func (d *dockerProxyFilter) ID() string {
-	return "dockerproxy"
-}
-
-// ChanSize implements eventmonitor.EventConsumerHandler
-func (d *dockerProxyFilter) ChanSize() int {
-	return 100
-}
-
-type dockerProcess struct {
-	Pid       uint32
-	Cmdline   []string
-	EventType model.EventType
-}
-
-// EventTypes implements eventmonitor.EventConsumerHandler
-func (d *dockerProxyFilter) EventTypes() []model.EventType {
-	return []model.EventType{
-		model.ExecEventType,
-		model.ExitEventType,
-	}
-}
-
-// Start implements eventmonitor.EventConsumer
-func (d *dockerProxyFilter) Start() error {
-	return nil
-}
-
-// Stop implements eventmonitor.EventConsumer
-func (d *dockerProxyFilter) Stop() {}
-
-// Copy implements eventmonitor.EventConsumerHandler
-func (d *dockerProxyFilter) Copy(ev *model.Event) any {
-	p := &dockerProcess{
-		Pid:       ev.GetProcessPid(),
-		EventType: ev.GetEventType(),
-		Cmdline:   ev.GetExecCmdargv(),
-	}
-	return p
-}
-
-// HandleEvent implements eventmonitor.EventConsumerHandler
-func (d *dockerProxyFilter) HandleEvent(ev any) {
-	p, ok := ev.(*dockerProcess)
-	if !ok {
-		return
-	}
-	d.process(p)
-}
-
-func (d *dockerProxyFilter) process(event *dockerProcess) {
+func (d *dockerProxyFilter) process(event *process) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	// TODO if we miss the exec event, we will never consider that process a docker-proxy
+	// TODO if we miss the fork/exec event, we will never consider that process a docker-proxy
 
 	if proxy, seen := d.proxyByPID[event.Pid]; seen {
 		if event.EventType == model.ExitEventType {
@@ -136,7 +80,7 @@ func (d *dockerProxyFilter) process(event *dockerProcess) {
 			proxy.alive = false
 			return
 		}
-		if event.EventType != model.ExecEventType {
+		if event.EventType != model.ExecEventType && event.EventType != model.ForkEventType {
 			return
 		}
 		// we've received a new exec event with the same PID as an existing entry.
@@ -147,6 +91,7 @@ func (d *dockerProxyFilter) process(event *dockerProcess) {
 	}
 
 	if proxy := extractProxyTarget(event); proxy != nil {
+		dockerProxyTelemetry.processesDetected.Inc()
 		d.log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
 			proxy.pid,
 			proxy.target.addr.Addr(),
@@ -156,6 +101,7 @@ func (d *dockerProxyFilter) process(event *dockerProcess) {
 
 		d.proxyByPID[proxy.pid] = proxy
 		d.proxyByTarget[proxy.target] = proxy
+		dockerProxyTelemetry.activeProxies.Set(float64(len(d.proxyByTarget)))
 	}
 }
 
@@ -178,6 +124,7 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 
 		if proxy, ok := undiscoveredProxies[conn.Pid]; ok {
 			if proxyIP := d.discoverProxyIP(proxy, conn); proxyIP.IsValid() {
+				dockerProxyTelemetry.ipsFound.Inc()
 				proxy.ip = proxyIP
 				delete(undiscoveredProxies, conn.Pid)
 			}
@@ -185,7 +132,11 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	}
 
 	conns.Conns = slices.DeleteFunc(conns.Conns, func(c network.ConnectionStats) bool {
-		return d.isProxied(c)
+		proxied := d.isProxied(c)
+		if proxied {
+			dockerProxyTelemetry.connectionsFiltered.Inc()
+		}
+		return proxied
 	})
 
 	for pid, p := range d.proxyByPID {
@@ -196,6 +147,7 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	}
 	maps.DeleteFunc(d.proxyByPID, func(_ uint32, p *proxy) bool { return !p.alive })
 	maps.DeleteFunc(d.proxyByTarget, func(_ containerAddr, p *proxy) bool { return !p.alive })
+	dockerProxyTelemetry.activeProxies.Set(float64(len(d.proxyByTarget)))
 }
 
 func (d *dockerProxyFilter) isProxied(c network.ConnectionStats) bool {
@@ -222,7 +174,7 @@ func (d *dockerProxyFilter) discoverProxyIP(p *proxy, c network.ConnectionStats)
 	return netip.Addr{}
 }
 
-func extractProxyTarget(p *dockerProcess) *proxy {
+func extractProxyTarget(p *process) *proxy {
 	if len(p.Cmdline) == 0 {
 		return nil
 	}

@@ -1,0 +1,75 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testCombinedString",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testCombinedString",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go",
+            "lineNumber": 30
+          },
+          {
+            "function": "main.executeMultiParamFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go",
+            "lineNumber": 102
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 28
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testCaptureExprWithTemplate",
+          "location": {
+            "method": "main.testCombinedString"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "x_val": {
+                "type": "string",
+                "value": "boo"
+              },
+              "w_val": {
+                "type": "uint8",
+                "value": "2"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "x=boo"
+  }
+]

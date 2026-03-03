@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -114,7 +113,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
 			}),
 			core.Bundle(),
-			secretnoopfx.Module(),
 		)
 	}
 

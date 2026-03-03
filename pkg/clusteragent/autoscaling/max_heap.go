@@ -11,11 +11,7 @@ import (
 	"container/heap"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
-
-type store = Store[model.PodAutoscalerInternal]
 
 // TimestampKey is a struct that holds a timestamp and key for a `DatadogPodAutoscaler` object
 type TimestampKey struct {
@@ -79,40 +75,50 @@ func (h *MaxTimestampKeyHeap) FindIdx(key string) (int, bool) {
 }
 
 // HashHeap is a struct that holds a MaxHeap and a set of keys that exist in the heap
-type HashHeap struct {
-	MaxHeap MaxTimestampKeyHeap
-	Keys    map[string]bool
-	maxSize int
-	mu      sync.RWMutex
-	store   *store
+type HashHeap[T any] struct {
+	MaxHeap           MaxTimestampKeyHeap
+	Keys              map[string]bool
+	maxSize           int
+	mu                sync.RWMutex
+	store             *Store[T]
+	creationTimestamp func(*T) time.Time
 }
 
-// NewHashHeap returns a new MaxHeap with the given max size
-func NewHashHeap(maxSize int, store *store) *HashHeap {
-	return &HashHeap{
-		MaxHeap: *NewMaxHeap(),
-		Keys:    make(map[string]bool),
-		maxSize: maxSize,
-		mu:      sync.RWMutex{},
-		store:   store,
+// NewHashHeap returns a new MaxHeap with the given max size.
+// creationTimestamp is used to extract the creation timestamp from stored objects.
+func NewHashHeap[T any](maxSize int, store *Store[T], creationTimestamp func(*T) time.Time) *HashHeap[T] {
+	h := &HashHeap[T]{
+		MaxHeap:           *NewMaxHeap(),
+		Keys:              make(map[string]bool),
+		maxSize:           maxSize,
+		mu:                sync.RWMutex{},
+		store:             store,
+		creationTimestamp: creationTimestamp,
 	}
+
+	store.RegisterObserver(Observer{
+		SetFunc:    h.InsertIntoHeap,
+		DeleteFunc: h.DeleteFromHeap,
+	})
+
+	return h
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) InsertIntoHeap(key, _sender string) {
-	// Get object from store
-	podAutoscalerInternal, podAutoscalerInternalFound := h.store.Get(key)
-	if !podAutoscalerInternalFound {
+// Used as an ObserverFunc; accept sender and obj as parameters to match ObserverFunc signature
+func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID, _ interface{}) {
+	obj, found := h.store.Get(key)
+	if !found {
 		return
 	}
 
-	if podAutoscalerInternal.CreationTimestamp().IsZero() {
+	ts := h.creationTimestamp(&obj)
+	if ts.IsZero() {
 		return
 	}
 
 	newTimestampKey := TimestampKey{
-		Timestamp: podAutoscalerInternal.CreationTimestamp(),
+		Timestamp: ts,
 		Key:       key,
 	}
 
@@ -139,8 +145,8 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string) {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) DeleteFromHeap(key, _sender string) {
+// Used as an ObserverFunc; accept sender and obj as parameters to match ObserverFunc signature
+func (h *HashHeap[T]) DeleteFromHeap(key string, _ SenderID, _ interface{}) {
 	// Key did not exist in heap, return early
 	if !h.Exists(key) {
 		return
@@ -160,7 +166,7 @@ func (h *HashHeap) DeleteFromHeap(key, _sender string) {
 }
 
 // Exists returns true if the given key exists in the heap
-func (h *HashHeap) Exists(key string) bool {
+func (h *HashHeap[T]) Exists(key string) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	_, ok := h.Keys[key]
@@ -168,6 +174,6 @@ func (h *HashHeap) Exists(key string) bool {
 }
 
 // MaxSize returns the size limit on the hash heap
-func (h *HashHeap) MaxSize() int {
+func (h *HashHeap[T]) MaxSize() int {
 	return h.maxSize
 }

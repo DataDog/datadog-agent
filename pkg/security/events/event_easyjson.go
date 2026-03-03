@@ -30,16 +30,19 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "agent":
-			(out.AgentContext).UnmarshalEasyJSON(in)
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.AgentContext).UnmarshalEasyJSON(in)
+			}
 		case "title":
-			out.Title = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Title = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -89,18 +92,25 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "rule_id":
-			out.RuleID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuleID = string(in.String())
+			}
 		case "original_rule_id":
-			out.OriginalRuleID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.OriginalRuleID = string(in.String())
+			}
 		case "rule_version":
-			out.RuleVersion = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuleVersion = string(in.String())
+			}
 		case "rule_actions":
 			if in.IsNull() {
 				in.Skip()
@@ -118,8 +128,12 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 				}
 				for !in.IsDelim(']') {
 					var v1 json.RawMessage
-					if data := in.Raw(); in.Ok() {
-						in.AddError((v1).UnmarshalJSON(data))
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						if data := in.Raw(); in.Ok() {
+							in.AddError((v1).UnmarshalJSON(data))
+						}
 					}
 					out.RuleActions = append(out.RuleActions, v1)
 					in.WantComma()
@@ -127,21 +141,53 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 				in.Delim(']')
 			}
 		case "policy_name":
-			out.PolicyName = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.PolicyName = string(in.String())
+			}
 		case "policy_version":
-			out.PolicyVersion = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.PolicyVersion = string(in.String())
+			}
 		case "version":
-			out.Version = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Version = string(in.String())
+			}
 		case "os":
-			out.OS = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.OS = string(in.String())
+			}
 		case "arch":
-			out.Arch = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Arch = string(in.String())
+			}
 		case "origin":
-			out.Origin = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Origin = string(in.String())
+			}
 		case "kernel_version":
-			out.KernelVersion = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.KernelVersion = string(in.String())
+			}
 		case "distribution":
-			out.Distribution = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Distribution = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}

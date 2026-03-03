@@ -100,7 +100,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations) error {
+func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations, _ map[string]string) error {
 	return nil
 }
 
@@ -121,6 +121,22 @@ func (m *installerMock) InstrumentAPMInjector(_ context.Context, _ string) error
 }
 
 func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *installerMock) InstallExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) RemoveExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) SaveExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *installerMock) RestoreExtensions(_ context.Context, _ string, _ string) error {
 	return nil
 }
 

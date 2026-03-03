@@ -93,8 +93,8 @@ func (m *Manager) ClearTracedCgroups() {
 	// First, disable and remove all active dumps AND add them to discarded map
 	for _, ad := range m.activeDumps {
 		// Add to discarded map BEFORE disabling
-		if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, uint8(1)); err != nil {
+		if !ad.Profile.Metadata.CGroupContext.CGroupPathKey.IsNull() {
+			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode, uint8(1)); err != nil {
 				if !errors.Is(err, ebpf.ErrKeyNotExist) {
 					seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
 				}

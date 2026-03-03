@@ -10,9 +10,15 @@ import json
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
+
+from tasks.kind_node_image import get_github_rc_releases
+
+if TYPE_CHECKING:
+    import semver
 
 try:
     import requests
@@ -24,10 +30,18 @@ try:
 except ImportError:
     yaml = None
 
+try:
+    import semver as _semver
+except ImportError:
+    _semver = None
 
 DOCKER_HUB_API_URL = "https://hub.docker.com/v2/repositories/kindest/node/tags"
 VERSIONS_FILE = "k8s_versions.json"
-E2E_YAML_PATH = ".gitlab/e2e/e2e.yml"
+E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
+
+# Regex pattern for Kubernetes version (release and RC supported)
+# Matches: v1.35.0, v1.35.0-rc.1, etc.
+K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
 
 def _check_dependencies():
@@ -37,6 +51,8 @@ def _check_dependencies():
         missing.append('requests')
     if yaml is None:
         missing.append('pyyaml')
+    if _semver is None:
+        missing.append('semver')
 
     if missing:
         raise Exit(
@@ -45,15 +61,26 @@ def _check_dependencies():
         )
 
 
-def _parse_version(version_str: str) -> tuple[int, int, int] | None:
+def _parse_version(version_str: str) -> semver.VersionInfo | None:
     """
-    Parse a Kubernetes version string like 'v1.34.0' into a tuple (1, 34, 0).
+    Parse a Kubernetes version string into a semver VersionInfo object.
+
+    Semver naturally handles RC versions correctly:
+    - v1.35.0-rc.1 < v1.35.0-rc.2 < v1.35.0
+
+    Examples:
+        'v1.34.0' -> VersionInfo(1, 34, 0)
+        'v1.35.0-rc.1' -> VersionInfo(1, 35, 0, prerelease='rc.1')
+
     Returns None if the version string is invalid.
     """
-    match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)$', version_str)
-    if match:
-        return tuple(map(int, match.groups()))
-    return None
+    # Remove leading 'v' if present
+    clean_version = version_str.lstrip('v')
+
+    try:
+        return _semver.VersionInfo.parse(clean_version)
+    except (ValueError, AttributeError):
+        return None
 
 
 def _get_docker_hub_tags() -> list[dict]:
@@ -87,23 +114,38 @@ def _extract_index_digest(tag_data: dict) -> str | None:
     return tag_data.get('digest')
 
 
-def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
+def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True) -> dict[str, dict[str, str]]:
     """
-    Fetch and parse the latest Kubernetes version from Docker Hub.
+    Fetch and parse the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
     Returns a dictionary with only the single latest version.
+
+    Args:
+        use_dockerhub: Whether to fetch versions from Docker Hub (default: True)
+        use_github: Whether to fetch RC versions from GitHub (default: True)
     """
-    tags = _get_docker_hub_tags()
 
     # Filter for valid Kubernetes version tags
     version_tags = []
-    for tag in tags:
-        tag_name = tag.get('name', '')
-        version = _parse_version(tag_name)
 
-        if version:
-            digest = _extract_index_digest(tag)
-            if digest:
-                version_tags.append({'version': version, 'tag': tag_name, 'digest': digest})
+    # Final release Kubernetes version tags from Docker Hub
+    if use_dockerhub:
+        for tag in _get_docker_hub_tags():
+            tag_name = tag.get('name', '')
+            version = _parse_version(tag_name)
+
+            if version:
+                digest = _extract_index_digest(tag)
+                if digest:
+                    version_tags.append({'version': version, 'tag': tag_name, 'digest': digest})
+
+    # RC Kubernetes version tags from GitHub
+    if use_github:
+        for tag in get_github_rc_releases():
+            tag_name = tag.get('tag_name', '')
+            version = _parse_version(tag_name)
+            if version and tag_name:
+                # Hardcode 'rc' to True because get_github_rc_releases() only returns rc releases
+                version_tags.append({'version': version, 'tag': tag_name, 'rc': True})
 
     # Sort by version (major, minor, patch)
     version_tags.sort(key=lambda x: x['version'], reverse=True)
@@ -111,7 +153,22 @@ def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
     # Return only the single latest version
     if version_tags:
         latest = version_tags[0]
-        return {latest['tag']: {'digest': latest['digest'], 'tag': latest['tag']}}
+
+        # Parse out the necessary fields
+        tag = latest.get('tag')
+        digest = latest.get('digest')
+        rc = latest.get('rc')
+
+        # Build return dictionary
+        # Structure: {tag_name: {'tag': tag_name, 'digest': digest?, 'rc': bool?}}
+        # Final releases include 'digest', RC releases include 'rc'
+        if tag:
+            result = {tag: {'tag': tag}}
+            if digest:
+                result[tag]['digest'] = digest
+            if rc:
+                result[tag]['rc'] = rc
+            return result
 
     return {}
 
@@ -136,11 +193,29 @@ def _save_versions(versions: dict[str, dict[str, str]], versions_file: str) -> N
 def _find_new_versions(
     current: dict[str, dict[str, str]], previous: dict[str, dict[str, str]]
 ) -> dict[str, dict[str, str]]:
-    """Find versions that are new or have different digests."""
+    """Find versions that are new or have different digests.
+
+    Notes:
+        - RC versions from GitHub won't have digests initially
+        - Only compare digests if BOTH current and previous have them
+        - If current has no digest (RC from GitHub) and version exists, don't mark as new
+    """
     new_versions = {}
 
     for version, data in current.items():
-        if version not in previous or previous[version]['digest'] != data['digest']:
+        # Version doesn't exist in previous - it's new
+        if version not in previous:
+            new_versions[version] = data
+            continue
+
+        # Version exists - check if digest changed
+        current_digest = data.get('digest')
+        previous_digest = previous[version].get('digest')
+
+        # Only compare digests if BOTH have them
+        # This prevents RC versions (no digest from GitHub) from being marked as new
+        # when they already exist in the saved file (with digest from build)
+        if current_digest and previous_digest and current_digest != previous_digest:
             new_versions[version] = data
 
     return new_versions
@@ -156,103 +231,69 @@ def _set_github_output(name: str, value: str) -> None:
         print(f"::set-output name={name}::{value}")
 
 
-def _find_matrix_section(content: str) -> tuple:
+def _find_k8s_latest_job(content: str) -> tuple[int | None, int | None, int | None]:
     """
-    Find the new-e2e-containers job matrix section in the raw content.
-    Returns (start_line, end_line, indent_level) or None if not found.
+    Find the new-e2e-containers-k8s-latest job section in the raw content.
+    Returns (job_start_line, job_end_line, extra_params_line) or (None, None, None) if not found.
     """
     lines = content.split('\n')
-    in_containers_job = False
-    in_parallel = False
-    in_matrix = False
-    matrix_start = None
-    indent = None
+    in_latest_job = False
+    job_start = None
+    extra_params_line = None
 
     for i, line in enumerate(lines):
-        # Find the new-e2e-containers job
-        if line.strip().startswith('new-e2e-containers:'):
-            in_containers_job = True
+        # Find the new-e2e-containers-k8s-latest job
+        if line.strip().startswith('new-e2e-containers-k8s-latest:'):
+            in_latest_job = True
+            job_start = i
             continue
 
-        if in_containers_job:
-            # Find the end of the matrix first (if we're in one)
-            if in_matrix and matrix_start and indent:
-                # Empty lines are ok
-                if not line.strip():
-                    continue
-                # If the line has content and is less indented than matrix entries
-                if line.strip() and not line.startswith(' ' * indent):
-                    # We've left the matrix section
-                    return matrix_start, i, indent
+        if in_latest_job:
+            if 'EXTRA_PARAMS:' in line and 'kubernetesVersion=' in line:
+                extra_params_line = i
 
-            # Check if we've left the job (another job starts at same level)
             if line and not line[0].isspace() and line.strip().endswith(':'):
-                # If we were in a matrix, return what we found
-                if in_matrix and matrix_start and indent:
-                    return matrix_start, i, indent
-                break
-
-            # Find the parallel section
-            if 'parallel:' in line:
-                in_parallel = True
-                continue
-
-            # Find the matrix section within parallel
-            if in_parallel and 'matrix:' in line:
-                in_matrix = True
-                # Look for the first EXTRA_PARAMS line to find the indent and start
-                for j in range(i + 1, len(lines)):
-                    if lines[j].strip().startswith('- EXTRA_PARAMS:'):
-                        indent = len(lines[j]) - len(lines[j].lstrip())
-                        matrix_start = j
-                        break
-                    # Also break if we hit a line that's not a comment/empty
-                    if lines[j].strip() and not lines[j].strip().startswith('#'):
-                        # If it doesn't start with -, we've gone too far
-                        if not lines[j].strip().startswith('-'):
-                            break
-                continue
+                return job_start, i, extra_params_line
 
     return None, None, None
 
 
-def _parse_existing_k8s_versions(content: str) -> list[dict[str, str]]:
+def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
     """
-    Parse existing Kubernetes versions from the matrix section.
-    Returns a list of dicts with 'version' and 'digest' keys.
+    Extract the current Kubernetes version from the new-e2e-containers-k8s-latest job.
+    Returns {'version': 'v1.34.0', 'digest': 'sha256:...'} or None if not found.
     """
+    _, _, extra_params_line = _find_k8s_latest_job(content)
+
+    if extra_params_line is None:
+        return None
+
     lines = content.split('\n')
-    versions = []
+    line = lines[extra_params_line]
 
-    # Pattern to match Kubernetes version entries
-    pattern = r'kubernetesVersion=(v?\d+\.\d+(?:\.\d+)?(?:@sha256:[a-f0-9]+)?)'
+    pattern = rf'kubernetesVersion=({K8S_VERSION_PATTERN}(?:@sha256:[a-f0-9]+)?)'
+    match = re.search(pattern, line)
 
-    for line in lines:
-        match = re.search(pattern, line)
-        if match:
-            version_str = match.group(1)
+    if match:
+        version_str = match.group(1)
+        # Check if it has a digest
+        if '@sha256:' in version_str:
+            version, digest = version_str.split('@')
+            return {'version': version, 'digest': digest}
 
-            # Check if it has a digest
-            if '@sha256:' in version_str:
-                version, digest = version_str.split('@')
-                versions.append({'version': version, 'digest': digest, 'line': line.strip()})
-            else:
-                # Old format without digest
-                versions.append({'version': version_str, 'digest': None, 'line': line.strip()})
-
-    return versions
+    return None
 
 
-def _create_matrix_entry(version: str, digest: str, indent: int) -> str:
-    """Create a new matrix entry line for a Kubernetes version."""
-    spaces = ' ' * indent
-    return f'{spaces}- EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion={version}@{digest}"'
-
-
-def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
+def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool, list[str]]:
     """
     Update the e2e.yml file with new Kubernetes versions.
-    Returns (success: bool, added_versions: List[str])
+
+    1. Reads the desired latest version from new_versions
+    2. Reads the current latest version from new-e2e-containers-k8s-latest job
+    3. If they differ, updates the new-e2e-containers-k8s-latest job with the new version
+       (never modifies the original matrix)
+
+    Returns (success: bool, updated_versions: List[str])
     """
     if not os.path.exists(E2E_YAML_PATH):
         raise Exit(f"Error: {E2E_YAML_PATH} not found", code=1)
@@ -261,80 +302,99 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple:
     with open(E2E_YAML_PATH) as f:
         content = f.read()
 
-    # Find the matrix section
-    matrix_start, matrix_end, indent = _find_matrix_section(content)
-
-    if matrix_start is None:
-        raise Exit("Error: Could not find matrix section in e2e.yml", code=1)
-
-    # Parse existing versions
-    existing_versions = _parse_existing_k8s_versions(content)
-    existing_version_strs = {v['version'] for v in existing_versions}
-
-    print(f"Found {len(existing_versions)} existing Kubernetes versions in e2e.yml")
-
-    # Determine which versions to add
-    versions_to_add = []
-    for version, data in new_versions.items():
-        if version not in existing_version_strs:
-            versions_to_add.append({'version': version, 'digest': data['digest']})
-
-    if not versions_to_add:
-        print("No new versions to add - all versions already present")
+    # 1. Reads the desired latest version from new_versions
+    if not new_versions:
+        print("No new versions found")
         return False, []
 
-    print(f"Adding {len(versions_to_add)} new version(s)")
+    version_items = []
+    for version_str, data in new_versions.items():
+        parsed = _parse_version(version_str)
+        if parsed:
+            version_items.append((parsed, version_str, data))
 
-    # Create new matrix entries
+    if not version_items:
+        print("No valid versions found")
+        return False, []
+
+    version_items.sort(key=lambda x: x[0], reverse=True)
+    desired_latest_version = version_items[0][1]
+    desired_latest_digest = version_items[0][2]['digest']
+    print(f"Desired latest version from new_versions: {desired_latest_version}")
+
+    # 2. Reads the current latest version from new-e2e-containers-k8s-latest job
+    current_latest = _extract_version_from_latest_job(content)
+
+    if not current_latest:
+        print("No current latest version found in new-e2e-containers-k8s-latest job")
+        return False, []
+
+    print(f"Current latest version in new-e2e-containers-k8s-latest job: {current_latest['version']}")
+
+    if current_latest['version'] == desired_latest_version and current_latest['digest'] == desired_latest_digest:
+        print("YAML is already in sync with new_versions")
+        return False, []
+
+    # 3. If they differ, update the new-e2e-containers-k8s-latest job (never modify the matrix)
+    _, _, extra_params_line = _find_k8s_latest_job(content)
+
+    if extra_params_line is None:
+        raise Exit("Error: Could not find new-e2e-containers-k8s-latest job", code=1)
+
     lines = content.split('\n')
-    new_entries = []
 
-    for version_data in versions_to_add:
-        entry = _create_matrix_entry(version_data['version'], version_data['digest'], indent)
-        new_entries.append(entry)
-        print(f"  Adding: {version_data['version']}")
+    print(f"Updating new-e2e-containers-k8s-latest job to {desired_latest_version}")
+    old_line = lines[extra_params_line]
+    new_line = re.sub(
+        rf'kubernetesVersion={K8S_VERSION_PATTERN}@sha256:[a-f0-9]+',
+        f'kubernetesVersion={desired_latest_version}@{desired_latest_digest}',
+        old_line,
+    )
+    lines[extra_params_line] = new_line
 
-    # Find the last Kubernetes version entry
-    last_k8s_line = matrix_start
-    for i in range(matrix_start, matrix_end):
-        if 'kubernetesVersion=' in lines[i]:
-            last_k8s_line = i
-
-    # Insert after the last Kubernetes version
-    insert_position = last_k8s_line + 1
-
-    # Build the new content
-    new_lines = lines[:insert_position] + new_entries + lines[insert_position:]
-    new_content = '\n'.join(new_lines)
-
-    # Write the updated content
+    new_content = '\n'.join(lines)
     with open(E2E_YAML_PATH, 'w') as f:
         f.write(new_content)
 
     print(f"Successfully updated {E2E_YAML_PATH}")
-
-    return True, [v['version'] for v in versions_to_add]
+    return True, [desired_latest_version]
 
 
 @task
-def fetch_versions(_, output_file=VERSIONS_FILE):
+def fetch_versions(_, output_file=VERSIONS_FILE, disable_dockerhub=False, disable_github=False):
     """
-    Fetch the latest Kubernetes version from Docker Hub.
+    Fetch the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
 
     This task fetches the latest Kubernetes version from the kindest/node
-    Docker Hub repository and stores it in a JSON file for comparison.
+    Docker Hub repository and/or GitHub RC releases.
 
     Args:
-        output_file: Path to the JSON file to store versions (default: k8s_versions.json)
+        disable_dockerhub: Disable fetching versions from Docker Hub (default: False)
+        disable_github: Disable fetching RC versions from GitHub (default: False)
 
     Outputs (GitHub Actions):
-        has_new_versions: 'true' if a new version was found
+        has_new_versions: 'true' if a new stable version was found
+        has_new_rc_versions: 'true' if a new RC version was found
         new_versions: JSON string with the new version data
     """
     _check_dependencies()
 
-    print("Fetching latest Kubernetes version from Docker Hub...")
-    current_versions = _get_latest_k8s_versions()
+    # Convert CLI arguments (--disable flags) to positive booleans
+    enable_dockerhub = not disable_dockerhub
+    enable_github = not disable_github
+
+    if not enable_dockerhub and not enable_github:
+        print("Error: At least one source must be enabled")
+        raise Exit("No sources enabled", code=1)
+
+    sources = []
+    if enable_dockerhub:
+        sources.append("Docker Hub")
+    if enable_github:
+        sources.append("GitHub")
+
+    print(f"Fetching latest Kubernetes version from {' and '.join(sources)}...")
+    current_versions = _get_latest_k8s_versions(use_dockerhub=enable_dockerhub, use_github=enable_github)
 
     if not current_versions:
         print("Error: Could not find any Kubernetes versions")
@@ -344,27 +404,30 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     # Show the latest version
     latest_version = list(current_versions.keys())[0]
     latest_data = current_versions[latest_version]
+
     print(f"Latest Kubernetes version: {latest_version}")
-    print(f"  Digest: {latest_data['digest']}")
+    print(f"  Digest: {latest_data.get('digest', 'Digest unknown')}")
 
     # Load previous versions and compare
     previous_versions = _load_existing_versions(output_file)
     new_versions = _find_new_versions(current_versions, previous_versions)
 
     if new_versions:
-        print("\nNew version found!")
+        print("\nNew version(s) found!")
         for version, data in new_versions.items():
-            print(f"  {version}: {data['digest']}")
+            print(f"  {version}: {data.get('digest', 'Digest unknown')}")
 
-        # Save current versions for next run
-        _save_versions(current_versions, output_file)
+        # Check if any new versions are RCs
+        has_rc = any(data.get('rc', False) for data in new_versions.values())
 
         # Set GitHub Actions outputs
         _set_github_output('has_new_versions', 'true')
+        _set_github_output('has_new_rc_versions', 'true' if has_rc else 'false')
         _set_github_output('new_versions', json.dumps(new_versions))
     else:
         print(f"\nNo new version - {latest_version} is already tracked")
         _set_github_output('has_new_versions', 'false')
+        _set_github_output('has_new_rc_versions', 'false')
 
 
 @task
@@ -372,15 +435,16 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     """
     Update the e2e.yml file with new Kubernetes versions.
 
-    This task reads Kubernetes versions from a JSON file and updates the
-    .gitlab/e2e/e2e.yml file with any new versions that aren't already present.
+    This task reads Kubernetes versions from a JSON file:
+    1. Compares with the current version in new-e2e-containers-k8s-latest job
+    2. If they differ, updates the new-e2e-containers-k8s-latest job with the new version
 
     Args:
         versions_file: Path to the JSON file containing versions (default: k8s_versions.json)
 
     Outputs (GitHub Actions):
         updated: 'true' if the file was updated
-        new_versions: Markdown-formatted list of added versions
+        new_versions: Markdown-formatted list of updated versions
     """
     _check_dependencies()
 
@@ -404,7 +468,45 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
         version_list = '\n'.join(f"- `{v}`" for v in added_versions)
         _set_github_output('updated', 'true')
         _set_github_output('new_versions', version_list)
-        print(f"\nSuccessfully added {len(added_versions)} version(s)")
+        print(f"\nSuccessfully updated to latest version: {added_versions[0]}")
     else:
         _set_github_output('updated', 'false')
         print("\nNo updates made")
+
+
+@task
+def save_versions(_, versions, versions_file=VERSIONS_FILE):
+    """
+    Save multiple Kubernetes versions to the versions file.
+
+    This task merges the provided versions with existing versions in the file,
+    preserving existing entries and adding new ones.
+
+    Args:
+        versions: JSON string or dict mapping version tags to version data
+                  (e.g., '{"v1.35.0": {"tag": "v1.35.0", "digest": "sha256:..."}}')
+        versions_file: Path to the JSON file to store versions (default: k8s_versions.json)
+    """
+
+    # Parse if it's a JSON string
+    if isinstance(versions, str):
+        try:
+            versions = json.loads(versions)
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid JSON in versions argument: {e}", code=1) from e
+
+    # Load existing versions
+    existing_versions = _load_existing_versions(versions_file)
+
+    # Safely append the passed in dictionary items to the version list
+    for outer_tag, version in versions.items():
+        inner_tag = version.get('tag')
+        digest = version.get('digest')
+        if not inner_tag or not digest:
+            print(f"Version {outer_tag} is missing required field tag or digest, skipping...")
+            continue
+
+        existing_versions[outer_tag] = {'tag': inner_tag, 'digest': digest}
+
+    # Save to file
+    _save_versions(existing_versions, versions_file)

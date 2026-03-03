@@ -1,0 +1,10 @@
+protobuf_test:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_tools_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_tools_deps]
+  script:
+    # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
+    - dda inv -- -e protobuf.generate --pre-commit

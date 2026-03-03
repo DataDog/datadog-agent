@@ -716,7 +716,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 
 func TestSkipConnectionDNS(t *testing.T) {
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
-		tr := &Tracer{config: &config.Config{CollectLocalDNS: false}}
+		tr := &Tracer{config: &config.Config{CollectLocalDNS: false, DNSMonitoringPortList: []int{53}}}
 		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
@@ -743,7 +743,7 @@ func TestSkipConnectionDNS(t *testing.T) {
 	})
 
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
-		tr := &Tracer{config: &config.Config{CollectLocalDNS: true}}
+		tr := &Tracer{config: &config.Config{CollectLocalDNS: true, DNSMonitoringPortList: []int{53}}}
 
 		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),

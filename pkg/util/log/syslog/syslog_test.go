@@ -13,13 +13,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func mockSyslogAddrs(t *testing.T, paths ...string) {
@@ -41,29 +41,12 @@ func TestGetSyslogConnection_NilURI(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCreateSyslogHeaderFormatter_DefaultParams(t *testing.T) {
-	formatter := CreateSyslogHeaderFormatter("")
-	require.NotNil(t, formatter)
-
-	// Test with InfoLvl (severity 6)
-	result := formatter("test message", seelog.InfoLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
-
-	// Default facility is 20
-	// Priority = facility * 8 + severity = 20 * 8 + 6 = 166
-	appName := filepath.Base(os.Args[0])
-	pid := os.Getpid()
-	expected := fmt.Sprintf("<%d>%s[%d]:", 166, appName, pid)
-	assert.Equal(t, expected, resultStr)
-}
-
-func TestCreateSyslogHeaderFormatter_CustomFacilityOldSchool(t *testing.T) {
+func TestHeaderFormatter_OldSchool(t *testing.T) {
 	// Facility 16, rfc=false
-	formatter := CreateSyslogHeaderFormatter("16,false")
+	formatter := HeaderFormatter(16, false)
 	require.NotNil(t, formatter)
 
-	result := formatter("test message", seelog.WarnLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
+	resultStr := formatter(types.WarnLvl)
 
 	// Priority = facility * 8 + severity = 16 * 8 + 4 = 132
 	appName := filepath.Base(os.Args[0])
@@ -72,13 +55,12 @@ func TestCreateSyslogHeaderFormatter_CustomFacilityOldSchool(t *testing.T) {
 	assert.Equal(t, expected, resultStr)
 }
 
-func TestCreateSyslogHeaderFormatter_RFC5424(t *testing.T) {
+func TestHeaderFormatter_RFC5424(t *testing.T) {
 	// Facility 16, RFC 5424 format
-	formatter := CreateSyslogHeaderFormatter("16,true")
+	formatter := HeaderFormatter(16, true)
 	require.NotNil(t, formatter)
 
-	result := formatter("test message", seelog.ErrorLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
+	resultStr := formatter(types.ErrorLvl)
 
 	// Priority = facility * 8 + severity = 16 * 8 + 3 = 131
 	appName := filepath.Base(os.Args[0])
@@ -87,70 +69,30 @@ func TestCreateSyslogHeaderFormatter_RFC5424(t *testing.T) {
 	assert.Equal(t, expected, resultStr)
 }
 
-func TestCreateSyslogHeaderFormatter_AllLogLevels(t *testing.T) {
-	formatter := CreateSyslogHeaderFormatter("10,true")
+func TestHeaderFormatter_AllLogLevels(t *testing.T) {
+	formatter := HeaderFormatter(10, true)
 
 	testCases := []struct {
-		level            seelog.LogLevel
+		level            types.LogLevel
 		expectedSeverity int
 	}{
-		{seelog.TraceLvl, 7},
-		{seelog.DebugLvl, 7},
-		{seelog.InfoLvl, 6},
-		{seelog.WarnLvl, 4},
-		{seelog.ErrorLvl, 3},
-		{seelog.CriticalLvl, 2},
-		{seelog.Off, 7},
+		{types.TraceLvl, 7},
+		{types.DebugLvl, 7},
+		{types.InfoLvl, 6},
+		{types.WarnLvl, 4},
+		{types.ErrorLvl, 3},
+		{types.CriticalLvl, 2},
+		{types.Off, 7},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.level.String(), func(t *testing.T) {
-			result := formatter("test", tc.level, nil)
-			resultStr := fmt.Sprintf("%v", result)
+			resultStr := formatter(tc.level)
 
 			expectedPriority := 10*8 + tc.expectedSeverity
 			assert.Contains(t, resultStr, fmt.Sprintf("<%d>", expectedPriority))
 		})
 	}
-}
-
-func TestCreateSyslogHeaderFormatter_InvalidFacility(t *testing.T) {
-	// Facility out of range should use default (20)
-	formatter := CreateSyslogHeaderFormatter("999,false")
-	require.NotNil(t, formatter)
-
-	result := formatter("test", seelog.InfoLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
-
-	// Should use default facility 20
-	// Priority = 20 * 8 + 6 = 166
-	assert.Contains(t, resultStr, "<166>")
-}
-
-func TestCreateSyslogHeaderFormatter_NegativeFacility(t *testing.T) {
-	// Negative facility should use default (20)
-	formatter := CreateSyslogHeaderFormatter("-5,false")
-	require.NotNil(t, formatter)
-
-	result := formatter("test", seelog.InfoLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
-
-	// Should use default facility 20
-	assert.Contains(t, resultStr, "<166>")
-}
-
-func TestCreateSyslogHeaderFormatter_BadlyFormattedParams(t *testing.T) {
-	// Too many parameters
-	formatter := CreateSyslogHeaderFormatter("10,true,extra")
-	require.NotNil(t, formatter)
-
-	result := formatter("test", seelog.InfoLvl, nil)
-	resultStr := fmt.Sprintf("%v", result)
-
-	// Should use defaults (facility 20, old-school format)
-	assert.Contains(t, resultStr, "<166>")
-	appName := filepath.Base(os.Args[0])
-	assert.Contains(t, resultStr, appName+"[")
 }
 
 func TestGetSyslogConnection_UnsupportedScheme(t *testing.T) {
@@ -164,38 +106,27 @@ func TestGetSyslogConnection_UnsupportedScheme(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestReceiver_ReceiveMessage_Disabled(t *testing.T) {
-	receiver := &Receiver{
-		enabled: false,
-	}
-
-	err := receiver.ReceiveMessage("test message", seelog.InfoLvl, nil)
-	require.NoError(t, err, "Disabled receiver should not return error")
-}
-
-func TestReceiver_ReceiveMessage_NoConnection(t *testing.T) {
+func TestReceiver_Write_NoConnection(t *testing.T) {
 	mockSyslogFakeAddrs(t)
 
 	receiver := &Receiver{
-		enabled: true,
-		conn:    nil,
-		uri:     nil,
+		conn: nil,
+		uri:  nil,
 	}
 
 	// Should try to reconnect but fail with nil URI
-	err := receiver.ReceiveMessage("test message", seelog.InfoLvl, nil)
+	_, err := receiver.Write([]byte("test message"))
 	require.Error(t, err)
 }
 
-func TestReceiver_ReceiveMessage_WithMockConnection(t *testing.T) {
+func TestReceiver_Write_WithMockConnection(t *testing.T) {
 	// Create a mock connection using a pipe
 	server, client := net.Pipe()
 	defer server.Close()
 	defer client.Close()
 
 	receiver := &Receiver{
-		enabled: true,
-		conn:    client,
+		conn: client,
 	}
 
 	// Start a goroutine to read from the server side
@@ -209,7 +140,7 @@ func TestReceiver_ReceiveMessage_WithMockConnection(t *testing.T) {
 	}()
 
 	message := "test syslog message"
-	err := receiver.ReceiveMessage(message, seelog.InfoLvl, nil)
+	_, err := receiver.Write([]byte(message))
 	require.NoError(t, err)
 
 	// Verify the message was sent (with timeout)
@@ -221,42 +152,23 @@ func TestReceiver_ReceiveMessage_WithMockConnection(t *testing.T) {
 	}
 }
 
-func TestReceiver_AfterParse_InvalidURI(t *testing.T) {
-	receiver := &Receiver{}
-
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": "://invalid-uri",
-		},
-	}
-
-	err := receiver.AfterParse(initArgs)
+func TestNewReceiver_InvalidURI(t *testing.T) {
+	_, err := NewReceiver("://invalid-uri")
 	require.ErrorContains(t, err, "bad syslog receiver configuration")
-	assert.False(t, receiver.enabled)
 }
 
-func TestReceiver_AfterParse_ValidURI_UDP(t *testing.T) {
-	receiver := &Receiver{}
-
+func TestNewReceiver_ValidURI_UDP(t *testing.T) {
 	// Use a URI that won't actually connect but has valid format
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": "udp://localhost:9999",
-		},
-	}
-
-	// AfterParse should succeed even if connection fails (it only prints the error)
-	err := receiver.AfterParse(initArgs)
-	require.NoError(t, err, "AfterParse should return nil even if connection fails")
+	receiver, err := NewReceiver("udp://localhost:9999")
+	require.NoError(t, err, "NewReceiver should succeed even if connection fails")
 
 	// Should have parsed the URI even if connection failed
 	require.NotNil(t, receiver.uri, "URI should be parsed")
 	assert.Equal(t, "udp", receiver.uri.Scheme)
 	assert.Equal(t, "localhost:9999", receiver.uri.Host)
-	assert.True(t, receiver.enabled)
 }
 
-func TestReceiver_AfterParse_ValidURI_UDP_WithServer(t *testing.T) {
+func TestNewReceiver_ValidURI_UDP_WithServer(t *testing.T) {
 	// Create a real UDP server for proper test isolation
 	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -268,17 +180,8 @@ func TestReceiver_AfterParse_ValidURI_UDP_WithServer(t *testing.T) {
 	// Get the actual port assigned
 	port := conn.LocalAddr().(*net.UDPAddr).Port
 
-	receiver := &Receiver{}
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": fmt.Sprintf("udp://127.0.0.1:%d", port),
-		},
-	}
-
-	// Should successfully connect to our test server
-	err = receiver.AfterParse(initArgs)
+	receiver, err := NewReceiver(fmt.Sprintf("udp://127.0.0.1:%d", port))
 	require.NoError(t, err)
-	assert.True(t, receiver.enabled)
 	require.NotNil(t, receiver.conn)
 	require.NotNil(t, receiver.uri)
 	assert.Equal(t, "udp", receiver.uri.Scheme)
@@ -294,7 +197,7 @@ func TestReceiver_AfterParse_ValidURI_UDP_WithServer(t *testing.T) {
 	}()
 
 	message := "test message to udp server"
-	err = receiver.ReceiveMessage(message, seelog.InfoLvl, nil)
+	_, err = receiver.Write([]byte(message))
 	require.NoError(t, err)
 
 	// Verify the message was received
@@ -306,27 +209,18 @@ func TestReceiver_AfterParse_ValidURI_UDP_WithServer(t *testing.T) {
 	}
 }
 
-func TestReceiver_AfterParse_ValidURI_TCP(t *testing.T) {
-	receiver := &Receiver{}
-
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": "tcp://127.0.0.1:514",
-		},
-	}
-
-	// AfterParse should succeed even if connection fails
-	err := receiver.AfterParse(initArgs)
-	require.NoError(t, err, "AfterParse should return nil even if connection fails")
+func TestNewReceiver_ValidURI_TCP(t *testing.T) {
+	// Use a URI that won't actually connect but has valid format
+	receiver, err := NewReceiver("tcp://127.0.0.1:514")
+	require.NoError(t, err, "NewReceiver should succeed even if connection fails")
 
 	// Should have parsed the URI
 	require.NotNil(t, receiver.uri, "URI should be parsed")
 	assert.Equal(t, "tcp", receiver.uri.Scheme)
 	assert.Equal(t, "127.0.0.1:514", receiver.uri.Host)
-	assert.True(t, receiver.enabled)
 }
 
-func TestReceiver_AfterParse_ValidURI_TCP_WithServer(t *testing.T) {
+func TestNewReceiver_ValidURI_TCP_WithServer(t *testing.T) {
 	// Create a real TCP server for proper test isolation
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -351,24 +245,15 @@ func TestReceiver_AfterParse_ValidURI_TCP_WithServer(t *testing.T) {
 		}
 	}()
 
-	receiver := &Receiver{}
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": fmt.Sprintf("tcp://127.0.0.1:%d", port),
-		},
-	}
-
-	// Should successfully connect to our test server
-	err = receiver.AfterParse(initArgs)
+	receiver, err := NewReceiver(fmt.Sprintf("tcp://127.0.0.1:%d", port))
 	require.NoError(t, err)
-	assert.True(t, receiver.enabled)
 	require.NotNil(t, receiver.conn)
 	require.NotNil(t, receiver.uri)
 	assert.Equal(t, "tcp", receiver.uri.Scheme)
 
 	// Test sending a message to the server
 	message := "test message to tcp server"
-	err = receiver.ReceiveMessage(message, seelog.InfoLvl, nil)
+	_, err = receiver.Write([]byte(message))
 	require.NoError(t, err)
 
 	// Verify the message was received
@@ -380,27 +265,18 @@ func TestReceiver_AfterParse_ValidURI_TCP_WithServer(t *testing.T) {
 	}
 }
 
-func TestReceiver_AfterParse_ValidURI_Unix(t *testing.T) {
-	receiver := &Receiver{}
-
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": "unix:///some/fake/path",
-		},
-	}
-
-	// AfterParse should succeed even if connection fails
-	err := receiver.AfterParse(initArgs)
-	require.NoError(t, err, "AfterParse should return nil even if connection fails")
+func TestNewReceiver_ValidURI_Unix(t *testing.T) {
+	// Use a URI that won't actually connect but has valid format
+	receiver, err := NewReceiver("unix:///some/fake/path")
+	require.NoError(t, err, "NewReceiver should succeed even if connection fails")
 
 	// Should have parsed the URI
 	require.NotNil(t, receiver.uri, "URI should be parsed")
 	assert.Equal(t, "unix", receiver.uri.Scheme)
 	assert.Equal(t, "/some/fake/path", receiver.uri.Path)
-	assert.True(t, receiver.enabled)
 }
 
-func TestReceiver_AfterParse_ValidURI_Unix_WithSocket(t *testing.T) {
+func TestNewReceiver_ValidURI_Unix_WithSocket(t *testing.T) {
 	// Create a real Unix socket for proper test isolation
 	sockPath := filepath.Join(os.TempDir(), "test.sock")
 
@@ -425,24 +301,15 @@ func TestReceiver_AfterParse_ValidURI_Unix_WithSocket(t *testing.T) {
 		}
 	}()
 
-	receiver := &Receiver{}
-	initArgs := seelog.CustomReceiverInitArgs{
-		XmlCustomAttrs: map[string]string{
-			"uri": "unix://" + sockPath,
-		},
-	}
-
-	// Should successfully connect to our test socket
-	err = receiver.AfterParse(initArgs)
+	receiver, err := NewReceiver("unix://" + sockPath)
 	require.NoError(t, err)
-	assert.True(t, receiver.enabled)
 	require.NotNil(t, receiver.conn)
 	require.NotNil(t, receiver.uri)
 	assert.Equal(t, "unix", receiver.uri.Scheme)
 
 	// Test sending a message to the socket
 	message := "test message to unix socket"
-	err = receiver.ReceiveMessage(message, seelog.InfoLvl, nil)
+	_, err = receiver.Write([]byte(message))
 	require.NoError(t, err)
 
 	// Verify the message was received
@@ -475,8 +342,7 @@ func TestReceiver_Close_WithConnection(t *testing.T) {
 	defer server.Close()
 
 	receiver := &Receiver{
-		enabled: true,
-		conn:    client,
+		conn: client,
 	}
 
 	err := receiver.Close()
@@ -514,8 +380,8 @@ func TestGetSyslogConnection_UnixgramScheme(t *testing.T) {
 	assert.Nil(t, conn)
 }
 
-// TestReceiver_ReceiveMessage_Reconnect tests the reconnection logic
-func TestReceiver_ReceiveMessage_Reconnect(t *testing.T) {
+// TestReceiver_Write_Reconnect tests the reconnection logic
+func TestReceiver_Write_Reconnect(t *testing.T) {
 	mockSyslogFakeAddrs(t)
 
 	// Create a mock connection that will fail on write
@@ -523,38 +389,33 @@ func TestReceiver_ReceiveMessage_Reconnect(t *testing.T) {
 	server1.Close() // Close server side to cause write to fail
 
 	receiver := &Receiver{
-		enabled: true,
-		conn:    client1,
-		uri:     nil, // nil URI will cause reconnect to fail
+		conn: client1,
+		uri:  nil, // nil URI will cause reconnect to fail
 	}
 
 	message := "test message"
-	err := receiver.ReceiveMessage(message, seelog.InfoLvl, nil)
+	_, err := receiver.Write([]byte(message))
 
 	// Should fail to reconnect with nil URI
 	require.Error(t, err)
 }
 
-func TestCreateSyslogHeaderFormatter_EdgeCaseFacilities(t *testing.T) {
+func TestHeaderFormatter_EdgeCaseFacilities(t *testing.T) {
 	testCases := []struct {
 		name     string
-		params   string
-		level    seelog.LogLevel
-		facility int // expected facility
+		facility int
+		level    types.LogLevel
 	}{
-		{"Facility 0", "0,false", seelog.InfoLvl, 0},
-		{"Facility 23", "23,false", seelog.InfoLvl, 23},
-		{"Facility 24 (invalid)", "24,false", seelog.InfoLvl, 20}, // default
-		{"Non-numeric", "abc,false", seelog.InfoLvl, 20},          // default
+		{"Facility 0", 0, types.InfoLvl},
+		{"Facility 23", 23, types.InfoLvl},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			formatter := CreateSyslogHeaderFormatter(tc.params)
+			formatter := HeaderFormatter(tc.facility, false)
 			require.NotNil(t, formatter)
 
-			result := formatter("test", tc.level, nil)
-			resultStr := fmt.Sprintf("%v", result)
+			resultStr := formatter(tc.level)
 
 			severity := levelToSyslogSeverity[tc.level]
 			expectedPriority := tc.facility*8 + severity
@@ -563,15 +424,14 @@ func TestCreateSyslogHeaderFormatter_EdgeCaseFacilities(t *testing.T) {
 	}
 }
 
-func TestReceiver_ReceiveMessage_WriteThenReconnect(t *testing.T) {
+func TestReceiver_Write_ThenReconnect(t *testing.T) {
 	mockSyslogFakeAddrs(t)
 
 	// First create a working connection
 	server1, client1 := net.Pipe()
 
 	receiver := &Receiver{
-		enabled: true,
-		conn:    client1,
+		conn: client1,
 	}
 
 	// Successful write
@@ -583,7 +443,7 @@ func TestReceiver_ReceiveMessage_WriteThenReconnect(t *testing.T) {
 	}()
 
 	message1 := "first message"
-	err := receiver.ReceiveMessage(message1, seelog.InfoLvl, nil)
+	_, err := receiver.Write([]byte(message1))
 	require.NoError(t, err)
 
 	select {
@@ -599,44 +459,6 @@ func TestReceiver_ReceiveMessage_WriteThenReconnect(t *testing.T) {
 
 	// Try to send another message - should fail to reconnect
 	message2 := "second message"
-	err = receiver.ReceiveMessage(message2, seelog.InfoLvl, nil)
+	_, err = receiver.Write([]byte(message2))
 	require.Error(t, err) // Should fail because uri is nil
-}
-
-func TestCreateSyslogHeaderFormatter_RFCParameter(t *testing.T) {
-	testCases := []struct {
-		name            string
-		params          string
-		expectRFC       bool
-		expectOldSchool bool
-	}{
-		{"RFC true", "10,true", true, false},
-		{"RFC false", "10,false", false, true},
-		{"RFC anything else", "10,maybe", false, true},
-		{"RFC empty", "10,", false, true},
-	}
-
-	appName := filepath.Base(os.Args[0])
-	pid := os.Getpid()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			formatter := CreateSyslogHeaderFormatter(tc.params)
-			result := formatter("test", seelog.InfoLvl, nil)
-			resultStr := fmt.Sprintf("%v", result)
-
-			if tc.expectRFC {
-				// RFC 5424 format: <PRI>1 APP PID - -
-				assert.True(t, strings.Contains(resultStr, ">1 "), "Should contain RFC 5424 version")
-				assert.Contains(t, resultStr, appName)
-				assert.Contains(t, resultStr, fmt.Sprintf(" %d - -", pid))
-			}
-
-			if tc.expectOldSchool {
-				// Old-school format: <PRI>APP[PID]:
-				assert.Contains(t, resultStr, appName+"[")
-				assert.Contains(t, resultStr, fmt.Sprintf("%d]:", pid))
-			}
-		})
-	}
 }

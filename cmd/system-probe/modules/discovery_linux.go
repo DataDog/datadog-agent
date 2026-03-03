@@ -6,7 +6,7 @@
 package modules
 
 import (
-	discoverymodule "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module"
+	discoverymodule "github.com/DataDog/datadog-agent/pkg/discovery/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )

@@ -16,46 +16,20 @@
 #
 
 name "curl"
-default_version "8.16.0"
-
-dependency "zlib"
-dependency "openssl3"
-dependency "nghttp2"
-source url:    "https://curl.haxx.se/download/curl-#{version}.tar.gz",
-       sha256: "a21e20476e39eca5a4fc5cfb00acf84bbc1f5d8443ec3853ad14c26b3c85b970"
-
-relative_path "curl-#{version}"
+default_version "8.18.0"
 
 build do
   license "Curl"
   license_file "https://raw.githubusercontent.com/bagder/curl/master/COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
 
-  configure_options = [
-           "--disable-manual",
-           "--disable-debug",
-           "--enable-optimize",
-           "--disable-static",
-           "--disable-ldap",
-           "--disable-ldaps",
-           "--disable-rtsp",
-           "--enable-proxy",
-           "--disable-dependency-tracking",
-           "--enable-ipv6",
-           "--without-libidn",
-           "--without-gnutls",
-           "--without-librtmp",
-           "--without-libssh2",
-           "--without-libpsl",
-           "--with-ssl",
-           "--with-zlib",
-           "--with-nghttp2",
-           "--disable-docs",
-           "--disable-libcurl-option",
-           "--disable-versioned-symbols",
-  ]
-  configure(*configure_options, env: env)
+  command_on_repo_root "bazelisk run -- @nghttp2//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libnghttp2.so"
 
-  command "make -j #{workers}", env: env
-  command "make install"
+  command_on_repo_root "bazelisk run -- @curl//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libcurl.pc" \
+    " #{install_dir}/embedded/lib/libcurl.so" \
+    " #{install_dir}/embedded/bin/curl"
 end

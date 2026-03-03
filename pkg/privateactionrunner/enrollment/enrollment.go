@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -16,14 +17,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
+const defaultIdentityFileName = "privateactionrunner_private_identity.json"
+
 // Result contains the result of a successful enrollment
 type Result struct {
 	PrivateKey *ecdsa.PrivateKey
 	URN        string
+	Hostname   string
+	RunnerName string
+}
+
+type PersistedIdentity struct {
+	PrivateKey string `json:"private_key"`
+	URN        string `json:"urn"`
+	Hostname   string `json:"hostname"`
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerHostname, apiKey, appKey string) (*Result, error) {
+	now := time.Now().UTC()
+	formattedTime := now.Format("20060102150405")
+	runnerName := runnerHostname + "-" + formattedTime
+
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
@@ -32,7 +47,6 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	ddBaseURL := "https://api." + ddSite
 	publicClient := opms.NewPublicClient(ddBaseURL)
 
-	ctx := context.Background()
 	runnerModes := []modes.Mode{modes.ModePull}
 
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
@@ -53,5 +67,7 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	return &Result{
 		PrivateKey: privateJwk.Key.(*ecdsa.PrivateKey),
 		URN:        urn,
+		Hostname:   runnerHostname,
+		RunnerName: runnerName,
 	}, nil
 }

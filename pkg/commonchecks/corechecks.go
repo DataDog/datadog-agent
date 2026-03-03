@@ -21,6 +21,7 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cloud/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -77,6 +78,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
+	corecheckLoader.RegisterCheck(hostinfo.CheckName, hostinfo.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())

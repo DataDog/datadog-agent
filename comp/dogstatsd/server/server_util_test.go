@@ -31,6 +31,8 @@ import (
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -54,6 +56,7 @@ type depsWithoutServer struct {
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Hostname      hostnameinterface.Component
+	FilterList    filterlist.Component
 }
 
 type serverDeps struct {
@@ -68,6 +71,7 @@ type serverDeps struct {
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
+	FilterList    filterlist.Component
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -87,6 +91,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
+		filterlistmock.MockModule(),
 
 		Module(Params{Serverless: false}),
 	))
@@ -105,6 +110,8 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		filterlistmock.MockModule(),
+
 		Module(Params{Serverless: false}),
 	))
 }
@@ -125,9 +132,10 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
+		filterlistmock.MockModule(),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 
 	return deps, s
 }

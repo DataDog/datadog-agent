@@ -7,17 +7,20 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"go.yaml.in/yaml/v2"
 	patch "gopkg.in/evanphx/json-patch.v4"
-	"gopkg.in/yaml.v2"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -38,6 +41,11 @@ const (
 	FileOperationMove FileOperationType = "move"
 )
 
+var (
+	// secRegex matches SEC[...] placeholders in config patches
+	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
+)
+
 // Directories is the directories of the config.
 type Directories struct {
 	StablePath     string
@@ -56,6 +64,34 @@ type Operations struct {
 	FileOperations []FileOperation `json:"file_operations"`
 }
 
+// ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
+func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
+	for key, decryptedValue := range decryptedSecrets {
+		// Build the full key: SEC[key]
+		fullKey := fmt.Sprintf("SEC[%s]", key)
+
+		// Replace in all file operations
+		for i := range operations.FileOperations {
+			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
+				operations.FileOperations[i].Patch = bytes.ReplaceAll(
+					operations.FileOperations[i].Patch,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
+		}
+	}
+
+	// Verify all secrets have been replaced
+	for _, operation := range operations.FileOperations {
+		if secRegex.Match(operation.Patch) {
+			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+		}
+	}
+
+	return nil
+}
+
 // Apply applies the operations to the root.
 func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	root, err := os.OpenRoot(rootPath)
@@ -64,8 +100,7 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	}
 	defer root.Close()
 	for _, operation := range o.FileOperations {
-		// TODO (go.1.25): we won't need rootPath in 1.25
-		err := operation.apply(ctx, root, rootPath)
+		err := operation.apply(ctx, root)
 		if err != nil {
 			return err
 		}
@@ -81,7 +116,7 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath string) error {
+func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 	spec := getConfigFileSpec(a.FilePath)
 	if spec == nil {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
@@ -109,7 +144,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 		if err != nil {
 			return err
 		}
-		previousJSONBytes, err := json.Marshal(previous)
+		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
 			return err
 		}
@@ -152,13 +187,11 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 		// Set proper ownership and permissions for the file
-		fullPath := filepath.Join(rootPath, path)
-		if err := setFileOwnershipAndPermissions(ctx, fullPath, spec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
 			return err
 		}
 		return nil
 	case FileOperationCopy:
-		// TODO(go.1.25): os.Root.MkdirAll and os.Root.WriteFile are only available starting go 1.25
 		destSpec := getConfigFileSpec(a.DestinationPath)
 		if destSpec == nil {
 			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
@@ -180,26 +213,17 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 
-		// Create the destination with os.Root to ensure the path is clean
-		destFile, err := root.Create(destinationPath)
-		if err != nil {
-			return err
-		}
-		defer destFile.Close()
-
-		_, err = destFile.Write(srcContent)
+		err = root.WriteFile(destinationPath, srcContent, 0640)
 		if err != nil {
 			return err
 		}
 
 		// Set proper ownership and permissions for the destination file
-		fullDestPath := filepath.Join(rootPath, destinationPath)
-		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
 	case FileOperationMove:
-		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
 		destSpec := getConfigFileSpec(a.DestinationPath)
 		if destSpec == nil {
 			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
@@ -210,37 +234,13 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 			return err
 		}
 
-		srcFile, err := root.Open(path)
-		if err != nil {
-			return err
-		}
-		defer srcFile.Close()
-
-		srcContent, err := io.ReadAll(srcFile)
-		if err != nil {
-			return err
-		}
-
-		// Create the destination with os.Root to ensure the path is clean
-		destFile, err := root.Create(destinationPath)
-		if err != nil {
-			return err
-		}
-		defer destFile.Close()
-
-		_, err = destFile.Write(srcContent)
-		if err != nil {
-			return err
-		}
-
-		err = root.Remove(path)
+		err = root.Rename(path, destinationPath)
 		if err != nil {
 			return err
 		}
 
 		// Set proper ownership and permissions for the destination file
-		fullDestPath := filepath.Join(rootPath, destinationPath)
-		if err := setFileOwnershipAndPermissions(ctx, fullDestPath, destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
@@ -251,9 +251,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 		}
 		return nil
 	case FileOperationDeleteAll:
-		// TODO(go.1.25): os.Root.RemoveAll is only available starting go 1.25 so we'll use it instead
-		// We can't get the path from os.Root, so we have to use the rootPath.
-		err := os.RemoveAll(filepath.Join(rootPath, path))
+		err := root.RemoveAll(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -272,36 +270,7 @@ func ensureDir(root *os.Root, filePath string) error {
 	if dir == "." {
 		return nil
 	}
-	currentRoot := root
-	for part := range strings.SplitSeq(dir, "/") {
-		if part == "" {
-			continue
-		}
-
-		// Try to create the directory
-		err := currentRoot.Mkdir(part, 0755)
-		if err != nil && !os.IsExist(err) {
-			return err
-		}
-
-		// Open the directory for the next iteration
-		nextRoot, err := currentRoot.OpenRoot(part)
-		if err != nil {
-			return err
-		}
-
-		// Close the previous root if it's not the original root
-		if currentRoot != root {
-			currentRoot.Close()
-		}
-		currentRoot = nextRoot
-	}
-
-	// Close the final root if it's not the original root
-	if currentRoot != root {
-		currentRoot.Close()
-	}
-	return nil
+	return root.MkdirAll(dir, 0755)
 }
 
 // configFileSpec specifies a config file pattern, its ownership, and permissions.
@@ -316,8 +285,8 @@ var (
 	allowedConfigFiles = []configFileSpec{
 		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
-		{pattern: "/security-agent.yaml", owner: "root", group: "root", mode: 0640},
-		{pattern: "/system-probe.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "dd-agent", mode: 0640},
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
@@ -452,7 +421,7 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
 	}
-	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
+	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
 	}
@@ -481,4 +450,34 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	}
 
 	return op, nil
+}
+
+// convertYAML2UnmarshalToJSONMarshallable converts a YAML unmarshalable to a JSON marshallable:
+// yaml.v2 unmarshals nested maps to map[any]any, but json.Marshal expects map[string]any and
+// fails for map[any]any. This function converts the map[any]any to map[string]any.
+func convertYAML2UnmarshalToJSONMarshallable(i any) any {
+	switch x := i.(type) {
+	case map[any]any:
+		m := map[string]any{}
+		for k, v := range x {
+			if strKey, ok := k.(string); ok {
+				m[strKey] = convertYAML2UnmarshalToJSONMarshallable(v)
+			}
+			// Skip non-string keys as they cannot be represented in JSON
+		}
+		return m
+	case map[string]any:
+		m := map[string]any{}
+		for k, v := range x {
+			m[k] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	case []any:
+		m := make([]any, len(x))
+		for i, v := range x {
+			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	}
+	return i
 }

@@ -97,8 +97,9 @@ func TestStoreGenerators(t *testing.T) {
 
 func collectResultStoreGenerator(funcs []storeGenerator, config config.Reader) []*reflectorStore {
 	var stores []*reflectorStore
+	client := fakeclientset.NewClientset()
 	for _, f := range funcs {
-		_, s := f(nil, nil, config, nil)
+		_, s := f(nil, nil, config, client)
 		stores = append(stores, s)
 	}
 	return stores

@@ -125,11 +125,7 @@
               "a": {
                 "type": "*interface {}",
                 "address": "[addr]",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           },

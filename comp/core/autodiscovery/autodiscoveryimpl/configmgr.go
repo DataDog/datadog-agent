@@ -218,7 +218,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		decryptedConfig, err := decryptConfig(config, cm.secretResolver)
+		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
 			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
 		}
@@ -259,6 +259,9 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 
+		// Remove all resolved secrets for this config
+		cm.secretResolver.RemoveOrigin(digest)
+
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
 			//  2. update templatesByADID or servicesByADID to match
@@ -277,7 +280,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			config, err := decryptConfig(config, cm.secretResolver)
+			config, err := decryptConfig(config, cm.secretResolver, digest)
 			if err != nil {
 				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
 			}
@@ -394,6 +397,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -401,7 +405,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver)
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)

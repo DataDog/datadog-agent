@@ -705,12 +705,12 @@ func scanK8sHelpLine(line string) (*conf, bool) {
 		str = eatWhitespace(str)
 	}
 
-	if idx := strings.Index(str, "[default="); idx >= 0 {
-		conf.flagDefault = scanDefaultValue(str[idx+len("[default="):], '[', ']')
-	} else if idx := strings.Index(str, "[default "); idx >= 0 {
-		conf.flagDefault = scanDefaultValue(str[idx+len("[default "):], '[', ']')
-	} else if idx := strings.Index(str, "(default "); idx >= 0 {
-		conf.flagDefault = scanDefaultValue(str[idx+len("(default "):], '(', ')')
+	if _, after, ok := strings.Cut(str, "[default="); ok {
+		conf.flagDefault = scanDefaultValue(after, '[', ']')
+	} else if _, after, ok := strings.Cut(str, "[default "); ok {
+		conf.flagDefault = scanDefaultValue(after, '[', ']')
+	} else if _, after, ok := strings.Cut(str, "(default "); ok {
+		conf.flagDefault = scanDefaultValue(after, '(', ')')
 	}
 	if conf.flagType == "" {
 		conf.flagType = "bool"
@@ -754,7 +754,7 @@ func parseTypeBool(str string) string {
 
 func parseTypeCIDRs(str string) string {
 	var cidrs []string
-	for _, s := range strings.Split(str, ",") {
+	for s := range strings.SplitSeq(str, ",") {
 		s = strings.TrimSpace(s)
 		_, _, err := net.ParseCIDR(s)
 		if err != nil {

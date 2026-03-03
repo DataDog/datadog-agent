@@ -116,7 +116,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, binPath, args...)
+	// Build command: /proc/self/exe compliance oscap-exec <oscap-io-path> [args...]
+	execArgs := append([]string{"compliance", "oscap-exec", binPath}, args...)
+	cmd := exec.CommandContext(ctx, "/proc/self/exe", execArgs...)
 	cmd.Dir = filepath.Dir(p.File)
 	cmd.Env = os.Environ()
 	if oscapProbeRoot != "" {

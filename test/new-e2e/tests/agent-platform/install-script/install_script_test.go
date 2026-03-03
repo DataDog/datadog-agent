@@ -107,9 +107,11 @@ func DockerTest(t *testing.T) {
 		t.Fatalf("expected platform to be docker, got %s", platform)
 	}
 
+	suite := &installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)}
+	suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
 		e2e.Run(tt,
-			&installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)},
+			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithRunOptions(ec2.WithDocker()),
@@ -255,7 +257,8 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 
 type installScriptSuiteSysVInit struct {
 	e2e.BaseSuite[environments.Host]
-	arch e2eos.Architecture
+	arch           e2eos.Architecture
+	testingKeysURL string
 }
 
 func (is *installScriptSuiteSysVInit) TestInstallAgent() {
@@ -272,7 +275,15 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
 	require.NoError(is.T(), err)
 
-	install.Unix(is.T(), client, installparams.WithArch(string(is.arch)), installparams.WithFlavor(*flavor))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.arch)),
+		installparams.WithFlavor(*flavor),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), client, installOptions...)
 
 	// We can't easily reuse the the helpers that assume everything runs directly on the host
 	// We run a few selected sanity checks here instead (sufficient for this platform anyway)

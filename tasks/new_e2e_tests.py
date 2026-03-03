@@ -10,6 +10,7 @@ import os
 import os.path
 import re
 import shutil
+import sys
 import tempfile
 import threading
 from collections import defaultdict
@@ -23,8 +24,9 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
-from tasks.libs.common.git import get_commit_sha, get_modified_files
+from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
@@ -37,6 +39,8 @@ from tasks.libs.common.utils import (
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.releasing.json import load_release_json
+from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
@@ -106,6 +110,8 @@ def build_binaries(
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if parallel == 0:
         parallel = multiprocessing.cpu_count()
@@ -267,10 +273,12 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if shutil.which("pulumi") is None:
         raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/README.md)",
+            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
             1,
         )
 
@@ -290,7 +298,10 @@ def run(
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
-                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
+                test_job_name = os.getenv("CI_JOB_NAME")
+                if test_job_name.endswith("-init"):
+                    test_job_name = test_job_name.removesuffix("-init")
+                to_skip = executor.tests_to_skip(test_job_name, changed_packages + changed_files)
                 ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
@@ -612,14 +623,113 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
         _clean_output()
 
 
+def _get_pulumi_backend_url(ctx: Context) -> str | None:
+    """
+    Get the Pulumi backend URL using 'pulumi whoami --json'.
+    Returns the backend URL or None if it cannot be determined.
+    """
+    res = ctx.run(
+        "pulumi whoami --json",
+        hide=True,
+        warn=True,
+        env=_get_default_env(),
+    )
+    if res is None or res.exited != 0:
+        return None
+    try:
+        whoami = json.loads(res.stdout)
+        return whoami.get("url")
+    except json.JSONDecodeError:
+        return None
+
+
+def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks directly from S3 backend.
+    Much faster than 'pulumi stack ls' for buckets with many stacks.
+
+    Args:
+        backend_url: S3 backend URL (e.g., 's3://bucket-name' or 's3://bucket-name/path')
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key matching pulumi stack ls format
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+
+    # Parse S3 URL: s3://bucket-name/optional/path
+    s3_path = backend_url.removeprefix("s3://")
+    parts = s3_path.split("/", 1)
+    bucket_name = parts[0]
+    base_prefix = parts[1] if len(parts) > 1 else ""
+    bucket_name = bucket_name.split("?")[0]  # Remove query parameters for AWS url
+
+    # Pulumi stores stacks at: {base_prefix}/.pulumi/stacks/{project}/
+    stacks_prefix = f"{base_prefix}/.pulumi/stacks/{project}/".lstrip("/")
+
+    try:
+        s3_client = boto3.client('s3')
+        stacks = []
+
+        paginator = s3_client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=stacks_prefix)
+
+        for page in page_iterator:
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                # Stack files are {stack_name}.json (skip .json.bak files)
+                if key.endswith('.json'):
+                    # Extract stack name from path
+                    filename = key.split('/')[-1]
+                    stack_name = filename.removesuffix('.json')
+                    stacks.append(
+                        {
+                            'name': f"organization/{project}/{stack_name}",
+                            'lastUpdate': obj.get('LastModified', '').isoformat() if obj.get('LastModified') else None,
+                        }
+                    )
+
+        return stacks
+
+    except ClientError as e:
+        print(f"Failed to list stacks from S3: {e}")
+        return []
+
+
+def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks. Uses S3 SDK for S3 backends (much faster),
+    falls back to pulumi CLI for other backends.
+
+    Args:
+        ctx: Invoke context
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key
+    """
+    backend_url = _get_pulumi_backend_url(ctx)
+
+    if backend_url and backend_url.startswith("s3://"):
+        return _list_stacks_from_s3(backend_url, project)
+
+    # Fallback to pulumi CLI for non-S3 backends (local, etc.)
+    res = ctx.run(
+        "pulumi stack ls --all --json",
+        hide=True,
+        warn=True,
+    )
+    if res is None or res.exited != 0:
+        return []
+    return json.loads(res.stdout)
+
+
 @task
-def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
+def cleanup_remote_stacks(ctx, stack_regex):
     """
     Clean up remote stacks created by the pipeline
     """
-    if not running_in_ci():
-        raise Exit("This task should be run in CI only", 1)
-
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -628,35 +738,22 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 
     stack_regex = re.compile(stack_regex)
 
-    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
-    # Once the bucket is cleaned up we can switch to the pulumi CLI
-    res = ctx.run(
-        "pulumi stack ls --all --json",
-        hide=True,
-        warn=True,
-    )
-    if res.exited != 0:
-        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
+    # Use S3 SDK for listing stacks (much faster than pulumi CLI)
+    stacks = list_stacks(ctx)
+    if not stacks:
+        print("No stacks found or failed to list stacks")
         return
     to_delete_stacks = set()
-    stacks = json.loads(res.stdout)
-    print(stacks)
     for stack in stacks:
-        stack_id = (
-            stack.get("name", "")
-            .split("/")[-1]
-            .replace(".json.bak", "")
-            .replace(".json", "")
-            .replace(".pulumi/stacks/e2eci", "")
-        )
-        if stack_regex.match(stack_id):
-            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+        if stack_regex.match(stack["name"].split("/")[-1]):
+            to_delete_stacks.add(stack["name"])
 
     if len(to_delete_stacks) == 0:
         print("No stacks to delete")
         return
 
     print("About to delete the following stacks:", to_delete_stacks)
+
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)
@@ -1031,3 +1128,296 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
         )
         return ""
     return ecr_password_res.stdout.strip()
+
+
+def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> str | None:
+    """
+    Find the most recent successful pipeline on the given branch or current branch if not specified.
+    Returns pipeline_id or None if not found.
+    """
+    try:
+        # Explicitly use GITLAB_TOKEN if set
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+
+        # Try the specified branch or current branch
+        branch_to_try = ""
+        if branch:
+            branch_to_try = branch
+        else:
+            try:
+                current = get_current_branch(ctx)
+                if current:
+                    branch_to_try = current
+            except Exception as e:
+                raise Exit(f"Could not get current branch: {e}", code=1) from e
+
+        # Get pipelines on this branch, ordered by most recent
+        pipelines = repo.pipelines.list(ref=branch_to_try, per_page=10, order_by='updated_at', get_all=False)
+        for pipeline in pipelines:
+            if pipeline.status == "success":
+                return str(pipeline.id)
+
+        return None
+    except Exception as e:
+        print(f"Warning: Could not query GitLab for recent pipelines: {e}")
+        if 'GITLAB_TOKEN' not in os.environ:
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"
+            )
+        return None
+
+
+def _find_local_msi_build(pkg: str | None = None) -> str | None:
+    """
+    Find a local MSI build in the omnibus/pkg directory.
+
+    Args:
+        pkg: Optional package name or pattern to search for.
+             Can be a full filename (e.g., "datadog-agent-7.75.0-devel.git.59.ac0523a-1-x86_64.msi"),
+             a partial name (e.g., "datadog-agent-7.75"), or None to find the most recent MSI.
+
+    Returns the absolute path to the MSI file, or None if not found.
+    """
+    import glob
+
+    # Standard output directory for local MSI builds
+    output_dir = Path.cwd() / "omnibus" / "pkg"
+
+    if not output_dir.is_dir():
+        return None
+
+    if pkg:
+        # If pkg is provided, search for it
+        # Check if it's an absolute path first
+        if os.path.isabs(pkg) and os.path.isfile(pkg):
+            return pkg
+
+        # Check if it's a file in the output directory
+        direct_path = os.path.join(output_dir, pkg)
+        if os.path.isfile(direct_path):
+            return direct_path
+
+        # Try as a glob pattern
+        if '*' not in pkg:
+            pkg = f"*{pkg}*"
+        pattern = os.path.join(output_dir, pkg)
+        if not pattern.endswith('.msi'):
+            pattern = f"{pattern}*.msi"
+        msi_files = glob.glob(pattern)
+    else:
+        # Look for agent MSI files (both regular and FIPS)
+        patterns = [
+            os.path.join(output_dir, "datadog-agent-*.msi"),
+            os.path.join(output_dir, "datadog-fips-agent-*.msi"),
+        ]
+        msi_files = []
+        for pattern in patterns:
+            msi_files.extend(glob.glob(pattern))
+
+    if not msi_files:
+        return None
+
+    # Return the most recently modified MSI
+    return max(msi_files, key=os.path.getmtime)
+
+
+def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | None:
+    """
+    Parse version information from MSI filename.
+
+    MSI filename format: datadog-agent-{version}-{arch}.msi
+    Example: datadog-agent-7.75.0-devel.git.59.ac0523a-1-x86_64.msi
+
+    Returns (display_version, package_version) tuple, or None if parsing fails.
+    - display_version: e.g., "7.75.0-devel"
+    - package_version: e.g., "7.75.0-devel.git.59.ac0523a-1"
+    """
+    import re
+
+    filename = os.path.basename(msi_path)
+
+    # Try to use cached agent.version first
+    try:
+        expected_version = f"{get_version(ctx, include_git=True, url_safe=True)}-1"
+        if expected_version in filename:
+            # Version matches what we expect from git state
+            package_version = expected_version
+
+            # Extract display version
+            if '.git.' in package_version:
+                display_version = package_version.split('.git.')[0]
+            elif package_version.endswith('-1'):
+                display_version = package_version[:-2]
+            else:
+                display_version = package_version
+
+            return display_version, package_version
+    except Exception:
+        print("Warning: Could not determine version from cached agent.version. Falling back to regex parsing")
+        pass
+
+    # Pattern to match: datadog-agent-{version}-{arch}.msi or datadog-fips-agent-{version}-{arch}.msi
+    # Version format: 7.75.0-devel.git.59.ac0523a-1
+    # Arch is typically: x86_64
+    pattern = r'^datadog(?:-fips)?-agent-(.+)-(x86_64|amd64)\.msi$'
+    match = re.match(pattern, filename)
+
+    if not match:
+        return None
+
+    package_version = match.group(1)  # e.g., "7.75.0-devel.git.59.ac0523a-1"
+
+    # Extract display version (everything before .git. or the full version if no .git.)
+    # e.g., "7.75.0-devel.git.59.ac0523a-1" -> "7.75.0-devel"
+    # e.g., "7.75.0-1" -> "7.75.0"
+    if '.git.' in package_version:
+        display_version = package_version.split('.git.')[0]
+    elif package_version.endswith('-1'):
+        # Remove trailing -1 for display version (e.g., "7.75.0-1" -> "7.75.0")
+        display_version = package_version[:-2]
+    else:
+        display_version = package_version
+
+    return display_version, package_version
+
+
+def _path_to_file_url(file_path: str) -> str:
+    """Convert a file path to a file:// URL."""
+    # Normalize the path and convert to forward slashes
+    abs_path = os.path.abspath(file_path)
+    if os.name == 'nt':
+        return f"file://{abs_path.replace(os.sep, '/')}"
+    return f"file://{abs_path}"
+
+
+@task(
+    help={
+        "fmt": "Output format: 'bash' for export commands, 'powershell' for $env: commands, 'json' for JSON output",
+        "build": "Build source: 'local' for local build in omnibus/pkg, 'pipeline' for CI pipeline artifacts (default: pipeline)",
+        "pkg": "Local MSI to use instead of using the most recent one. Only used with --build local",
+        "branch": "Git branch to find pipeline from (default: current branch, falls back to main). Only used with --build pipeline",
+        "pipeline_id": "Override pipeline ID instead of auto-detecting. Only used with --build pipeline",
+    }
+)
+def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline_id=None):
+    """
+    Generate environment variables for running E2E Fleet Automation tests locally.
+
+    This task derives version information and artifact locations to set the required
+    environment variables for running E2E tests.
+
+    Usage:
+        # Use local MSI build from omnibus/pkg directory (Windows)
+        dda inv new-e2e-tests.setup-env --build local
+
+        # Use artifacts from a CI pipeline (auto-detects most recent successful pipeline)
+        dda inv new-e2e-tests.setup-env --build pipeline
+
+        # Use a specific pipeline
+        dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 12345678
+
+        # Bash/WSL - eval the output to apply the environment variables
+        eval "$(dda inv new-e2e-tests.setup-env --build local)"
+
+        # PowerShell - pipe to Invoke-Expression to execute the commands
+        dda inv new-e2e-tests.setup-env --build local --fmt powershell | Invoke-Expression
+
+        # JSON - for programmatic use
+        dda inv new-e2e-tests.setup-env --build local --fmt json
+
+    Note: The task outputs shell commands (e.g., 'export VAR=value' for bash).
+    Using eval (bash) or Invoke-Expression (PowerShell) executes these commands
+    to actually set the environment variables in your current shell session.
+    Without eval/Invoke-Expression, the commands are just printed but not executed.
+    """
+    env_vars = {}
+
+    valid_formats = ["bash", "powershell", "json"]
+    if fmt not in valid_formats:
+        raise Exit(f"Invalid --fmt option: {fmt}. Use one of: {', '.join(valid_formats)}", code=1)
+
+    if build == "local":
+        # Find local MSI build (Windows)
+        msi_path = _find_local_msi_build(pkg)
+        if msi_path:
+            env_vars["CURRENT_AGENT_MSI_URL"] = _path_to_file_url(msi_path)
+            print(f"# Found local MSI: {msi_path}", file=sys.stderr)
+
+            # Extract version from MSI filename
+            version_info = _parse_version_from_msi_filename(ctx, msi_path)
+            if version_info:
+                display_version, package_version = version_info
+                env_vars["CURRENT_AGENT_VERSION"] = display_version
+                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = package_version
+            else:
+                print("Warning: Could not parse version from MSI filename, falling back to git", file=sys.stderr)
+                try:
+                    env_vars["CURRENT_AGENT_VERSION"] = get_version(ctx, include_git=False, include_pre=True)
+                    package_version = get_version(ctx, include_git=True, url_safe=True)
+                    env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
+                except Exception as e:
+                    raise Exit(f"Could not determine current agent version: {e}", code=1) from e
+
+            # Check for matching OCI package
+            if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
+                oci_filename = f"datadog-agent-{env_vars['CURRENT_AGENT_VERSION_PACKAGE']}-windows-amd64.oci.tar"
+                oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
+                if os.path.isfile(oci_path):
+                    env_vars["CURRENT_AGENT_OCI_URL"] = _path_to_file_url(oci_path)
+                    print(f"# Found local OCI: {oci_path}", file=sys.stderr)
+                else:
+                    print(f"# Note: No OCI package found at {oci_filename}", file=sys.stderr)
+        else:
+            if pkg:
+                raise Exit(f"No MSI matching '{pkg}' found in omnibus/pkg/.", code=1)
+            else:
+                raise Exit("No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", code=1)
+
+    elif build == "pipeline":
+        # Find pipeline ID
+        if pipeline_id:
+            env_vars["E2E_PIPELINE_ID"] = pipeline_id
+            print(f"# Using pipeline: {pipeline_id}", file=sys.stderr)
+        else:
+            result = _find_recent_successful_pipeline(ctx, branch)
+            if result:
+                env_vars["E2E_PIPELINE_ID"] = result
+                print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
+            else:
+                raise Exit("Could not find a recent successful pipeline.", code=1)
+
+        try:
+            current_version = get_version(ctx, include_git=False, include_pre=True, pipeline_id=pipeline_id)
+            env_vars["CURRENT_AGENT_VERSION"] = current_version
+        except Exception as e:
+            raise Exit(f"Could not determine current agent version: {e}", code=1) from e
+
+    else:
+        raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
+
+    # Get stable version from release.json
+    try:
+        release_json = load_release_json()
+        stable_version = release_json["last_stable"]["7"]
+        env_vars["STABLE_AGENT_VERSION"] = stable_version
+        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
+        env_vars["STABLE_AGENT_MSI_URL"] = (
+            f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-{stable_version}.msi"
+        )
+    except Exception as e:
+        print(f"# Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
+        print("# Using fallback stable version", file=sys.stderr)
+        env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
+        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
+        env_vars["STABLE_AGENT_MSI_URL"] = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
+
+    # Output in requested format
+    if fmt == "json":
+        print(json.dumps(env_vars, indent=2))
+    elif fmt == "powershell":
+        for key, value in env_vars.items():
+            print(f'$env:{key}="{value}"')
+    else:  # bash
+        for key, value in env_vars.items():
+            print(f'export {key}="{value}"')

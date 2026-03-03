@@ -10,6 +10,7 @@ package module_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -123,7 +124,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.Equal(t, initialProbeVersions, collectReceived())
 
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, procID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, procID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -170,7 +171,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.Len(t, update.Processes, 1)
 	process := update.Processes[0]
 	loaded2, err := deps.actuator.runtime.Load(
-		program.ID, process.Executable, process.ProcessID, process.Probes,
+		program.ID, process.Executable, process.ProcessID, process.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -210,6 +211,7 @@ func TestIRGenerationFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), irErr.Error())
@@ -241,6 +243,7 @@ func TestAttachmentFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -274,6 +277,7 @@ func TestLoadingFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "loading failed")
@@ -301,7 +305,7 @@ func TestDecoderCreationFailure(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	_, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decoder creation failed")
@@ -330,7 +334,7 @@ func TestEventDecodingSuccess(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -367,7 +371,7 @@ func TestEventDecodingFailure(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -406,7 +410,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 
 	program := createTestProgram()
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[program.ID]
@@ -449,7 +453,7 @@ func TestStackPCsRecordedForEntryEvents(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -588,7 +592,7 @@ func TestProbeIssueReporting(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -619,11 +623,13 @@ func TestProbeIssueReporting(t *testing.T) {
 func TestNoSuccessfulProbes(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	fakeDeps := newFakeTestingDependencies(t)
-	a := actuator.NewActuator(actuator.CircuitBreakerConfig{
-		Interval:          1 * time.Second,
-		PerProbeCPULimit:  0.1,
-		AllProbesCPULimit: 0.5,
-		InterruptOverhead: 5 * time.Microsecond,
+	a := actuator.NewActuator(actuator.Config{
+		CircuitBreakerConfig: actuator.CircuitBreakerConfig{
+			Interval:          1 * time.Second,
+			PerProbeCPULimit:  0.1,
+			AllProbesCPULimit: 0.5,
+			InterruptOverhead: 2 * time.Microsecond,
+		},
 	})
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()
@@ -718,7 +724,7 @@ type fakeIRGenerator struct {
 }
 
 func (f *fakeIRGenerator) GenerateIR(
-	programID ir.ProgramID, _ string, _ []ir.ProbeDefinition,
+	programID ir.ProgramID, _ string, _ []ir.ProbeDefinition, _ ...irgen.Option,
 ) (*ir.Program, error) {
 	if f == nil {
 		return &ir.Program{ID: programID}, nil
@@ -767,9 +773,10 @@ type failOnceDecoder struct {
 func (d *failOnceDecoder) Decode(
 	event decode.Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes decode.MissingTypeCollector,
 	out []byte,
 ) ([]byte, ir.ProbeDefinition, error) {
-	bytes, probe, err := d.inner.Decode(event, symbolicator, out)
+	bytes, probe, err := d.inner.Decode(event, symbolicator, missingTypes, out)
 	if err != nil {
 		return bytes, probe, err
 	}
@@ -799,7 +806,7 @@ type decodeCall struct {
 }
 
 func (f *fakeDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+	event decode.Event, symbolicator symbol.Symbolicator, _ decode.MissingTypeCollector, out []byte,
 ) ([]byte, ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
 	return []byte(f.output), f.probe, f.err
@@ -886,6 +893,8 @@ func (f *fakeActuator) SetRuntime(runtime actuator.Runtime) {
 	defer f.mu.Unlock()
 	f.runtime = runtime
 }
+
+func (f *fakeActuator) ReportMissingTypes(_ actuator.ProcessID, _ []string) {}
 
 type fakeTestingDependencies struct {
 	actuator          *fakeActuator
@@ -1030,6 +1039,7 @@ func TestDiagnosticRetentionAcrossProgramLoads(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -1098,6 +1108,7 @@ func TestDiagnosticRetentionAcrossProgramLoads(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdateP1Only.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -1149,6 +1160,7 @@ func TestDiagnosticRetentionAcrossProgramLoads(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -1230,6 +1242,7 @@ func TestDiagnosticRetentionSingleProbeRemoval(t *testing.T) {
 		processUpdateP1.Executable,
 		processUpdateP1.ProcessID,
 		processUpdateP1.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -1308,6 +1321,7 @@ func TestDiagnosticRetentionSingleProbeRemoval(t *testing.T) {
 		processUpdateP1.Executable,
 		processUpdateP1.ProcessID,
 		processUpdateP1.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -1360,4 +1374,81 @@ func TestDiagnosticRetentionSingleProbeRemoval(t *testing.T) {
 	)
 
 	require.NoError(t, loaded2.Close())
+}
+
+// TestLoadReturnsErrorWhenProcessRemovedDuringLoad verifies that when a process
+// is removed during program loading, perhaps because the process has died,
+// the runtime returns a non-nil error.
+//
+// Previously, we would return nil, nil from runtimeImpl.Load() which was
+// problematic for the actuator.
+func TestLoadReturnsErrorWhenProcessRemovedDuringLoad(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	processUpdate := createTestProcessConfig()
+	deps.irGenerator.program = createTestProgram()
+
+	// Create a wrapper actuator that intercepts SetRuntime to inject our
+	// intercepting runtime.
+	wrapper := &interceptingActuator{
+		Actuator: deps.actuator,
+	}
+
+	td := deps.toDeps()
+	td.Actuator = wrapper
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
+
+	pid := processUpdate.ProcessID
+	deps.sendUpdates(processUpdate)
+
+	// Configure the intercepting runtime to remove the process during Load.
+	wrapper.interceptingRT.onLoad = func() {
+		deps.sendRemovals(processUpdate.ProcessID)
+	}
+
+	// Now try to load - the wrapper will remove the process during load.
+	loaded, err := wrapper.interceptingRT.Load(
+		ir.ProgramID(42),
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdate.Probes,
+		actuator.LoadOptions{},
+	)
+
+	// Expect an error because the process has been removed.
+	require.Nil(t, loaded)
+	require.Regexp(t, fmt.Sprintf("process %v not found", pid), err)
+}
+
+// interceptingActuator wraps an actuator to intercept SetRuntime and inject
+// an intercepting runtime.
+type interceptingActuator struct {
+	module.Actuator
+	interceptingRT *interceptingRuntime
+}
+
+func (a *interceptingActuator) SetRuntime(runtime actuator.Runtime) {
+	// Wrap the runtime to intercept Load calls.
+	wrapped := &interceptingRuntime{inner: runtime}
+	a.interceptingRT = wrapped
+	a.Actuator.SetRuntime(wrapped)
+}
+
+// interceptingRuntime wraps a runtime to intercept Load calls.
+type interceptingRuntime struct {
+	inner  actuator.Runtime
+	onLoad func()
+}
+
+func (r *interceptingRuntime) Load(
+	programID ir.ProgramID,
+	executable process.Executable,
+	processID process.ID,
+	probes []ir.ProbeDefinition,
+	opts actuator.LoadOptions,
+) (actuator.LoadedProgram, error) {
+	if r.onLoad != nil {
+		r.onLoad()
+	}
+	return r.inner.Load(programID, executable, processID, probes, opts)
 }

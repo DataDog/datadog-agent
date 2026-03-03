@@ -4,16 +4,15 @@
 # Note that the values must be quoted if they contain a '#' symbol, because
 # YAML interprets that as the beginning of a comment. Keys must also be quoted
 # because the '@' symbol is reserved in YAML.
-'@datadog/action-platform': '#action-platform'
+'@datadog/action-platform': '#action-platform-reviews'
 '@datadog/agent-all': '#datadog-agent-pipelines'
 '@datadog/agent-apm': '#apm-agent'
 '@datadog/agent-build': '#agent-build-reviews'
-'@datadog/agent-configuration': '#agent-configuration'
+'@datadog/agent-configuration': '#agent-configuration-ops'
 '@datadog/agent-cspm': '#security-and-compliance-agent'
 '@datadog/agent-delivery': '#agent-delivery-reviews'
 '@datadog/agent-devx': '#agent-devx-reviews'
 '@datadog/agent-discovery': '#agent-discovery'
-'@datadog/agent-e2e-testing': '#agent-devx-reviews'
 '@datadog/agent-health': '#agent-health'
 '@datadog/agent-integrations': '#agent-integrations-reviews'
 '@datadog/agent-log-pipelines': '#agent-log-pipelines'
@@ -22,7 +21,7 @@
 '@datadog/agent-onboarding': '#agent-onboarding-ops'
 '@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
 '@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
-'@datadog/agent-runtimes': '#agent-runtimes'
+'@datadog/agent-runtimes': '#agent-runtimes-reviews'
 '@datadog/agent-security': '#security-and-compliance-agent'
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
 '@datadog/apm-onboarding': '#apm-onboarding'
@@ -38,6 +37,7 @@
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/debugger-go': '#debugger-go'
 '@datadog/documentation': '#documentation'
+'@datadog/ecs-experiences': '#ecs-experiences'
 '@datadog/ebpf-platform': '#ebpf-platform'
 '@datadog/fleet': '#fleet-automation'
 '@datadog/injection-platform': '#injection-platform'
@@ -45,7 +45,6 @@
 '@datadog/metrics-aggregation': '#metrics-aggregation'
 '@datadog/ndm-core': '#ndm-core'
 '@datadog/ndm-integrations': '#ndm-integrations'
-'@datadog/network-device-monitoring': '#network-device-monitoring'
 '@datadog/network-path': '#network-path-dev'
 '@datadog/opentelemetry': '#opentelemetry-ops'
 '@datadog/opentelemetry-agent': '#opentelemetry-agent'

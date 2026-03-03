@@ -6,6 +6,7 @@
 package integrations
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,4 +101,25 @@ func TestIntegrationsFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []byte(`{"log":"foo bar"}`), msg.GetContent())
 	assert.Equal(t, []string{"foo:bar", "env:prød", "sp@ce:ch@r"}, msg.ParsingExtra.Tags)
+}
+
+// BenchmarkNormalizeTags benchmarks the normalizeTags function
+func BenchmarkNormalizeTags(b *testing.B) {
+	// Test with realistic tag counts (5-20 tags)
+	for _, tagCount := range []int{5, 10, 20} {
+		b.Run(fmt.Sprintf("%d_tags", tagCount), func(b *testing.B) {
+			tags := make([]string, tagCount)
+			for i := 0; i < tagCount; i++ {
+				tags[i] = fmt.Sprintf("  tag%d:value  ", i)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				// Create a copy since normalizeTags modifies in place (existing behavior)
+				tagsCopy := make([]string, len(tags))
+				copy(tagsCopy, tags)
+				_ = normalizeTags(tagsCopy)
+			}
+		})
+	}
 }

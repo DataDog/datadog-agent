@@ -52,12 +52,19 @@
             "arguments": {
               "u": {
                 "type": "[]uint",
+                "size": "0",
                 "elements": []
               }
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "[]"

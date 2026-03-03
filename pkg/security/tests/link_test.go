@@ -55,7 +55,7 @@ func TestLink(t *testing.T) {
 	}
 
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
 				return error(errno)
@@ -77,7 +77,7 @@ func TestLink(t *testing.T) {
 			test.validateLinkSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.link.path")
 			validateSyscallContext(t, event, "$.syscall.link.destination_path")
-		})
+		}, "test_rule")
 
 		if err = os.Remove(testNewFile); err != nil {
 			t.Fatal(err)
@@ -85,7 +85,7 @@ func TestLink(t *testing.T) {
 	}))
 
 	t.Run("linkat", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
 				return error(errno)
@@ -107,7 +107,7 @@ func TestLink(t *testing.T) {
 			test.validateLinkSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.link.path")
 			validateSyscallContext(t, event, "$.syscall.link.destination_path")
-		})
+		}, "test_rule")
 
 		if err = os.Remove(testNewFile); err != nil {
 			t.Fatal(err)
@@ -132,7 +132,7 @@ func TestLink(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -164,6 +164,6 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 	})
 }

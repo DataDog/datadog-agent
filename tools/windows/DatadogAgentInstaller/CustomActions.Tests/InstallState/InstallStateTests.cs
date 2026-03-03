@@ -2,7 +2,7 @@ using AutoFixture.Xunit2;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Native;
 using FluentAssertions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Xunit;
 
 namespace CustomActions.Tests.InstallState

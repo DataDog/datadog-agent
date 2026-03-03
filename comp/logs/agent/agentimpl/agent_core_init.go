@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -58,10 +59,45 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 // dependent on configuration and connectivity
 func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
+
+	// Publish HTTP connectivity check metric
+	if httpConnectivity == config.HTTPConnectivitySuccess {
+		metrics.TlmHTTPConnectivityCheck.Inc("success")
+	} else {
+		metrics.TlmHTTPConnectivityCheck.Inc("failure")
+	}
+
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+}
+
+// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only.
+// Uses BuildEndpointsForDiagnostic to avoid registering config update callbacks since these
+// endpoints are transient and will be discarded after the connectivity check.
+func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.Endpoints, error) {
+	return config.BuildEndpointsForDiagnostic(
+		coreConfig,
+		config.DefaultLogsConfigKeysWithVectorOverride(coreConfig),
+		config.DefaultDiagnosticPrefix,
+		config.DiagnosticHTTP,
+		intakeTrackType,
+		config.AgentJSONIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
+}
+
+// checkHTTPConnectivityStatus performs an HTTP connectivity check and returns the status
+func checkHTTPConnectivityStatus(endpoint config.Endpoint, coreConfig model.Reader) config.HTTPConnectivity {
+	return http.CheckConnectivity(endpoint, coreConfig)
+}
+
+// buildHTTPEndpointsForRestart builds HTTP endpoints for restart without connectivity check
+// This is used when we've already verified HTTP connectivity and are upgrading from TCP
+func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, error) {
+	// Force HTTP endpoints since we already confirmed connectivity
+	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
@@ -126,7 +162,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger, a.healthPlatform))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

@@ -37,6 +37,10 @@ func TestMain(m *testing.M) {
 				ID:    "apm",
 				Title: "APM Commands",
 			},
+			&cobra.Group{
+				ID:    "extension",
+				Title: "Extensions Commands",
+			},
 		)
 		cmd.AddCommand(RootCommands()...)
 		cmd.AddCommand(UnprivilegedCommands()...)
@@ -51,7 +55,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestState(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,
@@ -70,7 +74,7 @@ func TestState(t *testing.T) {
 }
 
 func TestConfigState(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,
@@ -89,7 +93,7 @@ func TestConfigState(t *testing.T) {
 }
 
 func TestConfigAndPackageStates(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +43,7 @@ func copyInstallerSSI() error {
 	destinationPath := "/opt/datadog-packages/run/datadog-installer-ssi"
 
 	// Get the current executable path
-	currentExecutable, err := os.Executable()
+	currentExecutable, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get current executable: %w", err)
 	}

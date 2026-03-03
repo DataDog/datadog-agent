@@ -47,6 +47,25 @@ func TestApproverAncestors1(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	var hasPasswdApprover, hasShadowApprover bool
+	for _, value := range approvers["open.file.path"] {
+		if value.Value.(string) == "/etc/passwd" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasPasswdApprover = true
+		}
+		if value.Value.(string) == "/etc/shadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasShadowApprover = true
+		}
+	}
+
+	assert.Truef(t, hasPasswdApprover, "expected passwd approver not found")
+	assert.Truef(t, hasShadowApprover, "expected shadow approver not found")
 }
 
 func TestApproverAncestors2(t *testing.T) {
@@ -67,6 +86,25 @@ func TestApproverAncestors2(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	var hasShadowApprover, hasGshadowApprover bool
+	for _, value := range approvers["open.file.path"] {
+		if value.Value.(string) == "/etc/shadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasShadowApprover = true
+		}
+		if value.Value.(string) == "/etc/gshadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasGshadowApprover = true
+		}
+	}
+
+	assert.Truef(t, hasShadowApprover, "expected shadow approver not found")
+	assert.Truef(t, hasGshadowApprover, "expected gshadow approver not found")
 }
 
 func TestApproverGlob(t *testing.T) {
@@ -87,6 +125,14 @@ func TestApproverGlob(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 1 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	valueString, ok := approvers["open.file.path"][0].Value.(string)
+	if !ok {
+		t.Fatalf("expected string value, got %v", approvers["open.file.path"][0].Value)
+	}
+
+	assert.Equal(t, "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token", valueString)
+	assert.Equal(t, eval.GlobValueType, approvers["open.file.path"][0].Type)
 }
 
 func TestApproverFlags(t *testing.T) {
@@ -107,6 +153,14 @@ func TestApproverFlags(t *testing.T) {
 	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_SYNC|unix.O_NOCTTY, valueInt, "expected flags O_SYNC|O_NOCTTY, got %d", valueInt)
+	assert.Equal(t, eval.BitmaskValueType, approvers["open.flags"][0].Type)
 }
 
 func TestApproverWildcardBasename(t *testing.T) {
@@ -148,6 +202,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
 			t.Fatalf("expected approver not found: %v", values)
 		}
+		valueBool, ok := approvers["open.file.in_upper_layer"][0].Value.(bool)
+		if !ok {
+			t.Fatalf("expected bool value, got %v", approvers["open.file.in_upper_layer"][0].Value)
+		}
+		assert.Truef(t, valueBool, "expected in_upper_layer approver to be true")
 	})
 
 	t.Run("in_upper_layer-ok-2", func(t *testing.T) {
@@ -164,6 +223,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
 			t.Fatalf("expected approver not found: %v", values)
 		}
+		valueBool, ok := approvers["open.file.in_upper_layer"][0].Value.(bool)
+		if !ok {
+			t.Fatalf("expected bool value, got %v", approvers["open.file.in_upper_layer"][0].Value)
+		}
+		assert.Truef(t, valueBool, "expected in_upper_layer approver to be true")
 	})
 
 	t.Run("in_upper_layer-ko", func(t *testing.T) {
@@ -386,6 +450,132 @@ func TestApproversSetSockOpt(t *testing.T) {
 			tc.assertionsCb(t, rs, approvers)
 		})
 	}
+}
+
+func TestApproverFlagsRdOnlyScalar(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags == O_RDONLY`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_RDONLY, valueInt, "expected O_RDONLY, got %d", valueInt)
+	assert.Equal(t, eval.ScalarValueType, approvers["open.flags"][0].Type)
+}
+
+func TestApproverFlagsRdOnlyWithMask(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags & O_ACCMODE == O_RDONLY`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_RDONLY, valueInt, "expected O_RDONLY, got %d", valueInt)
+	assert.Equal(t, eval.ScalarValueType, approvers["open.flags"][0].Type)
+}
+
+func TestApproverFlagsMixedScalarAndMask(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `(open.flags & O_CREAT > 0)`, `(open.flags & O_ACCMODE == O_RDONLY)`)
+
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 2 {
+		t.Fatalf("expected 2 approvers, found: %v", values)
+	}
+
+	// Should have both a bitmask approver for O_CREAT and a scalar approver for O_RDONLY
+	var hasBitmaskApprover, hasScalarApprover bool
+	for _, value := range approvers["open.flags"] {
+		if value.Type == eval.BitmaskValueType {
+			hasBitmaskApprover = true
+			if value.Value.(int) != unix.O_CREAT {
+				t.Fatalf("expected O_CREAT bitmask approver, got %v", value.Value)
+			}
+		}
+		if value.Type == eval.ScalarValueType {
+			hasScalarApprover = true
+			if value.Value != unix.O_RDONLY {
+				t.Fatalf("expected O_RDONLY scalar approver, got %v", value.Value)
+			}
+		}
+	}
+
+	assert.Truef(t, hasBitmaskApprover, "expected bitmask approver for O_CREAT")
+	assert.Truef(t, hasScalarApprover, "expected scalar approver for O_RDONLY")
+}
+
+func TestApproverFlagsZeroValueFlag(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags & (O_CREAT|O_RDONLY) > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_CREAT, valueInt, "expected O_CREAT, got %d", valueInt)
+	assert.Equal(t, eval.BitmaskValueType, approvers["open.flags"][0].Type)
 }
 
 func TestLastApproverEventType(t *testing.T) {

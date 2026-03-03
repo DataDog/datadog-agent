@@ -17,12 +17,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
-func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
-	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
+func getAPIClient(ctx context.Context) (*apiserver.APIClient, error) {
+	clientCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	apiCl, err := apiserver.WaitForAPIClient(ctx)
+	return apiserver.WaitForAPIClient(clientCtx)
+}
+
+func complianceKubernetesProvider(ctx context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
+	apiCl, err := getAPIClient(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	return apiCl.DynamicCl, apiCl.Cl.Discovery().ServerGroupsAndResources, nil
+}
+
+func startComplianceReflectorStore(ctx context.Context) *compliance.ReflectorStore {
+	apiCl, err := getAPIClient(ctx)
+	if err != nil {
+		return nil
+	}
+
+	store := compliance.NewReflectorStore(apiCl.Cl)
+	store.Run(ctx.Done())
+
+	// Wait for the reflector to sync with a timeout
+	syncCtx, syncCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer syncCancel()
+	for !store.HasSynced() {
+		select {
+		case <-syncCtx.Done():
+			return nil
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	return store
 }

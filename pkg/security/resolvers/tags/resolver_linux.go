@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -24,27 +25,29 @@ const systemdSystemDir = "/usr/lib/systemd/system"
 
 // Workload represents a workload along with its tags
 type Workload struct {
-	*cgroupModel.CacheEntry
-	Tags     []string
-	Selector cgroupModel.WorkloadSelector
-	retries  int
+	sync.RWMutex
+
+	GCroupCacheEntry *cgroupModel.CacheEntry
+	Tags             []string
+	Selector         cgroupModel.WorkloadSelector
+	retries          int
 }
 
 // GetWorkloadID returns the workload ID for a workload
 func (w *Workload) GetWorkloadID() containerutils.WorkloadID {
-	if w.ContainerContext.ContainerID != "" {
-		return w.ContainerContext.ContainerID
-	} else if w.CGroupContext.CGroupID != "" {
-		return w.CGroupContext.CGroupID
+	if id := w.GCroupCacheEntry.GetContainerID(); id != "" {
+		return id
+	} else if id := w.GCroupCacheEntry.GetCGroupID(); id != "" {
+		return id
 	}
 	return nil
 }
 
 // Type returns the type of the workload
 func (w *Workload) Type() string {
-	if w.ContainerContext.ContainerID != "" {
+	if !w.GCroupCacheEntry.IsContainerContextNull() {
 		return "container"
-	} else if w.CGroupContext.CGroupID != "" {
+	} else if w.GCroupCacheEntry.IsCGroupContextResolved() {
 		return "cgroup"
 	}
 	return "unknown"
@@ -67,17 +70,18 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 	}
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, func(cgce *cgroupModel.CacheEntry) {
-		workload := &Workload{CacheEntry: cgce, retries: 3}
-		t.workloads[cgce.CGroupContext.CGroupID] = workload
+		workload := &Workload{GCroupCacheEntry: cgce, retries: 3}
+		t.workloads[cgce.GetCGroupContext().CGroupID] = workload
 		t.checkTags(workload)
 	}); err != nil {
 		return err
 	}
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
-		if workload, ok := t.workloads[cgce.CGroupContext.CGroupID]; ok {
+		id := cgce.GetCGroupID()
+		if workload, ok := t.workloads[id]; ok {
 			t.NotifyListeners(WorkloadSelectorDeleted, workload)
-			delete(t.workloads, cgce.CGroupContext.CGroupID)
+			delete(t.workloads, id)
 		}
 	}); err != nil {
 		return err
@@ -115,14 +119,14 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 func needsTagsResolution(workload *Workload) bool {
 	// Container or cgroup workloads need tags resolution if they don't have a ready selector
-	return (len(workload.ContainerContext.ContainerID) != 0 || len(workload.CGroupContext.CGroupID) != 0) && !workload.Selector.IsReady()
+	return (len(workload.GCroupCacheEntry.GetContainerID()) != 0 || len(workload.GCroupCacheEntry.GetCGroupID()) != 0) && !workload.Selector.IsReady()
 }
 
 // checkTags checks if the tags of a workload were properly set
 func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 	workload := pendingWorkload
 	// check if the workload tags were found or if it was deleted
-	if !workload.Deleted.Load() && needsTagsResolution(workload) {
+	if !workload.GCroupCacheEntry.IsDeleted() && needsTagsResolution(workload) {
 		// this is an alive cgroup, try to resolve its tags now
 		err := t.fetchTags(workload)
 		if err != nil || needsTagsResolution(workload) {

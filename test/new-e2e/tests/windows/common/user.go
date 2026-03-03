@@ -221,7 +221,7 @@ func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
 
 	// The file is in INI syntax, Go doesn't have a built-in INI parser
 	// but going line by line is sufficient for our needs
-	for _, line := range strings.Split(content, "\r\n") {
+	for line := range strings.SplitSeq(content, "\r\n") {
 		if strings.HasPrefix(line, "Se") {
 			// example: SeDenyNetworkLogonRight = *S-1-5-18,ddagentuser
 			parts := strings.Split(line, "=")

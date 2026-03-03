@@ -625,6 +625,189 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 				},
 			},
 		},
+		{
+			name: "array attribute with strings",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("test array attribute")
+					l.SetSeverityNumber(5)
+					arr := l.Attributes().PutEmptySlice("test_array")
+					arr.AppendEmpty().SetStr("value1")
+					arr.AppendEmpty().SetStr("value2")
+					arr.AppendEmpty().SetStr("value3")
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("test array attribute"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					"test_array":       []interface{}{"value1", "value2", "value3"},
+				},
+			},
+		},
+		{
+			name: "array attribute with name-value maps",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("test array with maps")
+					l.SetSeverityNumber(5)
+					l.Attributes().FromRaw(map[string]any{
+						"array_with_maps": []any{
+							map[string]any{"item_name": "item1", "value": int64(100)},
+							map[string]any{"item_name": "item2", "value": int64(200)},
+						},
+					})
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("test array with maps"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					"array_with_maps": []interface{}{
+						map[string]interface{}{"item_name": "item1", "value": int64(100)},
+						map[string]interface{}{"item_name": "item2", "value": int64(200)},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple nesting",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("test multiple nesting")
+					l.SetSeverityNumber(5)
+					l.Attributes().FromRaw(map[string]any{
+						"multiple_nesting": []any{
+							map[string]any{
+								"month":      "January",
+								"categories": []any{"meetings", "personal", "holidays"},
+								"events": []any{
+									map[string]any{
+										"title":     "Team Meeting",
+										"attendees": []any{"a", "b", "c"},
+									},
+									map[string]any{
+										"title":     "Project Review",
+										"attendees": []any{"d", "e"},
+									},
+								},
+							},
+							map[string]any{
+								"month":      "February",
+								"categories": []any{"conferences", "workshops"},
+								"events": []any{
+									map[string]any{
+										"title":     "Tech Conference",
+										"attendees": []any{"f", "g", "h"},
+									},
+								},
+							},
+						},
+					})
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("test multiple nesting"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					"multiple_nesting": []interface{}{
+						map[string]interface{}{
+							"month":      "January",
+							"categories": []interface{}{"meetings", "personal", "holidays"},
+							"events": []interface{}{
+								map[string]interface{}{
+									"title":     "Team Meeting",
+									"attendees": []interface{}{"a", "b", "c"},
+								},
+								map[string]interface{}{
+									"title":     "Project Review",
+									"attendees": []interface{}{"d", "e"},
+								},
+							},
+						},
+						map[string]interface{}{
+							"month":      "February",
+							"categories": []interface{}{"conferences", "workshops"},
+							"events": []interface{}{
+								map[string]interface{}{
+									"title":     "Tech Conference",
+									"attendees": []interface{}{"f", "g", "h"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "slice of slices of maps",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("test slice of slices of maps")
+					l.SetSeverityNumber(5)
+					l.Attributes().FromRaw(map[string]any{
+						"matrix": []any{
+							[]any{
+								map[string]any{"row": int64(0), "col": int64(0), "value": "a"},
+								map[string]any{"row": int64(0), "col": int64(1), "value": "b"},
+							},
+							[]any{
+								map[string]any{"row": int64(1), "col": int64(0), "value": "c"},
+								map[string]any{"row": int64(1), "col": int64(1), "value": "d"},
+							},
+							[]any{
+								map[string]any{"row": int64(2), "col": int64(0), "value": "e"},
+								map[string]any{"row": int64(2), "col": int64(1), "value": "f"},
+							},
+						},
+					})
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("test slice of slices of maps"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					"matrix": []interface{}{
+						[]interface{}{
+							map[string]interface{}{"row": int64(0), "col": int64(0), "value": "a"},
+							map[string]interface{}{"row": int64(0), "col": int64(1), "value": "b"},
+						},
+						[]interface{}{
+							map[string]interface{}{"row": int64(1), "col": int64(0), "value": "c"},
+							map[string]interface{}{"row": int64(1), "col": int64(1), "value": "d"},
+						},
+						[]interface{}{
+							map[string]interface{}{"row": int64(2), "col": int64(0), "value": "e"},
+							map[string]interface{}{"row": int64(2), "col": int64(1), "value": "f"},
+						},
+					},
+				},
+			},
+		},
 	}
 }
 func TestTranslator(t *testing.T) {

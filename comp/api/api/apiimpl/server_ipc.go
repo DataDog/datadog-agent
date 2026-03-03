@@ -7,10 +7,12 @@ package apiimpl
 
 import (
 	"crypto/tls"
+	"net"
 	"net/http"
 	"time"
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -19,9 +21,12 @@ const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
 func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
-	server.ipcListener, err = getListener(ipcServerAddr)
+	ipcListener, err := listener.GetListener(ipcServerAddr)
 	if err != nil {
 		return err
+	}
+	if tcpAddr, ok := ipcListener.Addr().(*net.TCPAddr); ok {
+		server.ipcAddr = tcpAddr
 	}
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
@@ -35,7 +40,6 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	ipcMuxHandler := tmf.Middleware(ipcServerShortName)(ipcMux)
 	ipcMuxHandler = observability.LogResponseHandler(ipcServerName)(ipcMuxHandler)
 
-	// mTLS is not enabled by default for the IPC server, so we need to enable it explicitly
 	serverTLSConfig := server.ipc.GetTLSServerConfig()
 	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
@@ -45,7 +49,8 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		TLSConfig: serverTLSConfig,
 	}
 
-	startServer(server.ipcListener, ipcServer, ipcServerName)
+	server.ipcServer = ipcServer
+	startServer(ipcListener, ipcServer, ipcServerName)
 
 	return nil
 }

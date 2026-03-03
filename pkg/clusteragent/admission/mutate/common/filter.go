@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,7 +33,7 @@ type MutationFilter interface {
 func DefaultDisabledNamespaces() []string {
 	return []string{
 		"kube-system",
-		apiServerCommon.GetResourcesNamespace(),
+		namespace.GetResourcesNamespace(),
 	}
 }
 

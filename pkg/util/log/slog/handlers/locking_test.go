@@ -124,22 +124,33 @@ func TestLockingHandler_MultipleHandleCalls(t *testing.T) {
 	assert.Equal(t, messages[len(messages)-1], mock.lastMessage())
 }
 
-func TestLockingHandler_WithAttrsPanics(t *testing.T) {
+func TestLockingHandler_WithAttrs(t *testing.T) {
 	mock := newMockInnerHandler()
-	handler := NewLocking(mock)
+	handler := NewLocking(mock).WithAttrs([]slog.Attr{slog.String("key", "value")})
 
-	assert.Panics(t, func() {
-		handler.WithAttrs([]slog.Attr{slog.String("key", "value")})
-	}, "WithAttrs should panic")
+	handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+
+	assert.Equal(t, 1, mock.recordCount())
+	assert.Equal(t, "test", mock.lastMessage())
+	mock.records[0].Attrs(func(a slog.Attr) bool {
+		assert.Equal(t, "key", a.Key)
+		assert.Equal(t, "value", a.Value.String())
+		return true
+	})
 }
 
-func TestLockingHandler_WithGroupPanics(t *testing.T) {
+func TestLockingHandler_WithGroup(t *testing.T) {
 	mock := newMockInnerHandler()
-	handler := NewLocking(mock)
+	handler := NewLocking(mock).WithGroup("group")
 
-	assert.Panics(t, func() {
-		handler.WithGroup("group")
-	}, "WithGroup should panic")
+	handler.Handle(context.Background(), slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0))
+
+	assert.Equal(t, 1, mock.recordCount())
+	assert.Equal(t, "test", mock.lastMessage())
+	mock.records[0].Attrs(func(a slog.Attr) bool {
+		assert.Equal(t, "group", a.Key)
+		return true
+	})
 }
 
 func TestLockingHandler_EnabledNotSynchronized(_ *testing.T) {
