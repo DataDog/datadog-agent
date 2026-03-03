@@ -300,7 +300,7 @@ async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf
 async fn main() -> Result<()> {
     let args = Args::parse(env::args());
     let config = config::load_config(args.config_path.clone());
-    let core_config = config::load_core_config(&args.config_path);
+    let core_config = config::load_core_config(&args.datadog_config_path, &args.config_path);
     let log_level = config::get_log_level(&config);
     simple_logger::init_with_level(log_level)?;
     info!("Log level set to: {:?}", log_level);

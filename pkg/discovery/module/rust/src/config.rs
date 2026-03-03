@@ -26,17 +26,48 @@ pub fn load_config(config_path: Option<PathBuf>) -> Result<Option<Yaml>> {
     load_config_from_path(&path)
 }
 
-/// Derives the core config path (datadog.yaml) from the system-probe config path.
-/// Both files live in the same directory (e.g. /etc/datadog-agent/).
-pub fn load_core_config(sysprobe_config_path: &Option<PathBuf>) -> Result<Option<Yaml>> {
-    let sysprobe_path = sysprobe_config_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/system-probe.yaml"));
-    let core_path = sysprobe_path
-        .parent()
-        .map(|p| p.join("datadog.yaml"))
-        .unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/datadog.yaml"));
+/// Derives the core config path (datadog.yaml) using the same resolution logic as
+/// Go's `GlobalParams.DatadogConfFilePath()`:
+///
+/// 1. If `datadog_config_path` is provided:
+///    - If it ends with `.yaml`, use it directly as the file path
+///    - Otherwise treat it as a directory and append `datadog.yaml`
+/// 2. If `datadog_config_path` is `None`, fall back to `sysprobe_config_path`:
+///    - If it ends with `.yaml`, use its parent directory + `datadog.yaml`
+///    - Otherwise treat it as a directory and append `datadog.yaml`
+/// 3. If both are `None`, use the default `/etc/datadog-agent/datadog.yaml`
+pub fn load_core_config(
+    datadog_config_path: &Option<PathBuf>,
+    sysprobe_config_path: &Option<PathBuf>,
+) -> Result<Option<Yaml>> {
+    let core_path = resolve_core_config_path(datadog_config_path, sysprobe_config_path);
     load_config_from_path(&core_path)
+}
+
+fn resolve_core_config_path(
+    datadog_config_path: &Option<PathBuf>,
+    sysprobe_config_path: &Option<PathBuf>,
+) -> PathBuf {
+    let default_path = PathBuf::from("/etc/datadog-agent/datadog.yaml");
+
+    if let Some(dd_path) = datadog_config_path {
+        if dd_path.extension().is_some_and(|ext| ext == "yaml") {
+            return dd_path.clone();
+        }
+        return dd_path.join("datadog.yaml");
+    }
+
+    if let Some(sp_path) = sysprobe_config_path {
+        if sp_path.extension().is_some_and(|ext| ext == "yaml") {
+            return sp_path
+                .parent()
+                .map(|p| p.join("datadog.yaml"))
+                .unwrap_or(default_path);
+        }
+        return sp_path.join("datadog.yaml");
+    }
+
+    default_path
 }
 
 /// Loads a YAML config file from the given path, returning None if it doesn't exist.
@@ -1436,6 +1467,89 @@ system_probe_config:
                 FallbackDecision::RunSdAgent
             );
         });
+    }
+
+    // resolve_core_config_path tests
+
+    #[test]
+    fn test_load_core_config_explicit_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: test123\n").unwrap();
+
+        let dd_path = Some(temp_dir.path().to_path_buf());
+        let result = load_core_config(&dd_path, &None).unwrap();
+        assert!(result.is_some(), "Should load datadog.yaml from explicit directory");
+    }
+
+    #[test]
+    fn test_load_core_config_explicit_yaml_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: test123\n").unwrap();
+
+        let dd_path = Some(core_yaml.clone());
+        let result = load_core_config(&dd_path, &None).unwrap();
+        assert!(result.is_some(), "Should load datadog.yaml when path ends with .yaml");
+    }
+
+    #[test]
+    fn test_load_core_config_fallback_to_sysprobe_dir() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let sp_yaml = temp_dir.path().join("system-probe.yaml");
+        std::fs::write(&sp_yaml, "discovery:\n  enabled: true\n").unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: from_sp_dir\n").unwrap();
+
+        let sp_path = Some(sp_yaml);
+        let result = load_core_config(&None, &sp_path).unwrap();
+        assert!(result.is_some(), "Should fallback to sysprobe dir for datadog.yaml");
+    }
+
+    #[test]
+    fn test_load_core_config_both_none_uses_default() {
+        let resolved = resolve_core_config_path(&None, &None);
+        assert_eq!(
+            resolved,
+            PathBuf::from("/etc/datadog-agent/datadog.yaml"),
+            "Should use default path when both are None"
+        );
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_explicit_dir() {
+        let resolved = resolve_core_config_path(
+            &Some(PathBuf::from("/opt/datadog")),
+            &Some(PathBuf::from("/etc/system-probe.yaml")),
+        );
+        assert_eq!(resolved, PathBuf::from("/opt/datadog/datadog.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_explicit_yaml() {
+        let resolved = resolve_core_config_path(
+            &Some(PathBuf::from("/opt/datadog/custom.yaml")),
+            &Some(PathBuf::from("/etc/system-probe.yaml")),
+        );
+        assert_eq!(resolved, PathBuf::from("/opt/datadog/custom.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_fallback_sysprobe_yaml() {
+        let resolved = resolve_core_config_path(
+            &None,
+            &Some(PathBuf::from("/custom/dir/system-probe.yaml")),
+        );
+        assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_fallback_sysprobe_dir() {
+        let resolved = resolve_core_config_path(
+            &None,
+            &Some(PathBuf::from("/custom/dir")),
+        );
+        assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
     }
 
     // Sync test: validates NON_DISCOVERY_ENV_VARS, NON_DISCOVERY_SYSPROBE_YAML_KEYS,
