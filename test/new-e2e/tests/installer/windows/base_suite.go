@@ -41,17 +41,17 @@ func isWERDumpCollectionEnabled() bool {
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
 // To run the test suites locally, pick a pipeline and define the following environment variables:
-// E2E_PIPELINE_ID: the ID of the pipeline
-// CURRENT_AGENT_VERSION: pull it from one of the jobs that builds the Agent
-// STABLE_AGENT_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/agent-package | sort | tail -n 2 | head -n 1`
-// or pick any other version from that registry.
+// E2E_PIPELINE_ID: the ID of the pipeline (for infra provisioning)
+// CURRENT_AGENT_ASSERT_VERSION: agent display version for assertions
+// CURRENT_AGENT_ASSERT_PACKAGE_VERSION: url-safe package version for assertions
+// CURRENT_AGENT_PIPELINE: pipeline ID for package resolution (or CURRENT_AGENT_SOURCE_VERSION for released versions)
 //
 // For example:
 //
-//	CI_COMMIT_SHA=ac2acaffab7b039f8c2524df8ae82f9f5fd04d5d;
 //	E2E_PIPELINE_ID=40537701;
-//	CURRENT_AGENT_VERSION=7.57.0-devel+git.370.d429ae3;
-//	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
+//	CURRENT_AGENT_ASSERT_VERSION=7.57.0-devel+git.370.d429ae3;
+//	CURRENT_AGENT_ASSERT_PACKAGE_VERSION=7.57.0-devel.git.370.d429ae3.pipeline.40537701-1;
+//	CURRENT_AGENT_PIPELINE=40537701;
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	installer          DatadogInstallerRunner
@@ -199,11 +199,11 @@ func (s *BaseSuite) createStableAgent() {
 	// else, use the defaults (last stable release)
 	agentVersion := "7.75.0"
 	agentVersionPackage := "7.75.0-1"
-	// Allow override of version and version package via environment variables
-	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+	// Allow override of assertion values via environment variables
+	if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 		agentVersion = val
 	}
-	if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+	if val := os.Getenv("STABLE_AGENT_ASSERT_PACKAGE_VERSION"); val != "" {
 		agentVersionPackage = val
 	}
 
@@ -234,12 +234,12 @@ func (s *BaseSuite) createStableAgent() {
 
 // getAgentVersionVars retrieves the agent version and package version from environment variables
 //
-// example: CURRENT_AGENT_VERSION and CURRENT_AGENT_VERSION_PACKAGE
+// example: CURRENT_AGENT_ASSERT_VERSION and CURRENT_AGENT_ASSERT_PACKAGE_VERSION
 //
 // see doc.go for more information
 func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
-	versionVar := prefix + "_VERSION"
-	versionPackageVar := prefix + "_VERSION_PACKAGE"
+	versionVar := prefix + "_ASSERT_VERSION"
+	versionPackageVar := prefix + "_ASSERT_PACKAGE_VERSION"
 
 	// Agent version
 	version := os.Getenv(versionVar)

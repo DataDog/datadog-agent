@@ -30,26 +30,61 @@ const (
 
 // Package contains identifying information about an Agent MSI package.
 type Package struct {
+	// --- Resolution fields (used by Resolve()) ---
+
 	// PipelineID is the pipeline ID used to lookup the MSI URL from the CI pipeline artifacts.
 	PipelineID string
 	// Channel is the channel used to lookup the MSI URL for the Version from the installers_v2.json file.
 	Channel string
-	// Version is the version of the MSI, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7
+	// Version is the package version for resolution (e.g. "7.75.0-1", "7.49.0-rc.3-1")
 	Version string
 	// Arch is the architecture of the MSI, e.g. x86_64
 	Arch string
 	// URL is the URL the MSI can be downloaded from
 	URL string
-	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot``)
+	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot`)
 	Flavor string
 	// Product is the installers json package name (e.g. `datadog-agent`, `datadog-fips-agent`)
 	Product string
+
+	// --- Assertion fields (not used by Resolve()) ---
+
+	// AssertAgentVersion is the expected agent display version (e.g. "7.75.0").
+	// Used by AgentVersion() for test assertions and logging.
+	AssertAgentVersion string
+	// AssertPackageVersion is the expected url-safe package version (e.g. "7.75.0-1").
+	// Used for Fleet status assertions in tests.
+	AssertPackageVersion string
 }
 
-// AgentVersion returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
+// AgentVersion returns the agent display version for assertions (e.g. "7.75.0", "7.78.0-devel").
+//
+// If AssertAgentVersion is set (via _ASSERT_VERSION), it is returned directly.
+// Otherwise, the version is derived from the resolution Version field by trimming
+// the "-1" suffix and parsing. This fallback supports tests that construct Package
+// structs directly with hardcoded versions.
 func (p *Package) AgentVersion() string {
-	// Trim the package suffix and parse the remaining version info
-	ver, _ := version.New(strings.TrimSuffix(p.Version, "-1"), "")
+	if p.AssertAgentVersion != "" {
+		// TODO: we're currently only asserting 7.77.0-devel style versions,
+		//       it would be an improvement to assert on the full version (git sha, pipeline)
+		ver, err := version.New(p.AssertAgentVersion, "")
+		if err != nil {
+			panic(fmt.Errorf("unexpected error parsing version %v: %w", p.Version, err))
+		}
+		return ver.GetNumberAndPre()
+	}
+	// Fallback: derive from the resolution Version field
+	ver, err := version.New(strings.TrimSuffix(p.Version, "-1"), "")
+	if err != nil {
+		// release pipeline builds have a url-safe version that fails to parse
+		// Example: 7.66.0.git.0.8005fe1.pipeline.65816352-1
+		// so restore the "non-url-safe" version and try again
+		v := strings.Replace(p.Version, ".git.", "+git", 1)
+		ver, err = version.New(strings.TrimSuffix(v, "-1"), "")
+		if err != nil {
+			panic(fmt.Errorf("unexpected error parsing version %v: %w", v, err))
+		}
+	}
 	return ver.GetNumberAndPre()
 }
 
@@ -188,7 +223,8 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // other purposes, such as logging, stack name, instance options, test assertions, etc.
 //
 // Package fields are configured via CURRENT_AGENT_* environment variables.
-// See [WithDevEnvOverrides] for the full list.
+// See [WithDevEnvOverrides] for the full list. Set CURRENT_AGENT_PIPELINE or
+// CURRENT_AGENT_SOURCE_VERSION to select the package source.
 //
 // Optional [PackageOption] arguments are applied as defaults before the
 // CURRENT_AGENT_* overrides, so environment variables always take priority.
@@ -196,9 +232,6 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // If none of the above are set, the latest stable version is used.
 func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 	var opts []PackageOption
-	if os.Getenv("E2E_PIPELINE_ID") != "" {
-		opts = append(opts, WithPipelineID(os.Getenv("E2E_PIPELINE_ID")))
-	}
 	opts = append(opts, defaults...)
 	opts = append(opts, WithDevEnvOverrides("CURRENT_AGENT"))
 	pkg, err := NewPackage(opts...)
@@ -239,7 +272,7 @@ func GetLastStablePackageFromEnv(defaults ...PackageOption) (*Package, error) {
 		return nil, err
 	}
 	if pkg.URL == "" {
-		return nil, errors.New("STABLE_AGENT_VERSION or a more specific STABLE_AGENT_MSI_* override is required")
+		return nil, errors.New("STABLE_AGENT_SOURCE_VERSION, STABLE_AGENT_PIPELINE, or a more specific STABLE_AGENT_MSI_* override is required")
 	}
 	return pkg, nil
 }
@@ -259,9 +292,6 @@ func GetUpgradeTestPackageFromEnv() (*Package, error) {
 	base := &Package{
 		Product: "datadog-agent",
 		Arch:    defaultArch,
-	}
-	if os.Getenv("E2E_PIPELINE_ID") != "" {
-		base.PipelineID = os.Getenv("E2E_PIPELINE_ID")
 	}
 	if err := WithDevEnvOverrides("CURRENT_AGENT")(base); err != nil {
 		return nil, err
@@ -283,7 +313,7 @@ func GetUpgradeTestPackageFromEnv() (*Package, error) {
 		return base, nil
 	}
 
-	return nil, errors.New("UPGRADE_AGENT_MSI_URL or CURRENT_AGENT_PIPELINE is required")
+	return nil, errors.New("UPGRADE_AGENT_MSI_URL or CURRENT_AGENT_PIPELINE (or CURRENT_AGENT_MSI_PIPELINE) is required")
 }
 
 // PackageOption defines a function type for modifying a Package
@@ -446,14 +476,17 @@ func WithPipelineID(pipelineID string) PackageOption {
 // but does not perform any I/O. URL resolution is deferred to [Package.Resolve],
 // which is called automatically at the end of [NewPackage].
 //
-// # Convenience variables
+// # Assertion variables (never affect resolution)
 //
-// These set both MSI and OCI fields when used with the matching OCI WithDevEnvOverrides:
+//	{PREFIX}_ASSERT_VERSION         - Agent display version for test assertions (e.g. "7.75.0")
+//	{PREFIX}_ASSERT_PACKAGE_VERSION - URL-safe package version for test assertions (e.g. "7.75.0-1")
 //
-//	{PREFIX}_VERSION    - Agent version (e.g. "7.75.0"), appends "-1" for package version
-//	{PREFIX}_PIPELINE   - Pipeline ID, resolves MSI from S3 pipeline artifacts
+// # Resolution variables (mutually exclusive)
 //
-// # MSI-specific overrides (take priority over convenience vars)
+//	{PREFIX}_SOURCE_VERSION - Package version for lookup (e.g. "7.75.0-1"), clears any pipeline set by prior options
+//	{PREFIX}_PIPELINE       - Pipeline ID, resolves MSI from S3 pipeline artifacts
+//
+// # MSI-specific overrides (take priority over resolution vars)
 //
 //	{PREFIX}_MSI_FLAVOR   - Agent flavor (e.g. "base", "fips")
 //	{PREFIX}_MSI_PRODUCT  - Product name (e.g. "datadog-agent")
@@ -465,22 +498,36 @@ func WithPipelineID(pipelineID string) PackageOption {
 //
 // Examples:
 //
-//	export STABLE_AGENT_VERSION="7.75.0"
+//	export STABLE_AGENT_SOURCE_VERSION="7.75.0-1"
 //	export STABLE_AGENT_PIPELINE="123456"
 //	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
 func WithDevEnvOverrides(devenvPrefix string) PackageOption {
 	return func(p *Package) error {
-		// Convenience: _VERSION sets version (env overrides prior option)
-		if version, ok := os.LookupEnv(devenvPrefix + "_VERSION"); ok {
-			p.Version = version + "-1"
+		// Assertion metadata (never affects resolution)
+		if v, ok := os.LookupEnv(devenvPrefix + "_ASSERT_VERSION"); ok {
+			p.AssertAgentVersion = v
+		}
+		if v, ok := os.LookupEnv(devenvPrefix + "_ASSERT_PACKAGE_VERSION"); ok {
+			p.AssertPackageVersion = v
 		}
 
-		// Convenience: _PIPELINE sets pipeline ID (env overrides prior option)
-		if pipelineID, ok := os.LookupEnv(devenvPrefix + "_PIPELINE"); ok {
-			p.PipelineID = pipelineID
+		// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
+		_, hasSourceVersion := os.LookupEnv(devenvPrefix + "_SOURCE_VERSION")
+		_, hasPipeline := os.LookupEnv(devenvPrefix + "_PIPELINE")
+		if hasSourceVersion && hasPipeline {
+			return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", devenvPrefix, devenvPrefix)
+		}
+		if hasSourceVersion {
+			v := os.Getenv(devenvPrefix + "_SOURCE_VERSION")
+			p.Version = v
+			// clear the pipeline ID so it doesn't affect the resolution
+			p.PipelineID = ""
+		}
+		if hasPipeline {
+			p.PipelineID = os.Getenv(devenvPrefix + "_PIPELINE")
 		}
 
-		// MSI-specific overrides
+		// MSI-specific overrides (highest priority)
 		if flavor, ok := os.LookupEnv(devenvPrefix + "_MSI_FLAVOR"); ok {
 			p.Flavor = flavor
 		}

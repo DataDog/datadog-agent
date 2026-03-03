@@ -517,14 +517,12 @@ func WithPackage(pkg TestPackageConfig) PackageOption {
 // but does not perform any I/O. Registry inference is deferred to [TestPackageConfig.Resolve],
 // which is called automatically at the end of [NewPackageConfig].
 //
-// # Convenience variables
+// # Resolution variables (mutually exclusive)
 //
-// These set both OCI and MSI fields when used with the matching MSI WithDevEnvOverrides:
+//	{PREFIX}_SOURCE_VERSION - Package version (e.g. "7.75.0-1"), used as OCI tag, clears registry for fresh inference
+//	{PREFIX}_PIPELINE       - Pipeline ID, sets version to "pipeline-{id}" and registry to pipeline registry
 //
-//	{PREFIX}_VERSION    - Agent version (e.g. "7.75.0"), appends "-1" for package version
-//	{PREFIX}_PIPELINE   - Pipeline ID, sets version to "pipeline-{id}" and registry to pipeline registry
-//
-// # OCI-specific overrides (take priority over convenience vars)
+// # OCI-specific overrides (take priority over resolution vars)
 //
 //	{PREFIX}_OCI_URL      - Direct OCI URL (skips Resolve)
 //	{PREFIX}_OCI_PIPELINE - Pipeline ID (overrides _PIPELINE)
@@ -534,27 +532,27 @@ func WithPackage(pkg TestPackageConfig) PackageOption {
 //
 // Examples:
 //
-//	export STABLE_AGENT_VERSION="7.75.0"
+//	export STABLE_AGENT_SOURCE_VERSION="7.75.0-1"
 //	export STABLE_AGENT_PIPELINE="123456"
 //	export CURRENT_AGENT_OCI_URL="file:///path/to/oci/package.tar"
 func WithDevEnvOverrides(prefix string) PackageOption {
 	return func(params *TestPackageConfig) error {
-		// Convenience: _VERSION sets version tag (env overrides prior option)
-		if version, ok := os.LookupEnv(prefix + "_VERSION"); ok {
-			if strings.HasSuffix(version, "-1") {
-				params.Version = version
-			} else {
-				params.Version = version + "-1"
-			}
+		// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
+		_, hasSourceVersion := os.LookupEnv(prefix + "_SOURCE_VERSION")
+		_, hasPipeline := os.LookupEnv(prefix + "_PIPELINE")
+		if hasSourceVersion && hasPipeline {
+			return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", prefix, prefix)
 		}
-
-		// Convenience: _PIPELINE sets pipeline version + registry
-		if pipelineID, ok := os.LookupEnv(prefix + "_PIPELINE"); ok {
-			params.Version = "pipeline-" + pipelineID
+		if hasSourceVersion {
+			params.Version = os.Getenv(prefix + "_SOURCE_VERSION")
+			params.Registry = ""
+		}
+		if hasPipeline {
+			params.Version = "pipeline-" + os.Getenv(prefix+"_PIPELINE")
 			params.Registry = consts.PipelineOCIRegistry
 		}
 
-		// OCI-specific overrides
+		// OCI-specific overrides (highest priority)
 		if url, ok := os.LookupEnv(prefix + "_OCI_URL"); ok {
 			params.urloverride = url
 		}

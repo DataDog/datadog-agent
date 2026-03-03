@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// TestUpgrade tests upgrading the agent from STABLE_AGENT_VERSION to CURRENT_AGENT_VERSION
+// TestUpgrade tests upgrading the agent from the stable version to the current version
 func TestUpgrade(t *testing.T) {
 	s := &testUpgradeSuite{}
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
@@ -73,7 +73,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
-// TestUpgradeFromLatest tests upgrading the agent from CURRENT_AGENT_VERSION to UPGRADE_TEST_VERSION
+// TestUpgradeFromLatest tests upgrading the agent from the current version to the upgrade-test version
 func TestUpgradeFromLatest(t *testing.T) {
 	s := &testUpgradeFromLatestSuite{}
 	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()

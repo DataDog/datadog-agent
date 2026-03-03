@@ -55,38 +55,44 @@
 // To run the tests using artifacts from a specific pipeline, set the following environment variables:
 //
 //	E2E_PIPELINE_ID=<pipeline_id>
-//	CURRENT_AGENT_VERSION=<agent_version>
-//	STABLE_AGENT_VERSION=<stable_agent_version>
+//	CURRENT_AGENT_ASSERT_VERSION=<agent_version>
+//	CURRENT_AGENT_ASSERT_PACKAGE_VERSION=<package_version>
+//	CURRENT_AGENT_PIPELINE=<pipeline_id>
 //
 // Example:
 //
 //	E2E_PIPELINE_ID="40537701"
-//	CURRENT_AGENT_VERSION="7.66.0-devel"
-//	CURRENT_AGENT_VERSION_PACKAGE="7.66.0-devel.git.53.db3f37e.pipeline.1234-1"
-//	STABLE_AGENT_VERSION="7.65.0"
-//	STABLE_AGENT_VERSION_PACKAGE="7.65.0-1"
+//	CURRENT_AGENT_ASSERT_VERSION="7.66.0-devel+git.53.db3f37e"
+//	CURRENT_AGENT_ASSERT_PACKAGE_VERSION="7.66.0-devel.git.53.db3f37e.pipeline.40537701-1"
+//	CURRENT_AGENT_PIPELINE="40537701"
+//	STABLE_AGENT_ASSERT_VERSION="7.65.0"
+//	STABLE_AGENT_ASSERT_PACKAGE_VERSION="7.65.0-1"
+//	STABLE_AGENT_SOURCE_VERSION="7.65.0-1"
 //
-// VERSION is used for comparing with the output of the `version` subcommand.
+// _ASSERT_VERSION is the agent display version, used for comparing with the output of the
+// `agent version` subcommand.
 //
-// VERSION_PACKAGE is used for comparing with the Fleet package stable/experiment status
+// _ASSERT_PACKAGE_VERSION is the url-safe package version, used for Fleet status assertions.
+// This assertion is currently a "contains" check, so it can be shortened for convenience.
 //
-// This assertion is currently a "contains" check, so the package version can be
-// shortened to 7.66.0-devel for convenience.
-// With local testing the _VERSION_PACKAGE variables can be omitted, though they are required in the CI.
+// _PIPELINE and _SOURCE_VERSION are resolution variables that tell WithDevEnvOverrides how to
+// find the package. They are mutually exclusive. _PIPELINE resolves from S3/pipeline OCI registry,
+// _SOURCE_VERSION resolves from installers_v2.json/stable OCI registry.
 //
 // # Stable Agent ("last stable") Configuration
 //
 // The stable agent version used in upgrade tests is configured via STABLE_AGENT_* environment
 // variables.
 //
-// Convenience variables (auto-resolve both MSI and OCI):
+// Resolution variables (mutually exclusive, auto-resolve both MSI and OCI):
 //
-//	STABLE_AGENT_VERSION          - Agent version (e.g. "7.75.0"), auto-resolves MSI URL and OCI registry
-//	STABLE_AGENT_PIPELINE         - Pipeline ID, auto-resolves MSI from S3 and OCI from pipeline registry
+//	STABLE_AGENT_SOURCE_VERSION   - Package version (e.g. "7.75.0-1"), resolves MSI URL and OCI registry
+//	STABLE_AGENT_PIPELINE         - Pipeline ID, resolves MSI from S3 and OCI from pipeline registry
 //
-// Version assertion variables:
+// Assertion variables (for test checks only, do not affect resolution):
 //
-//	STABLE_AGENT_VERSION_PACKAGE  - Package version with "-1" suffix for status assertions
+//	STABLE_AGENT_ASSERT_VERSION          - Agent version (e.g. "7.75.0") for version command assertions
+//	STABLE_AGENT_ASSERT_PACKAGE_VERSION  - Package version (e.g. "7.75.0-1") for Fleet status assertions
 //
 // MSI-specific overrides (see common/agent WithDevEnvOverrides):
 //
