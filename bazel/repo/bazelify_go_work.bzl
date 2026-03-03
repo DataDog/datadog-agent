@@ -19,6 +19,7 @@ def _filter_lines(rctx):
     """Filter the lines of the go.work file to only include the modules that are used in the build file."""
     workspace = rctx.path(rctx.attr.go_work).dirname
     build_file = rctx.read(rctx.attr.build_file).splitlines()
+    go_work = rctx.read(rctx.attr.go_work).splitlines()
     exclusions = set([m.group(1) for line in build_file for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
 
     def _is_excluded(path):
@@ -33,7 +34,7 @@ def _filter_lines(rctx):
         return False
 
     in_use_block, lines, symlinks = 0, [], set()
-    for line in rctx.read(rctx.attr.go_work).splitlines():
+    for line in go_work:
         stripped = line.strip()
         if stripped == "use (":
             in_use_block += 1
