@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 
 	yaml "go.yaml.in/yaml/v2"
@@ -166,7 +165,6 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
 	checks := []check.Check{}
-	numLoaders := len(s.loaders)
 
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
@@ -199,7 +197,8 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		loaderErrors := make(map[string]error, len(s.loaders))
+		loaderError := &LoaderError{Config: config.Name}
+		loaded := false
 		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
@@ -210,23 +209,17 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				checks = append(checks, c)
+				loaded = true
 				break
 			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
+			loaderError.Add(fmt.Sprintf("%v", loader), err.Error())
 		}
 
-		if len(loaderErrors) == numLoaders {
-			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
-				errMsg := err.Error()
+		if !loaded && len(loaderError.Errors) > 0 {
+			for loaderName, errMsg := range loaderError.Errors {
 				errorStats.setLoaderError(config.Name, loaderName, errMsg)
-
-				concatErr.WriteString(loaderName)
-				concatErr.WriteString(": ")
-				concatErr.WriteString(errMsg)
-				concatErr.WriteString("; ")
 			}
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
+			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, loaderError.Error())
 		} else {
 			errorStats.removeLoaderErrors(config.Name)
 		}
