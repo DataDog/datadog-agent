@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -879,6 +880,10 @@ func Test_getDNSNameForIP(t *testing.T) {
 }
 
 func TestRemoteServiceTags(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+		t.Skip("remote service tag resolution is only supported on Linux and Windows")
+	}
+
 	t.Run("IIS tags match", func(t *testing.T) {
 		conn := makeConnection(1)
 		conn.RouteIdx = -1
