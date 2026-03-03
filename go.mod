@@ -30,8 +30,8 @@ replace (
 // FIXME: disk device labeling regression present in v4.25.12 and v4.26.1, waiting on new release
 replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11
 
-// AIX cross-compile: patched gopsutil with aix support
-replace github.com/DataDog/gopsutil => /root/repos/gopsutil-aix
+// AIX: patched gopsutil with AIX process monitoring support
+replace github.com/DataDog/gopsutil => github.com/DataDog/gopsutil v1.2.5-0.20260303142149-85b991b13594
 
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.8
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
-	github.com/DataDog/gopsutil v1.2.3
+	github.com/DataDog/gopsutil v1.2.5-0.20260303142149-85b991b13594
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.0
