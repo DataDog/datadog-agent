@@ -29,10 +29,9 @@ pub fn load_config(config_path: Option<PathBuf>) -> Result<Option<Yaml>> {
 /// Derives the core config path (datadog.yaml) from the system-probe config path.
 /// Both files live in the same directory (e.g. /etc/datadog-agent/).
 pub fn load_core_config(sysprobe_config_path: &Option<PathBuf>) -> Result<Option<Yaml>> {
-    let sysprobe_path =
-        sysprobe_config_path
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/system-probe.yaml"));
+    let sysprobe_path = sysprobe_config_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/system-probe.yaml"));
     let core_path = sysprobe_path
         .parent()
         .map(|p| p.join("datadog.yaml"))
@@ -51,10 +50,7 @@ fn load_config_from_path(path: &PathBuf) -> Result<Option<Yaml>> {
         let docs = YamlLoader::load_from_str(&contents).context("Failed to parse YAML config")?;
         Ok(docs.into_iter().next())
     } else {
-        warn!(
-            "Config file not found at {}.",
-            path.display()
-        );
+        warn!("Config file not found at {}.", path.display());
         Ok(None)
     }
 }
@@ -778,13 +774,9 @@ network_config:
     #[test]
     fn test_determine_action_fallback_core_yaml_key() {
         temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let sp_file = create_test_config(
-                "discovery:\n  enabled: true\n",
-            );
+            let sp_file = create_test_config("discovery:\n  enabled: true\n");
             let sp_config = load_config(Some(sp_file.path().to_path_buf()));
-            let core_file = create_test_config(
-                "software_inventory:\n  enabled: true\n",
-            );
+            let core_file = create_test_config("software_inventory:\n  enabled: true\n");
             let core_config = load_config(Some(core_file.path().to_path_buf()));
             let decision = determine_action(&sp_config, &core_config);
             assert_eq!(
@@ -1361,7 +1353,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config, &Ok(None)), FallbackDecision::RunSdAgent);
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
         });
     }
 
@@ -1379,7 +1374,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config, &Ok(None)), FallbackDecision::RunSdAgent);
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
         });
     }
 
@@ -1433,7 +1431,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config, &Ok(None)), FallbackDecision::RunSdAgent);
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
         });
     }
 
@@ -1491,8 +1492,11 @@ system_probe_config:
         );
 
         // Validate sysprobe YAML keys
-        let file_sp_keys: std::collections::BTreeSet<&str> =
-            canonical.sysprobe_yaml_keys.iter().map(|s| s.as_str()).collect();
+        let file_sp_keys: std::collections::BTreeSet<&str> = canonical
+            .sysprobe_yaml_keys
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
         let rust_sp_keys: std::collections::BTreeSet<&str> =
             NON_DISCOVERY_SYSPROBE_YAML_KEYS.iter().copied().collect();
 
@@ -1511,8 +1515,11 @@ system_probe_config:
         );
 
         // Validate core YAML keys
-        let file_core_keys: std::collections::BTreeSet<&str> =
-            canonical.core_yaml_keys.iter().map(|s| s.as_str()).collect();
+        let file_core_keys: std::collections::BTreeSet<&str> = canonical
+            .core_yaml_keys
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
         let rust_core_keys: std::collections::BTreeSet<&str> =
             NON_DISCOVERY_CORE_YAML_KEYS.iter().copied().collect();
 
