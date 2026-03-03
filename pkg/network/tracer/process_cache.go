@@ -235,8 +235,11 @@ func (pc *processCache) GetAllPIDTags() map[uint32][]string {
 		}
 		tags := make([]string, 0, len(latest.Tags))
 		for _, t := range latest.Tags {
-			if t != nil {
-				tags = append(tags, t.Get().(string))
+			if t == nil {
+				continue
+			}
+			if s, ok := t.Get().(string); ok {
+				tags = append(tags, s)
 			}
 		}
 		if len(tags) > 0 {

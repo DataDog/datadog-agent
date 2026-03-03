@@ -307,15 +307,15 @@ func init() {
 // a standalone []string for caching and exposing via the /iis_tags endpoint.
 func buildIISTags(h *WinHttpTransaction) []string {
 	tags := make([]string, 0, 7)
-	tags = append(tags, fmt.Sprintf("http.iis.site:%v", h.SiteID))
+	tags = append(tags, "http.iis.site:"+strconv.FormatUint(uint64(h.SiteID), 10))
 	if h.AppPool != "" {
-		tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", h.AppPool))
+		tags = append(tags, "http.iis.app_pool:"+h.AppPool)
 	}
 	if h.SiteName != "" {
-		tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", h.SiteName))
+		tags = append(tags, "http.iis.sitename:"+h.SiteName)
 	}
 	if h.SubSite != "" {
-		tags = append(tags, fmt.Sprintf("http.iis.subsite:%v", h.SubSite))
+		tags = append(tags, "http.iis.subsite:"+h.SubSite)
 	}
 	// tag precedence: web.config -> datadog.json
 	if h.TagsFromConfig.DDService != "" {
@@ -337,22 +337,27 @@ func buildIISTags(h *WinHttpTransaction) []string {
 }
 
 // storeIISTagsCache stores an IIS tags entry with a TTL.
-// If the cache is at capacity, expired entries are swept first.
-// If still at capacity after sweeping, the entry is dropped.
+// If the cache is at capacity and the key is new, a single expired entry is
+// evicted to make room. If no expired entry is found the new entry is dropped.
+// This keeps the write path O(1) amortised, avoiding full-map sweeps under the
+// mutex in the hot ETW callback path.
 func storeIISTagsCache(key [2]uint16, tags []string) {
 	iisTagsCacheMu.Lock()
 	defer iisTagsCacheMu.Unlock()
 
 	// Allow updates to existing keys regardless of capacity
 	if _, exists := iisTagsCacheMap[key]; !exists && len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
-		// Sweep expired entries to make room
+		// Evict one expired entry to make room
 		now := time.Now()
+		evicted := false
 		for k, entry := range iisTagsCacheMap {
 			if now.After(entry.expiry) {
 				delete(iisTagsCacheMap, k)
+				evicted = true
+				break
 			}
 		}
-		if len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
+		if !evicted {
 			return
 		}
 	}
@@ -365,7 +370,8 @@ func storeIISTagsCache(key [2]uint16, tags []string) {
 
 // GetIISTagsCache returns non-expired IIS tags as a JSON-friendly map.
 // Keys are "localPort-remotePort", values are pre-built tag lists.
-// Expired entries are evicted during this call.
+// This is a read-only operation; expired entries are skipped but not evicted
+// (eviction happens on the write path in storeIISTagsCache).
 func GetIISTagsCache() map[string][]string {
 	iisTagsCacheMu.Lock()
 	defer iisTagsCacheMu.Unlock()
@@ -374,10 +380,9 @@ func GetIISTagsCache() map[string][]string {
 	result := make(map[string][]string, len(iisTagsCacheMap))
 	for k, entry := range iisTagsCacheMap {
 		if now.After(entry.expiry) {
-			delete(iisTagsCacheMap, k)
 			continue
 		}
-		mapKey := fmt.Sprintf("%d-%d", k[0], k[1])
+		mapKey := strconv.FormatUint(uint64(k[0]), 10) + "-" + strconv.FormatUint(uint64(k[1]), 10)
 		result[mapKey] = entry.tags
 	}
 	return result

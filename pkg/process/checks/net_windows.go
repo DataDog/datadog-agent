@@ -9,12 +9,16 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// defaultFetchTimeout is the context timeout for HTTP requests to system-probe endpoints.
+const defaultFetchTimeout = 10 * time.Second
 
 // getNetworkID fetches network_id
 func getNetworkID(_ *http.Client) (string, error) {
@@ -24,8 +28,10 @@ func getNetworkID(_ *http.Client) (string, error) {
 // fetchIISTagsCache retrieves the IIS tags cache from system-probe's /iis_tags endpoint.
 // Returns a map of "localPort-remotePort" -> []string tags, or nil on failure.
 func fetchIISTagsCache(client *http.Client) map[string][]string {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFetchTimeout)
+	defer cancel()
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/iis_tags")
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		log.Debugf("failed to create IIS tags request: %v", err)
 		return nil
@@ -51,8 +57,10 @@ func fetchIISTagsCache(client *http.Client) map[string][]string {
 // fetchProcessCacheTags retrieves process cache tags from system-probe's /process_cache_tags endpoint.
 // Returns a map of PID (as uint32) -> []string tags, or nil on failure.
 func fetchProcessCacheTags(client *http.Client) map[uint32][]string {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFetchTimeout)
+	defer cancel()
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/process_cache_tags")
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		log.Debugf("failed to create process cache tags request: %v", err)
 		return nil
