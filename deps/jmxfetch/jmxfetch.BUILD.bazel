@@ -1,0 +1,25 @@
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+exports_files(glob(["**"]))
+
+filegroup(
+    name = "file",
+    srcs = ["{target_filename}"],
+)
+
+filegroup(
+    name = "license_file",
+    srcs = ["LICENSE"],
+)

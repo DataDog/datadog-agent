@@ -69,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.ino, syscall->exec.linux_binprm.interpreter.mount_id, 1, 0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.ino, syscall->exec.linux_binprm.interpreter.mount_id, 1, PATH_ID_INVALIDATE_TYPE_NONE);
 
 #if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);

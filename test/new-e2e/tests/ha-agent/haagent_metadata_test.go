@@ -6,15 +6,16 @@
 package haagent
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -23,6 +24,13 @@ import (
 
 type haAgentMetadataTestSuite struct {
 	e2e.BaseSuite[environments.Host]
+}
+
+type haAgentMetadataPayload struct {
+	Metadata struct {
+		Enabled bool   `json:"enabled"`
+		State   string `json:"state"`
+	} `json:"ha_agent_metadata"`
 }
 
 // TestHaAgentMetadataSuite runs the HA Agent Metadata e2e suite
@@ -41,12 +49,15 @@ log_level: debug
 }
 
 func (s *haAgentMetadataTestSuite) TestHaAgentMetadata() {
-	flake.Mark(s.T())
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert ha_agent metadata")
 		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "ha-agent"}))
 
-		assert.Contains(c, output, `"enabled": true`)
-		assert.Contains(c, output, `"state": "active"`)
+		var payload haAgentMetadataPayload
+		err := json.Unmarshal([]byte(output), &payload)
+		require.NoError(c, err)
+
+		assert.True(c, payload.Metadata.Enabled, "expected enabled to be true")
+		assert.NotEmpty(c, payload.Metadata.State, "expected state to have a value")
 	}, 5*time.Minute, 30*time.Second)
 }

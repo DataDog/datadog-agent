@@ -465,7 +465,7 @@
     },
     "type": {
       "type": "string",
-      "description": "Type is the type of content served by the policy (e.g. \"policy\" for a default policy, \"detection_pack\" or empty for others)"
+      "description": "Type is the type of content served by the policy (e.g. \"policy\" for a default policy, \"content_pack\" or empty for others)"
     },
     "replace_policy_id": {
       "type": "string"

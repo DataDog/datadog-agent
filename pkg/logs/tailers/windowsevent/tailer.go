@@ -116,7 +116,7 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 }
 
 // Start starts tailing the event log.
-func (t *Tailer) Start(bookmark string) {
+func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
 	t.done = make(chan struct{})
@@ -125,6 +125,8 @@ func (t *Tailer) Start(bookmark string) {
 	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
+	// Load initial bookmark from registry; the subscription start loop will handle initialization and retries.
+	bookmark := t.registry.GetOffset(t.Identifier())
 	go t.tail(ctx, bookmark)
 }
 

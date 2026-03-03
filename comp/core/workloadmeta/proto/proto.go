@@ -21,7 +21,15 @@ var emptyTimestampUnix = new(time.Time).Unix()
 
 // Conversions from Workloadmeta types to protobuf
 
-// ProtobufEventFromWorkloadmetaEvent converts the given workloadmeta.Event into protobuf
+// ProtobufEventFromWorkloadmetaEvent converts the given workloadmeta.Event into
+// protobuf.
+//
+// Note: the IsComplete field is intentionally not included in this conversion.
+// Users of remote workloadmeta don't need completeness info. Also, the field is
+// not directly usable on the receiving side without further changes: the
+// receiving store has only one source (SourceRemoteWorkloadmeta), so its
+// completeness calculation based on expectedSources is not the same as in the
+// core agent.
 func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.WorkloadmetaEvent, error) {
 	entity := event.Entity
 

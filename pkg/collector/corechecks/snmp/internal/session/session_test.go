@@ -453,3 +453,45 @@ func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
 	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
 	assert.Equal(t, []string(nil), resultOIDs)
 }
+
+// TestUseUnconnectedUDPSocketPropagation tests that UseUnconnectedUDPSocket config is applied to gosnmp
+func TestUseUnconnectedUDPSocketPropagation(t *testing.T) {
+	tests := []struct {
+		name                    string
+		useUnconnectedUDPSocket bool
+		expectedGosnmpValue     bool
+	}{
+		{
+			name:                    "UseUnconnectedUDPSocket true is propagated",
+			useUnconnectedUDPSocket: true,
+			expectedGosnmpValue:     true,
+		},
+		{
+			name:                    "UseUnconnectedUDPSocket false is propagated",
+			useUnconnectedUDPSocket: false,
+			expectedGosnmpValue:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &checkconfig.CheckConfig{
+				IPAddress:               "127.0.0.1",
+				Port:                    161,
+				CommunityString:         "public",
+				SnmpVersion:             "2c",
+				UseUnconnectedUDPSocket: tt.useUnconnectedUDPSocket,
+			}
+
+			sess, err := NewGosnmpSession(config)
+			require.NoError(t, err)
+			require.NotNil(t, sess)
+
+			gosnmpSess, ok := sess.(*GosnmpSession)
+			require.True(t, ok, "Expected *GosnmpSession type")
+
+			assert.Equal(t, tt.expectedGosnmpValue, gosnmpSess.gosnmpInst.UseUnconnectedUDPSocket,
+				"UseUnconnectedUDPSocket should be propagated to gosnmp instance")
+		})
+	}
+}

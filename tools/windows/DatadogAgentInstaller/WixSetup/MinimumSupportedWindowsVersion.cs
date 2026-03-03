@@ -58,8 +58,9 @@ namespace WixSetup
 
         public void Process(ProcessingContext context)
         {
-            var elem = new XElement("Condition");
-            elem.Add(_condition.ToCData());
+            // WiX 5 migration: Condition element under Package was replaced with Launch element
+            var elem = new XElement("Launch");
+            elem.SetAttributeValue("Condition", _condition.ToString());
             elem.SetAttributeValue("Message", $"This application is only supported on {Name}, and later.");
             context.XParent.AddElement(elem);
         }

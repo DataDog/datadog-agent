@@ -214,7 +214,7 @@ func GetLoginUID(pid uint32) (uint32, error) {
 	// parse login uid
 	auid, err := strconv.ParseUint(data, 10, 32)
 	if err != nil {
-		return sharedconsts.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
+		return sharedconsts.AuditUIDUnset, fmt.Errorf("couldn't parse loginuid: %v", err)
 	}
 	return uint32(auid), nil
 }
@@ -446,7 +446,7 @@ func GetProcessPidNamespace(pid uint32) (uint64, error) {
 	}
 	// link should be in for of: pid:[4026532294]
 	if !strings.HasPrefix(link, "pid:[") {
-		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformated: (%s) err: %v", link, err)
+		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformed: (%s) err: %v", link, err)
 	}
 
 	link = strings.TrimPrefix(link, "pid:[")
@@ -454,12 +454,12 @@ func GetProcessPidNamespace(pid uint32) (uint64, error) {
 
 	ns, err := strconv.ParseUint(link, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformated: (%s) err: %v", link, err)
+		return 0, fmt.Errorf("Failed to retrieve PID NS, pid ns malformed: (%s) err: %v", link, err)
 	}
 	return ns, nil
 }
 
-// GetNsPids returns the namespaced pids of the the givent root pid
+// GetNsPids returns the namespaced pids of the given root pid
 func GetNsPids(pid uint32, task string) ([]uint32, error) {
 	statusFile := TaskStatusPath(pid, task)
 	content, err := os.ReadFile(statusFile)
@@ -548,7 +548,7 @@ func FindPidNamespace(nspid uint32, ns uint64) (uint32, error) {
 	return 0, errors.New("PID not found")
 }
 
-// GetTracerPid returns the tracer pid of the the givent root pid
+// GetTracerPid returns the tracer pid of the given root pid
 func GetTracerPid(pid uint32) (uint32, error) {
 	statusFile := StatusPath(pid)
 	content, err := os.ReadFile(statusFile)

@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The system memory check on Linux can now collect memory pressure metrics
+    from /proc/vmstat to help detect memory pressure before OOM events occur.
+    To enable, set ``collect_memory_pressure: true`` in the memory check configuration.
+    New metrics: ``system.mem.allocstall`` (with ``zone`` tag),
+    ``system.mem.pgscan_direct``, ``system.mem.pgsteal_direct``,
+    ``system.mem.pgscan_kswapd``, ``system.mem.pgsteal_kswapd``.

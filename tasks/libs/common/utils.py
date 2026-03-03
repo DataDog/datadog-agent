@@ -139,6 +139,21 @@ def get_gobin(ctx):
     return gobin
 
 
+def link_or_copy(src: Path, dst: Path) -> None:
+    """Create dst from src using the first available strategy: relative symlink, hardlink, absolute symlink, or copy."""
+    dst.unlink(missing_ok=True)
+    for strategy in (
+        lambda: dst.symlink_to(src.relative_to(dst.parent, walk_up=True)),
+        lambda: dst.hardlink_to(src),
+        lambda: dst.symlink_to(src),
+    ):
+        try:
+            return strategy()
+        except (NotImplementedError, OSError, ValueError):
+            pass
+    return shutil.copy2(src, dst)
+
+
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
     rtloader_headers = ""
@@ -305,10 +320,6 @@ def get_build_flags(
         gcflags = "-N -l"
 
     if sys.platform == "darwin":
-        # On macOS work around https://github.com/golang/go/issues/38824
-        # as done in https://go-review.googlesource.com/c/go/+/372798
-        extldflags += "-Wl,-bind_at_load"
-
         # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
@@ -316,7 +327,7 @@ def get_build_flags(
         try:
             xcode_version = get_xcode_version(ctx)
             if int(xcode_version.split('.')[0]) >= 15:
-                extldflags += ",-no_warn_duplicate_libraries "
+                extldflags += "-Wl,-no_warn_duplicate_libraries "
         except ValueError:
             print(
                 color_message(
@@ -391,6 +402,7 @@ def get_version_ldflags(ctx, install_path=None):
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
     version = get_version(ctx, include_git=True)
+    version_url_safe = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
@@ -402,7 +414,7 @@ def get_version_ldflags(ctx, install_path=None):
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
+            package_version = version_url_safe
             # append suffix
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
@@ -412,6 +424,7 @@ def get_version_ldflags(ctx, install_path=None):
             if install_dir != "datadog-agent":
                 package_version = install_dir
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
 
 

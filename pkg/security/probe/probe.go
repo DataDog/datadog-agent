@@ -36,7 +36,7 @@ const (
 	defaultConsumerChanSize = 50
 )
 
-// PlatformProbe defines a platform dependant probe
+// PlatformProbe defines a platform dependent probe
 type PlatformProbe interface {
 	Init() error
 	Start() error

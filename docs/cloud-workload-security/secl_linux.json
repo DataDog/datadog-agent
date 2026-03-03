@@ -1727,6 +1727,11 @@
           "property_doc_link": "accept-addr-hostname-doc"
         },
         {
+          "name": "accept.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
+        },
+        {
           "name": "accept.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -2553,6 +2558,11 @@
           "property_doc_link": "connect-addr-hostname-doc"
         },
         {
+          "name": "connect.addr.hostname.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
+        },
+        {
           "name": "connect.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -2615,6 +2625,11 @@
           "name": "dns.question.name.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "common-string-root_domain-doc"
         },
         {
           "name": "dns.question.type",
@@ -14572,6 +14587,20 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "*.root_domain",
+      "link": "common-string-root_domain-doc",
+      "type": "string",
+      "definition": "Root domain of the corresponding element",
+      "prefixes": [
+        "accept.addr.hostname",
+        "connect.addr.hostname",
+        "dns.question.name"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

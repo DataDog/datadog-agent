@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
-// ProvisionerOptions contains the common options for Kubernetes provisioners
+// ProvisionerOptions contains the common options for Kubernetes provisioners.
 type ProvisionerOptions struct {
 	AgentOptions                  []kubernetesagentparams.Option
 	WorkloadAppFunc               kubeComp.WorkloadAppFunc

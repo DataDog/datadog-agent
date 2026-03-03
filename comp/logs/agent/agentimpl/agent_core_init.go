@@ -73,9 +73,19 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only
+// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only.
+// Uses BuildEndpointsForDiagnostic to avoid registering config update callbacks since these
+// endpoints are transient and will be discarded after the connectivity check.
 func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.Endpoints, error) {
-	return config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsForDiagnostic(
+		coreConfig,
+		config.DefaultLogsConfigKeysWithVectorOverride(coreConfig),
+		config.DefaultDiagnosticPrefix,
+		config.DiagnosticHTTP,
+		intakeTrackType,
+		config.AgentJSONIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
 }
 
 // checkHTTPConnectivityStatus performs an HTTP connectivity check and returns the status
@@ -152,7 +162,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger, a.healthPlatform))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

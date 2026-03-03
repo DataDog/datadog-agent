@@ -1,0 +1,27 @@
+{{- if not .enabled }}
+Delegated Authentication is not enabled
+{{- else }}
+
+=== Delegated Authentication ===
+Cloud Provider: {{ .provider }}
+{{- if .awsRegion }}
+AWS Region: {{ .awsRegion }}
+{{- end }}
+
+Configured Delegated Auth Instances:
+{{- range $key, $info := .instances }}
+- {{ $key }}
+  Status: {{ $info.Status }}
+  Refresh Interval: {{ $info.RefreshInterval }}
+  {{- if $info.LastRefresh }}
+  Last Refresh: {{ $info.LastRefresh }}
+  {{- end }}
+  {{- if $info.NextRefresh }}
+  Next Refresh: {{ $info.NextRefresh }}
+  {{- end }}
+  {{- if $info.Error }}
+  Error: {{ $info.Error }}
+  {{- end }}
+{{- end }}
+
+{{- end }}

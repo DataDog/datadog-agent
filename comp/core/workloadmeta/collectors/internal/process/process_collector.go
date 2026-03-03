@@ -31,6 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -273,7 +274,8 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
-// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
+// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
+// It uses PID, creation time, and command line hash to detect new processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -284,13 +286,15 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	}
 	newProcs := make([]*procutil.Process, 0, diffSize)
 	for pid, procA := range procCacheA {
-		procB, exists := procCacheB[pid]
+		procB, pidExists := procCacheB[pid]
 
-		// new process
-		if !exists {
+		// New process - PID not in cache
+		if !pidExists {
 			newProcs = append(newProcs, procA)
-		} else if procB.Stats.CreateTime != procA.Stats.CreateTime {
-			// same process PID exists, but different process due to creation time
+			continue
+		}
+
+		if !procutil.IsSameProcess(procA, procB) {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -377,7 +381,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet, gpuPids core.PidSet) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
@@ -411,6 +415,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            pid,
 			InjectionState: injectionState,
+			UsesGPU:        gpuPids.Has(pid),
 		}
 
 		if service != nil {
@@ -450,6 +455,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 		preservedService.UDPPorts = newService.UDPPorts
 		preservedService.LogFiles = newService.LogFiles
 
+		// The following fields are preserved across the lifetime of the process.
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
@@ -457,9 +463,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            int32(service.PID),
 			Service:        &preservedService,
-			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
-			// Preserve language from existing process
-			Language: existingProcess.Language,
+			InjectionState: existingProcess.InjectionState,
+			Language:       existingProcess.Language,
+			UsesGPU:        existingProcess.UsesGPU,
 		}
 
 		entities = append(entities, entity)
@@ -490,13 +496,17 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
 		injectedPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
+	gpuPids := make(core.PidSet)
+	for _, pid := range resp.GPUPIDs {
+		gpuPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
@@ -868,9 +878,26 @@ func normalizeAdditionalServiceNames(names []string) []string {
 	return out
 }
 
+// tracerCollectsLogs checks if any tracer metadata indicates the tracer is already collecting logs.
+func tracerCollectsLogs(tracerMetadata []tracermetadata.TracerMetadata) bool {
+	for _, tm := range tracerMetadata {
+		if tm.LogsCollected {
+			return true
+		}
+	}
+	return false
+}
+
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
 	generatedName, additionalNames := normalizeNames(modelService.GeneratedName, modelService.AdditionalGeneratedNames, modelService.Language)
+
+	var logFiles []string
+	if !tracerCollectsLogs(modelService.TracerMetadata) {
+		logFiles = modelService.LogFiles
+	} else {
+		log.Debugf("Skipping log file for pid %d: tracer is already collecting logs, files: %v", modelService.PID, modelService.LogFiles)
+	}
 
 	return &workloadmeta.Service{
 		GeneratedName:            generatedName,
@@ -881,7 +908,7 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
-		LogFiles:                 modelService.LogFiles,
+		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,
 			Env:     modelService.UST.Env,

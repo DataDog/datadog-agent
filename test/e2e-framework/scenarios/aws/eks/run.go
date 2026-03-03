@@ -24,34 +24,34 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// Run is the entry point for the scenario when run via pulumi.
+// It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resourcesAws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.Kubernetes]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewKubernetes()
 
 	params := ParamsFromEnvironment(awsEnv)
 	return RunWithEnv(ctx, awsEnv, env, params)
 }
 
-// RunWithEnv deploys an EKS environment using a provided env and params, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *environments.Kubernetes, params *RunParams) error {
+// RunWithEnv deploys an EKS environment using a provided env and params.
+// It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
+func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
 	cluster, err := NewCluster(awsEnv, "eks", params.eksOptions...)
 	if err != nil {
 		return err
 	}
 
-	if err := cluster.Export(ctx, &env.KubernetesCluster.ClusterOutput); err != nil {
+	if err := cluster.Export(ctx, env.KubernetesClusterOutput()); err != nil {
 		return err
 	}
 
@@ -91,11 +91,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
 			return err
 		}
-		if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
+		if err := fakeIntake.Export(awsEnv.Ctx(), env.FakeIntakeOutput()); err != nil {
 			return err
 		}
 	} else {
-		env.FakeIntake = nil
+		env.DisableFakeIntake()
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
@@ -122,13 +122,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		if err != nil {
 			return err
 		}
-		err = kubernetesAgent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		err = kubernetesAgent.Export(ctx, env.KubernetesAgentOutput())
 		if err != nil {
 			return err
 		}
 		dependsOnDDAgent = utils.PulumiDependsOn(kubernetesAgent)
 	} else {
-		env.Agent = nil
+		env.DisableAgent()
 	}
 	// Deploy standalone dogstatsd
 	if params.deployDogstatsd {
@@ -191,7 +191,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", 80, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}

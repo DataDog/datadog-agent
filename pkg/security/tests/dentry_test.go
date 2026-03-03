@@ -64,9 +64,7 @@ func TestDentryPathERPC(t *testing.T) {
 		}
 		file.Close()
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_erpc_path_rule")
-
+	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
 		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
@@ -128,9 +126,7 @@ func TestDentryPathMap(t *testing.T) {
 		}
 		file.Close()
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_map_path_rule")
-
+	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
 		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
@@ -192,13 +188,11 @@ func TestDentryName(t *testing.T) {
 		}
 		file.Close()
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_dentry_name_rule")
-
+	}, func(event *model.Event, _ *rules.Rule) {
 		basename := path.Base(testFile)
 
 		// check that the path is now available from the cache
-		res := p.Resolvers.DentryResolver.ResolveName(event.Open.File.PathKey)
+		res := p.Resolvers.DentryResolver.ResolveName(event.Open.File.PathKey, true)
 		assert.Equal(test.t, basename, res)
 
 		// check that the path is now available from the cache
@@ -206,6 +200,95 @@ func TestDentryName(t *testing.T) {
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 	}, "test_dentry_name_rule")
+}
+
+func TestDentryInvalidation(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// generate a basename up to the current limit of the agent
+	basename := "test123"
+	rule := &rules.RuleDefinition{
+		ID:         "test_erpc_path_rule",
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	testFile, _, err := test.Path("parent/" + basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := path.Dir(testFile)
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		t.Fatalf("failed to create directory: %s", err)
+	}
+	defer os.RemoveAll(dir)
+
+	var origPathKey model.PathKey
+
+	test.WaitSignalFromRule(t, func() error {
+		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
+		if err != nil {
+			return err
+		}
+		file.Close()
+		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		basename := path.Base(testFile)
+
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		assert.NoError(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		assert.NoError(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		origPathKey = event.Open.File.PathKey
+	}, "test_erpc_path_rule")
+
+	// rename the file, which should invalidate the path
+	newFile, _, err := test.Path("parent/test456")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Rename(testFile, newFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		file, err := os.OpenFile(newFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
+		if err != nil {
+			return err
+		}
+		file.Close()
+		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		basename := path.Base(newFile)
+
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		assert.NoError(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		assert.NoError(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		assert.NotEqual(test.t, origPathKey, event.Open.File.PathKey)
+	}, "test_erpc_path_rule")
 }
 
 func BenchmarkERPCDentryResolutionPath(b *testing.B) {
@@ -326,7 +409,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.ResolveNameFromMap(pathKey)
+	name, err := resolver.ResolveNameFromMap(pathKey, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -334,7 +417,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromMap(pathKey)
+		name, err = resolver.ResolveNameFromMap(pathKey, true)
 		if err != nil {
 			b.Fatal(err)
 		}

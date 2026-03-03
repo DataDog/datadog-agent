@@ -7,7 +7,7 @@ use std::io::BufRead;
 
 use crate::procfs;
 
-pub fn is_apm_injector_in_process_maps(pid: u32) -> bool {
+pub fn is_apm_injector_in_process_maps(pid: i32) -> bool {
     log::debug!("Checking injector status for {}", pid);
     let Ok(maps_reader) = procfs::maps::get_reader_for_pid(pid) else {
         return false;

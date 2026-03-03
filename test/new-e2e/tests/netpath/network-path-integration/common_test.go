@@ -92,7 +92,7 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 	}
 
 	assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
-	assert.NotEmpty(c, np.PathtraceID)
+	assert.NotEmpty(c, np.TestRunID)
 	assert.Equal(c, "default", np.Namespace)
 
 	// check that the timestamp is reasonably close to the current time

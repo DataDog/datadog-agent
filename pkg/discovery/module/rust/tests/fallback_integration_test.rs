@@ -81,6 +81,7 @@ fn test_no_fallback_on_discovery_only() {
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -222,6 +223,7 @@ fn test_discovery_disabled_exits_cleanly() {
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "false")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -256,5 +258,262 @@ fn test_discovery_enabled_with_fallback() {
     assert!(
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
+    );
+}
+
+// Killswitch integration tests
+#[test]
+fn test_killswitch_disabled_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Killswitch disabled should trigger fallback even with discovery enabled
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Killswitch disabled should trigger fallback to system-probe"
+    );
+}
+
+#[test]
+fn test_killswitch_not_set_defaults_to_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Killswitch not set should default to fallback (safe default)
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Killswitch not set should default to fallback (safe default)"
+    );
+}
+
+#[test]
+fn test_killswitch_enabled_runs_sd_agent() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create empty config file to avoid picking up system config
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
+
+    // Killswitch enabled should allow sd-agent to run
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .spawn()
+        .expect("Failed to execute sd-agent");
+
+    // Give it time to start
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // Terminate the process
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{Signal, kill};
+        use nix::unistd::Pid;
+        kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM).unwrap();
+    }
+
+    let _status = child.wait().expect("Failed to wait for child process");
+
+    assert!(
+        !marker_file.exists(),
+        "Killswitch enabled should NOT trigger fallback - sd-agent should run"
+    );
+}
+
+#[test]
+fn test_killswitch_yaml_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create YAML config with killswitch disabled
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file
+        .write_all(
+            b"discovery:
+  use_sd_agent: false
+  enabled: true
+",
+        )
+        .unwrap();
+    config_file.flush().unwrap();
+
+    // YAML with killswitch disabled should trigger fallback
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "YAML with killswitch disabled should trigger fallback"
+    );
+}
+
+#[test]
+fn test_killswitch_env_overrides_yaml_enabled() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create YAML config with killswitch enabled
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file
+        .write_all(
+            b"discovery:
+  use_sd_agent: true
+  enabled: true
+",
+        )
+        .unwrap();
+    config_file.flush().unwrap();
+
+    // Env var (false) should override YAML (true)
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Env var should override YAML - fallback should happen"
+    );
+}
+
+#[test]
+fn test_env_var_false_no_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create empty config file
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
+
+    // Env var set to "false" should NOT trigger fallback
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_NETWORK_CONFIG_ENABLED", "false")
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "Env var set to 'false' should NOT trigger fallback"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
+}
+
+#[test]
+fn test_env_var_zero_no_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create empty config file
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
+
+    // Env var set to "0" should NOT trigger fallback
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_NETWORK_CONFIG_ENABLED", "0")
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "Env var set to '0' should NOT trigger fallback"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
+}
+
+#[test]
+fn test_env_var_non_boolean_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Env var set to a non-boolean value should trigger fallback (safety net)
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .env("DD_NETWORK_CONFIG_ENABLED", "maybe")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Env var with non-boolean value should trigger fallback as safety net"
     );
 }

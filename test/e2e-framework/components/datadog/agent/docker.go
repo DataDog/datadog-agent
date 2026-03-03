@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
@@ -56,7 +56,7 @@ func NewDockerAgent(e config.Env, vm *remoteComp.Host, manager *docker.Manager, 
 		comp.FIPSEnabled = pulumi.Bool(e.AgentFIPS() || params.FIPS).ToBoolOutput()
 		fullImagePath := params.FullImagePath
 		if fullImagePath == "" {
-			fullImagePath = dockerAgentFullImagePath(e, params.Repository, params.ImageTag, false, params.FIPS, params.JMX)
+			fullImagePath = dockerAgentFullImagePath(e, params.Repository, params.ImageTag, false, params.FIPS, params.JMX, params.WindowsImage)
 		}
 
 		// Check FullImagePath exists in internal registry

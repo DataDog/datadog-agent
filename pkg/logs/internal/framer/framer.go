@@ -91,8 +91,16 @@ func NewFramer(
 	case UTF8Newline:
 		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	case UTF16BENewline:
+		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
+		if contentLenLimit < 2 {
+			contentLenLimit = 2
+		}
 		matcher = &twoByteNewLineMatcher{contentLenLimit: contentLenLimit, newline: Utf16beEOL}
 	case UTF16LENewline:
+		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
+		if contentLenLimit < 2 {
+			contentLenLimit = 2
+		}
 		matcher = &twoByteNewLineMatcher{contentLenLimit: contentLenLimit, newline: Utf16leEOL}
 	case SHIFTJISNewline:
 		// No special handling required for the newline matcher since Shift JIS does not use
