@@ -350,4 +350,3 @@ func findColumnIndexInSchema(schema *arrow.Schema, name string) int {
 	}
 	return -1
 }
-
