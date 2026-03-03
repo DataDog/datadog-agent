@@ -265,9 +265,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 		return
 	}
 
-	tracingEnabled := r.opts[optXTrace]
-	trace := r.tracer()
-
 	switch cm := cm.(type) {
 	case *syntax.Block:
 		r.stmts(ctx, cm.Stmts)
@@ -282,21 +279,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 
 				vr := r.assignVal(prev, as, "")
 				r.setVarWithIndex(prev, as.Name.Value, as.Index, vr)
-
-				if !tracingEnabled {
-					continue
-				}
-
-				if as.Array != nil {
-					trace.expr(as)
-				} else if as.Value != nil {
-					val, err := syntax.Quote(vr.String(), syntax.LangBash)
-					if err != nil { // should never happen
-						panic(err)
-					}
-					trace.stringf("%s=%s", as.Name.Value, val)
-				}
-				trace.newLineFlush()
 			}
 			// If interpreting the last expansion like $(foo) failed,
 			// and the expansion and assignments otherwise succeeded,
@@ -325,9 +307,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 
 			r.setVar(name, vr)
 		}
-
-		trace.call(fields[0], fields[1:]...)
-		trace.newLineFlush()
 
 		r.call(ctx, cm.Args[0].Pos(), fields)
 		for _, restore := range restores {
@@ -388,16 +367,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 
 			for _, field := range items {
 				r.setVarString(name, field)
-				trace.stringf("for %s in", y.Name.Value)
-				if inToken {
-					for _, item := range y.Items {
-						trace.string(" ")
-						trace.expr(item)
-					}
-				} else {
-					trace.string(` "$@"`)
-				}
-				trace.newLineFlush()
 				if r.loopStmtsBroken(ctx, cm.Do) {
 					break
 				}

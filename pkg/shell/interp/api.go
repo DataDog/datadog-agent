@@ -680,7 +680,7 @@ const (
 	optNoExec
 	optNoGlob
 	optNoUnset
-	optXTrace
+	_ // was optXTrace, removed
 	optPipeFail
 
 	// These correspond to indexes (offset by the above seven items) of
