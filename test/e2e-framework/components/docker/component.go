@@ -49,7 +49,7 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		comp.Host = host
 		comp.opts = opts
 
-		installCmd, err := comp.install()
+		installCmd, err := comp.install(e)
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 	)
 }
 
-func (d *Manager) install() (command.Command, error) {
+func (d *Manager) install(e config.Env) (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
 	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
@@ -201,6 +201,39 @@ func (d *Manager) install() (command.Command, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	// When a private registry is configured (e.g. pull-through cache), run docker login so that
+	// docker pull/run and docker-compose can pull images without relying only on ECR helper.
+	if e.ImagePullRegistry() != "" {
+		registries := strings.Split(e.ImagePullRegistry(), ",")
+		usernames := strings.Split(e.ImagePullUsername(), ",")
+		registry := strings.TrimSpace(registries[0])
+		username := strings.TrimSpace(usernames[0])
+		password := e.ImagePullPassword().ApplyT(func(pwd string) string {
+			parts := strings.Split(pwd, ",")
+			if len(parts) > 0 {
+				return strings.TrimSpace(parts[0])
+			}
+			return pwd
+		}).(pulumi.StringOutput)
+		registryLoginCmd, err := d.Host.OS.Runner().Command(
+			d.namer.ResourceName("registry-login"),
+			&command.Args{
+				Create: pulumi.Sprintf("echo \"$REGISTRY_PASSWORD\" | sudo docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\""),
+				Sudo:   false,
+				Environment: pulumi.StringMap{
+					"REGISTRY":          pulumi.String(registry),
+					"REGISTRY_USERNAME": pulumi.String(username),
+					"REGISTRY_PASSWORD": password,
+				},
+			},
+			utils.MergeOptions(opts, utils.PulumiDependsOn(groupCmd))...,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return registryLoginCmd, nil
 	}
 
 	return groupCmd, err
