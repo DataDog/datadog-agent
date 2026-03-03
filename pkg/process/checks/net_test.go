@@ -7,6 +7,8 @@ package checks
 
 import (
 	"fmt"
+	"net"
+	"os"
 	"strconv"
 	"testing"
 
@@ -874,6 +876,195 @@ func Test_getDNSNameForIP(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestRemoteServiceTags(t *testing.T) {
+	t.Run("IIS tags match", func(t *testing.T) {
+		conn := makeConnection(1)
+		conn.RouteIdx = -1
+		conn.IntraHost = true
+		conn.Laddr.Port = 3000
+		conn.Raddr.Port = 8080
+
+		iisTags := map[string][]string{
+			"8080-3000": {"service:iis-app", "site:default"},
+		}
+
+		ex := parser.NewServiceExtractor(false, false, false)
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, iisTags, nil)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		c := cc.Connections[0]
+		require.GreaterOrEqual(t, c.RemoteServiceTagsIdx, int32(0),
+			"expected RemoteServiceTagsIdx >= 0 for IIS match")
+		remoteTags := cc.GetTags(int(c.RemoteServiceTagsIdx))
+		assert.Equal(t, []string{"service:iis-app", "site:default"}, remoteTags)
+	})
+
+	t.Run("PID fallback with service extractor", func(t *testing.T) {
+		// Start a TCP listener so the port appears in the system port map
+		// used by getListeningPortToPIDMap().
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer ln.Close()
+		serverPort := int32(ln.Addr().(*net.TCPAddr).Port)
+		testPID := int32(os.Getpid())
+
+		ex := parser.NewServiceExtractor(true, false, false)
+		ex.Extract(map[int32]*procutil.Process{
+			testPID: {Pid: testPID, Cmdline: []string{"./my-server"}},
+		})
+
+		// Connection from a different PID to our listening port
+		conn := makeConnection(testPID + 1)
+		conn.RouteIdx = -1
+		conn.IntraHost = true
+		conn.Raddr.Port = serverPort
+
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, nil, nil)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		c := cc.Connections[0]
+		require.GreaterOrEqual(t, c.RemoteServiceTagsIdx, int32(0),
+			"expected remote service tags for same-host PID fallback")
+		remoteTags := cc.GetTags(int(c.RemoteServiceTagsIdx))
+		assert.Contains(t, remoteTags, "process_context:my-server")
+	})
+
+	t.Run("PID fallback with remote process tags", func(t *testing.T) {
+		// Start a TCP listener so the port appears in the system port map.
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer ln.Close()
+		serverPort := int32(ln.Addr().(*net.TCPAddr).Port)
+		testPID := int32(os.Getpid())
+
+		ex := parser.NewServiceExtractor(true, false, false)
+		ex.Extract(map[int32]*procutil.Process{
+			testPID: {Pid: testPID, Cmdline: []string{"./my-server"}},
+		})
+
+		// Connection from a different PID to our listening port
+		conn := makeConnection(testPID + 1)
+		conn.RouteIdx = -1
+		conn.IntraHost = true
+		conn.Raddr.Port = serverPort
+
+		// Provide both tag sources so the test works cross-platform:
+		// Windows uses procCacheTags, Linux uses processTagProvider.
+		procCacheTags := map[uint32][]string{
+			uint32(testPID): {"env:prod", "service:web"},
+		}
+		processTagProvider := func(pid int32) ([]string, error) {
+			if pid == testPID {
+				return []string{"env:prod", "service:web"}, nil
+			}
+			return nil, nil
+		}
+
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, processTagProvider, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, nil, procCacheTags)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		c := cc.Connections[0]
+		require.GreaterOrEqual(t, c.RemoteServiceTagsIdx, int32(0),
+			"expected remote service tags from getRemoteProcessTags")
+		remoteTags := cc.GetTags(int(c.RemoteServiceTagsIdx))
+		assert.Contains(t, remoteTags, "process_context:my-server")
+		assert.Contains(t, remoteTags, "env:prod")
+		assert.Contains(t, remoteTags, "service:web")
+	})
+
+	t.Run("no tags when containerized", func(t *testing.T) {
+		conn := makeConnection(1)
+		conn.RouteIdx = -1
+		conn.IntraHost = true
+		conn.Laddr.ContainerId = "abc123"
+		conn.Laddr.Port = 3000
+		conn.Raddr.Port = 8080
+
+		iisTags := map[string][]string{
+			"8080-3000": {"service:iis-app"},
+		}
+
+		ex := parser.NewServiceExtractor(false, false, false)
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, iisTags, nil)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		assert.Equal(t, int32(-1), cc.Connections[0].RemoteServiceTagsIdx)
+	})
+
+	t.Run("no tags when not IntraHost", func(t *testing.T) {
+		conn := makeConnection(1)
+		conn.RouteIdx = -1
+		conn.IntraHost = false
+		conn.Laddr.Port = 3000
+		conn.Raddr.Port = 8080
+
+		iisTags := map[string][]string{
+			"8080-3000": {"service:iis-app"},
+		}
+
+		ex := parser.NewServiceExtractor(false, false, false)
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, iisTags, nil)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		assert.Equal(t, int32(-1), cc.Connections[0].RemoteServiceTagsIdx)
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		conn := makeConnection(1)
+		conn.RouteIdx = -1
+		conn.IntraHost = true
+		conn.Laddr.Port = 3000
+		conn.Raddr.Port = 8080
+
+		// IIS tags present but key does not match this connection
+		iisTags := map[string][]string{
+			"9999-9999": {"service:other"},
+		}
+
+		ex := parser.NewServiceExtractor(false, false, false)
+		hostTagsProvider := hosttags.NewHostTagProvider()
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
+			[]*model.Connection{conn}, nil, "nid", nil, nil,
+			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
+			ex, nil, iisTags, nil)
+
+		require.Len(t, chunks, 1)
+		cc := chunks[0].(*model.CollectorConnections)
+		require.Len(t, cc.Connections, 1)
+		assert.Equal(t, int32(-1), cc.Connections[0].RemoteServiceTagsIdx)
+	})
 }
 
 func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
