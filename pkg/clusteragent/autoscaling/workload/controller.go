@@ -134,11 +134,11 @@ func NewController(
 	c.store.RegisterObserver(
 		autoscaling.Observer{
 			SetFunc: func(key string, _ autoscaling.SenderID) {
-				pai, found := c.store.LockRead(key, false)
+				pai, found, unlock := c.store.LockRead(key, false)
 				if !found {
 					return
 				}
-				defer c.store.Unlock(key)
+				defer unlock()
 				c.metricsStore.Add(key, &pai)
 			},
 			DeleteFunc: func(key string, _ autoscaling.SenderID) { c.metricsStore.Delete(key) },
@@ -216,7 +216,7 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 // Make sure any `return` has the proper store Unlock
 // podAutoscaler is read-only, any changes require a DeepCopy
 func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
-	podAutoscalerInternal, podAutoscalerInternalFound := c.store.LockRead(key, true)
+	podAutoscalerInternal, podAutoscalerInternalFound, _ := c.store.LockRead(key, true)
 
 	// Object is missing from our store
 	if !podAutoscalerInternalFound {

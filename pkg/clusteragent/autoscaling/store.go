@@ -149,7 +149,9 @@ func (s *Store[T]) Set(id string, obj T, sender SenderID) {
 func (s *Store[T]) Delete(id string, sender SenderID) {
 	s.lock.Lock()
 	_, exists := s.store[id]
-	delete(s.store, id)
+	if exists {
+		delete(s.store, id)
+	}
 	s.lock.Unlock()
 
 	if exists {
@@ -160,17 +162,18 @@ func (s *Store[T]) Delete(id string, sender SenderID) {
 // LockRead allows to get an item and leave the store in a locked state to allow safe Read -> Operation -> Write sequences
 // Still locks if the key does not exist as you may want to prevent a concurrent Write.
 // It's not very efficient to lock the whole store but it's probably enough for our use case.
-func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool) {
+// The returned unlock function must be called to release the lock. When lockOnMissing is false and the key is
+// absent, the lock is released before returning and the unlock function is a no-op.
+func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool, func()) {
 	s.lock.Lock()
 
 	res, ok := s.store[id]
-	if !ok {
-		if !lockOnMissing {
-			s.lock.Unlock()
-		}
+	if !ok && !lockOnMissing {
+		s.lock.Unlock()
+		return res, false, func() {}
 	}
 
-	return res, ok
+	return res, ok, s.lock.Unlock
 }
 
 // Unlock allows to unlock after a read that does not require any modification to the internal object
@@ -189,8 +192,9 @@ func (s *Store[T]) UnlockSet(id string, obj T, sender SenderID) {
 // UnlockDelete deletes an object and releases the lock (previously acquired by `LockRead`)
 func (s *Store[T]) UnlockDelete(id string, sender SenderID) {
 	_, exists := s.store[id]
-
-	delete(s.store, id)
+	if exists {
+		delete(s.store, id)
+	}
 	s.lock.Unlock()
 
 	if exists {
