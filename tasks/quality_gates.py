@@ -720,7 +720,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
     gate_results: dict[StaticQualityGate, dict] = {}
-    with ThreadPoolExecutor(max_workers=int(os.environ.get("KUBERNETES_CPU_REQUEST", 1))) as executor:
+    with ThreadPoolExecutor() as executor:
         future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
         for future in as_completed(future_to_gate):
             gate_results[future_to_gate[future]] = future.result()
