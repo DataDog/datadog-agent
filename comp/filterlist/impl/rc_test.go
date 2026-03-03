@@ -699,8 +699,8 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 
 	// Setup: current entry with Include action
 	currentHashed := hashedMetricTagList{
-		action:   Include,
-		tagRegex: buildTagRegex([]string{"env", "host"}),
+		action: Include,
+		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -718,19 +718,16 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
-	require.Equal(Include, hashedResult.action)
-	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.isMatch("env"))
-	require.True(hashedResult.tagRegex.isMatch("host"))
-	require.True(hashedResult.tagRegex.isMatch("pod"))
-	require.True(hashedResult.tagRegex.isMatch("cluster"))
-	require.False(hashedResult.tagRegex.isMatch("service"))
+	require.Equal(hashedResult, hashedMetricTagList{
+		action: Include,
+		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
+	})
 
-	require.Equal(MetricTagListEntry{
+	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "include",
 		Tags:       []string{"env", "host", "pod", "cluster"},
-	}, entryResult)
+	})
 }
 
 // TestMergeMetricTagListEntry_SameActionExclude tests merging tags when both entries have Exclude action
@@ -741,8 +738,8 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 
 	// Setup: current entry with Exclude action
 	currentHashed := hashedMetricTagList{
-		action:   Exclude,
-		tagRegex: buildTagRegex([]string{"env", "host"}),
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -760,19 +757,16 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
-	require.Equal(Exclude, hashedResult.action)
-	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.isMatch("env"))
-	require.True(hashedResult.tagRegex.isMatch("host"))
-	require.True(hashedResult.tagRegex.isMatch("pod"))
-	require.True(hashedResult.tagRegex.isMatch("cluster"))
-	require.False(hashedResult.tagRegex.isMatch("service"))
+	require.Equal(hashedResult, hashedMetricTagList{
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
+	})
 
-	require.Equal(MetricTagListEntry{
+	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
 		Tags:       []string{"env", "host", "pod", "cluster"},
-	}, entryResult)
+	})
 }
 
 // TestMergeMetricTagListEntry_IncludeOverriddenByExclude tests that Exclude overwrites Include
@@ -783,8 +777,8 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 
 	// Setup: current entry with Include action
 	currentHashed := hashedMetricTagList{
-		action:   Include,
-		tagRegex: buildTagRegex([]string{"env", "host"}),
+		action: Include,
+		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -802,17 +796,16 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
-	require.Equal(Exclude, hashedResult.action)
-	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.isMatch("pod"))
-	require.False(hashedResult.tagRegex.isMatch("env"))
-	require.False(hashedResult.tagRegex.isMatch("host"))
+	require.Equal(hashedResult, hashedMetricTagList{
+		action: Exclude,
+		tags:   hashTags([]string{"pod"}),
+	})
 
-	require.Equal(MetricTagListEntry{
+	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
 		Tags:       []string{"pod"},
-	}, entryResult)
+	})
 }
 
 // TestMergeMetricTagListEntry_ExcludeIgnoresInclude tests that Exclude entry ignores Include updates
@@ -823,8 +816,8 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 
 	// Setup: current entry with Exclude action
 	currentHashed := hashedMetricTagList{
-		action:   Exclude,
-		tagRegex: buildTagRegex([]string{"env", "host"}),
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host"}),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -843,15 +836,14 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
 	// Results should be the original exclude
-	require.Equal(Exclude, hashedResult.action)
-	require.NotNil(hashedResult.tagRegex)
-	require.True(hashedResult.tagRegex.isMatch("env"))
-	require.True(hashedResult.tagRegex.isMatch("host"))
-	require.False(hashedResult.tagRegex.isMatch("pod"))
+	require.Equal(hashedResult, hashedMetricTagList{
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host"}),
+	})
 
-	require.Equal(MetricTagListEntry{
+	require.Equal(entryResult, MetricTagListEntry{
 		MetricName: "test.metric",
 		Action:     "exclude",
 		Tags:       []string{"env", "host"},
-	}, entryResult)
+	})
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/zeebo/xxh3"
 )
 
 type statsdFilterListUpdate struct {
@@ -156,7 +157,7 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 }
 
 // buildConfig builds the configuration to use.
-// The first result contains the tag regex matchers the filterlist uses, second result is the entry with unhashed tags
+// The first result contains the hashed tags that the filterlist uses, second result is the entry with unhashed tags
 // used to override the configuration file entry.
 //
 // There is nothing stopping the tags for a given metric name being configured multiple times. Conflicts are handled
@@ -183,6 +184,7 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 				tags[metric.Name] = hashed
 				tagEntries[metric.Name] = entry
 			} else {
+				hashedTags := hashTags(metric.Tags)
 				var rcAction action
 				if metric.ExcludeTag {
 					rcAction = Exclude
@@ -190,8 +192,8 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 					rcAction = Include
 				}
 				tags[metric.Name] = hashedMetricTagList{
-					action:   rcAction,
-					tagRegex: buildTagRegex(metric.Tags),
+					action: rcAction,
+					tags:   hashedTags,
 				}
 
 				// Store unhashed entry
@@ -213,19 +215,24 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 }
 
 // mergeMetricTagListEntry merges the given metric entry with the current entry.
-// It needs to merge with both the regex and unhashed variants.
+// It needs to merge with both the hashed and unhashed variants.
 func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
+		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+
+		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
-		currentHashed.tagRegex = buildTagRegex(currentEntry.Tags)
 		return currentHashed, currentEntry
 	} else if currentHashed.action == Include {
 		// We always prefer the exclude tag, overwrite the existing config with this one.
+		hashedTags := hashTags(metric.Tags)
+
+		// Overwrite unhashed entry with exclude
 		hashed := hashedMetricTagList{
-			action:   Exclude,
-			tagRegex: buildTagRegex(metric.Tags),
+			action: Exclude,
+			tags:   hashedTags,
 		}
 
 		entry := MetricTagListEntry{
@@ -241,4 +248,13 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 	// We always prefer the exclude tag, ignore this include tag configuration.
 	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
 	return currentHashed, currentEntry
+}
+
+func hashTags(tags []string) []uint64 {
+	hashed := make([]uint64, 0, len(tags))
+	for _, tag := range tags {
+		hashed = append(hashed, xxh3.HashString(tag))
+	}
+
+	return hashed
 }
