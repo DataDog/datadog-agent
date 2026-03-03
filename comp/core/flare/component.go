@@ -31,7 +31,7 @@ type Component interface {
 	// This function is used to create a flare with specific arguments.
 	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// Send sends a flare archive to Datadog.
-	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
+	Send(flarePath string, caseID string, email string, source helpers.FlareSource, detectFalsePositive bool) (string, error)
 }
 
 // Module defines the fx options for this component.

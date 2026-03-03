@@ -359,7 +359,7 @@ func (m *Check) generateFlare() error {
 		// Send the flare
 		caseID := m.instance.TicketID
 		userHandle := m.instance.UserEmail
-		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource())
+		response, err := m.flareComponent.Send(flarePath, caseID, userHandle, helpers.NewLocalFlareSource(), false)
 		if err != nil {
 			// Include the user-friendly response message in the error
 			return fmt.Errorf("Failed to send flare: %s (%w)", response, err)
