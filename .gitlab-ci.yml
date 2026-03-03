@@ -1,4 +1,82 @@
 ---
+
+# Windows-specific Go source files, pkg/, and cmd/ (27 paths)
+.windows_path: &windows_path
+  # Windows-specific Go source files (by filename convention)
+  - "**/*_windows.go"
+
+  # Windows-specific packages in pkg/
+  - pkg/util/winutil/**/*
+  - pkg/windowsdriver/**/*
+  - pkg/util/pdhutil/**/*
+  - pkg/util/crashreport/**/*
+  - pkg/collector/corechecks/system/wincrashdetect/**/*
+  - pkg/collector/corechecks/system/windowscertificate/**/*
+  - pkg/collector/corechecks/system/winkmem/**/*
+  - pkg/collector/corechecks/system/winproc/**/*
+  - pkg/collector/corechecks/net/wlan/**/*
+  - pkg/logs/launchers/windowsevent/**/*
+  - pkg/logs/tailers/windowsevent/**/*
+  - pkg/logs/util/windowsevent/**/*
+  - pkg/network/driver/**/*
+
+  # cmd/ - run subcommands and Windows-specific directories
+  # Excludes serverless-init and cluster-agent (not built on Windows)
+  - cmd/agent/subcommands/run/**/*
+  - cmd/agent/subcommands/controlsvc/**/*
+  - cmd/agent/windows/**/*
+  - cmd/agent/windows_resources/**/*
+  - cmd/agent/dist/conf.d/win32_event_log.d/**/*
+  - cmd/agent/dist/conf.d/windows_certificate.d/**/*
+  - cmd/system-probe/subcommands/run/**/*
+  - cmd/system-probe/windows/**/*
+  - cmd/system-probe/windows_resources/**/*
+  - cmd/trace-agent/subcommands/run/**/*
+  - cmd/installer/**/*
+  - cmd/systray/**/*
+  - cmd/otel-agent/subcommands/run/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
+.windows_path_2: &windows_path_2
+  # Windows-specific comp/ components
+  - comp/systray/**/*
+  - comp/updater/**/*
+  - comp/checks/agentcrashdetect/**/*
+  - comp/checks/windowseventlog/**/*
+  - comp/checks/winregistry/**/*
+  - comp/metadata/hostsysteminfo/**/*
+  - comp/trace/etwtracer/**/*
+  - comp/etw/**/*
+  - comp/notableevents/**/*
+  - comp/publishermetadatacache/**/*
+  - comp/softwareinventory/**/*
+
+  # MSI installer and Windows tooling
+  - tools/windows/**/*
+
+  # Omnibus packaging
+  - omnibus/**/*
+
+  # Windows containers
+  - Dockerfiles/agent/windows/**/*
+  - Dockerfiles/agent/entrypoint.ps1
+  - Dockerfiles/agent/entrypoint.d.windows/**/*
+
+  # Chocolatey package
+  - chocolatey/**/*
+
+  # Build and release tasks
+  - tasks/msi.py
+  - tasks/winbuild.py
+  - tasks/winbuildscripts/**/*
+  - tasks/windows_resources.py
+  - tasks/systray.py
+
+  # Cross-cutting: these affect all platforms including Windows
+  - release.json
+  - .gitlab-ci.yml
+  - .gitlab/**/*
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -10,9 +88,13 @@ include:
   - local: .gitlab/windows/**.yml
     rules:
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
-      - if: $SKIP_WINDOWS == "true"
-        when: never
-      - when: always
+      - changes:
+          paths: *windows_path
+          compare_to: main
+      - changes:
+          paths: *windows_path_2
+          compare_to: main
+      - when: never
 
 default:
   retry:
@@ -394,7 +476,19 @@ workflow:
     - <<: *if_release_branch
     - <<: *if_deploy
     - !reference [.if_deploy_installer]
+    - changes:
+        paths: *windows_path
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_2
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
     - if: $CI_COMMIT_TAG == null
+      variables:
+        SKIP_WINDOWS: "true"
 
 #
 # List of rule blocks used in the pipeline
