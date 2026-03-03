@@ -1,0 +1,202 @@
+kind: requirements
+category: functional
+requirements:
+  - id: DDOT002
+    short: Export traces to the Datadog backend
+    long: |
+      The user shall be able to configure DDOT to forward OTLP traces to the Datadog
+      backend, where they will be available in Datadog APM.
+      DDOT converts OTLP spans to the Datadog protobuf trace format, compresses payloads
+      with gzip, and authenticates each request with the configured API key.
+    tags: [output, traces]
+    ref: [DDOT001, DDOT007, OTELCOL006]
+
+  - id: DDOT003
+    short: Export metrics to the Datadog backend
+    long: |
+      The user shall be able to configure DDOT to forward OTLP metrics to the Datadog
+      backend, where they will be available in Datadog Metrics.
+      DDOT routes metrics through the Datadog Agent serializer, which handles batching,
+      compression, and authenticated delivery to the Datadog metrics intake.
+    tags: [output, metrics]
+    ref: [DDOT001, DDOT007, OTELCOL006]
+
+  - id: DDOT004
+    short: Export logs to the Datadog backend
+    long: |
+      The user shall be able to configure DDOT to forward OTLP logs to the Datadog
+      backend, where they will be available in Datadog Log Management.
+      DDOT routes logs through the Datadog Logs Agent pipeline, which handles batching,
+      gzip compression, and authenticated delivery to the Datadog logs intake.
+      OTLP log fields (body, severity, trace context, resource attributes) are mapped to
+      the corresponding Datadog log fields.
+    tags: [output, logs]
+    ref: [DDOT001, DDOT007, OTELCOL006]
+
+  - id: DDOT005
+    short: Compute and export APM stats to Datadog
+    long: |
+      The user shall be able to have DDOT automatically compute APM statistics
+      (hit counts, error counts, and latency distributions per service, operation, and
+      resource) from ingested trace data and export them to the Datadog APM stats intake.
+      APM stats are serialized in msgpack format and compressed with gzip before
+      transmission.
+    tags: [output, traces, apm]
+    ref: [DDOT002]
+
+  - id: DDOT006
+    short: Send host metadata to the Datadog intake
+    long: |
+      The user shall be able to have DDOT collect and periodically send host metadata
+      (hostname, OS, platform, tags, integrations) to the Datadog metadata intake.
+      Host metadata is extracted from trace and metric resource attributes and compressed
+      with zlib before transmission.
+      This metadata enables correct host attribution in the Datadog UI.
+    tags: [output, metadata]
+    ref: [DDOT001, DDOT007]
+
+  - id: DDOT007
+    short: Authenticate to Datadog using an API key
+    long: |
+      The user shall be able to configure DDOT with a Datadog API key that is included in
+      all outbound requests to Datadog intake endpoints as an authentication credential.
+      The API key may be specified directly in the OTel configuration file (under the
+      Datadog exporter settings) or via the DD_API_KEY environment variable.
+    tags: [config, auth]
+    ref: [DDOT001]
+
+  - id: DDOT008
+    short: Route to the correct Datadog endpoints based on configured site
+    long: |
+      The user shall be able to configure the target Datadog site (e.g. datadoghq.com,
+      datadoghq.eu, us3.datadoghq.com) and have DDOT automatically derive and use the
+      correct intake URLs for traces, metrics, logs, and metadata.
+      The site is read from the Datadog exporter configuration or from the datadog.yaml
+      site setting.
+    tags: [config, routing]
+    ref: [DDOT007]
+
+  - id: DDOT009
+    short: Configure the collector via OTel YAML merged with datadog.yaml
+    long: |
+      The user shall be able to configure DDOT using an OTel Collector YAML file, while
+      settings present in the Datadog Agent configuration file (datadog.yaml) are
+      automatically merged in.
+      Datadog Agent settings (API key, site, proxy, log level, etc.) take effect in DDOT
+      without requiring duplication in the OTel configuration file.
+      The OTel configuration file takes precedence for OTel-specific settings.
+    tags: [config]
+    ref: [DDOT001, OTELCOL012, OTELCOL014]
+
+  - id: DDOT010
+    short: Auto-configure Datadog-specific OTel extensions
+    long: |
+      The user shall benefit from DDOT automatically injecting and configuring the
+      Datadog-specific OTel extensions (ddflare, ddprofiling) and standard debug
+      extensions (health_check, pprof, zpages) into the running pipeline, without
+      requiring explicit declaration in the OTel configuration file.
+      This ensures that diagnostic and monitoring capabilities are always available.
+    tags: [config, extensions]
+    ref: [OTELCOL007, DDOT009]
+
+  - id: DDOT011
+    short: Inherit log level from Datadog config or DD_LOG_LEVEL
+    long: |
+      The user shall be able to control DDOT's log verbosity through the standard Datadog
+      log level setting, without configuring it separately in the OTel configuration file.
+      The log level is resolved in the following order of precedence:
+        1. DD_LOG_LEVEL environment variable
+        2. log_level setting in datadog.yaml
+        3. The default log level in the OTel configuration
+    tags: [config, logging]
+    ref: [DDOT009]
+
+  - id: DDOT012
+    short: Configure proxy from environment variables or datadog.yaml
+    long: |
+      The user shall be able to route DDOT's outbound HTTP traffic through an HTTP proxy
+      by setting standard environment variables (HTTP_PROXY, HTTPS_PROXY, NO_PROXY) or
+      the proxy settings in datadog.yaml.
+      Proxy configuration in datadog.yaml takes precedence over environment variables.
+    tags: [config, network]
+    ref: [DDOT009]
+
+  - id: DDOT013
+    short: Operate in gateway mode
+    long: |
+      The user shall be able to configure DDOT to run in gateway mode, where it receives
+      telemetry from multiple upstream hosts and forwards it to Datadog without overriding
+      the host attribution present in the incoming telemetry.
+      In gateway mode, the Collector's own hostname is not injected into telemetry; each
+      data point retains the host identity provided by the originating SDK or Collector.
+    tags: [config, deployment]
+    ref: [DDOT001]
+
+  - id: DDOT014
+    short: Enrich telemetry with Datadog infrastructure tags
+    long: |
+      The user shall be able to configure DDOT to automatically attach Datadog
+      infrastructure tags (host tags, container tags, Kubernetes tags, ECS task tags)
+      to all telemetry resource attributes, using the infra-attributes processor.
+      Tags are retrieved from the Datadog Agent tagger and appended to each telemetry
+      resource, enabling filtering and grouping in the Datadog UI consistent with the
+      rest of the Datadog Agent's data.
+    tags: [processing, enrichment]
+    ref: [DDOT001, OTELCOL005, DDOT015]
+
+  - id: DDOT015
+    short: Resolve container IDs from PID, cgroup, or Kubernetes pod UID
+    long: |
+      The user shall be able to have DDOT automatically resolve the container ID of the
+      process that emitted a piece of telemetry, using one of three mechanisms:
+        - The process PID (for processes visible to the agent)
+        - The cgroup inode of the process
+        - The Kubernetes pod UID and container name from resource attributes
+      The resolved container ID is used to look up the full set of Datadog tags for that
+      container and attach them to the telemetry resource.
+    tags: [processing, enrichment]
+    ref: [DDOT014]
+
+  - id: DDOT016
+    short: Collect a diagnostic flare archive
+    long: |
+      The user shall be able to trigger the collection of a diagnostic flare from DDOT,
+      producing a ZIP archive that contains:
+        - The effective OTel configuration (as provided and at runtime)
+        - Environment variable values relevant to the Collector
+        - Responses from debug extensions (health_check, pprof, zpages)
+        - Build information and version details
+      The flare can be submitted to Datadog support to assist with troubleshooting.
+    tags: [debug, ops]
+    ref: [DDOT001, DDOT020]
+
+  - id: DDOT017
+    short: Query the collector status in text, JSON, or HTML format
+    long: |
+      The user shall be able to query the current operational status of DDOT, including
+      receiver acceptance rates, exporter queue depths, and pipeline health, in text,
+      JSON, or HTML format.
+      Status information is available via the `status` subcommand of the DDOT binary.
+    tags: [ops]
+    ref: [DDOT001]
+
+  - id: DDOT018
+    short: Enable or disable the collector independently of the Datadog Agent
+    long: |
+      The user shall be able to enable or disable the OTel Collector component of DDOT
+      independently of the rest of the Datadog Agent, using the
+      DD_OTELCOLLECTOR_ENABLED environment variable or the otelcollector.enabled setting
+      in datadog.yaml.
+      When disabled, no OTel pipeline is started and no OTLP ports are opened.
+    tags: [config, lifecycle]
+    ref: [DDOT001, DDOT009]
+
+  - id: DDOT019
+    short: Manage the collector as a Windows service
+    long: |
+      The user shall be able to install, start, stop, and remove DDOT as a native Windows
+      service using the `controlsvc` subcommand of the DDOT binary.
+      When running as a Windows service, DDOT integrates with the Windows Service Control
+      Manager for lifecycle management and log routing.
+    tags: [ops, windows]
+    ref: [DDOT001]

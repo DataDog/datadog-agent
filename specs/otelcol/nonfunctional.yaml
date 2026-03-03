@@ -1,0 +1,56 @@
+kind: requirements
+category: nonfunctional
+requirements:
+  - id: OTELCOL019
+    short: Expose internal metrics via Prometheus on port 8888
+    long: |
+      The Collector shall expose its own operational metrics in Prometheus format on
+      port 8888 at the /metrics endpoint by default.
+      These metrics cover receiver acceptance and refusal rates, processor throughput,
+      exporter queue depth and send failures, and process-level resource usage (CPU,
+      memory).
+      The verbosity level of emitted metrics (none, basic, normal, detailed) shall be
+      configurable under service.telemetry.metrics.
+    tags: [observability]
+
+  - id: OTELCOL020
+    short: Expose a health check endpoint
+    long: |
+      The Collector shall provide an HTTP health check endpoint (via the health_check
+      extension) that returns a 200 OK response when all configured components are running
+      successfully.
+      This endpoint is intended for use by load balancers, orchestrators (e.g. Kubernetes
+      liveness/readiness probes), and monitoring systems.
+    tags: [observability]
+    ref: [OTELCOL007]
+
+  - id: OTELCOL021
+    short: Expose a pprof profiling endpoint
+    long: |
+      The Collector shall provide a Go pprof-compatible HTTP profiling endpoint (via the
+      pprof extension) on port 1777 by default.
+      This endpoint allows operators to collect CPU profiles, heap profiles, and goroutine
+      dumps from a running Collector for performance analysis and troubleshooting.
+    tags: [observability, debug]
+    ref: [OTELCOL007]
+
+  - id: OTELCOL022
+    short: Expose a zPages debug UI
+    long: |
+      The Collector shall provide a zPages HTTP interface (via the zpages extension) on
+      port 55679 by default.
+      zPages expose live trace and RPC statistics useful for diagnosing latency issues,
+      deadlocks, and instrumentation problems without requiring an external backend.
+    tags: [observability, debug]
+    ref: [OTELCOL007]
+
+  - id: OTELCOL023
+    short: Reject invalid configuration with a clear error message
+    long: |
+      The Collector shall validate its configuration at startup and refuse to start if the
+      configuration is invalid, emitting a human-readable error message that identifies
+      the problematic field or component.
+      Invalid configurations include: missing required fields, unknown component names,
+      pipelines referencing undeclared components, and malformed YAML.
+    tags: [config, reliability]
+    ref: [OTELCOL012]
