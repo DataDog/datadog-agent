@@ -138,6 +138,56 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
+// GetObserverTraces fetches traces and stats from all registered remote agents that support the ObserverProvider service.
+func (ra *remoteAgentRegistry) GetObserverTraces(maxItems uint32) []remoteagentregistry.ObserverTracesData {
+	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTracesResponse, error) {
+		return remoteAgent.GetTraces(ctx, &pb.GetTracesRequest{MaxItems: maxItems}, opts...)
+	}
+	processor := func(details remoteagentregistry.RegisteredAgent, in *pb.GetTracesResponse, err error) remoteagentregistry.ObserverTracesData {
+		out := remoteagentregistry.ObserverTracesData{
+			RegisteredAgent: details,
+		}
+
+		if err != nil {
+			out.FailureReason = fmt.Sprintf("Failed to fetch traces: %v", err)
+			return out
+		}
+
+		out.Traces = in.Traces
+		out.DroppedCount = in.DroppedCount
+		out.HasMore = in.HasMore
+		out.StatsPayloads = in.StatsPayloads
+		out.StatsDroppedCount = in.StatsDroppedCount
+		return out
+	}
+
+	return callAgentsForService(ra, ObserverServiceName, client, processor)
+}
+
+// GetObserverProfiles fetches profiles from all registered remote agents that support the ObserverProvider service.
+func (ra *remoteAgentRegistry) GetObserverProfiles(maxItems uint32) []remoteagentregistry.ObserverProfilesData {
+	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetProfilesResponse, error) {
+		return remoteAgent.GetProfiles(ctx, &pb.GetProfilesRequest{MaxItems: maxItems}, opts...)
+	}
+	processor := func(details remoteagentregistry.RegisteredAgent, in *pb.GetProfilesResponse, err error) remoteagentregistry.ObserverProfilesData {
+		out := remoteagentregistry.ObserverProfilesData{
+			RegisteredAgent: details,
+		}
+
+		if err != nil {
+			out.FailureReason = fmt.Sprintf("Failed to fetch profiles: %v", err)
+			return out
+		}
+
+		out.Profiles = in.Profiles
+		out.DroppedCount = in.DroppedCount
+		out.HasMore = in.HasMore
+		return out
+	}
+
+	return callAgentsForService(ra, ObserverServiceName, client, processor)
+}
+
 func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))

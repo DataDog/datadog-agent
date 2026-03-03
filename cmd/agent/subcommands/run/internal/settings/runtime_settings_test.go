@@ -25,9 +25,11 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type testDeps struct {
@@ -56,6 +58,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlist.MockModule(),
+		fx.Supply(option.None[observer.Component]()),
 	))
 
 	s := DsdStatsRuntimeSetting{

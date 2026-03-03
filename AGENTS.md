@@ -39,6 +39,8 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 ## Development Workflow
 
+> **IMPORTANT**: Always use `dda inv` commands to build and test the agent. Never invoke `go build`, `go test`, or `go run` directly — the `dda inv` wrappers set the correct build tags, environment variables, and module context.
+
 ### Common Commands
 
 #### Building
@@ -67,11 +69,24 @@ dda inv test
 # Test specific package
 dda inv test --targets=./pkg/aggregator
 
+# Test specific package excluding a test
+dda inv test --targets=./pkg/aggregator -e TestFoo
+
 # Run Go linters
 dda inv linter.go
 
 # Run all linters
 dda inv linter.all
+```
+
+#### Running on Linux (dev container)
+
+Some packages require Linux (e.g. `//go:build linux` files). Use the dev container:
+
+```bash
+# Run any inv command inside the Linux dev container
+dda env dev run -- dda inv -- test --targets=./pkg/some/linux/package
+dda env dev run -- dda inv -- linter.go --targets=./pkg/some/linux/package
 ```
 
 #### Running Locally
