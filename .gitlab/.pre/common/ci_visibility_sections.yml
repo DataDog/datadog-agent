@@ -1,6 +1,6 @@
 ---
 # Shared bash helper functions for CI Visibility custom spans.
-# These allow wrapping any shell block with datadog-ci span calls
+# These allow wrapping any shell block with datadog-ci trace span calls
 # to create custom spans visible in CI Visibility flamegraphs.
 #
 # Usage in before_script:
@@ -20,6 +20,6 @@
       _category=""
       if [ "$1" = "--category" ]; then shift; _category="--tags agent-category:$1"; shift; fi
       _name="$1"
-      datadog-ci span --name "$_name" --start-time "$_ci_section_start" --end-time "$_end" \
+      datadog-ci trace span --name "$_name" --start-time "$_ci_section_start" --end-time "$_end" \
         --tags agent-custom-span:true $_category || true
     }
