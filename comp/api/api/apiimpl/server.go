@@ -37,9 +37,9 @@ func startServer(listener net.Listener, srv *http.Server, name string) {
 	log.Infof("Started HTTP server '%s' on %s", name, listener.Addr().String())
 }
 
-func stopServer(listener net.Listener, name string) {
-	if listener != nil {
-		if err := listener.Close(); err != nil {
+func stopServer(srv *http.Server, name string) {
+	if srv != nil {
+		if err := srv.Close(); err != nil {
 			log.Errorf("Error stopping HTTP server '%s': %s", name, err)
 		} else {
 			log.Infof("Stopped HTTP server '%s'", name)
@@ -84,8 +84,8 @@ func (server *apiServer) startServers() error {
 
 // StopServers closes the connections and the servers
 func (server *apiServer) stopServers() {
-	stopServer(server.cmdListener, cmdServerName)
-	stopServer(server.ipcListener, ipcServerName)
+	stopServer(server.cmdServer, cmdServerName)
+	stopServer(server.ipcServer, ipcServerName)
 }
 
 // authTagGetter returns a function that returns the auth tag for the given request
