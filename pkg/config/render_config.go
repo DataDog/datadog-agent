@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // context contains the context used to render the config file template
