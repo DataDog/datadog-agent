@@ -98,10 +98,6 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	return load()
 }
 
-// NOTE: When adding a new module check below, the env var that enables it
-// will be automatically discovered by TestNonDiscoveryEnvVarsSync. Run that
-// test and update pkg/discovery/module/testdata/non_discovery_env_vars.json
-// and the Rust NON_DISCOVERY_ENV_VARS in pkg/discovery/module/rust/src/config.rs.
 func load() (*types.Config, error) {
 	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
 	coreCfg := pkgconfigsetup.Datadog()
@@ -126,6 +122,12 @@ func load() (*types.Config, error) {
 	return enableModules(c, coreCfg, cfg)
 }
 
+// NOTE: When adding a new module check below, the env var that enables it
+// will be automatically discovered by TestEnableModulesVars which will check if
+// the env vars that enable the module are present in the canonical list.
+//
+// If more complex handling than checking for true is needed, the test may need
+// to be updated to handle the new case.
 func enableModules(c *types.Config, coreCfg pkgconfigmodel.Config, cfg pkgconfigmodel.Config) (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))

@@ -72,7 +72,9 @@ func resolveEnvVar(key string, cfg model.Reader) string {
 	}
 	os.Unsetenv(auto)
 
-	// Fallback: search all registered env vars for one that maps to this key
+	// Fallback: search all registered env vars for one that maps to this key.  The config
+	// model doesn't support finding env vars by key, so we have to search all
+	// registered env vars.
 	for _, ev := range cfg.GetEnvVars() {
 		os.Setenv(ev, "resolution_sentinel")
 		if cfg.GetString(key) == "resolution_sentinel" {
@@ -84,6 +86,8 @@ func resolveEnvVar(key string, cfg model.Reader) string {
 	return ""
 }
 
+// TestEnableModuleVars collects all the env vars that trigger non-discovery modules
+// and verifies that they match the canonical list.
 func TestEnableModulesVars(t *testing.T) {
 	var c types.Config
 
