@@ -32,10 +32,10 @@ type pkgFilesCacheEntry struct {
 
 // pkgFilesCache holds cached results from pkgutil --files queries
 type pkgFilesCache struct {
-	mu       sync.RWMutex
-	cache    map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
-	ttl      time.Duration                 // Time-to-live for cache entries
-	sfGroup  singleflight.Group            // deduplicates fetchPkgFiles per pkgID across goroutines
+	mu      sync.RWMutex
+	cache   map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
+	ttl     time.Duration                  // Time-to-live for cache entries
+	sfGroup singleflight.Group             // deduplicates fetchPkgFiles per pkgID across goroutines
 }
 
 // Default TTL for pkgutil --files cache entries
