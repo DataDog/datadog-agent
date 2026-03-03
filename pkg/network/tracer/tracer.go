@@ -509,6 +509,29 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 			fmt.Sprintf("srcip:%s", c.Source),
 			fmt.Sprintf("destip:%s", c.Dest),
 		}
+		// if c.Source is either 172.28.0.10 or 172.28.0.20 then debug log the congestion metrics for this connection
+		if c.Source.String() == "172.28.0.10" || c.Source.String() == "172.28.0.20" {
+			log.Debugf("\nTCP congestion metrics for connection %s:%d -> %s:%d: "+
+				"\n  retransmit[max_retrans_out=%d bytes_retrans=%d dsack_dups=%d] "+
+				"\n  loss[max_lost_out=%d rto_count=%d recovery_count=%d max_ca_state=%d] "+
+				"\n  out-of-order[max_sacked_out=%d reord_seen=%d] "+
+				"\n  in-flight[max_packets_out=%d delivered=%d] "+
+				"\n  ecn[delivered_ce=%d ecn_negotiated=%d] "+
+				"\n  zero-window[probe0_count=%d min_snd_wnd=%d min_rcv_wnd=%d] "+
+				"\n  rto-context[cwnd=%d ssthresh=%d srtt_us=%d max_consec=%d] "+
+				"\n  recovery-context[cwnd=%d ssthresh=%d srtt_us=%d]",
+				c.Source, c.SPort, c.Dest, c.DPort,
+				c.TCPMaxRetransOut, c.TCPBytesRetrans, c.TCPDSACKDups,
+				c.TCPMaxLostOut, c.TCPRTOCount, c.TCPRecoveryCount, c.TCPMaxCAState,
+				c.TCPMaxSackedOut, c.TCPReordSeen,
+				c.TCPMaxPacketsOut, c.TCPDelivered,
+				c.TCPDeliveredCE, c.TCPECNNegotiated,
+				c.TCPProbe0Count, c.TCPMinSndWnd, c.TCPMinRcvWnd,
+				c.TCPCwndAtLastRTO, c.TCPSsthreshAtLastRTO, c.TCPSRTTAtLastRTOUs, c.TCPMaxConsecRTOs,
+				c.TCPCwndAtLastRecovery, c.TCPSsthreshAtLastRecovery, c.TCPSRTTAtLastRecoveryUs,
+			)
+		}
+
 		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1)                    //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)                          //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)                      //nolint:errcheck
