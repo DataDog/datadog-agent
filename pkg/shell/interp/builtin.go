@@ -4,12 +4,9 @@
 package interp
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -18,19 +15,10 @@ import (
 // IsBuiltin returns true if the given word is a shell builtin.
 func IsBuiltin(name string) bool {
 	switch name {
-	case "true", "false", "exit", "echo", "break", "continue", "pwd", "cd", "test", "[":
+	case "true", "false", "exit", "echo", "break", "continue":
 		return true
 	}
 	return false
-}
-
-// TODO: atoi is duplicated in the expand package.
-
-// atoi is like [strconv.ParseInt](s, 10, 64), but it ignores errors and trims whitespace.
-func atoi(s string) int64 {
-	s = strings.TrimSpace(s)
-	n, _ := strconv.ParseInt(s, 10, 64)
-	return n
 }
 
 type errBuiltinExitStatus exitStatus
@@ -127,103 +115,10 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		default:
 			return failf(2, "usage: %s [n]\n", name)
 		}
-	case "pwd":
-		evalSymlinks := false
-		for len(args) > 0 {
-			switch args[0] {
-			case "-L":
-				evalSymlinks = false
-			case "-P":
-				evalSymlinks = true
-			default:
-				return failf(2, "invalid option: %q\n", args[0])
-			}
-			args = args[1:]
-		}
-		pwd := r.envGet("PWD")
-		if evalSymlinks {
-			var err error
-			pwd, err = filepath.EvalSymlinks(pwd)
-			if err != nil {
-				exit.fatal(err) // perhaps overly dramatic?
-				return exit
-			}
-		}
-		r.outf("%s\n", pwd)
-	case "cd":
-		var path string
-		switch len(args) {
-		case 0:
-			path = r.envGet("HOME")
-		case 1:
-			path = args[0]
-
-			// replicate the commonly implemented behavior of `cd -`
-			// ref: https://www.man7.org/linux/man-pages/man1/cd.1p.html#OPERANDS
-			if path == "-" {
-				path = r.envGet("OLDPWD")
-				r.outf("%s\n", path)
-			}
-		default:
-			return failf(2, "usage: cd [dir]\n")
-		}
-		exit.code = r.changeDir(ctx, path)
-	case "[":
-		if len(args) == 0 || args[len(args)-1] != "]" {
-			return failf(2, "%v: [: missing matching ]\n", pos)
-		}
-		args = args[:len(args)-1]
-		fallthrough
-	case "test":
-		parseErr := false
-		p := testParser{
-			rem: args,
-			err: func(err error) {
-				r.errf("%v: %v\n", pos, err)
-				parseErr = true
-			},
-		}
-		p.next()
-		expr := p.classicTest("[", false)
-		if parseErr {
-			exit.code = 2
-			return exit
-		}
-		exit.oneIf(r.bashTest(ctx, expr, true) == "")
 	default:
 		return failf(2, "%s: unimplemented builtin\n", name)
 	}
 	return exit
-}
-
-func (r *Runner) changeDir(ctx context.Context, path string) uint8 {
-	path = cmp.Or(path, ".")
-	path = r.absPath(path)
-	info, err := r.stat(ctx, path)
-	if err != nil || !info.IsDir() {
-		return 1
-	}
-	if r.access(ctx, path, access_X_OK) != nil {
-		return 1
-	}
-	r.Dir = path
-	r.setVarString("OLDPWD", r.envGet("PWD"))
-	r.setVarString("PWD", path)
-	return 0
-}
-
-func absPath(dir, path string) string {
-	if path == "" {
-		return ""
-	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dir, path)
-	}
-	return filepath.Clean(path) // TODO: this clean is likely unnecessary
-}
-
-func (r *Runner) absPath(path string) string {
-	return absPath(r.Dir, path)
 }
 
 // flagParser is used to parse builtin flags.

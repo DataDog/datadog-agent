@@ -89,9 +89,6 @@ type Runner struct {
 	// glob expansion. It must be non-nil.
 	readDirHandler ReadDirHandlerFunc2
 
-	// statHandler is a function responsible for getting file stat. It must be non-nil.
-	statHandler StatHandlerFunc
-
 	stdin  *os.File // e.g. the read end of a pipe
 	stdout io.Writer
 	stderr io.Writer
@@ -237,7 +234,6 @@ func New(opts ...RunnerOption) (*Runner, error) {
 		usedNew:        true,
 		openHandler:    DefaultOpenHandler(),
 		readDirHandler: DefaultReadDirHandler2(),
-		statHandler:    DefaultStatHandler(),
 	}
 	// turn "on" the default Bash options
 	for i, opt := range bashOptsTable {
@@ -416,8 +412,8 @@ func ExecHandlers(middlewares ...func(next ExecHandlerFunc) ExecHandlerFunc) Run
 	}
 }
 
-// TODO: consider porting the middleware API in [ExecHandlers] to [OpenHandler],
-// [ReadDirHandler2], and [StatHandler].
+// TODO: consider porting the middleware API in [ExecHandlers] to [OpenHandler]
+// and [ReadDirHandler2].
 
 // TODO(v4): now that [ExecHandlers] allows calling a next handler with changed
 // arguments, one of the two advantages of [CallHandler] is gone. The other is the
@@ -460,13 +456,6 @@ func ReadDirHandler2(f ReadDirHandlerFunc2) RunnerOption {
 	}
 }
 
-// StatHandler sets the stat handler. See [StatHandlerFunc] for more info.
-func StatHandler(f StatHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.statHandler = f
-		return nil
-	}
-}
 
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {
@@ -738,8 +727,6 @@ func (r *Runner) Reset() {
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
-		statHandler:     r.statHandler,
-
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -915,7 +902,6 @@ func (r *Runner) subshell(background bool) *Runner {
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
-		statHandler:     r.statHandler,
 
 		stdin:          r.stdin,
 		stdout:         r.stdout,

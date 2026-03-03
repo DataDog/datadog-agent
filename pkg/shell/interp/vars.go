@@ -187,10 +187,6 @@ func (r *Runner) lookupVar(name string) expand.Variable {
 	return expand.Variable{}
 }
 
-func (r *Runner) envGet(name string) string {
-	return r.lookupVar(name).String()
-}
-
 func (r *Runner) setVarString(name, value string) {
 	r.setVar(name, expand.Variable{Set: true, Kind: expand.String, Str: value})
 }

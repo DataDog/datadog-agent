@@ -134,12 +134,6 @@ func (r *Runner) document(word *syntax.Word) string {
 	return str
 }
 
-func (r *Runner) pattern(word *syntax.Word) string {
-	str, err := expand.Pattern(r.ecfg, word)
-	r.expandErr(err)
-	return str
-}
-
 // expandEnviron exposes [Runner]'s variables to the expand package.
 type expandEnv struct {
 	r *Runner
@@ -601,12 +595,3 @@ func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileM
 	return nil, err
 }
 
-func (r *Runner) stat(ctx context.Context, name string) (fs.FileInfo, error) {
-	path := absPath(r.Dir, name)
-	return r.statHandler(ctx, path, true)
-}
-
-func (r *Runner) lstat(ctx context.Context, name string) (fs.FileInfo, error) {
-	path := absPath(r.Dir, name)
-	return r.statHandler(ctx, path, false)
-}

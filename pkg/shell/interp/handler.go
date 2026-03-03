@@ -356,17 +356,3 @@ func DefaultReadDirHandler2() ReadDirHandlerFunc2 {
 	}
 }
 
-// StatHandlerFunc is a handler which gets a file's information.
-type StatHandlerFunc func(ctx context.Context, name string, followSymlinks bool) (fs.FileInfo, error)
-
-// DefaultStatHandler returns the [StatHandlerFunc] used by default.
-// It makes use of [os.Stat] and [os.Lstat], depending on followSymlinks.
-func DefaultStatHandler() StatHandlerFunc {
-	return func(ctx context.Context, path string, followSymlinks bool) (fs.FileInfo, error) {
-		if !followSymlinks {
-			return os.Lstat(path)
-		} else {
-			return os.Stat(path)
-		}
-	}
-}
