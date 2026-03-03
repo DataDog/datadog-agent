@@ -2759,6 +2759,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "ad_sample_v2_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled),
+		},
+		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
 			Value: utils.BoolTouint64(p.config.Probe.CapabilitiesMonitoringEnabled),
 		},

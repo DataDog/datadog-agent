@@ -295,6 +295,12 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    u64 ad_sample_v2_enabled = 0;
+    LOAD_CONSTANT("ad_sample_v2_enabled", ad_sample_v2_enabled);
+    if (!ad_sample_v2_enabled) {
+        return DISCARDED;
+    }
+
     // Track total open events that hit the sampling logic
     monitor_ad_sample_total(EVENT_OPEN);
 
