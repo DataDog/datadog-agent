@@ -8,18 +8,18 @@
 package config
 
 import (
-	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
+	traceconfigmock "github.com/DataDog/datadog-agent/comp/trace/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Mock implements mock-specific methods.
-// Deprecated: Use comp/trace/config/impl directly.
+// Deprecated: Use comp/trace/config/mock directly.
 type Mock interface {
 	Component
 }
 
 // MockModule defines the fx options for the mock component.
-// Deprecated: Use comp/trace/config/impl.MockModule() instead.
+// Deprecated: Use comp/trace/config/mock.MockModule() instead.
 func MockModule() fxutil.Module {
-	return traceconfigimpl.MockModule()
+	return traceconfigmock.MockModule()
 }

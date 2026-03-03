@@ -8,24 +8,12 @@
 package configimpl
 
 import (
-	"go.uber.org/fx"
 	"testing"
 
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewMock),
-		fx.Supply(traceconfig.Params{
-			FailIfAPIKeyMissing: true,
-		}),
-	)
-}
 
 // NewMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
