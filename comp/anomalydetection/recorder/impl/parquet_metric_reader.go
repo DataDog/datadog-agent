@@ -30,14 +30,14 @@ type FGMMetric struct {
 	Tags       map[string]string
 }
 
-// ParquetReader reads FGM parquet files and provides metrics in chronological order.
-type ParquetReader struct {
+// parquetMetricReader reads FGM parquet files and provides metrics in chronological order.
+type parquetMetricReader struct {
 	metrics []FGMMetric
 	index   int
 }
 
-// NewParquetReader creates a new parquet reader from a directory containing FGM parquet files.
-func NewParquetReader(dirPath string) (*ParquetReader, error) {
+// newParquetReader creates a new parquet reader from a directory containing FGM parquet files.
+func newParquetReader(dirPath string) (*parquetMetricReader, error) {
 	// Find all parquet files in the directory
 	parquetFiles, err := findParquetFiles(dirPath)
 	if err != nil {
@@ -64,14 +64,14 @@ func NewParquetReader(dirPath string) (*ParquetReader, error) {
 		return allMetrics[i].Time < allMetrics[j].Time
 	})
 
-	return &ParquetReader{
+	return &parquetMetricReader{
 		metrics: allMetrics,
 		index:   0,
 	}, nil
 }
 
 // Next returns the next metric, or nil if no more metrics.
-func (r *ParquetReader) Next() *FGMMetric {
+func (r *parquetMetricReader) Next() *FGMMetric {
 	if r.index >= len(r.metrics) {
 		return nil
 	}
@@ -81,17 +81,17 @@ func (r *ParquetReader) Next() *FGMMetric {
 }
 
 // Reset resets the reader to the beginning.
-func (r *ParquetReader) Reset() {
+func (r *parquetMetricReader) Reset() {
 	r.index = 0
 }
 
 // Len returns the total number of metrics.
-func (r *ParquetReader) Len() int {
+func (r *parquetMetricReader) Len() int {
 	return len(r.metrics)
 }
 
 // StartTime returns the timestamp of the first metric in milliseconds.
-func (r *ParquetReader) StartTime() int64 {
+func (r *parquetMetricReader) StartTime() int64 {
 	if len(r.metrics) == 0 {
 		return 0
 	}
@@ -99,7 +99,7 @@ func (r *ParquetReader) StartTime() int64 {
 }
 
 // EndTime returns the timestamp of the last metric in milliseconds.
-func (r *ParquetReader) EndTime() int64 {
+func (r *parquetMetricReader) EndTime() int64 {
 	if len(r.metrics) == 0 {
 		return 0
 	}

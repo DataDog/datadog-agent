@@ -19,7 +19,7 @@ func TestParquetBloomFilterOnListColumn(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create parquet writer with bloom filters
-	writer, err := NewParquetWriter(tmpDir, 1*time.Second, 0)
+	writer, err := newMetricParquetWriter(tmpDir, 1*time.Second, 0)
 	require.NoError(t, err)
 
 	// Write metrics with different tag combinations
@@ -34,7 +34,7 @@ func TestParquetBloomFilterOnListColumn(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Read parquet files
-	reader, err := NewParquetReader(tmpDir)
+	reader, err := newParquetReader(tmpDir)
 	require.NoError(t, err)
 	require.Equal(t, 3, reader.Len())
 
@@ -75,7 +75,7 @@ func TestParquetWriteReadMultipleMetrics(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create writer
-	writer, err := NewParquetWriter(tmpDir, 1*time.Second, 0)
+	writer, err := newMetricParquetWriter(tmpDir, 1*time.Second, 0)
 	require.NoError(t, err)
 
 	// Write 100 metrics with various tags
@@ -93,7 +93,7 @@ func TestParquetWriteReadMultipleMetrics(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Read back
-	reader, err := NewParquetReader(tmpDir)
+	reader, err := newParquetReader(tmpDir)
 	require.NoError(t, err)
 	require.Equal(t, 100, reader.Len())
 

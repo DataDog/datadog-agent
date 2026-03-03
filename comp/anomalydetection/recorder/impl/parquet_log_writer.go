@@ -19,15 +19,15 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LogParquetWriter writes observer logs to parquet files created on each flush.
+// logParquetWriter writes observer logs to parquet files created on each flush.
 // Files are only created when there is data to write; empty files are never produced.
-type LogParquetWriter struct {
-	parquetWriterBase
+type logParquetWriter struct {
+	parquetWriter
 	typedBuilder *logBatchBuilder
 }
 
-// NewLogParquetWriter creates a writer for log data.
-func NewLogParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*LogParquetWriter, error) {
+// newLogParquetWriter creates a writer for log data.
+func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*logParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -53,8 +53,8 @@ func NewLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 	)
 
 	builder := newLogBatchBuilder(schema)
-	lw := &LogParquetWriter{
-		parquetWriterBase: parquetWriterBase{
+	lw := &logParquetWriter{
+		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
 			filePrefix:        "observer-logs",
 			schema:            schema,
@@ -73,7 +73,7 @@ func NewLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 }
 
 // WriteLog writes log data to the parquet batch.
-func (lw *LogParquetWriter) WriteLog(
+func (lw *logParquetWriter) WriteLog(
 	source string,
 	content []byte,
 	status, hostname string,

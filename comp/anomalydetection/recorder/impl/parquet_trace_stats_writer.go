@@ -19,17 +19,17 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceStatsParquetWriter writes APM trace stats to parquet files created on each flush.
+// traceStatsParquetWriter writes APM trace stats to parquet files created on each flush.
 // Stats are stored as denormalized rows (one row per ClientGroupedStats) for efficient
 // columnar queries. Each row includes payload- and client-level context.
 // Files are only created when there is data to write; empty files are never produced.
-type TraceStatsParquetWriter struct {
-	parquetWriterBase
+type traceStatsParquetWriter struct {
+	parquetWriter
 	typedBuilder *traceStatsBatchBuilder
 }
 
-// NewTraceStatsParquetWriter creates a writer for APM trace stats.
-func NewTraceStatsParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*TraceStatsParquetWriter, error) {
+// newTraceStatsParquetWriter creates a writer for APM trace stats.
+func newTraceStatsParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*traceStatsParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -85,8 +85,8 @@ func NewTraceStatsParquetWriter(outputDir string, flushInterval, retentionDurati
 	)
 
 	builder := newTraceStatsBatchBuilder(schema)
-	pw := &TraceStatsParquetWriter{
-		parquetWriterBase: parquetWriterBase{
+	pw := &traceStatsParquetWriter{
+		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
 			filePrefix:        "observer-trace-stats",
 			schema:            schema,
@@ -105,7 +105,7 @@ func NewTraceStatsParquetWriter(outputDir string, flushInterval, retentionDurati
 }
 
 // WriteStatRow adds one aggregated stat group to the batch.
-func (pw *TraceStatsParquetWriter) WriteStatRow(
+func (pw *traceStatsParquetWriter) WriteStatRow(
 	source string,
 	agentHostname, agentEnv string,
 	clientHostname, clientEnv, clientVersion, clientContainerID string,

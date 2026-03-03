@@ -54,7 +54,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 
 	// Initialize metrics writer (always enabled when recording is on)
-	writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
+	writer, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{Comp: r}, pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
 	}
@@ -62,7 +62,7 @@ func NewComponent(req Requires) (Provides, error) {
 	pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 
 	// Initialize traces writer (always enabled when recording is on)
-	traceWriter, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
+	traceWriter, err := newTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace parquet writer: %v", err)
 	}
@@ -70,7 +70,7 @@ func NewComponent(req Requires) (Provides, error) {
 	pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
 
 	// Initialize profiles writer (always enabled when recording is on)
-	profileWriter, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
+	profileWriter, err := newProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{Comp: r}, pkglog.Errorf("Failed to create profile parquet writer: %v", err)
 	}
@@ -78,7 +78,7 @@ func NewComponent(req Requires) (Provides, error) {
 	pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
 
 	// Initialize logs writer (always enabled when recording is on)
-	logWriter, err := NewLogParquetWriter(parquetDir, flushInterval, retentionDuration)
+	logWriter, err := newLogParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{Comp: r}, pkglog.Errorf("Failed to create log parquet writer: %v", err)
 	}
@@ -86,7 +86,7 @@ func NewComponent(req Requires) (Provides, error) {
 	pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
 
 	// Initialize trace stats writer (always enabled when recording is on)
-	traceStatsWriter, err := NewTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
+	traceStatsWriter, err := newTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
 	}
@@ -99,11 +99,11 @@ func NewComponent(req Requires) (Provides, error) {
 // recorderImpl implements the recorder component
 type recorderImpl struct {
 	recordingDisabled       bool
-	metricParquetWriter     *MetricParquetWriter
-	traceParquetWriter      *TraceParquetWriter
-	profileParquetWriter    *ProfileParquetWriter
-	logParquetWriter        *LogParquetWriter
-	traceStatsParquetWriter *TraceStatsParquetWriter
+	metricParquetWriter     *metricParquetWriter
+	traceParquetWriter      *traceParquetWriter
+	profileParquetWriter    *profileParquetWriter
+	logParquetWriter        *logParquetWriter
+	traceStatsParquetWriter *traceStatsParquetWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -128,7 +128,7 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 // This is for batch loading scenarios where streaming via handles is not needed.
 func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
 	// Read all parquet files from the input directory
-	reader, err := NewParquetReader(inputDir)
+	reader, err := newParquetReader(inputDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating parquet reader: %w", err)
 	}
@@ -181,7 +181,7 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 // ReadAllTraces reads all traces from parquet files and returns them as a slice.
 // Traces are reconstructed from denormalized span rows grouped by trace ID.
 func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
-	reader, err := NewTraceParquetReader(inputDir)
+	reader, err := newTraceParquetReader(inputDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating trace parquet reader: %w", err)
 	}
@@ -196,7 +196,7 @@ func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, 
 
 // ReadAllProfiles reads all profiles from parquet files and returns them as a slice.
 func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileData, error) {
-	reader, err := NewProfileParquetReader(inputDir)
+	reader, err := newProfileParquetReader(inputDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating profile parquet reader: %w", err)
 	}
@@ -211,7 +211,7 @@ func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileDa
 
 // ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 func (r *recorderImpl) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceStatsData, error) {
-	reader, err := NewTraceStatsParquetReader(inputDir)
+	reader, err := newTraceStatsParquetReader(inputDir)
 	if err != nil {
 		return nil, fmt.Errorf("creating trace stats parquet reader: %w", err)
 	}

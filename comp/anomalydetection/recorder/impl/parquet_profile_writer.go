@@ -19,19 +19,19 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProfileParquetWriter writes observer profiles to parquet files created on each flush.
+// profileParquetWriter writes observer profiles to parquet files created on each flush.
 // Profile binary data is embedded directly in parquet using a Binary column.
 // This simplifies file management at the cost of slightly larger parquet files,
 // which is acceptable for a recorder/replay use case.
 // Files are only created when there is data to write; empty files are never produced.
-type ProfileParquetWriter struct {
-	parquetWriterBase
+type profileParquetWriter struct {
+	parquetWriter
 	typedBuilder *profileBatchBuilder
 }
 
-// NewProfileParquetWriter creates a writer for profile data.
+// newProfileParquetWriter creates a writer for profile data.
 // Binary profile data is embedded directly in the parquet file using Binary.
-func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*ProfileParquetWriter, error) {
+func newProfileParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*profileParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -66,8 +66,8 @@ func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration 
 	)
 
 	builder := newProfileBatchBuilder(schema)
-	pw := &ProfileParquetWriter{
-		parquetWriterBase: parquetWriterBase{
+	pw := &profileParquetWriter{
+		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
 			filePrefix:        "observer-profiles",
 			schema:            schema,
@@ -86,7 +86,7 @@ func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration 
 }
 
 // WriteProfile writes profile data (metadata + binary) to the parquet batch.
-func (pw *ProfileParquetWriter) WriteProfile(
+func (pw *profileParquetWriter) WriteProfile(
 	source string,
 	profileID, profileType string,
 	service, env, version, hostname, containerID string,

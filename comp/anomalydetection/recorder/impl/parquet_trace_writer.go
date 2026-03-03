@@ -19,17 +19,17 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceParquetWriter writes observer traces to parquet files created on each flush.
+// traceParquetWriter writes observer traces to parquet files created on each flush.
 // Traces are stored as denormalized spans (one row per span) for efficient columnar queries.
 // Each span row includes trace-level metadata for easy filtering without joins.
 // Files are only created when there is data to write; empty files are never produced.
-type TraceParquetWriter struct {
-	parquetWriterBase
+type traceParquetWriter struct {
+	parquetWriter
 	typedBuilder *spanBatchBuilder
 }
 
-// NewTraceParquetWriter creates a writer for trace/span data.
-func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*TraceParquetWriter, error) {
+// newTraceParquetWriter creates a writer for trace/span data.
+func newTraceParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*traceParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -78,8 +78,8 @@ func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration ti
 	)
 
 	builder := newSpanBatchBuilder(schema)
-	tw := &TraceParquetWriter{
-		parquetWriterBase: parquetWriterBase{
+	tw := &traceParquetWriter{
+		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
 			filePrefix:        "observer-traces",
 			schema:            schema,
@@ -98,7 +98,7 @@ func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration ti
 }
 
 // WriteSpan adds a span to the batch with its trace context.
-func (tw *TraceParquetWriter) WriteSpan(
+func (tw *traceParquetWriter) WriteSpan(
 	source string,
 	traceIDHigh, traceIDLow uint64,
 	env, traceService, hostname, containerID string,

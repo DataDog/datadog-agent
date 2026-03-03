@@ -21,14 +21,14 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceStatsParquetReader reads APM trace stats from parquet files.
-type TraceStatsParquetReader struct {
+// traceStatsParquetReader reads APM trace stats from parquet files.
+type traceStatsParquetReader struct {
 	inputDir string
 	files    []string
 }
 
-// NewTraceStatsParquetReader creates a reader for trace stats parquet files.
-func NewTraceStatsParquetReader(inputDir string) (*TraceStatsParquetReader, error) {
+// newTraceStatsParquetReader creates a reader for trace stats parquet files.
+func newTraceStatsParquetReader(inputDir string) (*traceStatsParquetReader, error) {
 	entries, err := os.ReadDir(inputDir)
 	if err != nil {
 		return nil, err
@@ -46,14 +46,14 @@ func NewTraceStatsParquetReader(inputDir string) (*TraceStatsParquetReader, erro
 
 	sort.Strings(files)
 
-	return &TraceStatsParquetReader{
+	return &traceStatsParquetReader{
 		inputDir: inputDir,
 		files:    files,
 	}, nil
 }
 
 // ReadAll reads all trace stat rows from all parquet files.
-func (r *TraceStatsParquetReader) ReadAll() []recorderdef.TraceStatsData {
+func (r *traceStatsParquetReader) ReadAll() []recorderdef.TraceStatsData {
 	var stats []recorderdef.TraceStatsData
 
 	for _, filePath := range r.files {
@@ -68,7 +68,7 @@ func (r *TraceStatsParquetReader) ReadAll() []recorderdef.TraceStatsData {
 	return stats
 }
 
-func (r *TraceStatsParquetReader) readFile(filePath string, stats *[]recorderdef.TraceStatsData) {
+func (r *traceStatsParquetReader) readFile(filePath string, stats *[]recorderdef.TraceStatsData) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		pkglog.Warnf("Failed to open trace stats parquet file %s: %v", filePath, err)

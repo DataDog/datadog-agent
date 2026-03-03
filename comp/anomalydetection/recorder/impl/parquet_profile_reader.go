@@ -21,14 +21,14 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProfileParquetReader reads profile data from parquet files.
-type ProfileParquetReader struct {
+// profileParquetReader reads profile data from parquet files.
+type profileParquetReader struct {
 	inputDir string
 	files    []string
 }
 
-// NewProfileParquetReader creates a reader for profile parquet files.
-func NewProfileParquetReader(inputDir string) (*ProfileParquetReader, error) {
+// newProfileParquetReader creates a reader for profile parquet files.
+func newProfileParquetReader(inputDir string) (*profileParquetReader, error) {
 	entries, err := os.ReadDir(inputDir)
 	if err != nil {
 		return nil, err
@@ -47,14 +47,14 @@ func NewProfileParquetReader(inputDir string) (*ProfileParquetReader, error) {
 	// Sort files by name (which includes timestamp) for chronological order
 	sort.Strings(files)
 
-	return &ProfileParquetReader{
+	return &profileParquetReader{
 		inputDir: inputDir,
 		files:    files,
 	}, nil
 }
 
 // ReadAll reads all profiles from all parquet files.
-func (r *ProfileParquetReader) ReadAll() []recorderdef.ProfileData {
+func (r *profileParquetReader) ReadAll() []recorderdef.ProfileData {
 	var profiles []recorderdef.ProfileData
 
 	for _, filePath := range r.files {
@@ -69,7 +69,7 @@ func (r *ProfileParquetReader) ReadAll() []recorderdef.ProfileData {
 	return profiles
 }
 
-func (r *ProfileParquetReader) readFile(filePath string) []recorderdef.ProfileData {
+func (r *profileParquetReader) readFile(filePath string) []recorderdef.ProfileData {
 	f, err := os.Open(filePath)
 	if err != nil {
 		pkglog.Warnf("Failed to open profile parquet file %s: %v", filePath, err)
