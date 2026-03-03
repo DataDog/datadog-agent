@@ -69,11 +69,15 @@ function LogRateChart({
   anomalies,
   scenarioStart,
   scenarioEnd,
+  hoveredTimestamp,
+  hoveredAnomalyIndex,
 }: {
   logs: LogEntry[];
   anomalies: LogAnomaly[];
   scenarioStart: number | null;
   scenarioEnd: number | null;
+  hoveredTimestamp?: number | null;
+  hoveredAnomalyIndex?: number | null;
 }) {
   if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) {
     return null;
@@ -89,6 +93,11 @@ function LogRateChart({
   }
 
   const maxLog = Math.max(1, ...logBuckets);
+
+  const hoveredBucket =
+    hoveredTimestamp != null
+      ? Math.min(Math.floor((hoveredTimestamp - scenarioStart) / bucketSize), bucketCount - 1)
+      : null;
 
   // Derive unique detectors for the legend
   const detectors = Array.from(new Set(anomalies.map((a) => a.detectorName)));
@@ -107,40 +116,55 @@ function LogRateChart({
       <div className="relative h-10">
         {/* Log rate bars — low alpha background */}
         <div className="absolute inset-0 flex items-end gap-px">
-          {logBuckets.map((count, i) => (
-            <div
-              key={i}
-              className={`flex-1 rounded-sm ${count > 0 ? 'bg-teal-500/25' : 'bg-slate-700/20'}`}
-              style={{ height: count > 0 ? `${Math.max(3, (count / maxLog) * 40)}px` : '2px' }}
-              title={count > 0 ? `${count} log${count > 1 ? 's' : ''}` : undefined}
-            />
-          ))}
+          {logBuckets.map((count, i) => {
+            const isHovered = hoveredBucket !== null && i === hoveredBucket;
+            let barClass: string;
+            if (isHovered) {
+              barClass = 'flex-1 rounded-sm bg-amber-400/80';
+            } else if (count > 0) {
+              barClass = 'flex-1 rounded-sm bg-teal-500/25';
+            } else {
+              barClass = 'flex-1 rounded-sm bg-slate-700/20';
+            }
+            return (
+              <div
+                key={i}
+                className={barClass}
+                style={{ height: count > 0 ? `${Math.max(3, (count / maxLog) * 40)}px` : '2px' }}
+                title={count > 0 ? `${count} log${count > 1 ? 's' : ''}` : undefined}
+              />
+            );
+          })}
         </div>
         {/* Anomaly lines — one vertical line per anomaly, colored by detector */}
         {anomalies.map((a, i) => {
           const pct = ((a.timestamp - scenarioStart) / (scenarioEnd - scenarioStart)) * 100;
           if (pct < 0 || pct > 100) return null;
           const color = detectorLineColor(a.detectorName);
+          const isHovered = hoveredAnomalyIndex === i;
           return (
             <div
               key={i}
               className="absolute top-0 bottom-0"
-              style={{ left: `${pct}%` }}
+              style={{ left: `${pct}%`, opacity: hoveredAnomalyIndex != null && !isHovered ? 0.35 : 1 }}
               title={`${a.detectorName}: ${a.title}`}
             >
               {/* Downward triangle at the top of the line */}
               <div style={{
                 position: 'absolute',
                 top: 0,
-                left: '-3px',
+                left: isHovered ? '-5px' : '-3px',
                 width: 0,
                 height: 0,
-                borderLeft: '3px solid transparent',
-                borderRight: '3px solid transparent',
-                borderTop: `5px solid ${color}`,
+                borderLeft: `${isHovered ? 5 : 3}px solid transparent`,
+                borderRight: `${isHovered ? 5 : 3}px solid transparent`,
+                borderTop: `${isHovered ? 8 : 5}px solid ${color}`,
               }} />
               {/* Vertical line */}
-              <div className="absolute top-0 bottom-0 w-px" style={{ backgroundColor: color }} />
+              <div
+                className={`absolute top-0 bottom-0 ${isHovered ? 'w-0.5' : 'w-px'}`}
+                style={{ backgroundColor: color }}
+              />
             </div>
           );
         })}
@@ -158,15 +182,17 @@ interface LogEntryRowProps {
   isExpanded: boolean;
   onToggle: () => void;
   isTelemetry?: boolean;
+  onHoverEnter?: () => void;
+  onHoverLeave?: () => void;
 }
 
-function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false }: LogEntryRowProps) {
+function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHoverEnter, onHoverLeave }: LogEntryRowProps) {
   const contentPreview = entry.content.length > 120 && !isExpanded
     ? entry.content.slice(0, 120) + '…'
     : entry.content;
 
   return (
-    <div className="bg-slate-700/30 rounded overflow-hidden">
+    <div className="bg-slate-700/30 rounded overflow-hidden" onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
       <button
         onClick={onToggle}
         className="w-full text-left px-3 py-2 hover:bg-slate-700/50 transition-colors"
@@ -226,11 +252,13 @@ interface LogAnomalyCardProps {
   anomaly: LogAnomaly;
   isExpanded: boolean;
   onToggle: () => void;
+  onHoverEnter?: () => void;
+  onHoverLeave?: () => void;
 }
 
-function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) {
+function LogAnomalyCard({ anomaly, isExpanded, onToggle, onHoverEnter, onHoverLeave }: LogAnomalyCardProps) {
   return (
-    <div className="bg-slate-700/50 rounded overflow-hidden">
+    <div className="bg-slate-700/50 rounded overflow-hidden" onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
       <button
         onClick={onToggle}
         className="w-full text-left px-4 py-3 hover:bg-slate-700/70 transition-colors"
@@ -325,6 +353,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null);
   const [expandedAnomalyIndex, setExpandedAnomalyIndex] = useState<number | null>(null);
+  const [hoveredLogTimestamp, setHoveredLogTimestamp] = useState<number | null>(null);
+  const [hoveredAnomalyIndex, setHoveredAnomalyIndex] = useState<number | null>(null);
   const [anomaliesExpanded, setAnomaliesExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const [logPage, setLogPage] = useState(1);
@@ -520,6 +550,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
               anomalies={sortedAnomalies}
               scenarioStart={scenarioStart ?? null}
               scenarioEnd={scenarioEnd ?? null}
+              hoveredTimestamp={hoveredLogTimestamp}
+              hoveredAnomalyIndex={hoveredAnomalyIndex}
             />
 
             {/* Detected Anomalies collapsible section */}
@@ -542,6 +574,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                         onToggle={() =>
                           setExpandedAnomalyIndex(expandedAnomalyIndex === idx ? null : idx)
                         }
+                        onHoverEnter={() => setHoveredAnomalyIndex(idx)}
+                        onHoverLeave={() => setHoveredAnomalyIndex(null)}
                       />
                     ))}
                   </div>
@@ -577,6 +611,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                           entry={entry}
                           isExpanded={expandedLogIndex === idx}
                           onToggle={() => setExpandedLogIndex(expandedLogIndex === idx ? null : idx)}
+                          onHoverEnter={() => setHoveredLogTimestamp(entry.timestamp)}
+                          onHoverLeave={() => setHoveredLogTimestamp(null)}
                         />
                       ))}
                     </div>
@@ -624,6 +660,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                             isExpanded={expandedTelemetryLogIndex === idx}
                             onToggle={() => setExpandedTelemetryLogIndex(expandedTelemetryLogIndex === idx ? null : idx)}
                             isTelemetry
+                            onHoverEnter={() => setHoveredLogTimestamp(entry.timestamp)}
+                            onHoverLeave={() => setHoveredLogTimestamp(null)}
                           />
                         ))}
                       </div>
