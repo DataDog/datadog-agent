@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -56,9 +58,25 @@ func (suite *kindSuite) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-func (suite *kindSuite) TestControlPlane() {
+func (suite *kindSuite) Test02KindParallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"ControlPlane", suite.testControlPlane},
+		{"HostTags", suite.testHostTags},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+func (suite *kindSuite) testControlPlane(t *testing.T) {
 	// Test `kube_apiserver` check is properly working
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kube_apiserver.apiserver_request_total",
 		},
@@ -96,7 +114,7 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kube_apiserver.api_resource",
 		},
@@ -112,7 +130,7 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 
 	// Test `kube_controller_manager` check is properly working
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kube_controller_manager.queue.adds",
 		},
@@ -137,7 +155,7 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 
 	// Test `kube_scheduler` check is properly working
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kube_scheduler.schedule_attempts",
 		},
@@ -163,7 +181,7 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 }
 
-func (suite *kindSuite) TestHostTags() {
+func (suite *kindSuite) testHostTags(t *testing.T) {
 	expectedTags := []string{
 		`^os:linux$`,
 		`^arch:amd64$`,
@@ -176,7 +194,7 @@ func (suite *kindSuite) TestHostTags() {
 
 	// depending on the kubernetes version the expected tags for kube_node_rol varies.
 	k8sVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
-	suite.NoError(err, "failed to request k8s server version to specify the appropriate expected host-tags")
+	assert.NoError(t, err, "failed to request k8s server version to specify the appropriate expected host-tags")
 
 	// depending on kube version we expect different 'kube_node_role' tag value
 	// we only handle version we actually test (v1.19, v1.22, ...)
@@ -194,5 +212,5 @@ func (suite *kindSuite) TestHostTags() {
 		ExpectedTags: expectedTags,
 	}
 
-	suite.testHostTags(args)
+	suite.baseSuite.testHostTags(t, args)
 }

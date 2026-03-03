@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -101,7 +102,7 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 	if suite.Env().Agent.FIPSEnabled || suite.runtime == "cri-o" {
 		timeout = 20 * time.Minute
 	}
-	suite.testUpAndRunning(timeout)
+	suite.testUpAndRunning(suite.T(), timeout)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)
@@ -114,14 +115,49 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 // Inside a testify test suite, tests are executed in alphabetical order.
 // The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
 func (suite *k8sSuite) TestZZUpAndRunning() {
-	suite.testUpAndRunning(1 * time.Minute)
+	suite.testUpAndRunning(suite.T(), 1*time.Minute)
 }
 
-func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
+func (suite *k8sSuite) Test01Parallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"AdmissionControllerWebhooksExist", suite.testAdmissionControllerWebhooksExist},
+		{"Version", suite.testVersion},
+		{"CLI", suite.testCLI},
+		{"Nginx", suite.testNginx},
+		{"Redis", suite.testRedis},
+		{"ArgoRollout", suite.testArgoRollout},
+		{"CPU", suite.testCPU},
+		{"KSM", suite.testKSM},
+		{"DogstatsdInAgent", suite.testDogstatsdInAgent},
+		{"DogstatsdStandalone", suite.testDogstatsdStandalone},
+		{"Prometheus", suite.testPrometheus},
+		{"PrometheusWithConfigFromEtcd", suite.testPrometheusWithConfigFromEtcd},
+		{"AdmissionControllerWithoutAPMInjection", suite.testAdmissionControllerWithoutAPMInjection},
+		{"AdmissionControllerWithLibraryAnnotation", suite.testAdmissionControllerWithLibraryAnnotation},
+		{"AdmissionControllerWithAutoDetectedLanguage", suite.testAdmissionControllerWithAutoDetectedLanguage},
+		{"AdmissionControllerExcludesSystemNamespaces", suite.testAdmissionControllerExcludesSystemNamespaces},
+		{"ContainerImage", suite.testContainerImage},
+		{"SBOM", suite.testSBOM},
+		{"ContainerLifecycleEvents", suite.testContainerLifecycleEvents},
+		{"TraceUDS", suite.testTraceUDS},
+		{"TraceTCP", suite.testTraceTCP},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+func (suite *k8sSuite) testUpAndRunning(t *testing.T, waitFor time.Duration) {
 	ctx := context.Background()
 
-	suite.Run("agent pods are ready and not restarting", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
+	t.Run("agent pods are ready and not restarting", func(t *testing.T) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.AndSelectors(
 					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
@@ -190,7 +226,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
+						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn't ready", containerStatus.Name, pod.Name)
 						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
 					}
 				}
@@ -199,20 +235,20 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	})
 }
 
-func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
+func (suite *k8sSuite) testAdmissionControllerWebhooksExist(t *testing.T) {
 	ctx := context.Background()
 	expectedWebhookName := "datadog-webhook"
 
-	suite.Run("agent registered mutating webhook configuration", func() {
+	t.Run("agent registered mutating webhook configuration", func(t *testing.T) {
 		mutatingConfig, err := suite.Env().KubernetesCluster.Client().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-		suite.Require().NoError(err)
-		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
+		require.NoError(t, err)
+		assert.NotNilf(t, mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 
-	suite.Run("agent registered validating webhook configuration", func() {
+	t.Run("agent registered validating webhook configuration", func(t *testing.T) {
 		validatingConfig, err := suite.Env().KubernetesCluster.Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
-		suite.Require().NoError(err)
-		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
+		require.NoError(t, err)
+		assert.NotNilf(t, validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 }
 
@@ -232,7 +268,7 @@ func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
 	return nil
 }
 
-func (suite *k8sSuite) TestVersion() {
+func (suite *k8sSuite) testVersion(t *testing.T) {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
@@ -262,28 +298,28 @@ func (suite *k8sSuite) TestVersion() {
 			"agent",
 		},
 	} {
-		suite.Run(tt.podType+" pods are running the good version", func() {
+		t.Run(tt.podType+" pods are running the good version", func(t *testing.T) {
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
 			})
-			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-				suite.T().Logf("Found %d running pods matching selector", len(linuxPods.Items))
+			if assert.NoError(t, err) && len(linuxPods.Items) >= 1 {
+				t.Logf("Found %d running pods matching selector", len(linuxPods.Items))
 				execPod := selectPodForExec(linuxPods.Items, tt.container)
-				suite.Require().NotNil(execPod, "No running pods found with container %s ready", tt.container)
+				require.NotNil(t, execPod, "No running pods found with container %s ready", tt.container)
 				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", execPod.Name, tt.container, []string{"agent", "version"})
-				if suite.NoError(err) {
-					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
+				if assert.NoError(t, err) {
+					assert.Emptyf(t, stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
-					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
-							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
+					if assert.Equalf(t, 2, len(match), "'Commit' not found in the output of `agent version`.") {
+						if assert.Greaterf(t, len(GitCommit), 6, "Couldn't guess the expected version of the agent.") &&
+							assert.Greaterf(t, len(match[1]), 6, "Couldn't find the version of the agent.") {
 
 							size2compare := len(GitCommit)
 							if len(match[1]) < size2compare {
 								size2compare = len(match[1])
 							}
 
-							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
+							assert.Equalf(t, GitCommit[:size2compare], match[1][:size2compare], "Agent isn't running the expected version")
 						}
 					}
 				}
@@ -292,61 +328,61 @@ func (suite *k8sSuite) TestVersion() {
 	}
 }
 
-func (suite *k8sSuite) TestCLI() {
-	suite.Run("agent CLI", func() { suite.testAgentCLI() })
-	suite.Run("cluster agent CLI", func() { suite.testClusterAgentCLI() })
+func (suite *k8sSuite) testCLI(t *testing.T) {
+	t.Run("agent CLI", func(t *testing.T) { suite.testAgentCLI(t) })
+	t.Run("cluster agent CLI", func(t *testing.T) { suite.testClusterAgentCLI(t) })
 }
 
-func (suite *k8sSuite) testAgentCLI() {
+func (suite *k8sSuite) testAgentCLI(t *testing.T) {
 	ctx := context.Background()
 
 	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
 	})
-	suite.Require().NoError(err)
-	suite.Require().Len(pod.Items, 1)
+	require.NoError(t, err)
+	require.Len(t, pod.Items, 1)
 
-	suite.Run("agent status", func() {
+	t.Run("agent status", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "status"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent status` should be empty")
-		suite.Contains(stdout, "Collector")
-		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "Instance ID: container [OK]")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent status` should be empty")
+		assert.Contains(t, stdout, "Collector")
+		assert.Contains(t, stdout, "Running Checks")
+		assert.Contains(t, stdout, "Instance ID: container [OK]")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent status --json", func() {
+	t.Run("agent status --json", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent status` should be empty")
-		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent status` should be empty")
+		if !assert.Truef(t, json.Valid([]byte(stdout)), "Output of `agent status --json` isn't valid JSON") {
 			var blob interface{}
 			err := json.Unmarshal([]byte(stdout), &blob)
-			suite.NoError(err)
+			assert.NoError(t, err)
 		}
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent checkconfig", func() {
+	t.Run("agent checkconfig", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "checkconfig"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== container check ===")
-		suite.Contains(stdout, "Config for instance ID: container:")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent checkconfig` should be empty")
+		assert.Contains(t, stdout, "=== container check ===")
+		assert.Contains(t, stdout, "Config for instance ID: container:")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent check -r container", func() {
+	t.Run("agent check -r container", func(t *testing.T) {
 		var stdout string
-		suite.EventuallyWithT(func(c *assert.CollectT) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
@@ -354,125 +390,125 @@ func (suite *k8sSuite) testAgentCLI() {
 			}
 			matched, err := regexp.MatchString(`container\.memory\.usage\s+gauge\s+\d+\s+\d+`, stdout)
 			if assert.NoError(c, err) {
-				assert.Truef(c, matched, "Output of `agent check -r container` doesn’t contain the expected metric")
+				assert.Truef(c, matched, "Output of `agent check -r container` doesn't contain the expected metric")
 			}
 		}, 2*time.Minute, 1*time.Second)
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent check -r container --json", func() {
+	t.Run("agent check -r container --json", func(t *testing.T) {
 		var stdout string
-		suite.EventuallyWithT(func(c *assert.CollectT) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return
 			}
-			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
+			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn't valid JSON") {
 				var blob interface{}
 				err := json.Unmarshal([]byte(stdout), &blob)
 				assert.NoError(c, err)
 			}
 		}, 2*time.Minute, 1*time.Second)
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent workload-list", func() {
+	t.Run("agent workload-list", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
-		suite.Contains(stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
-		suite.Contains(stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent workload-list` should be empty")
+		assert.Contains(t, stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
+		assert.Contains(t, stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent workload-list --json", func() {
+	t.Run("agent workload-list --json", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent workload-list --json` should be empty")
 
 		// Validate JSON
-		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json` isn't valid JSON")
+		assert.Truef(t, json.Valid([]byte(stdout)), "Output of `agent workload-list --json` isn't valid JSON")
 
 		// Unmarshal and validate structure
 		var result map[string]any
 		err = json.Unmarshal([]byte(stdout), &result)
-		suite.Require().NoError(err)
+		require.NoError(t, err)
 
 		// Check for expected fields
 		entities, ok := result["Entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'Entities' field in JSON output")
-		suite.NotEmpty(entities, "Entities map should not be empty")
-		suite.Contains(entities, "container", "expected 'container' kind in Entities")
+		require.True(t, ok, "expected 'Entities' field in JSON output")
+		assert.NotEmpty(t, entities, "Entities map should not be empty")
+		assert.Contains(t, entities, "container", "expected 'container' kind in Entities")
 
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent workload-list --json container", func() {
+	t.Run("agent workload-list --json container", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "container"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent workload-list --json container` should be empty")
 
 		// Validate JSON
-		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json container` isn't valid JSON")
+		assert.Truef(t, json.Valid([]byte(stdout)), "Output of `agent workload-list --json container` isn't valid JSON")
 
 		// Unmarshal and validate structure
 		var result map[string]any
 		err = json.Unmarshal([]byte(stdout), &result)
-		suite.Require().NoError(err)
+		require.NoError(t, err)
 
 		// Check for expected fields
 		entities, ok := result["Entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		require.True(t, ok, "expected 'Entities' field in JSON output")
 
 		// Search term "container" uses substring matching on kind names
 		// Should match "container" and may also match "container_image_metadata" if present
-		suite.Contains(entities, "container", "expected 'container' kind in filtered Entities")
+		assert.Contains(t, entities, "container", "expected 'container' kind in filtered Entities")
 
 		// Verify no unrelated kinds (like kubernetes_pod) are included
-		suite.NotContains(entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
+		assert.NotContains(t, entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
 
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent tagger-list", func() {
+	t.Run("agent tagger-list", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
-		suite.Contains(stdout, "=== Entity container_id://")
-		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent tagger-list` should be empty")
+		assert.Contains(t, stdout, "=== Entity container_id://")
+		assert.Contains(t, stdout, "=== Entity kubernetes_pod_uid://")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent tagger-list --json", func() {
+	t.Run("agent tagger-list --json", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent tagger-list --json` should be empty")
 
 		// Validate JSON
-		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json` isn't valid JSON")
+		assert.Truef(t, json.Valid([]byte(stdout)), "Output of `agent tagger-list --json` isn't valid JSON")
 
 		// Unmarshal and validate structure
 		var result map[string]any
 		err = json.Unmarshal([]byte(stdout), &result)
-		suite.Require().NoError(err)
+		require.NoError(t, err)
 
 		// Check for expected fields
 		entities, ok := result["Entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'Entities' field in JSON output")
-		suite.NotEmpty(entities, "Entities map should not be empty")
+		require.True(t, ok, "expected 'Entities' field in JSON output")
+		assert.NotEmpty(t, entities, "Entities map should not be empty")
 
 		// Check for expected entity types
 		foundContainer := false
@@ -485,30 +521,30 @@ func (suite *k8sSuite) testAgentCLI() {
 				foundPod = true
 			}
 		}
-		suite.True(foundContainer, "expected at least one container_id entity")
-		suite.True(foundPod, "expected at least one kubernetes_pod_uid entity")
+		assert.True(t, foundContainer, "expected at least one container_id entity")
+		assert.True(t, foundPod, "expected at least one kubernetes_pod_uid entity")
 
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("agent tagger-list --json container_id", func() {
+	t.Run("agent tagger-list --json container_id", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json", "container_id"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
 
 		// Validate JSON
-		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json container_id` isn't valid JSON")
+		assert.Truef(t, json.Valid([]byte(stdout)), "Output of `agent tagger-list --json container_id` isn't valid JSON")
 
 		// Unmarshal and validate structure
 		var result map[string]any
 		err = json.Unmarshal([]byte(stdout), &result)
-		suite.Require().NoError(err)
+		require.NoError(t, err)
 
 		// Check for expected fields
 		entities, ok := result["Entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		require.True(t, ok, "expected 'Entities' field in JSON output")
 
 		// Filter by "container_id" should match entities starting with "container_id://"
 		foundContainer := false
@@ -518,103 +554,103 @@ func (suite *k8sSuite) testAgentCLI() {
 				break
 			}
 		}
-		suite.True(foundContainer, "expected at least one container_id entity in filtered results")
+		assert.True(t, foundContainer, "expected at least one container_id entity in filtered results")
 
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 }
 
-func (suite *k8sSuite) testClusterAgentCLI() {
-	leaderDcaPodName := suite.testDCALeaderElection(false) // check cluster agent leaderelection without restart
-	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
+func (suite *k8sSuite) testClusterAgentCLI(t *testing.T) {
+	leaderDcaPodName := suite.testDCALeaderElection(t, false) // check cluster agent leaderelection without restart
+	require.NotEmpty(t, leaderDcaPodName, "Leader DCA pod name should not be empty")
 
-	suite.Run("cluster-agent status", func() {
+	t.Run("cluster-agent status", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
-		suite.Contains(stdout, "Collector")
-		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "kubernetes_apiserver")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		assert.Contains(t, stdout, "Collector")
+		assert.Contains(t, stdout, "Running Checks")
+		assert.Contains(t, stdout, "kubernetes_apiserver")
 		if suite.Env().Agent.FIPSEnabled {
 			// Verify FIPS mode is reported as enabled
-			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
-			suite.T().Logf("Cluster agent correctly reports FIPS status as enabled")
+			assert.Contains(t, stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
+			t.Logf("Cluster agent correctly reports FIPS status as enabled")
 		} else {
-			suite.NotContains(stdout, "FIPS Mode: enabled", "Cluster agent should not report FIPS Mode as enabled")
+			assert.NotContains(t, stdout, "FIPS Mode: enabled", "Cluster agent should not report FIPS Mode as enabled")
 		}
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("cluster-agent version", func() {
+	t.Run("cluster-agent version", func(t *testing.T) {
 		if suite.Env().Agent.FIPSEnabled {
 			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "version"})
-			suite.Require().NoError(err)
-			suite.Empty(stderr, "Standard error of `datadog-cluster-agent version` should be empty")
-			suite.Contains(stdout, "Cluster Agent")
+			require.NoError(t, err)
+			assert.Empty(t, stderr, "Standard error of `datadog-cluster-agent version` should be empty")
+			assert.Contains(t, stdout, "Cluster Agent")
 			// Verify cluster agent is built with Go-Boring SSL (X:boringcrypto)
-			suite.Contains(stdout, "X:boringcrypto", "Cluster agent must be built with Go-Boring SSL")
-			suite.T().Logf("Cluster agent correctly reports Go-Boring SSL via X:boringcrypto flag")
-			if suite.T().Failed() {
-				suite.T().Log(stdout)
+			assert.Contains(t, stdout, "X:boringcrypto", "Cluster agent must be built with Go-Boring SSL")
+			t.Logf("Cluster agent correctly reports Go-Boring SSL via X:boringcrypto flag")
+			if t.Failed() {
+				t.Log(stdout)
 			}
 		}
 	})
 
-	suite.Run("cluster-agent status --json", func() {
+	t.Run("cluster-agent status --json", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
-		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		if !assert.Truef(t, json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn't valid JSON") {
 			var blob interface{}
 			err := json.Unmarshal([]byte(stdout), &blob)
-			suite.NoError(err)
+			assert.NoError(t, err)
 		}
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("cluster-agent checkconfig", func() {
+	t.Run("cluster-agent checkconfig", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
-		suite.Contains(stdout, "Config for instance ID: kubernetes_apiserver:")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
+		assert.Contains(t, stdout, "=== kubernetes_apiserver check ===")
+		assert.Contains(t, stdout, "Config for instance ID: kubernetes_apiserver:")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("cluster-agent clusterchecks", func() {
+	t.Run("cluster-agent clusterchecks", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
-		suite.Contains(stdout, "agents reporting ===")
-		suite.Contains(stdout, "===== Checks on ")
-		suite.Contains(stdout, "=== helm check ===")
-		suite.Contains(stdout, "=== kubernetes_state_core check ===")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
+		assert.Contains(t, stdout, "agents reporting ===")
+		assert.Contains(t, stdout, "===== Checks on ")
+		assert.Contains(t, stdout, "=== helm check ===")
+		assert.Contains(t, stdout, "=== kubernetes_state_core check ===")
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	})
 
-	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+	t.Run("cluster-agent clusterchecks force rebalance", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
-		suite.Require().NoError(err)
-		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		require.NoError(t, err)
+		assert.NotContains(t, stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
 		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
-		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
-			suite.T().Log(stderr)
+		assert.True(t, matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if t.Failed() {
+			t.Log(stdout)
+			t.Log(stderr)
 		}
 	})
 
-	suite.Run("cluster-agent autoscaler-list --localstore", func() {
+	t.Run("cluster-agent autoscaler-list --localstore", func(t *testing.T) {
 		// First verify the command exists and autoscaling is enabled
 		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
 			"datadog",
@@ -622,10 +658,10 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			"cluster-agent",
 			[]string{"sh", "-c", "datadog-cluster-agent autoscaler-list --localstore 2>&1 || echo 'Exit code:' $?"},
 		)
-		suite.T().Logf("Initial check - stdout: %s, stderr: %s, err: %v", checkStdout, checkStderr, checkErr)
+		t.Logf("Initial check - stdout: %s, stderr: %s, err: %v", checkStdout, checkStderr, checkErr)
 
 		// Wait for some workload metrics to be collected in the local store
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			// Execute the CLI command to list workload metrics from local store
 			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
 				"datadog",
@@ -640,7 +676,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			assert.NotEmpty(c, stdout, "workload-list --local-store should return data")
 
 			// Log full output for debugging
-			suite.T().Logf("Output:\n%s", stdout)
+			t.Logf("Output:\n%s", stdout)
 
 			validEntryCount := 0
 			lines := strings.SplitSeq(stdout, "\n")
@@ -661,25 +697,25 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 				}
 			}
 
-			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
+			t.Logf("Found %d workload metric entries in local store", validEntryCount)
 			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
 		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
 	})
 
-	suite.Run("cluster-agent CRD collector", func() {
+	t.Run("cluster-agent CRD collector", func(t *testing.T) {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"agent", "workload-list"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
-		suite.Contains(stdout, "=== Entity crd sources(merged):[kubeapiserver] id: datadogmetrics.datadoghq.com ===")
+		require.NoError(t, err)
+		assert.Empty(t, stderr, "Standard error of `agent workload-list` should be empty")
+		assert.Contains(t, stdout, "=== Entity crd sources(merged):[kubeapiserver] id: datadogmetrics.datadoghq.com ===")
 
 	})
 }
 
-func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
+func (suite *k8sSuite) testDCALeaderElection(t *testing.T, restartLeader bool) string {
 	ctx := context.Background()
 	var leaderPodName string
 
-	success := suite.EventuallyWithTf(func(c *assert.CollectT) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		// find cluster agent pod, it could be either leader or follower
 		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
@@ -705,7 +741,7 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 		leaderPodName, ok = (blobMap["leaderelection"].(map[string]interface{}))["leaderName"].(string)
 		assert.Truef(c, ok, "Failed to assert `leaderelection.leaderName` as string")
 		assert.NotEmpty(c, leaderPodName, "Field `leaderelection.leaderName` is empty in the JSON output")
-		suite.T().Logf("Cluster agent pods have a leader name: %s", leaderPodName)
+		t.Logf("Cluster agent pods have a leader name: %s", leaderPodName)
 		leaderPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").Get(ctx, leaderPodName, metav1.GetOptions{})
 		assert.NoError(c, err)
 		assert.NotNilf(c, leaderPod, "Leader pod: %s not found", leaderPodName)
@@ -713,22 +749,19 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 		// restart the leader pod
 		if restartLeader {
 			// TODO: not enabled for now because it will cause other tests to fail
-			suite.T().Logf("Restarting leader pod: %s", leaderPodName)
+			t.Logf("Restarting leader pod: %s", leaderPodName)
 			err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").Delete(ctx, leaderPodName, metav1.DeleteOptions{})
 			assert.NoError(c, err)
 		}
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
+		if t.Failed() {
+			t.Log(stdout)
 		}
 	}, 2*time.Minute, 10*time.Second, "Cluster agent leader election failed")
 
-	if !success {
-		return ""
-	}
 	return leaderPodName
 }
 
-func (suite *k8sSuite) TestNginx() {
+func (suite *k8sSuite) testNginx(t *testing.T) {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 
@@ -740,7 +773,7 @@ func (suite *k8sSuite) TestNginx() {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{
@@ -778,7 +811,7 @@ func (suite *k8sSuite) TestNginx() {
 
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "network.http.response_time",
 			Tags: []string{
@@ -799,7 +832,7 @@ func (suite *k8sSuite) TestNginx() {
 	})
 
 	// Test KSM metrics for the nginx deployment
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
@@ -829,7 +862,7 @@ func (suite *k8sSuite) TestNginx() {
 	})
 
 	// Test Nginx logs
-	suite.testLog(&testLogArgs{
+	suite.testLog(t, &testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
 			Tags: []string{
@@ -869,10 +902,10 @@ func (suite *k8sSuite) TestNginx() {
 
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
-	suite.testHPA("workload-nginx", "nginx")
+	suite.testHPA(t, "workload-nginx", "nginx")
 }
 
-func (suite *k8sSuite) TestRedis() {
+func (suite *k8sSuite) testRedis(t *testing.T) {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 
@@ -884,7 +917,7 @@ func (suite *k8sSuite) TestRedis() {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{
@@ -916,7 +949,7 @@ func (suite *k8sSuite) TestRedis() {
 	})
 
 	// Test KSM metrics for the redis deployment
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
@@ -942,7 +975,7 @@ func (suite *k8sSuite) TestRedis() {
 	})
 
 	// Test Redis logs
-	suite.testLog(&testLogArgs{
+	suite.testLog(t, &testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
 			Tags: []string{
@@ -977,12 +1010,12 @@ func (suite *k8sSuite) TestRedis() {
 
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
-	suite.testHPA("workload-redis", "redis")
+	suite.testHPA(t, "workload-redis", "redis")
 }
 
-func (suite *k8sSuite) TestArgoRollout() {
+func (suite *k8sSuite) testArgoRollout(t *testing.T) {
 	// Check that kube_argo_rollout tag is added to metric
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.system",
 			Tags: []string{
@@ -1004,7 +1037,7 @@ func (suite *k8sSuite) TestArgoRollout() {
 	})
 }
 
-func (suite *k8sSuite) TestCPU() {
+func (suite *k8sSuite) testCPU(t *testing.T) {
 	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 	// Test CPU metrics
 
@@ -1016,7 +1049,7 @@ func (suite *k8sSuite) TestCPU() {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
@@ -1051,7 +1084,7 @@ func (suite *k8sSuite) TestCPU() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.limit",
 			Tags: []string{
@@ -1086,7 +1119,7 @@ func (suite *k8sSuite) TestCPU() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.usage.total",
 			Tags: []string{
@@ -1121,7 +1154,7 @@ func (suite *k8sSuite) TestCPU() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.limits",
 			Tags: []string{
@@ -1157,9 +1190,9 @@ func (suite *k8sSuite) TestCPU() {
 	})
 }
 
-func (suite *k8sSuite) TestKSM() {
+func (suite *k8sSuite) testKSM(t *testing.T) {
 	// Test VPA metrics for nginx
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
 			Tags: []string{
@@ -1186,7 +1219,7 @@ func (suite *k8sSuite) TestKSM() {
 	})
 
 	// Test VPA metrics for redis
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
 			Tags: []string{
@@ -1209,7 +1242,7 @@ func (suite *k8sSuite) TestKSM() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
@@ -1231,39 +1264,39 @@ func (suite *k8sSuite) TestKSM() {
 	})
 }
 
-func (suite *k8sSuite) TestDogstatsdInAgent() {
+func (suite *k8sSuite) testDogstatsdInAgent(t *testing.T) {
 	// Test with UDP + External Data
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
 
 	if suite.runtime == "cri-o" {
-		suite.T().Skip("Dogstatsd tests not using External Data are not currently supported on CRI-O")
+		t.Skip("Dogstatsd tests not using External Data are not currently supported on CRI-O")
 		return
 	}
 
 	// Test with UDS
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 	// Test with UDS + CSI Driver
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
 
-func (suite *k8sSuite) TestDogstatsdStandalone() {
+func (suite *k8sSuite) testDogstatsdStandalone(t *testing.T) {
 	if suite.runtime == "cri-o" {
-		suite.T().Skip("DogstatsdStandalone tests not using External Data are not currently supported on CRI-O")
+		t.Skip("DogstatsdStandalone tests not using External Data are not currently supported on CRI-O")
 		return
 	}
 
 	// Test with UDS
-	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
+	suite.testDogstatsd(t, kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 }
 
-func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
+func (suite *k8sSuite) testDogstatsd(t *testing.T, kubeNamespace, kubeDeployment string) {
 
 	var sourceCodeIntegrationTags []string
 	if suite.runtime != "cri-o" {
@@ -1273,7 +1306,7 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
@@ -1305,7 +1338,7 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 	})
 }
 
-func (suite *k8sSuite) TestPrometheus() {
+func (suite *k8sSuite) testPrometheus(t *testing.T) {
 	// Test Prometheus check
 
 	var sourceCodeIntegrationTags []string
@@ -1316,7 +1349,7 @@ func (suite *k8sSuite) TestPrometheus() {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
 			Tags: []string{
@@ -1354,7 +1387,7 @@ func (suite *k8sSuite) TestPrometheus() {
 // test, except that the metric "prom_gauge" has been renamed to
 // "prom_gauge_configured_in_etcd" to confirm that the check is using the
 // etcd-defined configuration.
-func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
+func (suite *k8sSuite) testPrometheusWithConfigFromEtcd(t *testing.T) {
 
 	var sourceCodeIntegrationTags []string
 	if suite.runtime != "cri-o" {
@@ -1364,7 +1397,7 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 		}
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge_configured_in_etcd", // This is the name defined in the check config stored in etcd
 			Tags: []string{
@@ -1397,19 +1430,19 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 	})
 }
 
-func (suite *k8sSuite) TestAdmissionControllerWithoutAPMInjection() {
-	suite.testAdmissionControllerPod("workload-mutated", "mutated", "", false)
+func (suite *k8sSuite) testAdmissionControllerWithoutAPMInjection(t *testing.T) {
+	suite.testAdmissionControllerPod(t, "workload-mutated", "mutated", "", false)
 }
 
-func (suite *k8sSuite) TestAdmissionControllerWithLibraryAnnotation() {
-	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-lib-annotation", "python", false)
+func (suite *k8sSuite) testAdmissionControllerWithLibraryAnnotation(t *testing.T) {
+	suite.testAdmissionControllerPod(t, "workload-mutated-lib-injection", "mutated-with-lib-annotation", "python", false)
 }
 
-func (suite *k8sSuite) TestAdmissionControllerWithAutoDetectedLanguage() {
-	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-auto-detected-language", "python", true)
+func (suite *k8sSuite) testAdmissionControllerWithAutoDetectedLanguage(t *testing.T) {
+	suite.testAdmissionControllerPod(t, "workload-mutated-lib-injection", "mutated-with-auto-detected-language", "python", true)
 }
 
-func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string, language string, languageShouldBeAutoDetected bool) {
+func (suite *k8sSuite) testAdmissionControllerPod(t *testing.T, namespace string, name string, language string, languageShouldBeAutoDetected bool) {
 	ctx := context.Background()
 
 	// When the language should be auto-detected, we need to wait for the
@@ -1418,7 +1451,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
 
-		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 				Limit:         1,
@@ -1441,11 +1474,11 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
 			require.NoError(c, err)
 			if !assert.Contains(c, stdout, "Language: python") {
-				suite.T().Log(stdout)
+				t.Log(stdout)
 			}
 		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
 
-		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			require.NoErrorf(c, err, "deployment with name %s in namespace %s not found", name, namespace)
 
@@ -1466,11 +1499,11 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
-	suite.Require().NoError(err)
-	suite.Require().Len(pods.Items, 1)
+	require.NoError(t, err)
+	require.Len(t, pods.Items, 1)
 	pod := pods.Items[0]
 
-	suite.Require().Len(pod.Spec.Containers, 1)
+	require.Len(t, pod.Spec.Containers, 1)
 
 	// Assert injected env vars
 	env := make(map[string]string)
@@ -1478,21 +1511,21 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		env[envVar.Name] = envVar.Value
 	}
 
-	if suite.Contains(env, "DD_DOGSTATSD_URL") {
-		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
+	if assert.Contains(t, env, "DD_DOGSTATSD_URL") {
+		assert.Equal(t, "unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
 	}
-	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
-		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
+	if assert.Contains(t, env, "DD_TRACE_AGENT_URL") {
+		assert.Equal(t, "unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
 	}
-	suite.Contains(env, "DD_ENTITY_ID")
-	if suite.Contains(env, "DD_ENV") {
-		suite.Equal("e2e", env["DD_ENV"])
+	assert.Contains(t, env, "DD_ENTITY_ID")
+	if assert.Contains(t, env, "DD_ENV") {
+		assert.Equal(t, "e2e", env["DD_ENV"])
 	}
-	if suite.Contains(env, "DD_SERVICE") {
-		suite.Equal(name, env["DD_SERVICE"])
+	if assert.Contains(t, env, "DD_SERVICE") {
+		assert.Equal(t, name, env["DD_SERVICE"])
 	}
-	if suite.Contains(env, "DD_VERSION") {
-		suite.Equal("v0.0.1", env["DD_VERSION"])
+	if assert.Contains(t, env, "DD_VERSION") {
+		assert.Equal(t, "v0.0.1", env["DD_VERSION"])
 	}
 
 	// Assert injected volumes and mounts
@@ -1507,11 +1540,11 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
 	)
 
-	if suite.Contains(hostPathVolumes, "datadog") {
+	if assert.Contains(t, hostPathVolumes, "datadog") {
 		// trim trailing '/' if exists
 		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
-		suite.Contains("/var/run/datadog", ddHostPath)
-		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
+		assert.Contains(t, "/var/run/datadog", ddHostPath)
+		assert.Contains(t, volumesMarkedAsSafeToEvict, "datadog")
 	}
 
 	volumeMounts := make(map[string][]string)
@@ -1519,8 +1552,8 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
-	if suite.Contains(volumeMounts, "datadog") {
-		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
+	if assert.Contains(t, volumeMounts, "datadog") {
+		assert.ElementsMatch(t, []string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 
 	switch language {
@@ -1533,16 +1566,16 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
-			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
+		if assert.Contains(t, emptyDirVolumes, "datadog-auto-instrumentation") {
+			assert.Contains(t, volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
-			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
+		if assert.Contains(t, emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+			assert.Contains(t, volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
 		}
 
-		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.ElementsMatch([]string{
+		if assert.Contains(t, volumeMounts, "datadog-auto-instrumentation") {
+			assert.ElementsMatch(t, []string{
 				"/opt/datadog-packages/datadog-apm-inject",
 				"/opt/datadog/apm/library",
 			}, volumeMounts["datadog-auto-instrumentation"])
@@ -1550,24 +1583,24 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	}
 }
 
-func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+func (suite *k8sSuite) testAdmissionControllerExcludesSystemNamespaces(t *testing.T) {
 	if suite.runtime == "cri-o" {
 		// Won't work on OpenShift because the kube-system namespace is unused
 		// Since OpenShift is the only platform that uses cri-o by default, we assume this test is running on OpenShift.
-		suite.T().Skip("TestAdmissionControllerExcludesSystemNamespaces is not supported on CRI-O")
+		t.Skip("TestAdmissionControllerExcludesSystemNamespaces is not supported on CRI-O")
 		return
 	}
 
 	ctx := context.Background()
 
-	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
+	t.Run("webhooks should not mutate pods in kube-system namespace", func(t *testing.T) {
 		// Get a pod from kube-system namespace
 		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
-		suite.Require().NoError(err)
-		suite.Require().NotEmpty(pods.Items, "No pods found in kube-system namespace")
+		require.NoError(t, err)
+		require.NotEmpty(t, pods.Items, "No pods found in kube-system namespace")
 
 		// Verify the pod does NOT have admission controller mutations
-		suite.Run("should not have config env injected", func() {
+		t.Run("should not have config env injected", func(t *testing.T) {
 			for _, pod := range pods.Items {
 				env := make(map[string]string)
 				for _, container := range pod.Spec.Containers {
@@ -1577,31 +1610,31 @@ func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
 				}
 
 				// These env vars should NOT be present in kube-system pods
-				suite.NotContainsf(env, "DD_AGENT_HOST", "DD_AGENT_HOST should not be injected in kube-system resource %v", pod.Name)
-				suite.NotContainsf(env, "DD_ENTITY_ID", "DD_ENTITY_ID should not be injected in kube-system resource %v", pod.Name)
-				suite.NotContainsf(env, "DD_DOGSTATSD_URL", "DD_DOGSTATSD_URL should not be injected in kube-system resource %v", pod.Name)
-				suite.NotContainsf(env, "DD_TRACE_AGENT_URL", "DD_TRACE_AGENT_URL should not be injected in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, env, "DD_AGENT_HOST", "DD_AGENT_HOST should not be injected in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, env, "DD_ENTITY_ID", "DD_ENTITY_ID should not be injected in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, env, "DD_DOGSTATSD_URL", "DD_DOGSTATSD_URL should not be injected in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, env, "DD_TRACE_AGENT_URL", "DD_TRACE_AGENT_URL should not be injected in kube-system resource %v", pod.Name)
 			}
 		})
 
-		suite.Run("should not have datadog volumes mounted", func() {
+		t.Run("should not have datadog volumes mounted", func(t *testing.T) {
 			for _, pod := range pods.Items {
 				volumeNames := make(map[string]bool)
 				for _, volume := range pod.Spec.Volumes {
 					volumeNames[volume.Name] = true
 				}
 
-				suite.NotContainsf(volumeNames, "datadog", "datadog volume should not be mounted in kube-system resource %v", pod.Name)
-				suite.NotContainsf(volumeNames, "datadog-auto-instrumentation", "APM library volume should not be mounted in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, volumeNames, "datadog", "datadog volume should not be mounted in kube-system resource %v", pod.Name)
+				assert.NotContainsf(t, volumeNames, "datadog-auto-instrumentation", "APM library volume should not be mounted in kube-system resource %v", pod.Name)
 			}
 		})
 	})
 }
 
-func (suite *k8sSuite) TestContainerImage() {
+func (suite *k8sSuite) testContainerImage(t *testing.T) {
 	sendEvent := func(alertType, text string) {
 		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-			Title: pointer.Ptr(suite.T().Name()),
+			Title: pointer.Ptr(t.Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
 %s
@@ -1612,22 +1645,22 @@ func (suite *k8sSuite) TestContainerImage() {
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
 				"contimage:ghcr.io/datadog/apps-nginx-server",
-				"test:" + suite.T().Name(),
+				"test:" + t.Name(),
 			},
 		}); err != nil {
-			suite.T().Logf("Failed to post event: %s", err)
+			t.Logf("Failed to post event: %s", err)
 		}
 	}
 
 	defer func() {
-		if suite.T().Failed() {
+		if t.Failed() {
 			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container image payload with proper tags")
 		} else {
 			sendEvent("success", "All good!")
 		}
 	}()
 
-	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		c := &myCollectT{
 			CollectT: collect,
 			errors:   []error{},
@@ -1668,10 +1701,10 @@ func (suite *k8sSuite) TestContainerImage() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 
-func (suite *k8sSuite) TestSBOM() {
+func (suite *k8sSuite) testSBOM(t *testing.T) {
 	sendEvent := func(alertType, text string) {
 		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-			Title: pointer.Ptr(suite.T().Name()),
+			Title: pointer.Ptr(t.Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
 %s
@@ -1682,22 +1715,22 @@ func (suite *k8sSuite) TestSBOM() {
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
 				"sbom:ghcr.io/datadog/apps-nginx-server",
-				"test:" + suite.T().Name(),
+				"test:" + t.Name(),
 			},
 		}); err != nil {
-			suite.T().Logf("Failed to post event: %s", err)
+			t.Logf("Failed to post event: %s", err)
 		}
 	}
 
 	defer func() {
-		if suite.T().Failed() {
+		if t.Failed() {
 			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` SBOM payload with proper tags")
 		} else {
 			sendEvent("success", "All good!")
 		}
 	}()
 
-	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		c := &myCollectT{
 			CollectT: collect,
 			errors:   []error{},
@@ -1794,10 +1827,10 @@ func (suite *k8sSuite) TestSBOM() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 
-func (suite *k8sSuite) TestContainerLifecycleEvents() {
+func (suite *k8sSuite) testContainerLifecycleEvents(t *testing.T) {
 	sendEvent := func(alertType, text string) {
 		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-			Title: pointer.Ptr(suite.T().Name()),
+			Title: pointer.Ptr(t.Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
 %s
@@ -1808,15 +1841,15 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 				"app:agent-new-e2e-tests-containers",
 				"cluster_name:" + suite.clusterName,
 				"contlcycle:ghcr.io/datadog/apps-nginx-server",
-				"test:" + suite.T().Name(),
+				"test:" + t.Name(),
 			},
 		}); err != nil {
-			suite.T().Logf("Failed to post event: %s", err)
+			t.Logf("Failed to post event: %s", err)
 		}
 	}
 
 	defer func() {
-		if suite.T().Failed() {
+		if t.Failed() {
 			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container lifecycle event")
 		} else {
 			sendEvent("success", "All good!")
@@ -1825,7 +1858,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 
 	var nginxPod corev1.Pod
 
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
@@ -1839,7 +1872,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		}
 
 		// Choose the oldest pod.
-		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
+		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn't been seen by the agent yet.
 		// So that no pod lifecycle event is sent.
 		nginxPod = lo.MinBy(pods.Items, func(item corev1.Pod, min corev1.Pod) bool {
 			return item.Status.StartTime.Before(min.Status.StartTime)
@@ -1847,9 +1880,9 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
 	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
-	suite.Require().NoError(err)
+	require.NoError(t, err)
 
-	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		c := &myCollectT{
 			CollectT: collect,
 			errors:   []error{},
@@ -1886,8 +1919,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 
-func (suite *k8sSuite) testHPA(namespace, deployment string) {
-	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
+func (suite *k8sSuite) testHPA(t *testing.T, namespace, deployment string) {
+	t.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func(t *testing.T) {
 		sendEvent := func(alertType, text string, time *int) {
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),
@@ -1902,22 +1935,22 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					"metric:kubernetes_state.deployment.replicas_available",
 					"filter_tag_kube_namespace:" + namespace,
 					"filter_tag_kube_deployment:" + deployment,
-					"test:" + suite.T().Name(),
+					"test:" + t.Name(),
 				},
 			}); err != nil {
-				suite.T().Logf("Failed to post event: %s", err)
+				t.Logf("Failed to post event: %s", err)
 			}
 		}
 
 		defer func() {
-			if suite.T().Failed() {
+			if t.Failed() {
 				sendEvent("error", "Failed to witness a scale up *or* scale down event.", nil)
 			} else {
 				sendEvent("success", "Scale up or scale down event detected.", nil)
 			}
 		}()
 
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
@@ -1963,17 +1996,17 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	})
 }
 
-func (suite *k8sSuite) TestTraceUDS() {
-	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
+func (suite *k8sSuite) testTraceUDS(t *testing.T) {
+	suite.testTrace(t, kubeDeploymentTracegenUDSWorkload)
 }
 
-func (suite *k8sSuite) TestTraceTCP() {
-	suite.testTrace(kubeDeploymentTracegenTCPWorkload)
+func (suite *k8sSuite) testTraceTCP(t *testing.T) {
+	suite.testTrace(t, kubeDeploymentTracegenTCPWorkload)
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
-func (suite *k8sSuite) testTrace(kubeDeployment string) {
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+func (suite *k8sSuite) testTrace(t *testing.T, kubeDeployment string) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
