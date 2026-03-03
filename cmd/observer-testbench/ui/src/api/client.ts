@@ -34,7 +34,7 @@ export interface ScenarioInfo {
 export interface ComponentInfo {
   name: string;
   displayName: string;
-  category: 'analyzer' | 'correlator' | 'processing';
+  category: 'detector' | 'correlator' | 'processing';
   enabled: boolean;
 }
 
@@ -53,8 +53,8 @@ export interface Point {
 
 export interface AnomalyMarker {
   timestamp: number;
-  analyzerName: string;
-  analyzerComponent?: string;
+  detectorName: string;
+  detectorComponent?: string;
   sourceSeriesId?: SeriesID;
   title: string;
 }
@@ -85,8 +85,8 @@ export interface AnomalyDebugInfo {
 export interface Anomaly {
   source: MetricName;
   sourceSeriesId?: SeriesID;
-  analyzerName: string;
-  analyzerComponent?: string;
+  detectorName: string;
+  detectorComponent?: string;
   title: string;
   description: string;
   tags: string[];
@@ -102,10 +102,10 @@ export interface LogEntry {
   tags: string[];
 }
 
-// LogAnomaly is an anomaly emitted directly by a log processor (not via TS analysis).
+// LogAnomaly is an anomaly emitted directly by a log detector (not via metrics detection).
 export interface LogAnomaly {
   source: string;
-  processorName: string;
+  detectorName: string;
   title: string;
   description: string;
   tags: string[];
@@ -227,8 +227,8 @@ class ApiClient {
     return this.fetch(`/series/id/${encodeURIComponent(id)}`);
   }
 
-  async getAnomalies(analyzer?: string): Promise<Anomaly[]> {
-    const params = analyzer ? `?analyzer=${encodeURIComponent(analyzer)}` : '';
+  async getAnomalies(detector?: string): Promise<Anomaly[]> {
+    const params = detector ? `?detector=${encodeURIComponent(detector)}` : '';
     return this.fetch(`/anomalies${params}`);
   }
 
@@ -237,8 +237,8 @@ class ApiClient {
     return this.fetch(`/logs${params}`);
   }
 
-  async getLogAnomalies(processor?: string): Promise<LogAnomaly[]> {
-    const params = processor ? `?processor=${encodeURIComponent(processor)}` : '';
+  async getLogAnomalies(detector?: string): Promise<LogAnomaly[]> {
+    const params = detector ? `?detector=${encodeURIComponent(detector)}` : '';
     return this.fetch(`/log-anomalies${params}`);
   }
 

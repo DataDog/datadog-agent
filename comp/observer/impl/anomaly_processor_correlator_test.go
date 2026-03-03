@@ -16,7 +16,7 @@ import (
 func TestCorrelator_SingleAnomalyNoReport(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "Network retransmits exceeded threshold",
@@ -30,12 +30,12 @@ func TestCorrelator_TwoAnomaliesSameSignalNoReport(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add two anomalies from the same signal
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits 1",
 		Description: "First occurrence",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits 2",
 		Description: "Second occurrence",
@@ -50,17 +50,17 @@ func TestCorrelator_ThreeRequiredSignalsProduceReport(t *testing.T) {
 
 	// Add anomalies from all three required signals for kernel bottleneck pattern
 	// Note: Source names now include aggregation suffix (avg for value, count for frequency)
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "Network retransmits exceeded threshold",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Title:       "Lock contention",
 		Description: "High lock contention detected",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Title:       "Connection errors",
 		Description: "Connection error rate elevated",
@@ -98,7 +98,7 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 	correlator := NewCorrelator(config)
 
 	// Add first anomaly at data time 1000
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "Network retransmits exceeded threshold",
@@ -106,13 +106,13 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 	})
 
 	// Add remaining anomalies at data time 1031 (31 seconds later, beyond window)
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Title:       "Lock contention",
 		Description: "High lock contention detected",
 		Timestamp:   1031,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Title:       "Connection errors",
 		Description: "Connection error rate elevated",
@@ -130,9 +130,9 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
+	correlator.Process(observer.Anomaly{Source: "network.retransmits:avg"})
+	correlator.Process(observer.Anomaly{Source: "ebpf.lock_contention_ns:avg"})
+	correlator.Process(observer.Anomaly{Source: "connection.errors:count"})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
@@ -153,9 +153,9 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
+	correlator.Process(observer.Anomaly{Source: "network.retransmits:avg"})
+	correlator.Process(observer.Anomaly{Source: "ebpf.lock_contention_ns:avg"})
+	correlator.Process(observer.Anomaly{Source: "connection.errors:count"})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
@@ -170,9 +170,9 @@ func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
 func TestCorrelator_BufferNotClearedAfterFlush(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
+	correlator.Process(observer.Anomaly{Source: "network.retransmits:avg"})
+	correlator.Process(observer.Anomaly{Source: "ebpf.lock_contention_ns:avg"})
+	correlator.Process(observer.Anomaly{Source: "connection.errors:count"})
 
 	// First flush should create active correlations
 	correlator.Flush()
@@ -202,8 +202,8 @@ func TestCorrelator_PartialPatternNoActiveCorrelation(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Only two of three required signals
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
+	correlator.Process(observer.Anomaly{Source: "network.retransmits:avg"})
+	correlator.Process(observer.Anomaly{Source: "ebpf.lock_contention_ns:avg"})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
@@ -214,10 +214,10 @@ func TestCorrelator_ExtraSignalsStillMatch(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// All required signals plus an extra one
-	correlator.Process(observer.AnomalyOutput{Source: "network.retransmits:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "ebpf.lock_contention_ns:avg"})
-	correlator.Process(observer.AnomalyOutput{Source: "connection.errors:count"})
-	correlator.Process(observer.AnomalyOutput{Source: "extra.signal:avg"})
+	correlator.Process(observer.Anomaly{Source: "network.retransmits:avg"})
+	correlator.Process(observer.Anomaly{Source: "ebpf.lock_contention_ns:avg"})
+	correlator.Process(observer.Anomaly{Source: "connection.errors:count"})
+	correlator.Process(observer.Anomaly{Source: "extra.signal:avg"})
 
 	correlator.Flush()
 	activeCorrs := correlator.ActiveCorrelations()
@@ -239,15 +239,15 @@ func TestCorrelator_ActiveCorrelationTimestamps(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add all required signals at data time 1000
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "network.retransmits:avg",
 		Timestamp: 1000,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "ebpf.lock_contention_ns:avg",
 		Timestamp: 1000,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "connection.errors:count",
 		Timestamp: 1000,
 	})
@@ -265,7 +265,7 @@ func TestCorrelator_ActiveCorrelationTimestamps(t *testing.T) {
 	assert.Equal(t, int64(1000), found.LastUpdated)
 
 	// Add new anomalies at data time 1010
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "network.retransmits:avg",
 		Timestamp: 1010,
 	})
@@ -290,15 +290,15 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 	correlator := NewCorrelator(config)
 
 	// Add all required signals at data time 1000
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "network.retransmits:avg",
 		Timestamp: 1000,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "ebpf.lock_contention_ns:avg",
 		Timestamp: 1000,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "connection.errors:count",
 		Timestamp: 1000,
 	})
@@ -309,7 +309,7 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 
 	// Add an anomaly at data time 1035 (35 seconds later), which advances currentDataTime
 	// and causes all previous signals to expire (1000 < 1035 - 30 = 1005)
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:    "some.other.signal:avg",
 		Timestamp: 1035,
 	})
@@ -322,17 +322,17 @@ func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add anomalies with descriptions for all required signals
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "network.retransmits:avg elevated: recent avg 100 vs baseline 10 (>3 stddev)",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Title:       "Lock contention",
 		Description: "ebpf.lock_contention_ns:avg elevated: recent avg 500 vs baseline 50 (>3 stddev)",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Title:       "Connection errors",
 		Description: "connection.errors:count elevated: recent avg 25 vs baseline 2 (>3 stddev)",
@@ -364,17 +364,17 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add initial anomalies - all within 30 second window
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "first retransmits anomaly",
 		Timestamp:   1010,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "first lock contention anomaly",
 		Timestamp:   1010,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Description: "first connection errors anomaly",
 		Timestamp:   1010,
@@ -389,7 +389,7 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	require.Len(t, found.Anomalies, 3)
 
 	// Add another anomaly for one of the signals with later timestamp (still within 30s window)
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "second retransmits anomaly",
 		Timestamp:   1020, // later but within window
@@ -410,30 +410,29 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 
 	// Add multiple anomalies for the same source with different timestamps
 	// All timestamps within the 30-second window
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "oldest retransmits",
 		Timestamp:   1010,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "newest retransmits",                       // should be kept
-		Timestamp:   1025,                                       // latest timestamp
-		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
+		Timestamp:   1025, // latest timestamp
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "middle retransmits",
 		Timestamp:   1015,
 	})
 
 	// Add other required signals - all within window
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "lock contention",
 		Timestamp:   1010,
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Description: "connection errors",
 		Timestamp:   1010,
@@ -463,19 +462,19 @@ func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
 	// Add all required signals plus an extra one
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
 		Description: "retransmits anomaly",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "lock contention anomaly",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "connection.errors:count",
 		Description: "connection errors anomaly",
 	})
-	correlator.Process(observer.AnomalyOutput{
+	correlator.Process(observer.Anomaly{
 		Source:      "extra.signal:avg",
 		Description: "extra signal anomaly",
 	})

@@ -24,7 +24,7 @@ func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 		Points: []observer.Point{{Timestamp: 1, Value: 100}},
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	assert.Empty(t, result.Anomalies)
 }
 
@@ -37,7 +37,7 @@ func TestBOCPDDetector_StableData(t *testing.T) {
 	}
 
 	series := observer.Series{Name: "test.metric", Points: points}
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	assert.Empty(t, result.Anomalies, "stable data should not trigger BOCPD")
 }
 
@@ -53,7 +53,7 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	}
 
 	series := observer.Series{Name: "test.metric", Points: points}
-	result := d.Analyze(series)
+	result := d.Detect(series)
 
 	if assert.Len(t, result.Anomalies, 1) {
 		assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
@@ -73,7 +73,7 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 	}
 
 	series := observer.Series{Name: "test.metric", Points: points}
-	result := d.Analyze(series)
+	result := d.Detect(series)
 
 	if assert.Len(t, result.Anomalies, 1) {
 		assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
@@ -96,7 +96,7 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	}
 
 	series := observer.Series{Name: "test.metric", Points: points}
-	result := d.Analyze(series)
+	result := d.Detect(series)
 
 	if assert.Len(t, result.Anomalies, 1) {
 		assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")

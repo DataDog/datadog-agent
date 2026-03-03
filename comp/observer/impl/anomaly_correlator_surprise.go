@@ -98,7 +98,7 @@ type SurpriseCorrelator struct {
 	currentWindowSources map[observer.SeriesID]bool
 
 	// Recent anomalies for reporting
-	recentAnomalies []observer.AnomalyOutput
+	recentAnomalies []observer.Anomaly
 
 	// Current data time for eviction
 	currentDataTime int64
@@ -137,13 +137,13 @@ func NewSurpriseCorrelator(config SurpriseConfig) *SurpriseCorrelator {
 	}
 }
 
-// Name returns the processor name.
+// Name returns the correlator name.
 func (c *SurpriseCorrelator) Name() string {
 	return "surprise_correlator"
 }
 
 // Process adds an anomaly and updates co-occurrence counts.
-func (c *SurpriseCorrelator) Process(anomaly observer.AnomalyOutput) {
+func (c *SurpriseCorrelator) Process(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -322,7 +322,7 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	var result []observer.ActiveCorrelation
 
 	// Group anomalies by source for quick lookup
-	anomaliesBySource := make(map[observer.SeriesID][]observer.AnomalyOutput)
+	anomaliesBySource := make(map[observer.SeriesID][]observer.Anomaly)
 	for _, a := range c.recentAnomalies {
 		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
@@ -332,7 +332,7 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 		memberSeriesIDs := []observer.SeriesID{observer.SeriesID(edge.Source1), observer.SeriesID(edge.Source2)}
 
 		// Collect anomalies from both sources
-		var anomalies []observer.AnomalyOutput
+		var anomalies []observer.Anomaly
 		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Source1)]...)
 		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Source2)]...)
 

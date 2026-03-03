@@ -41,7 +41,7 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
 	id           int
-	anomalies    map[observer.SeriesID]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
+	anomalies    map[observer.SeriesID]observer.Anomaly // keyed by SourceSeriesID for dedup
 	minTimestamp int64                                        // earliest anomaly timestamp
 	maxTimestamp int64                                        // latest anomaly timestamp
 }
@@ -73,13 +73,13 @@ func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 	}
 }
 
-// Name returns the processor name.
+// Name returns the correlator name.
 func (c *TimeClusterCorrelator) Name() string {
 	return "time_cluster_correlator"
 }
 
 // Process adds an anomaly, either to an existing cluster or a new one.
-func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
+func (c *TimeClusterCorrelator) Process(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -101,7 +101,7 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 		c.nextClusterID++
 		newCluster := &timeCluster{
 			id:           c.nextClusterID,
-			anomalies:    map[observer.SeriesID]observer.AnomalyOutput{anomaly.SourceSeriesID: anomaly},
+			anomalies:    map[observer.SeriesID]observer.Anomaly{anomaly.SourceSeriesID: anomaly},
 			minTimestamp: anomaly.Timestamp,
 			maxTimestamp: anomaly.Timestamp,
 		}
@@ -125,7 +125,7 @@ func (c *TimeClusterCorrelator) isNearCluster(ts int64, cluster *timeCluster) bo
 }
 
 // addToCluster adds an anomaly to a cluster, updating timestamps and deduping by series ID.
-func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.AnomalyOutput) {
+func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.Anomaly) {
 	// Dedup by SourceSeriesID - keep the one with later timestamp (more recent)
 	if existing, ok := cluster.anomalies[anomaly.SourceSeriesID]; ok {
 		if anomaly.Timestamp > existing.Timestamp {
@@ -306,7 +306,7 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		}
 
 		// Collect anomalies and sources
-		anomalies := make([]observer.AnomalyOutput, 0, len(cluster.anomalies))
+		anomalies := make([]observer.Anomaly, 0, len(cluster.anomalies))
 		memberSeriesIDs := make([]observer.SeriesID, 0, len(cluster.anomalies))
 		for source, anomaly := range cluster.anomalies {
 			anomalies = append(anomalies, anomaly)

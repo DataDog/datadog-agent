@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TimeSeriesChart, getSeriesVariantColor, getAnalyzerColorStable } from './TimeSeriesChart';
-import type { SeriesVariant } from './TimeSeriesChart';
+import { MetricsChart, getSeriesVariantColor, getDetectorColorStable } from './MetricsChart';
+import type { SeriesVariant } from './MetricsChart';
 import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 
@@ -22,7 +22,7 @@ interface ChartWithAnomalyDetailsProps {
   anomalyMarkers: AnomalyMarker[];
   anomalies: Anomaly[];
   correlationRanges?: CorrelationRange[];
-  enabledAnalyzers: Set<string>;
+  enabledDetectors: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   smoothLines?: boolean;
@@ -61,14 +61,14 @@ function buildSeriesVariantColorMap(seriesVariants?: SeriesVariant[]): Map<strin
 }
 
 function getAnomalyId(anomaly: {
-  analyzerName: string;
-  analyzerComponent?: string;
+  detectorName: string;
+  detectorComponent?: string;
   sourceSeriesId?: SeriesID;
   timestamp: number;
   title: string;
 }): string {
-  const analyzerId = anomaly.analyzerComponent ?? anomaly.analyzerName;
-  return `${analyzerId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
+  const detectorId = anomaly.detectorComponent ?? anomaly.detectorName;
+  return `${detectorId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
 }
 
 export function ChartWithAnomalyDetails({
@@ -77,7 +77,7 @@ export function ChartWithAnomalyDetails({
   anomalyMarkers,
   anomalies,
   correlationRanges = [],
-  enabledAnalyzers,
+  enabledDetectors,
   timeRange,
   onTimeRangeChange,
   smoothLines = true,
@@ -122,16 +122,16 @@ export function ChartWithAnomalyDetails({
     setVisibleSeriesIds(buildSeriesIDSet(seriesVariants));
   }, [seriesVariantsSig]);
 
-  // Filter anomalies by enabled analyzers and visible series variants.
+  // Filter anomalies by enabled detectors and visible series variants.
   const filteredAnomalies = useMemo(
     () =>
       anomalies.filter((a) => {
-        if (!enabledAnalyzers.has(a.analyzerComponent ?? a.analyzerName)) return false;
+        if (!enabledDetectors.has(a.detectorComponent ?? a.detectorName)) return false;
         if (!seriesVariants || seriesVariants.length === 0) return true;
         if (!a.sourceSeriesId) return true;
         return visibleSeriesIds.has(a.sourceSeriesId);
       }),
-    [anomalies, enabledAnalyzers, seriesVariants, visibleSeriesIds]
+    [anomalies, enabledDetectors, seriesVariants, visibleSeriesIds]
   );
 
   const filteredAnomalyIds = useMemo(
@@ -182,12 +182,12 @@ export function ChartWithAnomalyDetails({
   return (
     <div className="bg-slate-800 rounded-lg overflow-hidden">
       {/* Chart */}
-      <TimeSeriesChart
+      <MetricsChart
         name={name}
         points={points}
         anomalies={anomalyMarkers}
         correlationRanges={correlationRanges}
-        enabledAnalyzers={enabledAnalyzers}
+        enabledDetectors={enabledDetectors}
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
         height={200}
@@ -220,7 +220,7 @@ export function ChartWithAnomalyDetails({
 
               return (
                 <div
-                  key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`}
+                  key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
                   className={`text-xs rounded border-b border-slate-700/50 last:border-b-0 ${isLinked ? 'bg-slate-700/40 ring-1 ring-slate-500/70' : ''}`}
                   ref={(el) => {
                     if (el) {
@@ -247,11 +247,11 @@ export function ChartWithAnomalyDetails({
                     <span
                       className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                       style={{
-                        backgroundColor: getAnalyzerColorStable(anomaly.analyzerName).fill,
-                        color: getAnalyzerColorStable(anomaly.analyzerName).stroke,
+                        backgroundColor: getDetectorColorStable(anomaly.detectorName).fill,
+                        color: getDetectorColorStable(anomaly.detectorName).stroke,
                       }}
                     >
-                      {anomaly.analyzerName}
+                      {anomaly.detectorName}
                     </span>
                     <span className="text-slate-400">
                       {formatTimestamp(anomaly.timestamp)}

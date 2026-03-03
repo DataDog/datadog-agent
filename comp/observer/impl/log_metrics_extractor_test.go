@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogTimeSeriesAnalysis_JSONNumericExtraction(t *testing.T) {
-	a := &LogTimeSeriesAnalysis{
+func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
+	a := &LogMetricsExtractor{
 		ExcludeFields: map[string]struct{}{
 			"pid":       {},
 			"timestamp": {},
@@ -57,8 +57,8 @@ func TestLogTimeSeriesAnalysis_JSONNumericExtraction(t *testing.T) {
 	}
 }
 
-func TestLogTimeSeriesAnalysis_UnstructuredPatternCount(t *testing.T) {
-	a := &LogTimeSeriesAnalysis{MaxEvalBytes: 0}
+func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
+	a := &LogMetricsExtractor{MaxEvalBytes: 0}
 
 	log := &mockLogView{
 		content: []byte("Request completed in 45ms"),
@@ -77,8 +77,8 @@ func TestLogTimeSeriesAnalysis_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
 }
 
-func TestLogTimeSeriesAnalysis_JSONIncludeFields(t *testing.T) {
-	a := &LogTimeSeriesAnalysis{
+func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
+	a := &LogMetricsExtractor{
 		IncludeFields: map[string]struct{}{
 			"duration_ms": {},
 		},
@@ -110,8 +110,8 @@ func TestLogTimeSeriesAnalysis_JSONIncludeFields(t *testing.T) {
 	}
 }
 
-func TestLogTimeSeriesAnalysis_InvalidJSONFallsBackToUnstructured(t *testing.T) {
-	a := &LogTimeSeriesAnalysis{MaxEvalBytes: 0}
+func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
+	a := &LogMetricsExtractor{MaxEvalBytes: 0}
 
 	// Looks like JSON but is invalid -> treated as unstructured (pattern frequency).
 	input := []byte(`{"duration_ms":45,`)

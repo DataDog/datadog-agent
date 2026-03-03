@@ -125,8 +125,8 @@ func NewComponent(deps Requires) Provides {
 	reporter.SetCorrelationState(correlator)
 
 	obs := &observerImpl{
-		logProcessors: []observerdef.LogProcessor{
-			&LogTimeSeriesAnalysis{
+		logDetectors: []observerdef.LogDetector{
+			&LogMetricsExtractor{
 				MaxEvalBytes: 4096,
 				// Exclude metadata fields that shouldn't be metrics.
 				// These are common timestamp/ID fields that appear in event JSON.
@@ -142,10 +142,10 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		tsAnalyses: []observerdef.TimeSeriesAnalysis{
+		metricsDetectors: []observerdef.MetricsDetector{
 			NewCUSUMDetector(),
 		},
-		anomalyProcessors: []observerdef.AnomalyProcessor{
+		correlators: []observerdef.Correlator{
 			correlator,
 		},
 		reporters: []observerdef.Reporter{
@@ -153,7 +153,6 @@ func NewComponent(deps Requires) Provides {
 		},
 		storage:   newTimeSeriesStorage(),
 		obsCh:     make(chan observation, 1000),
-		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
 	// Set up handle function with optional recorder wrapping.
@@ -171,7 +170,6 @@ func NewComponent(deps Requires) Provides {
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
-	eventsDumpPath := cfg.GetString("observer.debug_events_dump_path")
 	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
 	if dumpPath != "" && dumpInterval > 0 {
 		go func() {
@@ -182,14 +180,6 @@ func NewComponent(deps Requires) Provides {
 					fmt.Fprintf(os.Stderr, "[observer] dump error: %v\n", err)
 				} else {
 					fmt.Printf("[observer] dumped metrics to %s\n", dumpPath)
-				}
-				// Also dump events if configured
-				if eventsDumpPath != "" {
-					if err := obs.DumpEvents(eventsDumpPath); err != nil {
-						fmt.Fprintf(os.Stderr, "[observer] events dump error: %v\n", err)
-					} else {
-						fmt.Printf("[observer] dumped events to %s\n", eventsDumpPath)
-					}
 				}
 			}
 		}()
@@ -253,7 +243,7 @@ func NewComponent(deps Requires) Provides {
 				tags = append(tags, "component:"+name)
 			}
 			tags = append(tags, "level:"+strings.ToLower(level.String()))
-			// Emit structured JSON so LogTimeSeriesAnalysis can extract fields consistently.
+			// Emit structured JSON so LogMetricsExtractor can extract fields consistently.
 			// Level is carried as a tag (separate timeseries per level).
 			payload, _ := json.Marshal(map[string]any{
 				"msg": message,
@@ -288,28 +278,19 @@ func samplePass(rate float64, n uint64) bool {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	logProcessors     []observerdef.LogProcessor
-	tsAnalyses        []observerdef.TimeSeriesAnalysis
-	anomalyProcessors []observerdef.AnomalyProcessor // Supports both old (AnomalyOutput) and new (Signal via ProcessSignal)
+	logDetectors     []observerdef.LogDetector
+	metricsDetectors        []observerdef.MetricsDetector
+	correlators []observerdef.Correlator
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
 	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
-	// NEW path: Signal-based processing (V2 architecture)
-	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
-	signalProcessors []observerdef.SignalProcessor // Layer 2: Signal correlation/filtering
-
 	// Deduplication layer (optional) - filters anomalies before correlation
 	deduplicator *AnomalyDeduplicator
 
-	// eventBuffer stores recent event signals (as unified Signals) for debugging/dumping.
-	// Ring buffer with maxEvents capacity.
-	eventBuffer []observerdef.Signal
-	maxEvents   int
-
 	// Raw anomaly tracking for test bench display
-	rawAnomalies         []observerdef.AnomalyOutput
+	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyMu         sync.RWMutex
 	rawAnomalyWindow     int64                           // seconds to keep raw anomalies (0 = unlimited)
 	maxRawAnomalies      int                             // max number of raw anomalies to keep (0 = unlimited)
@@ -331,23 +312,19 @@ func (o *observerImpl) run() {
 	}
 }
 
-// analysisAggregations defines which aggregations to run TS analyses on.
+// detectionAggregations defines which aggregations to run metrics detection on.
 // This allows detecting both value elevation (average) and frequency elevation (count).
-var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
+var detectionAggregations = []Aggregate{AggregateAverage, AggregateCount}
 
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
 
-	// Run time series analyses on multiple aggregations
-	for _, agg := range analysisAggregations {
+	// Run metrics detection on multiple aggregations
+	for _, agg := range detectionAggregations {
 		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
-			// OLD path: Run region-based anomaly detection (TimeSeriesAnalysis)
-			o.runTSAnalyses(*series, agg)
-
-			// NEW path: Run point-based signal emitters
-			o.runSignalEmitters(*series, agg)
+			o.runMetricsDetectors(*series, agg)
 		}
 	}
 
@@ -356,26 +333,19 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
-	// Events (from check-events source) are routed as event signals for correlation,
-	// not processed through log processors for metric derivation.
-	if source == "check-events" {
-		o.routeEventSignal(l)
-		return
-	}
-
-	// Create a view for processors
+	// Create a view for log detectors
 	view := &logView{obs: l}
 
-	for _, processor := range o.logProcessors {
-		result := processor.Process(view)
+	for _, detector := range o.logDetectors {
+		result := detector.Process(view)
 
-		// Add metrics from log processing to storage, then run TS analyses
+		// Add metrics from log processing to storage, then run metrics detection
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
-			// Run time series analyses on multiple aggregations
-			for _, agg := range analysisAggregations {
+			// Run metrics detection on multiple aggregations
+			for _, agg := range detectionAggregations {
 				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
-					o.runTSAnalyses(*series, agg)
+					o.runMetricsDetectors(*series, agg)
 				}
 			}
 		}
@@ -390,116 +360,24 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	o.flushAndReport()
 }
 
-// routeEventSignal converts an event log observation to a unified Signal and sends it
-// to all SignalProcessors. Events are used as correlation context, not as inputs for
-// metric derivation or anomaly detection.
-func (o *observerImpl) routeEventSignal(l *logObs) {
-	// Extract event type from tags (already standardized at source, e.g., "event_type:agent_startup")
-	eventSource := "unknown_event"
-	for _, tag := range l.tags {
-		if strings.HasPrefix(tag, "event_type:") {
-			eventSource = strings.TrimPrefix(tag, "event_type:")
-			break
-		}
-	}
-
-	// Create unified Signal with "event:" prefix to distinguish from metric anomalies
-	signal := observerdef.Signal{
-		Source:    observerdef.SignalSource("event:" + eventSource),
-		Timestamp: l.timestamp,
-		Tags:      l.tags,
-		Value:     0,   // Events don't have numeric values
-		Score:     nil, // Events don't have scores
-	}
-
-	// Store in event buffer (ring buffer)
-	if o.maxEvents > 0 {
-		if len(o.eventBuffer) >= o.maxEvents {
-			// Shift out oldest event
-			o.eventBuffer = o.eventBuffer[1:]
-		}
-		o.eventBuffer = append(o.eventBuffer, signal)
-	}
-
-	// Send to anomaly processors that support signals (new way - use ProcessSignal method)
-	for _, proc := range o.anomalyProcessors {
-		// If the processor supports the new Signal-based input, send it
-		if sp, ok := proc.(*CrossSignalCorrelator); ok {
-			sp.ProcessSignal(signal)
-		}
-	}
-}
-
-// runTSAnalyses runs all time series analyses on a series with the given aggregation.
+// runMetricsDetectors runs all metrics detectors on a series with the given aggregation.
 // It appends an aggregation suffix to the series name for distinct Source tracking.
-func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
+func (o *observerImpl) runMetricsDetectors(series observerdef.Series, agg Aggregate) {
 	// Append aggregation suffix to series name for distinct Source tracking
 	seriesWithAgg := series
 	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
 
-	for _, tsAnalysis := range o.tsAnalyses {
-		result := tsAnalysis.Analyze(seriesWithAgg)
+	for _, metricsDetector := range o.metricsDetectors {
+		result := metricsDetector.Detect(seriesWithAgg)
 		for _, anomaly := range result.Anomalies {
-			// Set the analyzer name so we can identify who produced this anomaly
-			anomaly.AnalyzerName = tsAnalysis.Name()
+			// Set the detector name so we can identify who produced this anomaly
+			anomaly.DetectorName = metricsDetector.Name()
 			anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
 			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			// Capture raw anomaly before passing to processors
+			// Capture raw anomaly before passing to correlators
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
-	}
-}
-
-// runSignalEmitters runs point-based signal emitters on a series and processes the signals.
-// It appends the aggregation suffix to the series name for distinct Source tracking.
-func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregate) {
-	// Append aggregation suffix to series name for distinct Source tracking (matches runTSAnalyses)
-	seriesWithAgg := series
-	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
-
-	for _, emitter := range o.signalEmitters {
-		signals := emitter.Emit(seriesWithAgg)
-
-		for _, signal := range signals {
-			// Convert signal to anomaly and send to correlators
-			anomaly := o.signalToAnomaly(signal, emitter.Name())
-			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			o.captureRawAnomaly(anomaly) // For UI display
-			o.processAnomaly(anomaly)    // Send to correlators
-
-			// Also send signal to signal processors (Layer 2)
-			o.processSignal(signal)
-		}
-	}
-}
-
-// signalToAnomaly converts a Signal to an AnomalyOutput for use with correlators.
-func (o *observerImpl) signalToAnomaly(signal observerdef.Signal, emitterName string) observerdef.AnomalyOutput {
-	// Build description from signal data
-	desc := fmt.Sprintf("%s signal at timestamp %d", signal.Source, signal.Timestamp)
-	if signal.Score != nil {
-		desc = fmt.Sprintf("%s (score: %.2f) at timestamp %d", signal.Source, *signal.Score, signal.Timestamp)
-	}
-
-	return observerdef.AnomalyOutput{
-		Source:       observerdef.MetricName(signal.Source),
-		Title:        fmt.Sprintf("Signal: %s", signal.Source),
-		Description:  desc,
-		Tags:         signal.Tags,
-		AnalyzerName: emitterName,
-		Score:        signal.Score,
-		TimeRange: observerdef.TimeRange{
-			Start: signal.Timestamp,
-			End:   signal.Timestamp, // Point-based: start == end
-		},
-	}
-}
-
-// processSignal sends a signal to all signal processors.
-func (o *observerImpl) processSignal(signal observerdef.Signal) {
-	for _, processor := range o.signalProcessors {
-		processor.Process(signal)
 	}
 }
 
@@ -521,29 +399,25 @@ func aggSuffix(agg Aggregate) string {
 	}
 }
 
-// processAnomaly sends an anomaly to all registered anomaly processors.
+// processAnomaly sends an anomaly to all registered correlators.
 // If deduplicator is enabled, filters out duplicate anomalies first.
-func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
+func (o *observerImpl) processAnomaly(anomaly observerdef.Anomaly) {
 	// Check deduplicator if enabled
 	if o.deduplicator != nil {
-		ts := anomaly.Timestamp
-		if ts == 0 {
-			ts = anomaly.TimeRange.End
-		}
-		if !o.deduplicator.ShouldProcess(string(anomaly.SourceSeriesID), ts) {
+		if !o.deduplicator.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
 			o.dedupSkipped++
 			return // Duplicate, skip
 		}
 	}
 
-	for _, processor := range o.anomalyProcessors {
-		processor.Process(anomaly)
+	for _, correlator := range o.correlators {
+		correlator.Process(anomaly)
 	}
 }
 
 // captureRawAnomaly stores a raw anomaly for test bench display.
-// Deduplicates by Source+AnalyzerName, keeping the most recent.
-func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
+// Deduplicates by Source+DetectorName, keeping the most recent.
+func (o *observerImpl) captureRawAnomaly(anomaly observerdef.Anomaly) {
 	o.rawAnomalyMu.Lock()
 	defer o.rawAnomalyMu.Unlock()
 
@@ -561,11 +435,11 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 		o.currentDataTime = anomaly.Timestamp
 	}
 
-	// Deduplicate by SourceSeriesID+AnalyzerName+Timestamp (keep all unique anomalies)
-	key := fmt.Sprintf("%s|%s|%d", anomaly.SourceSeriesID, anomaly.AnalyzerName, anomaly.TimeRange.End)
+	// Deduplicate by SourceSeriesID+DetectorName+Timestamp (keep all unique anomalies)
+	key := fmt.Sprintf("%s|%s|%d", anomaly.SourceSeriesID, anomaly.DetectorName, anomaly.Timestamp)
 	found := false
 	for i, existing := range o.rawAnomalies {
-		existingKey := fmt.Sprintf("%s|%s|%d", existing.SourceSeriesID, existing.AnalyzerName, existing.TimeRange.End)
+		existingKey := fmt.Sprintf("%s|%s|%d", existing.SourceSeriesID, existing.DetectorName, existing.Timestamp)
 		if existingKey == key {
 			if anomaly.Timestamp > existing.Timestamp {
 				o.rawAnomalies[i] = anomaly
@@ -599,11 +473,11 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 
 // RawAnomalies returns a copy of currently tracked raw anomalies.
 // Implements observerdef.RawAnomalyState interface.
-func (o *observerImpl) RawAnomalies() []observerdef.AnomalyOutput {
+func (o *observerImpl) RawAnomalies() []observerdef.Anomaly {
 	o.rawAnomalyMu.RLock()
 	defer o.rawAnomalyMu.RUnlock()
 
-	result := make([]observerdef.AnomalyOutput, len(o.rawAnomalies))
+	result := make([]observerdef.Anomaly, len(o.rawAnomalies))
 	copy(result, o.rawAnomalies)
 	return result
 }
@@ -627,16 +501,12 @@ func (o *observerImpl) DedupSkippedCount() int {
 	return o.dedupSkipped
 }
 
-// flushAndReport flushes all anomaly processors and notifies all reporters.
+// flushAndReport flushes all correlators and notifies all reporters.
 // Reporters are called with an empty report to trigger state-based reporting.
 func (o *observerImpl) flushAndReport() {
-	// Flush anomaly processors (correlators)
-	for _, processor := range o.anomalyProcessors {
-		processor.Flush()
-	}
-	// Flush signal processors (Layer 2)
-	for _, processor := range o.signalProcessors {
-		processor.Flush()
+	// Flush correlators
+	for _, correlator := range o.correlators {
+		correlator.Flush()
 	}
 	// Always notify reporters so they can check correlation state
 	for _, reporter := range o.reporters {
@@ -665,36 +535,6 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
 	return o.storage.DumpToFile(path)
-}
-
-// DumpEvents writes all buffered event signals to the specified file as JSON.
-// Event signals are container lifecycle events (OOM, restart, etc.) used for correlation.
-func (o *observerImpl) DumpEvents(path string) error {
-	type dumpEvent struct {
-		Source    string   `json:"source"`
-		Timestamp int64    `json:"timestamp"`
-		Tags      []string `json:"tags,omitempty"`
-		Value     float64  `json:"value"`
-	}
-
-	events := make([]dumpEvent, len(o.eventBuffer))
-	for i, signal := range o.eventBuffer {
-		events[i] = dumpEvent{
-			Source:    string(signal.Source),
-			Timestamp: signal.Timestamp,
-			Tags:      signal.Tags,
-			Value:     signal.Value,
-		}
-	}
-
-	data, err := json.MarshalIndent(events, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal events: %w", err)
-	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("write events file: %w", err)
-	}
-	return nil
 }
 
 // handle is the lightweight observation interface passed to other components.

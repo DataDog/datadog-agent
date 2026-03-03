@@ -16,12 +16,12 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// LogTimeSeriesAnalysis converts logs into timeseries metric outputs:
+// LogMetricsExtractor converts logs into timeseries metric outputs:
 // - JSON logs: numeric fields -> Avg aggregation
 // - Unstructured logs: pattern frequency -> Sum aggregation
 //
 // This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
-type LogTimeSeriesAnalysis struct {
+type LogMetricsExtractor struct {
 	// MaxEvalBytes caps how many bytes we evaluate for unstructured signature generation (0 = no cap).
 	MaxEvalBytes int
 
@@ -31,16 +31,16 @@ type LogTimeSeriesAnalysis struct {
 	ExcludeFields map[string]struct{}
 }
 
-func (a *LogTimeSeriesAnalysis) Name() string { return "log_timeseries" }
+func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
-func (a *LogTimeSeriesAnalysis) Process(log observer.LogView) observer.LogProcessorResult {
+func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectionResult {
 	content := log.GetContent()
 	tags := log.GetTags()
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.MaxEvalBytes)
 	if patternSig == "" {
-		return observer.LogProcessorResult{}
+		return observer.LogDetectionResult{}
 	}
 
 	metrics := []observer.MetricOutput{{
@@ -54,7 +54,7 @@ func (a *LogTimeSeriesAnalysis) Process(log observer.LogView) observer.LogProces
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogProcessorResult{Metrics: metrics}
+	return observer.LogDetectionResult{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {
@@ -63,8 +63,8 @@ func isJSONObject(b []byte) bool {
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-// Pattern metrics are handled separately in Analyze().
-func (a *LogTimeSeriesAnalysis) extractJSONFieldMetrics(content []byte, tags []string) []observer.MetricOutput {
+// Pattern metrics are handled separately in Detect().
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []string) []observer.MetricOutput {
 	dec := json.NewDecoder(bytes.NewReader(content))
 	dec.UseNumber()
 

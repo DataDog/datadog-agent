@@ -3,8 +3,8 @@ import { ChartWithAnomalyDetails } from './ChartWithAnomalyDetails';
 import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
-import type { SeriesVariant } from './TimeSeriesChart';
-import { getAnalyzerColorStable } from './TimeSeriesChart';
+import type { SeriesVariant } from './MetricsChart';
+import { getDetectorColorStable } from './MetricsChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
@@ -23,8 +23,8 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
-function getAnalyzerComponent(anomaly: { analyzerName: string; analyzerComponent?: string }): string {
-  return anomaly.analyzerComponent ?? anomaly.analyzerName;
+function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
+  return anomaly.detectorComponent ?? anomaly.detectorName;
 }
 
 function formatSeriesLabel(tags: string[]): string {
@@ -40,7 +40,7 @@ interface MetricGroup {
   members: SeriesInfo[];
 }
 
-interface TSAnalysisViewProps {
+interface MetricsViewProps {
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
@@ -49,16 +49,16 @@ interface TSAnalysisViewProps {
   smoothLines: boolean;
 }
 
-export function TSAnalysisView({
+export function MetricsView({
   state,
   actions,
   sidebarWidth,
   timeRange,
   onTimeRangeChange,
   smoothLines,
-}: TSAnalysisViewProps) {
+}: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
-  const [enabledAnalyzers, setEnabledAnalyzers] = useState<Set<string>>(new Set());
+  const [enabledDetectors, setEnabledDetectors] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
@@ -70,27 +70,27 @@ export function TSAnalysisView({
   const allSeries = state.series ?? [];
   const allAnomalies = state.anomalies ?? [];
 
-  const analyzerComponents = useMemo(
-    () => components.filter((c) => c.category === 'analyzer'),
+  const detectorComponents = useMemo(
+    () => components.filter((c) => c.category === 'detector'),
     [components]
   );
 
   const anomalies = useMemo(
-    () => allAnomalies.filter((a) => enabledAnalyzers.has(getAnalyzerComponent(a))),
-    [allAnomalies, enabledAnalyzers]
+    () => allAnomalies.filter((a) => enabledDetectors.has(getDetectorComponent(a))),
+    [allAnomalies, enabledDetectors]
   );
 
-  const tsAnalyzerNames = useMemo(
-    () => analyzerComponents.map((c) => c.name),
-    [analyzerComponents]
+  const tsDetectorNames = useMemo(
+    () => detectorComponents.map((c) => c.name),
+    [detectorComponents]
   );
 
-  // Map comp.name (analyzerComponent) → analyzerName used by the timeline for coloring
-  const analyzerNameByComponent = useMemo(() => {
+  // Map comp.name (detectorComponent) → detectorName used by the timeline for coloring
+  const detectorNameByComponent = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of allAnomalies) {
-      const component = getAnalyzerComponent(a);
-      if (!map.has(component)) map.set(component, a.analyzerName);
+      const component = getDetectorComponent(a);
+      if (!map.has(component)) map.set(component, a.detectorName);
     }
     return map;
   }, [allAnomalies]);
@@ -168,12 +168,12 @@ export function TSAnalysisView({
 
   const initializedScenarioRef = useRef<string | null>(null);
   useEffect(() => {
-    if (tsAnalyzerNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
+    if (tsDetectorNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
-      setEnabledAnalyzers(new Set(tsAnalyzerNames));
+      setEnabledDetectors(new Set(tsDetectorNames));
       setTagFilterInput('');
     }
-  }, [tsAnalyzerNames, state.activeScenario]);
+  }, [tsDetectorNames, state.activeScenario]);
 
   const [autoSelectedScenario, setAutoSelectedScenario] = useState<string | null>(null);
   useEffect(() => {
@@ -229,14 +229,14 @@ export function TSAnalysisView({
     fetchSeriesData();
   }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
 
-  const toggleAnalyzer = (name: string) => {
-    const next = new Set(enabledAnalyzers);
+  const toggleDetector = (name: string) => {
+    const next = new Set(enabledDetectors);
     if (next.has(name)) {
       next.delete(name);
     } else {
       next.add(name);
     }
-    setEnabledAnalyzers(next);
+    setEnabledDetectors(next);
   };
 
   const anomalousGroupKeys = useMemo(() => {
@@ -261,13 +261,13 @@ export function TSAnalysisView({
 
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Analyzers
+            Detectors
           </h2>
           <div className="space-y-1">
-            {analyzerComponents.map((comp) => {
-              const count = allAnomalies.filter((a) => getAnalyzerComponent(a) === comp.name).length;
-              const analyzerName = analyzerNameByComponent.get(comp.name);
-              const color = analyzerName ? getAnalyzerColorStable(analyzerName) : null;
+            {detectorComponents.map((comp) => {
+              const count = allAnomalies.filter((a) => getDetectorComponent(a) === comp.name).length;
+              const detectorName = detectorNameByComponent.get(comp.name);
+              const color = detectorName ? getDetectorColorStable(detectorName) : null;
               return (
                 <label
                   key={comp.name}
@@ -275,8 +275,8 @@ export function TSAnalysisView({
                 >
                   <input
                     type="checkbox"
-                    checked={enabledAnalyzers.has(comp.name)}
-                    onChange={() => toggleAnalyzer(comp.name)}
+                    checked={enabledDetectors.has(comp.name)}
+                    onChange={() => toggleDetector(comp.name)}
                     className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
                   />
                   {color ? (
@@ -530,7 +530,7 @@ export function TSAnalysisView({
                           anomalyMarkers={anomalyMarkers}
                           anomalies={seriesAnomalies}
                           correlationRanges={[]}
-                          enabledAnalyzers={enabledAnalyzers}
+                          enabledDetectors={enabledDetectors}
                           timeRange={timeRange}
                           onTimeRangeChange={onTimeRangeChange}
                           smoothLines={smoothLines}
@@ -585,7 +585,7 @@ export function TSAnalysisView({
                               anomalyMarkers={anomalyMarkers}
                               anomalies={seriesAnomalies}
                               correlationRanges={[]}
-                              enabledAnalyzers={enabledAnalyzers}
+                              enabledDetectors={enabledDetectors}
                               timeRange={timeRange}
                               onTimeRangeChange={onTimeRangeChange}
                               smoothLines={smoothLines}

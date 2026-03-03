@@ -31,11 +31,11 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
         {anomalies.map((anomaly, idx) => {
           const isExpanded = expandedIndex === idx;
           const debug = anomaly.debugInfo;
-          const isCUSUM = anomaly.analyzerName === 'cusum_detector';
+          const isCUSUM = anomaly.detectorName === 'cusum_detector';
 
           return (
             <div
-              key={`${anomaly.source}-${anomaly.analyzerName}-${anomaly.timestamp}`}
+              key={`${anomaly.source}-${anomaly.detectorName}-${anomaly.timestamp}`}
               className="bg-slate-700/50 rounded"
             >
               {/* Header - always visible */}
@@ -50,7 +50,7 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
                         isCUSUM ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
                       }`}
                     >
-                      {anomaly.analyzerName}
+                      {anomaly.detectorName}
                     </span>
                     <span className="text-sm text-slate-300 truncate">{anomaly.source}</span>
                   </div>

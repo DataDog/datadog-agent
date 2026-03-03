@@ -135,8 +135,8 @@ func (h *LagHistogram) Add(lagSeconds int64) {
 	}
 }
 
-// Analyze returns the dominant lag direction, typical lag, and confidence.
-func (h *LagHistogram) Analyze() (leader string, typicalLag int64, confidence float64) {
+// Detect returns the dominant lag direction, typical lag, and confidence.
+func (h *LagHistogram) Detect() (leader string, typicalLag int64, confidence float64) {
 	if h.totalObservations == 0 {
 		return "", 0, 0
 	}
@@ -213,7 +213,7 @@ type LeadLagCorrelator struct {
 	lagHistograms map[seriesPairKey]*LagHistogram
 
 	// Recent anomalies for reporting
-	recentAnomalies []observer.AnomalyOutput
+	recentAnomalies []observer.Anomaly
 
 	// Current data time for eviction
 	currentDataTime int64
@@ -245,13 +245,13 @@ func NewLeadLagCorrelator(config LeadLagConfig) *LeadLagCorrelator {
 	}
 }
 
-// Name returns the processor name.
+// Name returns the correlator name.
 func (c *LeadLagCorrelator) Name() string {
 	return "lead_lag_correlator"
 }
 
 // Process adds an anomaly and updates lag histograms for all source pairs.
-func (c *LeadLagCorrelator) Process(anomaly observer.AnomalyOutput) {
+func (c *LeadLagCorrelator) Process(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -353,7 +353,7 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 		sourceA := pair.A
 		sourceB := pair.B
 
-		leader, typicalLag, confidence := histogram.Analyze()
+		leader, typicalLag, confidence := histogram.Detect()
 		if confidence < c.config.ConfidenceThreshold {
 			continue
 		}
@@ -400,7 +400,7 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	var result []observer.ActiveCorrelation
 
 	// Group anomalies by source for quick lookup
-	anomaliesBySource := make(map[observer.SeriesID][]observer.AnomalyOutput)
+	anomaliesBySource := make(map[observer.SeriesID][]observer.Anomaly)
 	for _, a := range c.recentAnomalies {
 		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
@@ -410,7 +410,7 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 		memberSeriesIDs := []observer.SeriesID{observer.SeriesID(edge.Leader), observer.SeriesID(edge.Follower)}
 
 		// Collect anomalies from both sources
-		var anomalies []observer.AnomalyOutput
+		var anomalies []observer.Anomaly
 		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Leader)]...)
 		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Follower)]...)
 

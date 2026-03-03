@@ -30,7 +30,7 @@ func TestCUSUMDetector_NotEnoughPoints(t *testing.T) {
 		},
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	assert.Empty(t, result.Anomalies, "should not detect with too few points")
 }
 
@@ -52,7 +52,7 @@ func TestCUSUMDetector_StableData(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	assert.Empty(t, result.Anomalies, "should not detect anomaly in stable data")
 }
 
@@ -80,7 +80,7 @@ func TestCUSUMDetector_DetectsShift(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	require.Len(t, result.Anomalies, 1, "should detect the shift")
 
 	anomaly := result.Anomalies[0]
@@ -118,7 +118,7 @@ func TestCUSUMDetector_GradualIncrease(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	require.Len(t, result.Anomalies, 1, "should detect gradual increase")
 
 	// The anomaly timestamp should be somewhere after baseline period
@@ -149,7 +149,7 @@ func TestCUSUMDetector_ConstantBaseline(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	require.Len(t, result.Anomalies, 1, "should detect shift even with constant baseline")
 }
 
@@ -183,7 +183,7 @@ func TestCUSUMDetector_CustomParameters(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	assert.Len(t, result.Anomalies, 1, "sensitive detector should catch small shift")
 }
 
@@ -205,7 +205,7 @@ func TestCUSUMDetector_SourceAndTags(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	require.Len(t, result.Anomalies, 1)
 
 	anomaly := result.Anomalies[0]
@@ -244,7 +244,7 @@ func TestCUSUMDetector_EmitsAtThresholdCrossing(t *testing.T) {
 		Points:    points,
 	}
 
-	result := d.Analyze(series)
+	result := d.Detect(series)
 	require.Len(t, result.Anomalies, 1, "should detect the anomaly")
 
 	anomaly := result.Anomalies[0]

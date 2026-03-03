@@ -8,9 +8,9 @@ Interactive UI for iterating on observer anomaly detection components.
 Go Server (:8080)                 React UI (:5173)
 ┌──────────────────────┐         ┌──────────────────────┐
 │ Load scenario        │         │ Select scenario      │
-│ (parquet/logs/demo)  │  HTTP   │ Toggle analyzers     │
+│ (parquet/logs/demo)  │  HTTP   │ Toggle detectors     │
 │         ↓            │◄───────►│ Browse series tree   │
-│ Run analyzers        │  JSON   │ View charts + zoom   │
+│ Run detectors        │  JSON   │ View charts + zoom   │
 │ (CUSUM, LightESD)    │         │ Inspect anomalies    │
 │         ↓            │         │ Click correlations   │
 │ Detect correlations  │         └──────────────────────┘
@@ -30,7 +30,7 @@ cmd/observer-testbench/
     │   ├── api/client.ts
     │   ├── components/
     │   │   ├── SeriesTree.tsx          # Collapsible series selector
-    │   │   ├── TimeSeriesChart.tsx     # D3 chart with brush zoom
+    │   │   ├── MetricsChart.tsx     # D3 chart with brush zoom
     │   │   └── ChartWithAnomalyDetails.tsx
     │   └── hooks/useObserver.ts        # API polling, reconnect
     └── package.json
@@ -38,7 +38,7 @@ cmd/observer-testbench/
 comp/observer/impl/
 ├── testbench.go         # Scenario loading, analysis orchestration
 ├── testbench_api.go     # REST API handlers
-├── ts_analysis_cusum.go # CUSUM change-point detector
+├── metrics_detector_cusum.go # CUSUM change-point detector
 └── storage.go           # Time series storage
 ```
 

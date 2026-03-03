@@ -410,7 +410,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 					observer.SeriesID("series|signal1|"),
 					observer.SeriesID("series|signal2|"),
 				},
-				Anomalies: []observer.AnomalyOutput{
+				Anomalies: []observer.Anomaly{
 					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
 				},
 			},

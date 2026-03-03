@@ -12,24 +12,24 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// PassthroughProcessor is a simple anomaly processor that converts each anomaly to a report.
+// PassthroughCorrelator is a simple correlator that converts each anomaly to a report.
 // It serves as an example implementation and for testing.
-type PassthroughProcessor struct {
-	anomalies []observer.AnomalyOutput
+type PassthroughCorrelator struct {
+	anomalies []observer.Anomaly
 }
 
-// Name returns the processor name.
-func (p *PassthroughProcessor) Name() string {
-	return "passthrough_processor"
+// Name returns the correlator name.
+func (p *PassthroughCorrelator) Name() string {
+	return "passthrough_correlator"
 }
 
 // Process adds an anomaly to the pending list.
-func (p *PassthroughProcessor) Process(anomaly observer.AnomalyOutput) {
+func (p *PassthroughCorrelator) Process(anomaly observer.Anomaly) {
 	p.anomalies = append(p.anomalies, anomaly)
 }
 
 // Flush converts accumulated anomalies to reports and clears the list.
-func (p *PassthroughProcessor) Flush() []observer.ReportOutput {
+func (p *PassthroughCorrelator) Flush() []observer.ReportOutput {
 	if len(p.anomalies) == 0 {
 		return nil
 	}
@@ -50,7 +50,7 @@ func (p *PassthroughProcessor) Flush() []observer.ReportOutput {
 }
 
 // GetPending returns pending anomalies (for testing).
-func (p *PassthroughProcessor) GetPending() []observer.AnomalyOutput {
+func (p *PassthroughCorrelator) GetPending() []observer.Anomaly {
 	return p.anomalies
 }
 
@@ -60,7 +60,7 @@ type StdoutReporter struct {
 	correlationState observer.CorrelationState
 	rawAnomalyState  observer.RawAnomalyState
 	seenCorrelations map[string]string // pattern -> title for correlations we've reported
-	seenRawAnomalies map[string]bool   // source|analyzer -> whether we've reported this raw anomaly
+	seenRawAnomalies map[string]bool   // source|detector -> whether we've reported this raw anomaly
 }
 
 // Name returns the reporter name.
@@ -84,7 +84,7 @@ func (r *StdoutReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
 // It prints "[observer] NEW: {title}" when a correlation first appears
 // and "[observer] CLEARED: {title}" when a correlation disappears.
 func (r *StdoutReporter) Report(report observer.ReportOutput) {
-	// Report raw anomalies first (with analyzer identification)
+	// Report raw anomalies first (with detector identification)
 	if r.rawAnomalyState != nil {
 		r.reportRawAnomalyChanges()
 	}
@@ -94,7 +94,7 @@ func (r *StdoutReporter) Report(report observer.ReportOutput) {
 	}
 }
 
-// reportRawAnomalyChanges prints new raw anomalies with their analyzer source.
+// reportRawAnomalyChanges prints new raw anomalies with their detector source.
 func (r *StdoutReporter) reportRawAnomalyChanges() {
 	if r.seenRawAnomalies == nil {
 		r.seenRawAnomalies = make(map[string]bool)
@@ -103,9 +103,9 @@ func (r *StdoutReporter) reportRawAnomalyChanges() {
 	rawAnomalies := r.rawAnomalyState.RawAnomalies()
 
 	for _, anomaly := range rawAnomalies {
-		key := string(anomaly.Source) + "|" + anomaly.AnalyzerName
+		key := string(anomaly.Source) + "|" + anomaly.DetectorName
 		if !r.seenRawAnomalies[key] {
-			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.AnalyzerName, anomaly.Source)
+			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source)
 			fmt.Printf("           %s\n", anomaly.Description)
 			r.seenRawAnomalies[key] = true
 		}
@@ -150,22 +150,22 @@ func (r *StdoutReporter) reportCorrelationChanges() {
 // PrintFinalState prints the current state of all correlations and raw anomalies.
 // Call this at the end of a demo to see final cluster contents.
 func (r *StdoutReporter) PrintFinalState() {
-	// Print raw anomaly summary by analyzer
+	// Print raw anomaly summary by detector
 	if r.rawAnomalyState != nil {
 		rawAnomalies := r.rawAnomalyState.RawAnomalies()
 		if len(rawAnomalies) > 0 {
-			byAnalyzer := make(map[string][]observer.AnomalyOutput)
+			byDetector := make(map[string][]observer.Anomaly)
 			for _, a := range rawAnomalies {
-				byAnalyzer[a.AnalyzerName] = append(byAnalyzer[a.AnalyzerName], a)
+				byDetector[a.DetectorName] = append(byDetector[a.DetectorName], a)
 			}
 
 			fmt.Println("[observer] Raw Anomaly Summary:")
-			for analyzer, anomalies := range byAnalyzer {
+			for detector, anomalies := range byDetector {
 				sources := make(map[observer.MetricName]bool)
 				for _, a := range anomalies {
 					sources[a.Source] = true
 				}
-				fmt.Printf("  [%s]: %d anomalies across %d metrics\n", analyzer, len(anomalies), len(sources))
+				fmt.Printf("  [%s]: %d anomalies across %d metrics\n", detector, len(anomalies), len(sources))
 				for _, a := range anomalies {
 					fmt.Printf("    - %s\n", a.Description)
 				}
