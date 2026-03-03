@@ -144,8 +144,7 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 		}
 
 		// Update PodAutoscaler values with received values
-		podAutoscaler.UpdateFromMainValues(item.scalingValues)
-		trackPodAutoscalerReceivedValues(podAutoscaler, item.receivedVersion)
+		podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
 
 		p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
 	}

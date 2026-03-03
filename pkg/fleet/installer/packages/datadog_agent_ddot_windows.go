@@ -41,11 +41,8 @@ const (
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
-func preInstallDatadogAgentDDOT(_ HookContext) error {
-	// Best effort stop and delete existing service
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	return nil
+func preInstallDatadogAgentDDOT(ctx HookContext) error {
+	return preInstallDDOTExtension(ctx)
 }
 
 // postInstallDatadogAgentDdot performs post-installation steps for the DDOT package on Windows
@@ -104,10 +101,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 	return nil
 }
-
-// waitForServiceRunning waits until the given Windows service reaches the Running state or times out
-// (removed) waitForServiceRunning and isServiceRunning helpers were replaced by
-// winutil.WaitForPendingStateChange and winutil.IsServiceRunning
 
 // readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
 func readAPIKeyFromDatadogYAML() (string, error) {
@@ -392,7 +385,7 @@ func deleteServiceIfExists(name string) error {
 
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
 func preInstallDDOTExtension(_ HookContext) error {
-	// Best effort - ignore errors
+	// Best effort stop and delete existing service
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
 	return nil
@@ -400,7 +393,15 @@ func preInstallDDOTExtension(_ HookContext) error {
 
 // postInstallDDOTExtension sets up the DDOT extension after files are extracted
 func postInstallDDOTExtension(ctx HookContext) error {
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+	// Resolve the package path symlink to the real versioned directory.
+	// ctx.PackagePath may point to a "stable" or "experiment" symlink; using the
+	// versioned path ensures the service binary path remains valid after the symlink
+	// is updated on promote or stop-experiment.
+	packagePath, err := filepath.EvalSymlinks(ctx.PackagePath)
+	if err != nil {
+		packagePath = ctx.PackagePath
+	}
+	extensionPath := filepath.Join(packagePath, "ext", ctx.Extension)
 
 	if err := writeOTelConfigWindowsExtension(ctx, extensionPath); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)

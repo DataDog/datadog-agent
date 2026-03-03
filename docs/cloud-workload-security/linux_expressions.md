@@ -529,6 +529,7 @@ An accept was executed
 | -------- | ------------- |
 | [`accept.addr.family`](#accept-addr-family-doc) | Address family |
 | [`accept.addr.hostname`](#accept-addr-hostname-doc) | Address hostname (if available) |
+| [`accept.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -745,6 +746,7 @@ A connect was executed
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.hostname`](#connect-addr-hostname-doc) | Address hostname (if available) |
+| [`connect.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -763,7 +765,7 @@ A DNS request was sent
 | [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`dns.question.name.root_domain`](#dns-question-name-root_domain-doc) | Root domain of the corresponding element |
+| [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
@@ -3573,6 +3575,15 @@ Constants: [File mode constants](#file-mode-constants)
 
 
 
+### `*.root_domain` {#common-string-root_domain-doc}
+Type: string
+
+Definition: Root domain of the corresponding element
+
+`*.root_domain` has 3 possible prefixes:
+`accept.addr.hostname` `connect.addr.hostname` `dns.question.name`
+
+
 ### `*.session_type` {#common-usersessioncontext-session_type-doc}
 Type: int
 
@@ -4024,13 +4035,6 @@ Definition: the total DNS request size in bytes
 Type: string
 
 Definition: the queried domain name
-
-
-
-### `dns.question.name.root_domain` {#dns-question-name-root_domain-doc}
-Type: string
-
-Definition: Root domain of the corresponding element
 
 
 
