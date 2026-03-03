@@ -7,13 +7,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test-istio-gateway
-      istio: ingressgateway
+      app: test-istio
   template:
     metadata:
       labels:
-        app: test-istio-gateway
-        istio: ingressgateway
+        app: test-istio
     spec:
       containers:
       - name: istio-proxy

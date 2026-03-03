@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -418,6 +419,111 @@ func TestGateway_Added_FilterCreationError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not create Envoy Filter")
+}
+
+// TestGateway_Deleted_CleanupMode tests that cleanupPattern can delete the EnvoyFilter
+// even when multiple native gateways are still present in the cluster.
+// cleanupPattern calls Deleted on live (not yet deleted) resources, so each call sees
+// the others still present. The fix detects this case via a Get of the "deleted" object.
+func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	gwA := newTestIstioGateway("gateway-a", "default", map[string]any{"app": "gw"})
+	gwB := newTestIstioGateway("gateway-b", "default", map[string]any{"app": "gw"})
+	client := newFakeDynamicClient(scheme, existingFilter, gwA, gwB)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestNativeGatewayPattern(client, logger, config)
+
+	// Simulate cleanupPattern: call Deleted for gwA while both gateways still exist
+	// Get(gwA) will return found (not NotFound), so we're in cleanup mode → skip coordination
+	client.PrependReactor("get", "gateways", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		getAction := action.(k8stesting.GetAction)
+		if getAction.GetName() == "gateway-a" {
+			return true, gwA, nil // Still in cluster (cleanup mode)
+		}
+		return false, nil, nil
+	})
+
+	deletedResources := []string{}
+	client.PrependReactor("delete", "*", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteAction := action.(k8stesting.DeleteAction)
+		deletedResources = append(deletedResources, deleteAction.GetName())
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwA)
+
+	require.NoError(t, err)
+	assert.Contains(t, deletedResources, envoyFilterName,
+		"EnvoyFilter should be deleted in cleanup mode even when other gateways still exist")
+}
+
+// TestGateway_Deleted_WatchEvent_OtherGatewayExists tests that watch events still respect
+// the coordination check: if gateway-a was actually deleted but gateway-b still exists,
+// the EnvoyFilter must NOT be deleted.
+func TestGateway_Deleted_WatchEvent_OtherGatewayExists(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	gwB := newTestIstioGateway("gateway-b", "default", map[string]any{"app": "gw"})
+	client := newFakeDynamicClient(scheme, existingFilter)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestNativeGatewayPattern(client, logger, config)
+	gwA := newTestIstioGateway("gateway-a", "default", map[string]any{"app": "gw"})
+
+	// Simulate watch event: Get(gateway-a) returns NotFound (was actually deleted)
+	// List(gateways) returns [gateway-b] (still present)
+	client.PrependReactor("get", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, k8serrors.NewNotFound(schema.GroupResource{Group: "networking.istio.io", Resource: "gateways"}, "gateway-a")
+	})
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{
+			Items: []unstructured.Unstructured{*gwB},
+		}, nil
+	})
+
+	deleteCalled := false
+	client.PrependReactor("delete", "*", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteCalled = true
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwA)
+
+	require.NoError(t, err)
+	assert.False(t, deleteCalled,
+		"EnvoyFilter must NOT be deleted in watch-event mode when another gateway still exists")
 }
 
 // TestDeleted_SkipsWhenNativeGatewaysExist tests that the K8s GatewayClass pattern

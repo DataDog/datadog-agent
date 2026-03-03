@@ -143,15 +143,24 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return nil // Not an Istio gateway class, skip
 	}
 
-	// Cross-pattern coordination: check if native Istio Gateways still exist
-	// If they do, the EnvoyFilter is still needed by the istio-gateway pattern
-	nativeGatewaysExist, err := anyIstioNativeGatewayExists(ctx, i.client)
-	if err != nil {
-		return fmt.Errorf("could not check for remaining Istio native gateways: %w", err)
-	}
-	if nativeGatewaysExist {
-		i.logger.Debug("Skipping EnvoyFilter deletion: Istio native gateways still exist")
-		return nil
+	// Distinguish watch-event mode (GatewayClass was actually deleted) from cleanup mode
+	// (cleanupPattern iterates live resources and calls Deleted without removing them).
+	// The cross-pattern coordination check only applies to watch events: in cleanup mode
+	// we always proceed to delete the EnvoyFilter so it is not left behind.
+	_, errGet := i.client.Resource(gatewayClassGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	isWatchEvent := k8serrors.IsNotFound(errGet)
+
+	if isWatchEvent {
+		// Cross-pattern coordination: check if native Istio Gateways still exist
+		// If they do, the EnvoyFilter is still needed by the istio-gateway pattern
+		nativeGatewaysExist, err := anyIstioNativeGatewayExists(ctx, i.client)
+		if err != nil {
+			return fmt.Errorf("could not check for remaining Istio native gateways: %w", err)
+		}
+		if nativeGatewaysExist {
+			i.logger.Debug("Skipping EnvoyFilter deletion: Istio native gateways still exist")
+			return nil
+		}
 	}
 
 	namespace := i.config.IstioNamespace

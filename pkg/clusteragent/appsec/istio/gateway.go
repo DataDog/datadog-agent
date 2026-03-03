@@ -92,34 +92,37 @@ func (g *istioNativeGatewayPattern) Deleted(ctx context.Context, obj *unstructur
 	objNamespace := obj.GetNamespace()
 	g.logger.Debugf("Processing deleted Istio native gateway: %s/%s", objNamespace, name)
 
-	// Check if other Istio native Gateways still exist (excluding the one being deleted)
-	list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{})
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("could not list remaining Istio gateways: %w", err)
-	}
-	if list != nil {
-		for _, item := range list.Items {
-			if item.GetName() == name && item.GetNamespace() == objNamespace {
-				continue
-			}
-			// Another Istio native gateway still exists, keep the EnvoyFilter
+	// Distinguish watch-event mode (resource was actually deleted from the cluster) from cleanup mode
+	// (cleanupPattern iterates live resources and calls Deleted without removing them).
+	// Coordination checks — "skip if other gateways still exist" — only apply to watch events.
+	// In cleanup mode we must always proceed to delete the EnvoyFilter.
+	_, errGet := g.client.Resource(istioGatewayGVR).Namespace(objNamespace).Get(ctx, name, metav1.GetOptions{})
+	isWatchEvent := k8serrors.IsNotFound(errGet)
+
+	if isWatchEvent {
+		// Watch-event mode: only delete the filter if no other gateways still need it.
+		list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("could not list remaining Istio gateways: %w", err)
+		}
+		if list != nil && len(list.Items) > 0 {
 			g.logger.Debug("Skipping EnvoyFilter deletion: other Istio native gateways still exist")
+			return nil
+		}
+
+		// Cross-pattern coordination: skip if K8s GatewayClasses with Istio controller still exist.
+		gatewayClassesExist, err := anyIstioGatewayClassExists(ctx, g.client, "")
+		if err != nil {
+			return fmt.Errorf("could not check for remaining Istio gateway classes: %w", err)
+		}
+		if gatewayClassesExist {
+			g.logger.Debug("Skipping EnvoyFilter deletion: Istio GatewayClasses still exist")
 			return nil
 		}
 	}
 
-	// Cross-pattern coordination: check if K8s GatewayClasses with Istio controller still exist
-	gatewayClassesExist, err := anyIstioGatewayClassExists(ctx, g.client, "")
-	if err != nil {
-		return fmt.Errorf("could not check for remaining Istio gateway classes: %w", err)
-	}
-	if gatewayClassesExist {
-		g.logger.Debug("Skipping EnvoyFilter deletion: Istio GatewayClasses still exist")
-		return nil
-	}
-
 	namespace := g.config.IstioNamespace
-	_, err = g.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
+	_, err := g.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		g.logger.Debug("Envoy Filter already deleted")
 		return nil

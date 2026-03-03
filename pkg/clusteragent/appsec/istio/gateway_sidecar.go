@@ -60,6 +60,9 @@ func (e *istioNativeGatewaySidecarPattern) PodDeleted(*corev1.Pod, string, dynam
 }
 
 func (e *istioNativeGatewaySidecarPattern) MatchCondition() admissionregistrationv1.MatchCondition {
+	// Standard Istio gateway pods (istio-ingressgateway, istio-egressgateway) always carry
+	// the "istio" label key (e.g. istio=ingressgateway). This is a broad pre-filter that passes
+	// gateway proxy pods through to ShouldMutatePod, which performs precise spec.selector matching.
 	return admissionregistrationv1.MatchCondition{
 		Expression: "'istio' in object.metadata.labels",
 	}

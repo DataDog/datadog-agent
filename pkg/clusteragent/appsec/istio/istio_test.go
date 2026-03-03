@@ -491,6 +491,66 @@ func TestDeleted_GetFilterError(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not check if Envoy Filter was already deleted")
 }
 
+// TestDeleted_CleanupMode_WithNativeGateways tests that cleanupPattern can delete the
+// EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
+// cleanupPattern calls Deleted on live GatewayClasses, so Get(gwClass) returns found (cleanup mode).
+func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	scheme := runtime.NewScheme()
+
+	existingFilter := newTestEnvoyFilter("istio-system")
+	nativeGateway := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "networking.istio.io/v1",
+			"kind":       "Gateway",
+			"metadata":   map[string]any{"name": "native-gw", "namespace": "default"},
+		},
+	}
+	client := newFakeDynamicClient(scheme, existingFilter)
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+		Injection: appsecconfig.Injection{
+			IstioNamespace: "istio-system",
+		},
+	}
+
+	pattern := newTestIstioPattern(client, logger, config)
+	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+
+	// In cleanup mode, Get(gwClass) returns found (GatewayClass still in cluster)
+	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, gwClass, nil
+	})
+
+	// Native gateways are present (would normally trigger the cross-pattern skip)
+	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &unstructured.UnstructuredList{
+			Items: []unstructured.Unstructured{*nativeGateway},
+		}, nil
+	})
+
+	deletedResources := []string{}
+	client.PrependReactor("delete", "*", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		deleteAction := action.(k8stesting.DeleteAction)
+		deletedResources = append(deletedResources, deleteAction.GetName())
+		return false, nil, nil
+	})
+
+	err := pattern.Deleted(ctx, gwClass)
+
+	require.NoError(t, err)
+	assert.Contains(t, deletedResources, envoyFilterName,
+		"EnvoyFilter should be deleted in cleanup mode even when native Istio gateways exist")
+}
+
 func TestDeleted_FilterDeletionError(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)

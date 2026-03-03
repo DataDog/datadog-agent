@@ -256,6 +256,8 @@ func TestGatewaySidecar_MatchCondition(t *testing.T) {
 	condition := pattern.MatchCondition()
 
 	assert.NotEmpty(t, condition.Expression)
+	// Standard Istio gateway pods carry the "istio" label key (istio=ingressgateway etc.)
+	// This pre-filter passes those pods through to ShouldMutatePod for precise selector matching.
 	assert.Contains(t, condition.Expression, "istio")
 	assert.Contains(t, condition.Expression, "object.metadata.labels")
 
