@@ -1,0 +1,224 @@
+##################################
+## System Probe Configuration ##
+##################################
+
+## @param system_probe_config - custom object - optional
+## Enter specific configurations for your System Probe data collection.
+## Uncomment this parameter and the one below to enable them.
+#
+# system_probe_config:
+{{ if (eq .OS "windows") }}
+#   # @param sysprobe_socket - string - optional - default: localhost:3333
+#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3333
+#   # The TCP address where system probes are accessed.
+#
+#   sysprobe_socket: localhost:3333
+{{ else }}
+#   # @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
+#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
+#   # The full path to the location of the unix socket where system probes are accessed.
+#
+#   sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
+{{ end }}
+#   # @param log_file - string - optional - default: /var/log/datadog/system-probe.log
+#   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
+#   # The full path to the file where system-probe logs are written.
+#
+#   log_file: /var/log/datadog/system-probe.log
+
+#   # @param langauge_detection - custom object - optional
+#   # Enter specific configurations for language detection
+#   # Uncomment this parameter and the one below to enable them.
+#
+#   language_detection:
+
+#     # @param enabled - bool - optional - default: false
+#     # @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
+#     # [Beta] Enables language detection via binary analysis in the system probe.
+#
+#     enabled: false
+
+#   # @param health_port - integer - optional - default: 0
+#   # @env DD_SYSTEM_PROBE_HEALTH_PORT - integer - optional - default: 0
+#   # The Agent can expose its health check on a dedicated HTTP port.
+#   # This is useful for orchestrators that support HTTP probes.
+#   # Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
+#
+#   health_port: 0
+
+########################################
+## System Probe Network Configuration ##
+########################################
+
+# network_config:
+{{ if (eq .OS "windows") -}}
+#   # Please note that enabling the Network Module of the System
+#   # Probe will result in a kernel driver being loaded.
+{{ end -}}
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable the Network Module of the System Probe
+#
+#   enabled: false
+
+#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
+#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
+#   # A list of ports that should be monitored for DNS traffic.
+#
+#   dns_monitoring_ports:
+#     - 53
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+{{ if (eq .OS "windows") -}}
+#   # Please note that enabling the Universal Service Monitoring
+#   # Module of the System Probe will result in a kernel driver
+#   # being loaded.
+{{ end -}}
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+#   enabled: false
+
+#####################################
+## System Probe Ping Configuration ##
+#####################################
+
+# ping:
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable the Ping Module of the System Probe
+#
+#   enabled: false
+
+###########################################
+## System Probe Traceroute Configuration ##
+###########################################
+
+# traceroute:
+#   # @param enabled - boolean - optional - default: false
+#   # Set to true to enable the Traceroute Module of the System Probe
+#
+#   enabled: false
+
+##########################################
+## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to Datadog are ##
+## fetched from section `logs_config`   ##
+##########################################
+
+# runtime_security_config:
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
+#   # Set to true to enable Cloud Workload Security (CWS).
+#
+#   enabled: false
+
+#   # @param fim_enabled - boolean - optional - default: false
+#   # Set to true to enable the File Integrity Monitoring (FIM) feature of Cloud Workload Security (CWS).
+#
+#   fim_enabled: false
+{{ if (eq .OS "windows") }}
+#   # @param sysprobe_socket - string - optional - default: localhost:3334
+#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3334
+#   # The TCP address where the security runtime module is accessed.
+#
+#   socket: localhost:3334
+{{ else }}
+#   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+#   # The full path to the location of the unix socket where security runtime module is accessed.
+#
+#   socket: /opt/datadog-agent/run/runtime-security.sock
+{{ end }}
+#   # @param policies - custom object - optional
+#   # Policy files
+#   policies:
+{{ if (eq .OS "windows") }}
+#     # @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
+#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
+#     # Path from where the policy files are loaded
+#
+#     dir: c:\ProgramData\Datadog\runtime-security.d
+{{- else -}}
+#     # @param dir - string - default: /etc/datadog-agent/runtime-security.d
+#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
+#     # Path from where the policy files will be loaded
+#
+#     dir: /etc/datadog-agent/runtime-security.d
+{{- end }}
+
+#   # @param custom_sensitive_words - list of strings - optional
+#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
+#   # Define your own list of sensitive data to be merged with the default one.
+#   # Read more on Datadog documentation:
+#   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+#
+#   custom_sensitive_words:
+#     - 'personal_key'
+#     - '*token'
+#     - 'sql*'
+#     - '*pass*d*'
+#
+#   custom_sensitive_regexps:
+#     - 'gh-[a-zA-Z0-9]+'
+
+#   # @param envs_with_value - list of strings - optional
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
+#   # Define your own list of non-sensitive environment variable names whose value will not be
+#   # concealed by the runtime security module.
+#   # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES
+#
+#   envs_with_value:
+#     - LD_PRELOAD
+#     - LD_LIBRARY_PATH
+#     - PATH
+#     - HISTSIZE
+#     - HISTFILESIZE
+
+#   # @param activity_dump - custom object - optional
+#   # Activity dump section configures if/how the Agent sends activity dumps to Datadog
+#
+#   activity_dump:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
+#     # Set to true to activate the security profiles feature.
+#
+#     enabled: false
+
+#     # @param traced_cgroups_count - integer - optional - default: 5
+#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
+#     # Defines the number of concurrent cgroups to be traced.
+#
+#     traced_cgroups_count: 5
+
+#     # @param dump_duration - duration - optional - default: 30m
+#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_DUMP_DURATION - duration - optional - default: 30m
+#     # Defines the duration of cgroups learning phase. Minimum value is 10m.
+#
+#     dump_duration: 30m
+
+#   # @param network - custom object - optional
+#   # Network section is used to configure Cloud Workload Security (CWS) network features.
+#
+#   network:
+
+#     # @param enabled - boolean - optional - default: true
+#     # @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
+#     # Set to true to activate the CWS network detections.
+#
+#     enabled: true
+{{ if (eq .OS "windows") }}
+##################################################
+## Datadog Agent Windows Crash Detection module ##
+##################################################
+
+# windows_crash_detection:
+#   # @param enabled - boolean - optional - default: false
+#   # Enables the system probe module which supports the Windows crash detection check.
+#
+#   enabled: false
+{{ end -}}

@@ -97,6 +97,8 @@ pub struct dd_discovery_result {
     pub services_len: usize,
     pub injected_pids: *mut i32,
     pub injected_pids_len: usize,
+    pub gpu_pids: *mut i32,
+    pub gpu_pids_len: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -239,14 +241,18 @@ impl From<Service> for dd_service {
     }
 }
 
+fn vec_i32_to_raw(v: Vec<i32>) -> (*mut i32, usize) {
+    if v.is_empty() {
+        return (ptr::null_mut(), 0);
+    }
+    let boxed = v.into_boxed_slice();
+    let len = boxed.len();
+    (Box::into_raw(boxed) as *mut i32, len)
+}
+
 fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
-    let (injected_pids, injected_pids_len) = if resp.injected_pids.is_empty() {
-        (ptr::null_mut(), 0)
-    } else {
-        let boxed = resp.injected_pids.into_boxed_slice();
-        let len = boxed.len();
-        (Box::into_raw(boxed) as *mut i32, len)
-    };
+    let (injected_pids, injected_pids_len) = vec_i32_to_raw(resp.injected_pids);
+    let (gpu_pids, gpu_pids_len) = vec_i32_to_raw(resp.gpu_pids);
 
     let services_vec: Vec<dd_service> = resp.services.into_iter().map(dd_service::from).collect();
     let (services, services_len) = if services_vec.is_empty() {
@@ -262,6 +268,8 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
         services_len,
         injected_pids,
         injected_pids_len,
+        gpu_pids,
+        gpu_pids_len,
     }
 }
 
@@ -305,8 +313,9 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     heartbeat_pids: *const i32,
     heartbeat_pids_len: usize,
 ) -> *mut dd_discovery_result {
-    // SAFETY: caller guarantees new_pids and heartbeat_pids point to valid arrays.
+    // SAFETY: caller guarantees new_pids points to a valid array.
     let new = unsafe { pids_from_c(new_pids, new_pids_len) };
+    // SAFETY: caller guarantees heartbeat_pids points to a valid array.
     let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
 
     let params = Params {
@@ -360,6 +369,16 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
             Box::from_raw(ptr::slice_from_raw_parts_mut(
                 result.injected_pids,
                 result.injected_pids_len,
+            ))
+        };
+    }
+
+    if !result.gpu_pids.is_null() {
+        // SAFETY: `result.gpu_pids` came from `Box::into_raw` in `services_response_to_result`.
+        let _gpu = unsafe {
+            Box::from_raw(ptr::slice_from_raw_parts_mut(
+                result.gpu_pids,
+                result.gpu_pids_len,
             ))
         };
     }
@@ -513,7 +532,12 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::undocumented_unsafe_blocks,
+    clippy::bool_assert_comparison,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
     use crate::service_name::ServiceNameSource;
@@ -524,7 +548,7 @@ mod tests {
         if s.data.is_null() {
             return "";
         }
-        let slice = unsafe { std::slice::from_raw_parts(s.data as *const u8, s.len) };
+        let slice = unsafe { std::slice::from_raw_parts(s.data.cast::<u8>(), s.len) };
         std::str::from_utf8(slice).unwrap()
     }
 
@@ -533,6 +557,7 @@ mod tests {
         let resp = ServicesResponse {
             services: vec![],
             injected_pids: vec![],
+            gpu_pids: vec![],
         };
         let result = services_response_to_result(resp);
 
@@ -540,6 +565,8 @@ mod tests {
         assert_eq!(result.services_len, 0);
         assert!(result.injected_pids.is_null());
         assert_eq!(result.injected_pids_len, 0);
+        assert!(result.gpu_pids.is_null());
+        assert_eq!(result.gpu_pids_len, 0);
 
         // Verify free does not crash
         let ptr = Box::into_raw(Box::new(result));
@@ -577,6 +604,7 @@ mod tests {
                 service_type: "web_service".to_string(),
             }],
             injected_pids: vec![5678, 9012],
+            gpu_pids: vec![1111, 2222],
         };
 
         let result = services_response_to_result(resp);
@@ -661,6 +689,12 @@ mod tests {
             unsafe { std::slice::from_raw_parts(result.injected_pids, result.injected_pids_len) };
         assert_eq!(pids, &[5678, 9012]);
 
+        // Verify gpu_pids
+        assert!(!result.gpu_pids.is_null());
+        assert_eq!(result.gpu_pids_len, 2);
+        let gpu_pids = unsafe { std::slice::from_raw_parts(result.gpu_pids, result.gpu_pids_len) };
+        assert_eq!(gpu_pids, &[1111, 2222]);
+
         // Free and verify no crash
         let ptr = Box::into_raw(Box::new(result));
         unsafe { dd_discovery_free(ptr) };
@@ -688,6 +722,7 @@ mod tests {
                 service_type: "unknown".to_string(),
             }],
             injected_pids: vec![],
+            gpu_pids: vec![],
         };
 
         let result = services_response_to_result(resp);
@@ -718,6 +753,8 @@ mod tests {
 
         assert!(result.injected_pids.is_null());
         assert_eq!(result.injected_pids_len, 0);
+        assert!(result.gpu_pids.is_null());
+        assert_eq!(result.gpu_pids_len, 0);
 
         let ptr = Box::into_raw(Box::new(result));
         unsafe { dd_discovery_free(ptr) };

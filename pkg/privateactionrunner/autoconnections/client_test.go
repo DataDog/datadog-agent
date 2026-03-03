@@ -19,6 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockTagsProvider is a test double for TagsProvider
+type mockTagsProvider struct {
+	tags []string
+}
+
+func (m *mockTagsProvider) GetTags(ctx context.Context, runnerID, hostname string) []string {
+	if m.tags != nil {
+		return m.tags
+	}
+	// Default: return basic tags
+	return []string{
+		"runner-id:" + runnerID,
+		"hostname:" + hostname,
+	}
+}
+
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	cfg := mock.New(t)
 	apiKey := "test-api-key"
@@ -47,11 +63,13 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
 	runnerName := "runner-123"
 	connectionName := "HTTP (runner-123)"
+	tags := []string{"runner-id:test", "hostname:test-host"}
 
-	request := buildConnectionRequest(httpDef, runnerID, runnerName)
+	request := buildConnectionRequest(httpDef, runnerID, runnerName, tags)
 
 	assert.Equal(t, connectionName, request.Name)
 	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, tags, request.Tags)
 	assert.Equal(t, "HTTP", request.Integration.Type)
 	assert.Equal(t, "HTTPNoAuth", request.Integration.Credentials["type"])
 	assert.Len(t, request.Integration.Credentials, 1)
@@ -71,11 +89,13 @@ func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
 	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
 	runnerName := "runner-456"
 	connectionName := "Script (runner-456)"
+	tags := []string{"runner-id:test"}
 
-	request := buildConnectionRequest(scriptDef, runnerID, runnerName)
+	request := buildConnectionRequest(scriptDef, runnerID, runnerName, tags)
 
 	assert.Equal(t, connectionName, request.Name)
 	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, tags, request.Tags)
 	assert.Equal(t, "Script", request.Integration.Type)
 	assert.Equal(t, "Script", request.Integration.Credentials["type"])
 	assert.Equal(t, "/etc/dd-action-runner/config/credentials/script.yaml",
@@ -118,7 +138,9 @@ func TestCreateConnection_Success(t *testing.T) {
 		},
 	}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc")
+	tags := []string{"runner-id:runner-id-123", "hostname:test-hostname"}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
 	require.NoError(t, err)
 	assert.Equal(t, "POST", receivedMethod)
@@ -128,6 +150,9 @@ func TestCreateConnection_Success(t *testing.T) {
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/")
 	assert.Contains(t, receivedBody, `"name":"HTTP (runner-name-abc)"`)
 	assert.Contains(t, receivedBody, `"runner_id":"runner-id-123"`)
+	assert.Contains(t, receivedBody, `"tags":[`)
+	assert.Contains(t, receivedBody, `"runner-id:runner-id-123"`)
+	assert.Contains(t, receivedBody, `"hostname:test-hostname"`)
 }
 
 func TestCreateConnection_ErrorResponses(t *testing.T) {
@@ -181,7 +206,9 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 				},
 			}
 
-			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc")
+			tags := []string{"runner-id:runner-id-123", "hostname:test-hostname"}
+
+			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -201,11 +228,13 @@ func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
 	}
 	runnerID := "runner-123"
 	runnerName := "test-runner"
+	tags := []string{}
 
-	request := buildConnectionRequest(k8sDef, runnerID, runnerName)
+	request := buildConnectionRequest(k8sDef, runnerID, runnerName, tags)
 
 	assert.Equal(t, "Kubernetes (test-runner)", request.Name)
 	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, tags, request.Tags)
 	assert.Equal(t, "Kubernetes", request.Integration.Type)
 	assert.Equal(t, "KubernetesServiceAccount", request.Integration.Credentials["type"])
 	assert.Len(t, request.Integration.Credentials, 1)
@@ -269,7 +298,8 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := buildConnectionRequest(tt.definition, tt.runnerID, tt.runnerName)
+			tags := []string{"runner-id:runner-123", "hostname:test-host"}
+			request := buildConnectionRequest(tt.definition, tt.runnerID, tt.runnerName, tags)
 
 			jsonBytes, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
 			require.NoError(t, err)

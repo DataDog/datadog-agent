@@ -479,8 +479,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 14 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent)
-	assert.Equal(t, 14, totalProfiles)
+	// Default config has 15 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent, injector)
+	assert.Equal(t, 15, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -762,6 +762,87 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	require.Contains(t, metrics, "total:6:")
 	m4 := metrics["total:6:"]
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
+}
+
+// TestAggregateTotalDeltaStabilityOnTimeseriesCountChange verifies that the
+// aggregate_total counter delta remains correct when the number of timeseries
+// changes between collection cycles. This is a regression test for a bug where
+// the "total" tag value encoded the timeseries count (e.g., total="2" then
+// total="3"), causing unstable delta cache keys and inflated/incorrect totals.
+func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            exclude:
+              zero_metric: true
+            metrics:
+              - name: bar.zoo
+                aggregate_total: true
+                aggregate_tags:
+                  - tag1
+    `
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2"}, "")
+
+	// --- Cycle 1: only tag1=a1 has data (1 non-zero timeseries after filtering) ---
+	counter.AddWithTags(100, map[string]string{"tag1": "a1", "tag2": "b1"})
+
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	r.(*runnerMock).run()
+
+	// First cycle: cumulative == delta (no previous cache)
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 2, len(s.sentMetrics[0].metrics)) // tag1:a1 + total
+
+	metrics1 := makeStableMetricMap(s.sentMetrics[0].metrics)
+	require.Contains(t, metrics1, "tag1:a1:")
+	assert.Equal(t, float64(100), metrics1["tag1:a1:"].Counter.GetValue())
+
+	// total should equal the partition sum (100)
+	// The total tag value will be "1" (1 timeseries after zero filtering)
+	require.Contains(t, metrics1, "total:1:")
+	assert.Equal(t, float64(100), metrics1["total:1:"].Counter.GetValue())
+
+	// --- Cycle 2: add a NEW timeseries tag1=a2 (now 2 timeseries) ---
+	// Also increment a1 so both are non-zero
+	counter.AddWithTags(50, map[string]string{"tag1": "a1", "tag2": "b1"})
+	counter.AddWithTags(200, map[string]string{"tag1": "a2", "tag2": "b2"})
+
+	// Reset sender to capture only cycle 2
+	s.sentMetrics = nil
+	r.(*runnerMock).run()
+
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 3, len(s.sentMetrics[0].metrics)) // tag1:a1 + tag1:a2 + total
+
+	metrics2 := makeStableMetricMap(s.sentMetrics[0].metrics)
+
+	// tag1:a1 delta should be 50 (cumulative went from 100 to 150)
+	require.Contains(t, metrics2, "tag1:a1:")
+	assert.Equal(t, float64(50), metrics2["tag1:a1:"].Counter.GetValue())
+
+	// tag1:a2 delta should be 200 (new timeseries, no previous value)
+	require.Contains(t, metrics2, "tag1:a2:")
+	assert.Equal(t, float64(200), metrics2["tag1:a2:"].Counter.GetValue())
+
+	// total tag value changed from "1" to "2" (timeseries count increased).
+	// The total delta MUST equal the sum of partition deltas: 50 + 200 = 250.
+	// Before the fix, this would be the full cumulative value (350) due to a
+	// cache key miss when the total tag changed from total:"1" to total:"2".
+	require.Contains(t, metrics2, "total:2:")
+	totalValue := metrics2["total:2:"].Counter.GetValue()
+	partitionSum := metrics2["tag1:a1:"].Counter.GetValue() + metrics2["tag1:a2:"].Counter.GetValue()
+	assert.Equal(t, partitionSum, totalValue,
+		"total delta (%v) must equal sum of partition deltas (%v); mismatch indicates unstable cache key bug",
+		totalValue, partitionSum)
 }
 
 func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {

@@ -10,12 +10,15 @@ import (
 	"os"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
-// enableOtelCollectorConfigCommon adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
+// enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
 // nolint:unused // Called only from platform-specific code/contexts
-func enableOtelCollectorConfigCommon(datadogYamlPath string) error {
+func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath string) (err error) {
+	span, _ := ctx.StartSpan("enable_otelcollector_config_in_datadog_yaml")
+	defer func() { span.Finish(err) }()
+
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
@@ -33,7 +36,7 @@ func enableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
 	}
-	return os.WriteFile(datadogYamlPath, updated, 0o600)
+	return os.WriteFile(datadogYamlPath, updated, 0o640) // Permissions shouldn't change as the file exists
 }
 
 // disableOtelCollectorConfigCommon removes otelcollector and agent_ipc from the given datadog.yaml path
@@ -62,7 +65,10 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 // writeOTelConfigCommon creates otel-config.yaml from a template by substituting api_key and site found in datadog.yaml
 // If preserveIfExists is true and outPath already exists, the function returns without writing.
 // nolint:unused // Called only from platform-specific code/contexts
-func writeOTelConfigCommon(datadogYamlPath, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) error {
+func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) (err error) {
+	span, _ := ctx.StartSpan("write_otel_config_common")
+	defer func() { span.Finish(err) }()
+
 	if preserveIfExists {
 		if _, err := os.Stat(outPath); err == nil {
 			return nil

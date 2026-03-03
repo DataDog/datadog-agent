@@ -28,13 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type configFormat struct {
 	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
 	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
-	CELSelector             workloadfilter.Rules               `yaml:"cel_selector"`
+	CELSelector             workloadfilter.Rules               `yaml:"cel_selector,omitempty"`
 	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
 	InitConfig              interface{}                        `yaml:"init_config,omitempty"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics,omitempty"`

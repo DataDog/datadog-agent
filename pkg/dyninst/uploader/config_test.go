@@ -22,6 +22,7 @@ func TestConfig(t *testing.T) {
 		assert.Equal(t, defaultMaxBatchItems, c.batcherConfig.maxBatchItems)
 		assert.Equal(t, defaultMaxBatchSizeBytes, c.batcherConfig.maxBatchSizeBytes)
 		assert.Equal(t, defaultMaxBufferDuration, c.batcherConfig.maxBufferDuration)
+		assert.Equal(t, defaultSendTimeout, c.sendTimeout)
 	})
 
 	t.Run("with client", func(t *testing.T) {
@@ -47,5 +48,11 @@ func TestConfig(t *testing.T) {
 		c := defaultConfig()
 		WithMaxBufferDuration(10 * time.Millisecond)(&c)
 		assert.Equal(t, 10*time.Millisecond, c.batcherConfig.maxBufferDuration)
+	})
+
+	t.Run("with send timeout", func(t *testing.T) {
+		c := defaultConfig()
+		WithSendTimeout(10 * time.Millisecond)(&c)
+		assert.Equal(t, 10*time.Millisecond, c.sendTimeout)
 	})
 }

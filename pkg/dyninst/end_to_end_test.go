@@ -236,6 +236,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
+	modCfg.ActuatorConfig.RecompilationRateLimit = -1
 
 	modCfg.SymDBUploadEnabled = true
 	modCfg.LogUploaderURL = ts.backendServer.URL + "/logs"

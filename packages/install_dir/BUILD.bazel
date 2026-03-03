@@ -27,7 +27,9 @@ pkg_filegroup(
 filegroup(
     name = "all_deps",
     srcs = [
+        ":embedded",
         "//deps:all_deps",
+        "//deps/jmxfetch:all_files",
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
@@ -59,6 +61,7 @@ pkg_filegroup(
     name = "etc",
     srcs = [
         "//deps/snmp_traps:all_files",
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
     ],
 )
 

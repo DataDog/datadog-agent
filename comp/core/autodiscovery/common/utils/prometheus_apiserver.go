@@ -84,6 +84,37 @@ func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *
 	return configs
 }
 
+// ConfigsForServiceEndpointSlices returns the openmetrics configurations for a given endpointslice if it matches the AD
+// configuration for related service
+func ConfigsForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service, slice *discv1.EndpointSlice) []integration.Config {
+	var configs []integration.Config
+	namespacedName := svc.GetNamespace() + "/" + svc.GetName()
+	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
+	if found {
+		for _, endpoint := range slice.Endpoints {
+			for _, ip := range endpoint.Addresses {
+				endpointsID := apiserver.EntityForEndpoints(slice.GetNamespace(), svc.GetName(), ip)
+
+				epConfig := integration.Config{
+					ServiceID:     endpointsID,
+					Name:          openmetricsCheckName,
+					InitConfig:    integration.Data(openmetricsInitConfig),
+					Instances:     instances,
+					ClusterCheck:  true,
+					Provider:      names.PrometheusServicesEndpointSlices,
+					Source:        "prometheus_services:" + endpointsID,
+					ADIdentifiers: []string{endpointsID},
+				}
+
+				ResolveEndpointSliceConfigAuto(&epConfig, endpoint)
+				configs = append(configs, epConfig)
+			}
+		}
+	}
+
+	return configs
+}
+
 // ResolveEndpointConfigAuto automatically resolves endpoint pod and node information if available
 func ResolveEndpointConfigAuto(conf *integration.Config, addr v1.EndpointAddress) {
 	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.ServiceID)

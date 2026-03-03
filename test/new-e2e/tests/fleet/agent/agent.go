@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -42,6 +42,15 @@ func (a *Agent) Version() (string, error) {
 		return "", err
 	}
 	return status.AgentMetadata.AgentVersion, nil
+}
+
+// PackageVersion returns the OCI package version of the agent.
+func (a *Agent) PackageVersion() (string, error) {
+	status, err := a.Status()
+	if err != nil {
+		return "", err
+	}
+	return status.AgentMetadata.PackageVersion, nil
 }
 
 // Status returns the status of the agent.
@@ -226,6 +235,7 @@ type Status struct {
 		HostnameSource                           string        `json:"hostname_source"`
 		InfrastructureMode                       string        `json:"infrastructure_mode"`
 		InstallMethodInstallerVersion            string        `json:"install_method_installer_version"`
+		PackageVersion                           string        `json:"package_version"`
 		InstallMethodTool                        string        `json:"install_method_tool"`
 		InstallMethodToolVersion                 string        `json:"install_method_tool_version"`
 		SystemProbeCoreEnabled                   bool          `json:"system_probe_core_enabled"`
@@ -922,8 +932,13 @@ type Status struct {
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
 	OtelAgent struct {
-		Error string `json:"error"`
-		URL   string `json:"url"`
+		// Error state (when DDOT is disabled or not running)
+		Error string `json:"error,omitempty"`
+		URL   string `json:"url,omitempty"`
+
+		// Success state (when DDOT is running)
+		AgentVersion     string `json:"agentVersion,omitempty"`
+		CollectorVersion string `json:"collectorVersion,omitempty"`
 	} `json:"otelAgent"`
 	Otlp struct {
 		OtlpCollectorStatus    string `json:"otlpCollectorStatus"`
