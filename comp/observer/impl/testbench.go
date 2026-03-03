@@ -952,6 +952,37 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 	return tb.correlatorsProcessing
 }
 
+// RunHeadless runs a scenario synchronously without the HTTP server and writes output.
+// If verbose is true, the output file includes full correlation detail (title, members, anomalies).
+// If verbose is false, correlations include only the anomalous time span.
+func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) error {
+	// LoadScenario runs detectors synchronously and kicks off correlators async.
+	if err := tb.LoadScenario(scenario); err != nil {
+		return fmt.Errorf("loading scenario %q: %w", scenario, err)
+	}
+
+	// Wait for correlators to finish (they run in a background goroutine).
+	const pollInterval = 50 * time.Millisecond
+	const maxWait = 5 * time.Minute
+	deadline := time.Now().Add(maxWait)
+	for tb.IsCorrelatorsProcessing() {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("correlators still processing after %v timeout", maxWait)
+		}
+		time.Sleep(pollInterval)
+	}
+
+	// Write structured JSON output.
+	if outputPath != "" {
+		if err := tb.WriteObserverOutput(outputPath, verbose); err != nil {
+			return fmt.Errorf("writing observer output: %w", err)
+		}
+		fmt.Printf("Observer output written to %s\n", outputPath)
+	}
+
+	return nil
+}
+
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
 func (tb *TestBench) ToggleComponent(name string) error {
 	tb.mu.Lock()

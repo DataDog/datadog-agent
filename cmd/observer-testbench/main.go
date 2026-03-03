@@ -33,6 +33,11 @@ type CLIParams struct {
 	HTTPAddr          string
 	EnableOverrides   map[string]bool
 	CUSUMIncludeCount bool
+
+	// Headless mode: run a scenario and exit (no HTTP server)
+	Headless string // scenario name to run (empty = interactive mode)
+	Output   string // path for observer JSON output
+	Verbose  bool   // include full detail in JSON output (headless mode only)
 }
 
 func main() {
@@ -41,6 +46,9 @@ func main() {
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
 	cusumIncludeCount := flag.Bool("cusum-include-count", false, "CUSUM: include :count metrics (default: skip them)")
+	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
+	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
+	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -61,10 +69,12 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Observer Test Bench\n")
-	fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
-	fmt.Printf("  HTTP address:  %s\n", *httpAddr)
-	fmt.Println()
+	if *headless == "" {
+		fmt.Printf("Observer Test Bench\n")
+		fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
+		fmt.Printf("  HTTP address:  %s\n", *httpAddr)
+		fmt.Println()
+	}
 
 	err := fxutil.OneShot(run,
 		recorderfx.Module(),
@@ -79,6 +89,9 @@ func main() {
 			HTTPAddr:          *httpAddr,
 			EnableOverrides:   overrides,
 			CUSUMIncludeCount: *cusumIncludeCount,
+			Headless:          *headless,
+			Output:            *output,
+			Verbose:           *verbose,
 		}),
 	)
 	if err != nil {
@@ -88,7 +101,7 @@ func main() {
 }
 
 func run(recorder recorderdef.Component, params CLIParams) error {
-	// Create and start the test bench
+	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
 		ScenariosDir:      params.ScenariosDir,
 		HTTPAddr:          params.HTTPAddr,
@@ -99,6 +112,11 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
 		return err
+	}
+
+	// Headless mode: run scenario, write output, exit (no HTTP server)
+	if params.Headless != "" {
+		return tb.RunHeadless(params.Headless, params.Output, params.Verbose)
 	}
 
 	if err := tb.Start(); err != nil {
