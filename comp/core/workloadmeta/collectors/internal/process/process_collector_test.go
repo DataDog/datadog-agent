@@ -782,93 +782,62 @@ func TestProcessCacheSameCmdline(t *testing.T) {
 	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
 }
 
-func TestProcessesWithNewContainerID(t *testing.T) {
-	pid1 := int32(100)
-	pid2 := int32(200)
-	pid3 := int32(300)
-	pid4 := int32(400)
-
-	procs := map[int32]*procutil.Process{
-		pid1: {Pid: pid1, Cmdline: []string{"nginx"}},
-		pid2: {Pid: pid2, Cmdline: []string{"redis"}},
-		pid3: {Pid: pid3, Cmdline: []string{"bash"}},
-		pid4: {Pid: pid4, Cmdline: []string{"java"}},
-	}
+// TestProcessCacheDifferenceContainerID tests that processCacheDifference detects
+// when a process gains or changes its container ID (same PID, same CreateTime, same Cmdline).
+func TestProcessCacheDifferenceContainerID(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
 
 	for _, tc := range []struct {
-		description     string
-		currentPidToCid map[int]string
-		lastPidToCid    map[int]string
-		alreadyInDiff   map[int32]bool
-		expectedPids    []int32
+		description string
+		cacheA      map[int32]*procutil.Process
+		cacheB      map[int32]*procutil.Process
+		expectedLen int
 	}{
 		{
-			description:     "CID becomes available for a process",
-			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
-			lastPidToCid:    map[int]string{},
-			alreadyInDiff:   map[int32]bool{},
-			expectedPids:    []int32{pid1},
-		},
-		{
-			description:     "CID changes for a process",
-			currentPidToCid: map[int]string{int(pid1): "cid-new"},
-			lastPidToCid:    map[int]string{int(pid1): "cid-old"},
-			alreadyInDiff:   map[int32]bool{},
-			expectedPids:    []int32{pid1},
-		},
-		{
-			description:     "CID unchanged - no diff",
-			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
-			lastPidToCid:    map[int]string{int(pid1): "cid-abc"},
-			alreadyInDiff:   map[int32]bool{},
-			expectedPids:    nil,
-		},
-		{
-			description:     "skip process already in diff",
-			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
-			lastPidToCid:    map[int]string{},
-			alreadyInDiff:   map[int32]bool{pid1: true},
-			expectedPids:    nil,
-		},
-		{
-			description: "multiple CID changes, one unchanged, one already in diff",
-			currentPidToCid: map[int]string{
-				int(pid1): "cid-1",
-				int(pid2): "cid-2",
-				int(pid3): "cid-3",
-				int(pid4): "cid-4",
+			description: "CID becomes available",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
 			},
-			lastPidToCid: map[int]string{
-				int(pid2): "cid-2",
-				int(pid3): "cid-old-3",
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: ""},
 			},
-			alreadyInDiff: map[int32]bool{pid4: true},
-			expectedPids:  []int32{pid1, pid3},
+			expectedLen: 1,
 		},
 		{
-			description:     "both maps empty - no diff",
-			currentPidToCid: map[int]string{},
-			lastPidToCid:    map[int]string{},
-			alreadyInDiff:   map[int32]bool{},
-			expectedPids:    nil,
+			description: "CID changes",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-new"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-old"},
+			},
+			expectedLen: 1,
 		},
 		{
-			description:     "host process (no CID) - no diff",
-			currentPidToCid: map[int]string{},
-			lastPidToCid:    map[int]string{},
-			alreadyInDiff:   map[int32]bool{},
-			expectedPids:    nil,
+			description: "CID unchanged - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			expectedLen: 0,
+		},
+		{
+			description: "host process without CID - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			expectedLen: 0,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			result := processesWithNewContainerID(procs, tc.currentPidToCid, tc.lastPidToCid, tc.alreadyInDiff)
-
-			resultPids := make([]int32, len(result))
-			for i, proc := range result {
-				resultPids[i] = proc.Pid
-			}
-
-			assert.ElementsMatch(t, tc.expectedPids, resultPids)
+			diff := processCacheDifference(tc.cacheA, tc.cacheB)
+			assert.Len(t, diff, tc.expectedLen)
 		})
 	}
 }
@@ -879,7 +848,11 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	collectionInterval := time.Second * 10
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
-	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	// Separate objects per cycle since enrichProcessesWithContainerID mutates in-place.
+	// In production, ProcessesByPID returns fresh objects each call.
+	proc1CycleA := createTestPythonProcess(pid1, creationTime1)
+	proc1CycleB := createTestPythonProcess(pid1, creationTime1)
 
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
@@ -891,15 +864,18 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	defer cancel()
 
 	// Cycle 1: process exists but container ID is not yet available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		pid1: proc1CycleA,
+	}, nil).Times(1)
 	// Cycle 2: same process, now container ID is available
 	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
-		proc1.Pid: proc1,
-	}, nil).Times(2)
+		pid1: proc1CycleB,
+	}, nil).Times(1)
 
 	gomock.InOrder(
 		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1),
 		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
-			int(proc1.Pid): "container-abc",
+			int(pid1): "container-abc",
 		}).Times(1),
 	)
 

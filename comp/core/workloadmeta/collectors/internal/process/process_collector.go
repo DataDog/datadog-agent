@@ -62,7 +62,6 @@ type collector struct {
 	systemProbeConfig      pkgconfigmodel.Reader
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
-	lastPidToCid           map[int]string
 	mux                    sync.RWMutex
 	containerProvider      proccontainers.ContainerProvider
 
@@ -102,7 +101,6 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		systemProbeConfig:      systemProbeConfig,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
-		lastPidToCid:           make(map[int]string),
 
 		// Initialize service discovery fields
 		sysProbeClient:           sysprobeclient.GetCheckClient(),
@@ -276,8 +274,19 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
+// enrichProcessesWithContainerID sets the ContainerID field on each process
+// that has a mapping in pidToCid. This must be called before processCacheDifference
+// so the diff can detect container ID changes.
+func enrichProcessesWithContainerID(procs map[int32]*procutil.Process, pidToCid map[int]string) {
+	for pid, proc := range procs {
+		if cid, ok := pidToCid[int(pid)]; ok {
+			proc.ContainerID = cid
+		}
+	}
+}
+
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
-// It uses PID, creation time, and command line hash to detect new processes
+// It uses PID, creation time, command line hash, and container ID to detect new or changed processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -296,36 +305,11 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		if !procutil.IsSameProcess(procA, procB) {
+		if !procutil.IsSameProcess(procA, procB) || procA.ContainerID != procB.ContainerID {
 			newProcs = append(newProcs, procA)
 		}
 	}
 	return newProcs
-}
-
-// processesWithNewContainerID returns processes whose container ID mapping has changed
-// since the last collection cycle. This handles the race condition where a containerized
-// process is first collected before its container ID is available, and the normal
-// process identity diff (PID/CreateTime/Cmdline) would not detect the CID change.
-// The alreadyInDiff set is used to avoid duplicating processes already in the diff.
-func processesWithNewContainerID(
-	procs map[int32]*procutil.Process,
-	currentPidToCid, lastPidToCid map[int]string,
-	alreadyInDiff map[int32]bool,
-) []*procutil.Process {
-	var result []*procutil.Process
-	for pid, cid := range currentPidToCid {
-		pid32 := int32(pid)
-		if alreadyInDiff[pid32] {
-			continue
-		}
-		if lastCid, existed := lastPidToCid[pid]; !existed || lastCid != cid {
-			if proc, ok := procs[pid32]; ok {
-				result = append(result, proc)
-			}
-		}
-	}
-	return result
 }
 
 // detectLanguages collects languages from given processes if language collection is enabled
@@ -662,19 +646,13 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 		// TODO: potentially scrub process data here instead of in the check?
 
+		// Enrich processes with container IDs before diffing so that a CID
+		// change (e.g. becoming available after a race with the container
+		// runtime) is detected by processCacheDifference.
+		enrichProcessesWithContainerID(procs, pidToCid)
+
 		// categorize the processes into events for workloadmeta
 		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-
-		// Build a set of PIDs already in the diff so we don't duplicate them
-		alreadyInDiff := make(map[int32]bool, len(createdProcs))
-		for _, proc := range createdProcs {
-			alreadyInDiff[proc.Pid] = true
-		}
-
-		// Re-emit processes whose container ID changed since last cycle
-		cidChangedProcs := processesWithNewContainerID(procs, pidToCid, c.lastPidToCid, alreadyInDiff)
-		createdProcs = append(createdProcs, cidChangedProcs...)
-
 		languages := c.detectLanguages(createdProcs)
 		wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
@@ -687,10 +665,9 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 			Deleted: wlmDeletedProcs,
 		}
 
-		// store latest collected processes and container ID mapping
+		// store latest collected processes
 		c.mux.Lock()
 		c.lastCollectedProcesses = procs
-		c.lastPidToCid = pidToCid
 		c.mux.Unlock()
 
 		select {
