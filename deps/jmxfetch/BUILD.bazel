@@ -19,6 +19,7 @@ code_sign_jar_macos(
     # identity to "-", to get a mock signing. Then build with
     #    SIGN_MAC=true bazel build //:whatever
     # signing_identity = "-",
+    tags = ["manual"],
     target_compatible_with = select({
         "@platforms//os:macos": [],
         "//conditions:default": ["@platforms//:incompatible"],
