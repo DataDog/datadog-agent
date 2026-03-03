@@ -145,17 +145,24 @@ requirements:
     ref: [DDOT001, OTELCOL005, DDOT015]
 
   - id: DDOT015
-    short: Resolve container IDs from PID, cgroup, or Kubernetes pod UID
+    short: Enrich telemetry with Datadog container tags
     long: |
-      The user shall be able to have DDOT automatically resolve the container ID of the
-      process that emitted a piece of telemetry, using one of three mechanisms:
-        - The process PID (for processes visible to the agent)
-        - The cgroup inode of the process
-        - The Kubernetes pod UID and container name from resource attributes
-      The resolved container ID is used to look up the full set of Datadog tags for that
+      The user shall be able to have DDOT use the `container.id` resource attribute, if
+      already present in the telemetry, to look up the full set of Datadog tags for that
       container and attach them to the telemetry resource.
+      If `container.id` is not present, DDOT will attempt to derive it using one of three
+      fallback mechanisms:
+        - The process PID (`process.pid` resource attribute)
+        - The cgroup inode (`datadog.container.cgroup_inode` resource attribute)
+        - The Kubernetes pod UID and container name (`k8s.pod.uid` and `k8s.container.name`
+          resource attributes)
+      These fallback paths only succeed if the corresponding attributes are present in the
+      telemetry; in practice, users typically need to configure their SDK to provide
+      `container.id` directly.
     tags: [processing, enrichment]
     ref: [DDOT014]
+    properties:
+      source: https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/comp/otelcol/otlp/components/processor/infraattributesprocessor/common.go#L124
 
   - id: DDOT016
     short: Collect a diagnostic flare archive
@@ -188,7 +195,7 @@ requirements:
       `DD_OTELCOLLECTOR_ENABLED` environment variable or the `otelcollector.enabled` setting
       in `datadog.yaml`.
       When disabled, no OTel pipeline is started and no OTLP ports are opened.
-    tags: [config, lifecycle]
+    tags: [config]
     ref: [DDOT001, DDOT009]
 
   - id: DDOT019
