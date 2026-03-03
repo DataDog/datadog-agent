@@ -70,6 +70,10 @@ void __attribute__((always_inline)) monitor_ad_sample_sampled(u64 event_type) {
 }
 
 int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol) {
+    if (family != AF_INET && family != AF_INET6) {
+        return 0;
+    }
+
     monitor_ad_sample_total(EVENT_BIND);
 
     struct bind_sample_key_t key = {
@@ -104,6 +108,10 @@ int __attribute__((always_inline)) approve_dns_sample(u32 pid) {
 }
 
 int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol) {
+    if (family != AF_INET && family != AF_INET6) {
+        return 0;
+    }
+
     monitor_ad_sample_total(EVENT_CONNECT);
 
     struct bind_sample_key_t key = {
