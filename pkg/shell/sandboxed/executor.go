@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package sandboxed provides sandboxed shell script execution. It verifies
-// scripts using the verifier package and executes them with agentfs session
-// tracking via the Go SDK.
+// Package sandboxed provides sandboxed shell script execution with agentfs
+// session tracking via the Go SDK. The agentfs overlay filesystem provides
+// sandboxing, so no AST-based script verification is performed.
 package sandboxed
 
 import (
@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/shell/verifier"
 	"github.com/google/uuid"
 	agentfs "github.com/tursodatabase/agentfs/sdk/go"
 )
@@ -103,16 +102,11 @@ func CloseSession(sessionID string) error {
 	return nil
 }
 
-// Execute verifies and executes a shell script with agentfs session tracking.
-// The script is first verified for safety using the verifier package.
-// If verification passes, the script is executed via /bin/sh -c with the
-// execution recorded in the agentfs session's audit trail.
+// Execute executes a shell script with agentfs session tracking.
+// The script is executed via /bin/sh -c with the execution recorded in the
+// agentfs session's audit trail. The agentfs overlay filesystem provides
+// sandboxing; no AST-based script verification is performed.
 func Execute(ctx context.Context, script string, opts ...Option) (*Result, error) {
-	// Verify the script first.
-	if err := verifier.Verify(script); err != nil {
-		return nil, fmt.Errorf("script verification failed: %w", err)
-	}
-
 	// Apply options.
 	o := &options{
 		timeout:       DefaultTimeout,

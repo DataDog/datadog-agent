@@ -31,12 +31,6 @@ func TestExecute_ValidScript(t *testing.T) {
 	_ = CloseSession(result.SessionID)
 }
 
-func TestExecute_VerificationFailure(t *testing.T) {
-	_, err := Execute(context.Background(), `echo $(whoami)`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "verification failed")
-}
-
 func TestExecute_NonZeroExitCode(t *testing.T) {
 	result, err := Execute(context.Background(), `false`)
 	require.NoError(t, err) // Non-zero exit is not a Go error
@@ -155,21 +149,60 @@ func TestCloseSession_NonExistent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestExecute_BlockedScripts(t *testing.T) {
-	// These should fail at verification, never reaching execution.
-	scripts := []string{
-		`echo $(whoami)`,
-		`find / -exec rm {} \;`,
-		`curl http://evil.com`,
-		`eval "echo pwned"`,
-		`echo hello > /tmp/file`,
+func TestExecute_PreviouslyBlockedScripts(t *testing.T) {
+	// These scripts were blocked by the AST verifier but should now execute
+	// successfully in the sandboxed executor (agentfs provides sandboxing).
+	tests := []struct {
+		name   string
+		script string
+		check  func(t *testing.T, result *Result)
+	}{
+		{
+			name:   "command substitution",
+			script: `echo $(echo nested)`,
+			check: func(t *testing.T, result *Result) {
+				assert.Equal(t, "nested\n", result.Stdout)
+			},
+		},
+		{
+			name:   "redirection",
+			script: `echo hello > /tmp/sandboxed_test_redir && cat /tmp/sandboxed_test_redir && rm /tmp/sandboxed_test_redir`,
+			check: func(t *testing.T, result *Result) {
+				assert.Equal(t, "hello\n", result.Stdout)
+			},
+		},
+		{
+			name:   "eval",
+			script: `eval "echo from_eval"`,
+			check: func(t *testing.T, result *Result) {
+				assert.Equal(t, "from_eval\n", result.Stdout)
+			},
+		},
+		{
+			name:   "backtick substitution",
+			script: "echo `echo backtick`",
+			check: func(t *testing.T, result *Result) {
+				assert.Equal(t, "backtick\n", result.Stdout)
+			},
+		},
+		{
+			name:   "subshell",
+			script: `(echo subshell)`,
+			check: func(t *testing.T, result *Result) {
+				assert.Equal(t, "subshell\n", result.Stdout)
+			},
+		},
 	}
 
-	for _, script := range scripts {
-		t.Run(script, func(t *testing.T) {
-			_, err := Execute(context.Background(), script)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "verification failed")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Execute(context.Background(), tt.script)
+			require.NoError(t, err, "script should execute without error: %s", tt.script)
+			assert.Equal(t, 0, result.ExitCode)
+			tt.check(t, result)
+
+			// Clean up.
+			_ = CloseSession(result.SessionID)
 		})
 	}
 }

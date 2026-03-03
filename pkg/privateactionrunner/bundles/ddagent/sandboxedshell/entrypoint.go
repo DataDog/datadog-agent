@@ -10,8 +10,7 @@ import (
 )
 
 // SandboxedShellBundle provides shell execution inside an agentfs overlay
-// filesystem sandbox, combining AST-based script verification with filesystem
-// isolation.
+// filesystem sandbox.
 type SandboxedShellBundle struct {
 	actions map[string]types.Action
 }
@@ -22,7 +21,6 @@ func NewSandboxedShellBundle() *SandboxedShellBundle {
 		actions: map[string]types.Action{
 			"runSandboxed": NewRunSandboxedHandler(),
 			"closeSession": NewCloseSessionHandler(),
-			"getManual":    NewGetManualHandler(),
 		},
 	}
 }
