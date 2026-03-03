@@ -116,7 +116,7 @@ fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&'static str> 
 /// Validated against the canonical JSON at
 /// pkg/system-probe/config/testdata/non_discovery_module_config.json
 /// by test_non_discovery_config_matches_canonical. See also
-/// TestEnableModulesVars in pkg/system-probe/config/env_vars_sync_test.go.
+/// TestEnableModulesConfig in pkg/system-probe/config/module_config_sync_test.go.
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_CCM_NETWORK_CONFIG_ENABLED",
   "DD_COMPLIANCE_CONFIG_DATABASE_BENCHMARKS_ENABLED",

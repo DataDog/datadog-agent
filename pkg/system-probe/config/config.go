@@ -122,9 +122,9 @@ func load() (*types.Config, error) {
 	return enableModules(c, coreCfg, cfg)
 }
 
-// NOTE: When adding a new module check below, the env var that enables it
-// will be automatically discovered by TestEnableModulesVars which will check if
-// the env vars that enable the module are present in the canonical list.
+// NOTE: When adding a new module check below, the env var and YAML key that
+// enable it will be automatically discovered by TestEnableModulesConfig which
+// will check if they are present in the canonical JSON file.
 //
 // If more complex handling than checking for true is needed, the test may need
 // to be updated to handle the new case.

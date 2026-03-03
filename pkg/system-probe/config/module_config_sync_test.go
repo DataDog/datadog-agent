@@ -101,9 +101,9 @@ func resolveEnvVar(key string, cfg model.Reader) string {
 	return ""
 }
 
-// TestEnableModulesVars collects all the env vars and YAML keys that trigger
+// TestEnableModulesConfig collects all the env vars and YAML keys that trigger
 // non-discovery modules and verifies that they match the canonical JSON file.
-func TestEnableModulesVars(t *testing.T) {
+func TestEnableModulesConfig(t *testing.T) {
 	var c types.Config
 
 	realCoreCfg := mock.New(t)
