@@ -28,7 +28,7 @@ if defined XDG_CACHE_HOME (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
     exit /b 2
   )
-  :: https://pkg.go.dev/os#UserCacheDir
+  :: https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
   set "GOCACHE=%XDG_CACHE_HOME%\go-build"
   :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
   set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
