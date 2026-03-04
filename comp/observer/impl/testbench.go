@@ -462,7 +462,7 @@ func (tb *TestBench) runLogDetectors() error {
 			result := detector.Process(log)
 			ts := log.GetTimestampMs()
 			for _, m := range result.Metrics {
-				tb.storage.Add("logs", m.Name, m.Value, ts/1000, m.Tags)
+				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
 			}
 			for _, anomaly := range result.Anomalies {
 				// Fill in fields the detector may not have set

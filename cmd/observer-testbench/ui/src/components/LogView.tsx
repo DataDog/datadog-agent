@@ -1,14 +1,28 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import * as d3 from 'd3';
 import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
+import { TagFilterGroups } from './TagFilterGroups';
+
+interface TimeRange {
+  start: number;
+  end: number;
+}
 
 interface LogViewProps {
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
+  timeRange?: TimeRange | null;
+  onTimeRangeChange?: (range: TimeRange | null) => void;
 }
+
+const LOG_CHART_HEIGHT = 80;
+const LOG_CHART_MARGIN = { top: 6, right: 8, bottom: 22, left: 8 };
+const LOG_CHART_TARGET_BUCKETS = 60;
+const LOG_CHART_MIN_BUCKET_SIZE_S = 1;
 
 function formatTimestamp(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString([], {
@@ -72,7 +86,7 @@ function detectorLineColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-// Combined log rate + anomaly timeline chart
+// Combined log rate + anomaly timeline chart — interactive (drag to zoom, middle/cmd+drag to pan)
 function LogRateChart({
   logs,
   anomalies,
@@ -80,6 +94,8 @@ function LogRateChart({
   scenarioEnd,
   hoveredTimestamp,
   hoveredAnomalyIndex,
+  timeRange,
+  onTimeRangeChange,
 }: {
   logs: LogEntry[];
   anomalies: LogAnomaly[];
@@ -87,100 +103,297 @@ function LogRateChart({
   scenarioEnd: number | null;
   hoveredTimestamp?: number | null;
   hoveredAnomalyIndex?: number | null;
+  timeRange?: TimeRange | null;
+  onTimeRangeChange?: (range: TimeRange | null) => void;
 }) {
-  if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) {
-    return null;
-  }
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isBrushingRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const panStartXRef = useRef(0);
+  const panStartRangeRef = useRef<TimeRange | null>(null);
+  const panTriggerRef = useRef<'middle' | 'meta-left' | null>(null);
+  const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
+  const onTimeRangeChangeRef = useRef(onTimeRangeChange);
+  onTimeRangeChangeRef.current = onTimeRangeChange;
 
-  const bucketCount = 60;
-  const bucketSize = (scenarioEnd - scenarioStart) / bucketCount;
+  const buckets = useMemo(() => {
+    const displayStart = timeRange?.start ?? scenarioStart;
+    const displayEnd = timeRange?.end ?? scenarioEnd;
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) return [];
+    const bucketSize = Math.max(LOG_CHART_MIN_BUCKET_SIZE_S, (displayEnd - displayStart) / LOG_CHART_TARGET_BUCKETS);
+    const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
+    const data = Array.from({ length: bucketCount }, () => ({ total: 0, error: 0, warn: 0, info: 0, debug: 0 }));
+    for (const l of logs) {
+      const ts = l.timestampMs / 1000;
+      if (ts < displayStart || ts > displayEnd) continue;
+      const idx = Math.min(Math.floor((ts - displayStart) / bucketSize), bucketCount - 1);
+      if (idx >= 0) {
+        data[idx].total++;
+        const s = l.status.toLowerCase();
+        if (s === 'error') data[idx].error++;
+        else if (s === 'warn' || s === 'warning') data[idx].warn++;
+        else if (s === 'info') data[idx].info++;
+        else data[idx].debug++;
+      }
+    }
+    return data.map((d, i) => ({
+      ...d,
+      startTs: displayStart + i * bucketSize,
+      endTs: displayStart + (i + 1) * bucketSize,
+    }));
+  }, [logs, scenarioStart, scenarioEnd, timeRange]);
 
-  const logBuckets = new Array(bucketCount).fill(0);
-  for (const l of logs) {
-    const idx = Math.min(Math.floor((l.timestampMs / 1000 - scenarioStart) / bucketSize), bucketCount - 1);
-    if (idx >= 0) logBuckets[idx]++;
-  }
+  const detectors = useMemo(
+    () => Array.from(new Set(anomalies.map((a) => a.detectorName))),
+    [anomalies]
+  );
 
-  const maxLog = Math.max(1, ...logBuckets);
+  // D3 chart drawing
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current) return;
+    if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart || buckets.length === 0) return;
+    if (isBrushingRef.current) return;
 
-  const hoveredBucket =
-    hoveredTimestamp != null
-      ? Math.min(Math.floor((hoveredTimestamp / 1000 - scenarioStart) / bucketSize), bucketCount - 1)
-      : null;
+    const m = LOG_CHART_MARGIN;
+    const container = containerRef.current;
+    const width = container.clientWidth;
+    const innerWidth = width - m.left - m.right;
+    const innerHeight = LOG_CHART_HEIGHT - m.top - m.bottom;
 
-  // Derive unique detectors for the legend
-  const detectors = Array.from(new Set(anomalies.map((a) => a.detectorName)));
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const svg = d3.select(svgRef.current).attr('width', width).attr('height', LOG_CHART_HEIGHT);
+
+    svg.append('defs').append('clipPath')
+      .attr('id', 'log-rate-clip')
+      .append('rect').attr('width', innerWidth).attr('height', innerHeight);
+
+    const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+
+    const xDomain: [number, number] = timeRange
+      ? [timeRange.start * 1000, timeRange.end * 1000]
+      : [scenarioStart * 1000, scenarioEnd * 1000];
+    const xScale = d3.scaleTime().domain(xDomain).range([0, innerWidth]);
+    xScaleRef.current = xScale;
+
+    const maxTotal = Math.max(1, ...buckets.map((b) => b.total));
+    const barsG = g.append('g').attr('clip-path', 'url(#log-rate-clip)');
+
+    // Status layers — bottom to top: debug, info, warn, error
+    const STATUS_LAYERS = [
+      { key: 'debug' as const, color: 'rgba(100, 116, 139, 0.6)' },
+      { key: 'info'  as const, color: 'rgba(59, 130, 246, 0.65)' },
+      { key: 'warn'  as const, color: 'rgba(245, 158, 11, 0.8)'  },
+      { key: 'error' as const, color: 'rgba(239, 68, 68, 0.85)'  },
+    ] as const;
+
+    // Stacked bars per bucket
+    buckets.forEach((b) => {
+      const x = xScale(b.startTs * 1000);
+      const bw = Math.max(0, xScale(b.endTs * 1000) - x - 1);
+      if (bw <= 0) return;
+
+      if (b.total === 0) {
+        barsG.append('rect')
+          .attr('x', x).attr('width', bw)
+          .attr('y', innerHeight - 2).attr('height', 2)
+          .attr('fill', 'rgba(51, 65, 85, 0.25)');
+        return;
+      }
+
+      const totalH = Math.max(4, (b.total / maxTotal) * innerHeight);
+      let yBottom = innerHeight;
+      for (const { key, color } of STATUS_LAYERS) {
+        const count = b[key];
+        if (count === 0) continue;
+        const segH = (count / b.total) * totalH;
+        barsG.append('rect')
+          .attr('x', x).attr('width', bw)
+          .attr('y', yBottom - segH).attr('height', segH)
+          .attr('fill', color);
+        yBottom -= segH;
+      }
+    });
+
+    // Anomaly markers (triangle + vertical line per anomaly)
+    anomalies.forEach((a, i) => {
+      const x = xScale(a.timestamp * 1000);
+      if (x < 0 || x > innerWidth) return;
+      const color = detectorLineColor(a.detectorName);
+      const isHovered = hoveredAnomalyIndex === i;
+      const opacity = hoveredAnomalyIndex != null && !isHovered ? 0.35 : 1;
+      const ts = isHovered ? 5 : 3;
+      barsG.append('polygon')
+        .attr('points', `${x - ts},0 ${x + ts},0 ${x},${(ts * 1.7).toFixed(1)}`)
+        .attr('fill', color)
+        .attr('opacity', opacity);
+      barsG.append('line')
+        .attr('x1', x).attr('x2', x)
+        .attr('y1', ts * 1.7).attr('y2', innerHeight)
+        .attr('stroke', color)
+        .attr('stroke-width', isHovered ? 1.5 : 1)
+        .attr('opacity', opacity);
+    });
+
+    // Hover effects — drawn on top of bars
+    if (hoveredTimestamp != null) {
+      const hts = hoveredTimestamp / 1000;
+      const hb = buckets.find((b) => hts >= b.startTs && hts < b.endTs);
+      if (hb) {
+        const hx = xScale(hb.startTs * 1000);
+        const hw = Math.max(0, xScale(hb.endTs * 1000) - hx);
+        barsG.append('rect')
+          .attr('x', hx).attr('width', hw)
+          .attr('y', 0).attr('height', innerHeight)
+          .attr('fill', 'rgba(255, 255, 255, 0.12)')
+          .attr('stroke', 'rgba(255, 255, 255, 0.45)')
+          .attr('stroke-width', 1);
+      }
+      // Exact timestamp cursor line
+      const x = xScale(hoveredTimestamp);
+      if (x >= 0 && x <= innerWidth) {
+        barsG.append('line')
+          .attr('x1', x).attr('x2', x)
+          .attr('y1', 0).attr('y2', innerHeight)
+          .attr('stroke', 'rgba(255, 255, 255, 0.7)')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '3,2');
+      }
+    }
+
+    // X axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerHeight})`)
+      .call(
+        d3.axisBottom(xScale)
+          .ticks(6)
+          .tickFormat((d) => d3.timeFormat('%H:%M:%S')(d as Date))
+      )
+      .attr('color', '#334155')
+      .selectAll('text')
+      .attr('fill', '#64748b')
+      .attr('font-size', '9px');
+
+    g.select('.domain').attr('stroke', '#334155');
+
+    // Brush for zoom
+    const brush = d3
+      .brushX<unknown>()
+      .extent([[0, 0], [innerWidth, innerHeight]])
+      .filter((event: MouseEvent) => event.button === 0 && !event.metaKey)
+      .on('start', () => { isBrushingRef.current = true; })
+      .on('end', (event: d3.D3BrushEvent<unknown>) => {
+        isBrushingRef.current = false;
+        if (!event.selection) return;
+        const [x0, x1] = event.selection as [number, number];
+        const start = Math.floor(xScale.invert(x0).getTime() / 1000);
+        const end = Math.floor(xScale.invert(x1).getTime() / 1000);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        g.select('.brush').call(brush.move as any, null);
+        if (onTimeRangeChangeRef.current && end > start) {
+          onTimeRangeChangeRef.current({ start, end });
+        }
+      });
+
+    g.append('g').attr('class', 'brush').call(brush);
+    g.select('.brush .selection')
+      .attr('fill', 'rgba(45, 212, 191, 0.2)')
+      .attr('stroke', '#2dd4bf')
+      .attr('stroke-width', 1);
+  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex]);
+
+  // Panning (middle-click or cmd+left-drag)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const isMiddle = e.button === 1;
+      const isMetaLeft = e.button === 0 && e.metaKey;
+      if (!isMiddle && !isMetaLeft) return;
+      if (!timeRange) return;
+      e.preventDefault();
+      isPanningRef.current = true;
+      panTriggerRef.current = isMiddle ? 'middle' : 'meta-left';
+      panStartXRef.current = e.clientX;
+      panStartRangeRef.current = { ...timeRange };
+      svg.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isPanningRef.current || !panStartRangeRef.current || !xScaleRef.current) return;
+      const dx = e.clientX - panStartXRef.current;
+      const scale = xScaleRef.current;
+      const domain = scale.domain();
+      const r = scale.range();
+      const pixelsPerMs = (r[1] - r[0]) / (domain[1].getTime() - domain[0].getTime());
+      const dtSec = (-dx / pixelsPerMs) / 1000;
+      onTimeRangeChangeRef.current?.({
+        start: panStartRangeRef.current.start + dtSec,
+        end: panStartRangeRef.current.end + dtSec,
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isPanningRef.current) return;
+      const trigger = panTriggerRef.current;
+      if (trigger === 'middle' && e.button !== 1) return;
+      if (trigger === 'meta-left' && e.button !== 0) return;
+      isPanningRef.current = false;
+      panTriggerRef.current = null;
+      panStartRangeRef.current = null;
+      svg.style.cursor = '';
+    };
+
+    const handleBlur = () => {
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        panTriggerRef.current = null;
+        panStartRangeRef.current = null;
+        svg.style.cursor = '';
+      }
+    };
+
+    const handleAuxClick = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); };
+
+    svg.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('blur', handleBlur);
+    svg.addEventListener('auxclick', handleAuxClick);
+
+    return () => {
+      svg.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('blur', handleBlur);
+      svg.removeEventListener('auxclick', handleAuxClick);
+    };
+  }, [timeRange]);
+
+  if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) return null;
 
   return (
     <div className="bg-slate-800/60 rounded p-3 mb-4">
       <div className="flex items-center gap-4 text-xs text-slate-400 mb-1.5">
         <span>Log rate ({logs.length} log{logs.length !== 1 ? 's' : ''} total)</span>
+        <span className="flex items-center gap-2">
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-500/80" />error</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-500/75" />warn</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-blue-500/65" />info</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-slate-500/60" />debug</span>
+        </span>
         {detectors.map((name) => (
           <span key={name} className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: detectorLineColor(name) }} />
             <span style={{ color: detectorLineColor(name) }}>{name}</span>
           </span>
         ))}
+        <span className="text-xs text-slate-600 ml-auto">(drag to zoom · middle-drag or cmd+drag to pan)</span>
       </div>
-      <div className="relative h-10">
-        {/* Log rate bars — low alpha background */}
-        <div className="absolute inset-0 flex items-end gap-px">
-          {logBuckets.map((count, i) => {
-            const isHovered = hoveredBucket !== null && i === hoveredBucket;
-            let barClass: string;
-            if (isHovered) {
-              barClass = 'flex-1 rounded-sm bg-amber-400/80';
-            } else if (count > 0) {
-              barClass = 'flex-1 rounded-sm bg-teal-500/25';
-            } else {
-              barClass = 'flex-1 rounded-sm bg-slate-700/20';
-            }
-            return (
-              <div
-                key={i}
-                className={barClass}
-                style={{ height: count > 0 ? `${Math.max(3, (count / maxLog) * 40)}px` : '2px' }}
-                title={count > 0 ? `${count} log${count > 1 ? 's' : ''}` : undefined}
-              />
-            );
-          })}
-        </div>
-        {/* Anomaly lines — one vertical line per anomaly, colored by detector */}
-        {anomalies.map((a, i) => {
-          const pct = ((a.timestamp - scenarioStart) / (scenarioEnd - scenarioStart)) * 100;
-          if (pct < 0 || pct > 100) return null;
-          const color = detectorLineColor(a.detectorName);
-          const isHovered = hoveredAnomalyIndex === i;
-          return (
-            <div
-              key={i}
-              className="absolute top-0 bottom-0"
-              style={{ left: `${pct}%`, opacity: hoveredAnomalyIndex != null && !isHovered ? 0.35 : 1 }}
-              title={`${a.detectorName}: ${a.title}`}
-            >
-              {/* Downward triangle at the top of the line */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: isHovered ? '-5px' : '-3px',
-                width: 0,
-                height: 0,
-                borderLeft: `${isHovered ? 5 : 3}px solid transparent`,
-                borderRight: `${isHovered ? 5 : 3}px solid transparent`,
-                borderTop: `${isHovered ? 8 : 5}px solid ${color}`,
-              }} />
-              {/* Vertical line */}
-              <div
-                className={`absolute top-0 bottom-0 ${isHovered ? 'w-0.5' : 'w-px'}`}
-                style={{ backgroundColor: color }}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex justify-between text-xs text-slate-600 mt-1">
-        <span>{formatTimestamp(scenarioStart)}</span>
-        <span>{formatTimestamp(scenarioEnd)}</span>
+      <div ref={containerRef} className="w-full">
+        <svg ref={svgRef} style={{ display: 'block' }} />
       </div>
     </div>
   );
@@ -354,7 +567,7 @@ function getEffectiveTags(tags: string[], status: string): string[] {
   return tags.includes(statusTag) ? tags : [statusTag, ...tags];
 }
 
-export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
@@ -421,6 +634,21 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
 
+  const visibleRegularLogs = useMemo(() => {
+    if (!timeRange) return regularLogs;
+    return regularLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
+  }, [regularLogs, timeRange]);
+
+  const visibleTelemetryLogs = useMemo(() => {
+    if (!timeRange) return telemetryLogs;
+    return telemetryLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
+  }, [telemetryLogs, timeRange]);
+
+  const visibleAnomalies = useMemo(() => {
+    if (!timeRange) return sortedAnomalies;
+    return sortedAnomalies.filter((a) => a.timestamp >= timeRange.start && a.timestamp <= timeRange.end);
+  }, [sortedAnomalies, timeRange]);
+
   return (
     <div className="flex-1 flex">
       {/* Sidebar */}
@@ -460,47 +688,17 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
               </button>
             )}
           </div>
-          {logTagGroups.size > 0 && (
-            <div className="space-y-2">
-              {[...logTagGroups.entries()].map(([key, tags]) => {
-                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
-                return (
-                  <div key={key}>
-                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {tags.map((tag) => {
-                        const active = activeTags.get(key)?.has(tag) ?? false;
-                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
-                        const value = tag.slice(tag.indexOf(':') + 1);
-                        const isStatus = key === 'status';
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => {
-                              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
-                              setExpandedLogIndex(null);
-                              setLogPage(1);
-                            }}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium transition-colors ring-1 ${isStatus ? 'uppercase' : ''} ${
-                              excluded
-                                ? 'bg-red-600/40 text-red-300 ring-red-500/60'
-                                : active
-                                ? `${isStatus ? levelBadgeColor(value) : 'bg-teal-600/40 text-teal-300'} ring-teal-500/60`
-                                : isStatus
-                                ? `${levelBadgeColor(value)} ring-transparent opacity-60 hover:opacity-100`
-                                : 'bg-slate-700 text-slate-400 ring-transparent hover:bg-slate-600 hover:text-slate-300'
-                            }`}
-                          >
-                            {isStatus ? value : tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <TagFilterGroups
+            tagGroups={logTagGroups}
+            tagFilterInput={tagFilterInput}
+            onToggleTag={(tag) => {
+              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
+              setExpandedLogIndex(null);
+              setLogPage(1);
+            }}
+            accentColor="teal"
+            statusAware
+          />
         </div>
 
         {/* Summary */}
@@ -561,6 +759,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
               scenarioEnd={scenarioEnd ?? null}
               hoveredTimestamp={hoveredLogTimestamp}
               hoveredAnomalyIndex={hoveredAnomalyIndex}
+              timeRange={timeRange}
+              onTimeRangeChange={onTimeRangeChange}
             />
 
             {/* Detected Anomalies collapsible section */}
@@ -571,11 +771,11 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                   className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
                 >
                   <span className="text-slate-500">{anomaliesExpanded ? '▼' : '▶'}</span>
-                  Detected Anomalies ({sortedAnomalies.length}{sortedAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
+                  Detected Anomalies ({visibleAnomalies.length}{visibleAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
                 </button>
                 {anomaliesExpanded && (
                   <div className="space-y-1.5">
-                    {sortedAnomalies.map((anomaly, idx) => (
+                    {visibleAnomalies.map((anomaly, idx) => (
                       <LogAnomalyCard
                         key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
                         anomaly={anomaly}
@@ -599,7 +799,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                 className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
               >
                 <span className="text-slate-500">{logsExpanded ? '▼' : '▶'}</span>
-                Raw Logs ({regularLogs.length}{regularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
+                Raw Logs ({visibleRegularLogs.length}{visibleRegularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
               </button>
 
               {logsExpanded && (
@@ -607,14 +807,14 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No log entries. Load a scenario with log files or the demo scenario.
                   </div>
-                ) : regularLogs.length === 0 ? (
+                ) : visibleRegularLogs.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
-                    No logs match the selected levels.
+                    No logs match the selected filters.
                   </div>
                 ) : (
                   <>
                     <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                      {regularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                      {visibleRegularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
                         <LogEntryRow
                           key={`${entry.timestampMs}-${idx}`}
                           entry={entry}
@@ -625,12 +825,12 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                         />
                       ))}
                     </div>
-                    {regularLogs.length > logPage * LOG_PAGE_SIZE && (
+                    {visibleRegularLogs.length > logPage * LOG_PAGE_SIZE && (
                       <button
                         onClick={() => setLogPage((p) => p + 1)}
                         className="mt-2 w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors"
                       >
-                        Show more ({regularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
+                        Show more ({visibleRegularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
                       </button>
                     )}
                   </>
@@ -649,20 +849,20 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                   >
                     <span className="text-purple-600">{telemetryLogsExpanded ? '▼' : '▶'}</span>
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
-                    Telemetry Logs ({telemetryLogs.length})
+                    Telemetry Logs ({visibleTelemetryLogs.length}{visibleTelemetryLogs.length !== telemetryLogs.length ? ` of ${telemetryLogs.length}` : ''})
                   </button>
                   <div className="flex-1 border-t border-purple-800/50" />
                 </div>
 
                 {telemetryLogsExpanded && (
-                  telemetryLogs.length === 0 ? (
+                  visibleTelemetryLogs.length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
                       No telemetry logs match the current filters.
                     </div>
                   ) : (
                     <>
                       <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                        {telemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                        {visibleTelemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
                           <LogEntryRow
                             key={`telem-${entry.timestampMs}-${idx}`}
                             entry={entry}
@@ -674,12 +874,12 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                           />
                         ))}
                       </div>
-                      {telemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
+                      {visibleTelemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
                         <button
                           onClick={() => setTelemetryLogPage((p) => p + 1)}
                           className="mt-2 w-full py-1.5 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors"
                         >
-                          Show more ({telemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
+                          Show more ({visibleTelemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
                         </button>
                       )}
                     </>

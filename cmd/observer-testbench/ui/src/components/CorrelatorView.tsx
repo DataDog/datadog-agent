@@ -7,6 +7,7 @@ import type { ScenarioInfo, Correlation } from '../api/client';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
+import { TagFilterGroups } from './TagFilterGroups';
 
 interface CorrelatorViewProps {
   state: ObserverState;
@@ -142,39 +143,11 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
               </button>
             )}
           </div>
-          {tagGroups.size > 0 && (
-            <div className="space-y-2">
-              {[...tagGroups.entries()].map(([key, tags]) => {
-                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
-                return (
-                  <div key={key}>
-                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {tags.map((tag) => {
-                        const active = activeTags.get(key)?.has(tag) ?? false;
-                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
-                              excluded
-                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
-                                : active
-                                ? 'bg-purple-600/40 text-purple-300 ring-1 ring-purple-500/60'
-                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <TagFilterGroups
+            tagGroups={tagGroups}
+            tagFilterInput={tagFilterInput}
+            onToggleTag={(tag) => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
+          />
         </div>
       </aside>
 
