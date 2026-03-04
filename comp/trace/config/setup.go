@@ -848,7 +848,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 		return errors.New("agent binary path not set")
 	}
 
-	if c.Hostname == "" && !core.GetBool("serverless.enabled") && !core.GetBool("otelcollector.gateway.mode") {
+	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		if err := hostname(c); err != nil {
 			return err
 		}
