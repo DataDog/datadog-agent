@@ -27,11 +27,6 @@ import (
 // A Runner interprets shell programs. It can be reused, but it is not safe for
 // concurrent use. Use [New] to build a new Runner.
 //
-// Note that writes to Stdout and Stderr may be concurrent if background
-// commands are used. If you plan on using an [io.Writer] implementation that
-// isn't safe for concurrent use, consider a workaround like hiding writes
-// behind a mutex.
-//
 // Runner's exported fields are meant to be configured via [RunnerOption];
 // once a Runner has been created, the fields should be treated as read-only.
 type Runner struct {
@@ -98,14 +93,6 @@ type Runner struct {
 	lastExit exitStatus
 
 	lastExpandExit exitStatus // used to surface exit statuses while expanding fields
-
-	// bgProcs holds all background shells spawned by this runner.
-	// Their PIDs are 1-indexed, from 1 to len(bgProcs), with a "g" prefix
-	// to distinguish them from real PIDs on the host operating system.
-	//
-	// Note that each shell only tracks its direct children;
-	// subshells do not share nor inherit the background PIDs they can wait for.
-	bgProcs []bgProc
 
 	// allowedPaths restricts file/directory access to these directories.
 	// nil means unrestricted (default); non-nil restricts access.
@@ -176,14 +163,6 @@ func (e *exitStatus) fromHandlerError(err error) {
 	} else {
 		e.code = 0
 	}
-}
-
-type bgProc struct {
-	// closed when the background process finishes,
-	// after which point the result fields below are set.
-	done chan struct{}
-
-	exit *exitStatus
 }
 
 // New creates a new Runner, applying a number of options. If applying any of
@@ -358,10 +337,6 @@ func (r *Runner) Reset() {
 
 		usedNew: r.usedNew,
 	}
-	// Ensure we stop referencing any pointers before we reuse bgProcs.
-	clear(r.bgProcs)
-	r.bgProcs = r.bgProcs[:0]
-
 	// TODO(v4): Use the supplied Env directly if it implements enough methods.
 	r.writeEnv = &overlayEnviron{parent: r.Env}
 	if !r.writeEnv.Get("HOME").IsSet() {
@@ -434,7 +409,6 @@ func (r *Runner) Close() error {
 
 // subshell is like [Runner.Subshell], but allows skipping some allocations and copies
 // when creating subshells which will not be used concurrently with the parent shell.
-// TODO(v4): we should expose this, e.g. SubshellForeground and SubshellBackground.
 func (r *Runner) subshell(background bool) *Runner {
 	if !r.didReset {
 		r.Reset()

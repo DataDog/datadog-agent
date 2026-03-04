@@ -140,24 +140,7 @@ func (r *Runner) stmt(ctx context.Context, st *syntax.Stmt) {
 		return
 	}
 	r.exit = exitStatus{}
-	if st.Background {
-		r2 := r.subshell(true)
-		st2 := *st
-		st2.Background = false
-		bg := bgProc{
-			done: make(chan struct{}),
-			exit: new(exitStatus),
-		}
-		r.bgProcs = append(r.bgProcs, bg)
-		go func() {
-			r2.Run(ctx, &st2)
-			r2.exit.exiting = false // subshells don't exit the parent shell
-			*bg.exit = r2.exit
-			close(bg.done)
-		}()
-	} else {
-		r.stmtSync(ctx, st)
-	}
+	r.stmtSync(ctx, st)
 	r.lastExit = r.exit
 }
 
@@ -362,20 +345,6 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 		return pr, nil
 	}
 
-	orig := &r.stdout
-	if rd.N != nil {
-		switch rd.N.Value {
-		case "0":
-			// Note that the input redirects below always use stdin (0)
-			// because we don't support anything else right now.
-		case "1":
-			// The default for the output redirects below.
-		case "2":
-			orig = &r.stderr
-		default:
-			return nil, fmt.Errorf("unsupported redirect fd: %v", rd.N.Value)
-		}
-	}
 	arg := r.literal(rd.Word)
 	switch rd.Op {
 	case syntax.WordHdoc:
@@ -392,28 +361,8 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 			pw.Close()
 		}()
 		return pr, nil
-	case syntax.DplOut:
-		switch arg {
-		case "1":
-			*orig = r.stdout
-		case "2":
-			*orig = r.stderr
-		case "-":
-			*orig = io.Discard // closing the output writer
-		default:
-			return nil, fmt.Errorf("unhandled %v arg: %q", rd.Op, arg)
-		}
-		return nil, nil
 	case syntax.RdrIn:
 		// done further below
-	case syntax.DplIn:
-		switch arg {
-		case "-":
-			r.stdin = nil // closing the input file
-		default:
-			return nil, fmt.Errorf("unhandled %v arg: %q", rd.Op, arg)
-		}
-		return nil, nil
 	default:
 		return nil, fmt.Errorf("unhandled redirect op: %v", rd.Op)
 	}

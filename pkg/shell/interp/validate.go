@@ -83,7 +83,14 @@ func validateNode(node syntax.Node) error {
 				return false
 			}
 
-		// Blocked redirections that write to files.
+		// Blocked statement-level features.
+		case *syntax.Stmt:
+			if n.Background {
+				err = fmt.Errorf("background execution (&) is not supported")
+				return false
+			}
+
+		// Blocked redirections.
 		case *syntax.Redirect:
 			err = validateRedirect(n)
 			if err != nil {
@@ -160,6 +167,10 @@ func validateRedirect(rd *syntax.Redirect) error {
 		return fmt.Errorf("&>> file redirection is not supported")
 	case syntax.RdrInOut:
 		return fmt.Errorf("<> file redirection is not supported")
+	case syntax.DplOut:
+		return fmt.Errorf(">&N fd duplication is not supported")
+	case syntax.DplIn:
+		return fmt.Errorf("<&N fd duplication is not supported")
 	}
 	return nil
 }
