@@ -1,8 +1,8 @@
 import argparse
-import analyzer
 import json
-import yaml
 
+import analyzer
+import yaml
 
 ## WIP: does not correctly generate code yet
 ##
@@ -15,7 +15,7 @@ import yaml
 
 
 def read_file(filename):
-    fp = open(filename, 'r')
+    fp = open(filename)
     content = fp.read()
     fp.close()
     return content
@@ -39,7 +39,7 @@ package setup
 def run_generator(schema_file, hints_file, outsource_file):
     func_names = analyzer.config_setup_func_names
 
-    with open(schema_file, "r") as f:
+    with open(schema_file) as f:
         schema = yaml.safe_load(f)
     hints = json.loads(read_file(hints_file))
 

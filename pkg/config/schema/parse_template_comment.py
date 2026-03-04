@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 import collections
-import sys
-import yaml
-from pprint import pprint
 import re
+import sys
+
+import yaml
 
 
 def get_indent(line):
@@ -16,32 +17,35 @@ def get_indent(line):
                 raise Exception("Odd indent: {block}")
             return count // 2
 
+
 def remove_first_pound(block):
     cleaned = []
     # edge case for the top level where the comments don't have a space after the "#" but the setting does
     if block[0].startswith("##"):
-        for l in block:
-            if l.startswith("# "):
-                l = l[2:]
+        for line in block:
+            if line.startswith("# "):
+                line = line[2:]
             else:
-                l = l[1:]
-            cleaned.append(l)
+                line = line[1:]
+            cleaned.append(line)
         return cleaned
 
     # remove first '# "
-    return [l[2:] for l in block]
+    return [line[2:] for line in block]
+
 
 def get_doc(block):
     doc = []
-    for idx, l in enumerate(block):
-        if l.startswith("#"):
-            l = l[2:]
-            if l.startswith("@param") or l.startswith("@env"):
+    for _idx, line in enumerate(block):
+        if line.startswith("#"):
+            line = line[2:]
+            if line.startswith("@param") or line.startswith("@env"):
                 continue
-            doc.append(l)
+            doc.append(line)
         else:
             break
-    return "\n".join(doc).strip(), block[idx:]
+    return "\n".join(doc).strip(), block[_idx:]
+
 
 def get_name_and_example(block):
     # remove empty lines
@@ -57,10 +61,12 @@ def get_name_and_example(block):
     example.extend(block[1:])
     return name, "\n".join(example)
 
+
 def parse_block(block):
     doc, block = get_doc(block)
     name, example = get_name_and_example(block)
     return name, doc, example
+
 
 def handle_header(block):
     """
@@ -73,6 +79,7 @@ def handle_header(block):
         raise Exception(f"Invalid header: {block}")
 
     return block[1][3:-3]
+
 
 def get_from_schema(currpath, field, schemaroot):
     node = schemaroot
@@ -87,8 +94,7 @@ def is_node_section(node):
     return node.get("node_type", "") == "section"
 
 
-class Parser(object):
-
+class Parser:
     def __init__(self):
         self.current_title = ""
         self.order = 0
@@ -106,12 +112,12 @@ class Parser(object):
         indent = get_indent(block[0])
 
         # we remove the YAML indent
-        block = [l[indent*2:] for l in block]
+        block = [line[indent * 2 :] for line in block]
 
         name, doc, example = parse_block(block)
 
         # we go one level deeper
-        if self.current_indent()+1 == indent:
+        if self.current_indent() + 1 == indent:
             self.parents.append(self.previous_name)
         elif self.current_indent() == indent:
             pass
@@ -159,7 +165,7 @@ class Parser(object):
         if res:
             self.template_section = res.group(1)
             # we found a new template block. This means that the previous setting is done
-            new_block == True
+            new_block = True
         self.template_nested_level += 1
         return new_block
 
@@ -167,7 +173,7 @@ class Parser(object):
         block = []
         for line in template.split("\n"):
             if line.startswith("{{"):
-                new_block = self.handle_template_section(line)
+                self.handle_template_section(line)
                 continue
 
             if line != "":
@@ -176,7 +182,7 @@ class Parser(object):
                 if len(block) == 0:
                     continue
 
-                #pprint(block)
+                # pprint(block)
                 if block[0].startswith("###"):
                     self.current_title = handle_header(block)
                 else:
@@ -187,14 +193,28 @@ class Parser(object):
 # Each node should use the same key order
 def nice_key_order(obj):
     res = {}
-    key_order = ['node_type', 'title', 'type', 'default', 'env_vars', 'items', 'additionalProperties', 'format', 'visibility', 'description', 'example', 'tags', 'properties']
+    key_order = [
+        'node_type',
+        'title',
+        'type',
+        'default',
+        'env_vars',
+        'items',
+        'additionalProperties',
+        'format',
+        'visibility',
+        'description',
+        'example',
+        'tags',
+        'properties',
+    ]
     for k in key_order:
         if k in obj:
             res[k] = obj[k]
     # validate the keys are the same
     missing = set(obj.keys()) - set(res.keys())
     if missing:
-        raise RuntimeError('missing keys: %s' % (missing,))
+        raise RuntimeError(f'missing keys: {missing}')
     return res
 
 
@@ -207,7 +227,7 @@ def reorder_it(schema, currpath, trackorder):
     missing_from_want = set(useorder) - set(havekeys)
     # This should always be empty! Because config_template keys should be a subset of the schema
     if len(missing_from_want):
-        raise RuntimeError('*** key:%s missing: %s' % (currkey, missing_from_want))
+        raise RuntimeError(f'*** key:{currkey} missing: {missing_from_want}')
     # If there are missing from `havekeys` that's okay. These are *undocumented* keys that are
     # defined in setup.go but not in the config_template.yaml
     missing_from_have = set(havekeys) - set(useorder)
@@ -232,10 +252,10 @@ if __name__ == "__main__":
         print("error usage")
         sys.exit(1)
 
-    with open(sys.argv[1], "r") as f:
+    with open(sys.argv[1]) as f:
         template = f.read()
 
-    with open(sys.argv[2], "r") as f:
+    with open(sys.argv[2]) as f:
         schema = yaml.safe_load(f)
 
     parser = Parser()
@@ -246,8 +266,8 @@ if __name__ == "__main__":
     schema = reorder_it(schema, [], parser.trackorder)
 
     # Output the first 10 elements to stdout, for debugging purposes
-    for n,(k,v) in enumerate(schema['properties'].items()):
-        print('%d => %s' % (n,k))
+    for n, (k, _) in enumerate(schema['properties'].items()):
+        print('%d => %s' % (n, k))
         if n >= 10:
             break
 
