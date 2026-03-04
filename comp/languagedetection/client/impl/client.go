@@ -74,7 +74,7 @@ type languageDetectionClientImpl struct {
 	// Current batch, populated by process events and cleaned by pod events
 	currentBatch batch
 
-    // The client must send freshly updated PodDetails as soon as possible however,
+	// The client must send freshly updated PodDetails as soon as possible however,
 	// streaming every update to the cluster-agent could be costly. Thus we wait for
 	// `freshDataPeriod` before sending fresh updates.
 	freshDataPeriod    time.Duration
