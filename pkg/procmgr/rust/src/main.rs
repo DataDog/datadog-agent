@@ -129,6 +129,10 @@ fn resolve_startup_order(configs: &[(String, ProcessConfig)]) -> Vec<usize> {
             order
         }
         Err(e) => {
+            // Deliberately non-fatal: a misconfigured dependency cycle should
+            // not prevent the daemon from starting its processes. We fall back
+            // to alphabetical order so the agent remains operational, and the
+            // warning gives operators visibility to fix the config.
             warn!("{e}, falling back to alphabetical order");
             (0..configs.len()).collect()
         }
