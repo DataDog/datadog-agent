@@ -120,16 +120,19 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo 'cargo not found â€
 WHEEL_CACHE_DIR="$WHEEL_CACHE/pydantic-$PYDANTIC_VERSION"
 mkdir -p "$WHEEL_CACHE_DIR"
 
-CACHED_WHEEL=$(find "$WHEEL_CACHE_DIR" -name 'pydantic_core-*-cp313-cp313-aix_ppc64.whl' 2>/dev/null | head -1)
+# Match only full-AIX-tag wheels (e.g. aix_7302_2419_64) not legacy aix_ppc64 renames.
+# aix_*_* requires at least one underscore within the AIX portion, which aix_ppc64 lacks.
+CACHED_WHEEL=$(find "$WHEEL_CACHE_DIR" -name 'pydantic_core-*-cp313-cp313-aix_*_*.whl' 2>/dev/null | head -1)
 
 if [ -n "$CACHED_WHEEL" ]; then
     log "Found cached pydantic-core wheel: $CACHED_WHEEL"
     log "Installing pydantic==$PYDANTIC_VERSION and pydantic-core from wheel cache (skipping Rust build)"
+    # --find-links lets pip use the local cached wheel for pydantic-core while
+    # downloading pydantic itself (pure Python) from PyPI.
+    # The wheel filename retains the original AIX platform tag so pip can match it.
     $PIP install \
-        --no-index \
         --find-links "$WHEEL_CACHE_DIR" \
-        "pydantic==$PYDANTIC_VERSION" \
-        pydantic-core
+        "pydantic==$PYDANTIC_VERSION"
     log "pydantic and pydantic-core installed from cache successfully"
 else
     log "No cached wheel found for pydantic==$PYDANTIC_VERSION â€” building pydantic-core from source"
@@ -150,7 +153,9 @@ else
     # tag so the same wheel can be used on any AIX 7.x POWER system.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
-        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[A-Za-z0-9_]*/aix_ppc64/')
+        # Keep the original filename (with the full AIX platform tag from this system)
+        # so that pip's --find-links can match it by tag on cache restore.
+        CACHE_NAME=$(basename "$BUILT_WHEEL")
         cp "$BUILT_WHEEL" "$WHEEL_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $WHEEL_CACHE_DIR/$CACHE_NAME"
         log "  Preserved for all future builds using pydantic==$PYDANTIC_VERSION."

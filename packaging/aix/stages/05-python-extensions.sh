@@ -196,11 +196,15 @@ export CARGO_HOME=/opt/cargo
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
 mkdir -p "$CRYPTO_CACHE_DIR"
-CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_ppc64.whl" 2>/dev/null | head -1)
+# Match only full-AIX-tag wheels (e.g. aix_7302_2419_64) not legacy aix_ppc64 renames.
+# aix_*_* requires at least one underscore within the AIX portion, which aix_ppc64 lacks.
+CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_*_*.whl" 2>/dev/null | head -1)
 
 if [ -n "$CACHED_CRYPTO" ]; then
     log "Found cached cryptography wheel: $CACHED_CRYPTO"
-    $PIP install --no-index --find-links "$CRYPTO_CACHE_DIR" "cryptography==$CRYPTOGRAPHY_VERSION"
+    # Install by direct path — bypasses PyPI lookup and works with any AIX tag
+    # that matches the current interpreter's supported tags.
+    $PIP install "$CACHED_CRYPTO"
     log "cryptography==$CRYPTOGRAPHY_VERSION installed from cache"
 else
     log "No cached wheel found for cryptography==$CRYPTOGRAPHY_VERSION — building from source"
@@ -227,9 +231,11 @@ else
     $PIP uninstall -y maturin 2>/dev/null || true
 
     # Cache the built wheel for subsequent builds.
+    # Keep the original filename (with the full AIX platform tag from this system)
+    # so that pip can match it by tag on cache restore.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
-        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[A-Za-z0-9_]*/aix_ppc64/')
+        CACHE_NAME=$(basename "$BUILT_WHEEL")
         cp "$BUILT_WHEEL" "$CRYPTO_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $CRYPTO_CACHE_DIR/$CACHE_NAME"
     else

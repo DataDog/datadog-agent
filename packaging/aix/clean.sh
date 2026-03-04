@@ -10,11 +10,13 @@
 # By default, PRESERVES:
 #   - Wheel cache ($BUILD_DIR/wheel-cache/) — pydantic-core (52-min Rust build),
 #     cryptography
+#   - Library cache ($BUILD_DIR/lib-cache/) — zlib, bzip2, OpenSSL, xz, libxml2
+#     compiled artifacts; avoids ~9-min native-libs rebuild
 #   - integrations-core checkout ($BUILD_DIR/integrations-core/) — avoids re-clone
 #
 # Usage:
-#   ./clean.sh              — clean build state, preserve wheel cache
-#   ./clean.sh --full       — also remove wheel cache (forces Rust rebuild next run)
+#   ./clean.sh              — clean build state, preserve all caches
+#   ./clean.sh --full       — also remove wheel cache and lib cache (full rebuild)
 #
 # After running, re-run build.sh to perform a fresh build.
 
@@ -32,8 +34,8 @@ for arg in "$@"; do
             ;;
         -h|--help)
             printf 'Usage: %s [--full]\n' "$0"
-            printf '  (no args)  Clean build state; preserve wheel cache and integrations-core\n'
-            printf '  --full     Also remove wheel cache (forces 52-min pydantic-core Rust rebuild)\n'
+            printf '  (no args)  Clean build state; preserve wheel cache, lib cache, and integrations-core\n'
+            printf '  --full     Also remove wheel cache and lib cache (forces full rebuild)\n'
             exit 0
             ;;
         *)
@@ -47,6 +49,7 @@ printf '=== Datadog Agent AIX build clean ===\n'
 printf '    BUILD_DIR   = %s\n' "$BUILD_DIR"
 printf '    STAGING     = %s\n' "$STAGING"
 printf '    WHEEL_CACHE = %s\n' "$WHEEL_CACHE"
+printf '    LIB_CACHE   = %s\n' "$LIB_CACHE"
 printf '\n'
 
 # ── Remove stage sentinels ─────────────────────────────────────────────────────
@@ -83,10 +86,17 @@ if [ "$FULL_CLEAN" -eq 1 ]; then
         printf 'FULL CLEAN: removing wheel cache: %s\n' "$WHEEL_CACHE"
         rm -rf "$WHEEL_CACHE"
     fi
-    printf 'FULL CLEAN: next build will recompile pydantic-core from Rust source (~52 min)\n'
+    if [ -d "$LIB_CACHE" ]; then
+        printf 'FULL CLEAN: removing lib cache: %s\n' "$LIB_CACHE"
+        rm -rf "$LIB_CACHE"
+    fi
+    printf 'FULL CLEAN: next build will recompile all native libs + pydantic-core from source\n'
 else
     if [ -d "$WHEEL_CACHE" ]; then
         printf 'Wheel cache preserved: %s\n' "$WHEEL_CACHE"
+    fi
+    if [ -d "$LIB_CACHE" ]; then
+        printf 'Library cache preserved: %s\n' "$LIB_CACHE"
     fi
     if [ -d "$BUILD_DIR/integrations-core" ]; then
         printf 'integrations-core checkout preserved: %s/integrations-core\n' "$BUILD_DIR"

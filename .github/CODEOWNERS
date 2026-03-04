@@ -865,6 +865,14 @@
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
 
+# AIX
+/packaging/aix/                         @DataDog/agent-delivery @pgimalac
+/packaging/aix/stages/                  @DataDog/agent-build @pgimalac
+/packaging/aix/build.sh                 @DataDog/agent-build @pgimalac
+/packaging/aix/clean.sh                 @DataDog/agent-build @pgimalac
+/**/*_aix.go                            @DataDog/agent-runtimes @pgimalac
+/**/*_aix_test.go                       @DataDog/agent-runtimes @pgimalac
+
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/BUILD.bazel                         @DataDog/agent-build

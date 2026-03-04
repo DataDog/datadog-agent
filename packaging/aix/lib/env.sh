@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # lib/env.sh — shared environment sourced by every stage script
 #
 # Usage: . "$SCRIPT_DIR/../lib/env.sh"   (from a stages/NN-name.sh script)
@@ -26,11 +27,12 @@ EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
+LIB_CACHE=$BUILD_DIR/lib-cache
 
 # Number of available CPUs — nproc does not exist on AIX; lsdev is in /usr/sbin
 NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 
-export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE NPROC
+export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
 
 # ── Agent version variables ───────────────────────────────────────────────────
 # AGENT_BRANCH, AGENT_VERSION, and AGENT_BUILD are required inputs.

@@ -99,6 +99,46 @@ lib_mark() {
     touch "$BUILD_DIR/.done/01-lib-$1-$2"
 }
 
+# ─── Per-library artifact cache ────────────────────────────────────────────────
+#
+# Built-from-source libraries (zlib, bzip2, OpenSSL, xz, libxml2) are archived
+# after their first successful build.  On subsequent clean builds, if the pinned
+# version matches, the archive is restored directly into $STAGING — no recompile.
+#
+# Cache key: $LIB_CACHE/<name>-<version>.tar.gz
+# Format:    cpio archive (relative to $STAGING), gzip-compressed.
+#
+# Toolbox libraries (libffi, ncurses, readline, sqlite, gdbm, libxslt) are not
+# cached; they are simple file copies taking < 1 second.
+#
+mkdir -p "$LIB_CACHE"
+
+# lib_cache_restore NAME VERSION
+#   If a cache archive exists for NAME-VERSION, extract it into $STAGING,
+#   mark the library done, and return 0.  Returns 1 on cache miss.
+lib_cache_restore() {
+    _lcr_name=$1; _lcr_ver=$2
+    _lcr_file="$LIB_CACHE/${_lcr_name}-${_lcr_ver}.tar.gz"
+    if [ -f "$_lcr_file" ]; then
+        log "${_lcr_name} ${_lcr_ver}: cache hit — restoring (skipping compile)"
+        (cd "$STAGING" && gunzip -c "$_lcr_file" | cpio -idm 2>/dev/null)
+        lib_mark "$_lcr_name" "$_lcr_ver"
+        log "${_lcr_name} ${_lcr_ver}: restored from cache"
+        return 0
+    fi
+    return 1
+}
+
+# lib_cache_save NAME VERSION PRE_TIMESTAMP_FILE
+#   Pack all files added to $STAGING since PRE_TIMESTAMP_FILE into a cache
+#   archive.  Call immediately after make install, before lib_mark.
+lib_cache_save() {
+    _lcs_name=$1; _lcs_ver=$2; _lcs_pre=$3
+    _lcs_file="$LIB_CACHE/${_lcs_name}-${_lcs_ver}.tar.gz"
+    (cd "$STAGING" && find . -newer "$_lcs_pre" | cpio -o 2>/dev/null) | gzip > "$_lcs_file"
+    log "${_lcs_name} ${_lcs_ver}: cached to $_lcs_file"
+}
+
 # stage_toolbox_lib LIB_NAME VERSION LIB64 HEADERS...
 #   Copy a library and headers from AIX Toolbox into the staging tree.
 #   LIB64 = full path of the 64-bit .a file
@@ -146,6 +186,8 @@ log "Open-file limit raised to $(ulimit -n)"
 # ── zlib (build from source) ──────────────────────────────────────────────────
 if lib_done zlib "$ZLIB_VERSION"; then
     log "zlib ${ZLIB_VERSION} already installed — skipping"
+elif lib_cache_restore zlib "$ZLIB_VERSION"; then
+    :
 else
     CURRENT_LIB="zlib-${ZLIB_VERSION}"
     log "Building zlib ${ZLIB_VERSION}"
@@ -156,12 +198,17 @@ else
         "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz"
+    # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
+    _pre="$BUILD_DIR/.lib-pre-zlib"
+    touch "$_pre"
     rm -rf "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     ./configure --prefix="$EMBEDDED"
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
+    lib_cache_save zlib "$ZLIB_VERSION" "$_pre"
+    rm -f "$_pre"
     cd "$BUILD_DIR"
     lib_mark zlib "$ZLIB_VERSION"
     log "zlib ${ZLIB_VERSION} done"
@@ -171,11 +218,16 @@ fi
 # ── bzip2 (build from source, static only) ────────────────────────────────────
 if lib_done bzip2 "$BZIP2_VERSION"; then
     log "bzip2 ${BZIP2_VERSION} already installed — skipping"
+elif lib_cache_restore bzip2 "$BZIP2_VERSION"; then
+    :
 else
     CURRENT_LIB="bzip2-${BZIP2_VERSION}"
     log "Building bzip2 ${BZIP2_VERSION}"
     TARBALL="$BUILD_DIR/sources/bzip2-${BZIP2_VERSION}.tar.gz"
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" "https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz"
+    # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
+    _pre="$BUILD_DIR/.lib-pre-bzip2"
+    touch "$_pre"
     rm -rf "$BUILD_DIR/build/bzip2-${BZIP2_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/bzip2-${BZIP2_VERSION}"
@@ -183,6 +235,8 @@ else
     # Build and install the static library only; Python links against libbz2.a at compile time.
     make CC="$CC" CFLAGS="$CFLAGS"
     make install PREFIX="$EMBEDDED" DESTDIR="$STAGING"
+    lib_cache_save bzip2 "$BZIP2_VERSION" "$_pre"
+    rm -f "$_pre"
     cd "$BUILD_DIR"
     lib_mark bzip2 "$BZIP2_VERSION"
     log "bzip2 ${BZIP2_VERSION} done"
@@ -192,6 +246,8 @@ fi
 # ── OpenSSL (build from source) ───────────────────────────────────────────────
 if lib_done openssl "$OPENSSL_VERSION"; then
     log "OpenSSL ${OPENSSL_VERSION} already installed — skipping"
+elif lib_cache_restore openssl "$OPENSSL_VERSION"; then
+    :
 else
     CURRENT_LIB="openssl-${OPENSSL_VERSION}"
     log "Building OpenSSL ${OPENSSL_VERSION}"
@@ -200,6 +256,9 @@ else
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+    # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
+    _pre="$BUILD_DIR/.lib-pre-openssl"
+    touch "$_pre"
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
@@ -210,6 +269,8 @@ else
         shared
     make -j"$NPROC"
     make install_sw DESTDIR="$STAGING"
+    lib_cache_save openssl "$OPENSSL_VERSION" "$_pre"
+    rm -f "$_pre"
     cd "$BUILD_DIR"
     lib_mark openssl "$OPENSSL_VERSION"
     log "OpenSSL ${OPENSSL_VERSION} done"
@@ -219,6 +280,8 @@ fi
 # ── xz (build from source) ────────────────────────────────────────────────────
 if lib_done xz "$XZ_VERSION"; then
     log "xz ${XZ_VERSION} already installed — skipping"
+elif lib_cache_restore xz "$XZ_VERSION"; then
+    :
 else
     CURRENT_LIB="xz-${XZ_VERSION}"
     log "Building xz ${XZ_VERSION}"
@@ -227,6 +290,9 @@ else
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz" || \
         curl -fSL -o "$TARBALL" "https://tukaani.org/xz/xz-${XZ_VERSION}.tar.gz"
+    # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
+    _pre="$BUILD_DIR/.lib-pre-xz"
+    touch "$_pre"
     rm -rf "$BUILD_DIR/build/xz-${XZ_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/xz-${XZ_VERSION}"
@@ -235,6 +301,8 @@ else
         --disable-static
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
+    lib_cache_save xz "$XZ_VERSION" "$_pre"
+    rm -f "$_pre"
     cd "$BUILD_DIR"
     lib_mark xz "$XZ_VERSION"
     log "xz ${XZ_VERSION} done"
@@ -342,6 +410,8 @@ stage_toolbox_lib gdbm "$GDBM_VERSION" \
 # ── libxml2 (build from source) ───────────────────────────────────────────────
 if lib_done libxml2 "$LIBXML2_VERSION"; then
     log "libxml2 ${LIBXML2_VERSION} already installed — skipping"
+elif lib_cache_restore libxml2 "$LIBXML2_VERSION"; then
+    :
 else
     CURRENT_LIB="libxml2-${LIBXML2_VERSION}"
     log "Building libxml2 ${LIBXML2_VERSION}"
@@ -349,6 +419,9 @@ else
     LIBXML2_MINOR=$(echo "$LIBXML2_VERSION" | sed 's/\.[0-9]*$//')
     [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
         "https://download.gnome.org/sources/libxml2/${LIBXML2_MINOR}/libxml2-${LIBXML2_VERSION}.tar.xz"
+    # Touch pre-timestamp before compile so install files are strictly newer (AIX has 1s mtime)
+    _pre="$BUILD_DIR/.lib-pre-libxml2"
+    touch "$_pre"
     rm -rf "$BUILD_DIR/build/libxml2-${LIBXML2_VERSION}"
     extract_xz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/libxml2-${LIBXML2_VERSION}"
@@ -358,6 +431,8 @@ else
         --disable-static
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
+    lib_cache_save libxml2 "$LIBXML2_VERSION" "$_pre"
+    rm -f "$_pre"
     cd "$BUILD_DIR"
     lib_mark libxml2 "$LIBXML2_VERSION"
     log "libxml2 ${LIBXML2_VERSION} done"
