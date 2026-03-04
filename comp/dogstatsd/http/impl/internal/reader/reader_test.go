@@ -152,3 +152,27 @@ func FuzzReader(f *testing.F) {
 		}
 	})
 }
+
+func TestSketchIndex(t *testing.T) {
+	pb := &pb.MetricData{
+		Types:            []uint64{0x4},
+		NameRefs:         []int64{0},
+		TagsetRefs:       []int64{0},
+		ResourcesRefs:    []int64{0},
+		Intervals:        []uint64{0},
+		OriginInfoRefs:   []int64{0},
+		SourceTypeNameRefs: []int64{0},
+		NumPoints:        []uint64{1},
+		Timestamps:       []int64{0},
+		ValsSint64:       []int64{1},
+		SketchNumBins:    []uint64{}, // malformed
+	}
+
+	r := NewMetricDataReader(pb)
+	require.NoError(t, r.Initialize())
+
+	require.True(t, r.HaveMoreMetrics())
+	require.NoError(t, r.NextMetric())
+	require.True(t, r.HaveMorePoints())
+	require.Error(t, r.NextPoint())
+}

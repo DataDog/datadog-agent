@@ -372,6 +372,9 @@ func (r *MetricDataReader) NextPoint() error {
 	switch r.Type() {
 	case pb.MetricType_Sketch:
 		r.sketchNumBinsIdx++
+		if r.sketchNumBinsIdx > len(r.data.SketchNumBins) {
+			return errUnexpectedEOF
+		}
 		r.sketchBinsIdx += r.SketchNumBins()
 		switch r.ValueType() {
 		case pb.ValueType_Float64:
@@ -403,9 +406,6 @@ func (r *MetricDataReader) NextPoint() error {
 		return errUnexpectedEOF
 	}
 	if r.valsSint64Idx > len(r.data.ValsSint64) {
-		return errUnexpectedEOF
-	}
-	if r.sketchNumBinsIdx > len(r.data.SketchNumBins) {
 		return errUnexpectedEOF
 	}
 	if r.sketchBinsIdx > len(r.data.SketchBinKeys) {
