@@ -157,3 +157,55 @@ Review the implementation for standard Go best practices:
 - **Test helpers**: a test must not run the same command twice just to observe different aspects; consolidate into a single runner that captures both stdout/stderr and exit code
 
 For each issue found in either review, fix it immediately. Re-run tests after all fixes. Do not declare the implementation done until every finding is resolved.
+
+## Step 8: Exploratory pentest
+
+Build the agent binary (`dda inv agent.build --build-exclude=systemd`) and exercise the new command through `agent shell --command "..."` looking for unexpected faults, DoS vectors, and memory issues. Cover each category below. For any surprising result, check whether GNU coreutils behaves the same way before deciding whether to fix it — surprising-but-matching-GNU is documenting a known behaviour, not a bug.
+
+```sh
+AGENT=/path/to/bin/agent/agent
+run() { local label="$1"; shift; local out ec; out=$(timeout 6 "$AGENT" shell --command "$*" 2>&1); ec=$?; printf "%-55s exit=%-3s %s\n" "$label" "$ec" "$(echo "$out" | head -1 | cut -c1-60)"; }
+```
+
+### Integer edge cases
+- `-n 0`, `-n 1`, `-n MaxInt32`, `-n MaxInt64`, `-n MaxInt64+1`, `-n 99999999999999999999`
+- `-n -1`, `-n -9999999999` (should reject)
+- `-n +0`, `-n +1`, `-n +MaxInt64`
+- `-n ''`, `-n '   '` (empty / whitespace)
+- Same set for `-c`
+
+### Special files / infinite sources
+- Command in default line mode on `/dev/zero`, `/dev/random` — note whether it errors fast or spins
+- Same in `-c` (byte) mode — compare timing against `gtail` to confirm matching behaviour
+- `/dev/null` (empty source), `/proc` or `/sys` files if on Linux
+
+### Long lines
+- Line of `maxLineBytes - 1` bytes (should succeed)
+- Line of exactly `maxLineBytes` bytes (documents where the cap actually bites)
+- Line of `maxLineBytes + 1` bytes (should fail)
+- Two lines each near the cap; verify last-line selection is correct
+
+### Memory / resource exhaustion
+- `-n MaxInt32` on a small file (verifies clamping, not OOM)
+- `-c MaxInt32` on a small file
+- 200+ file arguments (verifies no FD leak)
+- 1M-line file through last-N and +N offset modes (verifies ring buffer correctness at scale)
+
+### Path and filename edge cases
+- Absolute path, `../` traversal, `//double//slashes`, `/etc/././hosts`
+- Non-existent file, directory as file, empty-string filename
+- Filename starting with `-` (use `--` separator)
+- Symlink to a regular file, dangling symlink, circular symlink
+- Symlink to `/dev/zero` (same DoS check as direct special file)
+
+### Flag and argument injection
+- Unknown flags (`-f`, `--follow`, `--no-such-flag`): confirm exit 1 + stderr, not fatal error
+- Flag value via word expansion: `for flag in -f; do cmd $flag file; done`
+- `--` end-of-flags followed by flag-like filenames
+- Multiple `-` (stdin) arguments
+
+### Behavior matching
+For any case where behaviour differs from expectation, run the equivalent `gtail` invocation and compare. Differences fall into three categories:
+1. **Matches GNU** — document in a code comment, no code change needed
+2. **Safer than GNU** — document; generally keep our behaviour
+3. **Worse than GNU** — fix it
