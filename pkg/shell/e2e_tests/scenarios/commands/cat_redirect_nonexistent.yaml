@@ -1,0 +1,12 @@
+input:
+  # language=bash
+  # Redirect failure is handled by the interpreter, not cat itself.
+  # The error message does not have a "cat:" prefix.
+  script: |+
+    cat < nonexistent.txt
+expected:
+  stdout: ""
+  stderr_contains:
+    - "nonexistent.txt"
+    - "no such file or directory"
+  exit_code: 1

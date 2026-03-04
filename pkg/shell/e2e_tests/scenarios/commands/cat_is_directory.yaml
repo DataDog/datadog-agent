@@ -1,0 +1,15 @@
+setup:
+  files:
+    - path: mydir/placeholder.txt
+      content: "placeholder"
+      chmod: 0644
+input:
+  # language=bash
+  script: |+
+    cat mydir
+expected:
+  stdout: ""
+  stderr_contains:
+    - "cat: mydir:"
+    - "is a directory"
+  exit_code: 1

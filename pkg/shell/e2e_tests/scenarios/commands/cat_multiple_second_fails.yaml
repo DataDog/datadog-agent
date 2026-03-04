@@ -1,0 +1,18 @@
+setup:
+  files:
+    - path: existing.txt
+      content: |+
+        hello world
+      chmod: 0644
+input:
+  # language=bash
+  script: |+
+    cat existing.txt nonexistent.txt
+expected:
+  # First file succeeds, second file fails
+  stdout: |+
+    hello world
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

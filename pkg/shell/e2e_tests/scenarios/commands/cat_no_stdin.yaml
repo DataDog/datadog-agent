@@ -1,0 +1,9 @@
+input:
+  # language=bash
+  # cat with no arguments reads from stdin, which is nil in the test runner
+  script: |+
+    cat
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

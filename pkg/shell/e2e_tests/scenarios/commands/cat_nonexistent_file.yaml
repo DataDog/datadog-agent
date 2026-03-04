@@ -1,0 +1,10 @@
+input:
+  # language=bash
+  script: |+
+    cat nonexistent.txt
+expected:
+  stdout: ""
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

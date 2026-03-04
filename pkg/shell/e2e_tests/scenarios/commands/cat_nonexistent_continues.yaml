@@ -1,0 +1,13 @@
+input:
+  # language=bash
+  # cat failure does not stop script execution; exit code is from last command
+  script: |+
+    cat nonexistent.txt
+    echo hello
+expected:
+  stdout: |+
+    hello
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 0

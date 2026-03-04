@@ -1,0 +1,11 @@
+input:
+  # language=bash
+  script: |+
+    cat missing1.txt missing2.txt
+expected:
+  # Stops at first failure, second file error is never reached
+  stdout: ""
+  stderr_contains:
+    - "cat: missing1.txt:"
+    - "no such file or directory"
+  exit_code: 1

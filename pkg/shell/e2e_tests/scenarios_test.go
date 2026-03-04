@@ -48,9 +48,10 @@ type input struct {
 
 // expected holds the expected output for a scenario.
 type expected struct {
-	Stdout   string `yaml:"stdout"`
-	Stderr   string `yaml:"stderr"`
-	ExitCode int    `yaml:"exit_code"`
+	Stdout         string   `yaml:"stdout"`
+	Stderr         string   `yaml:"stderr"`
+	StderrContains []string `yaml:"stderr_contains"`
+	ExitCode       int      `yaml:"exit_code"`
 }
 
 // discoverScenarioFiles walks the scenarios directory and returns all YAML files
@@ -141,7 +142,13 @@ func runScenario(t *testing.T, sc scenario) {
 
 	assert.Equal(t, sc.Expected.ExitCode, exitCode, "exit code mismatch")
 	assert.Equal(t, sc.Expected.Stdout, stdout.String(), "stdout mismatch")
-	assert.Equal(t, sc.Expected.Stderr, stderr.String(), "stderr mismatch")
+	if len(sc.Expected.StderrContains) > 0 {
+		for _, substr := range sc.Expected.StderrContains {
+			assert.Contains(t, stderr.String(), substr, "stderr should contain %q", substr)
+		}
+	} else {
+		assert.Equal(t, sc.Expected.Stderr, stderr.String(), "stderr mismatch")
+	}
 }
 
 func TestShellScenarios(t *testing.T) {

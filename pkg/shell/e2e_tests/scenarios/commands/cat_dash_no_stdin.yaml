@@ -1,0 +1,9 @@
+input:
+  # language=bash
+  # Explicit stdin reference with no stdin connected
+  script: |+
+    cat -
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 0
