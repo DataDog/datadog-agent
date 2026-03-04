@@ -382,30 +382,14 @@ fn stdio_from_str(s: &str) -> Stdio {
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use std::collections::HashMap;
 
     pub fn make_config(command: &str, args: Vec<&str>) -> ProcessConfig {
         ProcessConfig {
-            description: None,
             command: command.to_string(),
             args: args.into_iter().map(String::from).collect(),
-            env: HashMap::new(),
-            environment_file: None,
-            working_dir: None,
-            pidfile: None,
             stdout: "null".to_string(),
             stderr: "null".to_string(),
-            auto_start: true,
-            condition_path_exists: None,
-            stop_timeout: None,
-            restart: RestartPolicy::Never,
-            restart_sec: None,
-            restart_max_delay_sec: None,
-            start_limit_burst: None,
-            start_limit_interval_sec: None,
-            runtime_success_sec: None,
-            after: vec![],
-            before: vec![],
+            ..Default::default()
         }
     }
 

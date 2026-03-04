@@ -75,6 +75,33 @@ const DEFAULT_START_LIMIT_BURST: u32 = 5;
 const DEFAULT_START_LIMIT_INTERVAL_SEC: u64 = 10;
 const DEFAULT_RUNTIME_SUCCESS_SEC: u64 = 1;
 
+impl Default for ProcessConfig {
+    fn default() -> Self {
+        Self {
+            description: None,
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            environment_file: None,
+            working_dir: None,
+            pidfile: None,
+            stdout: "inherit".to_string(),
+            stderr: "inherit".to_string(),
+            auto_start: true,
+            condition_path_exists: None,
+            stop_timeout: None,
+            restart: RestartPolicy::Never,
+            restart_sec: None,
+            restart_max_delay_sec: None,
+            start_limit_burst: None,
+            start_limit_interval_sec: None,
+            runtime_success_sec: None,
+            after: vec![],
+            before: vec![],
+        }
+    }
+}
+
 impl ProcessConfig {
     pub fn stop_timeout(&self) -> Duration {
         Duration::from_secs(self.stop_timeout.unwrap_or(DEFAULT_STOP_TIMEOUT_SECS))

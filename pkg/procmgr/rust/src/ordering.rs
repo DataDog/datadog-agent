@@ -103,30 +103,13 @@ impl std::error::Error for CycleError {}
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use std::collections::HashMap;
 
     fn cfg(after: &[&str], before: &[&str]) -> ProcessConfig {
         ProcessConfig {
-            description: None,
             command: "/bin/true".to_string(),
-            args: vec![],
-            env: HashMap::new(),
-            environment_file: None,
-            working_dir: None,
-            pidfile: None,
-            stdout: "inherit".to_string(),
-            stderr: "inherit".to_string(),
-            auto_start: true,
-            condition_path_exists: None,
-            stop_timeout: None,
-            restart: crate::config::RestartPolicy::Never,
-            restart_sec: None,
-            restart_max_delay_sec: None,
-            start_limit_burst: None,
-            start_limit_interval_sec: None,
-            runtime_success_sec: None,
             after: after.iter().map(|s| s.to_string()).collect(),
             before: before.iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
         }
     }
 
