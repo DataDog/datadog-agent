@@ -20,8 +20,8 @@ generator:
         dogstatsd:
           contexts:
             inclusive:
-              min: 400
-              max: 500
+              min: 78000
+              max: 78000
           tags_per_msg:
             inclusive:
               min: 54
@@ -47,16 +47,7 @@ generator:
           tag_names:
             - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-9}}{{0-9}}
           tag_values:
-            - value1
-            - value2
-            - value3
-            - value4
-            - value5
-            - value6
-            - value7
-            - value8
-            - value9
-            - value10
+            - value{{0-9}}{{0-9}}{{0-9}}{{0-9}}
            
 telemetry:
   path: "nong"
