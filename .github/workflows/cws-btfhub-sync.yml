@@ -39,7 +39,6 @@ jobs:
     steps:
       - name: Cleanup runner
         run: |
-          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
           docker rmi $(docker image ls -aq) >/dev/null 2>&1
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
