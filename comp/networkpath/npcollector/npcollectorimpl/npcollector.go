@@ -90,7 +90,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, traceroute traceroute.Component, logger log.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
-	logger.Infof("New NpCollector %+v", collectorConfigs)
+	logger.Debugf("New NpCollector %+v", collectorConfigs)
 	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite, collectorConfigs.monitorIPWithoutDomain)
 
 	if len(errs) > 0 {
@@ -327,7 +327,7 @@ func (s *npCollectorImpl) listenPathtests() {
 	for {
 		select {
 		case <-s.stopChan:
-			s.logger.Info("Stopped listening for pathtests")
+			s.logger.Debug("Stopped listening for pathtests")
 			s.pathtestsListenerDone <- struct{}{}
 			return
 		case ptest := <-s.pathtestInputChan:
