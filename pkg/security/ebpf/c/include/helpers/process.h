@@ -92,12 +92,15 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
 
     // Read the live ppid from real_parent->tgid. Only valid when called
     // from the actual task context (not for stored pid_tgid from io_uring).
-    if (pid_tgid == bpf_get_current_pid_tgid()) {
+    // The offsets are only available on kernels with BTF; skip when unresolved (0).
+    u64 real_parent_offset = get_task_struct_real_parent_offset();
+    u64 tgid_offset = get_task_struct_tgid_offset();
+    if (real_parent_offset > 0 && tgid_offset > 0 && pid_tgid == bpf_get_current_pid_tgid()) {
         struct task_struct *cur_task = (struct task_struct *)bpf_get_current_task();
         struct task_struct *parent = NULL;
-        bpf_probe_read_kernel(&parent, sizeof(parent), (void *)cur_task + get_task_struct_real_parent_offset());
+        bpf_probe_read_kernel(&parent, sizeof(parent), (void *)cur_task + real_parent_offset);
         if (parent) {
-            bpf_probe_read_kernel(&data->ppid, sizeof(data->ppid), (void *)parent + get_task_struct_tgid_offset());
+            bpf_probe_read_kernel(&data->ppid, sizeof(data->ppid), (void *)parent + tgid_offset);
         }
     }
 

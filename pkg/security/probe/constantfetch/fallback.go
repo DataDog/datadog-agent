@@ -129,6 +129,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
+		OffsetNameTaskStructRealParent:        getTaskStructRealParentOffset,
+		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 	}
 }
 
@@ -1030,5 +1032,39 @@ func getMountMntNsOffset(kv *kernel.Version) uint64 {
 		return 232
 	default:
 		return 224
+	}
+}
+
+func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1208
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 2240
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2232
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1240
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2256
+	default:
+		return ErrorSentinel
+	}
+}
+
+func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1192
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 2228
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2220
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1228
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2244
+	default:
+		return ErrorSentinel
 	}
 }
