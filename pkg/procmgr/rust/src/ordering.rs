@@ -78,21 +78,25 @@ pub fn resolve_order(configs: &[NamedProcess]) -> Result<Vec<usize>, CycleError>
             .filter(|i| in_degree[*i] > 0)
             .map(|i| configs[i].0.clone())
             .collect();
-        return Err(CycleError(cycle_members));
+        return Err(CycleError {
+            processes: cycle_members,
+        });
     }
 
     Ok(order)
 }
 
 #[derive(Debug)]
-pub struct CycleError(pub Vec<String>);
+pub struct CycleError {
+    pub processes: Vec<String>,
+}
 
 impl std::fmt::Display for CycleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "dependency cycle detected among processes: {}",
-            self.0.join(", ")
+            self.processes.join(", ")
         )
     }
 }
@@ -169,8 +173,8 @@ mod tests {
             ("b".to_string(), cfg(&["a"], &[])),
         ];
         let err = resolve_order(&configs).unwrap_err();
-        assert!(err.0.contains(&"a".to_string()));
-        assert!(err.0.contains(&"b".to_string()));
+        assert!(err.processes.contains(&"a".to_string()));
+        assert!(err.processes.contains(&"b".to_string()));
     }
 
     #[test]
@@ -244,7 +248,7 @@ mod tests {
     fn test_self_dependency_is_cycle() {
         let configs = vec![("a".to_string(), cfg(&["a"], &[]))];
         let err = resolve_order(&configs).unwrap_err();
-        assert_eq!(err.0, vec!["a"]);
+        assert_eq!(err.processes, vec!["a"]);
     }
 
     #[test]
