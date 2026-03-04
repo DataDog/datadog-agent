@@ -1,0 +1,11 @@
+description: An unknown command with a variable-expanded argument still prints "not found".
+input:
+  # language=bash
+  script: |+
+    MY_VAR=hello
+    foo $MY_VAR
+expected:
+  stdout: ""
+  stderr: |+
+    foo: not found
+  exit_code: 127

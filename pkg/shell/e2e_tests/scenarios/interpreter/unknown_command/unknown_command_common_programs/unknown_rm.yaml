@@ -1,0 +1,10 @@
+description: The rm command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    rm file.txt
+expected:
+  stdout: ""
+  stderr: |+
+    rm: not found
+  exit_code: 127

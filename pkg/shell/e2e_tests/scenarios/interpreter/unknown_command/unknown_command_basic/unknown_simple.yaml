@@ -1,4 +1,4 @@
-description: An unknown command prints an error to stderr and exits with code 127.
+description: A simple unknown command prints "not found" to stderr.
 input:
   # language=bash
   script: |+

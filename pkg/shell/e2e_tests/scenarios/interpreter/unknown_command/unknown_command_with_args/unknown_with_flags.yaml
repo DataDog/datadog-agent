@@ -1,0 +1,10 @@
+description: An unknown command with flag-like arguments still prints "not found".
+input:
+  # language=bash
+  script: |+
+    foo --verbose -n 5
+expected:
+  stdout: ""
+  stderr: |+
+    foo: not found
+  exit_code: 127

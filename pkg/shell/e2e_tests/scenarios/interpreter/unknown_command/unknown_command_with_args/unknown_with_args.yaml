@@ -1,0 +1,10 @@
+description: An unknown command with arguments still prints "not found" for the command name.
+input:
+  # language=bash
+  script: |+
+    foo arg1 arg2 arg3
+expected:
+  stdout: ""
+  stderr: |+
+    foo: not found
+  exit_code: 127

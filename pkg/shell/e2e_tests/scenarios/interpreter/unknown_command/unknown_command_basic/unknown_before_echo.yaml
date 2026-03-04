@@ -1,0 +1,12 @@
+description: An unknown command before echo on the next line does not stop execution.
+input:
+  # language=bash
+  script: |+
+    foo
+    echo hello
+expected:
+  stdout: |+
+    hello
+  stderr: |+
+    foo: not found
+  exit_code: 0

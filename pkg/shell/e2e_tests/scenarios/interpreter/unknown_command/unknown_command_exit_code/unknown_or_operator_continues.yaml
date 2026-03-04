@@ -1,0 +1,11 @@
+description: The || operator runs the next command after an unknown command.
+input:
+  # language=bash
+  script: |+
+    foo || echo fallback
+expected:
+  stdout: |+
+    fallback
+  stderr: |+
+    foo: not found
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: The exit code of an unknown command is captured by $? when using semicolons.
+input:
+  # language=bash
+  script: |+
+    nonexistent; echo $?
+expected:
+  stdout: |+
+    127
+  stderr: |+
+    nonexistent: not found
+  exit_code: 0

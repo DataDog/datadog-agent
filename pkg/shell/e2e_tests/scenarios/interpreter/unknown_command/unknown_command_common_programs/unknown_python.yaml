@@ -1,0 +1,10 @@
+description: The python command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    python -c "print('hello')"
+expected:
+  stdout: ""
+  stderr: |+
+    python: not found
+  exit_code: 127

@@ -1,0 +1,14 @@
+description: Multiple unknown commands on separate lines all execute and report errors.
+input:
+  # language=bash
+  script: |+
+    foo
+    bar
+    baz
+expected:
+  stdout: ""
+  stderr: |+
+    foo: not found
+    bar: not found
+    baz: not found
+  exit_code: 127

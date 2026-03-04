@@ -1,0 +1,10 @@
+description: The mv command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    mv old.txt new.txt
+expected:
+  stdout: ""
+  stderr: |+
+    mv: not found
+  exit_code: 127

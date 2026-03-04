@@ -1,0 +1,10 @@
+description: An unknown command with a multi-word-like name (with hyphens) prints "not found".
+input:
+  # language=bash
+  script: |+
+    my-unknown-command
+expected:
+  stdout: ""
+  stderr: |+
+    my-unknown-command: not found
+  exit_code: 127

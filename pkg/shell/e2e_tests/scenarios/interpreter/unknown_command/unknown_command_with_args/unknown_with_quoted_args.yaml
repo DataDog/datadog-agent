@@ -1,0 +1,10 @@
+description: An unknown command with quoted arguments still prints "not found".
+input:
+  # language=bash
+  script: |+
+    foo "hello world" 'single quoted'
+expected:
+  stdout: ""
+  stderr: |+
+    foo: not found
+  exit_code: 127
