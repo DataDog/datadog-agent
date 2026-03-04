@@ -792,9 +792,7 @@ func (s *GetEventsTestSuite) TestReadWhenNoMoreEvents() {
 	eventRecords, err := getEventHandles(s.T(), s.ti, sub, 2*s.numEvents)
 	require.NoError(s.T(), err)
 	count := uint(len(eventRecords))
-	if !assert.Equal(s.T(), 2*s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, 2*s.numEvents)) {
-		return
-	}
+	require.Equal(s.T(), 2*s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, 2*s.numEvents))
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 

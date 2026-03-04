@@ -318,8 +318,12 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
+	// Indicates whether the process entry is from a new binary execution
+	IsExec bool `json:"is_exec,omitempty"`
 	// Indicates whether the process is an exec following another exec
 	IsExecExec bool `json:"is_exec_child,omitempty"`
+	// Indicates whether the direct parent is missing
+	IsParentMissing bool `json:"is_parent_missing,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
 	// List of syscalls captured to generate the event
@@ -951,23 +955,25 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
 			ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
-			Pid:           ps.Pid,
-			Tid:           ps.Tid,
-			PPid:          createNumPointer(ps.PPid),
-			Comm:          ps.Comm,
-			TTY:           ps.TTYName,
-			Executable:    newFileSerializer(&ps.FileEvent, e, 0, nil),
-			Argv0:         argv0,
-			Args:          argv,
-			ArgsTruncated: argvTruncated,
-			Envs:          envs,
-			EnvsTruncated: envsTruncated,
-			IsThread:      ps.IsThread,
-			IsKworker:     ps.IsKworker,
-			IsExecExec:    ps.IsExecExec,
-			Source:        model.ProcessSourceToString(ps.Source),
-			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
-			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
+			Pid:             ps.Pid,
+			Tid:             ps.Tid,
+			PPid:            createNumPointer(ps.PPid),
+			Comm:            ps.Comm,
+			TTY:             ps.TTYName,
+			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
+			Argv0:           argv0,
+			Args:            argv,
+			ArgsTruncated:   argvTruncated,
+			Envs:            envs,
+			EnvsTruncated:   envsTruncated,
+			IsThread:        ps.IsThread,
+			IsKworker:       ps.IsKworker,
+			IsExec:          ps.IsExec,
+			IsExecExec:      ps.IsExecExec,
+			IsParentMissing: ps.IsParentMissing,
+			Source:          model.ProcessSourceToString(ps.Source),
+			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1022,11 +1028,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		return psSerializer
 	}
 	return &ProcessSerializer{
-		Pid:        ps.Pid,
-		Tid:        ps.Tid,
-		IsKworker:  ps.IsKworker,
-		IsExecExec: ps.IsExecExec,
-		Source:     model.ProcessSourceToString(ps.Source),
+		Pid:             ps.Pid,
+		Tid:             ps.Tid,
+		IsKworker:       ps.IsKworker,
+		IsExec:          ps.IsExec,
+		IsExecExec:      ps.IsExecExec,
+		IsParentMissing: ps.IsParentMissing,
+		Source:          model.ProcessSourceToString(ps.Source),
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},

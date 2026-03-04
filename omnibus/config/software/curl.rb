@@ -29,7 +29,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @curl//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libcurl.pc" \
     " #{install_dir}/embedded/lib/libcurl.so" \
     " #{install_dir}/embedded/bin/curl"
 end

@@ -204,9 +204,7 @@ func (s *cspmTestSuite) TestMetrics() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.running")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		if assert.NotEmpty(c, metrics) {
 			s.T().Log("Metrics found: datadog.security_agent.compliance.running")
 		}
@@ -215,9 +213,7 @@ func (s *cspmTestSuite) TestMetrics() {
 	s.T().Log("Waiting for datadog.security_agent.compliance.containers_running metrics")
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.containers_running")
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		if assert.NotEmpty(c, metrics) {
 			s.T().Log("Metrics found: datadog.security_agent.compliance.containers_running")
 		}

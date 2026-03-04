@@ -306,7 +306,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.use_kprobe_fallback", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.buffer_size", 0)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.kretprobe_max_active", 512)
-	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"})
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME"})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.runtime_compilation.enabled", false)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.enabled", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.ingress.enabled", true)

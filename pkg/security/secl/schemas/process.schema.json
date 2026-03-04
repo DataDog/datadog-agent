@@ -48,6 +48,18 @@
         "is_kworker": {
             "type": "boolean"
         },
+        "is_thread": {
+            "type": "boolean"
+        },
+        "is_exec": {
+            "type": "boolean"
+        },
+        "is_exec_child": {
+            "type": "boolean"
+        },
+        "is_parent_missing": {
+            "type": "boolean"
+        },
         "args": {
             "type": "array",
             "items": {

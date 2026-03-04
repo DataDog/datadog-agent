@@ -1727,6 +1727,11 @@
           "property_doc_link": "accept-addr-hostname-doc"
         },
         {
+          "name": "accept.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
           "name": "accept.addr.hostname.root_domain",
           "definition": "Root domain of the corresponding element",
           "property_doc_link": "common-string-root_domain-doc"
@@ -2556,6 +2561,11 @@
           "name": "connect.addr.hostname",
           "definition": "Address hostname (if available)",
           "property_doc_link": "connect-addr-hostname-doc"
+        },
+        {
+          "name": "connect.addr.hostname.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "connect.addr.hostname.root_domain",
@@ -13405,6 +13415,7 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
+        "accept.addr.hostname",
         "cgroup_write.file.name",
         "cgroup_write.file.path",
         "chdir.file.name",
@@ -13413,6 +13424,7 @@
         "chmod.file.path",
         "chown.file.name",
         "chown.file.path",
+        "connect.addr.hostname",
         "dns.question.name",
         "exec.file.name",
         "exec.file.path",

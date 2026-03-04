@@ -61,9 +61,7 @@ func (s *WindowsFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs("hello")
-		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
-			return
-		}
+		require.NoError(c, err, "Unable to filter logs by the service 'hello'.")
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected") {
 			cat, _ := s.Env().RemoteHost.Execute("type " + logFilePath)
