@@ -56,7 +56,7 @@ func (s *upgradeSuite) TestUpgrade() {
 	}, 300*time.Second, 30*time.Second)
 }
 
-func (s *upgradeSuite) TestIntegrationPreservationDuringExperiment() {
+func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.Agent.MustUninstall()
 
@@ -85,6 +85,57 @@ func (s *upgradeSuite) TestIntegrationPreservationDuringExperiment() {
 	installedIntegrations, err = s.Agent.InstalledIntegrations()
 	s.Require().NoError(err)
 	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
+}
+
+// TestIntegrationPreservationOCIToOCI tests that integrations are preserved during an OCI→OCI upgrade.
+// It first installs a stable DEB, then promotes to the pipeline's OCI version to reach an OCI-stable
+// state, then experiments from that OCI version to another OCI version and verifies the integration
+// is preserved throughout.
+func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
+	// Start from a stable DEB install with remote updates enabled.
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+
+	// Promote to the pipeline's OCI version to reach OCI-stable state (DEB→OCI).
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", testingVersion)
+	s.Require().NoError(err)
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	// Wait for the OCI promotion to take effect.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		packageVersion, err := s.Agent.PackageVersion()
+		require.NoError(c, err)
+		require.Equal(c, testingVersion, packageVersion)
+	}, 300*time.Second, 30*time.Second)
+
+	// Install a third-party integration now that the agent is OCI-stable.
+	err = s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before OCI experiment")
+
+	// Experiment from the current OCI version to a different stable OCI version (OCI→OCI).
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	if targetVersion == testingVersion {
+		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
+	}
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in OCI experiment")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after OCI promotion")
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
