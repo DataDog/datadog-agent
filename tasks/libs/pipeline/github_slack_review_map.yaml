@@ -8,7 +8,7 @@
 '@datadog/agent-all': '#datadog-agent-pipelines'
 '@datadog/agent-apm': '#apm-agent'
 '@datadog/agent-build': '#agent-build-reviews'
-'@datadog/agent-configuration': '#agent-configuration'
+'@datadog/agent-configuration': '#agent-configuration-ops'
 '@datadog/agent-cspm': '#security-and-compliance-agent'
 '@datadog/agent-delivery': '#agent-delivery-reviews'
 '@datadog/agent-devx': '#agent-devx-reviews'

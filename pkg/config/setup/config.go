@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -1002,6 +1002,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
