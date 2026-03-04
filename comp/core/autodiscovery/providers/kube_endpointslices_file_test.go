@@ -637,3 +637,24 @@ func TestEndpointSliceChecksFromTemplateWithResolveMode(t *testing.T) {
 		})
 	}
 }
+
+func TestKubeEndpointSlicesFileConfigProviderGetConfigErrors(t *testing.T) {
+	// A CEL expression with invalid syntax should always produce an error,
+	// regardless of whether the cel build tag is present.
+	invalidTpl := integration.Config{
+		Name: "invalid-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`this is not valid CEL !!!`},
+		},
+	}
+
+	p := &KubeEndpointSlicesFileConfigProvider{}
+	p.buildConfigStore([]integration.Config{invalidTpl})
+
+	errors := p.GetConfigErrors()
+
+	// The invalid template should produce an error (either a CEL compile error
+	// or an identifier mismatch when cel build tag is not present).
+	assert.Contains(t, errors, "invalid-check")
+	assert.Len(t, errors["invalid-check"], 1)
+}

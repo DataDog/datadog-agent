@@ -170,7 +170,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.12
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
-	github.com/DataDog/gopsutil v1.2.3
+	github.com/DataDog/gopsutil v1.2.4
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
@@ -331,9 +331,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.16
-	github.com/uptrace/bun/dialect/pgdialect v1.2.16
-	github.com/uptrace/bun/driver/pgdriver v1.2.16
+	github.com/uptrace/bun v1.2.18
+	github.com/uptrace/bun/dialect/pgdialect v1.2.18
+	github.com/uptrace/bun/driver/pgdriver v1.2.18
 	github.com/urfave/negroni v1.0.0
 	github.com/valyala/fastjson v1.6.7
 	github.com/vibrantbyte/go-antpath v1.1.1
