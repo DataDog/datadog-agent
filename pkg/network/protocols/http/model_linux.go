@@ -8,7 +8,6 @@
 package http
 
 import (
-	"encoding/hex"
 	"strconv"
 	"strings"
 
@@ -110,7 +109,7 @@ func (e *EbpfEvent) String() string {
 	output.WriteString("Request Start: " + strconv.FormatUint(e.Http.Request_started, 10) + "', ")
 	output.WriteString("Response Last Seen: " + strconv.FormatUint(e.Http.Response_last_seen, 10) + "', ")
 	output.WriteString("Latency: " + strconv.FormatFloat(e.RequestLatency(), 'f', -1, 64) + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(e.Http.Request_fragment[:]) + "', ")
+	output.WriteString("Fragment: '" + string(e.Http.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
