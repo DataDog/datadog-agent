@@ -350,7 +350,3 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 		}, 2*time.Minute, 10*time.Second, "Log status remapping check completed")
 	})
 }
-
-// TODO: Add TestLogTraceCorrelation once a workload image with DD_LOGS_INJECTION
-// support is available (e.g., ecs-log-generator). The current tracegen image does
-// not produce logs with dd.trace_id tags. See test-infra-definitions for image builds.
