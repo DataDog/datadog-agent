@@ -37,7 +37,6 @@ import (
 func init() { registerModule(GPUMonitoring) }
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
 // processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
 // Note: In the future we should have a better way to handle dependencies between modules
@@ -53,8 +52,7 @@ var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.
 
 // GPUMonitoring Factory
 var GPUMonitoring = &module.Factory{
-	Name:             config.GPUMonitoringModule,
-	ConfigNamespaces: gpuMonitoringConfigNamespaces,
+	Name: config.GPUMonitoringModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		if processEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
