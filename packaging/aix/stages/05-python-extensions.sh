@@ -229,7 +229,7 @@ else
     # Cache the built wheel for subsequent builds.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
-        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[0-9_]*/aix_ppc64/g')
+        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[A-Za-z0-9_]*/aix_ppc64/')
         cp "$BUILT_WHEEL" "$CRYPTO_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $CRYPTO_CACHE_DIR/$CACHE_NAME"
     else

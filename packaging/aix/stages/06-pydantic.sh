@@ -150,7 +150,7 @@ else
     # tag so the same wheel can be used on any AIX 7.x POWER system.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
     if [ -n "$BUILT_WHEEL" ]; then
-        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[0-9_]*/aix_ppc64/g')
+        CACHE_NAME=$(basename "$BUILT_WHEEL" | sed 's/aix_[A-Za-z0-9_]*/aix_ppc64/')
         cp "$BUILT_WHEEL" "$WHEEL_CACHE_DIR/$CACHE_NAME"
         log "Cached wheel to $WHEEL_CACHE_DIR/$CACHE_NAME"
         log "  Preserved for all future builds using pydantic==$PYDANTIC_VERSION."
