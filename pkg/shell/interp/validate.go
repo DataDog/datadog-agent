@@ -82,6 +82,7 @@ func validateNode(node syntax.Node) error {
 				err = fmt.Errorf("c-style for loops are not supported")
 				return false
 			}
+<<<<<<< HEAD
 
 		// Blocked redirections that write to files.
 		case *syntax.Redirect:
@@ -89,6 +90,8 @@ func validateNode(node syntax.Node) error {
 			if err != nil {
 				return false
 			}
+=======
+>>>>>>> cb9292b019d (Block unhandled command types in safe-shell)
 		}
 		return true
 	})
