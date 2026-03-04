@@ -1,0 +1,9 @@
+description: For loop with empty list exits with code 0.
+input:
+  # language=bash
+  script: |+
+    for i in; do false; done
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: For loop body can span multiple lines.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      echo start $i
+      echo end $i
+    done
+expected:
+  stdout: |+
+    start a
+    end a
+    start b
+    end b
+  stderr: ""
+  exit_code: 0

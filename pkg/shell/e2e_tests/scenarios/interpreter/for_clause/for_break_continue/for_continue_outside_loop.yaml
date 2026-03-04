@@ -1,0 +1,12 @@
+description: Continue outside a loop produces an error message.
+input:
+  # language=bash
+  script: |+
+    continue
+    echo after
+expected:
+  stdout: |+
+    after
+  stderr_contains:
+    - "continue is only useful in a loop"
+  exit_code: 0

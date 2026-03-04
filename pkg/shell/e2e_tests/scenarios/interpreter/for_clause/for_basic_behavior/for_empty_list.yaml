@@ -1,0 +1,11 @@
+description: For loop with empty list executes zero iterations.
+input:
+  # language=bash
+  script: |+
+    for i in; do echo $i; done
+    echo done
+expected:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

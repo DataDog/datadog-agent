@@ -1,0 +1,14 @@
+description: Loop variable does not clobber a different-named outer variable.
+input:
+  # language=bash
+  script: |+
+    X=original
+    for i in a b; do echo $i; done
+    echo $X
+expected:
+  stdout: |+
+    a
+    b
+    original
+  stderr: ""
+  exit_code: 0

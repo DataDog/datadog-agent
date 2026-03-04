@@ -1,0 +1,16 @@
+description: Continue skips the rest of the loop body and goes to the next iteration.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      echo "before $i"
+      continue
+      echo "after $i"
+    done
+expected:
+  stdout: |+
+    before a
+    before b
+    before c
+  stderr: ""
+  exit_code: 0

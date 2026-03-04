@@ -1,0 +1,15 @@
+description: For loop iterates over items built from variable expansion.
+input:
+  # language=bash
+  script: |+
+    A=one
+    B=two
+    C=three
+    for i in $A $B $C; do echo $i; done
+expected:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

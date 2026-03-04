@@ -1,0 +1,15 @@
+description: Break exits the for loop early.
+input:
+  # language=bash
+  script: |+
+    for i in a b c d; do
+      echo $i
+      break
+    done
+    echo after
+expected:
+  stdout: |+
+    a
+    after
+  stderr: ""
+  exit_code: 0

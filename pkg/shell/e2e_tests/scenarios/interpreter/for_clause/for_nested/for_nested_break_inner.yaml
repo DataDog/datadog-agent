@@ -1,0 +1,16 @@
+description: Break in inner nested loop only breaks the inner loop.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      for j in 1 2 3; do
+        echo "$i$j"
+        break
+      done
+    done
+expected:
+  stdout: |+
+    a1
+    b1
+  stderr: ""
+  exit_code: 0

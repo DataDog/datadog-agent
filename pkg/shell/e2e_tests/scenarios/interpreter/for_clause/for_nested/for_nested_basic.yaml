@@ -1,0 +1,17 @@
+description: Nested for loops iterate correctly over all combinations.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        echo "$i$j"
+      done
+    done
+expected:
+  stdout: |+
+    a1
+    a2
+    b1
+    b2
+  stderr: ""
+  exit_code: 0
