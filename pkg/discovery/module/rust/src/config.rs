@@ -102,8 +102,6 @@ static NON_DISCOVERY_SYSPROBE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
     "compliance_config.database_benchmarks.enabled",
     "dynamic_instrumentation.enabled",
     "ebpf_check.enabled",
-    "event_monitoring_config.network_process.enabled",
-    "event_monitoring_config.process.enabled",
     "gpu_monitoring.enabled",
     "network_config.enabled",
     "noisy_neighbor.enabled",
@@ -1268,64 +1266,6 @@ discovery:
   enabled: true
 system_probe_config:
   process_config:
-    enabled: false
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
-    }
-
-    // event_monitoring_config tests
-
-    #[test]
-    fn test_event_monitoring_config_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
-    }
-
-    #[test]
-    fn test_event_monitoring_config_network_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  network_process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
-    }
-
-    #[test]
-    fn test_event_monitoring_config_both_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: false
-  network_process:
     enabled: false
 "#;
             let config_file = create_test_config(yaml);
