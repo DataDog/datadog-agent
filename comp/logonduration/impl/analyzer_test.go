@@ -59,8 +59,8 @@ func newCollector() *collector {
 
 func TestGetEventPropString(t *testing.T) {
 	t.Run("finds property in EventData", func(t *testing.T) {
-		e := makeEvent(guidKernelProcess, 1, time.Now(), etw.Property{Name: "ImageFileName", Value: "smss.exe"})
-		assert.Equal(t, "smss.exe", getEventPropString(e, "ImageFileName"))
+		e := makeEvent(guidKernelProcess, 1, time.Now(), etw.Property{Name: "ImageName", Value: "smss.exe"})
+		assert.Equal(t, "smss.exe", getEventPropString(e, "ImageName"))
 	})
 
 	t.Run("finds property in UserData", func(t *testing.T) {
@@ -474,7 +474,7 @@ func TestProcessEvent(t *testing.T) {
 	t.Run("routes Kernel-Process event 1 to kernelProcessParser", func(t *testing.T) {
 		coll := newCollector()
 		e := makeEvent(guidKernelProcess, 1, ts,
-			etw.Property{Name: "ImageFileName", Value: "explorer.exe"},
+			etw.Property{Name: "ImageName", Value: "explorer.exe"},
 		)
 
 		processEvent(coll, e)
@@ -536,23 +536,23 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	events := []*mockEvent{
 		makeEvent(guidKernelGeneral, 12, boot),
 		makeEvent(guidKernelProcess, 1, boot.Add(1*time.Second),
-			etw.Property{Name: "ImageFileName", Value: "smss.exe"}),
+			etw.Property{Name: "ImageName", Value: "smss.exe"}),
 		makeEvent(guidWinlogon, 101, boot.Add(4*time.Second)),
 		makeEvent(guidWinlogon, 103, boot.Add(8*time.Second)),
 		makeEvent(guidWinlogon, 104, boot.Add(10*time.Second)),
 		makeEvent(guidGroupPolicy, 4000, boot.Add(12*time.Second)),
 		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
 		makeEvent(guidKernelProcess, 1, boot.Add(25*time.Second),
-			etw.Property{Name: "ImageFileName", Value: "winlogon.exe"}),
+			etw.Property{Name: "ImageName", Value: "winlogon.exe"}),
 		makeEvent(guidWinlogon, 5001, boot.Add(30*time.Second)),
 		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
 		makeEvent(guidUserProfile, 1002, boot.Add(35*time.Second)),
 		makeEvent(guidWinlogon, 9, boot.Add(40*time.Second)),
 		makeEvent(guidKernelProcess, 1, boot.Add(42*time.Second),
-			etw.Property{Name: "ImageFileName", Value: "userinit.exe"}),
+			etw.Property{Name: "ImageName", Value: "userinit.exe"}),
 		makeEvent(guidWinlogon, 10, boot.Add(45*time.Second)),
 		makeEvent(guidKernelProcess, 1, boot.Add(50*time.Second),
-			etw.Property{Name: "ImageFileName", Value: "explorer.exe"}),
+			etw.Property{Name: "ImageName", Value: "explorer.exe"}),
 		makeEvent(guidShellCore, 9601, boot.Add(51*time.Second)),
 		makeEvent(guidShellCore, 9602, boot.Add(53*time.Second)),
 		makeEvent(guidShellCore, 9648, boot.Add(55*time.Second),
