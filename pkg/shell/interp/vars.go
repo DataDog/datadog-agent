@@ -138,9 +138,6 @@ func (r *Runner) setVarString(name, value string) {
 }
 
 func (r *Runner) setVar(name string, vr expand.Variable) {
-	if r.opts[optAllExport] {
-		vr.Exported = true
-	}
 	if err := r.writeEnv.Set(name, vr); err != nil {
 		r.errf("%s: %v\n", name, err)
 		r.exit.code = 1

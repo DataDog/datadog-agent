@@ -90,10 +90,6 @@ type Runner struct {
 
 	inLoop bool
 
-	// noErrExit prevents failing commands from triggering [optErrExit],
-	// such as the condition in a [syntax.IfClause].
-	noErrExit bool
-
 	// The current and last exit statuses. They can only be different if
 	// the interpreter is in the middle of running a statement. In that
 	// scenario, 'exit' is the status for the current statement being run,
@@ -111,8 +107,6 @@ type Runner struct {
 	// subshells do not share nor inherit the background PIDs they can wait for.
 	bgProcs []bgProc
 
-	opts runnerOpts
-
 	// allowedPaths restricts file/directory access to these directories.
 	// nil means unrestricted (default); non-nil restricts access.
 	allowedPaths []string
@@ -121,7 +115,6 @@ type Runner struct {
 
 	origDir    string
 	origParams []string
-	origOpts   runnerOpts
 	origStdin  *os.File
 	origStdout io.Writer
 	origStderr io.Writer
@@ -193,15 +186,6 @@ type bgProc struct {
 	exit *exitStatus
 }
 
-func (r *Runner) optByFlag(flag byte) *bool {
-	for i, opt := range &shellOptsTable {
-		if opt.flag == flag {
-			return &r.opts[i]
-		}
-	}
-	return nil
-}
-
 // New creates a new Runner, applying a number of options. If applying any of
 // the options results in an error, it is returned.
 //
@@ -214,11 +198,6 @@ func New(opts ...RunnerOption) (*Runner, error) {
 		openHandler:    DefaultOpenHandler(),
 		readDirHandler: DefaultReadDirHandler2(),
 	}
-	// turn "on" the default Bash options
-	for i, opt := range bashOptsTable {
-		r.opts[len(shellOptsTable)+i] = opt.defaultState
-	}
-
 	for _, opt := range opts {
 		if err := opt(r); err != nil {
 			return nil, err
@@ -302,86 +281,6 @@ func StdIO(in io.Reader, out, err io.Writer) RunnerOption {
 	}
 }
 
-// optByName returns the matching runner's option index and status
-func (r *Runner) optByName(name string, bash bool) (index int, status *bool) {
-	if bash {
-		for i, opt := range bashOptsTable {
-			if opt.name == name {
-				index = len(shellOptsTable) + i
-				return index, &r.opts[index]
-			}
-		}
-	}
-	for i, opt := range &shellOptsTable {
-		if opt.name == name {
-			return i, &r.opts[i]
-		}
-	}
-	return 0, nil
-}
-
-type runnerOpts [len(shellOptsTable) + len(bashOptsTable)]bool
-
-type shellOpt struct {
-	flag byte
-	name string
-}
-
-type bashOpt struct {
-	name         string
-	defaultState bool // Bash's default value for this option
-	supported    bool // whether we support the option's non-default state
-}
-
-var shellOptsTable = [...]shellOpt{
-	// sorted alphabetically by name; use a space for the options
-	// that have no flag form
-	{'a', "allexport"},
-	{'e', "errexit"},
-	{'n', "noexec"},
-	{'f', "noglob"},
-	{'u', "nounset"},
-	{' ', "pipefail"},
-}
-
-var bashOptsTable = [...]bashOpt{
-	// supported options, sorted alphabetically by name
-	{
-		name:         "globstar",
-		defaultState: false,
-		supported:    true,
-	},
-	{
-		name:         "nocaseglob",
-		defaultState: false,
-		supported:    true,
-	},
-	{
-		name:         "nullglob",
-		defaultState: false,
-		supported:    true,
-	},
-}
-
-// To access the shell options arrays without a linear search when we
-// know which option we're after at compile time. First come the shell options,
-// then the bash options.
-const (
-	// These correspond to indexes in [shellOptsTable]
-	optAllExport = iota
-	optErrExit
-	optNoExec
-	optNoGlob
-	optNoUnset
-	optPipeFail
-
-	// These correspond to indexes (offset by the above six items) of
-	// supported options in [bashOptsTable]
-	optGlobStar
-	optNoCaseGlob
-	optNullGlob
-)
-
 // Reset returns a runner to its initial state, right before the first call to
 // Run or Reset.
 //
@@ -396,7 +295,6 @@ func (r *Runner) Reset() {
 	if !r.didReset {
 		r.origDir = r.Dir
 		r.origParams = r.Params
-		r.origOpts = r.opts
 		r.origStdin = r.stdin
 		r.origStdout = r.stdout
 		r.origStderr = r.stderr
@@ -448,14 +346,12 @@ func (r *Runner) Reset() {
 		// constructor set up.
 		Dir:    r.origDir,
 		Params: r.origParams,
-		opts:   r.origOpts,
 		stdin:  r.origStdin,
 		stdout: r.origStdout,
 		stderr: r.origStderr,
 
 		origDir:    r.origDir,
 		origParams: r.origParams,
-		origOpts:   r.origOpts,
 		origStdin:  r.origStdin,
 		origStdout: r.origStdout,
 		origStderr: r.origStderr,
@@ -560,7 +456,6 @@ func (r *Runner) subshell(background bool) *Runner {
 		stdout:         r.stdout,
 		stderr:         r.stderr,
 		filename:       r.filename,
-		opts:           r.opts,
 		usedNew:        r.usedNew,
 		exit:           r.exit,
 		lastExit:       r.lastExit,

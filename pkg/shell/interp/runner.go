@@ -31,17 +31,9 @@ func (r *Runner) fillExpandConfig(ctx context.Context) {
 
 
 func (r *Runner) updateExpandOpts() {
-	if r.opts[optNoGlob] {
-		r.ecfg.ReadDir2 = nil
-	} else {
-		r.ecfg.ReadDir2 = func(s string) ([]fs.DirEntry, error) {
-			return r.readDirHandler(r.handlerCtx(r.ectx, todoPos), s)
-		}
+	r.ecfg.ReadDir2 = func(s string) ([]fs.DirEntry, error) {
+		return r.readDirHandler(r.handlerCtx(r.ectx, todoPos), s)
 	}
-	r.ecfg.GlobStar = r.opts[optGlobStar]
-	r.ecfg.NoCaseGlob = r.opts[optNoCaseGlob]
-	r.ecfg.NullGlob = r.opts[optNullGlob]
-	r.ecfg.NoUnset = r.opts[optNoUnset]
 }
 
 func (r *Runner) expandErr(err error) {
@@ -140,9 +132,6 @@ func (r *Runner) stop(ctx context.Context) bool {
 		r.exit.fatal(err)
 		return true
 	}
-	if r.opts[optNoExec] {
-		return true
-	}
 	return false
 }
 
@@ -191,12 +180,6 @@ func (r *Runner) stmtSync(ctx context.Context, st *syntax.Stmt) {
 		wasOk := r.exit.ok()
 		r.exit = exitStatus{}
 		r.exit.oneIf(wasOk)
-	} else if b, ok := st.Cmd.(*syntax.BinaryCmd); ok && (b.Op == syntax.AndStmt || b.Op == syntax.OrStmt) {
-	} else if !r.exit.ok() && !r.noErrExit {
-		// If the "errexit" option is set and a command failed, exit the shell.
-		if r.opts[optErrExit] {
-			r.exit.exiting = true
-		}
 	}
 	r.stdin, r.stdout, r.stderr = oldIn, oldOut, oldErr
 }
@@ -256,10 +239,7 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 	case *syntax.BinaryCmd:
 		switch cm.Op {
 		case syntax.AndStmt, syntax.OrStmt:
-			oldNoErrExit := r.noErrExit
-			r.noErrExit = true
 			r.stmt(ctx, cm.X)
-			r.noErrExit = oldNoErrExit
 			if r.exit.ok() == (cm.Op == syntax.AndStmt) {
 				r.stmt(ctx, cm.Y)
 			}
@@ -288,9 +268,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 			r.stmt(ctx, cm.Y)
 			pr.Close()
 			wg.Wait()
-			if r.opts[optPipeFail] && !r2.exit.ok() && r.exit.ok() {
-				r.exit = r2.exit
-			}
 			if r2.exit.fatalExit {
 				r.exit.fatal(r2.exit.err) // surface fatal errors immediately
 			}
