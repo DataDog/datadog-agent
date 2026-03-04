@@ -3,7 +3,7 @@ version: "3.8"
 # TCP Congestion Signal Lab
 # Two containers on a shared network for generating TCP traffic and
 # inducing network perturbations to exercise the new congestion signals.
-# The Datadog agent (system-probe) runs on the host, monitoring these flows.
+# The Datadog agent (system-probe) runs in another docker container, monitoring these flows.
 
 services:
   server:

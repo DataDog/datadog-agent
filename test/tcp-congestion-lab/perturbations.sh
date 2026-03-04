@@ -122,13 +122,26 @@ case "${1:-}" in
     echo "Sending data to slow-reader server..."
     # The slow-reader server sets TCP_WINDOW_CLAMP=1 on accepted connections,
     # forcing the receiver to advertise window=0 almost immediately.
-    # Send in background so we can monitor.
-    docker exec $CLIENT sh -c "dd if=/dev/zero bs=4096 count=1000 2>/dev/null | nc -w 60 $SERVER_IP 9000 || true" &
-    NC_PID=$!
+    # Use python socket.send() instead of "cat /dev/zero | nc" because OpenBSD
+    # nc uses splice() for pipe-to-socket, which bypasses tcp_sendmsg and
+    # prevents the eBPF tracer from creating congestion stats entries.
+    docker exec $CLIENT python3 -c "
+import socket, time
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect(('$SERVER_IP', 9000))
+print('Connected, flooding...')
+try:
+    while True:
+        s.send(b'\x00' * 65536)
+except Exception as e:
+    print(f'Sender stopped: {e}')
+" &
+    SENDER_PID=$!
     echo "Waiting ${DURATION}s for zero-window probes to accumulate..."
     sleep "$DURATION"
-    kill $NC_PID 2>/dev/null || true
-    wait $NC_PID 2>/dev/null || true
+    docker exec $CLIENT pkill -f "python3.*9000" 2>/dev/null || true
+    kill $SENDER_PID 2>/dev/null || true
+    wait $SENDER_PID 2>/dev/null || true
     echo "Done. Check probe0_count in Datadog."
     ;;
 
@@ -149,23 +162,45 @@ case "${1:-}" in
       echo "================================================"
       $0 --duration "$DURATION" --bandwidth "$BANDWIDTH" $scenario
       echo "================================================"
-      echo "Sleeping 10s between scenarios..."
-      sleep 10
+      echo "Sleeping 1s between scenarios..."
+      sleep 1
     done
     ;;
 
-  #=== CLEANUP: remove any leftover netem rules and restart iperf3 servers ===
+  #=== CLEANUP: remove any leftover netem rules and restart all servers ===
   cleanup)
     echo "=== Cleaning up tc rules ==="
     docker exec $CLIENT tc qdisc del dev eth0 root 2>/dev/null || true
     docker exec $SERVER tc qdisc del dev eth0 root 2>/dev/null || true
-    echo "=== Killing any stale iperf3 client processes ==="
+    echo "=== Killing any stale client processes ==="
     docker exec $CLIENT pkill -f iperf3 2>/dev/null || true
+    docker exec $CLIENT pkill -f python3 2>/dev/null || true
     echo "=== Restarting iperf3 servers ==="
     docker exec $SERVER pkill -f "iperf3 -s" 2>/dev/null || true
     sleep 1
     docker exec -d $SERVER iperf3 -s -p 5201
     docker exec -d $SERVER iperf3 -s -p 5202
+    echo "=== Restarting slow-reader server on :9000 ==="
+    docker exec $SERVER pkill -f "python3.*9000" 2>/dev/null || true
+    sleep 1
+    docker exec -d $SERVER python3 -c "
+import socket, time
+TCP_WINDOW_CLAMP = 10
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('0.0.0.0', 9000))
+s.listen(5)
+print('Slow-reader server on :9000 (for zero-window tests)')
+while True:
+    conn, addr = s.accept()
+    print(f'Accepted from {addr}')
+    conn.setsockopt(socket.IPPROTO_TCP, TCP_WINDOW_CLAMP, 1)
+    while True:
+        time.sleep(10)
+        data = conn.recv(1)
+        if not data: break
+    conn.close()
+"
     echo "Done."
     ;;
 
