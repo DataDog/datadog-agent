@@ -494,6 +494,7 @@ func applyEnvOverrides(prefix string, p *Package) error {
 		p.PipelineID = ""
 	}
 	if hasPipeline {
+		p.Version = p.AssertPackageVersion
 		p.PipelineID = os.Getenv(prefix + "_PIPELINE")
 	}
 
