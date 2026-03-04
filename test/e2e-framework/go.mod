@@ -124,7 +124,7 @@ require (
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
