@@ -87,12 +87,40 @@ Go tests live alongside the other builtins in the `pkg/shell/interp/` package, *
 - **Shell scripts** → `pkg/shell/interp/test/shell/$ARGUMENTS/` (already done in Step 3)
 
 The shell scripts are run automatically by `go test ./pkg/shell/interp` via
-`pkg/shell/interp/shell_scripts_test.go` (a `//go:build unix` test file that
-discovers every `test/shell/*/*.sh` and runs it with `sh`). No extra CI
-configuration is required — the scripts are skipped automatically when the
-agent binary is not available.
+`pkg/shell/interp/shell_scripts_test.go`, which discovers every `test/shell/*/*.sh`
+and runs it with `sh` (skipping gracefully if `sh` or the agent binary is absent).
+No extra CI configuration is required.
 
 Using `package interp` lets the tests access unexported helpers and constants (e.g. for clamping checks).
+
+### Exit code behaviour in Go tests
+
+Builtins signal failure with `r.exitCode = 1; return nil` — they do **not** return a Go error. This
+means `runScript` always returns `err == nil` unless the interpreter itself crashes. To verify that a
+command rejected a bad flag or argument:
+
+```go
+// WRONG — err is nil even when the builtin sets exitCode=1
+_, _, err := runScript(t, "tail --follow file")
+require.Error(t, err) // will fail
+
+// CORRECT — check stderr content
+_, stderr, err := runScript(t, "tail --follow file")
+require.NoError(t, err)
+assert.Contains(t, stderr, "unknown flag")
+```
+
+When you also need to assert the exit code numerically, create a local helper in the test file:
+
+```go
+func runWithExitCode(t *testing.T, script string) (stdout, stderr string, exitCode int) {
+    t.Helper()
+    var out, errOut bytes.Buffer
+    r := New(WithStdout(&out), WithStderr(&errOut))
+    _ = r.Run(context.Background(), script)
+    return out.String(), errOut.String(), r.exitCode
+}
+```
 
 Tests should be written to the following specifications:
 
