@@ -36,8 +36,8 @@ type pinger struct{}
 
 // Pinger is a factory for NDMs Ping module
 var Pinger = &module.Factory{
-	Name:             config.PingModule,
-	ConfigNamespaces: []string{"ping"},
+	Name: config.PingModule,
+
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &pinger{}, nil
 	},
