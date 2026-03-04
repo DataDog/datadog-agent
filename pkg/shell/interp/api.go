@@ -18,9 +18,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -76,6 +78,12 @@ type Runner struct {
 	// readDirHandler is a function responsible for reading directories during
 	// glob expansion. It must be non-nil.
 	readDirHandler ReadDirHandlerFunc2
+
+	// allowedRoots restricts all file access to the given directory trees.
+	// When non-nil, openHandler and readDirHandler are wrapped so that
+	// only paths under these roots are reachable.  Each *os.Root is
+	// opened once via AllowedPaths and shared across Reset/Subshell.
+	allowedRoots []*os.Root
 
 	stdin  *os.File // e.g. the read end of a pipe
 	stdout io.Writer
@@ -392,6 +400,112 @@ func ReadDirHandler2(f ReadDirHandlerFunc2) RunnerOption {
 	}
 }
 
+// AllowedPaths restricts all file access performed by the shell interpreter
+// to the given directory trees.  Each path is opened as an [os.Root], which
+// provides kernel-level enforcement against symlink escapes and ".."
+// traversal.  When set, the open and readdir handlers are wrapped so that
+// any file operation outside these directories is rejected.
+//
+// Passing an empty slice removes any restriction (the default).
+// The caller must call [Runner.Close] when done to release the open roots.
+func AllowedPaths(paths []string) RunnerOption {
+	return func(r *Runner) error {
+		for _, root := range r.allowedRoots {
+			root.Close()
+		}
+		r.allowedRoots = nil
+
+		for _, p := range paths {
+			abs, err := filepath.Abs(p)
+			if err != nil {
+				return fmt.Errorf("allowed path %q: %w", p, err)
+			}
+			root, err := os.OpenRoot(abs)
+			if err != nil {
+				for _, prev := range r.allowedRoots {
+					prev.Close()
+				}
+				r.allowedRoots = nil
+				return fmt.Errorf("allowed path %q: %w", p, err)
+			}
+			r.allowedRoots = append(r.allowedRoots, root)
+		}
+		return nil
+	}
+}
+
+// Close releases resources held by the Runner, including any [os.Root]
+// handles opened by [AllowedPaths].  It is safe to call Close multiple
+// times.
+func (r *Runner) Close() error {
+	for _, root := range r.allowedRoots {
+		root.Close()
+	}
+	r.allowedRoots = nil
+	return nil
+}
+
+// resolveAllowedPath converts path (which may be relative to the runner's Dir)
+// into a (root, relPath) pair that can be used with os.Root methods.
+// It returns an *os.PathError if the path does not fall under any allowed root.
+func (r *Runner) resolveAllowedPath(path string) (*os.Root, string, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(r.Dir, path)
+	}
+	path = filepath.Clean(path)
+
+	for _, root := range r.allowedRoots {
+		rootName := root.Name()
+		rel, err := filepath.Rel(rootName, path)
+		if err != nil {
+			continue
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		return root, rel, nil
+	}
+	return nil, "", &os.PathError{
+		Op:   "open",
+		Path: path,
+		Err:  fmt.Errorf("path is outside allowed directories"),
+	}
+}
+
+// allowedOpenHandler wraps next so that only paths under the allowed roots
+// can be opened.  Paths that resolve into a root are opened via [os.Root.OpenFile];
+// all others are rejected with an [*os.PathError].
+func (r *Runner) allowedOpenHandler(next OpenHandlerFunc) OpenHandlerFunc {
+	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
+		mc := HandlerCtx(ctx)
+		absPath := path
+		if absPath != "" && !filepath.IsAbs(absPath) {
+			absPath = filepath.Join(mc.Dir, absPath)
+		}
+		root, rel, err := r.resolveAllowedPath(absPath)
+		if err != nil {
+			return nil, err
+		}
+		return root.OpenFile(rel, flag, perm)
+	}
+}
+
+// allowedReadDirHandler wraps next so that only directories under the allowed
+// roots can be listed during glob expansion.
+func (r *Runner) allowedReadDirHandler(next ReadDirHandlerFunc2) ReadDirHandlerFunc2 {
+	return func(ctx context.Context, path string) ([]fs.DirEntry, error) {
+		root, rel, err := r.resolveAllowedPath(path)
+		if err != nil {
+			return nil, err
+		}
+		f, err := root.Open(rel)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return f.ReadDir(-1)
+	}
+}
 
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {
@@ -562,14 +676,20 @@ func (r *Runner) Reset() {
 		}
 		// Clean it as we will later do a string prefix match.
 		r.tempDir = filepath.Clean(r.tempDir)
+
+		if len(r.allowedRoots) > 0 {
+			r.openHandler = r.allowedOpenHandler(r.openHandler)
+			r.readDirHandler = r.allowedReadDirHandler(r.readDirHandler)
+		}
 	}
 	// reset the internal state
 	*r = Runner{
-		Env:             r.Env,
-		tempDir:         r.tempDir,
-		execHandler:     r.execHandler,
-		openHandler:     r.openHandler,
-		readDirHandler:  r.readDirHandler,
+		Env:            r.Env,
+		tempDir:        r.tempDir,
+		execHandler:    r.execHandler,
+		openHandler:    r.openHandler,
+		readDirHandler: r.readDirHandler,
+		allowedRoots:   r.allowedRoots,
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -687,22 +807,22 @@ func (r *Runner) subshell(background bool) *Runner {
 	// Keep in sync with the Runner type. Manually copy fields, to not copy
 	// sensitive ones like [errgroup.Group], and to do deep copies of slices.
 	r2 := &Runner{
-		Dir:             r.Dir,
-		tempDir:         r.tempDir,
-		Params:          r.Params,
-		execHandler:     r.execHandler,
-		openHandler:     r.openHandler,
-		readDirHandler:  r.readDirHandler,
+		Dir:            r.Dir,
+		tempDir:        r.tempDir,
+		Params:         r.Params,
+		execHandler:    r.execHandler,
+		openHandler:    r.openHandler,
+		readDirHandler: r.readDirHandler,
+		allowedRoots:   r.allowedRoots,
 
-		stdin:          r.stdin,
-		stdout:         r.stdout,
-		stderr:         r.stderr,
-		filename:       r.filename,
-		opts:           r.opts,
-		usedNew:        r.usedNew,
-		exit:           r.exit,
-		lastExit:       r.lastExit,
-
+		stdin:    r.stdin,
+		stdout:   r.stdout,
+		stderr:   r.stderr,
+		filename: r.filename,
+		opts:     r.opts,
+		usedNew:  r.usedNew,
+		exit:     r.exit,
+		lastExit: r.lastExit,
 	}
 	r2.writeEnv = newOverlayEnviron(r.writeEnv, background)
 	r2.fillExpandConfig(r.ectx)
