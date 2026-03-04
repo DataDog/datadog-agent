@@ -299,7 +299,7 @@ async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args());
-    let config = config::load_config(args.config_path);
+    let config = config::load_config(args.config_path.as_deref());
     let log_level = config::get_log_level(&config);
     simple_logger::init_with_level(log_level)?;
     info!("Log level set to: {:?}", log_level);
