@@ -1,9 +1,8 @@
 """BUILD for openscap."""
 
-load("@@//bazel/rules:collect_cc_dynamic_deps.bzl", "cc_dynamic_deps_filegroup")
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:packaged_artifacts.bzl", "collect_packaged_artifacts")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -64,22 +63,21 @@ filegroup(
     ],
 )
 
-cc_dynamic_deps_filegroup(
-    name = "all_deps_dynamic_libs",
-    srcs = [":openscap", ":openscap_sce"],
+# The openscap artifacts (libraries + binaries) without their dependencies.
+# Used as the root for collect_packaged_artifacts so the aspect can traverse
+# into both the cc_shared_library dynamic_deps AND the cc_binary dynamic_deps.
+pkg_filegroup(
+    name = "openscap_artifacts",
+    srcs = [
+        ":bin_files",
+        ":lib_files",
+    ],
     visibility = ["//visibility:private"],
 )
 
-rewrite_rpath(
-    name = "all_deps_rpath_patched",
-    inputs = [":all_deps_dynamic_libs"],
-    visibility = ["//visibility:private"],
-)
-
-pkg_files(
+collect_packaged_artifacts(
     name = "all_deps_patched",
-    srcs = [":all_deps_rpath_patched"],
-    prefix = "lib",
+    srcs = [":openscap_artifacts"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
 )
