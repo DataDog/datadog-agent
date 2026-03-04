@@ -126,10 +126,8 @@ def get_omnibus_env(
     if sys.platform == 'darwin':
         env['MACOSX_DEPLOYMENT_TARGET'] = '11.0'  # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        if hardened_runtime:
-            env['HARDENED_RUNTIME_MAC'] = 'true'
+        if not skip_sign:
+            env['SIGN_MAC'] = 'true'
 
     env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
 
