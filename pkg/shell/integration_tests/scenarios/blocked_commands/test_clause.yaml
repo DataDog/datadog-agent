@@ -1,0 +1,10 @@
+description: Test expressions are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    [[ -n "hello" ]]
+expect:
+  stdout: ""
+  stderr: |+
+    test expressions are not supported
+  exit_code: 2

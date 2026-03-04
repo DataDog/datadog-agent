@@ -19,6 +19,7 @@ func validateNode(node syntax.Node) error {
 			return false
 		}
 		switch n := n.(type) {
+		// Blocked expression-level nodes.
 		case *syntax.ArithmExp:
 			err = fmt.Errorf("arithmetic expansion is not supported")
 			return false
@@ -35,6 +36,56 @@ func validateNode(node syntax.Node) error {
 			}
 		case *syntax.Assign:
 			err = validateAssign(n)
+			if err != nil {
+				return false
+			}
+
+		// Blocked command-level nodes.
+		case *syntax.IfClause:
+			err = fmt.Errorf("if statements are not supported")
+			return false
+		case *syntax.WhileClause:
+			err = fmt.Errorf("while/until loops are not supported")
+			return false
+		case *syntax.CaseClause:
+			err = fmt.Errorf("case statements are not supported")
+			return false
+		case *syntax.Subshell:
+			err = fmt.Errorf("subshells are not supported")
+			return false
+		case *syntax.FuncDecl:
+			err = fmt.Errorf("function declarations are not supported")
+			return false
+		case *syntax.ArithmCmd:
+			err = fmt.Errorf("arithmetic commands are not supported")
+			return false
+		case *syntax.TestClause:
+			err = fmt.Errorf("test expressions are not supported")
+			return false
+		case *syntax.DeclClause:
+			err = fmt.Errorf("%s is not supported", n.Variant.Value)
+			return false
+		case *syntax.LetClause:
+			err = fmt.Errorf("let is not supported")
+			return false
+		case *syntax.TimeClause:
+			err = fmt.Errorf("time is not supported")
+			return false
+		case *syntax.CoprocClause:
+			err = fmt.Errorf("coprocesses are not supported")
+			return false
+		case *syntax.TestDecl:
+			err = fmt.Errorf("test declarations are not supported")
+			return false
+		case *syntax.ForClause:
+			if _, ok := n.Loop.(*syntax.WordIter); !ok {
+				err = fmt.Errorf("c-style for loops are not supported")
+				return false
+			}
+
+		// Blocked redirections that write to files.
+		case *syntax.Redirect:
+			err = validateRedirect(n)
 			if err != nil {
 				return false
 			}
@@ -93,6 +144,22 @@ func validateAssign(as *syntax.Assign) error {
 	}
 	if as.Index != nil {
 		return fmt.Errorf("array index assignment is not supported")
+	}
+	return nil
+}
+
+func validateRedirect(rd *syntax.Redirect) error {
+	switch rd.Op {
+	case syntax.RdrOut, syntax.ClbOut:
+		return fmt.Errorf("> file redirection is not supported")
+	case syntax.AppOut:
+		return fmt.Errorf(">> file redirection is not supported")
+	case syntax.RdrAll:
+		return fmt.Errorf("&> file redirection is not supported")
+	case syntax.AppAll:
+		return fmt.Errorf("&>> file redirection is not supported")
+	case syntax.RdrInOut:
+		return fmt.Errorf("<> file redirection is not supported")
 	}
 	return nil
 }

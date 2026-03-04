@@ -1,0 +1,10 @@
+description: Read-write redirection (<>) is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    cat <> file.txt
+expect:
+  stdout: ""
+  stderr: |+
+    <> file redirection is not supported
+  exit_code: 2

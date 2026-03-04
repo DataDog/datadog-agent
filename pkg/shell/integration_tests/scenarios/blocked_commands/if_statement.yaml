@@ -1,0 +1,10 @@
+description: If statements are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    if true; then echo yes; fi
+expect:
+  stdout: ""
+  stderr: |+
+    if statements are not supported
+  exit_code: 2

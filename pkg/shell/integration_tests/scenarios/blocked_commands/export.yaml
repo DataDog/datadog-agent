@@ -1,0 +1,10 @@
+description: export is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    export MY_VAR=hello
+expect:
+  stdout: ""
+  stderr: |+
+    export is not supported
+  exit_code: 2

@@ -1,0 +1,10 @@
+description: Here-strings are still allowed in safe-shell.
+input:
+  # language=bash
+  script: |+
+    cat <<< "hello herestring"
+expect:
+  stdout: |+
+    hello herestring
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Function declarations are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    myfunc() { echo hello; }
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

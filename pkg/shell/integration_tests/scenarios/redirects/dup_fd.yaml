@@ -1,0 +1,10 @@
+description: Output fd duplication (2>&1) is still allowed in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo hello 2>&1
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

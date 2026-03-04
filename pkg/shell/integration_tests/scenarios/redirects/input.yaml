@@ -1,0 +1,13 @@
+description: Input redirection (<) is still allowed in safe-shell.
+setup:
+  files:
+    - path: data.txt
+      content: "hello from file"
+input:
+  # language=bash
+  script: |+
+    cat < data.txt
+expect:
+  stdout: "hello from file"
+  stderr: ""
+  exit_code: 0
