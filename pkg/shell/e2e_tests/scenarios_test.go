@@ -24,7 +24,6 @@ import (
 
 // scenario represents a single test scenario.
 type scenario struct {
-	Name     string   `yaml:"name"`
 	Input    input    `yaml:"input"`
 	Expected expected `yaml:"expected"`
 }
@@ -122,7 +121,8 @@ func TestShellScenarios(t *testing.T) {
 		t.Run(group, func(t *testing.T) {
 			for _, path := range paths {
 				sc := loadScenario(t, path)
-				t.Run(sc.Name, func(t *testing.T) {
+				name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+				t.Run(name, func(t *testing.T) {
 					runScenario(t, sc)
 				})
 			}
