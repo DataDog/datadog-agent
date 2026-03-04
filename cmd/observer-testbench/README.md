@@ -29,8 +29,6 @@ Then open http://localhost:5173 in your browser.
 | `--http` | `:8080` | HTTP server address for the API (interactive mode only) |
 | `--enable` | _(empty)_ | Comma-separated components to enable (overrides defaults) |
 | `--disable` | _(empty)_ | Comma-separated components to disable (overrides defaults) |
-| `--cusum-include-count` | `false` | Include `:count` metrics in CUSUM analysis (skipped by default as they're often noisy) |
-
 ### Headless Mode
 
 | Flag | Default | Description |
@@ -58,12 +56,6 @@ Components are controlled via `--enable` and `--disable` using their names.
 | `lead_lag` | disabled | Finds temporal causality (which sources consistently precede others) |
 | `surprise` | disabled | Finds lift-based patterns (sources that co-occur more/less than expected) |
 
-### Processing
-
-| Name | Default | Description |
-|------|---------|-------------|
-| `dedup` | disabled | Anomaly deduplication before correlation (reduces noise from repeated detections) |
-
 ## Examples
 
 ```bash
@@ -77,10 +69,6 @@ Components are controlled via `--enable` and `--disable` using their names.
 # Only CUSUM + TimeCluster (disable everything else)
 ./observer-testbench --scenarios-dir ./comp/observer/scenarios \
   --disable bocpd,lead_lag,surprise
-
-# Include :count metrics in analysis
-./observer-testbench --scenarios-dir ./comp/observer/scenarios \
-  --cusum-include-count
 
 # Run on a different port
 ./observer-testbench --scenarios-dir ./comp/observer/scenarios \
@@ -207,7 +195,6 @@ These endpoints are available in interactive mode (not headless).
 | GET | `/api/leadlag` | Get LeadLag edges (if enabled) |
 | GET | `/api/surprise` | Get Surprise edges (if enabled) |
 | GET | `/api/stats` | Correlator statistics |
-| POST | `/api/config` | Update runtime configuration |
 
 ## UI Features
 

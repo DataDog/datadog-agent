@@ -7,7 +7,6 @@ export type MetricName = string & { readonly __metricNameBrand: unique symbol };
 
 export interface ServerConfig {
   components: Record<string, boolean>;
-  cusumSkipCount: boolean;  // true = filtering out :count metrics
 }
 
 export interface StatusResponse {
@@ -268,16 +267,6 @@ class ApiClient {
     return this.fetch('/stats');
   }
 
-  async updateConfig(config: {
-    cusumSkipCount?: boolean;
-    dedupEnabled?: boolean;
-  }): Promise<StatusResponse> {
-    return this.fetch('/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-  }
 }
 
 export const api = new ApiClient();

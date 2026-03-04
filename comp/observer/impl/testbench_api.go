@@ -49,7 +49,6 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
-	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlators/", api.cors(api.handleCorrelatorData))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
@@ -644,28 +643,6 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 	}
 	groups := api.tb.GetCompressedCorrelations(threshold)
 	api.writeJSON(w, groups)
-}
-
-// handleConfigUpdate handles POST /api/config to update server configuration.
-func (api *TestBenchAPI) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		api.writeError(w, http.StatusMethodNotAllowed, "use POST to update config")
-		return
-	}
-
-	var req ConfigUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		api.writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-
-	if err := api.tb.UpdateConfigAndReanalyze(req); err != nil {
-		api.writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Return updated status
-	api.writeJSON(w, api.tb.GetStatus())
 }
 
 // writeJSON writes a JSON response.

@@ -359,9 +359,6 @@ type observerImpl struct {
 	obsCh            chan observation
 	handleFunc       observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
-	// Deduplication layer (optional) - filters anomalies before correlation
-	deduplicator *AnomalyDeduplicator
-
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
 	rawAnomalyMu     sync.RWMutex
@@ -373,7 +370,6 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	dedupSkipped         int                             // count of anomalies skipped by dedup
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -483,16 +479,7 @@ func aggSuffix(agg Aggregate) string {
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
-// If deduplicator is enabled, filters out duplicate anomalies first.
 func (o *observerImpl) processAnomaly(anomaly observerdef.Anomaly) {
-	// Check deduplicator if enabled
-	if o.deduplicator != nil {
-		if !o.deduplicator.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
-			o.dedupSkipped++
-			return // Duplicate, skip
-		}
-	}
-
 	for _, correlator := range o.correlators {
 		correlator.Process(anomaly)
 	}
@@ -577,11 +564,6 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 	o.rawAnomalyMu.RLock()
 	defer o.rawAnomalyMu.RUnlock()
 	return len(o.uniqueAnomalySources)
-}
-
-// DedupSkippedCount returns the number of anomalies skipped by deduplication.
-func (o *observerImpl) DedupSkippedCount() int {
-	return o.dedupSkipped
 }
 
 // flushAndReport flushes all correlators and notifies all reporters.

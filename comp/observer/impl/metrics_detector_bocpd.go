@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -50,10 +49,6 @@ type BOCPDDetector struct {
 	// PriorVarianceScale controls prior variance over the mean relative to observed variance.
 	// Default: 10.0
 	PriorVarianceScale float64
-
-	// SkipCountMetrics skips :count metrics, which are often noisy under scaling.
-	// Default: true
-	SkipCountMetrics bool
 }
 
 // NewBOCPDDetector creates a BOCPD detector with defaults tuned for testbench use.
@@ -67,7 +62,6 @@ func NewBOCPDDetector() *BOCPDDetector {
 		CPMassThreshold:    0.7,
 		MaxRunLength:       200,
 		PriorVarianceScale: 10.0,
-		SkipCountMetrics:   true,
 	}
 }
 
@@ -78,10 +72,6 @@ func (b *BOCPDDetector) Name() string {
 
 // Analyze runs BOCPD and emits the first changepoint crossing CPThreshold.
 func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
-	if b.SkipCountMetrics && strings.HasSuffix(series.Name, ":count") {
-		return observer.MetricsDetectionResult{}
-	}
-
 	minPoints := b.MinPoints
 	if minPoints <= 0 {
 		minPoints = 10

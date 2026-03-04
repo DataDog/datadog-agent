@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -42,10 +41,6 @@ type CUSUMDetector struct {
 	// Higher values require larger cumulative deviation to trigger.
 	// Default: 4.0
 	ThresholdFactor float64
-
-	// SkipCountMetrics skips :count metrics which can be noisy from container scaling.
-	// Default: true
-	SkipCountMetrics bool
 }
 
 // NewCUSUMDetector creates a CUSUMDetector with default settings.
@@ -55,15 +50,7 @@ func NewCUSUMDetector() *CUSUMDetector {
 		BaselineFraction: 0.25,
 		SlackFactor:      0.5,
 		ThresholdFactor:  4.0,
-		SkipCountMetrics: true,
 	}
-}
-
-// NewCUSUMDetectorWithConfig creates a CUSUMDetector with custom settings.
-func NewCUSUMDetectorWithConfig(skipCountMetrics bool) *CUSUMDetector {
-	d := NewCUSUMDetector()
-	d.SkipCountMetrics = skipCountMetrics
-	return d
 }
 
 // Name returns the detector name.
@@ -74,12 +61,6 @@ func (c *CUSUMDetector) Name() string {
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
-	// Skip :count metrics - these are cardinality counts that create noise
-	// when container counts change (e.g., 1 -> 2 pods)
-	if c.SkipCountMetrics && strings.HasSuffix(series.Name, ":count") {
-		return observer.MetricsDetectionResult{}
-	}
-
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
 		minPoints = 5

@@ -53,13 +53,11 @@ type TestBenchConfig struct {
 	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
 
 	// EnableOverrides controls which components are enabled at startup.
-	// Keys are component names (e.g. "cusum", "lead_lag", "dedup").
+	// Keys are component names (e.g. "cusum", "lead_lag").
 	// If a name is present, its value overrides the registry DefaultEnabled.
 	// Components not listed use their registry default.
 	EnableOverrides map[string]bool
 
-	// Config params (not component toggles)
-	CUSUMIncludeCount bool // CUSUM: include :count metrics (default: false, skips them)
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -133,8 +131,7 @@ type StatusResponse struct {
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	Components     map[string]bool `json:"components"`
-	CUSUMSkipCount bool            `json:"cusumSkipCount"` // true = filtering out :count metrics
+	Components map[string]bool `json:"components"`
 }
 
 // NewTestBench creates a new test bench instance.
@@ -493,7 +490,7 @@ func (tb *TestBench) runLogDetectors() error {
 	return nil
 }
 
-// resetAllState resets all correlators and the deduplicator.
+// resetAllState resets all correlators.
 func (tb *TestBench) resetAllState() {
 	for _, proc := range tb.allCorrelators() {
 		if resetter, ok := proc.(interface{ Reset() }); ok {
@@ -501,9 +498,6 @@ func (tb *TestBench) resetAllState() {
 		} else {
 			proc.Flush()
 		}
-	}
-	if dedup := tb.getDeduplicator(); dedup != nil {
-		dedup.Reset()
 	}
 }
 
@@ -557,62 +551,9 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
 		ServerConfig: ServerConfig{
-			Components:     compMap,
-			CUSUMSkipCount: !tb.config.CUSUMIncludeCount,
+			Components: compMap,
 		},
 	}
-}
-
-// ConfigUpdateRequest is the request body for POST /api/config.
-type ConfigUpdateRequest struct {
-	CUSUMSkipCount *bool `json:"cusumSkipCount,omitempty"`
-	DedupEnabled   *bool `json:"dedupEnabled,omitempty"`
-}
-
-// UpdateConfigAndReanalyze updates configuration and re-runs analyses.
-func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
-	tb.mu.Lock()
-	defer tb.mu.Unlock()
-
-	configChanged := false
-
-	// Update CUSUM skip count
-	if req.CUSUMSkipCount != nil {
-		newSkip := *req.CUSUMSkipCount
-		oldSkip := !tb.config.CUSUMIncludeCount
-		if newSkip != oldSkip {
-			tb.config.CUSUMIncludeCount = !newSkip
-			if comp, ok := tb.components["cusum"]; ok {
-				if cusum, ok := comp.Instance.(*CUSUMDetector); ok {
-					cusum.SkipCountMetrics = newSkip
-				}
-			}
-			configChanged = true
-		}
-	}
-
-	// Update dedup
-	if req.DedupEnabled != nil {
-		if comp, ok := tb.components["dedup"]; ok {
-			if *req.DedupEnabled != comp.Enabled {
-				comp.Enabled = *req.DedupEnabled
-				if comp.Enabled {
-					// Reset the deduplicator when re-enabling
-					if d, ok := comp.Instance.(*AnomalyDeduplicator); ok {
-						d.Reset()
-					}
-				}
-				configChanged = true
-			}
-		}
-	}
-
-	// Re-run analyses if config changed and scenario is loaded
-	if configChanged && tb.ready && tb.storage != nil {
-		tb.rerunDetectorsLocked()
-	}
-
-	return nil
 }
 
 // rerunDetectorsLocked re-runs all detectors on current data. Caller must hold lock.
@@ -640,7 +581,6 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	tb.resetAllState()
 
 	detectors := tb.enabledDetectors()
-	dedup := tb.getDeduplicator()
 
 	// Phase 1 (sync): Run time series detectors to collect anomalies
 	for _, ns := range tb.storage.Namespaces() {
@@ -661,13 +601,6 @@ func (tb *TestBench) rerunDetectorsLocked() {
 							fmt.Printf("  Warning: dropping invalid anomaly (detector=%q source=%q ts=%d)\n",
 								anomaly.DetectorName, anomaly.Source, anomaly.Timestamp)
 							continue
-						}
-
-						// Apply deduplication if enabled
-						if dedup != nil {
-							if !dedup.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
-								continue
-							}
 						}
 
 						tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
