@@ -501,6 +501,11 @@ type AgentConfig struct {
 	// DebuggerIntakeProxy contains the settings for the Live Debugger intake proxy.
 	DebuggerIntakeProxy DebuggerProxyConfig
 
+	// ConsumedLogFiles is the list of log file path patterns already consumed by log integrations.
+	// Patterns may be exact paths or glob patterns (e.g. /var/log/*.log).
+	// Used by the debugger logs proxy to reject requests for files already being tailed.
+	ConsumedLogFiles []string
+
 	// SymDBProxy contains the settings for the Symbol Database proxy.
 	SymDBProxy SymDBProxyConfig
 
