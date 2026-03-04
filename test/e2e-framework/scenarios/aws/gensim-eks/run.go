@@ -1,0 +1,300 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package gensimeks provisions an EKS cluster for running gensim episodes.
+//
+// Milestones:
+//
+//	M1 (✓): EKS cluster + kubeconfig export — no workloads.
+//	M2 (this file): Episode services built on an EC2 build VM, pushed to ECR, deployed to EKS.
+//	M3: Datadog Agent deployment.
+//	M4: Kubernetes Job running play-episode.sh autonomously.
+//	M5: S3 results upload, destroy cleanup, full parity with Kind-based scenario.
+package gensimeks
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	eksscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
+	pulumiKubernetes "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	helmv3 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+)
+
+// Run is the Pulumi entry point for the aws/gensim-eks scenario.
+// It is registered in registry/scenarios.go and invoked by the e2e-framework runner.
+func Run(ctx *pulumi.Context) error {
+	awsEnv, err := resAws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+
+	// ── Cluster ───────────────────────────────────────────────────────────────
+	// WithLinuxNodeGroup is required: without it the cluster has only Fargate nodes
+	// (used for system pods like CoreDNS) and episode workloads cannot be scheduled.
+	cluster, err := eksscenario.NewCluster(awsEnv, "gensim", eksscenario.WithLinuxNodeGroup())
+	if err != nil {
+		return err
+	}
+	if err := cluster.Export(ctx, nil); err != nil {
+		return err
+	}
+
+	// ── Episode (M2+) ─────────────────────────────────────────────────────────
+	// chartPath is only set when --episode is passed to the invoke task.
+	// If absent, stop here — valid for M1 cluster-only runs.
+	cfg := config.New(ctx, "gensim")
+	chartPath := cfg.Get("chartPath")
+	if chartPath == "" {
+		return nil
+	}
+
+	episodeName := cfg.Require("episodeName")
+	episodePath := cfg.Get("episodePath")     // full path to episode dir on the developer's machine
+	imageRegistry := cfg.Get("imageRegistry") // ECR registry URL, computed by the invoke task
+	namespace := cfg.Get("namespace")
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// ── Build VM (M2) ─────────────────────────────────────────────────────────
+	// If the episode has custom service images (signalled by a docker-compose.yaml),
+	// we build them on a dedicated EC2 VM rather than on the developer's laptop.
+	//
+	// Building on EC2 avoids two classes of problems:
+	//   1. Cross-platform: Apple Silicon Macs build linux/arm64 by default; EKS nodes are x86_64.
+	//   2. Credential friction: the instance IAM role authenticates to ECR automatically —
+	//      no local credential setup or `aws sso login` required for the push.
+	var dependsOnImages pulumi.ResourceOption
+	dockerComposePath := filepath.Join(episodePath, "docker-compose.yaml")
+	if _, statErr := os.Stat(dockerComposePath); statErr == nil {
+		dependsOnImages, err = buildAndPushImages(ctx, awsEnv, episodePath, imageRegistry)
+		if err != nil {
+			return err
+		}
+	}
+
+	// ── Kubernetes provider ───────────────────────────────────────────────────
+	kubeProvider, err := pulumiKubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"),
+		&pulumiKubernetes.ProviderArgs{
+			EnableServerSideApply: pulumi.Bool(true),
+			Kubeconfig:            cluster.KubeConfig,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// ── imagePullPolicy post-renderer ─────────────────────────────────────────
+	// Episode charts hardcode imagePullPolicy: Never (a Kind artifact).
+	// This script patches it to IfNotPresent so EKS nodes pull from ECR.
+	patchScriptPath, err := writePatchScript()
+	if err != nil {
+		return err
+	}
+
+	// ── Episode Helm chart ────────────────────────────────────────────────────
+	// Helm release names: lowercase alphanumeric + hyphens, max 53 chars.
+	releaseName := "gensim-" + strings.ToLower(strings.ReplaceAll(episodeName, "_", "-"))
+	if len(releaseName) > 53 {
+		releaseName = releaseName[:53]
+	}
+
+	opts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
+	if dependsOnImages != nil {
+		opts = append(opts, dependsOnImages)
+	}
+
+	_, err = helmv3.NewRelease(ctx, awsEnv.Namer.ResourceName("episode"),
+		&helmv3.ReleaseArgs{
+			Name:            pulumi.StringPtr(releaseName),
+			Chart:           pulumi.String(chartPath),
+			Namespace:       pulumi.StringPtr(namespace),
+			CreateNamespace: pulumi.BoolPtr(true),
+			Postrender:      pulumi.StringPtr(patchScriptPath),
+			// 15 minutes: allow time for first-time ECR image pulls across all nodes.
+			Timeout: pulumi.IntPtr(900),
+			Values: pulumi.Map{
+				// imageRegistry is prepended to all custom service images by the chart's _helpers.tpl.
+				"imageRegistry": pulumi.String(imageRegistry),
+				"namespace":     pulumi.String(namespace),
+				// Pass credentials to the episode chart's built-in agent so it doesn't crash-loop.
+				// M3 will replace it with a proper DaemonSet-based agent.
+				"datadog": pulumi.Map{
+					"apiKey": awsEnv.AgentAPIKey(),
+					"appKey": awsEnv.AgentAPPKey(),
+					"site":   pulumi.String(awsEnv.Site()),
+					"env":    pulumi.String(releaseName),
+				},
+			},
+		},
+		opts...,
+	)
+	if err != nil {
+		return err
+	}
+
+	ctx.Export("episode-release", pulumi.String(releaseName))
+	return nil
+}
+
+// buildAndPushImages provisions a small EC2 build VM, copies the episode's service
+// source code to it, builds Docker images for linux/amd64, and pushes them to ECR.
+//
+// The VM is kept in the Pulumi stack and destroyed when the stack is destroyed.
+// Its only purpose is image building — it is not used for running the episode.
+func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodePath, ecrRegistry string) (pulumi.ResourceOption, error) {
+	// Grant the build VM's instance role permission to push images to ECR.
+	// GetAuthorizationToken is account-level and must use "*" as the resource.
+	_, err := awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-ecr-push"),
+		&awsIam.RolePolicyArgs{
+			Role: pulumi.String(awsEnv.DefaultInstanceProfileName()),
+			Policy: pulumi.String(`{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ecr:GetAuthorizationToken",
+      "ecr:CreateRepository",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload"
+    ],
+    "Resource": "*"
+  }]
+}`),
+		},
+		awsEnv.WithProviders(e2econfig.ProviderAWS),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Provision the build VM. The framework default OS (Ubuntu x86_64) matches the EKS nodes.
+	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder")
+	if err != nil {
+		return nil, err
+	}
+
+	// Install Docker, docker-compose, and the AWS CLI.
+	// All docker commands in the build script run under sudo — no group setup needed.
+	installToolsCmd, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("install-build-tools"),
+		&command.Args{
+			// Wrap in bash -c so sudo covers the entire chain, not just the first command.
+			Create: pulumi.String(`bash -c 'apt-get update -y && apt-get install -y docker.io docker-compose awscli'`),
+			Sudo:   true,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Copy the episode's docker-compose.yaml and services/ directory to the build VM.
+	servicesCopy, err := buildHost.OS.FileManager().CopyAbsoluteFolder(
+		filepath.Join(episodePath, "services"), "/tmp/gensim-build/",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	dockerComposeCopy, err := buildHost.OS.FileManager().CopyFile(
+		"docker-compose-yaml",
+		pulumi.String(filepath.Join(episodePath, "docker-compose.yaml")),
+		pulumi.String("/tmp/gensim-build/docker-compose.yaml"),
+		utils.PulumiDependsOn(servicesCopy...),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fix ownership so the build directory is writable by the SSH user.
+	fixPermsCmd, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("fix-build-dir-perms"),
+		&command.Args{
+			Create: pulumi.String(`chown -R $(id -un):$(id -gn) /tmp/gensim-build/`),
+			Sudo:   true,
+		},
+		utils.PulumiDependsOn(append(servicesCopy, dockerComposeCopy)...),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build all images and push to ECR.
+	// Key points:
+	//   - `aws ecr get-login-password` authenticates via the instance IAM role — no local creds needed.
+	//   - Images are built natively on x86_64, matching the EKS node architecture.
+	//   - `ecr create-repository` is idempotent; `|| true` suppresses the already-exists error.
+	//   - Images are tagged as {ecrRegistry}/{originalName} to match the chart's imageRegistry prefix.
+	buildAndPush, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("build-push-images"),
+		&command.Args{
+			Create: pulumi.Sprintf(
+				`set -euo pipefail
+
+cd /tmp/gensim-build
+
+# Authenticate Docker with ECR using the instance IAM role (no local credential setup needed).
+aws ecr get-login-password --region %s \
+  | sudo docker login --username AWS --password-stdin %s
+
+# Build all images defined in docker-compose.yaml for linux/amd64 (matches EKS node arch).
+sudo docker-compose build
+
+# Push each image to ECR, creating the repository first if it does not exist.
+for IMAGE in $(sudo docker-compose config --images); do
+  REPO="${IMAGE%%:*}"  # strip :tag to get the bare repository name
+  aws ecr create-repository --repository-name "$REPO" --region %s 2>/dev/null || true
+  sudo docker tag  "$IMAGE" "%s/$IMAGE"
+  sudo docker push "%s/$IMAGE"
+done`,
+				awsEnv.Region(), ecrRegistry,
+				awsEnv.Region(),
+				ecrRegistry, ecrRegistry,
+			),
+		},
+		utils.PulumiDependsOn(installToolsCmd, fixPermsCmd),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return utils.PulumiDependsOn(buildAndPush), nil
+}
+
+// writePatchScript writes a shell post-renderer that rewrites
+// `imagePullPolicy: Never` → `imagePullPolicy: IfNotPresent` in Helm output.
+// It is passed to helm as a post-renderer so the patch is transparent to the chart.
+func writePatchScript() (string, error) {
+	f, err := os.CreateTemp("", "patch-imagepullpolicy-*.sh")
+	if err != nil {
+		return "", fmt.Errorf("creating post-renderer script: %w", err)
+	}
+	defer f.Close()
+
+	script := "#!/bin/sh\nexec sed 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g'\n"
+	if _, err := f.WriteString(script); err != nil {
+		return "", fmt.Errorf("writing post-renderer script: %w", err)
+	}
+	if err := os.Chmod(f.Name(), 0o755); err != nil {
+		return "", fmt.Errorf("chmod post-renderer script: %w", err)
+	}
+	return f.Name(), nil
+}
