@@ -1,5 +1,5 @@
 scenarios:
-  - name: "single command"
+  - name: "simple echo"
     input:
       # language=bash
       script: |+

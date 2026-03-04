@@ -2,9 +2,10 @@ scenarios:
   - name: "simple pipe"
     input:
       # language=bash
-      script: |
+      script: |+
         echo abc | cat
     expected:
-      stdout: "abc"
+      stdout: |+
+        abc
       stderr: ""
       exit_code: 0
