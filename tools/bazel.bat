@@ -28,12 +28,6 @@ if defined XDG_CACHE_HOME (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
     exit /b 2
   )
-  :: https://pkg.go.dev/os#UserCacheDir
-  set "GOCACHE=%XDG_CACHE_HOME%\go-build"
-  :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
-  :: https://pip.pypa.io/en/stable/topics/caching/#default-paths
-  set "PIP_CACHE_DIR=%XDG_CACHE_HOME%\pip"
   set "bazel_home=%XDG_CACHE_HOME%\bazel"
   set bazel_home_startup_option="--output_user_root=!bazel_home!"
 ) else (
@@ -53,11 +47,11 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Not in CI: simply execute `bazel` - done
-if not defined CI (
-  "%BAZEL_REAL%" !bazel_home_startup_option! %*
-  exit /b !errorlevel!
-)
+:: Not in CI nor GitHub Actions: simply execute `bazel` - done
+if defined CI if not defined GITHUB_ACTIONS goto :ci_config
+"%BAZEL_REAL%" !bazel_home_startup_option! %*
+exit /b !errorlevel!
+:ci_config
 
 :: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
