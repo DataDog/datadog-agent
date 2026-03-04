@@ -2,9 +2,9 @@ name: "unknown command"
 input:
   # language=bash
   script: |+
-    unknown_cmd
+    foo
 expected:
   stdout: ""
   stderr: |+
-    unknown_cmd: not found
+    foo: not found
   exit_code: 127
