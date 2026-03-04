@@ -19,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -154,6 +155,7 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		Service:   flavor.GetFlavor(),
 		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
 			AgentVersion: pointer.Ptr(version.AgentVersion),
