@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-// newEbpfTracer is not supported on non-Linux platforms
-func newEbpfTracer(_ *config.Config, _ telemetry.Component) (Tracer, error) {
+// NewTracer is not supported on non-Linux platforms
+func NewTracer(_ *config.Config, _ telemetry.Component) (Tracer, error) {
 	return nil, errors.New("eBPF tracer not supported on this platform")
 }
