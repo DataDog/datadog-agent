@@ -138,6 +138,7 @@ ARG REGISTRY_USERNAME=""
 ARG REGISTRY_PASSWORD=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
     <<'RUNSCRIPT'
+set -e
 ARCH=$(dpkg --print-architecture)
 mkdir -p /dist
 case "$PACKAGE_TYPE" in

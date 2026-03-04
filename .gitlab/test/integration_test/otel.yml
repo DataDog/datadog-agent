@@ -195,6 +195,7 @@ ddot_byoc_package_build_test_linux_oci:
       --build-arg PACKAGE_TYPE=linux \
       --build-arg AGENT_OCI=installtesting.datad0g.com/agent-package:pipeline-$CI_PIPELINE_ID \
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
+      --build-arg REGISTRY_AUTH=gcr \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
