@@ -293,4 +293,27 @@ mod tests {
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
     }
+
+    #[test]
+    fn test_missing_before_dependency_ignored() {
+        let configs = vec![
+            ("api".to_string(), cfg(&[], &["nonexistent"])),
+            ("db".to_string(), cfg(&[], &[])),
+        ];
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(result.order.len(), 2);
+    }
+
+    #[test]
+    fn test_duplicate_before_dependency_in_list() {
+        // Listing "a" twice in before should not double-count in_degree.
+        let configs = vec![
+            ("a".to_string(), cfg(&[], &[])),
+            ("b".to_string(), cfg(&[], &["a", "a"])),
+        ];
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
+    }
 }
