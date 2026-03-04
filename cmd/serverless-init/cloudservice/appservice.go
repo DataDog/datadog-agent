@@ -53,6 +53,24 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"name":            tags["app_name"],
+		"region":          tags["region"],
+		"resource_group":  tags["resource_group"],
+		"resource_id":     tags["resource_id"],
+		"subscription_id": tags["subscription_id"],
+		"origin":          tags["origin"],
+		"dd.origin":       tags["_dd.origin"],
+	}
+
+	highCardinalityTags := map[string]string{
+		"instance_id": tags["aas.environment.instance_id"],
+	}
+
+	return baseTags, highCardinalityTags
+}
+
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (a *AppService) GetDefaultLogsSource() string {
 	return AppServiceOrigin
@@ -84,13 +102,13 @@ func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgen
 		collector.Stop()
 	}
 
-	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource())
-	metricAgent.AddMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())
+	metricAgent.AddEnhancedMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())
 }
 
 func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(appServicePrefix+".enhanced.cold_start", 1.0, a.GetSource())
-	metricAgent.AddMetric(appServicePrefixLegacy+".enhanced.cold_start", 1.0, a.GetSource())
+	metricAgent.AddEnhancedMetric(appServicePrefix+".enhanced.cold_start", 1.0, a.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(appServicePrefixLegacy+".enhanced.cold_start", 1.0, a.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

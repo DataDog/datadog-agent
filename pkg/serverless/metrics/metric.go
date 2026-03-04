@@ -21,11 +21,12 @@ import (
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	dogStatsDServer     dogstatsdServer.ServerlessDogstatsd
-	highCardinalityTags []string
-	tags                []string
-	Tagger              tagger.Component
-	Demux               aggregator.Demultiplexer
+	dogStatsDServer       dogstatsdServer.ServerlessDogstatsd
+	enhancedMetricTags    []string // does not include high cardinality tags
+	enhancedMetricTagsAll []string // includes high cardinality tags
+	tags                  []string
+	Tagger                tagger.Component
+	Demux                 aggregator.Demultiplexer
 
 	SketchesBucketOffset time.Duration
 }
@@ -100,10 +101,11 @@ func (c *ServerlessMetricAgent) Stop() {
 }
 
 // SetExtraTags sets extra tags on the DogStatsD server
-func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string, highCardinalityTags []string) {
+func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string, enhancedMetricTags []string, enhancedMetricTagsAll []string) {
 	if c.IsReady() {
 		c.tags = tagArray
-		c.highCardinalityTags = highCardinalityTags
+		c.enhancedMetricTags = enhancedMetricTags
+		c.enhancedMetricTagsAll = enhancedMetricTagsAll
 		c.dogStatsDServer.SetExtraTags(tagArray)
 	}
 }
@@ -113,23 +115,24 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
 }
 
-// AddMetric reports a new distribution metric value to the intake with an automatically generated timestamp.
-func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
-	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, c.tags, extraTags...)
+// AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
+func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, 0, c.tags, extraTags...)
 }
 
-// AddMetricWithTimestamp reports a new distribution metric value to the intake with the given timestamp.
-func (c *ServerlessMetricAgent) AddMetricWithTimestamp(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
-	c.sendMetricSample(name, value, metricSource, metricType, timestamp, c.tags, extraTags...)
+// AddEnhancedMetricWithTimestamp reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
+func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTags, extraTags...)
 }
 
-// AddHighCardinalityMetricWithTimestamp reports a new distribution metric value to the intake with the given timestamp and high cardinality tags.
-func (c *ServerlessMetricAgent) AddHighCardinalityMetricWithTimestamp(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
-	tags := append(append([]string{}, c.tags...), c.highCardinalityTags...)
-	c.sendMetricSample(name, value, metricSource, metricType, timestamp, tags, extraTags...)
+// AddHighCardinalityEnhancedMetricWithTimestamp reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics, including high cardinality tags.
+func (c *ServerlessMetricAgent) AddHighCardinalityEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTagsAll, extraTags...)
 }
 
-func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, tags []string, extraTags ...string) {
+// Add records a distribution metric sample using the agent's extra tags plus any
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, timestamp float64, tags []string, extraTags ...string) {
 	if c.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
@@ -145,7 +148,7 @@ func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, met
 	c.Demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      value,
-		Mtype:      metricType,
+		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,

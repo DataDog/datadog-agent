@@ -115,6 +115,24 @@ func (c *ContainerApp) GetTags() map[string]string {
 	return tags
 }
 
+func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"name":            tags["app_name"],
+		"region":          tags["region"],
+		"resource_group":  tags["resource_group"],
+		"resource_id":     tags["resource_id"],
+		"subscription_id": tags["subscription_id"],
+		"origin":          tags["origin"],
+		"dd.origin":       tags["_dd.origin"],
+	}
+
+	highCardinalityTags := map[string]string{
+		"replica.name": tags["replica_name"],
+	}
+
+	return baseTags, highCardinalityTags
+}
+
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (c *ContainerApp) GetDefaultLogsSource() string {
 	return ContainerAppOrigin
@@ -171,13 +189,13 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 		collector.Stop()
 	}
 
-	metricAgent.AddMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource())
-	metricAgent.AddMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
 }
 
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(containerAppPrefix+".enhanced.cold_start", 1.0, c.GetSource())
-	metricAgent.AddMetric(containerAppPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.cold_start", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

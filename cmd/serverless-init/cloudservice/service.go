@@ -34,6 +34,9 @@ type CloudService interface {
 	// the logs, traces, and metrics.
 	GetTags() map[string]string
 
+	// GetEnhancedMetricTags returns base tags and high cardinality tags for a given cloud service.
+	GetEnhancedMetricTags(map[string]string) (map[string]string, map[string]string)
+
 	// GetDefaultLogsSource returns the value that will be used for the logs source
 	// if `DD_SOURCE` is not set by the user.
 	GetDefaultLogsSource() string
@@ -77,6 +80,15 @@ func (l *LocalService) GetTags() map[string]string {
 	return map[string]string{}
 }
 
+// GetEnhancedMetricTags is a default implementation that returns an empty tag set
+func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{}
+
+	highCardinalityTags := map[string]string{}
+
+	return baseTags, highCardinalityTags
+}
+
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
 func (l *LocalService) GetDefaultLogsSource() string {
 	return "unknown"
@@ -108,12 +120,12 @@ func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 		collector.Stop()
 	}
 
-	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
+	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
 }
 
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource())
+	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

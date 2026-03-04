@@ -117,6 +117,23 @@ func (c *CloudRun) GetTags() map[string]string {
 	return tags
 }
 
+func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"location":      tags["location"],
+		"project_id":    tags["project_id"],
+		"service_name":  tags["service_name"],
+		"resource_name": tags["resource_name"],
+		"origin":        tags["origin"],
+		"dd.origin":     tags["_dd.origin"],
+	}
+
+	highCardinalityTags := map[string]string{
+		"container_id": tags["container_id"],
+	}
+
+	return baseTags, highCardinalityTags
+}
+
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionTargetVal := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
@@ -164,13 +181,13 @@ func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent,
 		collector.Stop()
 	}
 
-	metricAgent.AddMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource())
-	metricAgent.AddMetric(cloudRunPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(cloudRunPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
 }
 
 func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(cloudRunPrefix+".enhanced.cold_start", 1.0, c.GetSource())
-	metricAgent.AddMetric(cloudRunPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(cloudRunPrefix+".enhanced.cold_start", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(cloudRunPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

@@ -90,6 +90,20 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
+func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"location":   tags["location"],
+		"project_id": tags["project_id"],
+		"job_name":   tags["job_name"],
+		"origin":     tags["origin"],
+		"dd.origin":  tags["_dd.origin"],
+	}
+
+	highCardinalityTags := map[string]string{}
+
+	return baseTags, highCardinalityTags
+}
+
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (c *CloudRunJobs) GetDefaultLogsSource() string {
 	// Use the default log pipeline for Cloud Run.
@@ -134,7 +148,7 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
-	metricAgent.AddMetric(durationMetricName, duration, c.GetSource())
+	metricAgent.AddEnhancedMetric(durationMetricName, duration, c.GetSource(), 0)
 
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
@@ -142,13 +156,13 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	if exitCode != 0 {
 		succeededTag = "succeeded:false"
 	}
-	metricAgent.AddMetric(shutdownMetricName, 1.0, c.GetSource(), succeededTag)
+	metricAgent.AddEnhancedMetric(shutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
 
 	c.completeAndSubmitJobSpan(runErr)
 }
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(cloudRunJobsPrefix+".enhanced.task.started", 1.0, c.GetSource())
+	metricAgent.AddEnhancedMetric(cloudRunJobsPrefix+".enhanced.task.started", 1.0, c.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.

@@ -249,11 +249,11 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	// CPU usage in nanocores
 	// Skip when value is -1 since this value is used on the first collect before the rate can be computed
 	if enhancedMetrics.CPUUsage != -1 {
-		c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+		c.metricAgent.AddEnhancedMetric(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, enhancedMetrics.Timestamp)
 	}
 
 	// CPU limit in nanocores
-	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+	c.metricAgent.AddHighCardinalityEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
 }
 
 func statValue(val *float64, def float64) float64 {

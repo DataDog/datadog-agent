@@ -52,8 +52,8 @@ func getTagFromEnv(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of the three reserved Unified Service Tagging tags, to be used everywhere
-func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) map[string]string {
+// GetBaseTagsMap returns a map of the three reserved Unified Service Tagging tags, to be used everywhere
+func GetBaseTagsMap() map[string]string {
 	tagsMap := map[string]string{}
 	listTags := []TagPair{
 		{
@@ -69,16 +69,24 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 			envName: "DD_VERSION",
 		},
 	}
+
 	for _, tagPair := range listTags {
 		if value, found := getTagFromEnv(tagPair.envName); found {
 			tagsMap[tagPair.name] = value
 		}
 	}
 
-	maps.Copy(tagsMap, metadata)
-
-	tagsMap[versionMode] = tags.GetExtensionVersion()
 	return tagsMap
+}
+
+// MergeTags merges tag maps in order (later overwrites earlier), then sets versionMode.
+func MergeTags(versionMode string, tagMaps ...map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for _, m := range tagMaps {
+		merged = tags.MergeWithOverwrite(merged, m)
+	}
+	merged[versionMode] = tags.GetExtensionVersion()
+	return merged
 }
 
 // MakeTraceAgentTags handles tag customization for the trace agent.
@@ -97,20 +105,14 @@ func MakeTraceAgentTags(tagsMap map[string]string) map[string]string {
 	return tagsMap
 }
 
-// MakeMetricAgentTags returns two tag maps for the metric agent:
-//   - baseTags: tags with high cardinality keys excluded for use with dogstatsd metrics and enhanced metrics that don't need high cardinality tags..
-//   - highCardinalityTagsOut: tags with only the high cardinality keys for use with enhanced metrics that need high cardinality tags.
-//
-// We avoid high-cardinality tags on base metrics by default due to cost, as we store and bill by cardinality.
-func MakeMetricAgentTags(tags map[string]string) (baseTags map[string]string, highCardinalityTagsOut map[string]string) {
-	baseTags = make(map[string]string, len(tags))
-	highCardinalityTagsOut = make(map[string]string)
+// * Creates a new tag map without high cardinality tags we use on traces
+// We avoid these tags for metrics by default due to cost, as we store and bill by cardinality.
+func MakeMetricAgentTags(tags map[string]string) map[string]string {
+	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if _, isHighCardinality := highCardinalityTags[k]; isHighCardinality {
-			highCardinalityTagsOut[k] = v
-		} else {
-			baseTags[k] = v
+		if _, isHighCardinality := highCardinalityTags[k]; !isHighCardinality {
+			newTags[k] = v
 		}
 	}
-	return baseTags, highCardinalityTagsOut
+	return newTags
 }
