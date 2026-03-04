@@ -1,0 +1,9 @@
+description: Mixed chain where every path fails.
+input:
+  # language=bash
+  script: |+
+    false && echo no || false && echo no
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

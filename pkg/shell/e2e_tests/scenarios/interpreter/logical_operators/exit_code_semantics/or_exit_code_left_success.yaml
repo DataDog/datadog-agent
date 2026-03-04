@@ -1,0 +1,9 @@
+description: When left succeeds in ||, exit code is from the left side.
+input:
+  # language=bash
+  script: |+
+    true || exit 5
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: A chain of && commands all succeed and all execute.
+input:
+  # language=bash
+  script: |+
+    echo one && echo two && echo three
+expected:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

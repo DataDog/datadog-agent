@@ -1,0 +1,10 @@
+description: In a || chain, when first command succeeds the rest are skipped.
+input:
+  # language=bash
+  script: |+
+    echo one || echo two || echo three
+expected:
+  stdout: |+
+    one
+  stderr: ""
+  exit_code: 0

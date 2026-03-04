@@ -1,0 +1,9 @@
+description: When left fails in ||, exit code is from the right side.
+input:
+  # language=bash
+  script: |+
+    false || exit 3
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 3

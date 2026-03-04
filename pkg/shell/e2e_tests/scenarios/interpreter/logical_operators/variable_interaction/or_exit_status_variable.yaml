@@ -1,0 +1,10 @@
+description: The $? variable reflects the failed exit status in || fallback.
+input:
+  # language=bash
+  script: |+
+    false || echo $?
+expected:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

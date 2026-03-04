@@ -1,0 +1,10 @@
+description: Skipped commands after successful || produce no output.
+input:
+  # language=bash
+  script: |+
+    echo ok || echo skipped
+expected:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

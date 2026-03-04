@@ -1,0 +1,12 @@
+description: Output accumulates across && when both sides succeed.
+input:
+  # language=bash
+  script: |+
+    echo first && echo second && echo third
+expected:
+  stdout: |+
+    first
+    second
+    third
+  stderr: ""
+  exit_code: 0

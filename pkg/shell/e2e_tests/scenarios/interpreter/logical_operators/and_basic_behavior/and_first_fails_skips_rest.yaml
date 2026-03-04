@@ -1,0 +1,9 @@
+description: When first command in a long && chain fails, all subsequent commands are skipped.
+input:
+  # language=bash
+  script: |+
+    false && echo two && echo three && echo four
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

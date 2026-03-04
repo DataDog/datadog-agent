@@ -1,0 +1,9 @@
+description: The exit builtin terminates the script immediately so || cannot recover.
+input:
+  # language=bash
+  script: |+
+    exit 99 || true
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 99
