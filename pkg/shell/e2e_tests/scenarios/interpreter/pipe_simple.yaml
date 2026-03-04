@@ -1,8 +1,8 @@
-name: "single command"
+name: "simple pipe"
 input:
   # language=bash
   script: |+
-    echo abc
+    echo abc | cat
 expected:
   stdout: |+
     abc

@@ -22,11 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 )
 
-// scenarioFile represents a YAML file containing test scenarios.
-type scenarioFile struct {
-	Scenarios []scenario `yaml:"scenarios"`
-}
-
 // scenario represents a single test scenario.
 type scenario struct {
 	Name     string   `yaml:"name"`
@@ -73,16 +68,16 @@ func discoverScenarioFiles(t *testing.T, scenariosDir string) map[string][]strin
 	return files
 }
 
-// loadScenarios parses a YAML scenario file into a list of scenarios.
-func loadScenarios(t *testing.T, path string) []scenario {
+// loadScenario parses a YAML file into a single scenario.
+func loadScenario(t *testing.T, path string) scenario {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err, "failed to read scenario file %s", path)
 
-	var sf scenarioFile
-	err = yaml.Unmarshal(data, &sf)
+	var sc scenario
+	err = yaml.Unmarshal(data, &sc)
 	require.NoError(t, err, "failed to parse scenario file %s", path)
-	return sf.Scenarios
+	return sc
 }
 
 // runScenario executes a single test scenario against the shell interpreter
@@ -126,14 +121,9 @@ func TestShellScenarios(t *testing.T) {
 	for group, paths := range groups {
 		t.Run(group, func(t *testing.T) {
 			for _, path := range paths {
-				fileName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-				t.Run(fileName, func(t *testing.T) {
-					scenarios := loadScenarios(t, path)
-					for _, sc := range scenarios {
-						t.Run(sc.Name, func(t *testing.T) {
-							runScenario(t, sc)
-						})
-					}
+				sc := loadScenario(t, path)
+				t.Run(sc.Name, func(t *testing.T) {
+					runScenario(t, sc)
 				})
 			}
 		})
