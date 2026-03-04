@@ -649,6 +649,8 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 	return uint8(offset), nil
 }
 
+func nilPieceOp(piece ir.Piece) bool { return piece.Op == nil }
+
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
 	for _, loclist := range op.Variable.Locations {
@@ -669,15 +671,20 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Nothing needs to be read.
 			return ops, nil
 		}
+
+		// Check if the matching location list is unavailable (partially or
+		// completely). If so, we'll want by breaking here we'll make sure we
+		// don't mark the variable as available.
+		if len(loclist.Pieces) == 0 ||
+			slices.ContainsFunc(loclist.Pieces, nilPieceOp) {
+			break
+		}
+
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
 		}
 		layoutIdx := 0
-		if len(loclist.Pieces) == 0 {
-			// Variable has loclist entry for relevant PC range, but it is still unavailable.
-			break
-		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
 				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
@@ -708,6 +715,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 					})
 				case ir.Addr:
 					return nil, errUnsupportedAddrLocationOp
+				default:
+					return nil, fmt.Errorf(
+						"internal error: unexpected piece op: %#v (%T)", p, p,
+					)
 				}
 			}
 		}

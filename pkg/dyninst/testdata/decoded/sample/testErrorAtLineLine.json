@@ -63,12 +63,7 @@
                 },
                 "err": {
                   "type": "error",
-                  "fields": {
-                    "data": {
-                      "type": "",
-                      "notCapturedReason": "missing type information"
-                    }
-                  }
+                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -77,6 +72,6 @@
       }
     },
     "timestamp": "[ts]",
-    "message": "x={unavailable}, err={interface: unknown type }"
+    "message": "x={unavailable}, err={unavailable}"
   }
 ]
