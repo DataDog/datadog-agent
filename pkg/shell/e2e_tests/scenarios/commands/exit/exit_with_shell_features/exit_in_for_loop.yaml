@@ -1,0 +1,14 @@
+description: Exit inside a for loop terminates the entire script.
+input:
+  # language=bash
+  script: |+
+    for x in a b c; do
+      echo $x
+      exit 3
+    done
+    echo unreachable
+expect:
+  stdout: |+
+    a
+  stderr: ""
+  exit_code: 3

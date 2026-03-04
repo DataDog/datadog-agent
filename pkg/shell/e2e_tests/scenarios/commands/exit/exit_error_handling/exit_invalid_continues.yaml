@@ -1,0 +1,11 @@
+description: An invalid exit argument does not stop execution; subsequent commands still run.
+input:
+  # language=bash
+  script: |+
+    exit abc; echo still running
+expect:
+  stdout: |+
+    still running
+  stderr: |+
+    invalid exit status code: "abc"
+  exit_code: 0
