@@ -15,7 +15,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
@@ -164,14 +164,8 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 				args.Filter.Name,
 				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
 			)
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-				return
-			}
-			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery) {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery)
 
 			// Check tags
 			if expectedTags != nil {
@@ -293,14 +287,8 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				args.Filter.Service,
 				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
 			)
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-				return
-			}
-			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery) {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery)
 
 			// Check tags
 			if expectedTags != nil {
@@ -322,6 +310,120 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				)
 			}
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyLogQuery)
+	})
+}
+
+type testCheckRunArgs struct {
+	Filter   testCheckRunFilterArgs
+	Expect   testCheckRunExpectArgs
+	Optional testCheckRunExpectArgs
+}
+
+type testCheckRunFilterArgs struct {
+	Name string
+	// Tags are used to filter the checkRun
+	// Regexes are supported
+	Tags []string
+}
+
+type testCheckRunExpectArgs struct {
+	// Tags are the tags expected to be present
+	// Regexes are supported
+	Tags                 *[]string
+	AcceptUnexpectedTags bool
+}
+
+func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
+	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
+
+	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
+		var expectedTags []*regexp.Regexp
+		if args.Expect.Tags != nil {
+			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		var optionalTags []*regexp.Regexp
+		if args.Optional.Tags != nil {
+			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		sendEvent := func(alertType, text string) {
+			formattedArgs, err := yaml.Marshal(args)
+			suite.Require().NoError(err)
+
+			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
+				return "filter_tag_" + tag
+			})
+
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+				Title: pointer.Ptr("testCheckRun " + prettyCheckRunQuery),
+				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Query
+
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text, formattedArgs)),
+				AlertType: &alertType,
+				Tags: append([]string{
+					"app:agent-new-e2e-tests-containers",
+					"cluster_name:" + suite.clusterName,
+					"check_run:" + args.Filter.Name,
+					"test:" + suite.T().Name(),
+				}, tags...),
+			}); err != nil {
+				suite.T().Logf("Failed to post event: %s", err)
+			}
+		}
+
+		defer func() {
+			if suite.T().Failed() {
+				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and value", prettyCheckRunQuery))
+			} else {
+				sendEvent("success", "All good!")
+			}
+		}()
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			defer func() {
+				if len(c.errors) == 0 {
+					sendEvent("success", "All good!")
+				} else {
+					sendEvent("warning", errors.Join(c.errors...).Error())
+				}
+			}()
+
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
+			checkRuns, err := suite.Fakeintake.FilterCheckRuns(
+				args.Filter.Name,
+				fakeintake.WithMatchingTags[*aggregator.CheckRun](regexTags),
+			)
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, checkRuns, "No `%s` checkRun yet", prettyCheckRunQuery)
+
+			// Check tags
+			if expectedTags != nil {
+				err := assertTags(checkRuns[len(checkRuns)-1].GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
+				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyCheckRunQuery)
+			}
+
+		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyCheckRunQuery)
 	})
 }
 
@@ -419,14 +521,8 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 				args.Filter.Source,
 				fakeintake.WithMatchingTags[*aggregator.Event](regexTags),
 			)
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-				return
-			}
-			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NotEmptyf(c, events, "No `%s` events yet", prettyEventQuery) {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, events, "No `%s` events yet", prettyEventQuery)
 
 			// Check tags
 			if expectedTags != nil {
@@ -555,5 +651,5 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 			assert.NoError(c, err)
 		}
 
-	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
+	}, 33*time.Minute, 15*time.Second, "Failed to validate all host-tags")
 }

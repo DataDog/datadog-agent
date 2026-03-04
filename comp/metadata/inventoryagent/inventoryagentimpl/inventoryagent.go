@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -179,12 +179,13 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
+	ia.data["package_version"] = version.AgentPackageVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// agent-configuration: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic", "none"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}

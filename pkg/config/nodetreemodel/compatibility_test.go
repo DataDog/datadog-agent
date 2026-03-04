@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -174,6 +174,71 @@ func TestCompareAllFlattenedSettingsWithSequenceID(t *testing.T) {
 	}
 	assert.Equal(t, expectmap, vipermap)
 	assert.Equal(t, expectmap, ntmmap)
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDDottedMapKeys(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	endpoints := map[string]interface{}{
+		"https://url1.com": []interface{}{"api_key_1"},
+		"https://url2.eu":  []interface{}{"api_key_2"},
+	}
+	viperConf.Set("additional_endpoints", endpoints, model.SourceFile)
+	ntmConf.Set("additional_endpoints", endpoints, model.SourceFile)
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	assert.Contains(t, vipermap, "additional_endpoints")
+	assert.Contains(t, ntmmap, "additional_endpoints")
+	for key := range vipermap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in viper map: %s", key)
+	}
+	for key := range ntmmap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in ntm map: %s", key)
+	}
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDKnownLeafParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("apm_config.foo", "")
+		cfg.BindEnvAndSetDefault("apm_config.bar.baz", "")
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	expectedKeys := []string{"apm_config.foo", "apm_config.bar.baz", "proxy.http"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
+	assert.NotContains(t, viperKeys, "apm_config")
+	assert.NotContains(t, viperKeys, "apm_config.bar")
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDUnknownParentChildParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	// Reading unknown keys tracks them in both implementations.
+	_ = viperConf.Get("unknown_section")
+	_ = viperConf.Get("unknown_section.info")
+	_ = ntmConf.Get("unknown_section")
+	_ = ntmConf.Get("unknown_section.info")
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	expectedKeys := []string{"proxy.http", "unknown_section", "unknown_section.info"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
 }
 
 func TestCompareGetEnvVars(t *testing.T) {
@@ -450,7 +515,7 @@ log:
 	t.Run("Includes unknown YAML keys", func(t *testing.T) {
 		dataYaml := `
 port: 8080
-host: 
+host:
 customKey1:
 customKey2: unused
 `
@@ -835,6 +900,25 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	// "host" should now be available
 	assert.Equal(t, "localhost", viperConf.GetString("host"))
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestReadInConfigExactError(t *testing.T) {
+	// Invalid YAML that will fail to parse
+	dataYaml := `site:datadoghq.eu
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("site", "datadoghq.com")
+	})
+
+	// Both config implementations should return "Config File Not Found" when
+	// a parsing error is encountered
+	err := viperConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+	err = ntmConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+
+	assert.Equal(t, "datadoghq.com", viperConf.GetString("site"))
+	assert.Equal(t, "datadoghq.com", ntmConf.GetString("site"))
 }
 
 func TestCompareEnvVarsSubfields(t *testing.T) {

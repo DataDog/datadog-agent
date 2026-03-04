@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// Payload handles the JSON unmarshalling of the metadata payload
+// Payload handles the JSON unmarshalling of the metadata payloa d
 type Payload struct {
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`

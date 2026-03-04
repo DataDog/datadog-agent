@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -304,8 +304,9 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// We first load the configuration to see which config library should be used.
 	configLib := resolveConfigLibType(cliPath, defaultDir)
 
-	datadog = create.NewConfig("datadog", configLib)
-	systemProbe = create.NewConfig("system-probe", configLib)
+	// Assign the config globals, using locks to make the tests happy
+	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults
 	initConfig()
@@ -1001,6 +1002,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
@@ -1348,7 +1351,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// If enabled, all origin detection mechanisms will be unified to use the same logic.
 	// Will override all other origin detection settings in favor of the unified one.
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
-	config.BindEnv("env") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("env", "")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
