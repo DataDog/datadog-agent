@@ -1,0 +1,12 @@
+description: The true builtin resets exit code to 0 after false.
+input:
+  # language=bash
+  script: |+
+    false
+    true
+    echo $?
+expected:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

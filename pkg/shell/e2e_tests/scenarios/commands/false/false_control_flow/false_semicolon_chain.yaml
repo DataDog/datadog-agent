@@ -1,0 +1,10 @@
+description: Commands after false separated by semicolons still execute.
+input:
+  # language=bash
+  script: |+
+    false; echo after
+expected:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

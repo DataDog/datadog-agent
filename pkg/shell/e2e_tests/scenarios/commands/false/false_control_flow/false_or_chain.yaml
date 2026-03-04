@@ -1,0 +1,10 @@
+description: Chained || with false keeps falling through until success.
+input:
+  # language=bash
+  script: |+
+    false || false || echo reached
+expected:
+  stdout: |+
+    reached
+  stderr: ""
+  exit_code: 0

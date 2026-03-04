@@ -1,0 +1,12 @@
+description: The false builtin sets exit code to 1 after true.
+input:
+  # language=bash
+  script: |+
+    true
+    false
+    echo $?
+expected:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

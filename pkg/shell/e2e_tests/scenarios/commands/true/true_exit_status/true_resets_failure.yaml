@@ -1,0 +1,14 @@
+description: The true builtin resets $? to 0 after a failed command.
+input:
+  # language=bash
+  script: |+
+    false
+    echo $?
+    true
+    echo $?
+expected:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0
