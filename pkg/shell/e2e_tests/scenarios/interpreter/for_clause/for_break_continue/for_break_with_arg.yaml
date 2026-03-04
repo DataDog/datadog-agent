@@ -7,7 +7,7 @@ input:
       break 1
     done
     echo done
-expected:
+expect:
   stdout: |+
     a
     done

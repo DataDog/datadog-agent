@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false && echo two && echo three && echo four
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 1

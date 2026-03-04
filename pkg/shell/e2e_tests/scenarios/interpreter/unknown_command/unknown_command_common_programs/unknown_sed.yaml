@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     sed s/foo/bar/ file.txt
-expected:
+expect:
   stdout: ""
   stderr: |+
     sed: not found

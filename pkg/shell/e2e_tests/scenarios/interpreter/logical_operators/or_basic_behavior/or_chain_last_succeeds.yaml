@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false || false || echo reached
-expected:
+expect:
   stdout: |+
     reached
   stderr: ""

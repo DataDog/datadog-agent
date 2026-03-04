@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     python -c "print('hello')"
-expected:
+expect:
   stdout: ""
   stderr: |+
     python: not found

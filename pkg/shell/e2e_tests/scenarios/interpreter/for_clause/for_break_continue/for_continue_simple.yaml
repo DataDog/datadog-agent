@@ -7,7 +7,7 @@ input:
       continue
       echo "after $i"
     done
-expected:
+expect:
   stdout: |+
     before a
     before b

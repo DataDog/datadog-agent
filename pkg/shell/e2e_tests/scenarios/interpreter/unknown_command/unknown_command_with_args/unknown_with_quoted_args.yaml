@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     foo "hello world" 'single quoted'
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

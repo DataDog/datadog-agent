@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     for n in 1 2 3 4 5; do echo $n; done
-expected:
+expect:
   stdout: |+
     1
     2

@@ -4,7 +4,7 @@ input:
   script: |+
     X=hello
     echo ${#X}
-expected:
+expect:
   stdout: ""
   stderr: |+
     ${#var} is not supported

@@ -6,7 +6,7 @@ input:
     echo $X
     X=second
     echo $X
-expected:
+expect:
   stdout: |+
     first
     second

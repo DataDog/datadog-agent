@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo $@
-expected:
+expect:
   stdout: ""
   stderr: |+
     $@ is not supported

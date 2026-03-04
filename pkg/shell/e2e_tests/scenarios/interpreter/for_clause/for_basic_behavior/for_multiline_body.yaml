@@ -6,7 +6,7 @@ input:
       echo start $i
       echo end $i
     done
-expected:
+expect:
   stdout: |+
     start a
     end a

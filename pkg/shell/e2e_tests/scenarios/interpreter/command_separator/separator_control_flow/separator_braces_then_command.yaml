@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     { echo inside; }; echo outside
-expected:
+expect:
   stdout: |+
     inside
     outside

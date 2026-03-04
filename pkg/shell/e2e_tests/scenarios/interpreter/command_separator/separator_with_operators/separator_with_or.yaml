@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo first; false || echo fallback
-expected:
+expect:
   stdout: |+
     first
     fallback

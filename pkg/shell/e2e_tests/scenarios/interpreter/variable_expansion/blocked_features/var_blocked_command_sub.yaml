@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo $(echo hello)
-expected:
+expect:
   stdout: ""
   stderr: |+
     command substitution is not supported

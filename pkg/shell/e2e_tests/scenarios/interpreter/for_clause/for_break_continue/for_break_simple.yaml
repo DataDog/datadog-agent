@@ -7,7 +7,7 @@ input:
       break
     done
     echo after
-expected:
+expect:
   stdout: |+
     a
     after

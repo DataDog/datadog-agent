@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo a && false || echo c && echo d
-expected:
+expect:
   stdout: |+
     a
     c

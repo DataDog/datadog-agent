@@ -8,7 +8,7 @@ input:
   # language=bash
   script: |+
     cat mydir
-expected:
+expect:
   stdout: ""
   stderr_contains:
     - "cat: mydir:"

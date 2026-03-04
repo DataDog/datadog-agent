@@ -4,7 +4,7 @@ input:
   script: |+
     NAME=world
     echo "hello $NAME"
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

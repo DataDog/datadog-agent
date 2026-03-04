@@ -4,7 +4,7 @@ input:
   script: |+
     cat nonexistent.txt
     echo hello
-expected:
+expect:
   stdout: |+
     hello
   stderr_contains:

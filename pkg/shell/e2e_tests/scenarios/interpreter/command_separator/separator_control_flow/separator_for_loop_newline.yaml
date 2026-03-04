@@ -6,7 +6,7 @@ input:
       echo $i
     done
     echo after
-expected:
+expect:
   stdout: |+
     x
     y

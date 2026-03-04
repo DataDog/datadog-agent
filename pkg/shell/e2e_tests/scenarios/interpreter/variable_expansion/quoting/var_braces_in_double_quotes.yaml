@@ -4,7 +4,7 @@ input:
   script: |+
     ANIMAL=cat
     echo "the ${ANIMAL}s"
-expected:
+expect:
   stdout: |+
     the cats
   stderr: ""

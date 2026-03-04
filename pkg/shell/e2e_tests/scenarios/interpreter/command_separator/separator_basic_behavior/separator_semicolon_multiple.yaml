@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo one; echo two; echo three; echo four
-expected:
+expect:
   stdout: |+
     one
     two

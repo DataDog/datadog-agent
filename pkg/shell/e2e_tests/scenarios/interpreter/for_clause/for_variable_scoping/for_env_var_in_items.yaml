@@ -6,7 +6,7 @@ input:
     B=two
     C=three
     for i in $A $B $C; do echo $i; done
-expected:
+expect:
   stdout: |+
     one
     two

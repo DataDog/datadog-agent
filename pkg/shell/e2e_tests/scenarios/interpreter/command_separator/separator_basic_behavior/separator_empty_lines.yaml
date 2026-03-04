@@ -7,7 +7,7 @@ input:
     echo second
 
     echo third
-expected:
+expect:
   stdout: |+
     first
     second

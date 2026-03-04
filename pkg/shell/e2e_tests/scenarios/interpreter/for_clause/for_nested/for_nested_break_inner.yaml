@@ -8,7 +8,7 @@ input:
         break
       done
     done
-expected:
+expect:
   stdout: |+
     a1
     b1

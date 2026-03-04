@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo abc | false || echo fallback
-expected:
+expect:
   stdout: |+
     fallback
   stderr: ""

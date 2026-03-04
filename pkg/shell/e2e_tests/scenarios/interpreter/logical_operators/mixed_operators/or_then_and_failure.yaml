@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false || echo recovered && echo continued
-expected:
+expect:
   stdout: |+
     recovered
     continued

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     X=world; false || echo $X
-expected:
+expect:
   stdout: |+
     world
   stderr: ""

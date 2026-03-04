@@ -4,7 +4,7 @@ input:
   script: |+
     X=hello
     echo $X world | cat
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

@@ -4,7 +4,7 @@ input:
   script: |+
     for i in a b c; do echo $i; done
     echo "after: $i"
-expected:
+expect:
   stdout: |+
     a
     b

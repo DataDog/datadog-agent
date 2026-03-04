@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     bash -c "echo hello"
-expected:
+expect:
   stdout: ""
   stderr: |+
     bash: not found

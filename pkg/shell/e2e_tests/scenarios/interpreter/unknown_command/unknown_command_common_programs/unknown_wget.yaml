@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     wget http://example.com
-expected:
+expect:
   stdout: ""
   stderr: |+
     wget: not found

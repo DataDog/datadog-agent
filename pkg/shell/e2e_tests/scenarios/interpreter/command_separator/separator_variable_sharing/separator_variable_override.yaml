@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     x=first; echo $x; x=second; echo $x
-expected:
+expect:
   stdout: |+
     first
     second

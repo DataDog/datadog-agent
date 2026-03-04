@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     foo && echo should_not_run
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

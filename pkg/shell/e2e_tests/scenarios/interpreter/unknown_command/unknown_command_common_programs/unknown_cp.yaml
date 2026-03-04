@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     cp source.txt dest.txt
-expected:
+expect:
   stdout: ""
   stderr: |+
     cp: not found

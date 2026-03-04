@@ -9,7 +9,7 @@ input:
       done
     done
     echo done
-expected:
+expect:
   stdout: |+
     a1
     done

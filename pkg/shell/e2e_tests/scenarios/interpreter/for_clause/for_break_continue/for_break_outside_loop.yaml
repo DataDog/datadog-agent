@@ -4,7 +4,7 @@ input:
   script: |+
     break
     echo after
-expected:
+expect:
   stdout: |+
     after
   stderr: |+

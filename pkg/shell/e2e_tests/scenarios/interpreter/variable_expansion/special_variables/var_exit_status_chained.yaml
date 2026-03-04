@@ -9,7 +9,7 @@ input:
     true
     C=$?
     echo $A $B $C
-expected:
+expect:
   stdout: |+
     0 1 0
   stderr: ""

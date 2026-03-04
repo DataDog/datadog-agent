@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     foo arg1 arg2 arg3
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

@@ -4,7 +4,7 @@ input:
   script: |+
     MSG="hello world"
     echo "$MSG"
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

@@ -27,7 +27,7 @@ type scenario struct {
 	Description string   `yaml:"description"`
 	Setup       setup    `yaml:"setup"`
 	Input       input    `yaml:"input"`
-	Expected    expected `yaml:"expected"`
+	Expect      expected `yaml:"expect"`
 }
 
 // setup holds optional pre-test configuration such as files to create.
@@ -51,6 +51,7 @@ type input struct {
 // expected holds the expected output for a scenario.
 type expected struct {
 	Stdout         string   `yaml:"stdout"`
+	StdoutContains []string `yaml:"stdout_contains"`
 	Stderr         string   `yaml:"stderr"`
 	StderrContains []string `yaml:"stderr_contains"`
 	ExitCode       int      `yaml:"exit_code"`
@@ -146,14 +147,20 @@ func runScenario(t *testing.T, sc scenario) {
 		}
 	}
 
-	assert.Equal(t, sc.Expected.ExitCode, exitCode, "exit code mismatch")
-	assert.Equal(t, sc.Expected.Stdout, stdout.String(), "stdout mismatch")
-	if len(sc.Expected.StderrContains) > 0 {
-		for _, substr := range sc.Expected.StderrContains {
+	assert.Equal(t, sc.Expect.ExitCode, exitCode, "exit code mismatch")
+	if len(sc.Expect.StdoutContains) > 0 {
+		for _, substr := range sc.Expect.StdoutContains {
+			assert.Contains(t, stdout.String(), substr, "stdout should contain %q", substr)
+		}
+	} else {
+		assert.Equal(t, sc.Expect.Stdout, stdout.String(), "stdout mismatch")
+	}
+	if len(sc.Expect.StderrContains) > 0 {
+		for _, substr := range sc.Expect.StderrContains {
 			assert.Contains(t, stderr.String(), substr, "stderr should contain %q", substr)
 		}
 	} else {
-		assert.Equal(t, sc.Expected.Stderr, stderr.String(), "stderr mismatch")
+		assert.Equal(t, sc.Expect.Stderr, stderr.String(), "stderr mismatch")
 	}
 }
 

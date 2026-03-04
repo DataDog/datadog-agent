@@ -9,7 +9,7 @@ input:
       done
       echo "outer $i"
     done
-expected:
+expect:
   stdout: |+
     outer a
     outer b

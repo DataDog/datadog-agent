@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false; echo $?; true; echo $?
-expected:
+expect:
   stdout: |+
     1
     0

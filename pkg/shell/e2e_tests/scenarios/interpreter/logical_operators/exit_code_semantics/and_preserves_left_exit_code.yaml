@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     exit 42 && echo skipped
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 42

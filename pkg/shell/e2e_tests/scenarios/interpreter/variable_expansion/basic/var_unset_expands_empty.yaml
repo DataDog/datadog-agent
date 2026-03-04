@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo "before${UNSET_VAR}after"
-expected:
+expect:
   stdout: |+
     beforeafter
   stderr: ""

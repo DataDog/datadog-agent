@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     true && exit 7
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 7

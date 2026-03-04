@@ -9,7 +9,7 @@ input:
   # language=bash
   script: |+
     cat data.txt | cat
-expected:
+expect:
   stdout: |+
     line one
     line two

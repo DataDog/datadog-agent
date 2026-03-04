@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo $1
-expected:
+expect:
   stdout: ""
   stderr: |+
     $1 is not supported

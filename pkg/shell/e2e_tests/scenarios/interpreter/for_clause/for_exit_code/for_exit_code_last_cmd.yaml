@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     for i in a; do false; done
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 1

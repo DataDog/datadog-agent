@@ -14,7 +14,7 @@ input:
   script: |+
     cat mydir/myfile1.txt
     cat mydir/myfile2.txt
-expected:
+expect:
   stdout: |+
     hello world1
     hello world2

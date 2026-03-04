@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo "[$PPID]"
-expected:
+expect:
   stdout: |+
     []
   stderr: ""

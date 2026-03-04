@@ -5,7 +5,7 @@ input:
     foo
     bar
     baz
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

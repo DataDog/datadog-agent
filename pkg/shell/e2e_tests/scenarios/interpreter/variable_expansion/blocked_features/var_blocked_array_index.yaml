@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo ${PATH[0]}
-expected:
+expect:
   stdout: ""
   stderr: |+
     array indexing is not supported

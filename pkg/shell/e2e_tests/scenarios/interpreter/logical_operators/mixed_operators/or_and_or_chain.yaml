@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false || true && echo yes || echo no
-expected:
+expect:
   stdout: |+
     yes
   stderr: ""

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo ok | exit 42
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 42

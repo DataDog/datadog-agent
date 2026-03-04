@@ -4,7 +4,7 @@ input:
   script: |+
     X=hello
     echo ${X/l/L}
-expected:
+expect:
   stdout: ""
   stderr: |+
     ${var/pattern/replacement} is not supported

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     for i in a b c; do echo $i; done | cat
-expected:
+expect:
   stdout: |+
     a
     b

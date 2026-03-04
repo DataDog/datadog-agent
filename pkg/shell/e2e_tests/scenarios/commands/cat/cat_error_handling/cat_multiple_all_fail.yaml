@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     cat missing1.txt missing2.txt
-expected:
+expect:
   stdout: ""
   stderr_contains:
     - "cat: missing1.txt:"

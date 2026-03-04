@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     false; echo still running; echo done
-expected:
+expect:
   stdout: |+
     still running
     done

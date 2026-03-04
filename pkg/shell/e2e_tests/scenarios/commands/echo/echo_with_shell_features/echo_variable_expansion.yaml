@@ -4,7 +4,7 @@ input:
   script: |+
     MY_VAR=hello
     echo $MY_VAR world
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

@@ -5,7 +5,7 @@ input:
     A=hello
     B=world
     echo $A $B
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

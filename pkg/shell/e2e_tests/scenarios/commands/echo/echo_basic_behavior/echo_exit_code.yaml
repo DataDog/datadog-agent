@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo hello
-expected:
+expect:
   stdout: |+
     hello
   stderr: ""

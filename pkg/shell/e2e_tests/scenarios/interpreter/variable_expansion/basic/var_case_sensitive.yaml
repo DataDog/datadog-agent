@@ -5,7 +5,7 @@ input:
     foo=lower
     FOO=upper
     echo $foo $FOO
-expected:
+expect:
   stdout: |+
     lower upper
   stderr: ""

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     mv old.txt new.txt
-expected:
+expect:
   stdout: ""
   stderr: |+
     mv: not found

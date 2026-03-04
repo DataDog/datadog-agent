@@ -4,7 +4,7 @@ input:
   script: |+
     EMPTY=""
     echo "value=${EMPTY}end"
-expected:
+expect:
   stdout: |+
     value=end
   stderr: ""

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     nonexistent_cmd; echo after
-expected:
+expect:
   stdout: |+
     after
   stderr: |+

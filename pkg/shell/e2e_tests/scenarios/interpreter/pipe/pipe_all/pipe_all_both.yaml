@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     { echo hello; break; } |& cat
-expected:
+expect:
   stdout: |+
     hello
     break is only useful in a loop

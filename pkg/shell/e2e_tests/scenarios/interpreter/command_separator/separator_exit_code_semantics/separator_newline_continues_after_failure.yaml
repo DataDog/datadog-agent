@@ -5,7 +5,7 @@ input:
     false
     echo still running
     echo done
-expected:
+expect:
   stdout: |+
     still running
     done

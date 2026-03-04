@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo 'hello\nworld\ttab'
-expected:
+expect:
   stdout: |+
     hello\nworld\ttab
   stderr: ""

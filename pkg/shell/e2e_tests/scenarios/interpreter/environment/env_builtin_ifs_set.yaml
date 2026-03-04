@@ -5,7 +5,7 @@ input:
     IFS=,
     A="a,b,c"
     echo $A
-expected:
+expect:
   stdout: |+
     a b c
   stderr: ""

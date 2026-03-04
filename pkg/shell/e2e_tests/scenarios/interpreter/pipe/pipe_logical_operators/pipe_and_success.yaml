@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo abc | cat && echo done
-expected:
+expect:
   stdout: |+
     abc
     done

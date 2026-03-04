@@ -4,7 +4,7 @@ input:
   script: |+
     ITEMS="x y z"
     for i in $ITEMS; do echo $i; done
-expected:
+expect:
   stdout: |+
     x
     y

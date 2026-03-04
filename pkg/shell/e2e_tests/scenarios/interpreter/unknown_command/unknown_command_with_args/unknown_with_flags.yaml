@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     foo --verbose -n 5
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

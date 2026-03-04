@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo ok && echo done || echo fallback
-expected:
+expect:
   stdout: |+
     ok
     done

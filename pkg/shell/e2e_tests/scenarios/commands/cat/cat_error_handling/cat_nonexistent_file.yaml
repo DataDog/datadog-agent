@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     cat nonexistent.txt
-expected:
+expect:
   stdout: ""
   stderr_contains:
     - "cat: nonexistent.txt:"

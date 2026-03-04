@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     for x in hello; do echo $x; done
-expected:
+expect:
   stdout: |+
     hello
   stderr: ""

@@ -7,7 +7,7 @@ input:
       break
       echo "end $i"
     done
-expected:
+expect:
   stdout: |+
     start a
   stderr: ""

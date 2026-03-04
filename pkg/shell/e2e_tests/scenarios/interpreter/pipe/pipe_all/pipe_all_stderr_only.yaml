@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     break |& cat
-expected:
+expect:
   stdout: |+
     break is only useful in a loop
   stderr: ""

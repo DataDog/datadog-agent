@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo first; echo piped | cat; echo last
-expected:
+expect:
   stdout: |+
     first
     piped

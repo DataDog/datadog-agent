@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     my_unknown_command
-expected:
+expect:
   stdout: ""
   stderr: |+
     my_unknown_command: not found

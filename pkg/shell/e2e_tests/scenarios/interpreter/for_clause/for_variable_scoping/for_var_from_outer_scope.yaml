@@ -4,7 +4,7 @@ input:
   script: |+
     PREFIX=hello
     for i in world; do echo "$PREFIX $i"; done
-expected:
+expect:
   stdout: |+
     hello world
   stderr: ""

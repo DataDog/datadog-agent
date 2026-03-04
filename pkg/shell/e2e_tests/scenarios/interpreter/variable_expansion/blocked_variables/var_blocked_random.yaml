@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo "[$RANDOM]"
-expected:
+expect:
   stdout: |+
     []
   stderr: ""

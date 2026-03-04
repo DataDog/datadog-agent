@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo before; exit 7; echo after
-expected:
+expect:
   stdout: |+
     before
   stderr: ""

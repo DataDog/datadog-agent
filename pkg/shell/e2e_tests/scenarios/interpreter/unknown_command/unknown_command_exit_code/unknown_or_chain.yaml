@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     foo || bar || echo reached
-expected:
+expect:
   stdout: |+
     reached
   stderr: |+

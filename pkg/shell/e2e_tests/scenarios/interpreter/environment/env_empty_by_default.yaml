@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo "val=$SOME_RANDOM_VAR"
-expected:
+expect:
   stdout: |+
     val=
   stderr: ""

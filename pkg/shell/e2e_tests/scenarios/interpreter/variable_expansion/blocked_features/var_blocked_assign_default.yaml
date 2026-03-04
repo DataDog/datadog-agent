@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo ${UNSET:=fallback}
-expected:
+expect:
   stdout: ""
   stderr: |+
     ${var} operations (defaults, pattern removal, case conversion) are not supported

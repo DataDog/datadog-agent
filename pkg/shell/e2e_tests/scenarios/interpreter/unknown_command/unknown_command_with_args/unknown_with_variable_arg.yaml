@@ -4,7 +4,7 @@ input:
   script: |+
     MY_VAR=hello
     foo $MY_VAR
-expected:
+expect:
   stdout: ""
   stderr: |+
     foo: not found

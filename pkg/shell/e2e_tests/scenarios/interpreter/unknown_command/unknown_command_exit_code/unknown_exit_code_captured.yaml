@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     nonexistent; echo $?
-expected:
+expect:
   stdout: |+
     127
   stderr: |+

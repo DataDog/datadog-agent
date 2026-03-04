@@ -7,7 +7,7 @@ input:
         echo "$i$j"
       done
     done
-expected:
+expect:
   stdout: |+
     a1
     a2

@@ -4,7 +4,7 @@ input:
   script: |+
     echo hello
     foo
-expected:
+expect:
   stdout: |+
     hello
   stderr: |+

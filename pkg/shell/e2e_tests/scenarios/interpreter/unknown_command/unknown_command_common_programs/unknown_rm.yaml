@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     rm file.txt
-expected:
+expect:
   stdout: ""
   stderr: |+
     rm: not found

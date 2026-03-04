@@ -5,7 +5,7 @@ input:
     echo "before"
     echo "$$"
     echo "after"
-expected:
+expect:
   stdout: |+
     before
 

@@ -9,7 +9,7 @@ input:
   # language=bash
   script: |+
     cat existing.txt nonexistent.txt
-expected:
+expect:
   stdout: |+
     hello world
   stderr_contains:

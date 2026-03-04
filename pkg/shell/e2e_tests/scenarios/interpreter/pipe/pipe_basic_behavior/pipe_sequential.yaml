@@ -4,7 +4,7 @@ input:
   script: |+
     echo first | cat
     echo second | cat
-expected:
+expect:
   stdout: |+
     first
     second

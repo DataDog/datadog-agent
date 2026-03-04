@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo $((1+2))
-expected:
+expect:
   stdout: ""
   stderr: |+
     arithmetic expansion is not supported

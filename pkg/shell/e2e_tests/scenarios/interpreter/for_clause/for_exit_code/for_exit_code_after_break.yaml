@@ -5,7 +5,7 @@ input:
     for i in a b c; do
       break
     done
-expected:
+expect:
   stdout: ""
   stderr: ""
   exit_code: 0

@@ -4,7 +4,7 @@ input:
   script: |+
     RANDOM=42
     echo $RANDOM
-expected:
+expect:
   stdout: |+
     42
   stderr: ""

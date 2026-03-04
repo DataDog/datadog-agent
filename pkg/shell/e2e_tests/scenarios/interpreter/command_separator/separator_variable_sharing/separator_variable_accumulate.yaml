@@ -4,7 +4,7 @@ input:
   script: |+
     a=1; b=2
     c=3; echo "$a $b $c"
-expected:
+expect:
   stdout: |+
     1 2 3
   stderr: ""

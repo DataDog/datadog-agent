@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     ARR=(a b c)
-expected:
+expect:
   stdout: ""
   stderr: |+
     array assignment is not supported

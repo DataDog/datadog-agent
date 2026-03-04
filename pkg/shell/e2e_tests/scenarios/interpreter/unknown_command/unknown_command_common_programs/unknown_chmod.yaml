@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     chmod 755 file.txt
-expected:
+expect:
   stdout: ""
   stderr: |+
     chmod: not found

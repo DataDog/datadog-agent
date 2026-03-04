@@ -4,7 +4,7 @@ input:
   script: |+
     echo before
     for i in a b; do echo $i; done
-expected:
+expect:
   stdout: |+
     before
     a

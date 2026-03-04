@@ -7,7 +7,7 @@ input:
   script: |+
     echo "path=$PATH"
     echo "user=$USER"
-expected:
+expect:
   stdout: |+
     path=
     user=

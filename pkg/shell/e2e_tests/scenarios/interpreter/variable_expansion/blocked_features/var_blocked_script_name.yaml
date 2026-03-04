@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo $0
-expected:
+expect:
   stdout: ""
   stderr: |+
     $0 is not supported

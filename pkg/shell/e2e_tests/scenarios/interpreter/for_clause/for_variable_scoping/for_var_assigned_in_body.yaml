@@ -6,7 +6,7 @@ input:
       LAST=$i
     done
     echo $LAST
-expected:
+expect:
   stdout: |+
     c
   stderr: ""

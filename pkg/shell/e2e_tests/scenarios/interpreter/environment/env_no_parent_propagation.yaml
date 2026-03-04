@@ -7,7 +7,7 @@ input:
   script: |+
     echo "key=$MY_SECRET_KEY"
     echo "token=$MY_API_TOKEN"
-expected:
+expect:
   stdout: |+
     key=
     token=

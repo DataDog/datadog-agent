@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo "[$EUID]"
-expected:
+expect:
   stdout: |+
     []
   stderr: ""

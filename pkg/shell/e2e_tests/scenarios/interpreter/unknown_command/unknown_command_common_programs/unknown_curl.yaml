@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     curl http://example.com
-expected:
+expect:
   stdout: ""
   stderr: |+
     curl: not found

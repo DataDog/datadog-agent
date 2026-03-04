@@ -6,7 +6,7 @@ input:
     echo two
     echo three
     echo four
-expected:
+expect:
   stdout: |+
     one
     two

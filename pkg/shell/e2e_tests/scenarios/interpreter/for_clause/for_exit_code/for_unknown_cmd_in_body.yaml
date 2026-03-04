@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     for i in a; do nonexistent_cmd; done
-expected:
+expect:
   stdout: ""
   stderr: |+
     nonexistent_cmd: not found
