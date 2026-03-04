@@ -174,7 +174,7 @@ my-scenarios/
 
 ## Scenario Directory Structure
 
-Each scenario is a subdirectory within `--scenarios-dir`. The recorder writes both metrics and logs as parquet files — place them together in `parquet/`.
+Each scenario is a subdirectory within `--scenarios-dir`. Parquet files can live in a `parquet/` subdirectory or directly in the scenario root.
 
 ```
 scenario-name/
