@@ -939,7 +939,7 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-ssi:
+.new-e2e_ssi:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ssi_or_e2e_changes]
@@ -951,6 +951,59 @@ new-e2e-ssi:
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
+
+.new-e2e_ssi_extra_distribution_init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+.new-e2e_ssi_extra_distribution:
+  extends: .new-e2e_ssi
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/ssi/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+
+new-e2e-ssi-kind:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: kind
+    E2E_STACK_NAME_SUFFIX: kind
+
+new-e2e-ssi-eks-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: eks
+    E2E_STACK_NAME_SUFFIX: eks
+
+new-e2e-ssi-eks:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-eks-init
+  variables:
+    E2E_PROVISIONER: eks
+    E2E_STACK_NAME_SUFFIX: eks
+    E2E_PRE_INITIALIZED: "true"
 
 .new-e2e_package_signing:
   variables:
