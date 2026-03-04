@@ -57,9 +57,9 @@ func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]s
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
 		"region":          tags["region"],
-		"resource_group":  tags["aas.environment.resource_group"],
-		"resource_id":     tags["aas.environment.resource_id"],
-		"subscription_id": tags["aas.environment.subscription_id"],
+		"resource_group":  tags["aas.resource.group"],
+		"resource_id":     tags["aas.resource.id"],
+		"subscription_id": tags["aas.subscription.id"],
 		"origin":          tags["origin"],
 	}
 
