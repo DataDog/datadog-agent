@@ -92,8 +92,9 @@ type TestBench struct {
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Async correlator processing
-	correlatorsProcessing bool  // true while background correlator goroutine is running
-	correlatorGen         int64 // generation counter, incremented each rerun
+	correlatorsProcessing bool       // true while background correlator goroutine is running
+	correlatorGen         int64      // generation counter, incremented each rerun
+	correlatorsDone       *sync.Cond // signaled when correlatorsProcessing transitions to false
 
 	// API server
 	api *TestBenchAPI
@@ -173,6 +174,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 	}
+	tb.correlatorsDone = sync.NewCond(tb.mu.RLocker())
 
 	// Instantiate all registry components
 	for _, reg := range defaultRegistry {
@@ -766,6 +768,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		}
 
 		tb.correlatorsProcessing = false
+		tb.correlatorsDone.Broadcast()
 	}()
 }
 
@@ -1049,6 +1052,33 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	return tb.correlatorsProcessing
+}
+
+// RunHeadless runs a scenario synchronously without the HTTP server and writes output.
+// If verbose is true, the output file includes full correlation detail (title, members, anomalies).
+// If verbose is false, correlations include only the anomalous time span.
+func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) error {
+	// LoadScenario runs detectors synchronously and kicks off correlators async.
+	if err := tb.LoadScenario(scenario); err != nil {
+		return fmt.Errorf("loading scenario %q: %w", scenario, err)
+	}
+
+	// Wait for correlators to finish (they run in a background goroutine).
+	tb.mu.RLock()
+	for tb.correlatorsProcessing {
+		tb.correlatorsDone.Wait()
+	}
+	tb.mu.RUnlock()
+
+	// Write structured JSON output.
+	if outputPath != "" {
+		if err := tb.WriteObserverOutput(outputPath, verbose); err != nil {
+			return fmt.Errorf("writing observer output: %w", err)
+		}
+		fmt.Printf("Observer output written to %s\n", outputPath)
+	}
+
+	return nil
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
