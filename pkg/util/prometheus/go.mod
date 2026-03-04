@@ -34,6 +34,7 @@ require (
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	k8s.io/client-go v0.35.1 // indirect
+	k8s.io/utils v0.0.0-20251219084037-98d557b7f1e7 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
