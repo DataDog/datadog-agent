@@ -20,8 +20,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
-
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
@@ -51,7 +49,7 @@ type Runner struct {
 	writeEnv expand.WriteEnviron
 
 	// Dir specifies the working directory of the command, which must be an
-	// absolute path. It can only be set via [Dir].
+	// absolute path.
 	Dir string
 
 	// tempDir is either $TMPDIR from [Runner.Env], or [os.TempDir].
@@ -59,16 +57,10 @@ type Runner struct {
 
 	// Params are the current shell parameters, e.g. from running a shell
 	// file. Accessible via the $@/$* family of vars.
-	// It can only be set via [Params].
 	Params []string
 
 	// execHandler is responsible for executing programs. It must not be nil.
 	execHandler ExecHandlerFunc
-
-	// execMiddlewares grows with calls to [ExecHandlers],
-	// and is used to construct execHandler when Reset is first called.
-	// The slice is needed to preserve the relative order of middlewares.
-	execMiddlewares []func(ExecHandlerFunc) ExecHandlerFunc
 
 	// openHandler is a function responsible for opening files. It must not be nil.
 	openHandler OpenHandlerFunc
@@ -82,7 +74,7 @@ type Runner struct {
 	stderr io.Writer
 
 	ecfg *expand.Config
-	ectx context.Context // just so that Runner.Subshell can use it again
+	ectx context.Context // just so that subshell can use it again
 
 	// didReset remembers whether the runner has ever been reset. This is
 	// used so that Reset is automatically called when running any program
@@ -181,11 +173,8 @@ func (e *exitStatus) fatal(err error) {
 
 func (e *exitStatus) fromHandlerError(err error) {
 	if err != nil {
-		var exit errBuiltinExitStatus
 		var es ExitStatus
-		if errors.As(err, &exit) {
-			*e = exitStatus(exit)
-		} else if errors.As(err, &es) {
+		if errors.As(err, &es) {
 			e.err = err
 			e.code = uint8(es)
 		} else {
@@ -242,9 +231,11 @@ func New(opts ...RunnerOption) (*Runner, error) {
 		r.Env = expand.ListEnviron()
 	}
 	if r.Dir == "" {
-		if err := Dir("")(r); err != nil {
-			return nil, err
+		dir, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("could not get current dir: %w", err)
 		}
+		r.Dir = dir
 	}
 	if r.stdout == nil || r.stderr == nil {
 		StdIO(r.stdin, r.stdout, r.stderr)(r)
@@ -259,145 +250,6 @@ func New(opts ...RunnerOption) (*Runner, error) {
 type RunnerOption func(*Runner) error
 
 // TODO: enforce the rule above via didReset.
-
-// Env sets the interpreter's environment. If nil, a copy of the current
-// process's environment is used.
-func Env(env expand.Environ) RunnerOption {
-	return func(r *Runner) error {
-		if env == nil {
-			env = expand.ListEnviron(os.Environ()...)
-		}
-		r.Env = env
-		return nil
-	}
-}
-
-// Dir sets the interpreter's working directory. If empty, the process's current
-// directory is used.
-func Dir(path string) RunnerOption {
-	return func(r *Runner) error {
-		if path == "" {
-			path, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("could not get current dir: %w", err)
-			}
-			r.Dir = path
-			return nil
-		}
-		path, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("could not get absolute dir: %w", err)
-		}
-		info, err := os.Stat(path)
-		if err != nil {
-			return fmt.Errorf("could not stat: %w", err)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("%s is not a directory", path)
-		}
-		r.Dir = path
-		return nil
-	}
-}
-
-// Params populates the shell options and parameters. For example, Params("-e",
-// "--", "foo") will set the "-e" option and the parameters ["foo"], and
-// Params("+e") will unset the "-e" option and leave the parameters untouched.
-//
-// This is similar to what the interpreter's "set" builtin does.
-func Params(args ...string) RunnerOption {
-	return func(r *Runner) error {
-		fp := flagParser{remaining: args}
-		for fp.more() {
-			flag := fp.flag()
-			if flag == "-" {
-				if args := fp.args(); len(args) > 0 {
-					r.Params = args
-				}
-				return nil
-			}
-			enable := flag[0] == '-'
-			if flag[1] != 'o' {
-				opt := r.optByFlag(flag[1])
-				if opt == nil {
-					return fmt.Errorf("invalid option: %q", flag)
-				}
-				*opt = enable
-				continue
-			}
-			value := fp.value()
-			if value == "" && enable {
-				for i, opt := range &shellOptsTable {
-					state := "off"
-					if r.opts[i] {
-						state = "on"
-					}
-					r.outf("%s\t%s\n", opt.name, state)
-				}
-				continue
-			}
-			if value == "" && !enable {
-				for i, opt := range &shellOptsTable {
-					setFlag := "+o"
-					if r.opts[i] {
-						setFlag = "-o"
-					}
-					r.outf("set %s %s\n", setFlag, opt.name)
-				}
-				continue
-			}
-			_, opt := r.optByName(value, false)
-			if opt == nil {
-				return fmt.Errorf("invalid option: %q", value)
-			}
-			*opt = enable
-		}
-		if args := fp.args(); args != nil {
-			// If "--" wasn't given and there were zero arguments,
-			// we don't want to override the current parameters.
-			r.Params = args
-		}
-		return nil
-	}
-}
-
-// ExecHandlers appends middlewares to handle command execution.
-// The middlewares are chained from first to last, and the first is called by the runner.
-// Each middleware is expected to call the "next" middleware at most once.
-//
-// For example, a middleware may implement only some commands.
-// For those commands, it can run its logic and avoid calling "next".
-// For any other commands, it can call "next" with the original parameters.
-//
-// Another common example is a middleware which always calls "next",
-// but runs custom logic either before or after that call.
-// For instance, a middleware could change the arguments to the "next" call,
-// or it could print log lines before or after the call to "next".
-//
-// The last exec handler is always [DefaultExecHandler](2 * time.Second).
-func ExecHandlers(middlewares ...func(next ExecHandlerFunc) ExecHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.execMiddlewares = append(r.execMiddlewares, middlewares...)
-		return nil
-	}
-}
-
-// OpenHandler sets file open handler. See [OpenHandlerFunc] for more info.
-func OpenHandler(f OpenHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.openHandler = f
-		return nil
-	}
-}
-
-// ReadDirHandler2 sets the read directory handler. See [ReadDirHandlerFunc2] for more info.
-func ReadDirHandler2(f ReadDirHandlerFunc2) RunnerOption {
-	return func(r *Runner) error {
-		r.readDirHandler = f
-		return nil
-	}
-}
-
 
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {
@@ -549,16 +401,8 @@ func (r *Runner) Reset() {
 		r.origStdout = r.stdout
 		r.origStderr = r.stderr
 
-		if r.execHandler != nil && len(r.execMiddlewares) > 0 {
-			panic("interp.ExecHandler should be replaced with interp.ExecHandlers, not mixed")
-		}
 		if r.execHandler == nil {
 			r.execHandler = NoExecHandler()
-		}
-		// Middlewares are chained from first to last, and each can call the
-		// next in the chain, so we need to construct the chain backwards.
-		for _, mw := range slices.Backward(r.execMiddlewares) {
-			r.execHandler = mw(r.execHandler)
 		}
 		// Fill tempDir; only need to do this once given that Env will not change.
 		if dir := r.Env.Get("TMPDIR").String(); filepath.IsAbs(dir) {
@@ -682,15 +526,6 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) error {
 	return nil
 }
 
-// Exited reports whether the last Run call should exit an entire shell. This
-// can be triggered by the "exit" built-in command, for example.
-//
-// Note that this state is overwritten at every Run call, so it should be
-// checked immediately after each Run call.
-func (r *Runner) Exited() bool {
-	return r.exit.exiting
-}
-
 // Close releases resources held by the Runner, such as os.Root file descriptors
 // opened by AllowedPaths. It is safe to call Close multiple times.
 func (r *Runner) Close() error {
@@ -701,21 +536,7 @@ func (r *Runner) Close() error {
 	return nil
 }
 
-// Subshell makes a copy of the given [Runner], suitable for use concurrently
-// with the original. The copy will have the same environment, including
-// variables, but they can all be modified without affecting the
-// original.
-//
-// Subshell is not safe to use concurrently with [Run]. Orchestrating this is
-// left up to the caller; no locking is performed.
-//
-// To replace e.g. stdin/out/err, do [StdIO](r.stdin, r.stdout, r.stderr)(r) on
-// the copy.
-func (r *Runner) Subshell() *Runner {
-	return r.subshell(true)
-}
-
-// subshell is like [Runner.subshell], but allows skipping some allocations and copies
+// subshell is like [Runner.Subshell], but allows skipping some allocations and copies
 // when creating subshells which will not be used concurrently with the parent shell.
 // TODO(v4): we should expose this, e.g. SubshellForeground and SubshellBackground.
 func (r *Runner) subshell(background bool) *Runner {

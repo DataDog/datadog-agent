@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 )
 
-func runScript(t *testing.T, script string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int) {
+func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader(script), "")
@@ -36,6 +35,10 @@ func runScript(t *testing.T, script string, opts ...interp.RunnerOption) (stdout
 	runner, err := interp.New(allOpts...)
 	require.NoError(t, err)
 	defer runner.Close()
+
+	if dir != "" {
+		runner.Dir = dir
+	}
 
 	err = runner.Run(context.Background(), prog)
 	exitCode = 0
@@ -84,8 +87,7 @@ func TestAllowedPathsCatInside(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello world\n"), 0644))
 
-	stdout, _, exitCode := runScript(t, "cat hello.txt",
-		interp.Dir(dir),
+	stdout, _, exitCode := runScript(t, "cat hello.txt", dir,
 		interp.AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 0, exitCode)
@@ -97,8 +99,7 @@ func TestAllowedPathsCatOutside(t *testing.T) {
 	secret := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "hidden.txt"), []byte("secret"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat "+filepath.Join(secret, "hidden.txt"),
-		interp.Dir(allowed),
+	_, stderr, exitCode := runScript(t, "cat "+filepath.Join(secret, "hidden.txt"), allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -109,8 +110,7 @@ func TestAllowedPathsRedirectInside(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.txt"), []byte("redirected"), 0644))
 
-	stdout, _, exitCode := runScript(t, "cat < data.txt",
-		interp.Dir(dir),
+	stdout, _, exitCode := runScript(t, "cat < data.txt", dir,
 		interp.AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 0, exitCode)
@@ -122,8 +122,7 @@ func TestAllowedPathsRedirectOutside(t *testing.T) {
 	secret := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "data.txt"), []byte("secret"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat < "+filepath.Join(secret, "data.txt"),
-		interp.Dir(allowed),
+	_, stderr, exitCode := runScript(t, "cat < "+filepath.Join(secret, "data.txt"), allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -135,8 +134,7 @@ func TestAllowedPathsGlobInside(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte(""), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte(""), 0644))
 
-	stdout, _, exitCode := runScript(t, `echo *.txt`,
-		interp.Dir(dir),
+	stdout, _, exitCode := runScript(t, `echo *.txt`, dir,
 		interp.AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 0, exitCode)
@@ -144,39 +142,10 @@ func TestAllowedPathsGlobInside(t *testing.T) {
 	assert.Contains(t, stdout, "b.txt")
 }
 
-func defaultExecMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
-	return interp.DefaultExecHandler(2 * time.Second)
-}
-
-func TestAllowedPathsExecInside(t *testing.T) {
-	dir := t.TempDir()
-	// /bin/echo should be within the allowed path if we allow /bin or /usr
-	stdout, _, exitCode := runScript(t, `/bin/echo hello`,
-		interp.Dir(dir),
-		interp.ExecHandlers(defaultExecMiddleware),
-		interp.AllowedPaths([]string{dir, "/bin", "/usr"}),
-	)
-	assert.Equal(t, 0, exitCode)
-	assert.Equal(t, "hello\n", stdout)
-}
-
-func TestAllowedPathsExecOutside(t *testing.T) {
-	dir := t.TempDir()
-	// Only allow the temp dir, so /bin/echo should be blocked
-	_, stderr, exitCode := runScript(t, `/bin/echo hello`,
-		interp.Dir(dir),
-		interp.ExecHandlers(defaultExecMiddleware),
-		interp.AllowedPaths([]string{dir}),
-	)
-	assert.Equal(t, 127, exitCode)
-	assert.Contains(t, stderr, "not found")
-}
-
 func TestAllowedPathsTraversalBlocked(t *testing.T) {
 	dir := t.TempDir()
 	// Even if we try to traverse with .., os.Root should block it
-	_, stderr, exitCode := runScript(t, `cat ../../etc/passwd`,
-		interp.Dir(dir),
+	_, stderr, exitCode := runScript(t, `cat ../../etc/passwd`, dir,
 		interp.AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -187,8 +156,7 @@ func TestAllowedPathsEmptyBlocksAll(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.txt"), []byte("test"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat test.txt",
-		interp.Dir(dir),
+	_, stderr, exitCode := runScript(t, "cat test.txt", dir,
 		interp.AllowedPaths([]string{}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -200,9 +168,7 @@ func TestAllowedPathsNilUnrestricted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.txt"), []byte("works\n"), 0644))
 
 	// No AllowedPaths option = nil = unrestricted
-	stdout, _, exitCode := runScript(t, "cat test.txt",
-		interp.Dir(dir),
-	)
+	stdout, _, exitCode := runScript(t, "cat test.txt", dir)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "works\n", stdout)
 }
@@ -211,7 +177,6 @@ func TestAllowedPathsNilUnrestricted(t *testing.T) {
 func TestAllowedPathsClose(t *testing.T) {
 	dir := t.TempDir()
 	runner, err := interp.New(
-		interp.Dir(dir),
 		interp.AllowedPaths([]string{dir}),
 	)
 	require.NoError(t, err)

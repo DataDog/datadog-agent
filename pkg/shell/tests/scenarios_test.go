@@ -137,7 +137,6 @@ func runScenario(t *testing.T, sc scenario) {
 
 	var stdout, stderr bytes.Buffer
 	opts := []interp.RunnerOption{
-		interp.Dir(dir),
 		interp.StdIO(nil, &stdout, &stderr),
 	}
 	if sc.Input.AllowedPaths != nil {
@@ -154,6 +153,8 @@ func runScenario(t *testing.T, sc scenario) {
 	runner, err := interp.New(opts...)
 	require.NoError(t, err, "failed to create runner")
 	defer runner.Close()
+
+	runner.Dir = dir
 
 	err = runner.Run(context.Background(), prog)
 

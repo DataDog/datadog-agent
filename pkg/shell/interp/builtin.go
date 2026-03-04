@@ -5,7 +5,6 @@ package interp
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -18,29 +17,6 @@ func IsBuiltin(name string) bool {
 		return true
 	}
 	return false
-}
-
-type errBuiltinExitStatus exitStatus
-
-func (e errBuiltinExitStatus) Error() string {
-	return fmt.Sprintf("builtin exit status %d", e.code)
-}
-
-// Builtin allows [ExecHandlerFunc] implementations to execute any builtin,
-// which can be useful for an exec handler to wrap or combine builtin calls.
-//
-// Note that a non-nil error may be returned in cases where the builtin
-// alters the control flow of the runner, even if the builtin did not fail.
-// For example, this is the case with `exit 0`.
-func (hc HandlerContext) Builtin(ctx context.Context, args []string) error {
-	if hc.kind != handlerKindExec {
-		return fmt.Errorf("HandlerContext.Builtin can only be called via an ExecHandlerFunc")
-	}
-	exit := hc.runner.builtin(ctx, hc.Pos, args[0], args[1:])
-	if exit != (exitStatus{}) {
-		return errBuiltinExitStatus(exit)
-	}
-	return nil
 }
 
 func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args []string) (exit exitStatus) {
@@ -103,64 +79,3 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 	return exit
 }
 
-// flagParser is used to parse builtin flags.
-//
-// It's similar to the getopts implementation, but with some key differences.
-// First, the API is designed for Go loops, making it easier to use directly.
-// Second, it doesn't require the awkward ":ab" syntax that getopts uses.
-// Third, it supports "-a" flags as well as "+a".
-type flagParser struct {
-	current   string
-	remaining []string
-}
-
-func (p *flagParser) more() bool {
-	if p.current != "" {
-		// We're still parsing part of "-ab".
-		return true
-	}
-	if len(p.remaining) == 0 {
-		// Nothing left.
-		p.remaining = nil
-		return false
-	}
-	arg := p.remaining[0]
-	if arg == "--" {
-		// We explicitly stop parsing flags.
-		p.remaining = p.remaining[1:]
-		return false
-	}
-	if len(arg) == 0 || (arg[0] != '-' && arg[0] != '+') {
-		// The next argument is not a flag.
-		return false
-	}
-	// More flags to come.
-	return true
-}
-
-func (p *flagParser) flag() string {
-	arg := p.current
-	if arg == "" {
-		arg = p.remaining[0]
-		p.remaining = p.remaining[1:]
-	} else {
-		p.current = ""
-	}
-	if len(arg) > 2 {
-		// We have "-ab", so return "-a" and keep "-b".
-		p.current = arg[:1] + arg[2:]
-		arg = arg[:2]
-	}
-	return arg
-}
-
-func (p *flagParser) value() string {
-	if len(p.remaining) == 0 {
-		return ""
-	}
-	arg := p.remaining[0]
-	p.remaining = p.remaining[1:]
-	return arg
-}
-
-func (p *flagParser) args() []string { return p.remaining }
