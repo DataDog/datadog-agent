@@ -16,6 +16,9 @@ pub struct Args {
     /// Config path (extracted from --config in system-probe args)
     pub config_path: Option<PathBuf>,
 
+    /// Datadog config path (extracted from --datadogcfgpath in system-probe args)
+    pub datadog_config_path: Option<PathBuf>,
+
     /// PID file path (extracted from --pid in system-probe args)
     pub pid_path: Option<PathBuf>,
 }
@@ -36,20 +39,22 @@ impl Args {
         let binary = PathBuf::from(next_arg);
 
         let rest: Vec<String> = args.collect();
-        let (config, pid) = extract_paths(&rest);
+        let (config, datadog_config, pid) = extract_paths(&rest);
 
         Args {
             fallback_binary: Some(binary),
             system_probe_args: rest,
             config_path: config,
+            datadog_config_path: datadog_config,
             pid_path: pid,
         }
     }
 }
 
-/// Extract --config and --pid paths from arguments in a single pass
-fn extract_paths(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
+/// Extract --config, --datadogcfgpath, and --pid paths from arguments in a single pass
+fn extract_paths(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>, Option<PathBuf>) {
     let mut config = None;
+    let mut datadog_config = None;
     let mut pid = None;
     let mut args = args.iter();
 
@@ -66,6 +71,18 @@ fn extract_paths(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
             continue;
         }
 
+        // Check for --datadogcfgpath
+        if arg == "--datadogcfgpath"
+            && let Some(next_arg) = args.next()
+        {
+            datadog_config = Some(PathBuf::from(next_arg));
+            continue;
+        }
+        if let Some(path) = arg.strip_prefix("--datadogcfgpath=") {
+            datadog_config = Some(PathBuf::from(path));
+            continue;
+        }
+
         // Check for --pid
         if arg == "--pid"
             && let Some(next_arg) = args.next()
@@ -78,7 +95,7 @@ fn extract_paths(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
         }
     }
 
-    (config, pid)
+    (config, datadog_config, pid)
 }
 
 #[cfg(test)]
@@ -93,8 +110,9 @@ mod tests {
             "--config".to_string(),
             "/etc/config.yaml".to_string(),
         ];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, None);
     }
 
@@ -105,8 +123,9 @@ mod tests {
             "run".to_string(),
             "--config=/etc/config.yaml".to_string(),
         ];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, None);
     }
 
@@ -117,8 +136,9 @@ mod tests {
             "run".to_string(),
             "--pid=/var/run/sp.pid".to_string(),
         ];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, None);
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, Some(PathBuf::from("/var/run/sp.pid")));
     }
 
@@ -268,24 +288,27 @@ mod tests {
             "--pid".to_string(),
             "/var/run/sd-agent.pid".to_string(),
         ];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, None);
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
     }
 
     #[test]
     fn test_extract_paths_pid_equals() {
         let args = vec!["run".to_string(), "--pid=/var/run/sd-agent.pid".to_string()];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, None);
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
     }
 
     #[test]
     fn test_extract_paths_pid_not_present() {
         let args = vec!["run".to_string(), "--config=/etc/config.yaml".to_string()];
-        let (config, pid) = extract_paths(&args);
+        let (config, datadog_config, pid) = extract_paths(&args);
         assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
+        assert_eq!(datadog_config, None);
         assert_eq!(pid, None);
     }
 
@@ -369,6 +392,55 @@ mod tests {
         assert_eq!(
             parsed.pid_path,
             Some(PathBuf::from("/var/run/sd-agent.pid"))
+        );
+    }
+
+    #[test]
+    fn test_extract_paths_datadogcfgpath_space_separated() {
+        let args = vec![
+            "run".to_string(),
+            "--datadogcfgpath".to_string(),
+            "/etc/datadog".to_string(),
+        ];
+        let (config, datadog_config, pid) = extract_paths(&args);
+        assert_eq!(config, None);
+        assert_eq!(datadog_config, Some(PathBuf::from("/etc/datadog")));
+        assert_eq!(pid, None);
+    }
+
+    #[test]
+    fn test_extract_paths_datadogcfgpath_equals() {
+        let args = vec![
+            "run".to_string(),
+            "--datadogcfgpath=/etc/datadog".to_string(),
+        ];
+        let (config, datadog_config, pid) = extract_paths(&args);
+        assert_eq!(config, None);
+        assert_eq!(datadog_config, Some(PathBuf::from("/etc/datadog")));
+        assert_eq!(pid, None);
+    }
+
+    #[test]
+    fn test_parse_with_datadogcfgpath() {
+        let args = vec![
+            "sd-agent".to_string(),
+            "--".to_string(),
+            "/usr/bin/system-probe".to_string(),
+            "run".to_string(),
+            "--config".to_string(),
+            "/etc/config.yaml".to_string(),
+            "--datadogcfgpath".to_string(),
+            "/opt/datadog".to_string(),
+        ];
+        let parsed = Args::parse(args.into_iter());
+        assert_eq!(
+            parsed.fallback_binary,
+            Some(PathBuf::from("/usr/bin/system-probe"))
+        );
+        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
+        assert_eq!(
+            parsed.datadog_config_path,
+            Some(PathBuf::from("/opt/datadog"))
         );
     }
 }
