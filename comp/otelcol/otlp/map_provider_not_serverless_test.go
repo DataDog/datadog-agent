@@ -59,12 +59,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -76,7 +75,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 					},
 				},
@@ -122,12 +121,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -157,7 +155,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -208,12 +206,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -243,7 +240,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -282,12 +279,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -299,7 +295,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 					},
 				},
@@ -400,12 +396,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -420,7 +415,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp", "debug"},
+							"exporters":  []any{"otlpraw", "debug"},
 						},
 					},
 				},
@@ -536,12 +531,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": nil,
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -573,7 +567,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp", "debug"},
+							"exporters":  []any{"otlpraw", "debug"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -610,12 +604,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -632,7 +625,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -691,12 +684,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -735,7 +727,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -799,12 +791,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -843,7 +834,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -895,12 +886,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -921,7 +911,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp"},
+							"exporters":  []any{"otlpraw"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -1057,12 +1047,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -1086,7 +1075,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp", "debug"},
+							"exporters":  []any{"otlpraw", "debug"},
 						},
 						"logs": map[string]any{
 							"receivers":  []any{"otlp"},
@@ -1237,12 +1226,11 @@ func TestNewMap(t *testing.T) {
 					"infraattributes": any(nil),
 				},
 				"exporters": map[string]any{
-					"otlp": map[string]any{
+					"otlpraw": map[string]any{
 						"tls": map[string]any{
 							"insecure": true,
 						},
-						"compression": "none",
-						"endpoint":    "localhost:5003",
+						"endpoint": "localhost:5003",
 						"sending_queue": map[string]any{
 							"enabled": false,
 						},
@@ -1283,7 +1271,7 @@ func TestNewMap(t *testing.T) {
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
-							"exporters":  []any{"otlp", "debug"},
+							"exporters":  []any{"otlpraw", "debug"},
 						},
 						"metrics": map[string]any{
 							"receivers":  []any{"otlp"},

@@ -36,7 +36,7 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 
 	smap := map[string]interface{}{
-		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
+		buildKey("exporters", "otlpraw", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)

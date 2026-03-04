@@ -109,6 +109,7 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline_logsagentpipelineimpl",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter",
+    "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_rawotlpexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_metricsclient",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_processor_infraattributesprocessor",

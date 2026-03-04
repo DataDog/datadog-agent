@@ -8,8 +8,9 @@
 package otlp
 
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
-// This pipeline is extended through the datadog.yaml configuration values.
-// It is written in YAML because it is easier to read and write than a map.
+// This pipeline uses the otlpraw exporter to send traces to the trace agent
+// via RawTraceService.ExportTracesRaw (efficient path). It is extended through
+// the datadog.yaml configuration values.
 const defaultTracesConfig string = `
 receivers:
   otlp:
@@ -18,10 +19,9 @@ processors:
   infraattributes:
 
 exporters:
-  otlp:
+  otlpraw:
     tls:
       insecure: true
-    compression: none
     sending_queue:
       enabled: false
 
@@ -33,7 +33,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [infraattributes]
-      exporters: [otlp]
+      exporters: [otlpraw]
 `
 
 // TODO(OTAGENT-636): make sending_queue batch configurable

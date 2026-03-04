@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package = "pkg/proto/pbgo/trace";
+
+// ExportTracesRawRequest carries the serialized OTLP ExportTraceServiceRequest
+// as raw bytes so the server can deserialize with a custom parser.
+message ExportTracesRawRequest {
+  bytes data = 1;
+}
+
+message ExportTracesRawResponse {}
+
+// RawTraceService accepts OTLP trace export payloads as raw bytes.
+service RawTraceService {
+  rpc ExportTracesRaw(ExportTracesRawRequest) returns (ExportTracesRawResponse);
+}

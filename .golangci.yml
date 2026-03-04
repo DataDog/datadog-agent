@@ -399,6 +399,9 @@ linters:
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
+    # rawotlpexporter is a separate Go module (own go.mod); typecheck from root fails
+    - path: "comp/otelcol/otlp/components/exporter/rawotlpexporter/"
+      linters: [typecheck]
     # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
     - path: pkg/collector/corechecks/
       text: "name will be used as .* by other packages, and that stutters"

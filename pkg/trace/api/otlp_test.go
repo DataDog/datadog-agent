@@ -1407,6 +1407,104 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	})
 }
 
+func TestOTLPExportTracesRaw(t *testing.T) {
+	cfg := NewTestConfig(t)
+	cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	resp, err := rcv.ExportTracesRaw(context.Background(), &pb.ExportTracesRawRequest{Data: []byte{}})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
+// TestOTLPExportTracesRawEquivalentToExport verifies that the custom raw deserializer path
+// (ExportTracesRaw) produces the same TracerPayload results as the standard Export path
+// (processRequest -> receiveResourceSpansV2) for the same OTLP input.
+func TestOTLPExportTracesRawEquivalentToExport(t *testing.T) {
+	cfg := NewTestConfig(t)
+	// Use V2 path so both code paths use receiveResourceSpansV2
+	require.False(t, cfg.HasFeature("disable_receive_resource_spans_v2"))
+
+	// Standard path: Export with ptraceotlp.ExportRequest
+	outStandard := make(chan *Payload, 4)
+	rcvStandard := NewOTLPReceiver(outStandard, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	_, err := rcvStandard.Export(context.Background(), otlpTestTracesRequest)
+	require.NoError(t, err)
+	var payloadsStandard []*Payload
+	timeout := time.After(2 * time.Second)
+	for len(payloadsStandard) < 2 {
+		select {
+		case p := <-outStandard:
+			payloadsStandard = append(payloadsStandard, p)
+		case <-timeout:
+			t.Fatalf("timed out waiting for payloads (got %d)", len(payloadsStandard))
+		}
+	}
+
+	// Raw path: same request as bytes -> ExportTracesRaw
+	rawBytes, err := otlpExportRequestToRawBytes(otlpTestTracesRequest)
+	require.NoError(t, err)
+	require.NotEmpty(t, rawBytes)
+
+	outRaw := make(chan *Payload, 4)
+	rcvRaw := NewOTLPReceiver(outRaw, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	_, err = rcvRaw.ExportTracesRaw(context.Background(), &pb.ExportTracesRawRequest{Data: rawBytes})
+	require.NoError(t, err)
+	var payloadsRaw []*Payload
+	for len(payloadsRaw) < 2 {
+		select {
+		case p := <-outRaw:
+			payloadsRaw = append(payloadsRaw, p)
+		case <-timeout:
+			t.Fatalf("timed out waiting for raw payloads (got %d)", len(payloadsRaw))
+		}
+	}
+
+	require.Len(t, payloadsRaw, len(payloadsStandard), "raw path should produce same number of payloads as standard path")
+	for i := range payloadsStandard {
+		std, raw := payloadsStandard[i].TracerPayload, payloadsRaw[i].TracerPayload
+		// Compare key fields that receiveResourceSpansV2 sets
+		assert.Equal(t, std.Hostname, raw.Hostname, "payload %d Hostname", i)
+		assert.Equal(t, std.Env, raw.Env, "payload %d Env", i)
+		assert.Equal(t, std.ContainerID, raw.ContainerID, "payload %d ContainerID", i)
+		assert.Equal(t, std.LanguageName, raw.LanguageName, "payload %d LanguageName", i)
+		assert.Equal(t, std.TracerVersion, raw.TracerVersion, "payload %d TracerVersion", i)
+		require.Len(t, raw.Chunks, len(std.Chunks), "payload %d number of chunks", i)
+		for j := range std.Chunks {
+			require.Len(t, raw.Chunks[j].Spans, len(std.Chunks[j].Spans), "payload %d chunk %d span count", i, j)
+			for k := range std.Chunks[j].Spans {
+				sStd, sRaw := std.Chunks[j].Spans[k], raw.Chunks[j].Spans[k]
+				assert.Equal(t, sStd.TraceID, sRaw.TraceID, "payload %d chunk %d span %d TraceID", i, j, k)
+				assert.Equal(t, sStd.SpanID, sRaw.SpanID, "payload %d chunk %d span %d SpanID", i, j, k)
+				assert.Equal(t, sStd.Service, sRaw.Service, "payload %d chunk %d span %d Service", i, j, k)
+				assert.Equal(t, sStd.Name, sRaw.Name, "payload %d chunk %d span %d Name", i, j, k)
+				assert.Equal(t, sStd.Resource, sRaw.Resource, "payload %d chunk %d span %d Resource", i, j, k)
+				assert.Equal(t, sStd.Type, sRaw.Type, "payload %d chunk %d span %d Type", i, j, k)
+				assert.Equal(t, sStd.Start, sRaw.Start, "payload %d chunk %d span %d Start", i, j, k)
+				assert.Equal(t, sStd.Duration, sRaw.Duration, "payload %d chunk %d span %d Duration", i, j, k)
+				assert.Equal(t, sStd.Error, sRaw.Error, "payload %d chunk %d span %d Error", i, j, k)
+				assert.Equal(t, sStd.Metrics, sRaw.Metrics, "payload %d chunk %d span %d Metrics", i, j, k)
+				// Meta: compare key-by-key; for JSON values (events, _dd.span_links) map iteration order may differ
+				assert.Len(t, sRaw.Meta, len(sStd.Meta), "payload %d chunk %d span %d Meta keys count", i, j, k)
+				for key, expected := range sStd.Meta {
+					got := sRaw.Meta[key]
+					if key == "events" || key == "_dd.span_links" {
+						// JSON object key order can differ; decode and compare content
+						var exp, g interface{}
+						require.NoError(t, json.Unmarshal([]byte(expected), &exp))
+						require.NoError(t, json.Unmarshal([]byte(got), &g))
+						assert.Equal(t, exp, g, "payload %d chunk %d span %d Meta[%s]", i, j, k, key)
+					} else {
+						assert.Equal(t, expected, got, "payload %d chunk %d span %d Meta[%s]", i, j, k, key)
+					}
+				}
+			}
+		}
+		// Structural equality verified above. Full proto.Equal is not asserted because
+		// serialized JSON in Meta (events, _dd.span_links) can have different key order.
+	}
+}
+
 var (
 	otlpTestSpanID  = pcommon.SpanID([8]byte{0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
 	otlpTestTraceID = pcommon.TraceID([16]byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3})
@@ -4331,6 +4429,138 @@ func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLeng
 		traces[k] = rspans
 	}
 	return testutil.NewOTLPTracesRequest(traces)
+}
+
+// BenchmarkOTLPProcessStandard measures the standard path: unmarshal raw OTLP bytes into
+// ptraceotlp.ExportRequest, then processRequest (receiveResourceSpansV2). This is the path
+// used when gRPC receives OTLP trace export calls. Run with:
+//
+//	go test -tags=test -bench=BenchmarkOTLPProcess -benchmem ./pkg/trace/api/
+func BenchmarkOTLPProcessStandard(b *testing.B) {
+	benchmarkOTLPProcessFromBytes(b, true)
+}
+
+// BenchmarkOTLPProcessRaw measures the raw path: custom wire deserializer (processRequestRaw)
+// that parses bytes incrementally and calls the same receiveResourceSpansV2 logic without
+// materializing the full ExportRequest.
+func BenchmarkOTLPProcessRaw(b *testing.B) {
+	benchmarkOTLPProcessFromBytes(b, false)
+}
+
+func benchmarkOTLPProcessFromBytes(b *testing.B, standardPath bool) {
+	// Use same payload for both: 10 resource spans, 100 spans each, 100 attrs per span
+	req := generateTraceRequest(10, 100, 100, 100)
+	rawBytes, err := otlpExportRequestToRawBytes(req)
+	if err != nil {
+		b.Fatal(err)
+	}
+	metadata := http.Header(map[string][]string{
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
+	})
+	// 10 resource spans => 10 payloads per iteration
+	out := make(chan *Payload, 20)
+	end := make(chan struct{})
+	go func() {
+		defer close(end)
+		for {
+			select {
+			case <-out:
+				// drain
+			case <-end:
+				return
+			}
+		}
+	}()
+	cfg := NewBenchmarkTestConfig(b)
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	ctx := context.Background()
+	b.ReportAllocs()
+	b.ResetTimer()
+	if standardPath {
+		for i := 0; i < b.N; i++ {
+			unmarshaled := ptraceotlp.NewExportRequest()
+			if err := unmarshaled.UnmarshalProto(rawBytes); err != nil {
+				b.Fatal(err)
+			}
+			r.processRequest(ctx, metadata, unmarshaled)
+		}
+	} else {
+		for i := 0; i < b.N; i++ {
+			if err := r.processRequestRaw(ctx, metadata, rawBytes); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.StopTimer()
+	end <- struct{}{}
+	<-end
+}
+
+// BenchmarkOTLPProcessSmall compares both paths on a small payload (2 resource spans, 1 span each).
+func BenchmarkOTLPProcessSmall(b *testing.B) {
+	rawBytes, err := otlpExportRequestToRawBytes(otlpTestTracesRequest)
+	if err != nil {
+		b.Fatal(err)
+	}
+	metadata := http.Header(map[string][]string{
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
+	})
+	out := make(chan *Payload, 4)
+	end := make(chan struct{})
+	go func() {
+		defer close(end)
+		for {
+			select {
+			case <-out:
+			case <-end:
+				return
+			}
+		}
+	}()
+	cfg := NewBenchmarkTestConfig(b)
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	ctx := context.Background()
+	b.Run("Standard", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			unmarshaled := ptraceotlp.NewExportRequest()
+			if err := unmarshaled.UnmarshalProto(rawBytes); err != nil {
+				b.Fatal(err)
+			}
+			r.processRequest(ctx, metadata, unmarshaled)
+		}
+		b.StopTimer()
+	})
+	end <- struct{}{}
+	<-end
+	out2 := make(chan *Payload, 4)
+	end2 := make(chan struct{})
+	go func() {
+		defer close(end2)
+		for {
+			select {
+			case <-out2:
+			case <-end2:
+				return
+			}
+		}
+	}()
+	r2 := NewOTLPReceiver(out2, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	b.Run("Raw", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if err := r2.processRequestRaw(ctx, metadata, rawBytes); err != nil {
+				b.Fatal(err)
+			}
+		}
+		b.StopTimer()
+	})
+	end2 <- struct{}{}
+	<-end2
 }
 
 func BenchmarkProcessRequestV1(b *testing.B) {
