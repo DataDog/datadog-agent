@@ -124,21 +124,19 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 #     docker build --secret id=dockerconfig,src=$HOME/.docker/config.json ...
 #
 #   Google Application Default Credentials (GCE / Workload Identity):
-#     docker build --secret id=registry_auth,env=REGISTRY_AUTH ...
-#     (with REGISTRY_AUTH=gcr in the environment)
+#     docker build --build-arg REGISTRY_AUTH=gcr ...
 #
 #   Static username/password:
 #     docker build \
-#       --secret id=registry_auth,env=REGISTRY_AUTH \
-#       --secret id=registry_username,env=REGISTRY_USERNAME \
-#       --secret id=registry_password,env=REGISTRY_PASSWORD ...
-#     (with REGISTRY_AUTH=password, REGISTRY_USERNAME=..., REGISTRY_PASSWORD=... in the environment)
+#       --build-arg REGISTRY_AUTH=password \
+#       --build-arg REGISTRY_USERNAME=... \
+#       --build-arg REGISTRY_PASSWORD=... ...
 ARG AGENT_OCI
 ARG OUTPUT_OCI
+ARG REGISTRY_AUTH=""
+ARG REGISTRY_USERNAME=""
+ARG REGISTRY_PASSWORD=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
-    --mount=type=secret,id=registry_auth,env=REGISTRY_AUTH,required=false \
-    --mount=type=secret,id=registry_username,env=REGISTRY_USERNAME,required=false \
-    --mount=type=secret,id=registry_password,env=REGISTRY_PASSWORD,required=false \
     <<'RUNSCRIPT'
 ARCH=$(dpkg --print-architecture)
 mkdir -p /dist
