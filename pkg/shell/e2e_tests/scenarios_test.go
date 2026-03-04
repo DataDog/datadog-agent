@@ -24,9 +24,10 @@ import (
 
 // scenario represents a single test scenario.
 type scenario struct {
-	Setup    setup    `yaml:"setup"`
-	Input    input    `yaml:"input"`
-	Expected expected `yaml:"expected"`
+	Description string   `yaml:"description"`
+	Setup       setup    `yaml:"setup"`
+	Input       input    `yaml:"input"`
+	Expected    expected `yaml:"expected"`
 }
 
 // setup holds optional pre-test configuration such as files to create.

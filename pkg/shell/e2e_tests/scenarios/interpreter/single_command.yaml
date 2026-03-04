@@ -1,3 +1,4 @@
+description: A single command executes and produces output.
 input:
   # language=bash
   script: |+

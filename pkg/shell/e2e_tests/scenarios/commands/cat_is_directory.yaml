@@ -1,3 +1,4 @@
+description: Cat on a directory fails with "is a directory" error and exits with code 1.
 setup:
   files:
     - path: mydir/placeholder.txt

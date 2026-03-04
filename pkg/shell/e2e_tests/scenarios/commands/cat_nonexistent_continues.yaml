@@ -1,6 +1,6 @@
+description: Cat failure does not stop script execution; the exit code is from the last command.
 input:
   # language=bash
-  # cat failure does not stop script execution; exit code is from last command
   script: |+
     cat nonexistent.txt
     echo hello

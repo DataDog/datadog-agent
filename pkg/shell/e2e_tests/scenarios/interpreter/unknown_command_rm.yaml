@@ -1,3 +1,4 @@
+description: Non-builtin commands like rm are rejected with "not found" and exit code 127.
 input:
   # language=bash
   script: |+

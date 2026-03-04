@@ -1,9 +1,9 @@
+description: When all files are missing, cat stops at the first failure without attempting the rest.
 input:
   # language=bash
   script: |+
     cat missing1.txt missing2.txt
 expected:
-  # Stops at first failure, second file error is never reached
   stdout: ""
   stderr_contains:
     - "cat: missing1.txt:"

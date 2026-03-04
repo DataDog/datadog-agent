@@ -1,3 +1,4 @@
+description: When the second of multiple files fails, the first file is output before the error.
 setup:
   files:
     - path: existing.txt
@@ -9,7 +10,6 @@ input:
   script: |+
     cat existing.txt nonexistent.txt
 expected:
-  # First file succeeds, second file fails
   stdout: |+
     hello world
   stderr_contains:

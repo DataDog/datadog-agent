@@ -1,7 +1,6 @@
+description: Input redirect from a nonexistent file fails at the redirect level, not cat itself, so the error has no "cat:" prefix.
 input:
   # language=bash
-  # Redirect failure is handled by the interpreter, not cat itself.
-  # The error message does not have a "cat:" prefix.
   script: |+
     cat < nonexistent.txt
 expected:

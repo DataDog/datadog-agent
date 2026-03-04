@@ -1,3 +1,4 @@
+description: Cat reads and concatenates multiple files to stdout.
 setup:
   files:
     - path: mydir/myfile1.txt

@@ -1,3 +1,4 @@
+description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
 input:
   # language=bash
   script: |+

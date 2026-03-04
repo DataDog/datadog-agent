@@ -1,3 +1,4 @@
+description: When the first of multiple files fails, cat stops immediately without processing remaining files.
 setup:
   files:
     - path: existing.txt
@@ -9,7 +10,6 @@ input:
   script: |+
     cat nonexistent.txt existing.txt
 expected:
-  # First file fails, second file is never processed
   stdout: ""
   stderr_contains:
     - "cat: nonexistent.txt:"

@@ -1,3 +1,4 @@
+description: Pipe connects stdout of one command to stdin of another.
 input:
   # language=bash
   script: |+

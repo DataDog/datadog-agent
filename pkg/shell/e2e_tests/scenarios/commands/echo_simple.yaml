@@ -1,3 +1,4 @@
+description: Echo outputs its arguments to stdout.
 input:
   # language=bash
   script: |+
