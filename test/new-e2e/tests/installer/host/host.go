@@ -81,6 +81,21 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// ensureDockerLogin logs the host into the ECR registry when E2E_IMAGE_PULL_* is set, so pulls work.
+// It must be called whenever Docker is available (already installed or just installed).
+func (h *Host) ensureDockerLogin() {
+	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
+	if err != nil {
+		var notFound parameters.ParameterNotFoundError
+		if errors.As(err, &notFound) {
+			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
+			return
+		}
+		h.t().Fatalf("failed to get image pull password: %v", err)
+	}
+	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
+}
+
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
@@ -104,6 +119,7 @@ func (h *Host) InstallDocker() {
 		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		h.ensureDockerLogin()
 		return
 	}
 
@@ -122,17 +138,7 @@ func (h *Host) InstallDocker() {
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 
-	// When E2E_IMAGE_PULL_* is set (e.g. in CI), run docker login so subsequent pulls can use the private registry.
-	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
-	if err != nil {
-		var notFound parameters.ParameterNotFoundError
-		if errors.As(err, &notFound) {
-			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
-			return
-		}
-		h.t().Fatalf("failed to get image pull password: %v", err)
-	}
-	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
+	h.ensureDockerLogin()
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
