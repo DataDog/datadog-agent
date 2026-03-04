@@ -27,9 +27,6 @@ replace (
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605
 )
 
-// FIXME: disk device labeling regression present in v4.25.12 and v4.26.1, waiting on new release
-replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11
-
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
@@ -170,10 +167,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6
-	github.com/DataDog/datadog-traceroute v1.0.11
+	github.com/DataDog/datadog-traceroute v1.0.12
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
-	github.com/DataDog/gopsutil v1.2.3
+	github.com/DataDog/gopsutil v1.2.4
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
@@ -225,7 +222,7 @@ require (
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
 	github.com/envoyproxy/gateway v1.5.7
-	github.com/evanphx/json-patch v5.9.11+incompatible
+	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
@@ -314,7 +311,7 @@ require (
 	github.com/safchain/ethtool v0.7.0
 	github.com/samber/lo v1.52.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v4 v4.26.1
+	github.com/shirou/gopsutil/v4 v4.26.2
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/sirupsen/logrus v1.9.4
@@ -334,9 +331,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.16
-	github.com/uptrace/bun/dialect/pgdialect v1.2.16
-	github.com/uptrace/bun/driver/pgdriver v1.2.16
+	github.com/uptrace/bun v1.2.18
+	github.com/uptrace/bun/dialect/pgdialect v1.2.18
+	github.com/uptrace/bun/driver/pgdriver v1.2.18
 	github.com/urfave/negroni v1.0.0
 	github.com/valyala/fastjson v1.6.7
 	github.com/vibrantbyte/go-antpath v1.1.1
@@ -561,7 +558,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/elastic/go-freelru v0.16.0
 	github.com/elastic/go-grok v0.3.1 // indirect
