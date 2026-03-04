@@ -47,11 +47,11 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Not in CI: simply execute `bazel` - done
-if not defined CI (
-  "%BAZEL_REAL%" !bazel_home_startup_option! %*
-  exit /b !errorlevel!
-)
+:: Not in CI nor GitHub Actions: simply execute `bazel` - done
+if defined CI if not defined GITHUB_ACTIONS goto :ci_config
+"%BAZEL_REAL%" !bazel_home_startup_option! %*
+exit /b !errorlevel!
+:ci_config
 
 :: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (

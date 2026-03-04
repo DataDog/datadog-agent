@@ -26,8 +26,9 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
     >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
     exit 2
   fi
-
-  [ -n "${CI:-}" ] && exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
+  if [[ -n "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
+    exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
+  fi
 fi
 
 exec "$BAZEL_REAL" "$@"

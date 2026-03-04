@@ -433,7 +433,7 @@ func TestRustBinary(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	binaryPath := filepath.Join(curDir, "rust", "sd-agent")
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "sd-agent")
 
 	require.FileExists(t, binaryPath, "Rust binary should be built")
 
