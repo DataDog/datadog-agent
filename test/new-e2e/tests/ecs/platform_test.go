@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
@@ -34,7 +35,11 @@ func TestECSPlatformSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
+				scenecs.WithLinuxBottleRocketNodeGroup(),
 				scenecs.WithWindowsNodeGroup(),
+			),
+			scenecs.WithFakeIntakeOptions(
+				scenfi.WithRetentionPeriod("31m"),
 			),
 			scenecs.WithTestingWorkload(),
 		),

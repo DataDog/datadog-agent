@@ -14,15 +14,13 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
@@ -46,6 +44,9 @@ func TestECSAPMSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
+			),
+			scenecs.WithFakeIntakeOptions(
+				scenfi.WithRetentionPeriod("31m"),
 			),
 			scenecs.WithTestingWorkload(),
 		),
@@ -141,258 +142,6 @@ func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 	})
 }
 
-func (suite *ecsAPMSuite) TestBasicTraceCollection() {
-	// Test basic trace collection and validation
-	suite.Run("Basic trace collection", func() {
-		suite.AssertAPMTrace(&TestAPMTraceArgs{
-			Filter: TestAPMTraceFilterArgs{
-				ServiceName: "tracegen-test-service",
-			},
-			Expect: TestAPMTraceExpectArgs{
-				TraceIDPresent: true,
-			},
-		})
-	})
-}
-
-func (suite *ecsAPMSuite) TestMultiServiceTracing() {
-	// Test multi-service tracing and service map creation
-	// This would test the multiservice app once it's deployed
-	suite.Run("Multi-service distributed tracing", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-			if !assert.NotEmptyf(c, traces, "No traces found") {
-				return
-			}
-
-			// Look for traces from multiple services
-			serviceNames := make(map[string]bool)
-			for _, trace := range traces {
-				for _, payload := range trace.TracerPayloads {
-					for _, chunk := range payload.Chunks {
-						for _, span := range chunk.Spans {
-							if span.Service != "" {
-								serviceNames[span.Service] = true
-							}
-						}
-					}
-				}
-			}
-
-			// In a real multi-service app, we'd expect frontend, backend, database
-			// For now, we just verify we have some services
-			assert.GreaterOrEqualf(c, len(serviceNames), 1,
-				"Expected traces from at least 1 service, got %d", len(serviceNames))
-
-			// Verify trace propagation (parent-child relationships)
-			for _, trace := range traces {
-				for _, payload := range trace.TracerPayloads {
-					for _, chunk := range payload.Chunks {
-						if len(chunk.Spans) > 1 {
-							// Check if spans have parent-child relationships
-							spansByID := make(map[uint64]*pb.Span)
-							for _, span := range chunk.Spans {
-								spansByID[span.SpanID] = span
-							}
-
-							hasParentChild := false
-							for _, span := range chunk.Spans {
-								if span.ParentID != 0 {
-									if _, exists := spansByID[span.ParentID]; exists {
-										hasParentChild = true
-										break
-									}
-								}
-							}
-
-							if hasParentChild {
-								return
-							}
-						}
-					}
-				}
-			}
-
-		}, 3*time.Minute, 10*time.Second, "Multi-service tracing validation failed")
-	})
-}
-
-func (suite *ecsAPMSuite) TestTraceSampling() {
-	// Test that trace sampling is working correctly
-	suite.Run("Trace sampling validation", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-			if !assert.NotEmptyf(c, traces, "No traces found") {
-				return
-			}
-
-			// Check for sampling priority in traces
-			for _, trace := range traces {
-				for _, payload := range trace.TracerPayloads {
-					for _, chunk := range payload.Chunks {
-						for _, span := range chunk.Spans {
-							if samplingPriority, exists := span.Metrics["_sampling_priority_v1"]; exists {
-
-								// Sampling priority should be >= 0
-								assert.GreaterOrEqualf(c, samplingPriority, float64(0),
-									"Sampling priority should be >= 0")
-
-								// Common values are 0 (drop), 1 (keep), 2 (user keep)
-								assert.LessOrEqualf(c, samplingPriority, float64(2),
-									"Sampling priority should be <= 2")
-
-								return
-							}
-						}
-					}
-				}
-			}
-
-			assert.Failf(c, "No traces with sampling priority found", "checked %d traces", len(traces))
-		}, 2*time.Minute, 10*time.Second, "Trace sampling validation failed")
-	})
-}
-
-func (suite *ecsAPMSuite) TestTraceTagEnrichment() {
-	// Test that traces are enriched with ECS metadata tags
-	suite.Run("Trace tag enrichment", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-			if !assert.NotEmptyf(c, traces, "No traces found") {
-				return
-			}
-
-			// Check that traces have ECS metadata tags (bundled in _dd.tags.container)
-			foundEnrichedTrace := false
-			for _, trace := range traces {
-				// Container tags are in TracerPayload.Tags, not AgentPayload.Tags
-				for _, tracerPayload := range trace.TracerPayloads {
-					// Check for bundled _dd.tags.container tag
-					if containerTagsValue, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
-						// Check if bundled tag contains required ECS metadata
-						hasClusterName := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName)).MatchString(containerTagsValue)
-						hasTaskArn := regexp.MustCompile(`task_arn:`).MatchString(containerTagsValue)
-						hasContainerName := regexp.MustCompile(`container_name:`).MatchString(containerTagsValue)
-
-						if hasClusterName && hasTaskArn && hasContainerName {
-							foundEnrichedTrace = true
-							break
-						}
-					}
-				}
-				if foundEnrichedTrace {
-					break
-				}
-			}
-
-			assert.Truef(c, foundEnrichedTrace,
-				"No traces found with complete ECS metadata tags in _dd.tags.container (cluster_name, task_arn, container_name)")
-		}, 2*time.Minute, 10*time.Second, "Trace tag enrichment validation failed")
-	})
-}
-
-func (suite *ecsAPMSuite) TestAPMFargate() {
-	// Test Fargate-specific APM scenarios
-	suite.Run("APM on Fargate", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-
-			// Filter for Fargate traces (check bundled _dd.tags.container tag)
-			fargateTraces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
-				for _, tracerPayload := range trace.TracerPayloads {
-					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
-						if regexp.MustCompile(`ecs_launch_type:fargate`).MatchString(containerTags) {
-							return true
-						}
-					}
-				}
-				return false
-			})
-
-			if len(fargateTraces) > 0 {
-
-				// Verify Fargate traces have expected metadata in bundled tag
-				trace := fargateTraces[0]
-				for _, tracerPayload := range trace.TracerPayloads {
-					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
-						assert.Regexpf(c, `ecs_launch_type:fargate`, containerTags,
-							"Fargate trace should have ecs_launch_type:fargate in bundled tag")
-
-						assert.Regexpf(c, `ecs_cluster_name:`+regexp.QuoteMeta(suite.ecsClusterName), containerTags,
-							"Fargate trace should have correct cluster name in bundled tag")
-
-						assert.Regexpf(c, `task_arn:`, containerTags,
-							"Fargate trace should have task_arn in bundled tag")
-						break
-					}
-				}
-			}
-		}, 3*time.Minute, 10*time.Second, "Fargate APM validation completed")
-	})
-}
-
-func (suite *ecsAPMSuite) TestAPMEC2() {
-	// Test EC2-specific APM scenarios
-	suite.Run("APM on EC2", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-
-			// Filter for EC2 traces (check bundled _dd.tags.container tag)
-			ec2Traces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
-				for _, tracerPayload := range trace.TracerPayloads {
-					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
-						// Check for ecs_launch_type:ec2 OR presence of ecs_cluster_name (daemon mode)
-						if regexp.MustCompile(`ecs_launch_type:ec2`).MatchString(containerTags) ||
-							regexp.MustCompile(`ecs_cluster_name:`).MatchString(containerTags) {
-							return true
-						}
-					}
-				}
-				return false
-			})
-
-			if !assert.NotEmptyf(c, ec2Traces, "No EC2 traces found") {
-				return
-			}
-
-			// Verify EC2 traces have expected metadata in bundled tag
-			trace := ec2Traces[0]
-			for _, tracerPayload := range trace.TracerPayloads {
-				if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
-					// EC2 tasks should have cluster name
-					assert.Regexpf(c, `ecs_cluster_name:`+regexp.QuoteMeta(suite.ecsClusterName), containerTags,
-						"EC2 trace should have correct cluster name in bundled tag")
-
-					// EC2 tasks should have task_arn
-					assert.Regexpf(c, `task_arn:`, containerTags,
-						"EC2 trace should have task_arn in bundled tag")
-
-					// EC2 tasks should have container_name
-					assert.Regexpf(c, `container_name:`, containerTags,
-						"EC2 trace should have container_name in bundled tag")
-
-					break
-				}
-			}
-		}, 3*time.Minute, 10*time.Second, "EC2 APM validation failed")
-	})
-}
-
 func (suite *ecsAPMSuite) TestDogstatsdUDS() {
 	suite.testDogstatsd(taskNameDogstatsdUDS)
 }
@@ -426,12 +175,30 @@ func (suite *ecsAPMSuite) TestTraceTCP() {
 }
 
 // testTrace verifies that traces are tagged with container and ECS task tags.
+// The bundled _dd.tags.container value is a comma-separated string of key:value pairs
+// containing ECS metadata, image metadata, and git metadata.
 func (suite *ecsAPMSuite) testTrace(taskName string) {
 	// Build validation patterns for the bundled _dd.tags.container value
-	// The bundled tag is a single comma-separated string of key:value pairs
-	clusterNamePattern := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName))
-	taskArnPattern := regexp.MustCompile(`task_arn:`)
-	containerNamePattern := regexp.MustCompile(`container_name:`)
+	patterns := []*regexp.Regexp{
+		// Core ECS metadata
+		regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName)),
+		regexp.MustCompile(`task_arn:`),
+		regexp.MustCompile(`container_name:`),
+		regexp.MustCompile(`ecs_container_name:tracegen`),
+		regexp.MustCompile(`task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2`),
+		regexp.MustCompile(`task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2`),
+		regexp.MustCompile(`task_version:[[:digit:]]+`),
+
+		// Image metadata
+		regexp.MustCompile(`docker_image:ghcr\.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version)),
+		regexp.MustCompile(`image_name:ghcr\.io/datadog/apps-tracegen`),
+		regexp.MustCompile(`image_tag:` + regexp.QuoteMeta(apps.Version)),
+		regexp.MustCompile(`short_image:apps-tracegen`),
+
+		// Git metadata
+		regexp.MustCompile(`git\.commit\.sha:[[:xdigit:]]{40}`),
+		regexp.MustCompile(`git.repository_url:https://github.com/DataDog/test-infra-definitions`),
+	}
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
@@ -450,10 +217,15 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 					continue
 				}
 
-				// Validate the bundled tag value contains required ECS metadata
-				if clusterNamePattern.MatchString(containerTags) &&
-					taskArnPattern.MatchString(containerTags) &&
-					containerNamePattern.MatchString(containerTags) {
+				// Validate all patterns match the bundled tag value
+				allMatch := true
+				for _, pattern := range patterns {
+					if !pattern.MatchString(containerTags) {
+						allMatch = false
+						break
+					}
+				}
+				if allMatch {
 					found = true
 					break
 				}

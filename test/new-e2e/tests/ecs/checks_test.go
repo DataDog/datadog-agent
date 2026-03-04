@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	scenfi "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
@@ -30,6 +31,9 @@ func TestECSChecksSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
+			),
+			scenecs.WithFakeIntakeOptions(
+				scenfi.WithRetentionPeriod("31m"),
 			),
 			scenecs.WithTestingWorkload(),
 		),
