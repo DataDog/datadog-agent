@@ -409,62 +409,63 @@ func TestTail_FlagZeroTerminated_LongForm(t *testing.T) {
 }
 
 // =============================================================================
-// Rejection of follow-mode flags
+// Rejection of unsupported flags
 // =============================================================================
 
-// These tests use os.DevNull ("/dev/null" on Unix, "NUL" on Windows) instead
-// of a hardcoded path so that they compile and pass on all platforms.
-// The flags are rejected before any file is opened, so the path is irrelevant.
+// Unsupported flags are rejected by pflag with exit code 1 and an error on
+// stderr; they do not cause a fatal interpreter error (err == nil).
+// pflag uses "unknown shorthand flag" for -x forms and "unknown flag" for
+// --long forms, so we assert on "unknown" which covers both.
 
 func TestTail_Reject_f(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail -f %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "-f")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail -f %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown")
 }
 
 func TestTail_Reject_F(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail -F %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "-F")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail -F %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown")
 }
 
 func TestTail_Reject_Follow(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --follow %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--follow")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --follow %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
 func TestTail_Reject_Retry(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --retry %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--retry")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --retry %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
 func TestTail_Reject_SleepInterval(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --sleep-interval=1 %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--sleep-interval")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --sleep-interval=1 %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
 func TestTail_Reject_PID(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --pid=1 %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--pid")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --pid=1 %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
 func TestTail_Reject_MaxUnchangedStats(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --max-unchanged-stats %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--max-unchanged-stats")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --max-unchanged-stats %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
-// Security regression: flag via for-loop word expansion must also be rejected.
+// Unsupported flags passed via shell variable expansion are also rejected.
 func TestTail_Reject_FlagViaForLoop(t *testing.T) {
 	dir := t.TempDir()
 	writeTempFile(t, dir, "f.txt", "hello\n")
-	_, _, err := runTailScript(t, dir, `for flag in -f; do tail $flag f.txt; done`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "-f")
+	_, stderr, err := runTailScript(t, dir, `for flag in -f; do tail $flag f.txt; done`)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown")
 }
 
 func TestTail_Reject_UnknownFlag(t *testing.T) {
@@ -699,9 +700,34 @@ func TestTail_LongFormBytesEquals_PlusOffset(t *testing.T) {
 
 // TestTail_Reject_PID_WithValue verifies --pid=N (value form) is also rejected.
 func TestTail_Reject_PID_WithValue(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --pid=123 %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--pid")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --pid=123 %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag: --pid")
+}
+
+// =============================================================================
+// --help flag
+// =============================================================================
+
+func TestTail_Help_Short(t *testing.T) {
+	stdout, stderr, err := runScript(t, "tail -h")
+	require.NoError(t, err)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "Usage:")
+	assert.Contains(t, stdout, "--lines")
+	assert.Contains(t, stdout, "--bytes")
+}
+
+func TestTail_Help_Long(t *testing.T) {
+	stdout, stderr, err := runScript(t, "tail --help")
+	require.NoError(t, err)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "Usage:")
+	assert.Contains(t, stdout, "--lines")
+	assert.Contains(t, stdout, "--bytes")
+	assert.Contains(t, stdout, "--quiet")
+	assert.Contains(t, stdout, "--verbose")
+	assert.Contains(t, stdout, "--zero-terminated")
 }
 
 // =============================================================================
@@ -786,9 +812,9 @@ func TestTailIsWindowsReservedName(t *testing.T) {
 // =============================================================================
 
 func TestTail_Reject_SleepIntervalShort(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail -s 5 %s", os.DevNull))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "-s")
+	_, stderr, err := runScript(t, fmt.Sprintf("tail -s 5 %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown")
 }
 
 // =============================================================================

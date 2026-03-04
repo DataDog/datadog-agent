@@ -26,15 +26,27 @@ fs.SetOutput(io.Discard) // suppress pflag's own error output; format errors you
 **Flags that need `+N` offset support** (e.g. `tail -n +5`): register as `StringP`, then
 post-process the value with a helper that detects the `+` prefix.
 
-**Flags that must be hard-rejected before pflag runs** (e.g. follow-mode flags that
-would block forever): pre-scan `args` in a loop, breaking at `"--"`, and `return
-fmt.Errorf(...)` before constructing the FlagSet. This preserves a specific, clear error
-message and prevents pflag from parsing further.
-
 **Error handling:** pflag parse errors (unknown flag, missing argument) should be written
 to `r.stderr` with a `"cmdname: "` prefix and set `r.exitCode = 1; return nil`. This
 matches POSIX command-failure semantics — a bad flag fails the command but does not abort
 the script.
+
+### Supported Flags Only
+
+Commands MUST only implement the flags listed in their supported flag set. Any flag not
+explicitly registered with pflag is automatically rejected with an "unknown flag" error
+written to stderr and exit code 1. Do NOT add pre-scan loops or special-case logic to
+reject specific flags by name — rely on pflag's unknown-flag handling instead.
+
+### Help Flag
+
+Every command MUST register `-h` / `--help` as a flag. When `--help` is passed:
+- Print a usage line (`Usage: cmd [OPTION]... [FILE]...` or equivalent) to **stdout**
+- Print a short description of what the command does to stdout
+- Print all supported flags with brief descriptions via `fs.PrintDefaults()` to stdout
+- Set exit code 0 and return
+
+Do not write help output to stderr. Help is not an error.
 
 ---
 

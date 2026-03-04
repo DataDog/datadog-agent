@@ -103,7 +103,7 @@ Verify the tests build and all fail (since we have no implementation yet).
 Create `pkg/shell/interp/builtin_$ARGUMENTS.go` following the patterns in the existing builtins:
 
 1. **Function signature**: Use `func (r *Runner) builtin$ARGUMENTS(args []string) error` for commands that read bounded input. If the command reads from potentially infinite sources (stdin, pipes, /dev/zero) and needs to respect the executor timeout, use `func (r *Runner) builtin$ARGUMENTS(ctx context.Context, args []string) error` instead and check `ctx.Err()` before every read in any loop.
-2. Parse flags, rejecting any that are not on the approved list
+2. Parse flags with pflag; any flag not explicitly registered is automatically rejected by pflag — do NOT add pre-scan loops or special-case flag rejection; also register `-h`/`--help` and handle it per RULES.md
 3. Implement the command body with bounded reads and proper error handling
 4. Set `r.exitCode` appropriately
 5. Write errors to `r.stderr`, output to `r.stdout`

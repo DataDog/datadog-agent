@@ -7,15 +7,15 @@
 //
 // builtinTail implements the tail command. Accepted flags:
 //
-//	-n N / --lines=N   Last N lines (default 10). +N = from line N to end.
-//	-c N / --bytes=N   Last N bytes. +N = from byte N to end.
-//	-q / --quiet       Never print headers for multiple files.
-//	-v / --verbose     Always print headers (even for a single file).
+//	-n N / --lines=N        Last N lines (default 10). +N = from line N to end.
+//	-c N / --bytes=N        Last N bytes. +N = from byte N to end.
+//	-q / --quiet / --silent Never print headers for multiple files.
+//	-v / --verbose          Always print headers (even for a single file).
 //	-z / --zero-terminated  Use NUL as line delimiter.
+//	-h / --help             Print usage information and exit.
 //
-// Rejected flags (cause infinite blocking loops):
-//
-//	-f / --follow / -F / --retry / -s / --sleep-interval / --pid / --max-unchanged-stats
+// Any flag not listed above is rejected by the pflag parser with an
+// "unknown flag" error written to stderr and exit code 1.
 //
 // # Line ending behaviour
 //
@@ -48,24 +48,6 @@ const (
 )
 
 func (r *Runner) builtinTail(ctx context.Context, args []string) error {
-	// Pre-scan for follow-mode flags before pflag sees anything.  These must
-	// be hard-rejected with a specific error because they block forever.
-	// Stop scanning at "--" (end-of-flags marker).
-	for _, a := range args {
-		if a == "--" {
-			break
-		}
-		switch {
-		case a == "-f", a == "--follow", a == "-F", a == "--retry",
-			a == "--pid", strings.HasPrefix(a, "--pid="),
-			a == "--max-unchanged-stats", strings.HasPrefix(a, "--max-unchanged-stats="):
-			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
-		case strings.HasPrefix(a, "-s"), a == "--sleep-interval",
-			strings.HasPrefix(a, "--sleep-interval="):
-			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
-		}
-	}
-
 	// Build a pflag FlagSet.  ContinueOnError makes Parse return an error
 	// instead of calling os.Exit.  SetOutput(io.Discard) suppresses pflag's
 	// own error printing so we can format errors ourselves.
@@ -74,16 +56,28 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 
 	// -n and -c are registered as strings so we can handle the +N offset
 	// prefix ourselves after pflag has done the structural parsing.
-	linesStr := fs.StringP("lines", "n", "", "output the last N lines (default 10); +N outputs from line N")
-	bytesStr := fs.StringP("bytes", "c", "", "output the last N bytes; +N outputs from byte N")
+	linesStr := fs.StringP("lines", "n", "", "output the last N lines (default 10); +N outputs starting at line N")
+	bytesStr := fs.StringP("bytes", "c", "", "output the last N bytes; +N outputs starting at byte N")
 	quiet := fs.BoolP("quiet", "q", false, "never print file headers")
 	silent := fs.Bool("silent", false, "alias for --quiet")
 	verbose := fs.BoolP("verbose", "v", false, "always print file headers")
-	zeroDelim := fs.BoolP("zero-terminated", "z", false, "use NUL as line delimiter")
+	zeroDelim := fs.BoolP("zero-terminated", "z", false, "use NUL as line delimiter instead of newline")
+	help := fs.BoolP("help", "h", false, "display this help and exit")
 
 	if err := fs.Parse(args); err != nil {
 		fmt.Fprintf(r.stderr, "tail: %v\n", err)
 		r.exitCode = 1
+		return nil
+	}
+
+	if *help {
+		fmt.Fprintf(r.stdout, "Usage: tail [OPTION]... [FILE]...\n\n")
+		fmt.Fprintf(r.stdout, "Print the last 10 lines of each FILE to standard output.\n")
+		fmt.Fprintf(r.stdout, "With no FILE, or when FILE is -, read standard input.\n\n")
+		fmt.Fprintf(r.stdout, "Options:\n")
+		fs.SetOutput(r.stdout)
+		fs.PrintDefaults()
+		r.exitCode = 0
 		return nil
 	}
 
