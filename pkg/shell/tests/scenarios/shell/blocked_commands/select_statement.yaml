@@ -1,0 +1,10 @@
+description: Select statements are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    select x in a b c; do echo $x; done
+expect:
+  stdout: ""
+  stderr: |+
+    select statements are not supported
+  exit_code: 2

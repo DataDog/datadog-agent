@@ -1,0 +1,10 @@
+description: The $LINENO variable is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $LINENO
+expect:
+  stdout: ""
+  stderr: |+
+    $LINENO is not supported
+  exit_code: 2

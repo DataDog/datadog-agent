@@ -78,10 +78,17 @@ func validateNode(node syntax.Node) error {
 			err = fmt.Errorf("test declarations are not supported")
 			return false
 		case *syntax.ForClause:
+			if n.Select {
+				err = fmt.Errorf("select statements are not supported")
+				return false
+			}
 			if _, ok := n.Loop.(*syntax.WordIter); !ok {
 				err = fmt.Errorf("c-style for loops are not supported")
 				return false
 			}
+		case *syntax.ExtGlob:
+			err = fmt.Errorf("extended globbing is not supported")
+			return false
 
 		// Blocked statement-level features.
 		case *syntax.Stmt:
@@ -138,6 +145,9 @@ func validateParamExp(pe *syntax.ParamExp) error {
 	// Block special parameters like $#, $0, $1-$9, $@, $*
 	if pe.Param != nil && blockedSpecialParams[pe.Param.Value] {
 		return fmt.Errorf("$%s is not supported", pe.Param.Value)
+	}
+	if pe.Param != nil && pe.Param.Value == "LINENO" {
+		return fmt.Errorf("$LINENO is not supported")
 	}
 	return nil
 }
