@@ -152,3 +152,14 @@ string_flag(
     build_setting_default = "/tmp",
     make_variable = "OUTPUT_CONFIG_DIR",
 )
+
+test_suite(
+    name = "rust_components",
+    tests = [
+        "//pkg/discovery/module/rust:dd_discovery_test",
+        "//pkg/discovery/module/rust:fallback_integration_test",
+        "//pkg/discovery/module/rust:pid_integration_test",
+        "//pkg/procmgr/rust:dd-procmgrd_test",
+        "//pkg/procmgr/rust:integration_test",
+    ]
+)
