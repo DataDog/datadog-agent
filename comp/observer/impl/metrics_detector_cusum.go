@@ -132,6 +132,10 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetection
 	return observer.MetricsDetectionResult{Anomalies: []observer.Anomaly{*anomaly}}
 }
 
+func (c *CUSUMDetector) Flush() observer.MetricsDetectionResult {
+	return observer.MetricsDetectionResult{}
+}
+
 // runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.
 // It tracks both upward shifts (S_high) and downward shifts (S_low).
 // Returns nil if no threshold crossing is detected.

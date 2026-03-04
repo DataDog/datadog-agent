@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+const detectorFlushInterval = 1 * time.Second
+
 // Requires declares the input types to the observer component constructor.
 type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
@@ -57,6 +59,9 @@ type observation struct {
 	log     *logObs
 	trace   *traceObs
 	profile *profileObs
+	// If true, will call Flush() on the detectors
+	needsFlush       bool
+	flushTimestampMs int64
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -229,6 +234,7 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+	go obs.startRegularFlush()
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -387,7 +393,39 @@ func (o *observerImpl) run() {
 		if obs.profile != nil {
 			o.processProfile(obs.source, obs.profile)
 		}
+		if obs.needsFlush {
+			o.flushDetectors(obs.source, obs.flushTimestampMs)
+		}
 	}
+}
+
+// This will send each second a flush request to the observer.
+func (o *observerImpl) startRegularFlush() {
+	for {
+		time.Sleep(detectorFlushInterval)
+		o.obsCh <- observation{needsFlush: true, flushTimestampMs: time.Now().UnixMilli()}
+	}
+}
+
+func (o *observerImpl) flushDetectors(source string, timestampMs int64) {
+	// TODO: We may prefer to wait a little bit to flush logs, metrics and then correlators (to handle virtual metrics properly)
+	for _, detector := range o.logDetectors {
+		result := detector.Flush(timestampMs)
+		o.processLogDetectionResult(result, source, timestampMs)
+	}
+	// TODO: I think we should redesign a bit the metrics detectors
+	// for _, detector := range o.metricsDetectors {
+	// 	result := detector.Flush()
+
+	// 	// Run metrics detection on multiple aggregations
+	// 	for _, agg := range detectionAggregations {
+	// 		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
+	// 			o.runMetricsDetectors(*series, agg)
+	// 		}
+	// 	}
+	// }
+
+	// TODO: Flush correlators as well (here?)
 }
 
 // detectionAggregations defines which aggregations to run metrics detection on.
@@ -416,27 +454,30 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 
 	for _, detector := range o.logDetectors {
 		result := detector.Process(view)
-
-		// Add metrics from log processing to storage, then run metrics detection
-		for _, m := range result.Metrics {
-			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
-			// Run metrics detection on multiple aggregations
-			for _, agg := range detectionAggregations {
-				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
-					o.runMetricsDetectors(*series, agg)
-				}
-			}
-		}
-
-		// Route directly emitted anomalies through the standard pipeline
-		for _, anomaly := range result.Anomalies {
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
-		}
+		o.processLogDetectionResult(result, source, l.timestampMs)
 	}
 
 	o.flushAndReport()
+}
+
+func (o *observerImpl) processLogDetectionResult(result observerdef.LogDetectionResult, source string, timestampMs int64) {
+	// Add metrics from log processing to storage, then run metrics detection
+	for _, m := range result.Metrics {
+		// Virtual metrics coming from logs starts with _virtual.
+		o.storage.Add(source, "_virtual."+m.Name, m.Value, timestampMs/1000, m.Tags)
+		// Run metrics detection on multiple aggregations
+		for _, agg := range detectionAggregations {
+			if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
+				o.runMetricsDetectors(*series, agg)
+			}
+		}
+	}
+
+	// Route directly emitted anomalies through the standard pipeline
+	for _, anomaly := range result.Anomalies {
+		o.captureRawAnomaly(anomaly)
+		o.processAnomaly(anomaly)
+	}
 }
 
 // runMetricsDetectors runs all metrics detectors on a series with the given aggregation.

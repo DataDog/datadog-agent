@@ -235,6 +235,8 @@ type LogDetector interface {
 	Name() string
 	// Process examines a log and returns any detected signals.
 	Process(log LogView) LogDetectionResult
+	// This is called each second and never at the same time as Process.
+	Flush(timestampMs int64) LogDetectionResult
 }
 
 // LogDetectionResult contains outputs from processing a log.
@@ -356,6 +358,8 @@ type MetricsDetector interface {
 	Name() string
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) MetricsDetectionResult
+	// This is called each second and never at the same time as Detect.
+	Flush() MetricsDetectionResult
 }
 
 // MetricsDetectionResult contains outputs from metrics detection.

@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"strings"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -48,4 +49,18 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogDet
 	}
 
 	return observer.LogDetectionResult{}
+}
+
+func (c *ConnectionErrorExtractor) Flush(timestampMs int64) observer.LogDetectionResult {
+	// TODO
+	return observer.LogDetectionResult{Telemetry: []observer.ObserverTelemetry{
+		{
+			Log: &logDataView{
+				data: &recorderdef.LogData{
+					TimestampMs: timestampMs,
+					Content:     []byte("Flush"),
+				},
+			},
+		},
+	}}
 }

@@ -57,7 +57,6 @@ type TestBenchConfig struct {
 	// If a name is present, its value overrides the registry DefaultEnabled.
 	// Components not listed use their registry default.
 	EnableOverrides map[string]bool
-
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -96,6 +95,9 @@ type TestBench struct {
 
 	// API server
 	api *TestBenchAPI
+
+	// We need to simulate regular flush
+	nextFlushTimestampMs int64
 }
 
 // ScenarioInfo describes an available scenario.
@@ -455,42 +457,65 @@ func (r *parquetTraceStatRow) GetPeerTags() []string        { return r.data.Peer
 
 // runLogDetectors runs all the log detectors on the raw logs.
 func (tb *TestBench) runLogDetectors() error {
+	// TODO: We need to redesign the whole testbench interface when we will use the observer as a backend. It will be useful to handle Flush() for metrics anomaly detectors.
+	if len(tb.rawLogs) > 0 {
+		tb.nextFlushTimestampMs = tb.rawLogs[0].GetTimestampMs() + int64(detectorFlushInterval/time.Millisecond)
+	}
+
 	for _, log := range tb.rawLogs {
+		ts := log.GetTimestampMs()
+
 		// Process through log detectors
 		for _, detector := range tb.logDetectors {
 			result := detector.Process(log)
-			ts := log.GetTimestampMs()
-			for _, m := range result.Metrics {
-				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
-			}
-			for _, anomaly := range result.Anomalies {
-				// Fill in fields the detector may not have set
-				anomaly.Type = observerdef.AnomalyTypeLog
-				if anomaly.DetectorName == "" {
-					anomaly.DetectorName = detector.Name()
-				}
-				if anomaly.Timestamp == 0 {
-					anomaly.Timestamp = ts / 1000
-				}
-				// If still zero (log had no parseable timestamp), use current time
-				if anomaly.Timestamp == 0 {
-					anomaly.Timestamp = time.Now().Unix()
-				}
-				if anomaly.Source == "" {
-					anomaly.Source = "logs"
-				}
-				tb.logAnomalies = append(tb.logAnomalies, anomaly)
-				tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
-					tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
-			}
-			tb.handleTelemetry(result.Telemetry, detector.Name(), ts)
+			tb.handleLogDetectorResult(result, ts, detector.Name())
+		}
+
+		// Flush
+		for ts >= tb.nextFlushTimestampMs {
+			tb.flushLogDetectors(tb.nextFlushTimestampMs)
+			tb.nextFlushTimestampMs += int64(detectorFlushInterval / time.Millisecond)
 		}
 	}
 
 	return nil
 }
 
-// resetAllState resets all correlators.
+func (tb *TestBench) flushLogDetectors(timestampMs int64) {
+	for _, detector := range tb.logDetectors {
+		result := detector.Flush(timestampMs)
+		tb.handleLogDetectorResult(result, tb.nextFlushTimestampMs, detector.Name())
+	}
+}
+
+func (tb *TestBench) handleLogDetectorResult(result observerdef.LogDetectionResult, timestampMs int64, detectorName string) {
+	for _, m := range result.Metrics {
+		tb.storage.Add("logs", "_virtual."+m.Name, m.Value, timestampMs/1000, m.Tags)
+	}
+	for _, anomaly := range result.Anomalies {
+		// Fill in fields the detector may not have set
+		anomaly.Type = observerdef.AnomalyTypeLog
+		if anomaly.DetectorName == "" {
+			anomaly.DetectorName = detectorName
+		}
+		if anomaly.Timestamp == 0 {
+			anomaly.Timestamp = timestampMs / 1000
+		}
+		// If still zero (log had no parseable timestamp), use current time
+		if anomaly.Timestamp == 0 {
+			anomaly.Timestamp = time.Now().Unix()
+		}
+		if anomaly.Source == "" {
+			anomaly.Source = "logs"
+		}
+		tb.logAnomalies = append(tb.logAnomalies, anomaly)
+		tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
+			tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
+	}
+	tb.handleTelemetry(result.Telemetry, detectorName, timestampMs)
+}
+
+// resetAllState resets all correlators and the deduplicator.
 func (tb *TestBench) resetAllState() {
 	for _, proc := range tb.allCorrelators() {
 		if resetter, ok := proc.(interface{ Reset() }); ok {

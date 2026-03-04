@@ -57,6 +57,10 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 	return observer.LogDetectionResult{Metrics: metrics}
 }
 
+func (a *LogMetricsExtractor) Flush(timestampMs int64) observer.LogDetectionResult {
+	return observer.LogDetectionResult{}
+}
+
 func isJSONObject(b []byte) bool {
 	trimmed := bytes.TrimSpace(b)
 	return len(trimmed) > 1 && trimmed[0] == '{' && json.Valid(trimmed)
