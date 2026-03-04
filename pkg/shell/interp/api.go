@@ -583,7 +583,7 @@ func (r *Runner) Reset() {
 				}
 				r.roots[i] = root
 			}
-			r.openHandler = wrapOpenHandler(r.roots, r.allowedPaths, r.openHandler)
+			r.openHandler = wrapOpenHandler(r.roots, r.allowedPaths)
 			r.readDirHandler = wrapReadDirHandler(r.roots, r.allowedPaths)
 			r.execHandler = wrapExecHandler(r.roots, r.allowedPaths, r.execHandler)
 		}

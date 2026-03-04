@@ -207,16 +207,6 @@ func TestAllowedPathsNilUnrestricted(t *testing.T) {
 	assert.Equal(t, "works\n", stdout)
 }
 
-func TestAllowedPathsDevNull(t *testing.T) {
-	dir := t.TempDir()
-
-	stdout, _, exitCode := runScript(t, "cat < /dev/null; echo ok",
-		interp.Dir(dir),
-		interp.AllowedPaths([]string{dir}),
-	)
-	assert.Equal(t, 0, exitCode)
-	assert.Equal(t, "ok\n", stdout)
-}
 
 func TestAllowedPathsClose(t *testing.T) {
 	dir := t.TempDir()

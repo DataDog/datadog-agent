@@ -17,10 +17,10 @@ import (
 
 // AllowedPaths restricts file and directory access to the specified directories.
 // Paths must be absolute directories that exist. When set, only files within
-// these directories can be opened, read, or executed. /dev/null is always allowed.
+// these directories can be opened, read, or executed.
 //
 // A nil slice (the default) means unrestricted access.
-// An empty slice blocks all file access except /dev/null.
+// An empty slice blocks all file access.
 //
 // The restriction is enforced using os.Root (Go 1.24+), which uses openat
 // syscalls for atomic path validation — immune to symlink and ".." traversal attacks.
@@ -63,14 +63,9 @@ func findMatchingRoot(absPath string, roots []*os.Root, allowedPaths []string) (
 }
 
 // wrapOpenHandler wraps an OpenHandlerFunc to restrict file opens to allowed paths.
-// /dev/null is always allowed via the next handler.
-// For all other paths, the file is opened through os.Root for atomic path validation.
-func wrapOpenHandler(roots []*os.Root, allowedPaths []string, next OpenHandlerFunc) OpenHandlerFunc {
+// The file is opened through os.Root for atomic path validation.
+func wrapOpenHandler(roots []*os.Root, allowedPaths []string) OpenHandlerFunc {
 	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
-		if path == "/dev/null" {
-			return next(ctx, path, flag, perm)
-		}
-
 		absPath := path
 		if !filepath.IsAbs(absPath) {
 			hc := HandlerCtx(ctx)
