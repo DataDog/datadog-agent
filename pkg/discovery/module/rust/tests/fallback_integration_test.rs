@@ -48,7 +48,7 @@ fn test_fallback_on_npm_enabled() {
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
@@ -65,8 +65,8 @@ fn test_fallback_on_npm_enabled() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: env var DD_NETWORK_CONFIG_ENABLED is set"),
-        "Expected fallback due to DD_NETWORK_CONFIG_ENABLED, got: {}",
+        stdout.contains("Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"),
+        "Expected fallback due to DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
         stdout
     );
 }
@@ -594,7 +594,7 @@ fn test_env_var_non_boolean_triggers_fallback() {
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_NETWORK_CONFIG_ENABLED", "maybe")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "maybe")
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
@@ -605,8 +605,8 @@ fn test_env_var_non_boolean_triggers_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: env var DD_NETWORK_CONFIG_ENABLED is set"),
-        "Expected fallback due to non-boolean DD_NETWORK_CONFIG_ENABLED, got: {}",
+        stdout.contains("Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"),
+        "Expected fallback due to non-boolean DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
         stdout
     );
 }
