@@ -11,6 +11,14 @@
 
 .setup_datadog_ci_sections:
   - DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DATADOG_API_KEY
+  # Emit a retroactive span covering runner-managed phases (pod scheduling, git clone, artifact downloads)
+  # that happen before any user script runs. CI_JOB_STARTED_AT is set by GitLab Runner.
+  - |
+    _job_start_ms="$(date -d "$CI_JOB_STARTED_AT" '+%s%N' | cut -b1-13)"
+    _now_ms="$(date '+%s%N' | cut -b1-13)"
+    datadog-ci trace span --name "Runner setup (pod + git + artifacts)" \
+      --start-time "$_job_start_ms" --end-time "$_now_ms" \
+      --tags agent-custom-span:true --tags agent-category:e2e-setup || true
   - |
     datadog-ci-start-section() {
       export _ci_section_start="$(date '+%s%N' | cut -b1-13)"
