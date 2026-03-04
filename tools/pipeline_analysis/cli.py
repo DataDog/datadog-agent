@@ -109,6 +109,13 @@ def cli(ctx: click.Context, repo_root: str | None) -> None:
     show_default=True,
     help="Add S3 bucket/registry nodes that connect producer and consumer stages (stages mode only).",
 )
+@click.option(
+    "--ignore-stage",
+    "ignore_stages",
+    multiple=True,
+    metavar="STAGE",
+    help="Drop all jobs in this stage.  May be repeated.",
+)
 @click.pass_context
 def graph(
     ctx: click.Context,
@@ -120,6 +127,7 @@ def graph(
     drop_manual: bool,
     compound_edges: bool,
     show_buckets: bool,
+    ignore_stages: tuple[str, ...],
 ) -> None:
     """Render the pipeline graph to a file."""
     repo_root = ctx.obj["repo_root"]
@@ -137,22 +145,34 @@ def graph(
         G = pg.G
         click.echo(f"Loaded {G.number_of_nodes()} jobs across {len(pg.stages)} stages.")
 
+    stages = list(pg.stages)
+
+    if drop_manual or ignore_stages:
+        G = G.copy()
+
     if drop_manual:
         manual_nodes = [n for n, d in G.nodes(data=True) if d.get("is_manual", False)]
-        G = G.copy()
         G.remove_nodes_from(manual_nodes)
         click.echo(f"Dropped {len(manual_nodes)} manual-only node(s) → {G.number_of_nodes()} remaining.")
+
+    if ignore_stages:
+        ignored = set(ignore_stages)
+        unknown = ignored - set(stages)
+        if unknown:
+            click.echo(f"Warning: unknown stage(s): {', '.join(sorted(unknown))}")
+        stage_nodes = [n for n, d in G.nodes(data=True) if d.get("stage", "") in ignored]
+        G.remove_nodes_from(stage_nodes)
+        stages = [s for s in stages if s not in ignored]
+        click.echo(f"Ignored stage(s): {', '.join(sorted(ignored))} → {G.number_of_nodes()} node(s) remaining.")
 
     output_path = Path(output)
 
     if mode == "stages":
-        out = render_stages(
-            G, pg.stages, output_path, fmt=fmt, compound_edges=compound_edges, show_buckets=show_buckets
-        )
+        out = render_stages(G, stages, output_path, fmt=fmt, compound_edges=compound_edges, show_buckets=show_buckets)
         click.echo(f"Rendered stage view → {out}")
 
     elif mode == "jobs":
-        out = render_jobs(G, pg.stages, output_path, fmt=fmt, compound_edges=compound_edges)
+        out = render_jobs(G, stages, output_path, fmt=fmt, compound_edges=compound_edges)
         click.echo(f"Rendered job view → {out}")
 
     elif mode == "job":
