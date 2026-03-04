@@ -253,6 +253,16 @@ namespace Datadog.CustomActions
             return tagsConfiguration.ToString();
         }
 
+        static string FormatParActionsAllowlist(string value)
+        {
+            var newLine = $"{Environment.NewLine}    - ";
+            var sb = new StringBuilder();
+            sb.Append("  actions_allowlist:");
+            sb.Append(newLine);
+            sb.Append(string.Join(newLine, value.Split(',')));
+            return sb.ToString();
+        }
+
         public static string ReplaceProperties(string yaml, ISession session)
         {
             var replacers = new List<PropertyReplacer>
@@ -321,7 +331,15 @@ namespace Datadog.CustomActions
                     .Match("^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>").ReplaceWith(FormatTags),
 
                 PropertyReplacer.For("EC2_USE_WINDOWS_PREFIX_DETECTION")
-                    .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}")
+                    .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}"),
+
+                PropertyReplacer.For("PAR_ENABLED")
+                    .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
+                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}"),
+
+                PropertyReplacer.For("PAR_ACTIONS_ALLOWLIST")
+                    .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
+                    .Match("^[ #]*actions_allowlist:(?:(?:.|\n)*?)^[ #]*- com\\.datadoghq\\.script\\.runPredefinedScript").ReplaceWith(FormatParActionsAllowlist)
             };
 
             foreach (var replacer in replacers)

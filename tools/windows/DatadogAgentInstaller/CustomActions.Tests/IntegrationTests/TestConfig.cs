@@ -105,6 +105,7 @@ namespace CustomActions.Tests.IntegrationTests
                          { "LOGS_ENABLED", "true" },
                          { "PROCESS_ENABLED", "true" },
                          { "APM_ENABLED", "true" },
+                         { "PAR_ENABLED", "true" },
                      })
             {
                 sessionMock.Setup(session => session[keyValuePair.Key]).Returns(keyValuePair.Value);
@@ -120,6 +121,7 @@ namespace CustomActions.Tests.IntegrationTests
             resultingYaml.HasLogsEnabled();
             resultingYaml.HasProcessEnabled();
             resultingYaml.HasApmEnabled();
+            resultingYaml.HasParEnabled();
         }
     }
 }

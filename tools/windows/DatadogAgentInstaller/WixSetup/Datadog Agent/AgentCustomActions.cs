@@ -243,7 +243,9 @@ namespace WixSetup.Datadog_Agent
                     "PYVER=[PYVER], " +
                     "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                     "NPM=[NPM], " +
-                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
+                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
+                    "PAR_ENABLED=[PAR_ENABLED], " +
+                    "PAR_ACTIONS_ALLOWLIST=[PAR_ACTIONS_ALLOWLIST]")
                 .HideTarget(true);
 
             // Cleanup leftover files on rollback
