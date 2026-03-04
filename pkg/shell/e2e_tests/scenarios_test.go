@@ -44,7 +44,8 @@ type setupFile struct {
 
 // input holds the shell script to execute.
 type input struct {
-	Script string `yaml:"script"`
+	Envs   map[string]string `yaml:"envs"`
+	Script string            `yaml:"script"`
 }
 
 // expected holds the expected output for a scenario.
@@ -116,6 +117,10 @@ func runScenario(t *testing.T, sc scenario) {
 	t.Helper()
 
 	dir := setupTestDir(t, sc)
+
+	for k, v := range sc.Input.Envs {
+		t.Setenv(k, v)
+	}
 
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader(sc.Input.Script), "")

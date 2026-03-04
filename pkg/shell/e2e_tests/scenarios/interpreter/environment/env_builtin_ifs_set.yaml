@@ -1,0 +1,10 @@
+description: The IFS builtin variable is always set even without input.envs.
+input:
+  # language=bash
+  script: |+
+    echo "${IFS:+set}"
+expected:
+  stdout: |+
+    set
+  stderr: ""
+  exit_code: 0

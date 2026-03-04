@@ -1,0 +1,10 @@
+description: Without input.envs, no environment variables are available except builtins.
+input:
+  # language=bash
+  script: |+
+    echo "${SOME_RANDOM_VAR:-empty}"
+expected:
+  stdout: |+
+    empty
+  stderr: ""
+  exit_code: 0

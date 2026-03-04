@@ -231,8 +231,9 @@ func New(opts ...RunnerOption) (*Runner, error) {
 	}
 
 	// Set the default fallbacks, if necessary.
+	// Default to an empty environment to avoid propagating parent env vars.
 	if r.Env == nil {
-		Env(nil)(r)
+		r.Env = expand.ListEnviron()
 	}
 	if r.Dir == "" {
 		if err := Dir("")(r); err != nil {
