@@ -15,7 +15,7 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	pb := &pb.MetricData{
+	md:= &pb.MetricData{
 		DictNameStr:      []byte("\x03foo\x03bar"),
 		DictTagStr:       []byte("\x03baz"),
 		DictTagsets:      []int64{1, 1},
@@ -24,21 +24,24 @@ func TestBasic(t *testing.T) {
 		DictResourceType: []int64{1, 1, 2, 1, 2},
 		DictResourceName: []int64{2, 2, 2, 2, 3},
 		DictOriginInfo:   []int32{10, 10, 0},
-		Types:            []uint64{0x11, 0x21, 0x31},
-		NameRefs:         []int64{1, 0, 1},
-		TagsetRefs:       []int64{1, -1, 1},
-		ResourcesRefs:    []int64{1, 1, 1},
-		Intervals:        []uint64{10, 10, 10},
-		OriginInfoRefs:   []int64{1, 0, 0},
-		SourceTypeNameRefs: []int64{0, 0, 0},
-		NumPoints:        []uint64{1, 1, 1},
-		Timestamps:       []int64{10000, 0, 0},
-		ValsSint64:       []int64{42},
+		Types:            []uint64{0x11, 0x21, 0x31, 0x4},
+		NameRefs:         []int64{1, 0, 1, 0},
+		TagsetRefs:       []int64{1, -1, 1, 0},
+		ResourcesRefs:    []int64{1, 1, 1, -1},
+		Intervals:        []uint64{10, 10, 10, 0},
+		OriginInfoRefs:   []int64{1, 0, 0, -1},
+		SourceTypeNameRefs: []int64{0, 0, 0, 0},
+		NumPoints:        []uint64{1, 1, 1, 1},
+		Timestamps:       []int64{10000, 0, 0, 0},
+		ValsSint64:       []int64{42, 4},
 		ValsFloat32:      []float32{0.5},
 		ValsFloat64:      []float64{3.14},
+		SketchNumBins:    []uint64{1},
+		SketchBinKeys:    []int32{0},
+		SketchBinCnts:    []uint32{4},
 	}
 
-	r := NewMetricDataReader(pb)
+	r := NewMetricDataReader(md)
 	require.NoError(t, r.Initialize())
 
 	require.True(t, r.HaveMoreMetrics())
@@ -88,6 +91,29 @@ func TestBasic(t *testing.T) {
 	require.NoError(t, r.NextPoint())
 	require.Equal(t, 3.14, r.Value())
 	require.False(t, r.HaveMorePoints())
+
+	require.True(t, r.HaveMoreMetrics())
+	require.NoError(t, r.NextMetric())
+	require.Equal(t, "bar", r.Name())
+	require.EqualValues(t, []string{"baz"}, r.Tags())
+	require.Equal(t, uint64(0), r.Interval())
+	require.Equal(t, "", r.SourceTypeName())
+	require.Nil(t, r.Origin())
+	require.True(t, r.HaveMorePoints())
+	require.NoError(t, r.NextPoint())
+	require.Equal(t, pb.MetricType_Sketch, r.Type())
+
+	sum, min, max, cnt := r.SketchSummary()
+	require.Equal(t, 0., sum)
+	require.Equal(t, 0., min)
+	require.Equal(t, 0., max)
+	require.Equal(t, uint64(4), cnt)
+	k, n := r.SketchCols()
+	require.Equal(t, []int32{0}, k)
+	require.Equal(t, []uint32{4}, n)
+
+	require.False(t, r.HaveMorePoints())
+	require.False(t, r.HaveMoreMetrics())
 }
 
 func TestDictResources(t *testing.T) {
