@@ -595,6 +595,21 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
 
+  const visibleRegularLogs = useMemo(() => {
+    if (!timeRange) return regularLogs;
+    return regularLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
+  }, [regularLogs, timeRange]);
+
+  const visibleTelemetryLogs = useMemo(() => {
+    if (!timeRange) return telemetryLogs;
+    return telemetryLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
+  }, [telemetryLogs, timeRange]);
+
+  const visibleAnomalies = useMemo(() => {
+    if (!timeRange) return sortedAnomalies;
+    return sortedAnomalies.filter((a) => a.timestamp >= timeRange.start && a.timestamp <= timeRange.end);
+  }, [sortedAnomalies, timeRange]);
+
   return (
     <div className="flex-1 flex">
       {/* Sidebar */}
@@ -747,11 +762,11 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                   className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
                 >
                   <span className="text-slate-500">{anomaliesExpanded ? '▼' : '▶'}</span>
-                  Detected Anomalies ({sortedAnomalies.length}{sortedAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
+                  Detected Anomalies ({visibleAnomalies.length}{visibleAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
                 </button>
                 {anomaliesExpanded && (
                   <div className="space-y-1.5">
-                    {sortedAnomalies.map((anomaly, idx) => (
+                    {visibleAnomalies.map((anomaly, idx) => (
                       <LogAnomalyCard
                         key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
                         anomaly={anomaly}
@@ -775,7 +790,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                 className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
               >
                 <span className="text-slate-500">{logsExpanded ? '▼' : '▶'}</span>
-                Raw Logs ({regularLogs.length}{regularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
+                Raw Logs ({visibleRegularLogs.length}{visibleRegularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
               </button>
 
               {logsExpanded && (
@@ -783,14 +798,14 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No log entries. Load a scenario with log files or the demo scenario.
                   </div>
-                ) : regularLogs.length === 0 ? (
+                ) : visibleRegularLogs.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
-                    No logs match the selected levels.
+                    No logs match the selected filters.
                   </div>
                 ) : (
                   <>
                     <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                      {regularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                      {visibleRegularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
                         <LogEntryRow
                           key={`${entry.timestampMs}-${idx}`}
                           entry={entry}
@@ -801,12 +816,12 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                         />
                       ))}
                     </div>
-                    {regularLogs.length > logPage * LOG_PAGE_SIZE && (
+                    {visibleRegularLogs.length > logPage * LOG_PAGE_SIZE && (
                       <button
                         onClick={() => setLogPage((p) => p + 1)}
                         className="mt-2 w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors"
                       >
-                        Show more ({regularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
+                        Show more ({visibleRegularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
                       </button>
                     )}
                   </>
@@ -825,20 +840,20 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                   >
                     <span className="text-purple-600">{telemetryLogsExpanded ? '▼' : '▶'}</span>
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
-                    Telemetry Logs ({telemetryLogs.length})
+                    Telemetry Logs ({visibleTelemetryLogs.length}{visibleTelemetryLogs.length !== telemetryLogs.length ? ` of ${telemetryLogs.length}` : ''})
                   </button>
                   <div className="flex-1 border-t border-purple-800/50" />
                 </div>
 
                 {telemetryLogsExpanded && (
-                  telemetryLogs.length === 0 ? (
+                  visibleTelemetryLogs.length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
                       No telemetry logs match the current filters.
                     </div>
                   ) : (
                     <>
                       <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                        {telemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                        {visibleTelemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
                           <LogEntryRow
                             key={`telem-${entry.timestampMs}-${idx}`}
                             entry={entry}
@@ -850,12 +865,12 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                           />
                         ))}
                       </div>
-                      {telemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
+                      {visibleTelemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
                         <button
                           onClick={() => setTelemetryLogPage((p) => p + 1)}
                           className="mt-2 w-full py-1.5 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors"
                         >
-                          Show more ({telemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
+                          Show more ({visibleTelemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
                         </button>
                       )}
                     </>
