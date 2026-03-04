@@ -260,7 +260,9 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         print(color_message("No release note files to lint", "yellow"))
         return
 
-    results = lint_releasenotes(file_list, validate_filename=only_changed)
+    # Validate filenames when checking a targeted set of files (CI or pre-commit),
+    # but not when linting the full corpus which contains legacy non-conforming names.
+    results = lint_releasenotes(file_list, validate_filename=bool(files or only_changed))
 
     if results:
         print(color_message("RST formatting issues found in release notes:", "red"))
