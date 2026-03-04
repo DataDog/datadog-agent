@@ -167,7 +167,7 @@ ddot_byoc_package_build_test_deb:
     - when: on_success
 
 ddot_byoc_package_build_test_linux_oci:
-  stage: integration_test
+  stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs:
     - "integration_tests_otel"
