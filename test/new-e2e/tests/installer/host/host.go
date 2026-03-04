@@ -7,6 +7,7 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -121,8 +122,14 @@ func (h *Host) InstallDocker() {
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 
+	// When E2E_IMAGE_PULL_* is set (e.g. in CI), run docker login so subsequent pulls can use the private registry.
 	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
 	if err != nil {
+		var notFound parameters.ParameterNotFoundError
+		if errors.As(err, &notFound) {
+			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
+			return
+		}
 		h.t().Fatalf("failed to get image pull password: %v", err)
 	}
 	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
