@@ -15,29 +15,34 @@ import (
 // Preprocessor owns all preprocessor stages and wires them in the correct order:
 // JSON aggregation → tokenization → labeling → aggregation → sampling → outputChan
 type Preprocessor struct {
-	outputChan     chan *message.Message
-	jsonAggregator JSONAggregator
-	tokenizer      *Tokenizer
-	labeler        Labeler
-	aggregator     Aggregator
-	sampler        Sampler
-	flushTimeout   time.Duration
-	flushTimer     *time.Timer
+	outputChan      chan *message.Message
+	jsonAggregator  JSONAggregator
+	tokenizer       *Tokenizer
+	labeler         Labeler
+	aggregator      Aggregator
+	sampler         Sampler
+	flushTimeout    time.Duration
+	flushTimer      *time.Timer
+	labelerMaxBytes int // tokens beyond this byte offset are not passed to the labeler; 0 = no limit
 }
 
 // NewPreprocessor creates a new Preprocessor.
 // Use NoopJSONAggregator for paths that don't aggregate JSON.
 // Use NoopLabeler for paths that don't use auto multiline detection (regex, pass-through).
+// labelerMaxBytes limits how many bytes of tokens the labeler sees; 0 means no limit (all tokens).
+// This allows the tokenizer to produce a wider token window for the sampler while keeping the
+// labeler focused on the log header it actually needs (e.g. timestamp detection).
 func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler Labeler, sampler Sampler,
-	outputChan chan *message.Message, jsonAggregator JSONAggregator, flushTimeout time.Duration) *Preprocessor {
+	outputChan chan *message.Message, jsonAggregator JSONAggregator, flushTimeout time.Duration, labelerMaxBytes int) *Preprocessor {
 	return &Preprocessor{
-		outputChan:     outputChan,
-		jsonAggregator: jsonAggregator,
-		tokenizer:      tokenizer,
-		labeler:        labeler,
-		aggregator:     aggregator,
-		sampler:        sampler,
-		flushTimeout:   flushTimeout,
+		outputChan:      outputChan,
+		jsonAggregator:  jsonAggregator,
+		tokenizer:       tokenizer,
+		labeler:         labeler,
+		aggregator:      aggregator,
+		sampler:         sampler,
+		flushTimeout:    flushTimeout,
+		labelerMaxBytes: labelerMaxBytes,
 	}
 }
 
@@ -52,13 +57,32 @@ func (p *Preprocessor) Process(msg *message.Message) {
 	}
 }
 
-// Steps 2, 3, and 4: tokenize, label, and aggregate each log
+// Steps 2, 3, and 4: tokenize, label, and aggregate each log.
+// The tokenizer may produce tokens for more bytes than the labeler needs (e.g. when the
+// adaptive sampler is active and has a wider window). limitTokensToBytes slices the token
+// array so the labeler only sees tokens within its configured byte budget, while the
+// aggregator (and sampler) receive the full token slice.
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
-	label := p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
+	labelTokens, labelIndices := limitTokensToBytes(tokens, tokenIndices, p.labelerMaxBytes)
+	label := p.labeler.Label(msg.GetContent(), labelTokens, labelIndices)
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}
+}
+
+// limitTokensToBytes returns the prefix of tokens whose start byte index is less than maxBytes.
+// If maxBytes is 0, all tokens are returned unchanged (no limit).
+func limitTokensToBytes(tokens []Token, indices []int, maxBytes int) ([]Token, []int) {
+	if maxBytes <= 0 {
+		return tokens, indices
+	}
+	for i, idx := range indices {
+		if idx >= maxBytes {
+			return tokens[:i], indices[:i]
+		}
+	}
+	return tokens, indices
 }
 
 // Step 5: Sample and emit the log

@@ -85,7 +85,7 @@ func newTestPreprocessor(enableJSON bool) (*Preprocessor, *captureAggregator, *c
 		jsonAggregator = NewJSONAggregator(false, 10000)
 	}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second, 0)
 	return preprocessor, aggregator, sampler
 }
 
@@ -135,7 +135,7 @@ func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	aggregator := &flushCaptureAggregator{}
 	sampler := &captureSampler{}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second, 0)
 
 	// Send an incomplete JSON fragment — it stays in jsonAggregator
 	preprocessor.Process(newTestPreprocessorMessage(`{"key":`))
