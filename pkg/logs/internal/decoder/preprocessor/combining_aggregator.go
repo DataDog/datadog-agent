@@ -54,7 +54,7 @@ func (b *bucket) reset() {
 	b.needsTruncation = false
 }
 
-func (b *bucket) flush() CompletedMessage {
+func (b *bucket) flush() AggregatedMessageWithTokens {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -103,12 +103,12 @@ func (b *bucket) flush() CompletedMessage {
 	}
 
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	return CompletedMessage{Msg: msg, Tokens: b.firstLineTokens}
+	return AggregatedMessageWithTokens{Msg: msg, Tokens: b.firstLineTokens}
 }
 
 // combiningAggregator aggregates multiline logs with a given label.
 type combiningAggregator struct {
-	collected          []CompletedMessage
+	collected          []AggregatedMessageWithTokens
 	bucket             *bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
@@ -148,7 +148,7 @@ func (a *combiningAggregator) flushToCollected() {
 }
 
 // Process processes a multiline log using a label and returns any completed messages.
-func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens []Token) []CompletedMessage {
+func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
@@ -201,7 +201,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens 
 }
 
 // Flush flushes the aggregator and returns any pending messages.
-func (a *combiningAggregator) Flush() []CompletedMessage {
+func (a *combiningAggregator) Flush() []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 	a.flushToCollected()
 	return a.collected

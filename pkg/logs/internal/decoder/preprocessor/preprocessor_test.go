@@ -35,12 +35,12 @@ type captureAggregator struct {
 	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []CompletedMessage {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
-	return []CompletedMessage{{Msg: msg}}
+	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
-func (a *captureAggregator) Flush() []CompletedMessage { return nil }
-func (a *captureAggregator) IsEmpty() bool             { return true }
+func (a *captureAggregator) Flush() []AggregatedMessageWithTokens { return nil }
+func (a *captureAggregator) IsEmpty() bool                        { return true }
 
 // flushCaptureAggregator tracks flush calls.
 type flushCaptureAggregator struct {
@@ -48,17 +48,17 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []CompletedMessage {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
 	a.pending = msg
 	return nil // buffer the message
 }
 
-func (a *flushCaptureAggregator) Flush() []CompletedMessage {
+func (a *flushCaptureAggregator) Flush() []AggregatedMessageWithTokens {
 	a.flushed = true
 	if a.pending != nil {
 		msg := a.pending
 		a.pending = nil
-		return []CompletedMessage{{Msg: msg}}
+		return []AggregatedMessageWithTokens{{Msg: msg}}
 	}
 	return nil
 }
@@ -157,9 +157,9 @@ func TestPreprocessor_FlushChanNilWhenEmpty(t *testing.T) {
 	assert.Nil(t, preprocessor.FlushChan(), "FlushChan should be nil when preprocessor is empty")
 }
 
-// TestPreprocessor_SamplerReceivesCompletedMessages verifies that messages returned by the
+// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokenss verifies that messages returned by the
 // aggregator flow to the sampler.
-func TestPreprocessor_SamplerReceivesCompletedMessages(t *testing.T) {
+func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokenss(t *testing.T) {
 	preprocessor, _, sampler := newTestPreprocessor(false)
 
 	preprocessor.Process(newTestPreprocessorMessage(`hello world`))
