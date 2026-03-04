@@ -1,0 +1,10 @@
+name: "unknown command"
+input:
+  # language=bash
+  script: |+
+    rm /tmp/does-not-exist-123
+expected:
+  stdout: ""
+  stderr: |+
+    rm: not found
+  exit_code: 127
