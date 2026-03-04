@@ -641,6 +641,10 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		return nil

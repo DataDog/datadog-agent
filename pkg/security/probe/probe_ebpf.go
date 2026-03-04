@@ -931,6 +931,21 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		p.probe.sendEventToConsumers(event)
 	}
 
+	// handle sbom resolution
+	if p.Resolvers.SBOMResolver != nil {
+		if event.IsActivityDumpSample() {
+			if event.GetEventType() == model.ExecEventType {
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+			} else if event.GetEventType() == model.FileOpenEventType {
+				// force resolution of the file path
+				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+
+				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+			}
+		}
+	}
+
 	// handle anomaly detections
 	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		if event.IsAnomalyDetectionEvent() {
