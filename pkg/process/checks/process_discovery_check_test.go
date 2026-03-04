@@ -165,9 +165,13 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 			cmdline:  []string{"java", "apikey:838372"},
 			expected: []string{"java", "apikey:********"},
 		},
-		"no replacements": {
+		"key now scrubbed": {
 			cmdline:  []string{"java", "key:838372"},
-			expected: []string{"java", "key:838372"},
+			expected: []string{"java", "key:********"},
+		},
+		"no replacements for port": {
+			cmdline:  []string{"java", "port:8080"},
+			expected: []string{"java", "port:8080"},
 		},
 	}
 
