@@ -60,6 +60,20 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
+// agents holds the serverless agents for metrics, traces, and logs.
+type agents struct {
+	metric  *metrics.ServerlessMetricAgent
+	tracing *cloudservice.TracingContext
+	logs    logsAgent.ServerlessLogsAgent
+}
+
+// setupResult holds all components initialized during setup.
+type setupResult struct {
+	cloudService cloudservice.CloudService
+	logConfig    *serverlessInitLog.Config
+	agents       *agents
+}
+
 var modeConf mode.Conf
 
 func main() {
@@ -101,18 +115,18 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
+	result, cleanup, err := setup(secretComp, modeConf, tagger, compression, hostname)
+	defer func() { cleanup(err) }()
 
-	err := modeConf.Runner(logConfig)
+	if err != nil {
+		return err
+	}
 
-	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
-
+	err = modeConf.Runner(result.logConfig)
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (*setupResult, func(error), error) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -157,8 +171,13 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 		SpanTags:   traceTags,
 	}
 
-	// TODO check for errors and exit
-	_ = cloudService.Init(tracingCtx)
+	if err := cloudService.Init(tracingCtx); err != nil {
+		// Cleanup for early exit: only trace and logs agents exist, no metric agent yet
+		cleanup := func(_ error) {
+			lastFlush(agentLogConfig.FlushTimeout, nil, traceAgent, logsAgent)
+		}
+		return nil, cleanup, err
+	}
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
@@ -168,7 +187,22 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent
+
+	// Cleanup for success: all agents exist
+	cleanup := func(err error) {
+		cloudService.Shutdown(*metricAgent, err)
+		lastFlush(agentLogConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	}
+
+	return &setupResult{
+		cloudService: cloudService,
+		logConfig:    agentLogConfig,
+		agents: &agents{
+			metric:  metricAgent,
+			tracing: tracingCtx,
+			logs:    logsAgent,
+		},
+	}, cleanup, nil
 }
 
 var serverlessProfileTags = []string{
@@ -280,6 +314,10 @@ func flushWithContext(ctx context.Context, timeoutchan chan struct{}, flushFunct
 }
 
 func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverless.FlushableAgent, hasTimeout *atomic.Int32) {
+	defer wg.Done()
+	if agent == nil {
+		return
+	}
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	ch := make(chan struct{}, 1)
@@ -287,11 +325,8 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 	select {
 	case <-childCtx.Done():
 		hasTimeout.Inc()
-		break
 	case <-ch:
-		break
 	}
-	wg.Done()
 }
 
 func setEnvWithoutOverride(envToSet map[string]string) {
