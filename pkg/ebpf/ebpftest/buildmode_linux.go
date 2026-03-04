@@ -7,7 +7,6 @@ package ebpftest
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -17,25 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var hostPlatform string
 var kv = kernel.MustHostVersion()
-
-func init() {
-	hostPlatform, _ = kernel.Platform()
-}
 
 // SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
 	modes := []BuildMode{RuntimeCompiled, CORE}
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
-	}
-	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
-		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
-		modes = append(modes, Fentry)
-	}
-	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
-		modes = append(modes, Ebpfless)
 	}
 
 	return modes
