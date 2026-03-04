@@ -26,33 +26,7 @@ alias(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":all_embedded",
-        "@acl//:all_files",
-        "@attr//:all_files",
-        "@bzip2//:all_files",
-    ],
-    # Do not pick up with ... expansion.
-    tags = ["manual"],
-    visibility = ["//packages:__subpackages__"],
-)
-
-# TODO: Fix all of these packages so that embedded is part of the prefix they
-# know about. Right now, we rely on the pkg_install dest_dir to put it into
-# embedded.
-pkg_filegroup(
-    name = "all_embedded",
-    srcs = [
-        "@dbus//:all_files",
-        "@gcrypt//:all_files",
-        "@libselinux//:all_files",
-        "@libsepol//:all_files",
-        "@libxslt//:all_files",
-        "@libyaml//:all_files",
-        "@pcre2//:all_files",
-        "@popt//:all_files",
-        "@rpm//:all_files",
-        "@util-linux//:all_files",
-        "@xmlsec//:all_files",
+        "@openscap//:all_deps_patched",
     ],
     prefix = "embedded",
     # Do not pick up with ... expansion.
