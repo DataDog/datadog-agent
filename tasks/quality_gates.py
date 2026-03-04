@@ -649,6 +649,7 @@ def _run_gate(ctx, gate: StaticQualityGate):
             "state": False,
             "error_type": "StaticQualityGateFailed",
             "message": str(e),
+            "result": result,
             "blocking": True,  # May be updated to False if delta=0 after relative size calculation
         }
     except InfraError:
