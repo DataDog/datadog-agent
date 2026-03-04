@@ -119,12 +119,16 @@ func (c *CloudRun) GetTags() map[string]string {
 
 func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
-		"location":      tags["location"],
-		"project_id":    tags["project_id"],
-		"service_name":  tags["service_name"],
-		"resource_name": tags["resource_name"],
-		"origin":        tags["origin"],
-		"dd.origin":     tags["_dd.origin"],
+		"location":     tags["location"],
+		"project_id":   tags["project_id"],
+		"service_name": tags["service_name"],
+		"origin":       tags["origin"],
+	}
+
+	if c.spanNamespace == cloudRunFunction {
+		baseTags["resource_name"] = tags["gcrfx.resource_name"]
+	} else {
+		baseTags["resource_name"] = tags["gcr.resource_name"]
 	}
 
 	highCardinalityTags := map[string]string{

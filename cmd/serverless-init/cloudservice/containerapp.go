@@ -123,7 +123,6 @@ func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"resource_id":     tags["resource_id"],
 		"subscription_id": tags["subscription_id"],
 		"origin":          tags["origin"],
-		"dd.origin":       tags["_dd.origin"],
 	}
 
 	highCardinalityTags := map[string]string{

@@ -96,7 +96,6 @@ func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"project_id": tags["project_id"],
 		"job_name":   tags["job_name"],
 		"origin":     tags["origin"],
-		"dd.origin":  tags["_dd.origin"],
 	}
 
 	highCardinalityTags := map[string]string{}

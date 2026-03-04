@@ -129,10 +129,13 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	configuredTagsMap := serverlessTag.ArrayToMap(configuredTags)
 	baseTags := serverlessInitTag.GetBaseTagsMap()
 	cloudTags := cloudService.GetTags()
-	tags := serverlessInitTag.MergeTags(modeConf.TagVersionMode, baseTags, configuredTagsMap, cloudTags)
+	tags := serverlessTag.MergeWithOverwrite(baseTags, configuredTagsMap, cloudTags)
+	serverlessInitTag.SetVersionMode(tags, modeConf.TagVersionMode)
 
 	enhancedMetricTagsBase, enhancedMetricTagsHighCardinality := cloudService.GetEnhancedMetricTags(cloudTags)
-	enhancedMetricTags := serverlessInitTag.MergeTags(modeConf.TagVersionMode, baseTags, configuredTagsMap, enhancedMetricTagsBase)
+	enhancedMetricTags := serverlessTag.MergeWithOverwrite(baseTags, configuredTagsMap, enhancedMetricTagsBase)
+	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 	enhancedMetricTagsAll := serverlessTag.MergeWithOverwrite(enhancedMetricTags, enhancedMetricTagsHighCardinality)
 
 	defaultSource := cloudService.GetDefaultLogsSource()

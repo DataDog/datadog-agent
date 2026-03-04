@@ -16,10 +16,12 @@ import (
 
 // Conf contains the configuration for the mode in which the serverless-init agent should run
 type Conf struct {
-	LoggerName     string
-	Runner         func(logConfig *serverlessLog.Config) error
-	TagVersionMode string
-	EnvDefaults    map[string]string
+	LoggerName                    string
+	Runner                        func(logConfig *serverlessLog.Config) error
+	TagVersionMode                string
+	TagVersionModeEnhancedMetrics string
+	SidecarMode                   bool
+	EnvDefaults                   map[string]string
 }
 
 const (
@@ -44,17 +46,21 @@ func DetectMode() Conf {
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
 		return Conf{
-			LoggerName:     loggerNameSidecar,
-			Runner:         RunSidecar,
-			TagVersionMode: "_dd.datadog_sidecar_version",
-			EnvDefaults:    envToSet,
+			LoggerName:                    loggerNameSidecar,
+			Runner:                        RunSidecar,
+			TagVersionMode:                "_dd.datadog_sidecar_version",
+			TagVersionModeEnhancedMetrics: "datadog_sidecar_version",
+			SidecarMode:                   true,
+			EnvDefaults:                   envToSet,
 		}
 	}
 	log.Infof("Arguments provided, launching in Init mode")
 	return Conf{
-		LoggerName:     loggerNameInit,
-		Runner:         RunInit,
-		TagVersionMode: "_dd.datadog_init_version",
-		EnvDefaults:    envToSet,
+		LoggerName:                    loggerNameInit,
+		Runner:                        RunInit,
+		TagVersionMode:                "_dd.datadog_init_version",
+		TagVersionModeEnhancedMetrics: "datadog_init_version",
+		SidecarMode:                   false,
+		EnvDefaults:                   envToSet,
 	}
 }

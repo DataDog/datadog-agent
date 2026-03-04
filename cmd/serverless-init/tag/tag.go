@@ -79,14 +79,16 @@ func GetBaseTagsMap() map[string]string {
 	return tagsMap
 }
 
-// MergeTags merges tag maps in order (later overwrites earlier), then sets versionMode.
-func MergeTags(versionMode string, tagMaps ...map[string]string) map[string]string {
-	merged := make(map[string]string)
-	for _, m := range tagMaps {
-		merged = tags.MergeWithOverwrite(merged, m)
-	}
-	merged[versionMode] = tags.GetExtensionVersion()
-	return merged
+// SetVersionMode sets the version mode tag.
+func SetVersionMode(tagMap map[string]string, versionMode string) map[string]string {
+	tagMap[versionMode] = tags.GetExtensionVersion()
+	return tagMap
+}
+
+// SetSidecarModeTag sets the sidecar mode tag.
+func SetSidecarModeTag(tagMap map[string]string, mode bool) map[string]string {
+	tagMap["sidecar"] = strconv.FormatBool(mode)
+	return tagMap
 }
 
 // MakeTraceAgentTags handles tag customization for the trace agent.

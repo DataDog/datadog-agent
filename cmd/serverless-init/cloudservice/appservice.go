@@ -57,11 +57,10 @@ func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]s
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
 		"region":          tags["region"],
-		"resource_group":  tags["resource_group"],
-		"resource_id":     tags["resource_id"],
-		"subscription_id": tags["subscription_id"],
+		"resource_group":  tags["aas.environment.resource_group"],
+		"resource_id":     tags["aas.environment.resource_id"],
+		"subscription_id": tags["aas.environment.subscription_id"],
 		"origin":          tags["origin"],
-		"dd.origin":       tags["_dd.origin"],
 	}
 
 	highCardinalityTags := map[string]string{
