@@ -165,15 +165,17 @@ func TestTail_FlagN_Negative_Rejected(t *testing.T) {
 	dir := t.TempDir()
 	writeTempFile(t, dir, "f.txt", "a\nb\nc\n")
 
-	_, stderr, err := runTailScript(t, dir, `tail -n -5 f.txt`)
-	require.NoError(t, err) // interpreter-level no error; exit code 1
-	assert.Contains(t, stderr, "invalid")
-	// Verify exit code was set to 1.
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	r := New(WithStdout(&out), WithStderr(&errOut), WithDir(dir))
-	_ = r.Run(context.Background(), `tail -n -5 f.txt`)
-	assert.Equal(t, 1, r.ExitCode())
+	var out, errOut bytes.Buffer
+	runner := New(
+		WithStdout(&out),
+		WithStderr(&errOut),
+		WithEnv([]string{"PATH=/usr/bin:/bin:/usr/local/bin"}),
+		WithDir(dir),
+	)
+	err := runner.Run(context.Background(), `tail -n -5 f.txt`)
+	require.NoError(t, err)
+	assert.Contains(t, errOut.String(), "invalid")
+	assert.Equal(t, 1, runner.ExitCode())
 }
 
 // Compact form: -n-5 should also be rejected.
@@ -633,7 +635,7 @@ func TestTail_EndOfFlags(t *testing.T) {
 // =============================================================================
 
 // TestTail_FlagN_PlusOffset_CompactForm verifies that -n+5 (value glued to
-// short flag, no space) is handled correctly by pflag + parseTailN.
+// short flag, no space) is handled correctly by pflag + parseTailOffset.
 func TestTail_FlagN_PlusOffset_CompactForm(t *testing.T) {
 	dir := t.TempDir()
 	writeTempFile(t, dir, "f.txt", "a\nb\nc\nd\ne\n")
@@ -654,15 +656,14 @@ func TestTail_FlagC_PlusOffset_CompactForm(t *testing.T) {
 }
 
 // TestTail_CombinedBoolFlags verifies that pflag handles combined boolean
-// short flags such as -qv (quiet + verbose together; verbose wins).
+// short flags such as -vq. When both quiet and verbose are set, quiet wins.
 func TestTail_CombinedBoolFlags(t *testing.T) {
 	dir := t.TempDir()
 	writeTempFile(t, dir, "a.txt", "aaa\n")
 
-	// -qv: both quiet and verbose set; verbose takes precedence for single file.
+	// -vq: quiet wins — header is suppressed even though verbose is also set.
 	stdout, _, err := runTailScript(t, dir, `tail -vq a.txt`)
 	require.NoError(t, err)
-	// quiet wins over verbose when both are set (quiet suppresses header)
 	assert.Equal(t, "aaa\n", stdout)
 }
 

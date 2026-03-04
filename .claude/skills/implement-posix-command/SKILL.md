@@ -130,13 +130,30 @@ After the initial test suite is passing, write another round of tests focused on
 - 100% code coverage of the implementation
 - Additional tests specific to the rules in RULES.md. For example, if the implementation passes user input into buffer allocations, ensure in tests that this input is clamped to an appropriate value and not passed as-is to the buffer.
 
-## Step 7: RULES.md compliance audit
+## Step 7: Code review
 
-Spawn parallel review agents — one per section of RULES.md — to audit the final implementation and test suite against every rule. Sections to cover in parallel:
+Run two review passes in parallel, then fix every finding before finishing.
+
+### Part A: RULES.md compliance
+
+Spawn parallel review agents — one per section of RULES.md — to audit the final implementation and test suite against every rule:
 
 - Memory Safety & Resource Limits + DoS Prevention + Special File Handling
 - Input Validation & Error Handling + Integer Safety
 - Cross-Platform Compatibility + Output Consistency
 - Testing Requirements (verify every rule has corresponding test coverage)
 
-For each rule the agents find a violation or gap, fix it immediately. Re-run tests after all fixes. Do not declare the implementation done until every rule is marked PASS.
+### Part B: General Go code quality
+
+Review the implementation for standard Go best practices:
+
+- **Error handling**: every `io.Writer.Write`, `io.Copy`, and `fmt.Fprintf` to a writer must have its error checked or explicitly discarded with `_`
+- **Context cancellation**: `ctx.Err()` must be checked at the top of every loop that reads input — including scanner loops, not just explicit `Read` calls
+- **Resource cleanup**: `defer` must be used to close files and other resources; when a file is opened inside a loop, use an IIFE (`func() error { defer f.Close(); ... }()`) to scope the defer to the loop iteration rather than the function
+- **DRY**: functions that differ only in variable names or error strings must be merged; use a `kind string` parameter for error messages
+- **Sentinel values**: `-1` or other magic sentinel ints used to select between modes should be replaced by a named `type … int` with named constants
+- **Redundant conditionals**: simplify boolean expressions to the minimum necessary branches (e.g. `(a || b) && !c` instead of `(a && !c) || b` followed by `if c { … = false }`)
+- **Variable re-derivation**: the same logical value must not be encoded twice in different types (e.g. both a `byte` and a `string` for the line separator)
+- **Test helpers**: a test must not run the same command twice just to observe different aspects; consolidate into a single runner that captures both stdout/stderr and exit code
+
+For each issue found in either review, fix it immediately. Re-run tests after all fixes. Do not declare the implementation done until every finding is resolved.

@@ -47,6 +47,16 @@ const (
 	maxTailBytes = 10 * 1024 * 1024 // 10 MB ring buffer for byte mode
 )
 
+// tailMode selects which output algorithm tailOutput uses.
+type tailMode int
+
+const (
+	tailModeLastLines tailMode = iota // last N lines (default)
+	tailModeLastBytes                 // last N bytes (-c N)
+	tailModeFromLine                  // lines from line N to EOF (-n +N)
+	tailModeFromByte                  // bytes from byte N to EOF (-c +N)
+)
+
 func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 	// Build a pflag FlagSet.  ContinueOnError makes Parse return an error
 	// instead of calling os.Exit.  SetOutput(io.Discard) suppresses pflag's
@@ -71,10 +81,11 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 	}
 
 	if *help {
-		fmt.Fprintf(r.stdout, "Usage: tail [OPTION]... [FILE]...\n\n")
-		fmt.Fprintf(r.stdout, "Print the last 10 lines of each FILE to standard output.\n")
-		fmt.Fprintf(r.stdout, "With no FILE, or when FILE is -, read standard input.\n\n")
-		fmt.Fprintf(r.stdout, "Options:\n")
+		fmt.Fprintf(r.stdout,
+			"Usage: tail [OPTION]... [FILE]...\n\n"+
+				"Print the last 10 lines of each FILE to standard output.\n"+
+				"With no FILE, or when FILE is -, read standard input.\n\n"+
+				"Options:\n")
 		fs.SetOutput(r.stdout)
 		fs.PrintDefaults()
 		r.exitCode = 0
@@ -83,60 +94,69 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 
 	files := fs.Args()
 
-	// Determine mode.  If both -n and -c are given, -c (bytes) takes
-	// precedence — consistent with most tail implementations where the last
-	// positional mode flag wins and byte mode is more specific.
-	lineCount := 10  // default
-	byteCount := -1
-	lineOffset := -1
-	byteOffset := -1
+	// Determine the output mode and its count/offset value n.
+	// If both -n and -c are given, -c (bytes) takes precedence.
+	mode := tailModeLastLines
+	n := 10 // default: last 10 lines
 
 	if fs.Changed("bytes") {
-		lineCount = -1
-		lineOffset = -1
-		if err := parseTailC(*bytesStr, &byteCount, &byteOffset); err != nil {
+		var count, offset int = -1, -1
+		if err := parseTailOffset(*bytesStr, "byte", &count, &offset); err != nil {
 			fmt.Fprintf(r.stderr, "tail: invalid number of bytes: %q\n", *bytesStr)
 			r.exitCode = 1
 			return nil
 		}
+		if offset >= 0 {
+			mode, n = tailModeFromByte, offset
+		} else {
+			mode, n = tailModeLastBytes, count
+		}
 	} else if fs.Changed("lines") {
-		byteCount = -1
-		byteOffset = -1
-		if err := parseTailN(*linesStr, &lineCount, &lineOffset); err != nil {
+		var count, offset int = -1, -1
+		if err := parseTailOffset(*linesStr, "line", &count, &offset); err != nil {
 			fmt.Fprintf(r.stderr, "tail: invalid number of lines: %q\n", *linesStr)
 			r.exitCode = 1
 			return nil
 		}
+		if offset >= 0 {
+			mode, n = tailModeFromLine, offset
+		} else {
+			mode, n = tailModeLastLines, count
+		}
 	}
-	// else: neither flag given — defaults (lineCount=10) stand.
 
 	quietFlag := *quiet || *silent
 	verboseFlag := *verbose
-	zeroDelimFlag := *zeroDelim
 
-	// tailOutput processes a single reader and writes its tail to stdout.
+	// lineSep is the delimiter byte used for both line-splitting and output.
+	lineSep := byte('\n')
+	if *zeroDelim {
+		lineSep = 0
+	}
+
+	// tailOutput processes a single reader and writes its tail to r.stdout.
 	tailOutput := func(reader io.Reader, name string, showHeader bool) error {
 		if showHeader {
 			fmt.Fprintf(r.stdout, "==> %s <==\n", name)
 		}
 
-		if byteOffset >= 0 {
+		switch mode {
+		case tailModeFromByte:
 			// +N byte offset: skip first N-1 bytes, copy rest.
-			toSkip := max(int64(byteOffset-1), 0)
+			toSkip := max(int64(n-1), 0)
 			if _, err := io.CopyN(io.Discard, reader, toSkip); err != nil && err != io.EOF {
 				return err
 			}
 			_, err := io.Copy(r.stdout, reader)
 			return err
-		}
 
-		if byteCount >= 0 {
+		case tailModeLastBytes:
 			// Last N bytes.
-			// Try seek optimization for regular files.
+			// Try seek optimisation for regular files.
 			if f, ok := reader.(*os.File); ok {
 				if info, err := f.Stat(); err == nil && info.Mode().IsRegular() {
 					size := info.Size()
-					offset := max(size-int64(byteCount), 0)
+					offset := max(size-int64(n), 0)
 					if _, err := f.Seek(offset, io.SeekStart); err == nil {
 						_, err = io.Copy(r.stdout, f)
 						return err
@@ -148,11 +168,11 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			n := min(byteCount, maxTailBytes)
-			if n == 0 {
+			bufSize := min(n, maxTailBytes)
+			if bufSize == 0 {
 				return nil
 			}
-			buf := make([]byte, n)
+			buf := make([]byte, bufSize)
 			head := 0   // next write position
 			filled := 0 // how many bytes are valid
 			tmp := make([]byte, 32*1024)
@@ -165,13 +185,13 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 				}
 				nr, err := reader.Read(tmp)
 				for pos := 0; pos < nr; {
-					space := n - head
+					space := bufSize - head
 					toCopy := min(nr-pos, space)
 					copy(buf[head:head+toCopy], tmp[pos:pos+toCopy])
-					head = (head + toCopy) % n
+					head = (head + toCopy) % bufSize
 					pos += toCopy
-					if filled < n {
-						filled = min(filled+toCopy, n)
+					if filled < bufSize {
+						filled = min(filled+toCopy, bufSize)
 					}
 				}
 				if err == io.EOF {
@@ -184,77 +204,87 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 			if filled == 0 {
 				return nil
 			}
-			if filled < n {
+			if filled < bufSize {
 				// Buffer not yet full; data starts at 0.
-				r.stdout.Write(buf[:filled])
-			} else {
-				// Full ring: oldest data starts at head.
-				r.stdout.Write(buf[head:])
-				if head > 0 {
-					r.stdout.Write(buf[:head])
-				}
+				_, err := r.stdout.Write(buf[:filled])
+				return err
+			}
+			// Full ring: oldest data starts at head.
+			if _, err := r.stdout.Write(buf[head:]); err != nil {
+				return err
+			}
+			if head > 0 {
+				_, err := r.stdout.Write(buf[:head])
+				return err
 			}
 			return nil
-		}
 
-		// Line mode.
-		lineSep := byte('\n')
-		if zeroDelimFlag {
-			lineSep = 0
-		}
-
-		if lineOffset >= 0 {
+		case tailModeFromLine:
 			// +N: from line N to end.
-			toSkip := max(lineOffset-1, 0)
+			toSkip := max(n-1, 0)
 			scanner := newTailScanner(reader, lineSep)
 			skipped := 0
 			for scanner.Scan() {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				if skipped < toSkip {
 					skipped++
 					continue
 				}
-				r.stdout.Write(scanner.Bytes())
-				r.stdout.Write([]byte{lineSep})
+				if _, err := r.stdout.Write(scanner.Bytes()); err != nil {
+					return err
+				}
+				if _, err := r.stdout.Write([]byte{lineSep}); err != nil {
+					return err
+				}
 			}
 			return scanner.Err()
-		}
 
-		// Last N lines: ring buffer of strings.
-		n := max(lineCount, 0)
-		n = min(n, maxTailLines)
-		if n == 0 {
-			// Drain input, output nothing.
-			_, err := io.Copy(io.Discard, reader)
-			return err
+		default: // tailModeLastLines
+			// Last N lines: ring buffer of strings.
+			size := max(n, 0)
+			size = min(size, maxTailLines)
+			if size == 0 {
+				// Drain input, output nothing.
+				_, err := io.Copy(io.Discard, reader)
+				return err
+			}
+			ring := make([]string, size)
+			head := 0
+			seen := 0
+			scanner := newTailScanner(reader, lineSep)
+			for scanner.Scan() {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				ring[head] = scanner.Text()
+				head = (head + 1) % size
+				seen++
+			}
+			if err := scanner.Err(); err != nil {
+				return err
+			}
+			// Determine start position and how many lines to print.
+			total := min(seen, size)
+			start := head - total
+			if start < 0 {
+				start += size
+			}
+			for i := range total {
+				idx := (start + i) % size
+				if _, err := io.WriteString(r.stdout, ring[idx]); err != nil {
+					return err
+				}
+				if _, err := r.stdout.Write([]byte{lineSep}); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		ring := make([]string, n)
-		head := 0
-		count := 0
-		scanner := newTailScanner(reader, lineSep)
-		for scanner.Scan() {
-			ring[head] = scanner.Text()
-			head = (head + 1) % n
-			count++
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		// Determine start position and how many lines to print.
-		size := min(count, n)
-		start := head - size
-		if start < 0 {
-			start += n
-		}
-		sep := "\n"
-		if zeroDelimFlag {
-			sep = "\x00"
-		}
-		for i := range size {
-			idx := (start + i) % n
-			fmt.Fprintf(r.stdout, "%s%s", ring[idx], sep)
-		}
-		return nil
 	}
+
+	showHeader := (len(files) > 1 || verboseFlag) && !quietFlag
 
 	if len(files) == 0 {
 		if err := tailOutput(r.stdin, "", false); err != nil {
@@ -266,10 +296,6 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 		return nil
 	}
 
-	showHeader := (len(files) > 1 && !quietFlag) || verboseFlag
-	if quietFlag {
-		showHeader = false
-	}
 	hasError := false
 	for idx, f := range files {
 		if idx > 0 && showHeader {
@@ -293,15 +319,19 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 		}
 		file, err := os.Open(path)
 		if err != nil {
-			fmt.Fprintf(r.stderr, "tail: cannot open %q for reading: No such file or directory\n", f)
+			fmt.Fprintf(r.stderr, "tail: cannot open %q for reading: %v\n", f, err)
 			hasError = true
 			continue
 		}
-		if err := tailOutput(file, f, showHeader); err != nil {
+		// IIFE scopes defer file.Close() to this iteration so the file
+		// descriptor is released immediately rather than at function return.
+		if err := func() error {
+			defer file.Close()
+			return tailOutput(file, f, showHeader)
+		}(); err != nil {
 			fmt.Fprintf(r.stderr, "tail: %s: %v\n", f, err)
 			hasError = true
 		}
-		file.Close()
 	}
 	if hasError {
 		r.exitCode = 1
@@ -311,19 +341,21 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 	return nil
 }
 
-// parseTailN parses a -n argument. Sets lineOffset if the value starts with '+',
-// otherwise sets lineCount. Negative values are rejected.
-func parseTailN(raw string, lineCount, lineOffset *int) error {
+// parseTailOffset parses a -n or -c argument value.  If the value starts with
+// '+', it sets *offset and clears *count (offset mode).  Otherwise it sets
+// *count and clears *offset (last-N mode).  Negative values are rejected.
+// kind ("line" or "byte") is used only in error messages.
+func parseTailOffset(raw, kind string, count, offset *int) error {
 	if strings.HasPrefix(raw, "+") {
 		n, err := strconv.Atoi(raw[1:])
 		if err != nil {
 			return err
 		}
 		if n < 0 {
-			return fmt.Errorf("invalid negative offset")
+			return fmt.Errorf("invalid negative %s offset", kind)
 		}
-		*lineOffset = n
-		*lineCount = -1
+		*offset = n
+		*count = -1
 		return nil
 	}
 	n, err := strconv.Atoi(raw)
@@ -331,37 +363,10 @@ func parseTailN(raw string, lineCount, lineOffset *int) error {
 		return err
 	}
 	if n < 0 {
-		return fmt.Errorf("invalid negative line count")
+		return fmt.Errorf("invalid negative %s count", kind)
 	}
-	*lineCount = n
-	*lineOffset = -1
-	return nil
-}
-
-// parseTailC parses a -c argument. Sets byteOffset if the value starts with '+',
-// otherwise sets byteCount. Negative values are rejected.
-func parseTailC(raw string, byteCount, byteOffset *int) error {
-	if strings.HasPrefix(raw, "+") {
-		n, err := strconv.Atoi(raw[1:])
-		if err != nil {
-			return err
-		}
-		if n < 0 {
-			return fmt.Errorf("invalid negative offset")
-		}
-		*byteOffset = n
-		*byteCount = -1
-		return nil
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return err
-	}
-	if n < 0 {
-		return fmt.Errorf("invalid negative byte count")
-	}
-	*byteCount = n
-	*byteOffset = -1
+	*count = n
+	*offset = -1
 	return nil
 }
 
