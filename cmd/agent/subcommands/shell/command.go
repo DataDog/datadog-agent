@@ -23,6 +23,7 @@ import (
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	var scriptFlag string
+	var allowedPathsFlag string
 
 	shellCmd := &cobra.Command{
 		Use:    "shell",
@@ -30,12 +31,18 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			r, err := interp.New(
+			opts := []interp.RunnerOption{
 				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
-			)
+			}
+			if allowedPathsFlag != "" {
+				paths := strings.Split(allowedPathsFlag, ",")
+				opts = append(opts, interp.AllowedPaths(paths))
+			}
+			r, err := interp.New(opts...)
 			if err != nil {
 				return err
 			}
+			defer r.Close()
 
 			var reader io.Reader = os.Stdin
 			if scriptFlag != "" {
@@ -50,6 +57,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	shellCmd.Flags().StringVar(&scriptFlag, "script", "", "script string to execute")
+	shellCmd.Flags().StringVar(&allowedPathsFlag, "allowed-paths", "", "comma-separated list of directories to restrict file access to")
 
 	return []*cobra.Command{shellCmd}
 }
