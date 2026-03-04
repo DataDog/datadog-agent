@@ -38,7 +38,7 @@ func getRemoteProcessTags(pid int32, _ map[uint32][]string, _ func(int32) ([]str
 		return nil
 	}
 	if svc, ok := parser.ChooseServiceNameFromEnvs(strings.Split(string(data), "\x00")); ok {
-		return []string{"process_context:" + svc}
+		return []string{"service:" + svc}
 	}
 	return nil
 }
