@@ -35,10 +35,8 @@ fn test_fallback_on_npm_enabled() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Run sd-agent with network tracer enabled using new -- syntax
     let output = Command::new(SD_AGENT_BIN)
@@ -79,10 +77,8 @@ fn test_no_fallback_on_discovery_only() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Run sd-agent with only discovery enabled (should NOT fallback)
     // Note: --config must be after -- to be parsed as system-probe arg
@@ -241,10 +237,8 @@ fn test_discovery_disabled_exits_cleanly() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Discovery explicitly disabled should exit cleanly (not call system-probe)
     // Note: --config must be after -- to be parsed as system-probe arg
@@ -277,10 +271,8 @@ fn test_discovery_enabled_with_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Both discovery and DD_RUNTIME_SECURITY_CONFIG_ENABLED should trigger fallback
     let output = Command::new(SD_AGENT_BIN)
@@ -317,10 +309,8 @@ fn test_killswitch_disabled_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Killswitch disabled should trigger fallback even with discovery enabled
     let output = Command::new(SD_AGENT_BIN)
@@ -353,10 +343,8 @@ fn test_killswitch_not_set_defaults_to_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Killswitch not set should default to fallback (safe default)
     let output = Command::new(SD_AGENT_BIN)
@@ -388,10 +376,8 @@ fn test_killswitch_enabled_runs_sd_agent() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Killswitch enabled should allow sd-agent to run
     let mut child = Command::new(SD_AGENT_BIN)
@@ -514,10 +500,8 @@ fn test_env_var_false_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Env var set to "false" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
@@ -550,10 +534,8 @@ fn test_env_var_zero_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Env var set to "0" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
@@ -586,10 +568,8 @@ fn test_env_var_non_boolean_triggers_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Env var set to a non-boolean value should trigger fallback (safety net)
     let output = Command::new(SD_AGENT_BIN)
