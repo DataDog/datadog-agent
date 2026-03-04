@@ -219,12 +219,13 @@ container_exclude_logs: name:agent2 image:datadog/agent
 	// Create Docker check
 	check := DockerCheck{
 		instance: &DockerConfig{
-			CollectExitCodes:   true,
-			CollectImagesStats: true,
-			CollectImageSize:   true,
-			CollectDiskStats:   true,
-			CollectVolumeCount: true,
-			CollectEvent:       true,
+			CollectExitCodes:     true,
+			CollectImagesStats:   true,
+			CollectImageSize:     true,
+			CollectDiskStats:     true,
+			CollectVolumeCount:   true,
+			CollectContainerSize: true,
+			CollectEvent:         true,
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
@@ -233,7 +234,7 @@ container_exclude_logs: name:agent2 image:datadog/agent
 		tagger:           fakeTagger,
 	}
 
-	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList, true)
 	assert.NoError(t, err)
 
 	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
@@ -312,7 +313,7 @@ func TestContainersRunning(t *testing.T) {
 		tagger:          fakeTagger,
 	}
 
-	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
+	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList, false)
 	assert.NoError(t, err)
 
 	// Containers that share the same set of tags should be reported together,
