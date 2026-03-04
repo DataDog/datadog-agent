@@ -945,7 +945,7 @@ func TestRemoteServiceTags(t *testing.T) {
 		assert.Contains(t, remoteTags, "process_context:my-server")
 	})
 
-	t.Run("PID fallback with remote process tags", func(t *testing.T) {
+	t.Run("PID fallback includes service context", func(t *testing.T) {
 		testPID := int32(os.Getpid())
 		serverPort := int32(18081)
 
@@ -960,37 +960,22 @@ func TestRemoteServiceTags(t *testing.T) {
 		conn.IntraHost = true
 		conn.Raddr.Port = serverPort
 
-		// Provide a port-to-PID map directly instead of relying on the OS Poller
 		portToPID := map[int32]int32{serverPort: testPID}
 
-		// Provide both tag sources so the test works cross-platform:
-		// Windows uses procCacheTags, Linux uses processTagProvider.
-		procCacheTags := map[uint32][]string{
-			uint32(testPID): {"env:prod", "service:web"},
-		}
-		processTagProvider := func(pid int32) ([]string, error) {
-			if pid == testPID {
-				return []string{"env:prod", "service:web"}, nil
-			}
-			return nil, nil
-		}
-
 		hostTagsProvider := hosttags.NewHostTagProvider()
-		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, processTagProvider, 10, 0,
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0,
 			[]*model.Connection{conn}, nil, "nid", nil, nil,
 			model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil,
-			ex, nil, nil, procCacheTags, portToPID)
+			ex, nil, nil, nil, portToPID)
 
 		require.Len(t, chunks, 1)
 		cc := chunks[0].(*model.CollectorConnections)
 		require.Len(t, cc.Connections, 1)
 		c := cc.Connections[0]
 		require.GreaterOrEqual(t, c.RemoteServiceTagsIdx, int32(0),
-			"expected remote service tags from getRemoteProcessTags")
+			"expected remote service tags from service extractor")
 		remoteTags := cc.GetTags(int(c.RemoteServiceTagsIdx))
 		assert.Contains(t, remoteTags, "process_context:my-server")
-		assert.Contains(t, remoteTags, "env:prod")
-		assert.Contains(t, remoteTags, "service:web")
 	})
 
 	t.Run("no tags when containerized", func(t *testing.T) {
