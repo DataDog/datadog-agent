@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package lite extracts core config values (api_key, site, dd_url) from
+// environment variables and config files without importing the full agent config
 package lite
 
 import (
