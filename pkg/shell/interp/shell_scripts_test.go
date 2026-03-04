@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build unix
-
 package interp
 
 import (
@@ -16,7 +14,8 @@ import (
 
 // TestShellScripts discovers and runs every *.sh file under test/shell/ against
 // the built agent binary. The tests are skipped automatically when no agent
-// binary is available, so they are safe to run in any environment.
+// binary or POSIX shell is available, so they are safe to run in any environment.
+// On Windows, sh.exe is expected to be provided by Git for Windows / MSYS2.
 //
 // To run these tests locally:
 //
@@ -27,6 +26,11 @@ import (
 //
 //	AGENT_BIN=/path/to/agent go test ./pkg/shell/interp -run TestShellScripts
 func TestShellScripts(t *testing.T) {
+	shBin, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh not found in PATH; install Git for Windows / MSYS2 to run shell tests on Windows")
+	}
+
 	agentBin := findAgentBinaryForShellTests(t)
 
 	scripts, err := filepath.Glob(filepath.Join("test", "shell", "*", "*.sh"))
@@ -43,7 +47,7 @@ func TestShellScripts(t *testing.T) {
 		rel, _ := filepath.Rel(filepath.Join("test", "shell"), script)
 		t.Run(rel, func(t *testing.T) {
 			t.Parallel()
-			cmd := exec.Command("sh", script)
+			cmd := exec.Command(shBin, script)
 			cmd.Env = append(os.Environ(), "AGENT_BIN="+agentBin)
 			out, err := cmd.CombinedOutput()
 			if err == nil {
