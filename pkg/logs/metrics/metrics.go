@@ -155,10 +155,10 @@ var (
 	TlmAutoMultilineWouldCombine = telemetry.NewCounter("logs", "auto_multi_line_default_would_combine",
 		nil, "Lines that would be combined if auto multiline were the default")
 
-	// TlmAutoMultilineWouldTruncateLines counts raw input lines belonging to multiline
+	// TlmAutoMultilineWouldTruncate counts raw input lines belonging to multiline
 	// groups that would exceed maxContentSize due to combining. Single lines that are
 	// individually oversized are excluded (they'd be truncated regardless).
-	TlmAutoMultilineWouldTruncateLines = telemetry.NewCounter("logs", "auto_multi_line_default_would_truncate_lines",
+	TlmAutoMultilineWouldTruncate = telemetry.NewCounter("logs", "auto_multi_line_default_would_truncate",
 		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
 )
 

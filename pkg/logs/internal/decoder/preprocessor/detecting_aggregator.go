@@ -155,11 +155,16 @@ func (d *detectingAggregator) processSimulatedAggregate(msg *message.Message) {
 	// This line would be combined in combining mode
 	metrics.TlmAutoMultilineWouldCombine.Inc()
 
+	// When the first aggregate arrives, also count the startGroup line that anchors this group
+	if d.linesInCurrentGroup == 1 {
+		metrics.TlmAutoMultilineWouldCombine.Inc()
+	}
+
 	// Simulate the combining aggregator's overflow check:
 	// if msg.RawDataLen + bucket.buffer.Len() >= maxContentSize → truncation
 	if msg.RawDataLen+d.simulatedBufLen >= d.maxContentSize {
 		truncatedLines := float64(d.linesInCurrentGroup + 1)
-		metrics.TlmAutoMultilineWouldTruncateLines.Add(truncatedLines)
+		metrics.TlmAutoMultilineWouldTruncate.Add(truncatedLines)
 		d.resetSimulatedGroup()
 		return
 	}
