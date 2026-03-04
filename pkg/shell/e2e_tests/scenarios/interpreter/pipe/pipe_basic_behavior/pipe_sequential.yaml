@@ -1,0 +1,12 @@
+description: Multiple pipe statements execute independently in sequence.
+input:
+  # language=bash
+  script: |+
+    echo first | cat
+    echo second | cat
+expected:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

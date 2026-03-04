@@ -1,0 +1,9 @@
+description: Pipe exit code comes from the rightmost (last) command.
+input:
+  # language=bash
+  script: |+
+    echo ok | false
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

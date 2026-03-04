@@ -1,0 +1,11 @@
+description: PipeAll (|&) passes both stdout and stderr to the right side stdin.
+input:
+  # language=bash
+  script: |+
+    { echo hello; break; } |& cat
+expected:
+  stdout: |+
+    hello
+    break is only useful in a loop
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: Variable expansion works on the left side of a pipe.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo $X world | cat
+expected:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

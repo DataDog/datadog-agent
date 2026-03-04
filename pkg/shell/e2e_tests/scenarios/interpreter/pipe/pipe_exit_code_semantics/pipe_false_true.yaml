@@ -1,0 +1,9 @@
+description: Right side true overrides left side false exit code.
+input:
+  # language=bash
+  script: |+
+    false | true
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

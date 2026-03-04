@@ -1,0 +1,9 @@
+description: Pipe of two builtins returns exit code from right side.
+input:
+  # language=bash
+  script: |+
+    true | false
+expected:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

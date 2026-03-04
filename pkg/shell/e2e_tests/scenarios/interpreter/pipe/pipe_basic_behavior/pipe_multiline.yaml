@@ -1,0 +1,12 @@
+description: Block producing multiple lines pipes all output through.
+input:
+  # language=bash
+  script: |+
+    { echo a; echo b; echo c; } | cat
+expected:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0
