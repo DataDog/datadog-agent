@@ -82,8 +82,6 @@ func (h *Host) setSystemdVersion() {
 
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
 // InstallDocker installs Docker on the host if it is not already installed.
-// It also runs docker login to the configured ECR registry (from E2E_IMAGE_PULL_* profile params)
-// so that any subsequent docker pull/run has access to private registry images.
 func (h *Host) InstallDocker() {
 	defer func() {
 		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
