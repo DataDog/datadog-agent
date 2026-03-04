@@ -111,7 +111,11 @@ func (ps *PatternScanner) notifyAndStop() {
 	})
 }
 
+func (ps *PatternScanner) Lines() []string {
+	return ps.buffers
+}
+
 // PrintLogs writes the captured logs into the test logger.
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
-	t.Log(strings.Join(ps.buffers, "\n"))
+	t.Log(strings.Join(ps.Lines(), "\n"))
 }
