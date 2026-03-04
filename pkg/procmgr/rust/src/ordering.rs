@@ -256,4 +256,34 @@ mod tests {
         let order = resolve_order(&configs).unwrap();
         assert_eq!(names_in_order(&configs, &order), vec!["b", "a", "c"]);
     }
+
+    #[test]
+    fn test_self_dependency_is_cycle() {
+        let configs = vec![("a".to_string(), cfg(&["a"], &[]))];
+        let err = resolve_order(&configs).unwrap_err();
+        assert_eq!(err.0, vec!["a"]);
+    }
+
+    #[test]
+    fn test_duplicate_dependency_in_list() {
+        // Listing "b" twice in after should not double-count in_degree.
+        let configs = vec![
+            ("a".to_string(), cfg(&["b", "b"], &[])),
+            ("b".to_string(), cfg(&[], &[])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["b", "a"]);
+    }
+
+    #[test]
+    fn test_redundant_after_and_before_same_edge() {
+        // A says after:["B"] and B says before:["A"] — both express B→A.
+        // Should produce exactly one edge, not a double-count.
+        let configs = vec![
+            ("a".to_string(), cfg(&["b"], &[])),
+            ("b".to_string(), cfg(&[], &["a"])),
+        ];
+        let order = resolve_order(&configs).unwrap();
+        assert_eq!(names_in_order(&configs, &order), vec!["b", "a"]);
+    }
 }
