@@ -14,8 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -51,7 +52,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
-	observerHandle            observer.Handle
+	logHook                   hook.Hook[observerdef.LogView]
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -62,7 +63,7 @@ type Processor struct {
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string, observerHandle observer.Handle) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, logHook hook.Hook[observerdef.LogView]) *Processor {
 
 	p := &Processor{
 		config:                    config,
@@ -77,7 +78,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		observerHandle:            observerHandle,
+		logHook:                   logHook,
 	}
 
 	// Initialize cached failover config
@@ -208,8 +209,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
 		// report to observer if available
-		if p.observerHandle != nil {
-			p.observerHandle.ObserveLog(msg)
+		if p.logHook != nil {
+			p.logHook.Publish("logs", msg)
 		}
 
 		if p.failoverConfig.isFailoverActive {

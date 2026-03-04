@@ -24,6 +24,7 @@ type Requires struct {
 	Config config.Component
 
 	MetricsHooks []hook.Hook[observer.MetricView] `group:"hook"`
+	LogsHooks    []hook.Hook[observer.LogView]    `group:"hook"`
 }
 
 // Provides defines the output of the recorder component
@@ -34,14 +35,6 @@ type Provides struct {
 // NewComponent creates a new recorder component
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
-
-	metricsHooks := fxutil.GetAndFilterGroup(req.MetricsHooks)
-	for _, hook := range metricsHooks {
-		pkglog.Info("Metrics hook: %v", hook.Name())
-		hook.Subscribe("recorder-metrics-hook", func(payload observer.MetricView) {
-			pkglog.Info("Metrics hook payload: %v", payload)
-		})
-	}
 
 	// Check if recording is enabled
 	if !req.Config.GetBool("observer.recording.enabled") {
@@ -104,6 +97,42 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	r.traceStatsParquetWriter = traceStatsWriter
 	pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
+
+	// Subscribe to metric hooks — write each metric to the parquet file.
+	for _, mh := range fxutil.GetAndFilterGroup(req.MetricsHooks) {
+		name := mh.Name()
+		mh.Subscribe("recorder-metrics-hook", func(payload observer.MetricView) {
+			timestamp := int64(payload.GetTimestamp())
+			if timestamp == 0 {
+				timestamp = time.Now().Unix()
+			}
+			r.metricParquetWriter.WriteMetric(
+				name,
+				payload.GetName(),
+				payload.GetValue(),
+				payload.GetRawTags(),
+				timestamp,
+			)
+		})
+	}
+
+	// Subscribe to log hooks — write each log to the parquet file.
+	for _, lh := range fxutil.GetAndFilterGroup(req.LogsHooks) {
+		name := lh.Name()
+		lh.Subscribe("recorder-logs-hook", func(payload observer.LogView) {
+			content := payload.GetContent()
+			contentCopy := make([]byte, len(content))
+			copy(contentCopy, content)
+			r.logParquetWriter.WriteLog(
+				name,
+				contentCopy,
+				payload.GetStatus(),
+				payload.GetHostname(),
+				payload.GetTags(),
+				time.Now().UnixMilli(),
+			)
+		})
+	}
 
 	return Provides{Comp: r}, nil
 }

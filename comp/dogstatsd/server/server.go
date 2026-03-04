@@ -33,11 +33,12 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -87,7 +88,6 @@ type dependencies struct {
 	Telemetry  telemetry.Component
 	Hostname   hostnameinterface.Component
 	FilterList filterlist.Component
-	Observer   option.Option[observer.Component]
 }
 
 type provides struct {
@@ -95,6 +95,7 @@ type provides struct {
 
 	Comp          Component
 	StatsEndpoint api.AgentEndpointProvider
+	MetricHook    hook.Hook[observerdef.MetricView] `group:"hook"`
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -139,7 +140,7 @@ type server struct {
 	extraTags               []string
 	Debug                   serverdebug.Component
 	filterList              filterlist.Component
-	observerHandle          observer.Handle
+	metricHook              hook.Hook[observerdef.MetricView]
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -205,10 +206,8 @@ func initTelemetry() {
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 
-	// Initialize observer handle if observer component is available
-	if obs, ok := deps.Observer.Get(); ok {
-		s.observerHandle = obs.GetHandle("dogstatsd")
-	}
+	metricHook := hook.NewHook[observerdef.MetricView]("dogstatsd-pipeline")
+	s.metricHook = metricHook
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -221,6 +220,7 @@ func newServer(deps dependencies) provides {
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+		MetricHook:    metricHook,
 	}
 }
 
@@ -733,9 +733,8 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 				for idx := range samples {
 					s.Debug.StoreMetricStats(samples[idx])
-					if s.observerHandle != nil {
-						s.observerHandle.ObserveMetric(&samples[idx])
-					}
+					sampleCopy := samples[idx]
+					s.metricHook.Publish("dogstatsd", &sampleCopy)
 
 					if samples[idx].Timestamp > 0.0 {
 						batcher.appendLateSample(samples[idx])

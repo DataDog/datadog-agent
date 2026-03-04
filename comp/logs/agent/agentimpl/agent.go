@@ -34,9 +34,10 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -88,7 +89,6 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
-	Observer           option.Option[observer.Component]
 }
 
 type provides struct {
@@ -99,6 +99,7 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
+	LogHook        hook.Hook[observerdef.LogView] `group:"hook"`
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -127,7 +128,7 @@ type logAgent struct {
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
 	healthPlatform            option.Option[healthplatform.Component]
-	observerHandle            observer.Handle
+	logHook                   hook.Hook[observerdef.LogView]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -152,11 +153,7 @@ func newLogsAgent(deps dependencies) provides {
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
-		// Initialize observer handle if observer component is available
-		var observerHandle observer.Handle
-		if obs, ok := deps.Observer.Get(); ok {
-			observerHandle = obs.GetHandle("logs")
-		}
+		logHook := hook.NewHook[observerdef.LogView]("logs-pipeline")
 
 		logsAgent := &logAgent{
 			log:                deps.Log,
@@ -175,7 +172,7 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			healthPlatform:     deps.HealthPlatform,
-			observerHandle:     observerHandle,
+			logHook:            logHook,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -187,6 +184,7 @@ func newLogsAgent(deps dependencies) provides {
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			LogsReciever:   option.New[integrations.Component](integrationsLogs),
+			LogHook:        logHook,
 			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
 				"/stream-logs",
 				"POST",

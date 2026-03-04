@@ -39,6 +39,9 @@ func NewAggregatingSender(
 	metricHook hook.Hook[observer.MetricView],
 	originalInterval time.Duration,
 ) *AggregatingSender {
+	if metricHook == nil {
+		metricHook = hook.NewNoopHook[observer.MetricView]()
+	}
 	s := &AggregatingSender{
 		backendSender:    backendSender,
 		metricHook:       metricHook,

@@ -13,10 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -66,10 +67,10 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
-	hostname       hostnameinterface.Component
-	cfg            pkgconfigmodel.Reader
-	compression    logscompression.Component
-	observerHandle observer.Handle
+	hostname    hostnameinterface.Component
+	cfg         pkgconfigmodel.Reader
+	compression logscompression.Component
+	logHook     hook.Hook[observerdef.LogView]
 }
 
 // NewProvider returns a new Provider
@@ -86,7 +87,7 @@ func NewProvider(
 	compression logscompression.Component,
 	legacyMode bool,
 	serverless bool,
-	observerHandle observer.Handle,
+	logHook hook.Hook[observerdef.LogView],
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
@@ -107,7 +108,7 @@ func NewProvider(
 		compression,
 		serverlessMeta,
 		senderImpl,
-		observerHandle,
+		logHook,
 	)
 }
 
@@ -215,7 +216,7 @@ func newProvider(
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
-	observerHandle observer.Handle,
+	logHook hook.Hook[observerdef.LogView],
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -229,7 +230,7 @@ func newProvider(
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
-		observerHandle:            observerHandle,
+		logHook:                   logHook,
 	}
 }
 
@@ -248,7 +249,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
-			p.observerHandle,
+			p.logHook,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)

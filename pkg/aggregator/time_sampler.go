@@ -58,6 +58,9 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 	if interval == 0 {
 		interval = bucketSize
 	}
+	if metricHook == nil {
+		metricHook = hook.NewNoopHook[observer.MetricView]()
+	}
 
 	idString := strconv.Itoa(int(id))
 	log.Infof("Creating TimeSampler #%s", idString)

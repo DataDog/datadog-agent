@@ -40,6 +40,7 @@ type Requires struct {
 	RemoteAgentRegistry remoteagentregistry.Component
 
 	MetricsHooks []hook.Hook[observerdef.MetricView] `group:"hook"`
+	LogsHooks    []hook.Hook[observerdef.LogView]    `group:"hook"`
 }
 
 type AgentInternalLogTapConfig struct {
@@ -179,14 +180,6 @@ func (l *logObs) GetTimestamp() int64 {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
-	metricsHooks := fxutil.GetAndFilterGroup(deps.MetricsHooks)
-	for _, hook := range metricsHooks {
-		pkglog.Info("Metrics hook: %v", hook.Name())
-		hook.Subscribe("observer-metrics-hook", func(payload observerdef.MetricView) {
-			pkglog.Info("Metrics hook payload: %v", payload)
-		})
-	}
-
 	correlator := NewCorrelator(CorrelatorConfig{})
 	reporter := &StdoutReporter{}
 
@@ -241,6 +234,22 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+
+	// Subscribe to metric hooks — copy and forward to the observer's processing pipeline.
+	for _, mh := range fxutil.GetAndFilterGroup(deps.MetricsHooks) {
+		handle := obs.GetHandle(mh.Name())
+		mh.Subscribe("observer-metrics-hook", func(payload observerdef.MetricView) {
+			handle.ObserveMetric(payload)
+		})
+	}
+
+	// Subscribe to log hooks — copy and forward to the observer's processing pipeline.
+	for _, lh := range fxutil.GetAndFilterGroup(deps.LogsHooks) {
+		handle := obs.GetHandle(lh.Name())
+		lh.Subscribe("observer-logs-hook", func(payload observerdef.LogView) {
+			handle.ObserveLog(payload)
+		})
+	}
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
