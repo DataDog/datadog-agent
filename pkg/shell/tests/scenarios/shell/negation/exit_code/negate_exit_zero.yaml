@@ -1,0 +1,9 @@
+description: Negating exit 0 produces exit code 1.
+input:
+  # language=bash
+  script: |+
+    ! exit 0
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

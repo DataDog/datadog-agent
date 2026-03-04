@@ -190,8 +190,9 @@ func (r *Runner) stmtSync(ctx context.Context, st *syntax.Stmt) {
 		r.cmd(ctx, st.Cmd)
 	}
 	if st.Negated {
-		// TODO: negate the entire [exitStatus] here, wiping errors
-		r.exit.oneIf(r.exit.ok())
+		wasOk := r.exit.ok()
+		r.exit = exitStatus{}
+		r.exit.oneIf(wasOk)
 	} else if b, ok := st.Cmd.(*syntax.BinaryCmd); ok && (b.Op == syntax.AndStmt || b.Op == syntax.OrStmt) {
 	} else if !r.exit.ok() && !r.noErrExit {
 		// If the "errexit" option is set and a command failed, exit the shell.
