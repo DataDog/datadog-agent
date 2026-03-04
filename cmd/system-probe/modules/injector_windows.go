@@ -35,8 +35,7 @@ var _ module.Module = &injectorModule{}
 
 // Injector Factory
 var Injector = &module.Factory{
-	Name:             config.InjectorModule,
-	ConfigNamespaces: []string{"injector"},
+	Name: config.InjectorModule,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating Windows Injector module")
 

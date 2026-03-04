@@ -15,9 +15,8 @@ func init() { registerModule(DiscoveryModule) }
 
 // DiscoveryModule is the discovery module factory.
 var DiscoveryModule = &module.Factory{
-	Name:             config.DiscoveryModule,
-	ConfigNamespaces: []string{"discovery"},
-	Fn:               discoverymodule.NewDiscoveryModule,
+	Name: config.DiscoveryModule,
+	Fn: discoverymodule.NewDiscoveryModule,
 	NeedsEBPF: func() bool {
 		return false
 	},

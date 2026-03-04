@@ -25,8 +25,8 @@ func init() { registerModule(TCPQueueLength) }
 
 // TCPQueueLength Factory
 var TCPQueueLength = &module.Factory{
-	Name:             config.TCPQueueLengthTracerModule,
-	ConfigNamespaces: []string{},
+	Name: config.TCPQueueLengthTracerModule,
+
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {

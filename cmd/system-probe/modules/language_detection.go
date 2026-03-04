@@ -27,8 +27,8 @@ func init() { registerModule(LanguageDetectionModule) }
 
 // LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = &module.Factory{
-	Name:             config.LanguageDetectionModule,
-	ConfigNamespaces: []string{"language_detection"},
+	Name: config.LanguageDetectionModule,
+
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),
