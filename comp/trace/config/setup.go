@@ -679,6 +679,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.mode"; core.IsConfigured(k) {
 		c.APMMode = normalizeAPMMode(core.GetString(k))
 	}
+	c.OTelGateway = core.GetBool("otelcollector.gateway.mode")
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
@@ -844,7 +845,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 		return errors.New("agent binary path not set")
 	}
 
-	if c.Hostname == "" && !core.GetBool("serverless.enabled") && !core.GetBool("otelcollector.gateway.mode") {
+	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		if err := hostname(c); err != nil {
 			return err
 		}
