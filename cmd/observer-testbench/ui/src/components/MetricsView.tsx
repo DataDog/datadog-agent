@@ -9,6 +9,7 @@ import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
+import { TagFilterGroups } from './TagFilterGroups';
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
@@ -161,6 +162,11 @@ export function MetricsView({
     [visibleGroups]
   );
 
+  const virtualGroups = useMemo(
+    () => visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')),
+    [visibleGroups]
+  );
+
   const displayGroups = useMemo(
     () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
     [visibleGroups]
@@ -181,16 +187,17 @@ export function MetricsView({
     if (autoSelectedScenario === state.activeScenario) return;
 
     const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
+    const virtKeys = visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')).map((g) => g.key);
 
     const ranked = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry')
+      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'))
       .sort((a, b) => {
         const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
         if (countDiff !== 0) return countDiff;
         return a.baseName.localeCompare(b.baseName);
       });
 
-    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys]));
+    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys, ...virtKeys]));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
@@ -339,62 +346,6 @@ export function MetricsView({
           </label>
         </div>
 
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            Tag Filter
-          </h2>
-          <div className="relative mb-2">
-            <input
-              type="text"
-              value={tagFilterInput}
-              onChange={(e) => setTagFilterInput(e.target.value)}
-              placeholder="host:web-1 service:api"
-              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono pr-6"
-            />
-            {tagFilterInput && (
-              <button
-                onClick={() => setTagFilterInput('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-              >
-                ×
-              </button>
-            )}
-          </div>
-          {tagGroups.size > 0 && (
-            <div className="space-y-2">
-              {[...tagGroups.entries()].map(([key, tags]) => {
-                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
-                return (
-                  <div key={key}>
-                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {tags.map((tag) => {
-                        const active = activeTags.get(key)?.has(tag) ?? false;
-                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
-                              excluded
-                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
-                                : active
-                                ? 'bg-purple-600/40 text-purple-300 ring-1 ring-purple-500/60'
-                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -423,6 +374,29 @@ export function MetricsView({
                 title={telemetryGroups.some((g) => selectedGroups.has(g.key)) ? 'Deselect telemetry groups' : 'Select telemetry groups'}
               >
                 T
+              </button>
+              <button
+                onClick={() => {
+                  const virtKeys = virtualGroups.map((g) => g.key);
+                  const anySelected = virtKeys.some((k) => selectedGroups.has(k));
+                  setSelectedGroups((prev) => {
+                    const next = new Set(prev);
+                    if (anySelected) {
+                      virtKeys.forEach((k) => next.delete(k));
+                    } else {
+                      virtKeys.forEach((k) => next.add(k));
+                    }
+                    return next;
+                  });
+                }}
+                className={`text-xs px-1.5 py-0.5 rounded font-bold transition-colors ${
+                  virtualGroups.some((g) => selectedGroups.has(g.key))
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}
+                title={virtualGroups.some((g) => selectedGroups.has(g.key)) ? 'Deselect virtual groups' : 'Select virtual groups'}
+              >
+                V
               </button>
               <button
                 onClick={() => {
@@ -457,6 +431,34 @@ export function MetricsView({
             selectedSeries={selectedGroups}
             anomalousSources={anomalousGroupKeys}
             onSelectionChange={setSelectedGroups}
+          />
+        </div>
+
+        <div className="p-4 border-t border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
+          </h2>
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => setTagFilterInput(e.target.value)}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => setTagFilterInput('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <TagFilterGroups
+            tagGroups={tagGroups}
+            tagFilterInput={tagFilterInput}
+            onToggleTag={(tag) => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
           />
         </div>
       </aside>
@@ -504,7 +506,7 @@ export function MetricsView({
                   const cards = Array.from(selectedGroups)
                     .filter((key) => {
                       const g = groupByKey.get(key);
-                      return g && g.namespace !== 'telemetry';
+                      return g && g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.');
                     })
                     .map((groupKey) => {
                       const dataList = groupSeriesData.get(groupKey) ?? [];
@@ -543,6 +545,59 @@ export function MetricsView({
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{cards}</div>
                   ) : null;
                 })()}
+
+                {/* Virtual metric groups — shown after a separator */}
+                {virtualGroups.some((g) => selectedGroups.has(g.key)) && (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 border-t border-cyan-800/50" />
+                      <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-medium">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-cyan-600 text-white text-[9px] font-bold">V</span>
+                        Virtual Metrics
+                      </div>
+                      <div className="flex-1 border-t border-cyan-800/50" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {Array.from(selectedGroups)
+                        .filter((key) => {
+                          const g = groupByKey.get(key);
+                          return g && g.baseName.startsWith('_virtual.');
+                        })
+                        .map((groupKey) => {
+                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (dataList.length === 0) return null;
+                          const chartSeries = showAnomalyOnlySeriesLines
+                            ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                            : dataList;
+                          if (chartSeries.length === 0) return null;
+                          const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                          const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                          const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
+                            label: formatSeriesLabel(d.tags),
+                            points: d.points,
+                            seriesId: d.id,
+                          }));
+                          const primary = chartSeries[0];
+                          return (
+                            <ChartWithAnomalyDetails
+                              key={groupKey}
+                              name={primary.name}
+                              points={primary.points}
+                              anomalyMarkers={anomalyMarkers}
+                              anomalies={seriesAnomalies}
+                              correlationRanges={[]}
+                              enabledDetectors={enabledDetectors}
+                              timeRange={timeRange}
+                              onTimeRangeChange={onTimeRangeChange}
+                              smoothLines={smoothLines}
+                              seriesVariants={seriesVariants}
+                            />
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
 
                 {/* Telemetry metric groups — shown after a separator */}
                 {telemetryGroups.some((g) => selectedGroups.has(g.key)) && (

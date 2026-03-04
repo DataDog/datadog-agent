@@ -96,7 +96,7 @@ export interface Anomaly {
 
 // LogEntry is a raw log entry stored in the testbench.
 export interface LogEntry {
-  timestamp: number;
+  timestampMs: number;
   status: string;   // "error", "warn", "info", "debug", etc.
   content: string;
   tags: string[];

@@ -63,7 +63,7 @@ func (r *LogParquetReader) ReadAll() []recorderdef.LogData {
 
 	// Sort by timestamp for consistent ordering
 	sort.Slice(logs, func(i, j int) bool {
-		return logs[i].Timestamp < logs[j].Timestamp
+		return logs[i].TimestampMs < logs[j].TimestampMs
 	})
 
 	return logs
@@ -161,7 +161,7 @@ func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData
 			log.Source = runIDCol.Value(i)
 		}
 		if timeCol != nil {
-			log.Timestamp = timeCol.Value(i)
+			log.TimestampMs = timeCol.Value(i)
 		}
 		if contentCol != nil && !contentCol.IsNull(i) {
 			// Copy content data to avoid referencing memory that may be released

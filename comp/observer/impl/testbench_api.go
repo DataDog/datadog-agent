@@ -459,27 +459,37 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	levelFilter := r.URL.Query().Get("level")
 
 	type logEntryResponse struct {
-		Timestamp int64    `json:"timestamp"`
-		Status    string   `json:"status"`
-		Content   string   `json:"content"`
-		Tags      []string `json:"tags"`
+		TimestampMs int64    `json:"timestampMs"`
+		Status      string   `json:"status"`
+		Content     string   `json:"content"`
+		Hostname    string   `json:"hostname"`
+		Tags        []string `json:"tags"`
 	}
 
 	logs := api.tb.GetRawLogs()
 	response := make([]logEntryResponse, 0, len(logs))
 	for _, l := range logs {
-		if levelFilter != "" && l.Status != levelFilter {
+		if levelFilter != "" && l.GetStatus() != levelFilter {
 			continue
 		}
-		tags := l.Tags
+		tags := l.GetTags()
 		if tags == nil {
 			tags = []string{}
 		}
+		// Add host / status tags
+		if l.GetHostname() != "" {
+			tags = append(tags, "host:"+l.GetHostname())
+		}
+		// TODO(celian): Refactor status / hostname to be only tags
+		// if l.Status != "" {
+		// 	tags = append(tags, "status:"+l.Status)
+		// }
 		response = append(response, logEntryResponse{
-			Timestamp: l.Timestamp,
-			Status:    l.Status,
-			Content:   l.Content,
-			Tags:      tags,
+			TimestampMs: l.GetTimestampMs(),
+			Status:      l.GetStatus(),
+			Content:     string(l.GetContent()),
+			Hostname:    l.GetHostname(),
+			Tags:        tags,
 		})
 	}
 
