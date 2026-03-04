@@ -170,7 +170,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.12
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
-	github.com/DataDog/gopsutil v1.2.3
+	github.com/DataDog/gopsutil v1.2.4
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
@@ -331,9 +331,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.16
-	github.com/uptrace/bun/dialect/pgdialect v1.2.16
-	github.com/uptrace/bun/driver/pgdriver v1.2.16
+	github.com/uptrace/bun v1.2.18
+	github.com/uptrace/bun/dialect/pgdialect v1.2.18
+	github.com/uptrace/bun/driver/pgdriver v1.2.18
 	github.com/urfave/negroni v1.0.0
 	github.com/valyala/fastjson v1.6.7
 	github.com/vibrantbyte/go-antpath v1.1.1
@@ -991,7 +991,7 @@ require (
 	github.com/hashicorp/vault/api/auth/userpass v0.11.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/modelcontextprotocol/go-sdk v1.1.0
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.40.1
@@ -1011,7 +1011,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.4 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.4 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.4 // indirect
-	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.146.1 // indirect
 )
@@ -1176,6 +1176,8 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
+	github.com/segmentio/asm v1.2.0 // indirect
+	github.com/segmentio/encoding v0.5.3 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sethvargo/go-limiter v0.7.1 // indirect
