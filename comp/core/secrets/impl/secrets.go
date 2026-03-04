@@ -15,10 +15,8 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
-	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -276,14 +274,10 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
-		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
-		} else {
-			r.backendCommand = filepath.Join(
-				defaultpaths.GetEmbeddedBinPath(),
-				"secret-generic-connector",
-			)
-		}
+		r.backendCommand = filepath.Join(
+			defaultpaths.GetEmbeddedBinPath(),
+			"secret-generic-connector",
+		)
 		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
