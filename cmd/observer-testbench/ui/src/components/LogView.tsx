@@ -20,7 +20,8 @@ interface LogViewProps {
 
 const LOG_CHART_HEIGHT = 80;
 const LOG_CHART_MARGIN = { top: 6, right: 8, bottom: 22, left: 8 };
-const LOG_CHART_BUCKET_COUNT = 120;
+const LOG_CHART_TARGET_BUCKETS = 60;
+const LOG_CHART_MIN_BUCKET_SIZE_S = 1;
 
 function formatTimestamp(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString([], {
@@ -107,22 +108,23 @@ function LogRateChart({
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   const buckets = useMemo(() => {
-    if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) return [];
-    const bucketSize = (scenarioEnd - scenarioStart) / LOG_CHART_BUCKET_COUNT;
-    const counts = new Array(LOG_CHART_BUCKET_COUNT).fill(0);
+    const displayStart = timeRange?.start ?? scenarioStart;
+    const displayEnd = timeRange?.end ?? scenarioEnd;
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) return [];
+    const bucketSize = Math.max(LOG_CHART_MIN_BUCKET_SIZE_S, (displayEnd - displayStart) / LOG_CHART_TARGET_BUCKETS);
+    const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
+    const counts = new Array(bucketCount).fill(0);
     for (const l of logs) {
-      const idx = Math.min(
-        Math.floor((l.timestamp - scenarioStart) / bucketSize),
-        LOG_CHART_BUCKET_COUNT - 1
-      );
+      if (l.timestamp < displayStart || l.timestamp > displayEnd) continue;
+      const idx = Math.min(Math.floor((l.timestamp - displayStart) / bucketSize), bucketCount - 1);
       if (idx >= 0) counts[idx]++;
     }
     return counts.map((count, i) => ({
       count,
-      startTs: scenarioStart + i * bucketSize,
-      endTs: scenarioStart + (i + 1) * bucketSize,
+      startTs: displayStart + i * bucketSize,
+      endTs: displayStart + (i + 1) * bucketSize,
     }));
-  }, [logs, scenarioStart, scenarioEnd]);
+  }, [logs, scenarioStart, scenarioEnd, timeRange]);
 
   const detectors = useMemo(
     () => Array.from(new Set(anomalies.map((a) => a.detectorName))),
