@@ -85,7 +85,9 @@ func (w *workloadmeta) start(ctx context.Context) {
 		// but also don't block on full startCandidatesWithRetry.
 		select {
 		case <-w.firstCollectorReady:
+			w.log.Debug("at least one workloadmeta collector ready, starting pull loop")
 		case <-time.After(firstPullWaitTimeout):
+			w.log.Warnf("no workloadmeta collector ready after %s, starting pull loop anyway", firstPullWaitTimeout)
 		case <-ctx.Done():
 			pullTicker.Stop()
 			w.unsubscribeAll()
@@ -667,6 +669,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 
 		return nil, errors.New("some collectors failed to start. Will retry")
 	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	if err != nil {
+		// Close so the pull goroutine unblocks instead of waiting for firstPullWaitTimeout.
+		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
+		w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+	}
 	return err
 }
 
