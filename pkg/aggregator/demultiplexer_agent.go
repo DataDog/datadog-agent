@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -137,8 +138,9 @@ func InitAndStartAgentDemultiplexer(
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname)
+	hostname string,
+	metricHook hook.Hook[observer.MetricView]) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname, metricHook)
 	go demux.run()
 	return demux
 }
@@ -152,7 +154,8 @@ func initAgentDemultiplexer(log log.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
+	hostname string,
+	metricHook hook.Hook[observer.MetricView]) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -168,7 +171,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, metricHook)
 
 	// statsd samplers
 	// ---------------
@@ -184,13 +187,13 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname, metricHook)
 
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
+			filterList.GetMetricFilterList(), filterList.GetTagFilterList(), metricHook)
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -203,6 +206,7 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 			tagger,
+			metricHook,
 		)
 	}
 
@@ -270,38 +274,6 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 			}
 		}
 	}
-}
-
-// SetObserver wires an observer component into the demultiplexer.
-// This should be called after construction to enable mirroring of check metrics
-// and events to the observer for local analysis/correlation.
-func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
-	if obs == nil {
-		return
-	}
-
-	// Only wire if capture_metrics.enabled is enabled
-	if !(pkgconfigsetup.Datadog().GetBool("observer.analysis.enabled") || pkgconfigsetup.Datadog().GetBool("observer.recording.enabled")) {
-		d.log.Debug("Observer metric capture disabled by configuration")
-		return
-	}
-
-	// Wire all metric paths with a single global handle
-	metricsHandle := obs.GetHandle("all-metrics")
-
-	// Metrics: mirror raw check samples into the observer via the CheckSampler hook.
-	d.aggregator.SetObserverHandle(metricsHandle)
-
-	// DogStatsD metrics: wire all time sampler workers
-	for _, worker := range d.statsd.workers {
-		worker.sampler.observerHandle = metricsHandle
-	}
-
-	// Timestamped metrics (no-aggregation pipeline)
-	if d.statsd.noAggStreamWorker != nil {
-		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
-	}
-
 }
 
 // run runs all demultiplexer parts

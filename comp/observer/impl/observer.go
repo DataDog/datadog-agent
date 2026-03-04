@@ -19,6 +19,8 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -36,6 +38,8 @@ type Requires struct {
 	// RemoteAgentRegistry enables fetching traces/profiles
 	// from remote trace-agents via the ObserverProvider gRPC service.
 	RemoteAgentRegistry remoteagentregistry.Component
+
+	MetricsHooks []hook.Hook[observerdef.MetricView] `group:"hook"`
 }
 
 type AgentInternalLogTapConfig struct {
@@ -175,6 +179,14 @@ func (l *logObs) GetTimestamp() int64 {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
+	metricsHooks := fxutil.GetAndFilterGroup(deps.MetricsHooks)
+	for _, hook := range metricsHooks {
+		pkglog.Info("Metrics hook: %v", hook.Name())
+		hook.Subscribe("observer-metrics-hook", func(payload observerdef.MetricView) {
+			pkglog.Info("Metrics hook payload: %v", payload)
+		})
+	}
+
 	correlator := NewCorrelator(CorrelatorConfig{})
 	reporter := &StdoutReporter{}
 

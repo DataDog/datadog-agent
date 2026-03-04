@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -37,7 +38,7 @@ type CheckSampler struct {
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
-	observerHandle         observer.Handle
+	metricHook             hook.Hook[observer.MetricView]
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -50,6 +51,7 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
+	metricHook hook.Hook[observer.MetricView],
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
@@ -62,24 +64,14 @@ func newCheckSampler(
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
+		metricHook:             metricHook,
 	}
-}
-
-// SetObserverHandle sets the observer handle for mirroring check samples.
-// This should be called after construction if observer integration is enabled.
-func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
-	cs.observerHandle = h
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 
-	// Best-effort: if an observer handle is configured, mirror the raw check sample
-	// into the observer. This allows local correlation/anomaly detection using the
-	// exact same samples that the aggregator will process and forward upstream.
-	if cs.observerHandle != nil {
-		cs.observerHandle.ObserveMetric(metricSample)
-	}
+	cs.metricHook.Publish("aggregator", metricSample)
 
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)

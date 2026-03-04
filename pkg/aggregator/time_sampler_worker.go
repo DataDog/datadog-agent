@@ -10,7 +10,9 @@ import (
 	"time"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -57,6 +59,10 @@ type timeSamplerWorker struct {
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+
+	// metricHook is used to mirror DogStatsD metrics to the observer
+	// for local analysis before aggregation
+	metricHook hook.Hook[observer.MetricView]
 }
 
 type dumpTrigger struct {
@@ -67,7 +73,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
+	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher, metricHook hook.Hook[observer.MetricView]) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -85,7 +91,8 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		metricFilterListChan: make(chan utilstrings.Matcher),
 		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
-		tagsStore: tagsStore,
+		tagsStore:  tagsStore,
+		metricHook: metricHook,
 	}
 }
 

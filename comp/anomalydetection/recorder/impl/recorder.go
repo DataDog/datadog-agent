@@ -14,12 +14,16 @@ import (
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/hook"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires defines the dependencies for the recorder component
 type Requires struct {
 	Config config.Component
+
+	MetricsHooks []hook.Hook[observer.MetricView] `group:"hook"`
 }
 
 // Provides defines the output of the recorder component
@@ -30,6 +34,14 @@ type Provides struct {
 // NewComponent creates a new recorder component
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
+
+	metricsHooks := fxutil.GetAndFilterGroup(req.MetricsHooks)
+	for _, hook := range metricsHooks {
+		pkglog.Info("Metrics hook: %v", hook.Name())
+		hook.Subscribe("recorder-metrics-hook", func(payload observer.MetricView) {
+			pkglog.Info("Metrics hook payload: %v", payload)
+		})
+	}
 
 	// Check if recording is enabled
 	if !req.Config.GetBool("observer.recording.enabled") {

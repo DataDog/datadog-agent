@@ -13,6 +13,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -58,7 +59,7 @@ type noAggregationStreamWorker struct {
 
 	// observerHandle is used to mirror timestamped metrics to the observer
 	// for local analysis
-	observerHandle observer.Handle
+	metricHook hook.Hook[observer.MetricView]
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -90,6 +91,7 @@ func init() {
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
+	metricHook hook.Hook[observer.MetricView],
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -110,7 +112,8 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 
-		tagger: tagger,
+		tagger:     tagger,
+		metricHook: metricHook,
 	}
 }
 
@@ -199,9 +202,7 @@ func (w *noAggregationStreamWorker) run() {
 
 						for _, sample := range samples {
 							// Mirror to observer before serialization (best-effort, non-blocking)
-							if w.observerHandle != nil {
-								w.observerHandle.ObserveMetric(&sample)
-							}
+							w.metricHook.Publish("no-aggregator", &sample)
 
 							mtype, supported := metricSampleAPIType(sample)
 

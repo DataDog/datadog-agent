@@ -24,6 +24,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -274,9 +275,9 @@ type BufferedAggregator struct {
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
-	// observerHandle is an optional handle used to mirror check metric samples into the observer.
+	// metricHook is an optional handle used to mirror check metric samples into the observer.
 	// It is set by the demultiplexer at startup and then copied into newly created CheckSamplers.
-	observerHandle observer.Handle
+	metricHook hook.Hook[observer.MetricView]
 
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
@@ -301,7 +302,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, metricHook hook.Hook[observer.MetricView]) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -364,6 +365,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		filterListChan:    make(chan utilstrings.Matcher),
 		tagfilterListChan: make(chan filterlist.TagMatcher),
+		metricHook:        metricHook,
 	}
 
 	return aggregator
@@ -523,12 +525,6 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 
 	agg.events = append(agg.events, &e)
 
-}
-
-// SetObserverHandle sets the observer handle for mirroring check metrics.
-// The handle will be passed to newly created CheckSamplers.
-func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
-	agg.observerHandle = h
 }
 
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
@@ -1013,10 +1009,8 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
+		agg.metricHook,
 	)
-	// Wire observer handle if configured (set via SetObserverHandle on the aggregator)
-	if agg.observerHandle != nil {
-		cs.SetObserverHandle(agg.observerHandle)
-	}
+
 	agg.checkSamplers[id] = cs
 }
