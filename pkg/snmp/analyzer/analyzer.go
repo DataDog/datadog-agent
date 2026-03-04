@@ -58,7 +58,7 @@ func normalizeOID(oid string) string {
 	newOID := strings.TrimPrefix(oid, ".")
 	return newOID
 }
-func oidMap(profiles []profiledefinition.ProfileDefinition, mapType string) map[string]string {
+func oidMap(profiles []profiledefinition.ProfileDefinition) map[string]string {
 	metricMap := make(map[string]string)
 	// Go through symbol
 
@@ -125,8 +125,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) ([]MetricProfile, error) {
 
 	var foundMetrics []MetricProfile
 
-	//Go through symbol
-	metricMap := oidMap(profileList, "symbol")
+	metricMap := oidMap(profileList)
 
 	for _, oid := range oids {
 		if profileName, found := metricMap[normalizeOID(oid.Name)]; found {
