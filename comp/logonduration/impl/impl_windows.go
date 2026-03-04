@@ -177,6 +177,7 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 
 	if err := c.submitEvent(result); err != nil {
 		log.Errorf("Logon duration: failed to submit event: %v", err)
+		return
 	}
 
 	if err := persistentcache.Write(persistentCacheKey, currentBootTime); err != nil {
