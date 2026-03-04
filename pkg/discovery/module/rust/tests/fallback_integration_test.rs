@@ -43,7 +43,8 @@ fn test_fallback_on_npm_enabled() {
         .arg("run")
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -132,7 +133,8 @@ fn test_missing_fallback_binary() {
         .arg("--")
         .arg("/nonexistent/system-probe")
         .arg("run")
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -259,6 +261,124 @@ fn test_discovery_enabled_with_fallback() {
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
     );
+}
+
+// --datadogcfgpath integration tests
+#[test]
+fn test_datadogcfgpath_overrides_sysprobe_dir() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create two separate directories: one for system-probe.yaml, one for datadog.yaml
+    let sp_dir = TempDir::new().unwrap();
+    let dd_dir = TempDir::new().unwrap();
+
+    // system-probe.yaml with only discovery enabled
+    let sp_config_path = sp_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // datadog.yaml in a DIFFERENT directory with a core config key that triggers fallback
+    let core_config_path = dd_dir.path().join("datadog.yaml");
+    fs::write(&core_config_path, "software_inventory:\n  enabled: true\n").unwrap();
+
+    // Use --datadogcfgpath to point to the separate directory
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .arg(format!("--datadogcfgpath={}", dd_dir.path().display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "--datadogcfgpath should cause core config to be loaded from the specified directory, \
+         triggering fallback due to software_inventory.enabled"
+    );
+}
+
+// Core config (datadog.yaml) integration tests
+#[test]
+fn test_core_config_key_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with both system-probe.yaml and datadog.yaml
+    let config_dir = TempDir::new().unwrap();
+
+    // system-probe.yaml with only discovery enabled
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // datadog.yaml with a core config key that should trigger fallback
+    let core_config_path = config_dir.path().join("datadog.yaml");
+    fs::write(&core_config_path, "software_inventory:\n  enabled: true\n").unwrap();
+
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Core config key (software_inventory.enabled) in datadog.yaml should trigger fallback"
+    );
+}
+
+#[test]
+fn test_core_config_absent_no_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with only system-probe.yaml (no datadog.yaml)
+    let config_dir = TempDir::new().unwrap();
+
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // No datadog.yaml - should be fine, sd-agent should run
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "Missing datadog.yaml should NOT trigger fallback"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
 }
 
 // Killswitch integration tests
@@ -444,7 +564,7 @@ fn test_env_var_false_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "false")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -480,7 +600,7 @@ fn test_env_var_zero_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "0")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "0")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -508,7 +628,8 @@ fn test_env_var_non_boolean_triggers_fallback() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .env("DD_NETWORK_CONFIG_ENABLED", "maybe")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "maybe")
         .output()
         .expect("Failed to execute sd-agent");
 

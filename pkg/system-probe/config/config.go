@@ -119,6 +119,16 @@ func load() (*types.Config, error) {
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 	}
 
+	return enableModules(c, coreCfg, cfg)
+}
+
+// NOTE: When adding a new module check below, the env var and YAML key that
+// enable it will be automatically discovered by TestEnableModulesConfig which
+// will check if they are present in the canonical JSON file.
+//
+// If more complex handling than checking for true is needed, the test may need
+// to be updated to handle the new case.
+func enableModules(c *types.Config, coreCfg pkgconfigmodel.Config, cfg pkgconfigmodel.Config) (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
