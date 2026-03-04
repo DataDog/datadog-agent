@@ -144,7 +144,7 @@ def render_stages(
                 border = _border_color(node_attrs)
                 c.node(
                     _node_id(job_name),
-                    label=_short_name(job_name),
+                    label=_node_label(job_name, node_attrs),
                     fillcolor=cluster_color,
                     color=border,
                 )
@@ -226,7 +226,13 @@ def render_jobs(
                 fill = _job_color(node_attrs)
                 border = _border_color(node_attrs)
                 tooltip = f"stage: {node_attrs.get('stage', '')}\nplatform: {node_attrs.get('platform', '')}"
-                c.node(_node_id(job_name), label=_short_name(job_name), fillcolor=fill, color=border, tooltip=tooltip)
+                c.node(
+                    _node_id(job_name),
+                    label=_node_label(job_name, node_attrs),
+                    fillcolor=fill,
+                    color=border,
+                    tooltip=tooltip,
+                )
 
     for src, dst in G.edges():
         dot.edge(_node_id(src), _node_id(dst), arrowsize="0.4")
@@ -264,7 +270,7 @@ def render_job_subgraph(
     for node, attrs in subG.nodes(data=True):
         fill = _job_color(attrs)
         border = _border_color(attrs)
-        label = _short_name(node)
+        label = _node_label(node, attrs)
         if node == job_name:
             dot.node(_node_id(node), label=label, fillcolor="#ff9999", color=border, penwidth="2")
         else:
@@ -339,6 +345,20 @@ def render_artifacts(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _node_label(node_name: str, attrs: dict, max_len: int = 35) -> str:
+    """Return the display label for a node.
+
+    Folded nodes carry a ``label`` attribute (e.g. ``stem\\n[arm64, x64]``).
+    Plain nodes fall back to a shortened version of the node name.
+    The stem portion is truncated to *max_len* chars; the variant line is kept.
+    """
+    raw = attrs.get("label") or node_name
+    if "\n" in raw:
+        stem, rest = raw.split("\n", 1)
+        return f"{_short_name(stem, max_len)}\n{rest}"
+    return _short_name(raw, max_len)
 
 
 def _node_id(name: str) -> str:

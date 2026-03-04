@@ -83,16 +83,29 @@ def cli(ctx: click.Context, repo_root: str | None) -> None:
     show_default=True,
     help="Output format.",
 )
+@click.option(
+    "--fold/--no-fold",
+    default=True,
+    show_default=True,
+    help="Collapse similar jobs (arch/fips/OS/format variants) into single nodes.",
+)
 @click.pass_context
-def graph(ctx: click.Context, mode: str, job: str | None, output: str, fmt: str) -> None:
+def graph(ctx: click.Context, mode: str, job: str | None, output: str, fmt: str, fold: bool) -> None:
     """Render the pipeline graph to a file."""
     repo_root = ctx.obj["repo_root"]
     click.echo(f"Loading pipeline from {repo_root} ...")
 
     pg = PipelineGraph(repo_root)
-    G = pg.build()
+    pg.build()
 
-    click.echo(f"Loaded {G.number_of_nodes()} jobs across {len(pg.stages)} stages.")
+    if fold and mode in ("stages", "jobs"):
+        G = pg.build_folded()
+        click.echo(
+            f"Loaded {pg.G.number_of_nodes()} jobs → folded to {G.number_of_nodes()} nodes across {len(pg.stages)} stages."
+        )
+    else:
+        G = pg.G
+        click.echo(f"Loaded {G.number_of_nodes()} jobs across {len(pg.stages)} stages.")
 
     output_path = Path(output)
 
