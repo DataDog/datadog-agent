@@ -1,0 +1,10 @@
+description: Clobber redirection (>|) is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo hello >| output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

@@ -1,0 +1,12 @@
+description: Write redirect after valid commands still causes rejection.
+input:
+  # language=bash
+  script: |+
+    echo before
+    echo data > output.txt
+    echo after
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

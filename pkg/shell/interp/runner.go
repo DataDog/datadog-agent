@@ -397,7 +397,7 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 		case "2":
 			orig = &r.stderr
 		default:
-			panic(fmt.Sprintf("unsupported redirect fd: %v", rd.N.Value))
+			return nil, fmt.Errorf("unsupported redirect fd: %v", rd.N.Value)
 		}
 	}
 	arg := r.literal(rd.Word)
@@ -425,49 +425,31 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 		case "-":
 			*orig = io.Discard // closing the output writer
 		default:
-			panic(fmt.Sprintf("unhandled %v arg: %q", rd.Op, arg))
+			return nil, fmt.Errorf("unhandled %v arg: %q", rd.Op, arg)
 		}
 		return nil, nil
-	case syntax.RdrIn, syntax.RdrOut, syntax.AppOut,
-		syntax.RdrAll, syntax.AppAll:
+	case syntax.RdrIn:
 		// done further below
 	case syntax.DplIn:
 		switch arg {
 		case "-":
 			r.stdin = nil // closing the input file
 		default:
-			panic(fmt.Sprintf("unhandled %v arg: %q", rd.Op, arg))
+			return nil, fmt.Errorf("unhandled %v arg: %q", rd.Op, arg)
 		}
 		return nil, nil
 	default:
-		panic(fmt.Sprintf("unhandled redirect op: %v", rd.Op))
+		return nil, fmt.Errorf("unhandled redirect op: %v", rd.Op)
 	}
-	mode := os.O_RDONLY
-	switch rd.Op {
-	case syntax.AppOut, syntax.AppAll:
-		mode = os.O_WRONLY | os.O_CREATE | os.O_APPEND
-	case syntax.RdrOut, syntax.RdrAll:
-		mode = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-	}
-	f, err := r.open(ctx, arg, mode, 0o644, true)
+	f, err := r.open(ctx, arg, os.O_RDONLY, 0, true)
 	if err != nil {
 		return nil, err
 	}
-	switch rd.Op {
-	case syntax.RdrIn:
-		stdin, err := stdinFile(f)
-		if err != nil {
-			return nil, err
-		}
-		r.stdin = stdin
-	case syntax.RdrOut, syntax.AppOut:
-		*orig = f
-	case syntax.RdrAll, syntax.AppAll:
-		r.stdout = f
-		r.stderr = f
-	default:
-		panic(fmt.Sprintf("unhandled redirect op: %v", rd.Op))
+	stdin, err := stdinFile(f)
+	if err != nil {
+		return nil, err
 	}
+	r.stdin = stdin
 	return f, nil
 }
 

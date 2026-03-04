@@ -82,6 +82,13 @@ func validateNode(node syntax.Node) error {
 				err = fmt.Errorf("c-style for loops are not supported")
 				return false
 			}
+
+		// Blocked redirections that write to files.
+		case *syntax.Redirect:
+			err = validateRedirect(n)
+			if err != nil {
+				return false
+			}
 		}
 		return true
 	})
@@ -137,6 +144,22 @@ func validateAssign(as *syntax.Assign) error {
 	}
 	if as.Index != nil {
 		return fmt.Errorf("array index assignment is not supported")
+	}
+	return nil
+}
+
+func validateRedirect(rd *syntax.Redirect) error {
+	switch rd.Op {
+	case syntax.RdrOut, syntax.ClbOut:
+		return fmt.Errorf("> file redirection is not supported")
+	case syntax.AppOut:
+		return fmt.Errorf(">> file redirection is not supported")
+	case syntax.RdrAll:
+		return fmt.Errorf("&> file redirection is not supported")
+	case syntax.AppAll:
+		return fmt.Errorf("&>> file redirection is not supported")
+	case syntax.RdrInOut:
+		return fmt.Errorf("<> file redirection is not supported")
 	}
 	return nil
 }
