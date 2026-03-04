@@ -49,7 +49,7 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		comp.Host = host
 		comp.opts = opts
 
-		installCmd, err := comp.install(e)
+		installCmd, err := comp.install()
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 	)
 }
 
-func (d *Manager) install(e config.Env) (command.Command, error) {
+func (d *Manager) install() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
 	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
@@ -201,53 +201,6 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 	)
 	if err != nil {
 		return nil, err
-	}
-
-	// When a private registry is configured (e.g. pull-through cache), add credentials so
-	// docker-compose and build can pull. The ECR credsStore helper does not implement "store",
-	// so plain "docker login" would fail. Use a temp DOCKER_CONFIG so login writes auths to a
-	// file without the helper, then merge that auths block into the real config.
-	if e.ImagePullRegistry() != "" {
-		registries := strings.Split(e.ImagePullRegistry(), ",")
-		usernames := strings.Split(e.ImagePullUsername(), ",")
-		registry := strings.TrimSpace(registries[0])
-		username := strings.TrimSpace(usernames[0])
-		password := e.ImagePullPassword().ApplyT(func(pwd string) string {
-			parts := strings.Split(pwd, ",")
-			if len(parts) > 0 {
-				return strings.TrimSpace(parts[0])
-			}
-			return pwd
-		}).(pulumi.StringOutput)
-		env := pulumi.StringMap{
-			"REGISTRY":          pulumi.String(registry),
-			"REGISTRY_USERNAME": pulumi.String(username),
-			"REGISTRY_PASSWORD": password,
-		}
-		// Login to a temp config (no credsStore), then merge auths into ~/.docker/config.json.
-		loginAndMerge := pulumi.String(
-			"mkdir -p ~/.docker && TMP=$(mktemp -d) && export TMP && export DOCKER_CONFIG=$TMP && " +
-				"echo \"$REGISTRY_PASSWORD\" | docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\" && " +
-				"python3 -c \"import json,os; p=os.path.expanduser('~/.docker/config.json'); c=json.load(open(p)) if os.path.exists(p) else {}; c.setdefault('auths',{}).update(json.load(open(os.environ['TMP']+'/config.json')).get('auths',{})); json.dump(c,open(p,'w'),indent=2)\" && " +
-				"rm -rf $TMP",
-		)
-		userLogin, err := d.Host.OS.Runner().Command(
-			d.namer.ResourceName("registry-login"),
-			&command.Args{Create: loginAndMerge, Sudo: false, Environment: env},
-			utils.MergeOptions(opts, utils.PulumiDependsOn(groupCmd))...,
-		)
-		if err != nil {
-			return nil, err
-		}
-		sudoLogin, err := d.Host.OS.Runner().Command(
-			d.namer.ResourceName("registry-login-sudo"),
-			&command.Args{Create: loginAndMerge, Sudo: true, Environment: env},
-			utils.MergeOptions(opts, utils.PulumiDependsOn(userLogin))...,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return sudoLogin, nil
 	}
 
 	return groupCmd, err
