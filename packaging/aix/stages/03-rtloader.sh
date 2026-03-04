@@ -101,6 +101,27 @@ cp rtloader/libdatadog-agent-rtloader.so \
    "$STAGING/opt/datadog-agent/rtloader/"
 log "Copy complete."
 
+# ─── Step 4b: Create AIX .a archive wrappers ──────────────────────────────────
+#
+# On AIX, Go's CGO requires shared libraries wrapped in .a archives.
+# Without these, Go cannot generate correct //go:cgo_import_dynamic directives
+# (which must reference "lib.a/lib.so" format).
+# Archives are created in the build tree where CGO_LDFLAGS points.
+
+log "Creating .a archive wrappers for rtloader .so files (AIX CGO requirement)"
+# On AIX, Go's compiler (lex.go) requires the archive member name to either end in
+# ".o" or contain ".so." (a version number).  The conventional AIX name for the
+# 64-bit shared module inside an archive is "shr_64.o".
+cd /opt/datadog-agent/rtloader/build/rtloader
+cp libdatadog-agent-rtloader.so shr_64.o
+ar -X64 -r libdatadog-agent-rtloader.a shr_64.o
+rm -f shr_64.o
+cd /opt/datadog-agent/rtloader/build/three
+cp libdatadog-agent-three.so shr_64.o
+ar -X64 -r libdatadog-agent-three.a shr_64.o
+rm -f shr_64.o
+log "Archive wrappers created (member: shr_64.o in each .a)."
+
 # ─── Step 5: Verify XCOFF64 magic bytes ───────────────────────────────────────
 #
 # XCOFF64 files begin with magic bytes 01 f7 (big-endian 0x01F7 = XCOFF64_MAGIC).

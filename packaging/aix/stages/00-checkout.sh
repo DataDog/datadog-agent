@@ -94,9 +94,16 @@ if [ -d "$INTEGRATIONS_CORE/.git" ]; then
     log "integrations-core repository already exists — fetching latest refs"
     git -C "$INTEGRATIONS_CORE" fetch --quiet
 else
-    log "Cloning https://github.com/DataDog/integrations-core.git into $INTEGRATIONS_CORE"
+    log "Cloning https://github.com/DataDog/integrations-core.git (shallow --depth=1)"
     PARTIAL_INTEGRATIONS_CORE="$INTEGRATIONS_CORE"
-    git clone --quiet https://github.com/DataDog/integrations-core.git "$INTEGRATIONS_CORE"
+    # --depth=1 cuts clone time from ~3 min to ~30 sec.  If the pinned SHA is not
+    # the current HEAD of the default branch, fetch it specifically afterwards.
+    # GitHub supports fetching public commits by SHA (git protocol v2).
+    git clone --depth=1 --quiet https://github.com/DataDog/integrations-core.git "$INTEGRATIONS_CORE"
+    if ! git -C "$INTEGRATIONS_CORE" cat-file -e "${INTEGRATIONS_CORE_VERSION}^{commit}" 2>/dev/null; then
+        log "  Pinned commit not at clone HEAD; fetching $INTEGRATIONS_CORE_VERSION"
+        git -C "$INTEGRATIONS_CORE" fetch --quiet --depth=1 origin "$INTEGRATIONS_CORE_VERSION"
+    fi
     PARTIAL_INTEGRATIONS_CORE=
 fi
 

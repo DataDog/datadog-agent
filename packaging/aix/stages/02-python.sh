@@ -150,7 +150,7 @@ fi
 
 if grep -q 'HAVE_THREAD_LOCAL' Include/pyport.h 2>/dev/null; then
 
-python3.12 << 'PATCH_EOF'
+if python3.12 << 'PATCH_EOF'
 import sys
 
 # ─── Patch 1: Include/pyport.h ─────────────────────────────────────────────
@@ -307,13 +307,12 @@ for name, old, new in patches:
 with open('Python/pystate.c', 'w') as f:
     f.write(src)
 PATCH_EOF
-
-    if [ $? -eq 0 ]; then
-        log "Applied: AIX TLS __thread patches to pyport.h and pystate.c"
-    else
-        log "ERROR: Python TLS patch script failed"
-        exit 1
-    fi
+then
+    log "Applied: AIX TLS __thread patches to pyport.h and pystate.c"
+else
+    log "ERROR: Python TLS patch script failed"
+    exit 1
+fi
 else
     log "INFO: pyport.h __GNUC__ pattern not found — TLS patch not needed (already patched?)."
 fi
@@ -404,6 +403,42 @@ log "ensurepip complete."
 log "Upgrading pip to 24.0, setuptools to 75.1.0, and installing wheel"
 "$EMBEDDED_DESTDIR/bin/pip3.13" install --upgrade "pip==24.0" "setuptools==75.1.0" "wheel"
 log "pip bootstrap complete."
+
+# ─── Step 7b: Create AIX .a archive wrapper for libpython3.13.so ─────────────
+#
+# On AIX, Go's CGO requires shared libraries to be wrapped in .a archives.
+# Without this, the Go cgo tool cannot generate correct //go:cgo_import_dynamic
+# directives (which must reference "libpython3.13.a/libpython3.13.so").
+# This archive is created in-place next to the .so file.
+
+log "Creating libpython3.13.a archive wrapper (required for AIX CGO)"
+# On AIX, Go's compiler requires archive member names to end in ".o" or contain ".so."
+# Convention: name the 64-bit shared module member "shr_64.o" inside the .a archive.
+cd "$EMBEDDED_DESTDIR/lib"
+cp libpython3.13.so shr_64.o
+ar -X64 -r libpython3.13.a shr_64.o
+rm -f shr_64.o
+log "Created: $EMBEDDED_DESTDIR/lib/libpython3.13.a (member: shr_64.o)"
+
+# ─── Step 7c: Create runtime-path symlink (needed to build C extensions) ─────
+#
+# Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
+# When building C extensions (cffi, psutil, etc.) in later stages, Python looks
+# for ld_so_aix and config files at that prefix.  We create a symlink from the
+# runtime path to the staging path so Python can find these files during the build.
+# The 10-assemble stage will remove this symlink and replace it with the real files.
+
+if [ -L "$EMBEDDED" ] && [ "$(readlink "$EMBEDDED")" = "$EMBEDDED_DESTDIR" ]; then
+    log "INFO: $EMBEDDED symlink already correct."
+else
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        log "INFO: $EMBEDDED is a real path — removing to create symlink"
+        rm -rf "$EMBEDDED"
+    fi
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
+    log "Created runtime-path symlink: $EMBEDDED -> $EMBEDDED_DESTDIR"
+fi
 
 # ─── Step 8: Convenience symlinks ────────────────────────────────────────────
 

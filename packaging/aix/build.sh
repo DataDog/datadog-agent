@@ -37,6 +37,7 @@ if [ -z "${AGENT_COMMIT:-}" ]; then
         printf 'INFO: AGENT_COMMIT resolved from .git: %s\n' "$AGENT_COMMIT"
     else
         printf 'ERROR: AGENT_COMMIT must be set to the short SHA of the source tree\n' >&2
+        # shellcheck disable=SC2016  # literal $() is intentional in usage message
         printf '       e.g.: AGENT_COMMIT=$(git rev-parse --short HEAD)\n' >&2
         exit 1
     fi
@@ -168,7 +169,7 @@ else
 fi
 
 # Report the output artifact
-BFF_PATH="$STAGING/tmp/datadog-agent.${AGENT_VRMF}.bff"
+BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
 BUILD_END=$(date '+%Y-%m-%dT%H:%M:%S')
 
 log "=== Build complete ==="

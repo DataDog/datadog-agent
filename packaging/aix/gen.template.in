@@ -18,9 +18,6 @@ Fileset
  Requisites:
  ROOT Part: Y
  USRFiles
- /opt/datadog-agent
- /etc/datadog-agent
- /var/log/datadog
- /var/run/datadog
+__FILE_LIST__
  EOUSRFiles
 EOFileset

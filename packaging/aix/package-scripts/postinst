@@ -3,14 +3,28 @@
 lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 
 # Create dd-agent user (no login shell)
-id dd-agent > /dev/null 2>&1 || {
-    grep -q '/usr/bin/false' /etc/security/login.cfg || \
+if ! id dd-agent > /dev/null 2>&1; then
+    # Register /usr/bin/false as a valid shell in AIX login config if not present
+    grep -q '^/usr/bin/false:' /etc/security/login.cfg || \
         printf '\n/usr/bin/false:\n\tregistry = files\n' >> /etc/security/login.cfg
+    # Create home directory before mkuser so AIX does not reject the path
+    mkdir -p /var/lib/datadog-agent
     mkuser pgrp=dd-agent shell=/usr/bin/false home=/var/lib/datadog-agent id=9001 dd-agent
-}
+fi
 
 # Add dd-agent to adm group (required for sar — used by the CPU check)
 chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
+
+# Set ownership of runtime directories so the agent can write to them.
+# The BFF installs these directories as root:root (build-time default); fix
+# them here after the dd-agent user is guaranteed to exist.
+chown dd-agent:dd-agent /var/lib/datadog-agent 2>/dev/null || true
+chown dd-agent:dd-agent /var/log/datadog       2>/dev/null || true
+chown dd-agent:dd-agent /var/run/datadog       2>/dev/null || true
+chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
+# Config dir: root-owned, dd-agent group readable (api_key etc. should stay private)
+chown root:dd-agent /etc/datadog-agent 2>/dev/null || true
+chmod 750 /etc/datadog-agent           2>/dev/null || true
 
 # Remove stale SRC entry then register fresh
 odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
@@ -30,6 +44,7 @@ mkssys -s datadog-agent \
 
 # Compile Python bytecode
 PYTHON=/opt/datadog-agent/embedded/bin/python3.13
-[ -x "$PYTHON" ] && \
-    $PYTHON -m compileall /opt/datadog-agent/embedded/lib/python3.13/site-packages \
-            -x 'test/' -q 2>/dev/null || true
+if [ -x "$PYTHON" ]; then
+    "$PYTHON" -m compileall /opt/datadog-agent/embedded/lib/python3.13/site-packages \
+              -x 'test/' -q 2>/dev/null || true
+fi

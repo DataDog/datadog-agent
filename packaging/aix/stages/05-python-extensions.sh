@@ -30,6 +30,7 @@ fi
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
 
 PIP=$EMBEDDED_DESTDIR/bin/pip3.13
+PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python3.13
 
 # --- Pre-flight: confirm pip3.13 exists ---
 if [ ! -x "$PIP" ]; then
@@ -60,22 +61,21 @@ trap cleanup EXIT
 # with the Linux omnibus pipeline automatically when the integrations-core
 # commit is updated in release.json.
 #
-# The lockfile format is: <package>==<version> \
-#     --hash=sha256:...
-# We extract the version line for each package by matching the package name
-# followed by == at the start of a line (case-insensitive package names).
+# The lockfile uses PEP 508 URL format:
+#   package @ https://...registry.../package-VERSION-...-platform.whl#sha256=...
+# We extract the version from the package name embedded in the wheel filename.
 
-read_lockfile_version() {
-    PKG=$1
-    grep -i "^${PKG}==" "$LOCKFILE" | head -1 | sed 's/==.*//' | sed "s/^${PKG}//i; s/^==//"
-    # Return just the version number after ==
-    grep -i "^${PKG}==" "$LOCKFILE" | head -1 | sed 's/.*==//'
+extract_version() {
+    _pkg=$1
+    # Match "pkgname @ https://...pkgname-VERSION-..." and extract VERSION
+    grep -i "^${_pkg} @ " "$LOCKFILE" | head -1 \
+        | sed "s/.*${_pkg}-\([0-9][0-9.]*\)-.*/\1/"
 }
 
-CFFI_VERSION=$(grep -i "^cffi==" "$LOCKFILE" | head -1 | sed 's/.*==//')
-PSUTIL_VERSION=$(grep -i "^psutil==" "$LOCKFILE" | head -1 | sed 's/.*==//')
-LXML_VERSION=$(grep -i "^lxml==" "$LOCKFILE" | head -1 | sed 's/.*==//')
-CRYPTOGRAPHY_VERSION=$(grep -i "^cryptography==" "$LOCKFILE" | head -1 | sed 's/.*==//')
+CFFI_VERSION=$(extract_version cffi)
+PSUTIL_VERSION=$(extract_version psutil)
+LXML_VERSION=$(extract_version lxml)
+CRYPTOGRAPHY_VERSION=$(extract_version cryptography)
 
 if [ -z "$CFFI_VERSION" ] || [ -z "$PSUTIL_VERSION" ] || [ -z "$LXML_VERSION" ] || [ -z "$CRYPTOGRAPHY_VERSION" ]; then
     log "ERROR: could not read one or more package versions from $LOCKFILE"
@@ -95,9 +95,52 @@ log "  cryptography==$CRYPTOGRAPHY_VERSION"
 # cffi is required by cryptography (and many other packages).  It builds against
 # the libffi we bundled in Stage 1 via the standard CFLAGS/CPPFLAGS/LDFLAGS that
 # point to $EMBEDDED_DESTDIR.
+#
+# AIX/GCC TLS issue (0509-187 / USE__THREAD):
+#   cffi's setup.py calls config.try_compile('__thread int x;') which succeeds
+#   on AIX/GCC (the syntax is valid) and then adds -DUSE__THREAD to the build.
+#   -DUSE__THREAD makes _cffi_backend.c use __thread for TLS variables, which
+#   AIX's dynamic linker rejects in shared libraries (error 0509-187: local-exec
+#   model).  -ftls-model=global-dynamic is not a fix because GCC on AIX generates
+#   calls to __tls_get_addr (ELF TLS) which does not exist on XCOFF/AIX.
+#
+#   Fix: patch cffi's setup.py before install to skip USE__THREAD on AIX.
+#   Without USE__THREAD, cffi uses pthread_key_t for TLS which works correctly.
+#
+# AIX/GCC __lwsync note: cffi's call_python.c uses __lwsync() which is an IBM
+#   XLC intrinsic not available in GCC.  We redefine it to GCC's
+#   __sync_synchronize() which provides an equivalent full memory barrier.
 
 log "Installing cffi==$CFFI_VERSION (C extension, bundled libffi)"
-$PIP install --no-binary cffi "cffi==$CFFI_VERSION"
+log "  Downloading cffi source and patching for AIX TLS compatibility"
+
+# Download cffi source via pip (handles URL resolution, caching, etc.)
+CFFI_SRCDIR="/tmp/cffi-${CFFI_VERSION}-aix-src"
+rm -rf "$CFFI_SRCDIR"
+mkdir -p "$CFFI_SRCDIR"
+$PIP download --no-deps --no-binary cffi "cffi==$CFFI_VERSION" -d "$CFFI_SRCDIR"
+CFFI_TARBALL=$(find "$CFFI_SRCDIR" -name 'cffi-*.tar.gz' 2>/dev/null | head -1)
+if [ -z "$CFFI_TARBALL" ]; then
+    log "ERROR: could not download cffi source tarball"
+    exit 1
+fi
+log "  cffi source: $CFFI_TARBALL"
+CFFI_BUILDDIR="/tmp/cffi-${CFFI_VERSION}-build"
+rm -rf "$CFFI_BUILDDIR"
+# Use Python tarfile module for extraction: AIX native tar rejects modern
+# tar formats (pax headers) used by cffi's PyPI distribution.
+$PYTHON_BIN -c "import tarfile, os; tarfile.open('$CFFI_TARBALL').extractall('/tmp')"
+mv "/tmp/cffi-${CFFI_VERSION}" "$CFFI_BUILDDIR"
+
+# Patch setup.py: add sys.platform != 'aix' check to ask_supports_thread()
+# so that __thread is not used in the shared library (causes 0509-187 on AIX).
+sed "s/sys.platform != 'win32' and\$/sys.platform != 'win32' and sys.platform != 'aix' and/" \
+    "$CFFI_BUILDDIR/setup.py" > "$CFFI_BUILDDIR/setup.py.new"
+mv "$CFFI_BUILDDIR/setup.py.new" "$CFFI_BUILDDIR/setup.py"
+log "  setup.py patched: AIX check added to ask_supports_thread()"
+
+CFLAGS="-maix64 -D__lwsync=__sync_synchronize" \
+    $PIP install --no-cache-dir "$CFFI_BUILDDIR"
 log "cffi==$CFFI_VERSION installed successfully"
 
 # ─── Step 2: psutil (C extension) ─────────────────────────────────────────────
@@ -135,16 +178,24 @@ log "lxml==$LXML_VERSION installed successfully"
 #                                       flags like -fPIC, -ffunction-sections, -maix64
 #   OPENSSL_DIR                       — tells the openssl-sys crate where our
 #                                       bundled OpenSSL lives (staging path)
+#   ARFLAGS unset                     — env.sh sets ARFLAGS="-X64 -cru" which
+#                                       includes the ar operation code; cc-rs appends
+#                                       its own "cq" operation, producing "ar -cru cq"
+#                                       which AIX ar rejects (two operation codes).
+#                                       OBJECT_MODE=64 already ensures 64-bit archives.
+#   RUSTFLAGS="-C link-arg=-bbigtoc" — cryptography-rust has ~144KB TOC entries
+#                                       which exceeds AIX ld's default 64KB TOC limit.
+#                                       -bbigtoc removes this limit for AIX XCOFF.
 
 log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
 log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/1.92/bin:..."
-export PATH=/opt/freeware/lib/RustSDK/1.92/bin:$PATH
+export PATH=/opt/freeware/lib/RustSDK/1.92/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)
 CRYPTO_CACHE_DIR="$WHEEL_CACHE/cryptography-$CRYPTOGRAPHY_VERSION"
 mkdir -p "$CRYPTO_CACHE_DIR"
-CACHED_CRYPTO=$(ls "$CRYPTO_CACHE_DIR"/cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_ppc64.whl 2>/dev/null | head -1)
+CACHED_CRYPTO=$(find "$CRYPTO_CACHE_DIR" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*-aix_ppc64.whl" 2>/dev/null | head -1)
 
 if [ -n "$CACHED_CRYPTO" ]; then
     log "Found cached cryptography wheel: $CACHED_CRYPTO"
@@ -152,11 +203,27 @@ if [ -n "$CACHED_CRYPTO" ]; then
     log "cryptography==$CRYPTOGRAPHY_VERSION installed from cache"
 else
     log "No cached wheel found for cryptography==$CRYPTOGRAPHY_VERSION — building from source"
+    # Pre-install maturin (cryptography build dep) into staging.
+    # We use --no-build-isolation below so pip does not create an isolated venv,
+    # allowing cryptography's build script to import cffi from our staging env
+    # (which was compiled with AIX fixes) rather than from a fresh isolated build
+    # that would fail with AIX TLS error 0509-187.
+    # ARFLAGS="" prevents the cc-rs "ar -cru cq" double-operation conflict.
+    log "Pre-installing maturin (required for --no-build-isolation cryptography build)"
+    ARFLAGS="" \
+        $PIP install "maturin>=1,<2"
+    log "maturin installed"
+
     OPENSSL_DIR=$EMBEDDED_DESTDIR \
     CARGO_PROFILE_RELEASE_STRIP=none \
     CARGO_PROFILE_RELEASE_LTO=off \
-        $PIP install --no-binary cryptography "cryptography==$CRYPTOGRAPHY_VERSION"
+    RUSTFLAGS="-C link-arg=-bbigtoc" \
+    ARFLAGS="" \
+        $PIP install --no-build-isolation --no-binary cryptography "cryptography==$CRYPTOGRAPHY_VERSION"
     log "cryptography==$CRYPTOGRAPHY_VERSION build complete"
+
+    # Remove maturin (build-time tool; not needed at runtime)
+    $PIP uninstall -y maturin 2>/dev/null || true
 
     # Cache the built wheel for subsequent builds.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "cryptography-${CRYPTOGRAPHY_VERSION}-*.whl" 2>/dev/null | head -1)

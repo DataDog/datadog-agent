@@ -133,7 +133,9 @@ stage_toolbox_lib() {
 }
 
 # ─── Open-file limit ──────────────────────────────────────────────────────────
+# shellcheck disable=SC3045  # ulimit -n is supported by AIX sh (not POSIX sh)
 ulimit -n 65536
+# shellcheck disable=SC3045
 log "Open-file limit raised to $(ulimit -n)"
 
 # ─── Library build / stage functions ─────────────────────────────────────────
@@ -147,8 +149,12 @@ else
     CURRENT_LIB="zlib-${ZLIB_VERSION}"
     log "Building zlib ${ZLIB_VERSION}"
     TARBALL="$BUILD_DIR/sources/zlib-${ZLIB_VERSION}.tar.gz"
-    # Note: zlib.net moved older releases to /fossils/
-    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz"
+    # Primary: GitHub releases (canonical, stable across versions)
+    # Fallback: zlib.net (older releases moved to /fossils/)
+    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
+        "https://github.com/madler/zlib/releases/download/v${ZLIB_VERSION}/zlib-${ZLIB_VERSION}.tar.gz" || \
+        curl -fSL -o "$TARBALL" "https://zlib.net/fossils/zlib-${ZLIB_VERSION}.tar.gz" || \
+        curl -fSL -o "$TARBALL" "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz"
     rm -rf "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
@@ -189,7 +195,10 @@ else
     CURRENT_LIB="openssl-${OPENSSL_VERSION}"
     log "Building OpenSSL ${OPENSSL_VERSION}"
     TARBALL="$BUILD_DIR/sources/openssl-${OPENSSL_VERSION}.tar.gz"
-    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+    # openssl.org/source redirects to GitHub for recent releases; use GitHub directly
+    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
+        "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz" || \
+        curl -fSL -o "$TARBALL" "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
     rm -rf "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/openssl-${OPENSSL_VERSION}"
@@ -213,7 +222,10 @@ else
     CURRENT_LIB="xz-${XZ_VERSION}"
     log "Building xz ${XZ_VERSION}"
     TARBALL="$BUILD_DIR/sources/xz-${XZ_VERSION}.tar.gz"
-    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" "https://tukaani.org/xz/xz-${XZ_VERSION}.tar.gz"
+    # tukaani.org redirects to GitHub; use GitHub directly
+    [ -f "$TARBALL" ] || curl -fSL -o "$TARBALL" \
+        "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz" || \
+        curl -fSL -o "$TARBALL" "https://tukaani.org/xz/xz-${XZ_VERSION}.tar.gz"
     rm -rf "$BUILD_DIR/build/xz-${XZ_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/xz-${XZ_VERSION}"
@@ -371,8 +383,9 @@ for xdir in libxslt libexslt; do
 done
 # pkg-config
 for lib in libxslt libexslt; do
-    [ -f "/opt/freeware/lib/pkgconfig/${lib}.pc" ] && \
-        cp "/opt/freeware/lib/pkgconfig/${lib}.pc" "$EMBEDDED_DESTDIR/lib/pkgconfig/" || true
+    if [ -f "/opt/freeware/lib/pkgconfig/${lib}.pc" ]; then
+        cp "/opt/freeware/lib/pkgconfig/${lib}.pc" "$EMBEDDED_DESTDIR/lib/pkgconfig/"
+    fi
 done
 
 # ─── Ensure standard directories exist ────────────────────────────────────────

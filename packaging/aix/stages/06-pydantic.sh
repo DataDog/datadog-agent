@@ -91,11 +91,13 @@ log "Required pydantic version (from datadog_checks_base): $PYDANTIC_VERSION"
 #                                       fails after 50+ minutes of compilation
 #   CC=/opt/freeware/bin/gcc          — cc-rs defaults to IBM xlc which rejects GCC
 #                                       flags like -fPIC, -ffunction-sections, -maix64
+#   RUSTFLAGS="-C link-arg=-bbigtoc" — pydantic-core exceeds AIX ld's 64KB TOC limit;
+#                                       -bbigtoc removes this limit for AIX XCOFF.
 
 log "Setting Rust environment for pydantic-core build"
 export CC=/opt/freeware/bin/gcc
 export CXX=/opt/freeware/bin/g++
-export PATH=/opt/freeware/lib/RustSDK/1.92/bin:$PATH
+export PATH=/opt/freeware/lib/RustSDK/1.92/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
 
 log "  CC=$CC"
@@ -117,7 +119,7 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo 'cargo not found �
 WHEEL_CACHE_DIR="$WHEEL_CACHE/pydantic-$PYDANTIC_VERSION"
 mkdir -p "$WHEEL_CACHE_DIR"
 
-CACHED_WHEEL=$(ls "$WHEEL_CACHE_DIR"/pydantic_core-*-cp313-cp313-aix_ppc64.whl 2>/dev/null | head -1)
+CACHED_WHEEL=$(find "$WHEEL_CACHE_DIR" -name 'pydantic_core-*-cp313-cp313-aix_ppc64.whl' 2>/dev/null | head -1)
 
 if [ -n "$CACHED_WHEEL" ]; then
     log "Found cached pydantic-core wheel: $CACHED_WHEEL"
@@ -136,6 +138,8 @@ else
 
     CARGO_PROFILE_RELEASE_STRIP=none \
     CARGO_PROFILE_RELEASE_LTO=off \
+    RUSTFLAGS="-C link-arg=-bbigtoc" \
+    ARFLAGS="" \
         $PIP install "pydantic==$PYDANTIC_VERSION" --no-binary pydantic-core
 
     log "pydantic-core build complete"

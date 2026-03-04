@@ -62,17 +62,50 @@ if [ ! -f "$POSTINST" ]; then
 fi
 log "Pre-flight: postinst script found at $POSTINST"
 
-# ─── Step 2: Substitute AGENT_VRMF into the mkinstallp template ───────────────
+# ─── Step 2: Generate the mkinstallp template with VRMF and full file list ────
 #
-# gen.template.in contains the literal token AGENT_VRMF_PLACEHOLDER in every
-# place where the four-component version string (V.R.M.F, e.g. 7.78.0.1) is
-# required.  sed replaces all occurrences and writes the resolved template into
-# the staging root so mkinstallp can find it there.
+# gen.template.in contains two placeholder tokens:
+#   AGENT_VRMF_PLACEHOLDER — replaced with the four-component VRMF (e.g. 7.78.0.1)
+#   __FILE_LIST__          — replaced with a complete list of all files/dirs to package
+#
+# AIX mkinstallp USRFiles requires individual file/directory paths; listing a
+# directory path alone only packages the directory entry, not its contents.
+# We use find to enumerate every path under each package directory and strip the
+# staging prefix so each line is the absolute installed path (e.g. /opt/datadog-agent/bin/agent).
 
 log "Generating gen.template with VRMF=${AGENT_VRMF}"
-sed "s/AGENT_VRMF_PLACEHOLDER/${AGENT_VRMF}/g" \
-    "$SCRIPT_DIR/gen.template.in" > "$STAGING/gen.template"
-log "Template written to $STAGING/gen.template"
+
+FILELIST="$BUILD_DIR/.pkg_filelist.tmp"
+: > "$FILELIST"
+for pkg_dir in opt/datadog-agent etc/datadog-agent var/log/datadog var/run/datadog; do
+    if [ -d "$STAGING/$pkg_dir" ]; then
+        # Filter out paths with spaces or parentheses: AIX mkinstallp splits USRFiles lines
+        # on whitespace, so filenames containing spaces cause checksum errors and are skipped.
+        # Files like "Lorem ipsum.txt" and "launcher manifest.xml" (setuptools vendor docs)
+        # are documentation only and not needed at runtime.
+        find "$STAGING/$pkg_dir" -print | sed "s|^$STAGING||" | grep -v '[ ()]' >> "$FILELIST"
+    fi
+done
+FILE_COUNT=$(wc -l < "$FILELIST" | tr -d ' ')
+log "File list generated: $FILE_COUNT paths"
+
+# Build gen.template: substitute VRMF and expand __FILE_LIST__ with the file list
+{
+    while IFS= read -r tmpl_line; do
+        case "$tmpl_line" in
+            '__FILE_LIST__')
+                cat "$FILELIST"
+                ;;
+            *'AGENT_VRMF_PLACEHOLDER'*)
+                printf '%s\n' "$tmpl_line" | sed "s/AGENT_VRMF_PLACEHOLDER/${AGENT_VRMF}/g"
+                ;;
+            *)
+                printf '%s\n' "$tmpl_line"
+                ;;
+        esac
+    done < "$SCRIPT_DIR/gen.template.in"
+} > "$STAGING/gen.template"
+log "Template written to $STAGING/gen.template ($FILE_COUNT file entries)"
 
 # ─── Step 3: Run mkinstallp to generate the BFF ───────────────────────────────
 #
@@ -83,8 +116,12 @@ log "Template written to $STAGING/gen.template"
 # mkinstallp requires the tmp/ subdirectory to exist; create it explicitly so
 # the error message is clear if it fails rather than getting a cryptic mkdir
 # failure from inside mkinstallp.
+#
+# Remove any .info directory left by a previous failed mkinstallp run; mkinstallp
+# refuses to overwrite its own control files and exits with error 0503-844.
 
 log "Running mkinstallp (this may take a few minutes for large packages)"
+rm -rf "$STAGING/.info"
 mkdir -p "$STAGING/tmp"
 /usr/sbin/mkinstallp -d "$STAGING" -T "$STAGING/gen.template"
 log "mkinstallp completed"

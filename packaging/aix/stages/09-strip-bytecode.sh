@@ -43,7 +43,7 @@ trap cleanup EXIT
 # command substitution size limits and to handle filenames with spaces safely.
 
 log "Stripping debug info from .so files under $EMBEDDED_DESTDIR/lib"
-find "$EMBEDDED_DESTDIR/lib" -name "*.so*" | while read f; do
+find "$EMBEDDED_DESTDIR/lib" -name "*.so*" | while IFS= read -r f; do
     /opt/freeware/bin/strip -X64 "$f" 2>/dev/null || true
 done
 log "Strip pass complete"
@@ -60,10 +60,9 @@ log "Removing build-time artefacts (headers, pkgconfig, man pages, .c/.h files)"
 rm -rf "$EMBEDDED_DESTDIR/include"
 rm -rf "$EMBEDDED_DESTDIR/lib/pkgconfig"
 rm -rf "$EMBEDDED_DESTDIR/share/man"
-find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.c" -delete
-find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.h" -delete
-find "$EMBEDDED_DESTDIR/lib/python3.13" -depth -name "__pycache__" \
-    -exec sh -c 'find "$1" -name "*.pyc" -delete' _ {} \; 2>/dev/null || true
+find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.c" -exec rm -f {} \;
+find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.h" -exec rm -f {} \;
+find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.pyc" -exec rm -f {} \; 2>/dev/null || true
 log "Build artefacts removed"
 
 # ─── Step 3: Compile .py to .pyc for faster agent startup ─────────────────────
