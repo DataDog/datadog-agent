@@ -1,0 +1,10 @@
+description: Coprocesses are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    coproc echo hello
+expect:
+  stdout: ""
+  stderr: |+
+    coprocesses are not supported
+  exit_code: 2

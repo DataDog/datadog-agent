@@ -1,0 +1,10 @@
+description: Case statements are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    case "hello" in hello) echo matched;; esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

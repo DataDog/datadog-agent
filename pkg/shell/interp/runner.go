@@ -314,10 +314,10 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 				}
 			}
 		default:
-			panic(fmt.Sprintf("unsupported loop type: %T", cm.Loop))
+			r.exit.fatal(fmt.Errorf("unsupported loop type: %T", cm.Loop))
 		}
 	default:
-		panic(fmt.Sprintf("unsupported command node: %T", cm))
+		r.exit.fatal(fmt.Errorf("unsupported command node: %T", cm))
 	}
 }
 

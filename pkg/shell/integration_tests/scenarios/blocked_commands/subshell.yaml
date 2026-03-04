@@ -1,0 +1,10 @@
+description: Subshells are not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    (echo hello)
+expect:
+  stdout: ""
+  stderr: |+
+    subshells are not supported
+  exit_code: 2

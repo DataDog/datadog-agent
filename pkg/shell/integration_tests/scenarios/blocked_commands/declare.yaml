@@ -1,0 +1,10 @@
+description: declare is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    declare -i X=42
+expect:
+  stdout: ""
+  stderr: |+
+    declare is not supported
+  exit_code: 2
