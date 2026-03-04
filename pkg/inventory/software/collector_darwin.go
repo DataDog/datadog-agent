@@ -74,12 +74,12 @@ func defaultCollectors() []Collector {
 
 // parsePlistToMap parses plist XML data into a map
 func parsePlistToMap(data []byte) (map[string]string, error) {
-	// Simple plist parser that extracts key-string pairs
+	// Simple plist parser that extracts key-string pairs from top-level dict only
 	result := make(map[string]string)
 
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	var currentKey string
-	var inDict bool
+	var dictLevel int // Track nesting level to handle nested dicts in arrays
 
 	for {
 		token, err := decoder.Token()
@@ -91,16 +91,18 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 		case xml.StartElement:
 			switch t.Name.Local {
 			case "dict":
-				inDict = true
+				dictLevel++
 			case "key":
-				if inDict {
+				// Only capture keys at the top-level dict (level 1)
+				if dictLevel == 1 {
 					var key string
 					if err := decoder.DecodeElement(&key, &t); err == nil {
 						currentKey = key
 					}
 				}
 			case "string":
-				if inDict && currentKey != "" {
+				// Only capture string values at the top-level dict
+				if dictLevel == 1 && currentKey != "" {
 					var value string
 					if err := decoder.DecodeElement(&value, &t); err == nil {
 						result[currentKey] = value
@@ -108,7 +110,8 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 					currentKey = ""
 				}
 			case "date":
-				if inDict && currentKey != "" {
+				// Only capture date values at the top-level dict
+				if dictLevel == 1 && currentKey != "" {
 					var value string
 					if err := decoder.DecodeElement(&value, &t); err == nil {
 						result[currentKey] = value
@@ -116,15 +119,18 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 					currentKey = ""
 				}
 			default:
-				// Skip other value types and reset current key
-				if inDict && currentKey != "" {
+				// Skip other value types and reset current key (only at top level)
+				if dictLevel == 1 && currentKey != "" {
 					currentKey = ""
 				}
 			}
 		case xml.EndElement:
 			if t.Name.Local == "dict" {
-				// Only process the first dict level
-				return result, nil
+				dictLevel--
+				if dictLevel == 0 {
+					// Finished parsing the top-level dict
+					return result, nil
+				}
 			}
 		}
 	}
