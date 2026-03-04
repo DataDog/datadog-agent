@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -40,6 +40,7 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -279,19 +280,17 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "secret-generic-connector")
+			} else {
+				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			}
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
 	r.responseMaxSize = params.MaxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
@@ -303,9 +302,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
-	if r.auditFileMaxSize == 0 {
-		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
-	}
 
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace

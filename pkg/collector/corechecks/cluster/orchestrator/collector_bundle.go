@@ -44,6 +44,7 @@ const (
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
+	EKSAPIGroup             = "eks.amazonaws.com"
 )
 
 var (
@@ -525,6 +526,9 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+
+		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
+		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
 	}
 }
 

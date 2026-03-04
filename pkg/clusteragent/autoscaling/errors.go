@@ -42,6 +42,12 @@ const (
 	ConditionReasonUnsupportedTargetKind ConditionReasonType = "UnsupportedTargetKind"
 	// ConditionReasonRolloutFailed indicates a failure when triggering a vertical rollout on the target.
 	ConditionReasonRolloutFailed ConditionReasonType = "RolloutFailed"
+	// ConditionReasonLimitedByConstraint indicates the recommendation was clamped by configured constraints
+	// (e.g. min/max replicas for horizontal, minAllowed/maxAllowed for vertical).
+	ConditionReasonLimitedByConstraint ConditionReasonType = "LimitedByConstraint"
+	// ConditionReasonLimitedByScalingBehavior indicates scaling was limited by behavior settings
+	// (e.g. stabilization window, scaling rules).
+	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"
 )
 
 // ConditionReason is an interface that errors can implement to provide

@@ -98,8 +98,8 @@ type templateData struct {
 	AmbiantCapabilitiesSupported bool
 }
 
-func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	tmpl, err := template.ParseFS(embedded, name+".tmpl")
+func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}
@@ -111,6 +111,14 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 		panic(err)
 	}
 	return buf.Bytes()
+}
+
+func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
+}
+
+func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
+	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
 func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
@@ -133,6 +141,12 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgrd.service":       mustReadSystemdUnit("datadog-agent-procmgrd.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgrd-exp.service":   mustReadSystemdUnit("datadog-agent-procmgrd.service", expData, ambiantCapabilitiesSupported),
+
+		// dd-procmgrd process configs
+		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
+		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 	}
 	return units
 }

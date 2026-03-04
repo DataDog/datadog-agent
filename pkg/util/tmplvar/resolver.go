@@ -23,7 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type Resolvable interface {
@@ -341,11 +341,16 @@ func resolveStringWithAdHocTemplateVars(in string, res Resolvable, templateVaria
 		varIndexes[0][0] == 0 &&
 		varIndexes[0][1] == len(in) {
 
-		if i, e := strconv.ParseInt(out.(string), 0, 64); e == nil {
-			return i, err
-		}
-		if b, e := strconv.ParseBool(out.(string)); e == nil {
-			return b, err
+		// %%env_*%% values should not be coerced as they may mismatch with checks
+		// or be parsed incorrectly if they have a base like base-0 ex: "0123456" becomes 42798
+		singleVarName := in[varIndexes[0][2]:varIndexes[0][3]]
+		if singleVarName != "env" {
+			if i, e := strconv.ParseInt(out.(string), 0, 64); e == nil {
+				return i, err
+			}
+			if b, e := strconv.ParseBool(out.(string)); e == nil {
+				return b, err
+			}
 		}
 	}
 	return

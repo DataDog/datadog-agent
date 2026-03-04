@@ -88,14 +88,18 @@ func TestUseEndpointSlices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkgconfigsetup.Datadog().Set("kubernetes_use_endpoint_slices", tt.configEnabled, pkgconfigmodel.SourceFile)
+			defer cache.Cache.Delete(endpointSlicesCacheKey)
 
+			pkgconfigsetup.Datadog().Set("kubernetes_use_endpoint_slices", tt.configEnabled, pkgconfigmodel.SourceFile)
 			cache.Cache.Set(serverVersionCacheKey, tt.version, time.Hour)
 
 			setupFakeAPIClient()
 
 			result := UseEndpointSlices()
 			assert.Equal(t, tt.expectedResult, result, tt.name)
+			use, found := cache.Cache.Get(endpointSlicesCacheKey)
+			assert.True(t, found)
+			assert.Equal(t, tt.expectedResult, use.(bool))
 		})
 	}
 }
