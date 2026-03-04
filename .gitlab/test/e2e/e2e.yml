@@ -8,10 +8,22 @@
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
+    # Setup CI Visibility custom spans (fetches DATADOG_API_KEY + defines bash helpers)
+    - !reference [.setup_datadog_ci_sections]
+    # Retrieve e2e Go deps
+    - datadog-ci-start-section
     - !reference [.retrieve_linux_go_e2e_deps]
+    - datadog-ci-end-section --category e2e-setup "Retrieve e2e Go deps"
+    # Retrieve Pulumi plugins
+    - datadog-ci-start-section
     - !reference [.retrieve_linux_pulumi_plugins]
+    - datadog-ci-end-section --category e2e-setup "Retrieve Pulumi plugins"
+    # Retrieve Go tools deps
+    - datadog-ci-start-section
     - !reference [.retrieve_linux_go_tools_deps]
+    - datadog-ci-end-section --category e2e-setup "Retrieve Go tools deps"
     # Setup AWS Credentials
+    - datadog-ci-start-section
     - mkdir -p ~/.aws
     - |
       if [ -n "$E2E_USE_AWS_PROFILE" ]; then
@@ -27,6 +39,9 @@
         export AWS_SECRET_ACCESS_KEY="$(echo "$roleoutput" | jq -r '.Credentials.SecretAccessKey')"
         export AWS_SESSION_TOKEN="$(echo "$roleoutput" | jq -r '.Credentials.SessionToken')"
       fi
+    - datadog-ci-end-section --category e2e-setup "Setup AWS credentials"
+    # SSH Key retrieval
+    - datadog-ci-start-section
     # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
     # SSH Key retrieval for AWS
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
@@ -37,8 +52,13 @@
     # SSH Key retrieval for GCP
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_PUBLIC_KEY_PATH || exit $?
     - touch $E2E_GCP_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_PRIVATE_KEY_PATH || exit $?
-    # Use S3 backend
+    - datadog-ci-end-section --category e2e-setup "Retrieve SSH keys"
+    # Pulumi login
+    - datadog-ci-start-section
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - datadog-ci-end-section --category e2e-setup "Pulumi login"
+    # Setup cloud credentials (Azure + GCP)
+    - datadog-ci-start-section
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
     # The app is called `agent-e2e-tests`
     - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_id) || exit $?; export ARM_CLIENT_ID
@@ -49,12 +69,16 @@
     # The service account is called `agent-e2e-tests`
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json > ~/gcp-credentials.json || exit $?
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
+    - datadog-ci-end-section --category e2e-setup "Setup cloud credentials"
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    - datadog-ci-start-section
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - datadog-ci-end-section --category e2e-setup "Generate CI Visibility links"
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # Reuse DATADOG_API_KEY (set by .setup_datadog_ci_sections) for native Go test instrumentation
+    - export DD_API_KEY=$DATADOG_API_KEY
     # set the environment variables for the windows test signing
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
