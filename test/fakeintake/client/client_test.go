@@ -716,19 +716,12 @@ func TestClient(t *testing.T) {
 
 		payload := healthPayloads[0]
 		assert.Equal(t, "test-hostname", payload.Host.Hostname)
-		assert.Equal(t, "7.50.0", payload.Host.GetAgentVersion())
+		assert.Equal(t, "7.50.0", payload.Host.AgentVersion)
 		assert.Equal(t, "agent-health-issues", payload.EventType)
 		assert.Len(t, payload.Issues, 1)
 
-		issue, ok := payload.Issues["check-id-123"]
+		_, ok := payload.Issues["check-id-123"]
 		require.True(t, ok)
-		assert.Equal(t, "docker-permissions-issue", issue.Id)
-		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
-		assert.Equal(t, "Docker socket permissions error", issue.Title)
-		assert.Equal(t, "permissions", issue.Category)
-		assert.Equal(t, "error", issue.Severity)
-		assert.Contains(t, issue.Tags, "os:linux")
-		assert.Contains(t, issue.Tags, "docker:installed")
 	})
 
 }

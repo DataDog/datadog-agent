@@ -183,7 +183,6 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
-		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -899,23 +898,6 @@ func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
 		metadata = append(metadata, c.metadataAggregator.GetPayloadsByName(name)...)
 	}
 	return metadata, nil
-}
-
-// GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns a list of agent health payloads
-func (c *Client) GetAgentHealth() ([]*aggregator.AgentHealthPayload, error) {
-	payloads, err := c.getFakePayloads(agentHealthEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	err = c.agentHealthAggregator.UnmarshallPayloads(payloads)
-	if err != nil {
-		return nil, err
-	}
-	agentHealth := make([]*aggregator.AgentHealthPayload, 0, len(c.agentHealthAggregator.GetNames()))
-	for _, name := range c.agentHealthAggregator.GetNames() {
-		agentHealth = append(agentHealth, c.agentHealthAggregator.GetPayloadsByName(name)...)
-	}
-	return agentHealth, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns
