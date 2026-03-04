@@ -6,7 +6,7 @@ input:
       false
       echo $x
     done
-expected:
+expect:
   stdout: |+
     a
     b

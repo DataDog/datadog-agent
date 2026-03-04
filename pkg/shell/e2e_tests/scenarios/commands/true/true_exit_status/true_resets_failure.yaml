@@ -6,7 +6,7 @@ input:
     echo $?
     true
     echo $?
-expected:
+expect:
   stdout: |+
     1
     0

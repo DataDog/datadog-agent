@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     echo first; true
-expected:
+expect:
   stdout: |+
     first
   stderr: ""

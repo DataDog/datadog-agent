@@ -5,7 +5,7 @@ input:
     false
     true
     echo $?
-expected:
+expect:
   stdout: |+
     0
   stderr: ""

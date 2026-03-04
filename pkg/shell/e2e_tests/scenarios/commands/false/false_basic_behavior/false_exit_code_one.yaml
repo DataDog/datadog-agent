@@ -4,7 +4,7 @@ input:
   script: |+
     false
     echo $?
-expected:
+expect:
   stdout: |+
     1
   stderr: ""

@@ -3,7 +3,7 @@ input:
   # language=bash
   script: |+
     true | echo piped
-expected:
+expect:
   stdout: |+
     piped
   stderr: ""
