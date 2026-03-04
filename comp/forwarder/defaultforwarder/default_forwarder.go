@@ -294,6 +294,7 @@ type DefaultForwarder struct {
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+	log.Warnf("[SECRETPATH] NewDefaultForwarder: options.Secrets type=%T nil=%v", options.Secrets, options.Secrets == nil)
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
