@@ -42,3 +42,31 @@ requirements:
       processes running on the same host.
     tags: [security]
     ref: [DDOT016, DDOT020, OTELCOL007]
+
+  - id: DDOT032
+    short: Flush in-flight telemetry on graceful shutdown
+    long: |
+      When DDOT receives a termination signal, it shall complete processing of in-flight
+      telemetry and attempt to flush pending exporter queues before exiting, minimizing
+      data loss.
+    tags: [reliability]
+    ref: [DDOT001]
+
+  - id: DDOT033
+    short: Never expose secrets in logs or diagnostic output
+    long: |
+      API keys, bearer tokens, and other credentials configured in DDOT shall never appear
+      in plain text in log output or in flare archives.
+      Sensitive values shall be redacted or omitted in all diagnostic output.
+    tags: [security]
+    ref: [DDOT007, DDOT020]
+
+  - id: DDOT034
+    short: Continue processing telemetry when non-critical enrichment fails
+    long: |
+      DDOT shall continue to process and export telemetry even when non-critical enrichment
+      steps fail (e.g., the tagger is temporarily unavailable).
+      Enrichment failures shall be logged but shall not cause the pipeline to stall or
+      drop telemetry.
+    tags: [reliability]
+    ref: [DDOT014]
