@@ -42,7 +42,7 @@ func TestEvictSuccess(t *testing.T) {
 	assert.Equal(t, Evicted, result)
 }
 
-func TestEvictPDBBlocked(t *testing.T) {
+func TestEvictPDBLockedOrThrottle(t *testing.T) {
 	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, &k8serrors.StatusError{
@@ -54,7 +54,7 @@ func TestEvictPDBBlocked(t *testing.T) {
 	result, err := c.Evict(context.Background(), "default", "my-pod")
 
 	require.NoError(t, err)
-	assert.Equal(t, PDBBlocked, result)
+	assert.Equal(t, PDBLockedOrThrottle, result)
 }
 
 func TestEvictError(t *testing.T) {

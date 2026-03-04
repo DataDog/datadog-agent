@@ -28,8 +28,8 @@ type EvictResult int
 const (
 	// Evicted means the eviction was accepted by the API server.
 	Evicted EvictResult = iota
-	// PDBBlocked means the eviction was rejected by a PodDisruptionBudget (HTTP 429).
-	PDBBlocked
+	// PDBLockedOrThrottle means the eviction was rejected by a PodDisruptionBudget (HTTP 429).
+	PDBLockedOrThrottle
 	// Skipped means this instance is not the leader; no API call was made.
 	Skipped
 	// Error means an error occurred while evicting the pod.
@@ -54,7 +54,7 @@ func NewClient(client kubernetes.Interface, isLeader func() bool) *Client {
 // Evict creates a policy/v1 Eviction for the named pod.
 //
 // Returns (Skipped, nil) if the current instance is not the leader.
-// Returns (PDBBlocked, nil) if a PodDisruptionBudget rejected the eviction (HTTP 429).
+// Returns (PDBLockedOrThrottle, nil) if a PodDisruptionBudget rejected the eviction (HTTP 429).
 // Returns (Evicted, nil) on success.
 // Returns (Error, err) on any other error.
 func (c *Client) Evict(ctx context.Context, namespace, name string) (EvictResult, error) {
@@ -79,7 +79,7 @@ func (c *Client) Evict(ctx context.Context, namespace, name string) (EvictResult
 
 	if k8serrors.IsTooManyRequests(evictErr) {
 		log.Debugf("[evictor] eviction of pod %s/%s blocked by PodDisruptionBudget", namespace, name)
-		return PDBBlocked, nil
+		return PDBLockedOrThrottle, nil
 	}
 
 	return Error, fmt.Errorf("failed to evict pod %s/%s: %w", namespace, name, evictErr)
