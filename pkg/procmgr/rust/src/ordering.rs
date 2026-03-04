@@ -111,8 +111,8 @@ mod tests {
     fn cfg(after: &[&str], before: &[&str]) -> ProcessConfig {
         ProcessConfig {
             command: "/bin/true".to_string(),
-            after: after.iter().map(|s| s.to_string()).collect(),
-            before: before.iter().map(|s| s.to_string()).collect(),
+            after: after.iter().map(String::from).collect(),
+            before: before.iter().map(String::from).collect(),
             ..Default::default()
         }
     }
