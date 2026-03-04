@@ -69,6 +69,9 @@ const (
 	DevMode StoreKey = "dev_mode"
 	// DevLocal uses local Kind cluster instead of AWS for faster development
 	DevLocal StoreKey = "dev_local"
+	// Provisioner specifies the Kubernetes provisioner to use (e.g., "kind", "kind-local", "eks").
+	// Not all tests honor this parameter.
+	Provisioner StoreKey = "provisioner"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
 	// TeardownOnly config flag parameter name
