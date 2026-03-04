@@ -9,11 +9,13 @@ package interp
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTail_SymlinkToRegularFile(t *testing.T) {
@@ -35,4 +37,23 @@ func TestTail_DanglingSymlink(t *testing.T) {
 	_, stderr, ec := runTail(t, fmt.Sprintf("tail %s", link))
 	assert.Equal(t, 1, ec)
 	assert.Contains(t, stderr, "tail:")
+}
+
+func TestTail_UnixSocket(t *testing.T) {
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "test.sock")
+	l, err := net.Listen("unix", sock)
+	require.NoError(t, err)
+	defer l.Close()
+
+	_, stderr, ec := runTail(t, fmt.Sprintf("tail %s", sock))
+	assert.Equal(t, 1, ec)
+	assert.Contains(t, stderr, "not a regular file")
+}
+
+func TestTail_DevNull(t *testing.T) {
+	// /dev/null is a character device, not a regular file — should be rejected.
+	_, stderr, ec := runTail(t, "tail /dev/null")
+	assert.Equal(t, 1, ec)
+	assert.Contains(t, stderr, "not a regular file")
 }

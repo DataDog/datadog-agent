@@ -173,8 +173,10 @@ func (r *Runner) tailOneFile(ctx context.Context, name string, mode tailMode, co
 		reader = r.stdin
 	} else {
 		path := name
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(r.dir, path)
+		if filepath.IsAbs(path) {
+			path = filepath.Clean(path)
+		} else {
+			path = filepath.Join(r.dir, path) // Join calls Clean internally
 		}
 
 		if runtime.GOOS == "windows" && isWindowsReservedName(filepath.Base(path)) {
@@ -187,6 +189,9 @@ func (r *Runner) tailOneFile(ctx context.Context, name string, mode tailMode, co
 		}
 		if info.IsDir() {
 			return fmt.Errorf("Is a directory")
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("not a regular file")
 		}
 
 		f, err := os.Open(path)
