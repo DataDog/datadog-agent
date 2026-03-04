@@ -24,8 +24,8 @@ generator:
               max: 500
           tags_per_msg:
             inclusive:
-              min: 30
-              max: 50
+              min: 54
+              max: 54
           multivalue_count:
             inclusive:
               min: 2
@@ -43,7 +43,7 @@ generator:
             set: 0
             histogram: 0
           metric_names:
-            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-9}}{{0-9}}
+            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-4}}{{0-9}}{{0-9}}
           tag_names:
             - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-9}}{{0-9}}
           tag_values:
