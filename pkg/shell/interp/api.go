@@ -339,10 +339,6 @@ func (r *Runner) Reset() {
 	}
 	// TODO(v4): Use the supplied Env directly if it implements enough methods.
 	r.writeEnv = &overlayEnviron{parent: r.Env}
-	if !r.writeEnv.Get("HOME").IsSet() {
-		home, _ := os.UserHomeDir()
-		r.setVarString("HOME", home)
-	}
 	r.setVarString("PWD", r.Dir)
 	r.setVarString("IFS", " \t\n")
 	r.setVarString("OPTIND", "1")
