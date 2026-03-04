@@ -1,7 +1,9 @@
 """ Agent specific curl build."""
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:packaged_artifacts.bzl", "packaged_artifacts")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
@@ -234,6 +236,22 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "curl_rpath_patched",
+    inputs = [":curl"],
+    visibility = ["//visibility:private"],
+)
+
+packaged_artifacts(
+    name = "curl_artifacts",
+    src = ":curl",
+    install_filegroups = [
+        ":lib_files",
+        ":bin_files",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 dd_agent_expand_template(
     name = "gen_pkgconfig",
     out = "libcurl.pc",
@@ -265,28 +283,27 @@ pkg_files(
     renames = {
         "curl_bin": "curl",
     },
-    prefix = "embedded/bin",
+    prefix = "bin",
 )
 
 so_symlink(
     name = "lib_files",
-    src = ":curl",
+    src = ":curl_rpath_patched",
     libname = "libcurl",
     version = SO_VERSION,
-    prefix = "embedded",
     attributes = pkg_attributes(mode = "0755"),
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/curl",
+    prefix = "include/curl",
 )
 
 pkg_files(
     name = "pc_files",
     srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
+    prefix = "lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -297,6 +314,7 @@ pkg_filegroup(
         ":lib_files",
         ":pc_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(

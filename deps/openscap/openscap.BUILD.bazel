@@ -510,7 +510,7 @@ cc_shared_library(
     dynamic_deps = [
         "@attr//:attr",
         "@bzip2//:bz2",
-        "@curl//:curl",
+        "@curl//:curl_artifacts",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
         "@libselinux//:selinux",
@@ -555,7 +555,7 @@ cc_binary(
         ":openscap",
         "@attr//:attr",
         "@bzip2//:bz2",
-        "@curl//:curl",
+        "@curl//:curl_artifacts",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
         "@libselinux//:selinux",
@@ -600,7 +600,7 @@ cc_binary(
         ":openscap",
         "@attr//:attr",
         "@bzip2//:bz2",
-        "@curl//:curl",
+        "@curl//:curl_artifacts",
         "@gcrypt//:gcrypt",
         "@libselinux//:selinux",
         "@libsepol//:sepol",
