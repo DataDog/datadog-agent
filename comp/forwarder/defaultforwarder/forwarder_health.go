@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,7 +46,7 @@ var (
 
 	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
 	// with 'api.' (see computeDomainURLAPIKeyMap).
-	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)\.?$`)
 )
 
 func init() {
@@ -201,7 +202,9 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 
 func getAPIDomain(domain string) string {
 	if domainURLRegexp.MatchString(domain) {
-		return "https://api." + domainURLRegexp.FindString(domain)
+		match := domainURLRegexp.FindString(domain)
+		match = strings.TrimSuffix(match, ".")
+		return "https://api." + match
 	}
 
 	return domain
