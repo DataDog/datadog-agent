@@ -6,9 +6,46 @@ argument-hint: "<command-name>"
 
 Implement the **$ARGUMENTS** command as a builtin in `pkg/shell/interp/`.
 
-## MANDATORY: Create a task list before doing anything else
+---
 
-Before reading any files or writing any code, create one TaskCreate entry per numbered step below (Steps 1–8). Mark each task `in_progress` when you start it and `completed` when it is fully done. Do not mark a step completed until every sub-bullet in that step is satisfied. This is not optional — skipping or collapsing steps has caused defects in prior implementations.
+## ⛔ STOP — READ THIS BEFORE DOING ANYTHING ELSE ⛔
+
+You MUST follow this execution protocol. Skipping steps has caused defects in every prior run of this skill.
+
+### 1. Create the full task list FIRST
+
+Your very first action — before reading ANY files, before writing ANY code — is to call TaskCreate exactly 8 times, once for each step below (Steps 1–8). Use these exact subjects:
+
+1. "Step 1: Research the command"
+2. "Step 2: User confirms which flags to implement"
+3. "Step 3: Set up POSIX tests"
+4. "Step 4: Implement Go tests"
+5. "Step 5: Implement the $ARGUMENTS command"
+6. "Step 6: Verify and Harden"
+7. "Step 7: Code review"
+8. "Step 8: Exploratory pentest"
+
+### 2. Work steps in order with strict gating
+
+Before starting step N:
+- Call TaskList and verify step N-1 is marked `completed`
+- Call TaskUpdate to set step N to `in_progress`
+
+Before marking step N as `completed`:
+- Re-read the step description and verify every sub-bullet is satisfied
+- If any sub-bullet is not done, keep working — do NOT mark it completed
+
+### 3. Never skip or combine steps
+
+- Do NOT jump ahead to implementation (Step 5) before tests exist (Step 4)
+- Do NOT skip research (Step 1) because you think you already know the command
+- Do NOT skip shell tests (Step 3) — download and adapt the GNU coreutils tests
+- Do NOT skip review (Step 7) or pentest (Step 8) because "tests pass"
+- Steps 1 and 2 require user interaction — do NOT auto-approve on the user's behalf
+
+If you catch yourself wanting to skip a step, STOP and do the step anyway.
+
+---
 
 ## Context
 
@@ -50,6 +87,8 @@ which describe the command and lists out all of the accepted flags that will be 
 
 ## Step 3: Set up POSIX tests
 
+**GATE CHECK**: Call TaskList. Step 2 must be `completed` before starting this step. Set this step to `in_progress` now.
+
 The GNU source is available at https://ftp.gnu.org/gnu/coreutils/. Go there, find the latest stable
 release, and download and extract it into /tmp somewhere.
 
@@ -85,6 +124,8 @@ Once they are copied, we now want to go through each test file and do the follow
 After adapting the scripts, verify they pass by running them manually with a built agent binary.
 
 ## Step 4: Implement Go tests
+
+**GATE CHECK**: Call TaskList. Step 3 must be `completed` before starting this step. Set this step to `in_progress` now.
 
 Go tests live alongside the other builtins in the `pkg/shell/interp/` package, **not** in a subdirectory:
 
@@ -141,6 +182,8 @@ Verify the tests build and all fail (since we have no implementation yet).
 
 ## Step 5: Implement the $ARGUMENTS command
 
+**GATE CHECK**: Call TaskList. Step 4 must be `completed` before starting this step. Set this step to `in_progress` now.
+
 Create `pkg/shell/interp/builtin_$ARGUMENTS.go` following the patterns in the existing builtins:
 
 1. **Function signature**: Use `func (r *Runner) builtin$ARGUMENTS(args []string) error` for commands that read bounded input. If the command reads from potentially infinite sources (stdin, pipes, /dev/zero) and needs to respect the executor timeout, use `func (r *Runner) builtin$ARGUMENTS(ctx context.Context, args []string) error` instead and check `ctx.Err()` before every read in any loop.
@@ -158,6 +201,8 @@ Register the command in `pkg/shell/interp/builtin.go`:
 
 ## Step 6: Verify and Harden
 
+**GATE CHECK**: Call TaskList. Step 5 must be `completed` before starting this step. Set this step to `in_progress` now.
+
 Run the tests:
 
 ```bash
@@ -172,6 +217,8 @@ After the initial test suite is passing, write another round of tests focused on
 - Additional tests specific to the rules in RULES.md. For example, if the implementation passes user input into buffer allocations, ensure in tests that this input is clamped to an appropriate value and not passed as-is to the buffer.
 
 ## Step 7: Code review
+
+**GATE CHECK**: Call TaskList. Step 6 must be `completed` before starting this step. Set this step to `in_progress` now.
 
 Run two review passes in parallel, then fix every finding before finishing.
 
@@ -200,6 +247,8 @@ Review the implementation for standard Go best practices:
 For each issue found in either review, fix it immediately. Re-run tests after all fixes. Do not declare the implementation done until every finding is resolved.
 
 ## Step 8: Exploratory pentest
+
+**GATE CHECK**: Call TaskList. Step 7 must be `completed` before starting this step. Set this step to `in_progress` now.
 
 Build the agent binary (`dda inv agent.build --build-exclude=systemd`) and exercise the new command through `agent shell --command "..."` looking for unexpected faults, DoS vectors, and memory issues. Cover each category below. For any surprising result, check whether GNU coreutils behaves the same way before deciding whether to fix it — surprising-but-matching-GNU is documenting a known behaviour, not a bug.
 
