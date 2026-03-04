@@ -139,10 +139,7 @@ fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     }
 }
 
-fn start_processes(
-    configs: Vec<NamedProcess>,
-    startup_order: &[usize],
-) -> Vec<ManagedProcess> {
+fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
     let mut processes: Vec<ManagedProcess> = configs
         .into_iter()
         .map(|(name, cfg)| ManagedProcess::new(name, cfg))
