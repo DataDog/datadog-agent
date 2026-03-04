@@ -1,0 +1,21 @@
+setup:
+  files:
+    - path: mydir/myfile1.txt
+      content: |+
+        hello world1
+      chmod: 0777
+    - path: mydir/myfile2.txt
+      content: |+
+        hello world2
+      chmod: 0777
+input:
+  # language=bash
+  script: |+
+    cat mydir/myfile1.txt
+    cat mydir/myfile2.txt
+expected:
+  stdout: |+
+    hello world1
+    hello world2
+  stderr: ""
+  exit_code: 0

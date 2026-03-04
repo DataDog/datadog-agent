@@ -24,8 +24,21 @@ import (
 
 // scenario represents a single test scenario.
 type scenario struct {
+	Setup    setup    `yaml:"setup"`
 	Input    input    `yaml:"input"`
 	Expected expected `yaml:"expected"`
+}
+
+// setup holds optional pre-test configuration such as files to create.
+type setup struct {
+	Files []setupFile `yaml:"files"`
+}
+
+// setupFile describes a file to create before executing the scenario.
+type setupFile struct {
+	Path    string      `yaml:"path"`
+	Content string      `yaml:"content"`
+	Chmod   os.FileMode `yaml:"chmod"`
 }
 
 // input holds the shell script to execute.
@@ -79,10 +92,28 @@ func loadScenario(t *testing.T, path string) scenario {
 	return sc
 }
 
+// setupTestDir creates a temporary directory and populates it with any files
+// defined in the scenario's setup section. It returns the path to the temp dir.
+func setupTestDir(t *testing.T, sc scenario) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, f := range sc.Setup.Files {
+		fullPath := filepath.Join(dir, f.Path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755), "failed to create directories for %s", f.Path)
+		require.NoError(t, os.WriteFile(fullPath, []byte(f.Content), 0644), "failed to write file %s", f.Path)
+		if f.Chmod != 0 {
+			require.NoError(t, os.Chmod(fullPath, f.Chmod), "failed to chmod file %s", f.Path)
+		}
+	}
+	return dir
+}
+
 // runScenario executes a single test scenario against the shell interpreter
 // and asserts the expected output.
 func runScenario(t *testing.T, sc scenario) {
 	t.Helper()
+
+	dir := setupTestDir(t, sc)
 
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader(sc.Input.Script), "")
@@ -90,6 +121,7 @@ func runScenario(t *testing.T, sc scenario) {
 
 	var stdout, stderr bytes.Buffer
 	runner, err := interp.New(
+		interp.Dir(dir),
 		interp.StdIO(nil, &stdout, &stderr),
 	)
 	require.NoError(t, err, "failed to create runner")
