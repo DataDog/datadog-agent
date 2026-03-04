@@ -6,23 +6,28 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t,
-		Bundle(),
-		fx.Supply(BundleParams{}),
-		fx.Supply(pidimpl.NewParams("")),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-	)
+	for resolveSecrets, options := range map[bool][]Option{
+		true:  {WithSecrets()},
+		false: {},
+	} {
+		t.Run(fmt.Sprintf("resolveSecrets=%t", resolveSecrets), func(t *testing.T) {
+			fxutil.TestBundle(t,
+				Bundle(options...),
+				fx.Supply(BundleParams{}),
+				fx.Supply(pidimpl.NewParams("")),
+			)
+		})
+	}
 }
 
 func TestMockBundleDependencies(t *testing.T) {
