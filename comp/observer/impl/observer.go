@@ -93,11 +93,11 @@ func (m *metricObs) GetSampleRate() float64 {
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content   []byte
-	status    string
-	tags      []string
-	hostname  string
-	timestamp int64
+	content     []byte
+	status      string
+	tags        []string
+	hostname    string
+	timestampMs int64
 }
 
 // traceObs contains copied trace data.
@@ -169,8 +169,8 @@ func (l *logObs) GetHostname() string {
 }
 
 // Optionally, for logs that provide timestamp interface (if needed elsewhere)
-func (l *logObs) GetTimestamp() int64 {
-	return l.timestamp
+func (l *logObs) GetTimestampMs() int64 {
+	return l.timestampMs
 }
 
 // NewComponent creates an observer.Component.
@@ -311,10 +311,11 @@ func NewComponent(deps Requires) Provides {
 				"msg": message,
 			})
 			handle.ObserveLog(&agentLogView{
-				content:  payload,
-				status:   strings.ToLower(level.String()),
-				tags:     tags,
-				hostname: "",
+				content:     payload,
+				status:      strings.ToLower(level.String()),
+				tags:        tags,
+				hostname:    "",
+				timestampMs: time.Now().UnixMilli(),
 			})
 		})
 	}
@@ -422,7 +423,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 
 		// Add metrics from log processing to storage, then run metrics detection
 		for _, m := range result.Metrics {
-			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
+			o.storage.Add(source, m.Name, m.Value, l.timestampMs/1000, m.Tags)
 			// Run metrics detection on multiple aggregations
 			for _, agg := range detectionAggregations {
 				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
@@ -687,29 +688,19 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	}
 }
 
-// logTimestamper is an optional interface for logs that provide their own timestamp.
-type logTimestamper interface {
-	GetTimestamp() int64
-}
-
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
-	// Use provided timestamp if available, otherwise use current time
-	timestamp := time.Now().Unix()
-	if ts, ok := msg.(logTimestamper); ok {
-		if t := ts.GetTimestamp(); t > 0 {
-			timestamp = t
-		}
-	}
+	// Use provided timestampMs if available, otherwise use current time
+	timestampMs := msg.GetTimestampMs()
 
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:   copyBytes(msg.GetContent()),
-			status:    msg.GetStatus(),
-			tags:      copyTags(msg.GetTags()),
-			hostname:  msg.GetHostname(),
-			timestamp: timestamp,
+			content:     copyBytes(msg.GetContent()),
+			status:      msg.GetStatus(),
+			tags:        copyTags(msg.GetTags()),
+			hostname:    msg.GetHostname(),
+			timestampMs: timestampMs,
 		},
 	}
 
@@ -811,24 +802,27 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte  { return v.obs.content }
-func (v *logView) GetStatus() string   { return v.obs.status }
-func (v *logView) GetTags() []string   { return v.obs.tags }
-func (v *logView) GetHostname() string { return v.obs.hostname }
+func (v *logView) GetContent() []byte    { return v.obs.content }
+func (v *logView) GetStatus() string     { return v.obs.status }
+func (v *logView) GetTags() []string     { return v.obs.tags }
+func (v *logView) GetHostname() string   { return v.obs.hostname }
+func (v *logView) GetTimestampMs() int64 { return v.obs.timestampMs }
 
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.
 type agentLogView struct {
-	content  []byte
-	status   string
-	tags     []string
-	hostname string
+	content     []byte
+	status      string
+	tags        []string
+	hostname    string
+	timestampMs int64
 }
 
-func (v *agentLogView) GetContent() []byte  { return v.content }
-func (v *agentLogView) GetStatus() string   { return v.status }
-func (v *agentLogView) GetTags() []string   { return v.tags }
-func (v *agentLogView) GetHostname() string { return v.hostname }
+func (v *agentLogView) GetContent() []byte    { return v.content }
+func (v *agentLogView) GetStatus() string     { return v.status }
+func (v *agentLogView) GetTags() []string     { return v.tags }
+func (v *agentLogView) GetHostname() string   { return v.hostname }
+func (v *agentLogView) GetTimestampMs() int64 { return v.timestampMs }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {

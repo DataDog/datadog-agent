@@ -148,10 +148,10 @@ type TraceStatsData struct {
 
 // LogData represents a log entry read from parquet files.
 type LogData struct {
-	Source    string   // Source/namespace (RunID in parquet)
-	Timestamp int64    // Unix timestamp in milliseconds since epoch
-	Content   []byte   // Log message content (raw bytes)
-	Status    string   // Log severity level (debug, info, warn, error, etc.)
-	Hostname  string   // Hostname where log originated
-	Tags      []string // Tags in "key:value" format
+	Source      string   // Source/namespace (RunID in parquet)
+	TimestampMs int64    // Unix timestamp in milliseconds since epoch
+	Content     []byte   // Log message content (raw bytes)
+	Status      string   // Log severity level (debug, info, warn, error, etc.)
+	Hostname    string   // Hostname where log originated
+	Tags        []string // Tags in "key:value" format
 }

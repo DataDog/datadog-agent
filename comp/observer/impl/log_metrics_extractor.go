@@ -34,7 +34,6 @@ type LogMetricsExtractor struct {
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
 func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectionResult {
-	fmt.Printf("[cc] LogMetricsExtractor: %s\n", string(log.GetContent()))
 	content := log.GetContent()
 	tags := log.GetTags()
 

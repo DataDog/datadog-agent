@@ -20,18 +20,18 @@ import (
 
 // testLogView is a LogView implementation for loaded log files.
 type testLogView struct {
-	content   []byte
-	status    string
-	tags      []string
-	hostname  string
-	timestamp int64
+	content     []byte
+	status      string
+	tags        []string
+	hostname    string
+	timestampMs int64
 }
 
-func (v *testLogView) GetContent() []byte  { return v.content }
-func (v *testLogView) GetStatus() string   { return v.status }
-func (v *testLogView) GetTags() []string   { return v.tags }
-func (v *testLogView) GetHostname() string { return v.hostname }
-func (v *testLogView) GetTimestamp() int64 { return v.timestamp }
+func (v *testLogView) GetContent() []byte    { return v.content }
+func (v *testLogView) GetStatus() string     { return v.status }
+func (v *testLogView) GetTags() []string     { return v.tags }
+func (v *testLogView) GetHostname() string   { return v.hostname }
+func (v *testLogView) GetTimestampMs() int64 { return v.timestampMs }
 
 // LoadLogFile loads logs from a file and returns LogView instances.
 // Supports JSON lines format and plain text with timestamps.
@@ -98,8 +98,8 @@ func parseJSONLine(line string) (observerdef.LogView, error) {
 	// Extract timestamp from common fields
 	for _, field := range []string{"timestamp", "ts", "time", "@timestamp", "date"} {
 		if ts, ok := data[field]; ok {
-			if t := parseTimestamp(ts); t > 0 {
-				log.timestamp = t
+			if t := parseTimestampMs(ts); t > 0 {
+				log.timestampMs = t
 				break
 			}
 		}
@@ -162,16 +162,16 @@ func parsePlainTextLine(line string) (observerdef.LogView, error) {
 		if matches := p.regex.FindStringSubmatch(line); len(matches) > 1 {
 			if p.layout == "unix" {
 				if ts, err := strconv.ParseInt(matches[1], 10, 64); err == nil {
-					// Handle milliseconds
-					if ts > 1e12 {
-						ts = ts / 1000
+					// We want milliseconds
+					if ts < 1e12 {
+						ts = ts * 1000
 					}
-					log.timestamp = ts
+					log.timestampMs = ts
 					break
 				}
 			} else {
 				if t, err := time.Parse(p.layout, matches[1]); err == nil {
-					log.timestamp = t.Unix()
+					log.timestampMs = t.UnixMilli()
 					break
 				}
 			}
@@ -200,20 +200,20 @@ func parsePlainTextLine(line string) (observerdef.LogView, error) {
 	return log, nil
 }
 
-// parseTimestamp attempts to parse various timestamp formats.
-func parseTimestamp(v interface{}) int64 {
+// parseTimestampMs attempts to parse various timestamp formats and returns milliseconds since epoch.
+func parseTimestampMs(v interface{}) int64 {
 	switch t := v.(type) {
 	case float64:
 		// Unix timestamp (might be in seconds or milliseconds)
 		if t > 1e12 {
-			return int64(t / 1000)
+			return int64(t)
 		}
-		return int64(t)
+		return int64(t * 1000)
 	case int64:
 		if t > 1e12 {
-			return t / 1000
+			return t
 		}
-		return t
+		return t * 1000
 	case string:
 		// Try various formats
 		formats := []string{
@@ -226,15 +226,15 @@ func parseTimestamp(v interface{}) int64 {
 		}
 		for _, format := range formats {
 			if parsed, err := time.Parse(format, t); err == nil {
-				return parsed.Unix()
+				return parsed.UnixMilli()
 			}
 		}
 		// Try unix timestamp as string
 		if ts, err := strconv.ParseInt(t, 10, 64); err == nil {
 			if ts > 1e12 {
-				return ts / 1000
+				return ts
 			}
-			return ts
+			return ts * 1000
 		}
 	}
 	return 0

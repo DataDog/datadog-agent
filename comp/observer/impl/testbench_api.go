@@ -469,26 +469,26 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	logs := api.tb.GetRawLogs()
 	response := make([]logEntryResponse, 0, len(logs))
 	for _, l := range logs {
-		if levelFilter != "" && l.Status != levelFilter {
+		if levelFilter != "" && l.GetStatus() != levelFilter {
 			continue
 		}
-		tags := l.Tags
+		tags := l.GetTags()
 		if tags == nil {
 			tags = []string{}
 		}
 		// Add host / status tags
-		if l.Hostname != "" {
-			tags = append(tags, "host:"+l.Hostname)
+		if l.GetHostname() != "" {
+			tags = append(tags, "host:"+l.GetHostname())
 		}
 		// TODO(celian): Refactor status / hostname to be only tags
 		// if l.Status != "" {
 		// 	tags = append(tags, "status:"+l.Status)
 		// }
 		response = append(response, logEntryResponse{
-			Timestamp: l.Timestamp,
-			Status:    l.Status,
-			Content:   string(l.Content),
-			Hostname:  l.Hostname,
+			Timestamp: l.GetTimestampMs(),
+			Status:    l.GetStatus(),
+			Content:   string(l.GetContent()),
+			Hostname:  l.GetHostname(),
 			Tags:      tags,
 		})
 	}
