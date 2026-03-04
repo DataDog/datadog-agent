@@ -19,8 +19,8 @@ import (
 // Paths must be absolute directories that exist. When set, only files within
 // these directories can be opened, read, or executed.
 //
-// A nil slice (the default) means unrestricted access.
-// An empty slice blocks all file access.
+// When not set (default), all file access is blocked.
+// An empty slice also blocks all file access.
 //
 // The restriction is enforced using os.Root (Go 1.24+), which uses openat
 // syscalls for atomic path validation — immune to symlink and ".." traversal attacks.

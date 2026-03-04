@@ -163,14 +163,14 @@ func TestAllowedPathsEmptyBlocksAll(t *testing.T) {
 	assert.Contains(t, stderr, "permission denied")
 }
 
-func TestAllowedPathsNilUnrestricted(t *testing.T) {
+func TestAllowedPathsDefaultBlocksAll(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.txt"), []byte("works\n"), 0644))
 
-	// No AllowedPaths option = nil = unrestricted
-	stdout, _, exitCode := runScript(t, "cat test.txt", dir)
-	assert.Equal(t, 0, exitCode)
-	assert.Equal(t, "works\n", stdout)
+	// No AllowedPaths option = blocks all file access
+	_, stderr, exitCode := runScript(t, "cat test.txt", dir)
+	assert.Equal(t, 1, exitCode)
+	assert.Contains(t, stderr, "permission denied")
 }
 
 

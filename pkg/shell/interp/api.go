@@ -95,7 +95,7 @@ type Runner struct {
 	lastExpandExit exitStatus // used to surface exit statuses while expanding fields
 
 	// allowedPaths restricts file/directory access to these directories.
-	// nil means unrestricted (default); non-nil restricts access.
+	// Empty (default) blocks all file access; populate via AllowedPaths option.
 	allowedPaths []string
 	// roots holds opened os.Root instances, one per allowedPaths entry.
 	roots []*os.Root
@@ -291,7 +291,8 @@ func (r *Runner) Reset() {
 		r.tempDir = filepath.Clean(r.tempDir)
 
 		// Open os.Root handles and wrap handlers for path restriction.
-		if r.allowedPaths != nil && r.roots == nil {
+		// Default: block all file access (empty allowedPaths).
+		if r.roots == nil {
 			r.roots = make([]*os.Root, len(r.allowedPaths))
 			for i, p := range r.allowedPaths {
 				root, err := os.OpenRoot(p)
