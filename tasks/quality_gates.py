@@ -651,12 +651,8 @@ def _run_gate(ctx, gate: StaticQualityGate):
             "message": str(e),
             "blocking": True,  # May be updated to False if delta=0 after relative size calculation
         }
-    except InfraError as e:
-        print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
-        for line in traceback.format_exception(e):
-            print(color_message(line, "red"))
-        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
-        raise Exit(code=42) from e
+    except InfraError:
+        raise
     except Exception:
         return {
             "name": gate.config.gate_name,
@@ -720,10 +716,21 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
     gate_results: dict[StaticQualityGate, dict] = {}
-    with ThreadPoolExecutor() as executor:
-        future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
+    executor = ThreadPoolExecutor()
+    future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
+    try:
         for future in as_completed(future_to_gate):
             gate_results[future_to_gate[future]] = future.result()
+    except InfraError as e:
+        # Cancel queued futures; running threads cannot be interrupted but will be abandoned
+        executor.shutdown(wait=False, cancel_futures=True)
+        gate = future_to_gate[future]
+        print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
+        for line in traceback.format_exception(e):
+            print(color_message(line, "red"))
+        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
+        raise Exit(code=42) from e
+    executor.shutdown(wait=False)
 
     # Process results in original gate order
     for gate in gate_list:
