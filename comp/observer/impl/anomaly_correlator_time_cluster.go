@@ -42,8 +42,8 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 type timeCluster struct {
 	id           int
 	anomalies    map[observer.SeriesID]observer.Anomaly // keyed by SourceSeriesID for dedup
-	minTimestamp int64                                        // earliest anomaly timestamp
-	maxTimestamp int64                                        // latest anomaly timestamp
+	minTimestamp int64                                  // earliest anomaly timestamp
+	maxTimestamp int64                                  // latest anomaly timestamp
 }
 
 // TimeClusterCorrelator clusters anomalies based on timestamp proximity.

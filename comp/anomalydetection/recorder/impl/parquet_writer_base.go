@@ -26,10 +26,10 @@ type batchBuilder interface {
 	build() arrow.Record
 }
 
-// parquetWriterBase handles the common lifecycle for all parquet writers:
+// parquetWriter handles the common lifecycle for all parquet writers:
 // flush loop, cleanup loop, atomic file creation per interval, and shutdown.
 // Files are only created when there is data to write; empty files are never produced.
-type parquetWriterBase struct {
+type parquetWriter struct {
 	outputDir         string
 	filePrefix        string // used for naming: <filePrefix>-<timestamp>Z.parquet
 	schema            *arrow.Schema
@@ -43,7 +43,7 @@ type parquetWriterBase struct {
 }
 
 // start launches the background flush and cleanup goroutines.
-func (b *parquetWriterBase) start() {
+func (b *parquetWriter) start() {
 	go b.flushLoop()
 	if b.retentionDuration > 0 {
 		go b.cleanupLoop()
@@ -53,7 +53,7 @@ func (b *parquetWriterBase) start() {
 // writeRecord creates a timestamped parquet file, writes the record, and closes it atomically.
 // Only called when there is data; no file is created for empty batches.
 // Must be called with b.mu held.
-func (b *parquetWriterBase) writeRecord(record arrow.Record) error {
+func (b *parquetWriter) writeRecord(record arrow.Record) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
 	filePath := filepath.Join(b.outputDir, filename)
@@ -88,7 +88,7 @@ func (b *parquetWriterBase) writeRecord(record arrow.Record) error {
 
 // flush writes accumulated data to a new file if there is data to write.
 // If no data has been collected since the last flush, no file is created.
-func (b *parquetWriterBase) flush() {
+func (b *parquetWriter) flush() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -107,7 +107,7 @@ func (b *parquetWriterBase) flush() {
 	}
 }
 
-func (b *parquetWriterBase) flushLoop() {
+func (b *parquetWriter) flushLoop() {
 	ticker := time.NewTicker(b.flushInterval)
 	defer ticker.Stop()
 
@@ -122,7 +122,7 @@ func (b *parquetWriterBase) flushLoop() {
 	}
 }
 
-func (b *parquetWriterBase) cleanupLoop() {
+func (b *parquetWriter) cleanupLoop() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -136,7 +136,7 @@ func (b *parquetWriterBase) cleanupLoop() {
 	}
 }
 
-func (b *parquetWriterBase) cleanup() {
+func (b *parquetWriter) cleanup() {
 	entries, err := os.ReadDir(b.outputDir)
 	if err != nil {
 		pkglog.Warnf("Failed to read parquet output directory for cleanup: %v", err)
@@ -175,7 +175,7 @@ func (b *parquetWriterBase) cleanup() {
 }
 
 // Close flushes remaining data and stops background goroutines.
-func (b *parquetWriterBase) Close() error {
+func (b *parquetWriter) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

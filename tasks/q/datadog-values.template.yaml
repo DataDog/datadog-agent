@@ -1,0 +1,67 @@
+datadog:
+  apiKeyExistingSecret: "datadog-secret"
+
+  clusterName: "$$CLUSTER_NAME"
+
+  logLevel: "INFO"
+
+  # Enable TraceAgent
+  apm:
+    instrumentation:
+      enabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+  # Enable SystemProbe
+  # networkMonitoring:
+  #   enabled: true
+
+  # Enable security agent
+  # securityAgent:
+  #   runtime:
+  #     enabled: true
+
+  # Enable process collection
+  processAgent:
+    enabled: true
+    processCollection: true
+
+  # For local kind cluster
+  kubelet:
+    tlsVerify: false
+
+  # Enable cluster checks
+  clusterChecks:
+    enabled: true
+  env:
+  # Agent capture to parquet
+  - name: DD_OBSERVER_CAPTURE_METRICS_ENABLED
+    value: "true"
+  - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
+    value: "1s"
+  - name: DD_OBSERVER_PARQUET_OUTPUT_DIR
+    value: "/tmp/observer-metrics"
+  - name: DD_OBSERVER_PARQUET_FLUSH_INTERVAL
+    value: "10s"
+  - name: DD_OBSERVER_PARQUET_RETENTION
+    value: "24h"
+  - name: DD_OBSERVER_TRACES_ENABLED
+    value: "true"
+  - name: DD_OBSERVER_PROFILES_ENABLED
+    value: "true"
+  - name: DD_OBSERVER_RECORDING
+    value: "true"
+  - name: DD_APM_OBSERVER_ENABLED
+    value: "true"
+
+agents:
+  image:
+    pullPolicy: "Never"
+    repository: "observer-agent"
+    tag: "latest"
+    doNotCheckTag: true
+
+clusterAgent:
+  enabled: true
+  replicas: 1

@@ -21,16 +21,16 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceParquetReader reads trace data from parquet files.
+// traceParquetReader reads trace data from parquet files.
 // Traces are stored as denormalized spans (one row per span) and are
 // reconstructed by grouping spans by trace ID.
-type TraceParquetReader struct {
+type traceParquetReader struct {
 	inputDir string
 	files    []string
 }
 
-// NewTraceParquetReader creates a reader for trace parquet files.
-func NewTraceParquetReader(inputDir string) (*TraceParquetReader, error) {
+// newTraceParquetReader creates a reader for trace parquet files.
+func newTraceParquetReader(inputDir string) (*traceParquetReader, error) {
 	entries, err := os.ReadDir(inputDir)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func NewTraceParquetReader(inputDir string) (*TraceParquetReader, error) {
 	// Sort files by name (which includes timestamp) for chronological order
 	sort.Strings(files)
 
-	return &TraceParquetReader{
+	return &traceParquetReader{
 		inputDir: inputDir,
 		files:    files,
 	}, nil
@@ -61,7 +61,7 @@ type traceKey struct {
 }
 
 // ReadAll reads all traces from all parquet files and reconstructs them from spans.
-func (r *TraceParquetReader) ReadAll() []recorderdef.TraceData {
+func (r *traceParquetReader) ReadAll() []recorderdef.TraceData {
 	// Map to group spans by trace ID (high:low as key)
 	traceMap := make(map[traceKey]*recorderdef.TraceData)
 
@@ -83,7 +83,7 @@ func (r *TraceParquetReader) ReadAll() []recorderdef.TraceData {
 	return traces
 }
 
-func (r *TraceParquetReader) readFile(filePath string, traceMap map[traceKey]*recorderdef.TraceData) {
+func (r *traceParquetReader) readFile(filePath string, traceMap map[traceKey]*recorderdef.TraceData) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		pkglog.Warnf("Failed to open trace parquet file %s: %v", filePath, err)
