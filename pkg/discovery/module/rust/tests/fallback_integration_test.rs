@@ -152,7 +152,7 @@ fn test_missing_fallback_binary() {
         .arg("--")
         .arg("/nonexistent/system-probe")
         .arg("run")
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -526,7 +526,7 @@ fn test_env_var_false_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "false")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -561,7 +561,7 @@ fn test_env_var_zero_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "0")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "0")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
