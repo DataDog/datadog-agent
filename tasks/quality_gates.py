@@ -33,7 +33,6 @@ from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
     StaticQualityGate,
-    StaticQualityGateError,
     byte_to_string,
 )
 from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
@@ -618,6 +617,8 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 def _run_gate(ctx, gate: StaticQualityGate):
     try:
         result = gate.execute_gate(ctx)
+        error_message = None
+        error_type = None
         if not result.success:
             violation_messages = []
             for violation in result.violations:
@@ -634,23 +635,14 @@ def _run_gate(ctx, gate: StaticQualityGate):
                     f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
                 )
             error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+            error_type = "StaticQualityGateFailed"
             print(color_message(error_message, "red"))
-            raise StaticQualityGateError(error_message)
         return {
             "name": result.config.gate_name,
-            "state": True,
-            "error_type": None,
-            "message": None,
+            "state": result.success,
+            "error_type": error_type,
+            "message": error_message,
             "result": result,
-        }
-    except StaticQualityGateError as e:
-        return {
-            "name": gate.config.gate_name,
-            "state": False,
-            "error_type": "StaticQualityGateFailed",
-            "message": str(e),
-            "result": result,
-            "blocking": True,  # May be updated to False if delta=0 after relative size calculation
         }
     except InfraError:
         raise
