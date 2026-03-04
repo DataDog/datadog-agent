@@ -274,8 +274,19 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
+// enrichProcessesWithContainerID sets the ContainerID field on each process
+// that has a mapping in pidToCid. This must be called before processCacheDifference
+// so the diff can detect container ID changes.
+func enrichProcessesWithContainerID(procs map[int32]*procutil.Process, pidToCid map[int]string) {
+	for pid, proc := range procs {
+		if cid, ok := pidToCid[int(pid)]; ok {
+			proc.ContainerID = cid
+		}
+	}
+}
+
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
-// It uses PID, creation time, and command line hash to detect new processes
+// It uses PID, creation time, command line hash, and container ID to detect new or changed processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -294,7 +305,7 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		if !procutil.IsSameProcess(procA, procB) {
+		if !procutil.IsSameProcess(procA, procB) || procA.ContainerID != procB.ContainerID {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -640,6 +651,11 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 		// some processes are in a container so we want to store the container_id for them
 		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 		// TODO: potentially scrub process data here instead of in the check?
+
+		// Enrich processes with container IDs before diffing so that a CID
+		// change (e.g. becoming available after a race with the container
+		// runtime) is detected by processCacheDifference.
+		enrichProcessesWithContainerID(procs, pidToCid)
 
 		// categorize the processes into events for workloadmeta
 		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
