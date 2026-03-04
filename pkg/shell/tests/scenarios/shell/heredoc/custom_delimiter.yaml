@@ -1,0 +1,12 @@
+description: Heredoc works with a custom delimiter.
+input:
+  # language=bash
+  script: |+
+    cat <<MYDELIM
+    custom delimiter
+    MYDELIM
+expect:
+  stdout: |+
+    custom delimiter
+  stderr: ""
+  exit_code: 0

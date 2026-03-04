@@ -1,0 +1,10 @@
+description: Herestring preserves special characters inside quotes.
+input:
+  # language=bash
+  script: |+
+    cat <<< "tabs	and * globs ? here"
+expect:
+  stdout: |+
+    tabs	and * globs ? here
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: Dash heredoc strips tabs from multiple lines.
+input:
+  # language=bash
+  script: "cat <<-EOF\n\tline1\n\tline2\n\tline3\nEOF\n"
+expect:
+  stdout: |+
+    line1
+    line2
+    line3
+  stderr: ""
+  exit_code: 0

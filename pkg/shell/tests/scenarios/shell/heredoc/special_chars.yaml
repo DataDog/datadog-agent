@@ -1,0 +1,18 @@
+description: Heredoc preserves special characters in content.
+input:
+  # language=bash
+  script: |+
+    cat <<EOF
+    tab	here
+    spaces   here
+    *glob*
+    ?question
+    EOF
+expect:
+  stdout: |+
+    tab	here
+    spaces   here
+    *glob*
+    ?question
+  stderr: ""
+  exit_code: 0

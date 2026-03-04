@@ -1,0 +1,10 @@
+description: Herestring works with unquoted words.
+input:
+  # language=bash
+  script: |+
+    cat <<< hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0
