@@ -15,7 +15,7 @@ import (
 // IsBuiltin returns true if the given word is a shell builtin.
 func IsBuiltin(name string) bool {
 	switch name {
-	case "true", "false", "exit", "echo", "break", "continue":
+	case "true", "false", "exit", "echo", "break", "continue", "cat":
 		return true
 	}
 	return false
@@ -95,6 +95,8 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		if newline {
 			r.out("\n")
 		}
+	case "cat":
+		return r.builtinCat(ctx, args)
 	case "break", "continue":
 		if !r.inLoop {
 			return failf(0, "%s is only useful in a loop\n", name)
