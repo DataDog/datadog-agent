@@ -102,9 +102,62 @@ function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
+
+  // Time range with navigation history
+  const [timeRangeLive, setTimeRangeLive] = useState<TimeRange | null>(null);
+  const [nav, setNav] = useState<{ history: (TimeRange | null)[]; index: number }>({
+    history: [null],
+    index: 0,
+  });
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const timeRange = timeRangeLive;
+  const canGoBack = nav.index > 0;
+  const canGoForward = nav.index < nav.history.length - 1;
+
+  // Live update + debounced history commit (used by panning and zoom)
+  const setTimeRange = (range: TimeRange | null) => {
+    setTimeRangeLive(range);
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    commitTimerRef.current = setTimeout(() => {
+      setNav(prev => {
+        const truncated = prev.history.slice(0, prev.index + 1);
+        return { history: [...truncated, range], index: truncated.length };
+      });
+    }, 350);
+  };
+
+  // Immediate commit (used by editable timestamps and reset)
+  const commitTimeRange = (range: TimeRange | null) => {
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    setTimeRangeLive(range);
+    setNav(prev => {
+      const truncated = prev.history.slice(0, prev.index + 1);
+      return { history: [...truncated, range], index: truncated.length };
+    });
+  };
+
+  const goBack = () => {
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    setNav(prev => {
+      if (prev.index <= 0) return prev;
+      const newIndex = prev.index - 1;
+      setTimeRangeLive(prev.history[newIndex]);
+      return { ...prev, index: newIndex };
+    });
+  };
+
+  const goForward = () => {
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+    setNav(prev => {
+      if (prev.index >= prev.history.length - 1) return prev;
+      const newIndex = prev.index + 1;
+      setTimeRangeLive(prev.history[newIndex]);
+      return { ...prev, index: newIndex };
+    });
+  };
 
   const series = state.series ?? [];
   const anomalies = state.anomalies ?? [];
@@ -190,25 +243,54 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Global time span control (available in both tabs) */}
+            {/* History navigation arrows — always visible when there's history */}
+            {(canGoBack || canGoForward) && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={goBack}
+                  disabled={!canGoBack}
+                  title="Go to previous time selection"
+                  className={`px-2 py-1 rounded text-sm transition-colors ${
+                    canGoBack
+                      ? 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      : 'text-slate-600 cursor-default'
+                  }`}
+                >
+                  ←
+                </button>
+                <button
+                  onClick={goForward}
+                  disabled={!canGoForward}
+                  title="Go to next time selection"
+                  className={`px-2 py-1 rounded text-sm transition-colors ${
+                    canGoForward
+                      ? 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                      : 'text-slate-600 cursor-default'
+                  }`}
+                >
+                  →
+                </button>
+              </div>
+            )}
+            {/* Global time span control (available in all tabs) */}
             {activeTimeRange && (
               <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
                 <span className="text-xs text-slate-400">Time Span:</span>
                 <EditableTimestamp
                   value={activeTimeRange.start}
-                  onChange={start => setTimeRange({ start, end: activeTimeRange.end })}
+                  onChange={start => commitTimeRange({ start, end: activeTimeRange.end })}
                 />
                 <span className="text-xs text-slate-500">–</span>
                 <EditableTimestamp
                   value={activeTimeRange.end}
-                  onChange={end => setTimeRange({ start: activeTimeRange.start, end })}
+                  onChange={end => commitTimeRange({ start: activeTimeRange.start, end })}
                 />
                 <span className="text-xs text-slate-500 ml-1">
                   (middle-drag or cmd+drag to pan)
                 </span>
                 {timeRange && (
                   <button
-                    onClick={() => setTimeRange(null)}
+                    onClick={() => commitTimeRange(null)}
                     className="ml-2 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
                     title="Reset time span"
                   >
@@ -219,7 +301,7 @@ function App() {
             )}
             {!activeTimeRange && state.connectionState === 'ready' && (
               <span className="text-xs text-slate-500">
-                Drag a time-series chart to set time span, middle-drag or cmd+drag to pan
+                Drag a chart to set time span · middle-drag or cmd+drag to pan
               </span>
             )}
 
