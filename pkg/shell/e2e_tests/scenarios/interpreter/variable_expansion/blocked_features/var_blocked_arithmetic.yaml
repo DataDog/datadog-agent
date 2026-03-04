@@ -5,6 +5,6 @@ input:
     echo $((1+2))
 expected:
   stdout: ""
-  stderr_contains:
-    - "arithmetic expansion is not supported"
+  stderr: |+
+    arithmetic expansion is not supported
   exit_code: 2

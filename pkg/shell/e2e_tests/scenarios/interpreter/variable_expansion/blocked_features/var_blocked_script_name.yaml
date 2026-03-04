@@ -5,6 +5,6 @@ input:
     echo $0
 expected:
   stdout: ""
-  stderr_contains:
-    - "$0 is not supported"
+  stderr: |+
+    $0 is not supported
   exit_code: 2

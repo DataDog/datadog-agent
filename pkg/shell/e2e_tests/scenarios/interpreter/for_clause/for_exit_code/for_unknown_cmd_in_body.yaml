@@ -5,6 +5,6 @@ input:
     for i in a; do nonexistent_cmd; done
 expected:
   stdout: ""
-  stderr_contains:
-    - "not found"
+  stderr: |+
+    nonexistent_cmd: not found
   exit_code: 127

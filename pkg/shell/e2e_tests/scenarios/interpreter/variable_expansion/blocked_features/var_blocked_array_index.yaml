@@ -5,6 +5,6 @@ input:
     echo ${PATH[0]}
 expected:
   stdout: ""
-  stderr_contains:
-    - "array indexing is not supported"
+  stderr: |+
+    array indexing is not supported
   exit_code: 2

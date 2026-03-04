@@ -5,6 +5,6 @@ input:
     echo $(echo hello)
 expected:
   stdout: ""
-  stderr_contains:
-    - "command substitution is not supported"
+  stderr: |+
+    command substitution is not supported
   exit_code: 2

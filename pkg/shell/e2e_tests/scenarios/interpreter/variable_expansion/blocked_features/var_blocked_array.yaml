@@ -5,6 +5,6 @@ input:
     ARR=(a b c)
 expected:
   stdout: ""
-  stderr_contains:
-    - "array assignment is not supported"
+  stderr: |+
+    array assignment is not supported
   exit_code: 2

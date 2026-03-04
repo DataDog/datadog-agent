@@ -6,6 +6,6 @@ input:
     X+=world
 expected:
   stdout: ""
-  stderr_contains:
-    - "+= is not supported"
+  stderr: |+
+    += is not supported
   exit_code: 2

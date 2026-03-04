@@ -7,6 +7,6 @@ input:
 expected:
   stdout: |+
     after
-  stderr_contains:
-    - "continue is only useful in a loop"
+  stderr: |+
+    continue is only useful in a loop
   exit_code: 0

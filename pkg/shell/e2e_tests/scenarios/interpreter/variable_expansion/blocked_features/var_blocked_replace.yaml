@@ -6,6 +6,6 @@ input:
     echo ${X/l/L}
 expected:
   stdout: ""
-  stderr_contains:
-    - "${var/pattern/replacement} is not supported"
+  stderr: |+
+    ${var/pattern/replacement} is not supported
   exit_code: 2
