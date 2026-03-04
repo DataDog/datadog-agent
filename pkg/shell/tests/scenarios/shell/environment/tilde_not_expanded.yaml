@@ -1,0 +1,10 @@
+description: Tilde expansion is disabled; ~ is passed through as a literal character.
+input:
+  # language=bash
+  script: |+
+    echo ~
+expect:
+  stdout: |+
+    ~
+  stderr: ""
+  exit_code: 0

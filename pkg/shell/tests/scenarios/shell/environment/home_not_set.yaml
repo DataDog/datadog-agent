@@ -1,0 +1,10 @@
+description: $HOME is not automatically set by the interpreter.
+input:
+  # language=bash
+  script: |+
+    echo "home=$HOME"
+expect:
+  stdout: |+
+    home=
+  stderr: ""
+  exit_code: 0
