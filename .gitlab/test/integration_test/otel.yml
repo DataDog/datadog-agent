@@ -169,7 +169,9 @@ ddot_byoc_package_build_test_deb:
 ddot_byoc_package_build_test_linux_oci:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["integration_tests_otel"]
+  needs:
+    - "integration_tests_otel"
+    - "agent_oci"
   tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [docker_image_build_otel, before_script]
@@ -180,8 +182,11 @@ ddot_byoc_package_build_test_linux_oci:
     - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-    # Start a local OCI registry to receive the output image
+    # Start a local OCI registry to receive both the source agent OCI and the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
+    # Push the pipeline agent OCI artifact to the local registry so build-ddot-byoc can pull it
+    - AGENT_OCI_TAR=$(ls ${CI_PROJECT_DIR}/omnibus/pkg/datadog-agent-*.oci.tar | head -1)
+    - datadog-package push localhost:5000/datadog-agent:test "$AGENT_OCI_TAR"
     - OUTPUT_OCI="localhost:5000/ddot-byoc:${AGENT_VERSION}"
     - |
       docker build \
@@ -192,7 +197,7 @@ ddot_byoc_package_build_test_linux_oci:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
       --build-arg PACKAGE_TYPE=linux \
-      --build-arg AGENT_OCI=gcr.io/datadoghq/agent-package:latest \
+      --build-arg AGENT_OCI=localhost:5000/datadog-agent:test \
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
