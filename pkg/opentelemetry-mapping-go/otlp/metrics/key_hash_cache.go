@@ -55,7 +55,8 @@ func (m *keyHashCache) computeKey(s string) keyHashCacheKey {
 	binary.LittleEndian.PutUint64(bytes[0:], h1)
 	binary.LittleEndian.PutUint64(bytes[8:], h2)
 
-	buf := make([]byte, ascii85.MaxEncodedLen(len(bytes)))
-	n := ascii85.Encode(buf, bytes[:])
+	// ascii85.MaxEncodedLen(16) == 20, use a stack-allocated array to avoid heap alloc
+	var buf [20]byte
+	n := ascii85.Encode(buf[:], bytes[:])
 	return keyHashCacheKey(buf[:n])
 }

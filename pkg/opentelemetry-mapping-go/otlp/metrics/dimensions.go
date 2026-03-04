@@ -76,17 +76,6 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 	return d.originProductDetail
 }
 
-// getTags maps an attributeMap into a slice of Datadog tags
-func getTags(labels pcommon.Map) []string {
-	tags := make([]string, 0, labels.Len())
-	labels.Range(func(key string, value pcommon.Value) bool {
-		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
-		return true
-	})
-	return tags
-}
-
 // AddTags to metrics dimensions.
 func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	// defensively copy the tags
@@ -105,8 +94,29 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 }
 
 // WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
+// It builds the new tags slice in a single allocation, avoiding the intermediate slice from getTags.
 func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+	labelsLen := labels.Len()
+	if labelsLen == 0 {
+		return d
+	}
+	// Match AddTags ordering: attribute tags come first, then existing d.tags.
+	newTags := make([]string, 0, labelsLen+len(d.tags))
+	labels.Range(func(key string, value pcommon.Value) bool {
+		v := value.AsString()
+		newTags = append(newTags, utils.FormatKeyValueTag(key, v))
+		return true
+	})
+	newTags = append(newTags, d.tags...)
+	return &Dimensions{
+		name:                d.name,
+		tags:                newTags,
+		host:                d.host,
+		originID:            d.originID,
+		originProduct:       d.originProduct,
+		originSubProduct:    d.originSubProduct,
+		originProductDetail: d.originProductDetail,
+	}
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.
@@ -122,35 +132,72 @@ func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	}
 }
 
-// Uses a logic similar to what is done in the span processor to build metric keys:
-// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/b2327211df976e0a57ef0425493448988772a16b/processor/spanmetricsprocessor/processor.go#L353-L387
-// TODO: make this a public util function?
-func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
-	metricKeyBuilder.WriteString(value)
-	metricKeyBuilder.WriteString(dimensionSeparator)
-}
-
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	// Allocate the slice with exact capacity upfront to avoid any re-growth.
-	dimensions := make([]string, len(d.tags), len(d.tags)+3)
-	copy(dimensions, d.tags)
-	dimensions = append(dimensions, "name:"+d.name)
-	dimensions = append(dimensions, "host:"+d.host)
-	dimensions = append(dimensions, "originID:"+d.originID)
-	sort.Strings(dimensions)
+	// Sort only the tags slice (copy to avoid mutating d.tags).
+	sortedTags := make([]string, len(d.tags))
+	copy(sortedTags, d.tags)
+	sort.Strings(sortedTags)
 
-	// Pre-compute total length so the Builder does a single allocation.
-	totalLen := 0
-	for _, dim := range dimensions {
-		totalLen += len(dim) + 1 // +1 for dimensionSeparator
+	// The three fixed fields, in sorted order by their full "prefix:value" representation.
+	// "host:" < "name:" < "originID:" (lexicographic), so insertion order is fixed.
+	const (
+		prefixHost     = "host:"
+		prefixName     = "name:"
+		prefixOriginID = "originID:"
+	)
+	fixed := [3]struct{ prefix, value string }{
+		{prefixHost, d.host},
+		{prefixName, d.name},
+		{prefixOriginID, d.originID},
 	}
 
-	var metricKeyBuilder strings.Builder
-	metricKeyBuilder.Grow(totalLen)
-	for _, dim := range dimensions {
-		concatDimensionValue(&metricKeyBuilder, dim)
+	// Pre-compute total length for a single Builder allocation.
+	totalLen := len(dimensionSeparator) * (len(sortedTags) + 3)
+	for _, t := range sortedTags {
+		totalLen += len(t)
 	}
-	return metricKeyBuilder.String()
+	for _, f := range fixed {
+		totalLen += len(f.prefix) + len(f.value)
+	}
+
+	// Merge sortedTags and fixed entries in sorted order, writing directly to the builder.
+	// This avoids allocating the "prefix:value" concatenated strings.
+	var b strings.Builder
+	b.Grow(totalLen)
+	ti := 0 // index into sortedTags
+	for _, f := range fixed {
+		// Flush all tags that sort before this fixed entry.
+		for ti < len(sortedTags) {
+			// Compare tag to "prefix" + value. We avoid building a full string:
+			// a tag t sorts before fixed entry f if t < f.prefix+f.value.
+			t := sortedTags[ti]
+			if len(t) < len(f.prefix) {
+				if t < f.prefix[:len(t)] || (t == f.prefix[:len(t)]) {
+					b.WriteString(t)
+					b.WriteString(dimensionSeparator)
+					ti++
+					continue
+				}
+			} else {
+				if t[:len(f.prefix)] < f.prefix || (t[:len(f.prefix)] == f.prefix && t[len(f.prefix):] < f.value) {
+					b.WriteString(t)
+					b.WriteString(dimensionSeparator)
+					ti++
+					continue
+				}
+			}
+			break
+		}
+		b.WriteString(f.prefix)
+		b.WriteString(f.value)
+		b.WriteString(dimensionSeparator)
+	}
+	// Flush any remaining tags.
+	for ; ti < len(sortedTags); ti++ {
+		b.WriteString(sortedTags[ti])
+		b.WriteString(dimensionSeparator)
+	}
+	return b.String()
 }

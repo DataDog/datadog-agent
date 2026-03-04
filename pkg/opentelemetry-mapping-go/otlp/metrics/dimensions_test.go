@@ -79,6 +79,58 @@ func TestMetricDimensionsStringNoTagsChange(t *testing.T) {
 
 }
 
+func TestWithAttributeMapEmptyLabels(t *testing.T) {
+	// WithAttributeMap with an empty map should return the same pointer (early-return path).
+	dims := &Dimensions{name: "metric", tags: []string{"k:v"}, host: "h"}
+	result := dims.WithAttributeMap(pcommon.NewMap())
+	assert.Same(t, dims, result)
+}
+
+func TestMetricDimensionsStringTagShorterThanPrefix(t *testing.T) {
+	// Tags that are lexicographically shorter than a fixed prefix ("host:", "name:", "originID:")
+	// exercise the len(t) < len(f.prefix) branch in the merge loop.
+	//
+	// "h" < "host:" and "n" < "name:", so both sort before their respective fixed fields.
+	dims := Dimensions{name: "m", tags: []string{"h", "n"}, host: "myhost"}
+	key := dims.String()
+	// Must be stable across repeated calls.
+	assert.Equal(t, dims.String(), key)
+	// Must differ from a key with no tags.
+	assert.NotEqual(t, (&Dimensions{name: "m", host: "myhost"}).String(), key)
+}
+
+func TestMetricDimensionsStringTagEqualToFixedPrefix(t *testing.T) {
+	// A tag exactly equal to a fixed prefix string (e.g. "host:") exercises the
+	// `t == f.prefix[:len(t)]` equality branch; the tag should sort before the fixed field.
+	dims := Dimensions{name: "m", tags: []string{"host:"}, host: "myhost"}
+	key := dims.String()
+	assert.Equal(t, dims.String(), key)
+	// Verify the tag is actually included and not swallowed.
+	dimsNoTag := &Dimensions{name: "m", host: "myhost"}
+	assert.NotEqual(t, dimsNoTag.String(), key)
+}
+
+func TestMetricDimensionsStringTagsAfterAllFixed(t *testing.T) {
+	// Tags that sort after all three fixed fields (e.g. starting with 'z') exercise
+	// the trailing-flush loop after the fixed-field merge loop.
+	dims := Dimensions{name: "m", tags: []string{"z:last"}, host: "h"}
+	key := dims.String()
+	assert.Equal(t, dims.String(), key)
+	dimsNoTag := &Dimensions{name: "m", host: "h"}
+	assert.NotEqual(t, dimsNoTag.String(), key)
+}
+
+func TestMetricDimensionsStringDoesNotMutateOriginalTags(t *testing.T) {
+	// Regression: String() must not reorder or append to the original tags slice
+	// even when the slice has spare capacity.
+	tags := make([]string, 2, 5)
+	tags[0] = "z:last"
+	tags[1] = "a:first"
+	dims := Dimensions{name: "metric", tags: tags, host: "host"}
+	_ = dims.String()
+	assert.Equal(t, []string{"z:last", "a:first"}, tags, "String() must not mutate the original tags slice")
+}
+
 var testDims = Dimensions{
 	name: "test.metric",
 	tags: []string{"key:val"},
