@@ -22,6 +22,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const errorEvtInvalidEventData = windows.Errno(0x3AB5)
+
 type propertyParser struct {
 	record  *C.EVENT_RECORD
 	info    C.PTRACE_EVENT_INFO
@@ -160,7 +162,7 @@ func (p *propertyParser) parseSimpleType(i int) (string, error) {
 			formattedData = make([]byte, int(formattedDataSize))
 			continue
 		}
-		if windows.Errno(r0) == 0x3ab5 && mapInfo != nil {
+		if windows.Errno(r0) == errorEvtInvalidEventData && mapInfo != nil {
 			mapInfo = nil
 			continue
 		}

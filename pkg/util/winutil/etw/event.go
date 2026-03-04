@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -30,12 +29,6 @@ type Event struct {
 	EventID     uint16
 	Timestamp   time.Time
 	eventRecord C.PEVENT_RECORD
-}
-
-// Property holds a name-value pair from an event.
-type Property struct {
-	Name  string
-	Value interface{}
 }
 
 // EventProperties returns a map of property names to values for this event.
@@ -60,23 +53,6 @@ func (e *Event) EventProperties() (map[string]interface{}, error) {
 		props[name] = value
 	}
 	return props, nil
-}
-
-// DebugProperties returns a human-readable dump of all event properties.
-// Useful for troubleshooting ETW event parsing issues.
-func (e *Event) DebugProperties() string {
-	props, err := e.EventProperties()
-	if err != nil {
-		return fmt.Sprintf("error: %v", err)
-	}
-	if len(props) == 0 {
-		return "(no properties)"
-	}
-	var b strings.Builder
-	for k, v := range props {
-		fmt.Fprintf(&b, "  %s = %v (%T)\n", k, v, v)
-	}
-	return b.String()
 }
 
 // GetPropertyByName retrieves a single property by name using TdhGetProperty.
