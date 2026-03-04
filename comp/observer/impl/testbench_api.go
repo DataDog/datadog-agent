@@ -459,11 +459,11 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	levelFilter := r.URL.Query().Get("level")
 
 	type logEntryResponse struct {
-		Timestamp int64    `json:"timestamp"`
-		Status    string   `json:"status"`
-		Content   string   `json:"content"`
-		Hostname  string   `json:"hostname"`
-		Tags      []string `json:"tags"`
+		TimestampMs int64    `json:"timestampMs"`
+		Status      string   `json:"status"`
+		Content     string   `json:"content"`
+		Hostname    string   `json:"hostname"`
+		Tags        []string `json:"tags"`
 	}
 
 	logs := api.tb.GetRawLogs()
@@ -485,11 +485,11 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		// 	tags = append(tags, "status:"+l.Status)
 		// }
 		response = append(response, logEntryResponse{
-			Timestamp: l.GetTimestampMs(),
-			Status:    l.GetStatus(),
-			Content:   string(l.GetContent()),
-			Hostname:  l.GetHostname(),
-			Tags:      tags,
+			TimestampMs: l.GetTimestampMs(),
+			Status:      l.GetStatus(),
+			Content:     string(l.GetContent()),
+			Hostname:    l.GetHostname(),
+			Tags:        tags,
 		})
 	}
 

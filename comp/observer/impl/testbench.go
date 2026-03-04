@@ -303,19 +303,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
-	// TODO: Useful?
-	// Load log files
-	/*
-		logsDir := filepath.Join(scenarioPath, "logs")
-		logsStart := time.Now()
-		if _, err := os.Stat(logsDir); err == nil {
-			if err := tb.runLogDetectors(logsDir); err != nil {
-				return fmt.Errorf("failed to load logs: %w", err)
-			}
-		}
-		fmt.Printf("  Log loading took %s\n", time.Since(logsStart))
-	*/
-
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	analysisStart := time.Now()
 	tb.rerunDetectorsLocked()
