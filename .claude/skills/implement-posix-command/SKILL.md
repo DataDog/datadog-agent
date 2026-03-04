@@ -16,6 +16,7 @@ Before writing any code:
 
 1. Read `.claude/skills/implement-posix-command/RULES.md` in full.
 2. Read the POSIX specification behavior for **$ARGUMENTS** — what flags are standard, what flags are dangerous (write/execute), and what the expected output format is.
+3. Read the associated GTFOBins recommendations, if any, which can be found at https://gtfobins.org/gtfobins/$ARGUMENTS. These contain information on unsafe flags and vulnerabilities that we will need to avoid.
 
 ## Step 2: User confirms which flags to implement
 
