@@ -50,14 +50,16 @@ release, and download and extract it into /tmp somewhere.
 
 We want to extract some script-based tests for the relevant command. Within the coreutils source,
 look in `tests/$ARGUMENTS`. If that folder exists and has a bunch of .sh files in it, those are our
-tests. We want to copy these into our repository at `datadog-agent/pkg/shell/interp/builtintest/$ARGUMENTS/gnu_scripts`.
+tests. We want to copy these into our repository at `datadog-agent/pkg/shell/interp/test/shell/$ARGUMENTS/`.
+
+The shared GNU test framework lives at `pkg/shell/interp/test/shell/init.sh`. All scripts source it.
 
 Once they are copied, we now want to go through each test file and do the following (parallelize this per test file):
 
 1. Determine the purpose of the test. If the test is wholly concerned with a flag we have decided not to implement, delete the test. Otherwise, we will keep the test and continue this checklist.
 2. Modify the `init.sh` sourcing line. The path must be captured as an **absolute path before `setup_` runs**, because `setup_` changes the working directory to a temp dir and relative paths will break. Use this pattern at the top of every script:
    ```sh
-   srcdir=$(cd "$(dirname "$0")/../.." && pwd)
+   srcdir=$(cd "$(dirname "$0")/.." && pwd)
    . "$srcdir/init.sh"
    ```
 3. Modify the test to remove any extraneous usages of flags that we are not implementing.
@@ -82,7 +84,13 @@ After adapting the scripts, verify they pass by running them manually with a bui
 Go tests live alongside the other builtins in the `pkg/shell/interp/` package, **not** in a subdirectory:
 
 - **Go tests** → `pkg/shell/interp/builtin_$ARGUMENTS_test.go` (`package interp`)
-- **Shell scripts** → `pkg/shell/interp/builtintest/$ARGUMENTS/gnu_scripts/` (already done in Step 3)
+- **Shell scripts** → `pkg/shell/interp/test/shell/$ARGUMENTS/` (already done in Step 3)
+
+The shell scripts are run automatically by `go test ./pkg/shell/interp` via
+`pkg/shell/interp/shell_scripts_test.go` (a `//go:build unix` test file that
+discovers every `test/shell/*/*.sh` and runs it with `sh`). No extra CI
+configuration is required — the scripts are skipped automatically when the
+agent binary is not available.
 
 Using `package interp` lets the tests access unexported helpers and constants (e.g. for clamping checks).
 

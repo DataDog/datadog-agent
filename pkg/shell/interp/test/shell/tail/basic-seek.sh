@@ -21,7 +21,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Resolve init.sh relative to this script's location before setup_ cds away.
-srcdir=$(cd "$(dirname "$0")/../.." && pwd)
+srcdir=$(cd "$(dirname "$0")/.." && pwd)
 . "$srcdir/init.sh"
 
 # Locate the agent binary.
