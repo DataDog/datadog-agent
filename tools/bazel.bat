@@ -21,8 +21,13 @@ if not exist "%XDG_CACHE_HOME%" (
   )
 )
 
-:: Make `bazel` honor $XDG_CACHE_HOME if set as it does on POSIX OSes: https://github.com/bazelbuild/bazel/issues/27808
+:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` if set: https://github.com/bazelbuild/bazel/issues/27808
 if defined XDG_CACHE_HOME (
+  set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
+  if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" (
+    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
+    exit /b 2
+  )
   set "bazel_home=%XDG_CACHE_HOME%\bazel"
   set bazel_home_startup_option="--output_user_root=!bazel_home!"
 ) else (
@@ -42,11 +47,11 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Not in CI: simply execute `bazel` - done
-if not defined CI (
-  "%BAZEL_REAL%" !bazel_home_startup_option! %*
-  exit /b !errorlevel!
-)
+:: Not in CI nor GitHub Actions: simply execute `bazel` - done
+if defined CI if not defined GITHUB_ACTIONS goto :ci_config
+"%BAZEL_REAL%" !bazel_home_startup_option! %*
+exit /b !errorlevel!
+:ci_config
 
 :: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
