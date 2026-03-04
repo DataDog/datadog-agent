@@ -122,15 +122,22 @@ function LogRateChart({
     if (!displayStart || !displayEnd || displayEnd <= displayStart) return [];
     const bucketSize = Math.max(LOG_CHART_MIN_BUCKET_SIZE_S, (displayEnd - displayStart) / LOG_CHART_TARGET_BUCKETS);
     const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
-    const counts = new Array(bucketCount).fill(0);
+    const data = Array.from({ length: bucketCount }, () => ({ total: 0, error: 0, warn: 0, info: 0, debug: 0 }));
     for (const l of logs) {
       const ts = l.timestampMs / 1000;
       if (ts < displayStart || ts > displayEnd) continue;
       const idx = Math.min(Math.floor((ts - displayStart) / bucketSize), bucketCount - 1);
-      if (idx >= 0) counts[idx]++;
+      if (idx >= 0) {
+        data[idx].total++;
+        const s = l.status.toLowerCase();
+        if (s === 'error') data[idx].error++;
+        else if (s === 'warn' || s === 'warning') data[idx].warn++;
+        else if (s === 'info') data[idx].info++;
+        else data[idx].debug++;
+      }
     }
-    return counts.map((count, i) => ({
-      count,
+    return data.map((d, i) => ({
+      ...d,
       startTs: displayStart + i * bucketSize,
       endTs: displayStart + (i + 1) * bucketSize,
     }));
@@ -169,31 +176,44 @@ function LogRateChart({
     const xScale = d3.scaleTime().domain(xDomain).range([0, innerWidth]);
     xScaleRef.current = xScale;
 
-    const maxCount = Math.max(1, ...buckets.map((b) => b.count));
+    const maxTotal = Math.max(1, ...buckets.map((b) => b.total));
     const barsG = g.append('g').attr('clip-path', 'url(#log-rate-clip)');
 
-    // Log rate bars
-    barsG.selectAll<SVGRectElement, (typeof buckets)[number]>('rect.bar')
-      .data(buckets)
-      .enter()
-      .append('rect')
-      .attr('class', 'bar')
-      .attr('x', (d) => xScale(d.startTs * 1000))
-      .attr('width', (d) => Math.max(0, xScale(d.endTs * 1000) - xScale(d.startTs * 1000) - 1))
-      .attr('y', (d) => {
-        const h = d.count > 0 ? Math.max(3, (d.count / maxCount) * innerHeight) : 2;
-        return innerHeight - h;
-      })
-      .attr('height', (d) => (d.count > 0 ? Math.max(3, (d.count / maxCount) * innerHeight) : 2))
-      .attr('fill', (d) => {
-        const isHovered =
-          hoveredTimestamp != null &&
-          hoveredTimestamp / 1000 >= d.startTs &&
-          hoveredTimestamp / 1000 < d.endTs;
-        if (isHovered) return 'rgba(251, 191, 36, 0.85)';
-        return d.count > 0 ? 'rgba(45, 212, 191, 0.35)' : 'rgba(51, 65, 85, 0.25)';
-      })
-      .attr('rx', 1);
+    // Status layers — bottom to top: debug, info, warn, error
+    const STATUS_LAYERS = [
+      { key: 'debug' as const, color: 'rgba(100, 116, 139, 0.6)' },
+      { key: 'info'  as const, color: 'rgba(59, 130, 246, 0.65)' },
+      { key: 'warn'  as const, color: 'rgba(245, 158, 11, 0.8)'  },
+      { key: 'error' as const, color: 'rgba(239, 68, 68, 0.85)'  },
+    ] as const;
+
+    // Stacked bars per bucket
+    buckets.forEach((b) => {
+      const x = xScale(b.startTs * 1000);
+      const bw = Math.max(0, xScale(b.endTs * 1000) - x - 1);
+      if (bw <= 0) return;
+
+      if (b.total === 0) {
+        barsG.append('rect')
+          .attr('x', x).attr('width', bw)
+          .attr('y', innerHeight - 2).attr('height', 2)
+          .attr('fill', 'rgba(51, 65, 85, 0.25)');
+        return;
+      }
+
+      const totalH = Math.max(4, (b.total / maxTotal) * innerHeight);
+      let yBottom = innerHeight;
+      for (const { key, color } of STATUS_LAYERS) {
+        const count = b[key];
+        if (count === 0) continue;
+        const segH = (count / b.total) * totalH;
+        barsG.append('rect')
+          .attr('x', x).attr('width', bw)
+          .attr('y', yBottom - segH).attr('height', segH)
+          .attr('fill', color);
+        yBottom -= segH;
+      }
+    });
 
     // Anomaly markers (triangle + vertical line per anomaly)
     anomalies.forEach((a, i) => {
@@ -215,17 +235,29 @@ function LogRateChart({
         .attr('opacity', opacity);
     });
 
-    // Hovered-log timestamp indicator
+    // Hover effects — drawn on top of bars
     if (hoveredTimestamp != null) {
+      const hts = hoveredTimestamp / 1000;
+      const hb = buckets.find((b) => hts >= b.startTs && hts < b.endTs);
+      if (hb) {
+        const hx = xScale(hb.startTs * 1000);
+        const hw = Math.max(0, xScale(hb.endTs * 1000) - hx);
+        barsG.append('rect')
+          .attr('x', hx).attr('width', hw)
+          .attr('y', 0).attr('height', innerHeight)
+          .attr('fill', 'rgba(255, 255, 255, 0.12)')
+          .attr('stroke', 'rgba(255, 255, 255, 0.45)')
+          .attr('stroke-width', 1);
+      }
+      // Exact timestamp cursor line
       const x = xScale(hoveredTimestamp);
       if (x >= 0 && x <= innerWidth) {
         barsG.append('line')
           .attr('x1', x).attr('x2', x)
           .attr('y1', 0).attr('y2', innerHeight)
-          .attr('stroke', '#fbbf24')
+          .attr('stroke', 'rgba(255, 255, 255, 0.7)')
           .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '3,2')
-          .attr('opacity', 0.7);
+          .attr('stroke-dasharray', '3,2');
       }
     }
 
@@ -345,6 +377,12 @@ function LogRateChart({
     <div className="bg-slate-800/60 rounded p-3 mb-4">
       <div className="flex items-center gap-4 text-xs text-slate-400 mb-1.5">
         <span>Log rate ({logs.length} log{logs.length !== 1 ? 's' : ''} total)</span>
+        <span className="flex items-center gap-2">
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-500/80" />error</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-500/75" />warn</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-blue-500/65" />info</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-slate-500/60" />debug</span>
+        </span>
         {detectors.map((name) => (
           <span key={name} className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: detectorLineColor(name) }} />
