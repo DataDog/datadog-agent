@@ -1,0 +1,26 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//visibility:private"])
+
+py_library(
+    name = "pipeline_analysis",
+    srcs = [
+        "__init__.py",
+        "cli.py",
+    ],
+    imports = [".."],  # adds tools/ to PYTHONPATH
+    visibility = ["//tools/pipeline_analysis/tests:__pkg__"],
+    deps = [
+        "//tools/pipeline_analysis/graph",
+        "//tools/pipeline_analysis/viz",
+        "@py_dev_requirements//click",
+    ],
+)
+
+py_binary(
+    name = "pipeline_analysis_bin",
+    srcs = ["__main__.py"],
+    main = "__main__.py",
+    deps = [":pipeline_analysis"],
+)

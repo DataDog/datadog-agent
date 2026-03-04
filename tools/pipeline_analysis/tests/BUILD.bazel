@@ -1,0 +1,14 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+package(default_visibility = ["//visibility:private"])
+
+py_test(
+    name = "test_gitlab_ci_parser",
+    srcs = ["test_gitlab_ci_parser.py"],
+    data = glob(["fixtures/**"]),
+    main = "test_gitlab_ci_parser.py",
+    deps = [
+        "//tools/pipeline_analysis/parsers",
+        "@py_dev_requirements//pytest",
+    ],
+)

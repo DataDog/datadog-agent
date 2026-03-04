@@ -1,0 +1,13 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//tools/pipeline_analysis:__subpackages__"])
+
+py_library(
+    name = "parsers",
+    srcs = [
+        "__init__.py",
+        "gitlab_ci.py",
+    ],
+    imports = ["../.."],  # adds tools/ to PYTHONPATH
+    deps = ["@py_dev_requirements//pyyaml"],
+)

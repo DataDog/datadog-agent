@@ -1,0 +1,16 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//tools/pipeline_analysis:__subpackages__"])
+
+py_library(
+    name = "graph",
+    srcs = [
+        "__init__.py",
+        "pipeline_graph.py",
+    ],
+    imports = ["../.."],  # adds tools/ to PYTHONPATH
+    deps = [
+        "//tools/pipeline_analysis/parsers",
+        "@py_dev_requirements//networkx",
+    ],
+)

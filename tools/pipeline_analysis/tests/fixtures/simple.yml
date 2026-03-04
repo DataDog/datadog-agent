@@ -1,0 +1,46 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  S3_ARTIFACTS_URI: s3://my-bucket/artifacts
+
+.base_job:
+  tags:
+    - runner:main
+  before_script:
+    - echo "setup"
+
+build-linux:
+  stage: build
+  extends: .base_job
+  tags:
+    - arch:amd64
+    - os:linux
+  script:
+    - make build
+    - aws s3 cp ./bin/agent $S3_ARTIFACTS_URI/agent/linux-amd64/agent
+
+test-unit:
+  stage: test
+  extends: .base_job
+  needs:
+    - build-linux
+  script:
+    - make test
+  artifacts:
+    paths:
+      - test-results/
+
+deploy-package:
+  stage: deploy
+  needs:
+    - job: test-unit
+    - job: build-linux
+  script:
+    - aws s3 cp $S3_ARTIFACTS_URI/agent/linux-amd64/agent ./agent
+    - echo "deploying"
+  trigger:
+    project: my-group/distribution
+    branch: main

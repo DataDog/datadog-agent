@@ -1,0 +1,29 @@
+stages:
+  - build
+  - test
+
+.shared_rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - when: never
+
+.shared_script:
+  script:
+    - echo "shared step 1"
+    - echo "shared step 2"
+
+build-job:
+  stage: build
+  rules:
+    - !reference [.shared_rules, rules]
+  script:
+    - !reference [.shared_script, script]
+    - echo "extra step"
+
+test-job:
+  stage: test
+  needs:
+    - build-job
+  script:
+    - echo "test"
