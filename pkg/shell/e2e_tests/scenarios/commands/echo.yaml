@@ -1,0 +1,11 @@
+scenarios:
+  - name: "simple echo"
+    input:
+      # language=bash
+      script: |+
+        echo abc
+    expected:
+      stdout: |+
+        abc
+      stderr: ""
+      exit_code: 0

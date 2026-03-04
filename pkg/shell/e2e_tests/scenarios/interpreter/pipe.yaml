@@ -1,0 +1,11 @@
+scenarios:
+  - name: "simple pipe"
+    input:
+      # language=bash
+      script: |+
+        echo abc | cat
+    expected:
+      stdout: |+
+        abc
+      stderr: ""
+      exit_code: 0
