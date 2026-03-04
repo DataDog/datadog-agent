@@ -15,7 +15,7 @@ Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
-ExecStart=/opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent-exp/system-probe.yaml --pid=/opt/datadog-agent/run/system-probe.pid
+ExecStart=/opt/datadog-agent/embedded/bin/sd-agent -- /opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent-exp/system-probe.yaml --pid=/opt/datadog-agent/run/system-probe.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

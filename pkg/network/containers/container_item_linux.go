@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -124,7 +125,7 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
 
 	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
@@ -141,6 +142,7 @@ func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 
 	stat, err := file.Stat()
 	if err != nil {
