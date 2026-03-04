@@ -644,6 +644,7 @@ def _run_gate(ctx, gate: StaticQualityGate):
             "message": error_message,
             "result": result,
         }
+    # re-raise the InfraError as is, don't swallow it as Exception
     except InfraError:
         raise
     except Exception:
