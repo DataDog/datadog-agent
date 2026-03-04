@@ -27,7 +27,7 @@ func init() { registerModule(EBPFProbe) }
 // EBPFProbe Factory
 var EBPFProbe = &module.Factory{
 	Name:             config.EBPFModule,
-	ConfigNamespaces: []string{},
+	ConfigNamespaces: []string{"ebpf_check"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
