@@ -145,10 +145,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 // Pull triggers an event collection from kubelet and the Datadog Cluster Agent.
 //
-// Pod-to-service mappings can be streamed via grpc, but the collector remains
-// pull-based because namespace metadata is not yet streamed, and streaming is
-// not always available (older DCA versions, fallback to the local API server
-// metadata mapper).
+// Pod-to-service mappings and namespace metadata can be streamed via gRPC, but
+// the collector remains pull-based because streaming is not always available
+// (older DCA versions, fallback to the local API server metadata mapper).
+//
+// TODO: When streaming is active, decouple from the pull interval to take
+// advantage of real-time updates (extract streaming to a separate collector,
+// reduce the pull frequency, or something similar).
 func (c *collector) Pull(ctx context.Context) error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
@@ -330,7 +333,22 @@ func (c *collector) parsePods(
 
 		var nsLabels, nsAnnotations map[string]string
 
-		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
+		if streamActive {
+			if labels, annotations, ok := c.stream.getNamespaceMetadata(pod.Metadata.Namespace); ok {
+				if c.collectNamespaceLabels {
+					nsLabels = labels
+				}
+				if c.collectNamespaceAnnotations {
+					nsAnnotations = annotations
+				}
+				if c.collectNamespaceLabels || c.collectNamespaceAnnotations {
+					metadataByNS[pod.Metadata.Namespace] = &clusteragent.Metadata{
+						Labels:      labels,
+						Annotations: annotations,
+					}
+				}
+			}
+		} else if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
 			nsMetadata, ok := metadataByNS[pod.Metadata.Namespace]
 			if !ok {
