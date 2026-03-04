@@ -183,7 +183,7 @@ func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolut
 		"api_key_3": "resolved_api_key_3",
 	})
 
-	require.NoError(t, LoadDatadog(config, resolver, nil))
+	require.NoError(t, LoadDatadog(config, resolver, delegatedauthmock.New(t), nil))
 
 	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
 
