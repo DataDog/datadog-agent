@@ -1,6 +1,5 @@
 """ Agent specific curl build."""
 
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -234,28 +233,6 @@ cc_shared_library(
     ],
 )
 
-dd_agent_expand_template(
-    name = "gen_pkgconfig",
-    out = "libcurl.pc",
-    substitutions = {
-        "@prefix@": "{install_dir}",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/embedded/lib",
-        "@includedir@": "${prefix}/embedded/include",
-        "@CURLVERSION@": VERSION,
-        "@SUPPORT_PROTOCOLS@": "",
-        "@SUPPORT_FEATURES@": "",
-        "@LIBCURL_PC_REQUIRES@": "",
-        "@LIBCURL_PC_REQUIRES_PRIVATE@": "",
-        "@LIBCURL_PC_LIBS@": "",
-        "@LIBCURL_PC_LDFLAGS_PRIVATE@": "",
-        "@LIBCURL_PC_LIBS_PRIVATE@": "",
-        "@LIBCURL_PC_CFLAGS@": "",
-        "@LIBCURL_PC_CFLAGS_PRIVATE@": "",
-    },
-    template = ":libcurl.pc.in",
-)
-
 pkg_files(
     name = "bin_files",
     srcs = [
@@ -283,19 +260,12 @@ pkg_files(
     prefix = "embedded/include/curl",
 )
 
-pkg_files(
-    name = "pc_files",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
         ":hdr_files",
         ":lib_files",
-        ":pc_files",
     ],
 )
 
