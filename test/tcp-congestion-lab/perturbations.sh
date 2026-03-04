@@ -42,51 +42,42 @@ case "${1:-}" in
   #=== BASELINE: clean traffic, no perturbations ===
   baseline)
     echo "=== Baseline: ${DURATION}s clean iperf3 ==="
-    echo "Expected signals: delivered>0, all loss/retransmit signals=0"
+    echo "Expected signals: all congestion counters=0"
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     ;;
 
-  #=== LOSS: random packet loss → exercises lost_out, retrans_out, bytes_retrans, rto_count ===
+  #=== LOSS: random packet loss → exercises rto_count ===
   loss)
     LOSS_PCT="${2:-5}"
     echo "=== Packet loss: ${LOSS_PCT}% on client egress ==="
-    echo "Expected signals: max_lost_out>0, max_retrans_out>0, bytes_retrans>0, rto_count>0"
+    echo "Expected signals: rto_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss "${LOSS_PCT}%"
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
-  #=== HEAVY LOSS: high loss rate → exercises rto_count, max_ca_state=4 (Loss) ===
+  #=== HEAVY LOSS: high loss rate → exercises rto_count, recovery_count ===
   heavy-loss)
     echo "=== Heavy packet loss: 20% on client egress ==="
-    echo "Expected signals: rto_count>0, max_ca_state=4 (Loss), recovery_count>0"
+    echo "Expected signals: rto_count>0, recovery_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss 20%
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
-  #=== REORDER: packet reordering → exercises reord_seen, sacked_out ===
+  #=== REORDER: packet reordering → exercises reord_seen ===
   reorder)
     echo "=== Packet reordering: 25% reorder, 50ms delay on client egress ==="
-    echo "Expected signals: reord_seen>0, max_sacked_out>0"
+    echo "Expected signals: reord_seen>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms reorder 25% 50%
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
-  #=== DELAY: high latency → exercises max_packets_out (larger window) ===
-  delay)
-    echo "=== High delay: 200ms RTT with 50ms jitter on client egress ==="
-    echo "Expected signals: max_packets_out>0 (more segments in-flight due to BDP)"
-    docker exec $CLIENT tc qdisc add dev eth0 root netem delay 100ms 25ms
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
-    docker exec $CLIENT tc qdisc del dev eth0 root
-    ;;
-
-  #=== DELAY+LOSS: realistic WAN conditions → exercises recovery_count, dsack_dups ===
+  #=== DELAY+LOSS: realistic WAN conditions → exercises recovery_count ===
   wan)
     echo "=== WAN simulation: 100ms delay + 2% loss on client egress ==="
-    echo "Expected signals: recovery_count>0, dsack_dups possibly>0, max_sacked_out>0"
+    echo "Expected signals: recovery_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms 10ms loss 2%
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
@@ -145,10 +136,10 @@ except Exception as e:
     echo "Done. Check probe0_count in Datadog."
     ;;
 
-  #=== SACK: selective loss to trigger fast recovery → exercises recovery_count, sacked_out ===
+  #=== SACK: selective loss to trigger fast recovery → exercises recovery_count ===
   sack-recovery)
     echo "=== SACK recovery: 5% loss with delay to trigger fast recovery ==="
-    echo "Expected signals: recovery_count>0, max_sacked_out>0, max_ca_state>=3"
+    echo "Expected signals: recovery_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms loss 5% 25%
     # Use parallel streams to ensure multiple segments in-flight
     docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH" -P 4
@@ -157,7 +148,7 @@ except Exception as e:
 
   #=== ALL: run all scenarios sequentially ===
   all)
-    for scenario in baseline loss heavy-loss reorder delay wan ecn zero-window sack-recovery; do
+    for scenario in baseline loss heavy-loss reorder wan ecn zero-window sack-recovery; do
       echo ""
       echo "================================================"
       $0 --duration "$DURATION" --bandwidth "$BANDWIDTH" $scenario
@@ -218,7 +209,6 @@ while True:
     echo "  loss [%]        Random packet loss (default 5%)"
     echo "  heavy-loss      Heavy 20% loss (triggers RTO)"
     echo "  reorder         Packet reordering"
-    echo "  delay           High latency (200ms RTT)"
     echo "  wan             WAN simulation (delay + loss)"
     echo "  ecn             ECN congestion marking"
     echo "  zero-window     Slow reader (zero-window probes)"

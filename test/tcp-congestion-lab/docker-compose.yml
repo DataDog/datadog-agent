@@ -1,5 +1,3 @@
-version: "3.8"
-
 # TCP Congestion Signal Lab
 # Two containers on a shared network for generating TCP traffic and
 # inducing network perturbations to exercise the new congestion signals.
