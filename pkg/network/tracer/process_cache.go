@@ -9,13 +9,16 @@ package tracer
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,11 +36,15 @@ var processCacheTelemetry = struct {
 	cacheLength   *prometheus.Desc
 	eventsDropped telemetry.Counter
 	eventsSkipped telemetry.Counter
+	eventsRescued telemetry.Counter
+	rescuedFailed telemetry.Counter
 }{
 	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
 	prometheus.NewDesc(processCacheModuleName+"__cache_length", "Gauge measuring the current size of the process cache", nil, nil),
 	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
+	telemetry.NewCounter(processCacheModuleName, "events_rescued", []string{}, "Counter measuring the number of process events rescued via procfs cgroup fallback"),
+	telemetry.NewCounter(processCacheModuleName, "rescued_failed", []string{}, "Counter measuring the number of failed procfs cgroup fallback attempts"),
 }
 
 type processList []*events.Process
@@ -125,10 +132,43 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 	if len(entry.Tags) == 0 && entry.ContainerID == nil {
+		// The CWS event had no container ID (cgroup migration may not have
+		// completed yet) and no DD tags.  Before dropping the event, try
+		// reading /proc/<pid>/cgroup directly — by this point the cgroup
+		// migration is more likely to have finished.
+		if cid := containerIDFromPID(entry.Pid); cid != "" {
+			entry.ContainerID = intern.GetByString(cid)
+			processCacheTelemetry.eventsRescued.Inc()
+			log.Debugf("process cache: rescued pid %d via procfs fallback, containerID=%s", entry.Pid, cid)
+			return entry
+		}
+		processCacheTelemetry.rescuedFailed.Inc()
+		log.TraceFunc(func() string {
+			return fmt.Sprintf("process cache: procfs fallback failed for pid %d, dropping event", entry.Pid)
+		})
 		return nil
 	}
 
 	return entry
+}
+
+// containerIDFromPID reads /proc/<pid>/cgroup and extracts the container ID.
+func containerIDFromPID(pid uint32) string {
+	path := fmt.Sprintf("/proc/%d/cgroup", pid)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.TraceFunc(func() string {
+			return fmt.Sprintf("process cache: failed to read %s: %v", path, err)
+		})
+		return ""
+	}
+	cid := string(containerutils.FindContainerID(containerutils.CGroupID(string(data))))
+	if cid == "" {
+		log.TraceFunc(func() string {
+			return fmt.Sprintf("process cache: no container ID found in %s (content: %q)", path, string(data))
+		})
+	}
+	return cid
 }
 
 func (pc *processCache) Trim() {
