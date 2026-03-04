@@ -124,7 +124,7 @@ func parsePlistToMap(data []byte) (map[string]string, error) {
 		case xml.EndElement:
 			if t.Name.Local == "dict" {
 				// Only process the first dict level
-				break
+				return result, nil
 			}
 		}
 	}
@@ -187,16 +187,13 @@ func checkKextBundleIntegrity(kextPath string, plistData map[string]string) stri
 	// Get the executable name from Info.plist
 	executableName := plistData["CFBundleExecutable"]
 	if executableName == "" {
-		// Some kexts may not have an executable (codeless kexts)
-		// Check if it has a MacOS directory with any executable
-		macOSDir := filepath.Join(kextPath, "Contents", "MacOS")
-		if _, err := os.Stat(macOSDir); os.IsNotExist(err) {
-			// No MacOS directory - might be a codeless kext, consider it OK
-			return ""
-		}
+		// Codeless kext - provides I/O Kit personality only, no binary expected.
+		// These exist to tell the system how to handle specific hardware using built-in drivers.
+		return ""
 	}
 
-	// Check if the executable exists
+	// Has a declared executable - verify it actually exists
+	// Missing binary could indicate installation failure, malware cleanup, or corruption
 	executablePath := filepath.Join(kextPath, "Contents", "MacOS", executableName)
 	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
 		return "executable not found: Contents/MacOS/" + executableName
@@ -213,6 +210,21 @@ var companySuffixes = []string{
 	"GmbH", "Corp", "Corp.", "Corporation", "Co.",
 	"S.A.", "S.A", "AG", "PLC", "Pty", "B.V.", "BV",
 	"S.r.l.", "S.R.L.", "SRL", "ApS", "A/S",
+}
+
+// Pre-compiled regex patterns for extractCompanyFromCopyright
+var (
+	yearPattern       = regexp.MustCompile(`^\d{4}(-\d{4})?\s+`)
+	digitsOnlyPattern = regexp.MustCompile(`^\d+$`)
+	// companySuffixPatterns are pre-compiled patterns for each company suffix
+	companySuffixPatterns []*regexp.Regexp
+)
+
+func init() {
+	for _, suffix := range companySuffixes {
+		pattern := regexp.MustCompile(`(?i)([A-Za-z][A-Za-z0-9\s,\-\.&']+\s*` + regexp.QuoteMeta(suffix) + `)`)
+		companySuffixPatterns = append(companySuffixPatterns, pattern)
+	}
 }
 
 // looksLikeCompanyName checks if a name appears to be a company rather than an individual
@@ -246,14 +258,11 @@ func extractCompanyFromCopyright(copyright string) string {
 	cleaned = strings.TrimSpace(cleaned)
 
 	// Remove leading year or year range (e.g., "2023 CoScreen" or "2019-2025 Munki" → company name)
-	yearPattern := regexp.MustCompile(`^\d{4}(-\d{4})?\s+`)
 	cleaned = yearPattern.ReplaceAllString(cleaned, "")
 
 	// Try to find a company name by looking for company suffixes
 	// Pattern: look for text ending with a company suffix
-	for _, suffix := range companySuffixes {
-		// Create pattern to find "Word(s) Suffix" pattern
-		pattern := regexp.MustCompile(`(?i)([A-Za-z][A-Za-z0-9\s,\-\.&']+\s*` + regexp.QuoteMeta(suffix) + `)`)
+	for _, pattern := range companySuffixPatterns {
 		matches := pattern.FindStringSubmatch(cleaned)
 		if len(matches) >= 2 {
 			result := strings.TrimSpace(matches[1])
@@ -271,7 +280,7 @@ func extractCompanyFromCopyright(copyright string) string {
 		if idx := strings.Index(cleaned, delim); idx > 0 {
 			result := strings.TrimSpace(cleaned[:idx])
 			// Ensure we got something meaningful (at least 2 chars, not just a year)
-			if len(result) >= 2 && !regexp.MustCompile(`^\d+$`).MatchString(result) {
+			if len(result) >= 2 && !digitsOnlyPattern.MatchString(result) {
 				return result
 			}
 		}
