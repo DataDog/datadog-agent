@@ -544,7 +544,7 @@ var systemProbeConfigByMode = map[discoveryMode]string{
 }
 
 func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
-	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|system-probe-lite)' | grep -v grep")
+	ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
 	s.T().Logf("Process list:\n%s", ps)
 
 	// system-probe-lite execs into system-probe (process replacement), they don't run simultaneously
@@ -554,6 +554,7 @@ func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
 		s.T().Logf("Found system-probe-lite process (mode: %s)", mode)
 	} else if mode == discoveryModeSystemProbe {
 		// In system-probe mode, system-probe-lite exec'd into system-probe (replaced itself)
+		require.NotContains(s.T(), ps, "system-probe-lite", "system-probe-lite should not be running in system-probe mode (it should have exec'd into system-probe)")
 		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
 		s.T().Logf("Found system-probe process (mode: %s)", mode)
 	}
