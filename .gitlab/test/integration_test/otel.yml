@@ -180,6 +180,11 @@ ddot_byoc_package_build_test_linux_oci:
     - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    # Authenticate with installtesting.datad0g.com using GKE Workload Identity
+    - >-
+      curl -sf "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+      -H "Metadata-Flavor: Google" | jq -r .access_token |
+      docker login -u oauth2accesstoken --password-stdin installtesting.datad0g.com
     # Start a local OCI registry to receive the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
     - OUTPUT_OCI="localhost:5000/ddot-byoc:${AGENT_VERSION}"
@@ -195,7 +200,6 @@ ddot_byoc_package_build_test_linux_oci:
       --build-arg PACKAGE_TYPE=linux \
       --build-arg AGENT_OCI=installtesting.datad0g.com/agent-package:pipeline-$CI_PIPELINE_ID \
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
-      --build-arg REGISTRY_AUTH=gcr \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
