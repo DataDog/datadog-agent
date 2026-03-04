@@ -1,6 +1,22 @@
 ---
 
-# Windows-specific Go source files, pkg/, and cmd/ (27 paths)
+# Condition mixins for simplification of rules, needed in the include rules so must be defined first
+.if_run_all_e2e_tests: &if_run_all_e2e_tests
+  if: $RUN_E2E_TESTS == "on"
+
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "main"
+
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+
+.if_mergequeue: &if_mergequeue
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+# Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
 .windows_path: &windows_path
   # Windows-specific Go source files (by filename convention)
   - "**/*_windows.go"
@@ -87,6 +103,12 @@ include:
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      - if: $SKIP_WINDOWS == "true"
+        when: never
+      - <<: *if_main_branch
+      - <<: *if_release_branch
+      - <<: *if_triggered_pipeline
+      - <<: *if_mergequeue
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
@@ -333,14 +355,9 @@ variables:
 #
 # Condition mixins for simplification of rules
 #
-.if_main_branch: &if_main_branch
-  if: $CI_COMMIT_BRANCH == "main"
 
 .if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "main"
-
-.if_release_branch: &if_release_branch
-  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -362,8 +379,6 @@ variables:
 
 # CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
 # See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
-.if_triggered_pipeline: &if_triggered_pipeline
-  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -387,8 +402,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-.if_run_all_e2e_tests: &if_run_all_e2e_tests
-  if: $RUN_E2E_TESTS == "on"
 
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
@@ -413,10 +426,6 @@ variables:
 # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
   if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
-
-# Rule to trigger jobs only when a branch matches the mergequeue pattern.
-.if_mergequeue: &if_mergequeue
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
 .fakeintake_paths: &fakeintake_paths
   paths:
@@ -475,7 +484,9 @@ workflow:
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
+    - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
+    - <<: *if_mergequeue
     - changes:
         paths: *windows_path
         compare_to: main
