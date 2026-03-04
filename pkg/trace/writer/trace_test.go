@@ -445,6 +445,49 @@ func TestTraceWriterAPMMode(t *testing.T) {
 	}
 }
 
+func TestTraceWriterGatewayMode(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   "",
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+		GatewayMode:         true,
+	}
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer tw.Stop()
+
+	// Send two payloads from different hosts
+	chunkA := randomSampledSpans(5, 0)
+	chunkA.TracerPayload.Hostname = "host-a"
+	chunkB := randomSampledSpans(5, 0)
+	chunkB.TracerPayload.Hostname = "host-b"
+	tw.WriteChunks(chunkA)
+	tw.WriteChunks(chunkB)
+	err := tw.FlushSync()
+	require.Nil(t, err)
+
+	// Expect two separate AgentPayloads, one per unique tracer hostname
+	require.Len(t, srv.payloads, 2)
+	hostnames := make(map[string]bool)
+	for _, p := range srv.payloads {
+		ap, err := deserializePayload(*p, tw.compressor)
+		require.Nil(t, err)
+		hostnames[ap.HostName] = true
+		// All TracerPayloads in a given AgentPayload share the same hostname
+		for _, tp := range ap.TracerPayloads {
+			assert.Equal(t, ap.HostName, tp.Hostname)
+		}
+	}
+	assert.True(t, hostnames["host-a"], "expected AgentPayload for host-a")
+	assert.True(t, hostnames["host-b"], "expected AgentPayload for host-b")
+}
+
 func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()

@@ -558,6 +558,10 @@ type AgentConfig struct {
 	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
 
+	// GatewayMode specifies whether the agent is running in OTel collector gateway mode.
+	// In gateway mode the agent forwards traffic and does not claim a host identity.
+	GatewayMode bool
+
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.

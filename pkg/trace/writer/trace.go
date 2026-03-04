@@ -88,6 +88,9 @@ type TraceWriter struct {
 	compressor compression.Component
 	// apmMode exists here to propagate the value to the AgentPayload
 	apmMode string
+	// gatewayMode, when true, causes flushPayloads to group TracerPayloads by
+	// their Hostname and emit a separate AgentPayload per unique hostname.
+	gatewayMode bool
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -121,6 +124,7 @@ func NewTraceWriter(
 		timing:             timing,
 		compressor:         compressor,
 		apmMode:            cfg.APMMode,
+		gatewayMode:        cfg.GatewayMode,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -269,6 +273,33 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
+
+	if w.gatewayMode {
+		// In gateway mode the agent has no host identity. Group payloads by the
+		// tracer-reported hostname and emit a separate AgentPayload per host so
+		// the backend can attribute traces to the correct originating host.
+		groups := make(map[string][]*pb.TracerPayload, len(payloads))
+		for _, tp := range payloads {
+			groups[tp.Hostname] = append(groups[tp.Hostname], tp)
+		}
+		for hostname, group := range groups {
+			log.Debugf("Serializing %d tracer payloads for hostname %q.", len(group), hostname)
+			p := pb.AgentPayload{
+				AgentVersion:       w.agentVersion,
+				HostName:           hostname,
+				Env:                w.env,
+				TargetTPS:          w.prioritySampler.GetTargetTPS(),
+				ErrorTPS:           w.errorsSampler.GetTargetTPS(),
+				RareSamplerEnabled: w.rareSampler.IsEnabled(),
+				TracerPayloads:     group,
+			}
+			if w.apmMode != "" {
+				p.Tags = map[string]string{tagAPMMode: w.apmMode}
+			}
+			w.serialize(&p)
+		}
+		return
+	}
 
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
