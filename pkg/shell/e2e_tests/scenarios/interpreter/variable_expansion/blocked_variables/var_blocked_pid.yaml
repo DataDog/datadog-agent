@@ -1,0 +1,10 @@
+description: The $$ variable has no special meaning in safe-shell and expands to empty.
+input:
+  # language=bash
+  script: |+
+    echo "$$"
+expected:
+  stdout: |+
+
+  stderr: ""
+  exit_code: 0

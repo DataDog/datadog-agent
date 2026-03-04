@@ -4,12 +4,8 @@
 package interp
 
 import (
-	cryptorand "crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"maps"
-	mathrand "math/rand/v2"
-	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -130,24 +126,8 @@ func (r *Runner) lookupVar(name string) expand.Variable {
 		} else {
 			vr.List = r.Params
 		}
-	case "!":
-		if n := len(r.bgProcs); n > 0 {
-			vr.Kind, vr.Str = expand.String, "g"+strconv.Itoa(n)
-		}
 	case "?":
 		vr.Kind, vr.Str = expand.String, strconv.Itoa(int(r.lastExit.code))
-	case "$":
-		vr.Kind, vr.Str = expand.String, strconv.Itoa(os.Getpid())
-	case "PPID":
-		vr.Kind, vr.Str = expand.String, strconv.Itoa(os.Getppid())
-	case "RANDOM": // not for cryptographic use
-		vr.Kind, vr.Str = expand.String, strconv.Itoa(mathrand.IntN(32767))
-		// TODO: support setting RANDOM to seed it
-	case "SRANDOM": // pseudo-random generator from the system
-		var p [4]byte
-		cryptorand.Read(p[:])
-		n := binary.NativeEndian.Uint32(p[:])
-		vr.Kind, vr.Str = expand.String, strconv.FormatUint(uint64(n), 10)
 	case "0":
 		vr.Kind = expand.String
 		if r.filename != "" {

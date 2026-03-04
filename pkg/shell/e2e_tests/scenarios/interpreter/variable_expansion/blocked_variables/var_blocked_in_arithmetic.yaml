@@ -1,0 +1,10 @@
+description: Variables without special meaning evaluate to 0 in arithmetic expressions.
+input:
+  # language=bash
+  script: |+
+    echo $((RANDOM + 1))
+expected:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

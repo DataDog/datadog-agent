@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -599,30 +598,6 @@ func (r *Runner) Reset() {
 	if !r.writeEnv.Get("HOME").IsSet() {
 		home, _ := os.UserHomeDir()
 		r.setVarString("HOME", home)
-	}
-	if !r.writeEnv.Get("UID").IsSet() {
-		r.setVar("UID", expand.Variable{
-			Set:      true,
-			Kind:     expand.String,
-			ReadOnly: true,
-			Str:      strconv.Itoa(os.Getuid()),
-		})
-	}
-	if !r.writeEnv.Get("EUID").IsSet() {
-		r.setVar("EUID", expand.Variable{
-			Set:      true,
-			Kind:     expand.String,
-			ReadOnly: true,
-			Str:      strconv.Itoa(os.Geteuid()),
-		})
-	}
-	if !r.writeEnv.Get("GID").IsSet() {
-		r.setVar("GID", expand.Variable{
-			Set:      true,
-			Kind:     expand.String,
-			ReadOnly: true,
-			Str:      strconv.Itoa(os.Getgid()),
-		})
 	}
 	r.setVarString("PWD", r.Dir)
 	r.setVarString("IFS", " \t\n")

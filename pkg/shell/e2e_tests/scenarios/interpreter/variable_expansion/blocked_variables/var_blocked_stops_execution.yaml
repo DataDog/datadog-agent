@@ -1,0 +1,14 @@
+description: Variables without special meaning expand to empty but execution continues.
+input:
+  # language=bash
+  script: |+
+    echo "before"
+    echo "$$"
+    echo "after"
+expected:
+  stdout: |+
+    before
+
+    after
+  stderr: ""
+  exit_code: 0
