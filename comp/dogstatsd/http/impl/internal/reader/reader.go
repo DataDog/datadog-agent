@@ -371,7 +371,6 @@ func (r *MetricDataReader) NextPoint() error {
 
 	switch r.Type() {
 	case pb.MetricType_Sketch:
-		r.Debug()
 		r.sketchNumBinsIdx++
 		r.sketchBinsIdx += r.SketchNumBins()
 		switch r.ValueType() {
