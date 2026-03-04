@@ -1,0 +1,11 @@
+description: Tilde followed by a path expands to HOME with the path appended.
+input:
+  # language=bash
+  script: |+
+    HOME=/custom/home
+    echo ~/subdir
+expect:
+  stdout: |+
+    /custom/home/subdir
+  stderr: ""
+  exit_code: 0

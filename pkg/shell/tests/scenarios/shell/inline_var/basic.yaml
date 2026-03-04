@@ -1,0 +1,12 @@
+description: Inline variable assignment is scoped to the command and not visible afterward.
+input:
+  # language=bash
+  script: |+
+    VAR=hello echo test
+    echo "after=$VAR"
+expect:
+  stdout: |+
+    test
+    after=
+  stderr: ""
+  exit_code: 0

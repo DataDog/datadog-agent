@@ -1,0 +1,11 @@
+description: Tilde expands to the HOME variable value.
+input:
+  # language=bash
+  script: |+
+    HOME=/custom/home
+    echo ~
+expect:
+  stdout: |+
+    /custom/home
+  stderr: ""
+  exit_code: 0
