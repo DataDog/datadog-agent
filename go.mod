@@ -988,6 +988,8 @@ require (
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.151.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
+	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/sh/v3 v3.13.1
 )
 
