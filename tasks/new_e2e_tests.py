@@ -315,21 +315,30 @@ def run(
 
     parsed_params = {}
 
-    # Outside of CI try to automatically configure the secret to pull agent image
+    # Image pull credentials: pass through from env, or use ECR defaults when not in CI.
+    registry = os.environ.get("E2E_IMAGE_PULL_REGISTRY", "")
+    username = os.environ.get("E2E_IMAGE_PULL_USERNAME", "")
+    password = os.environ.get("E2E_IMAGE_PULL_PASSWORD", "")
+    if not running_in_ci() and not password:
+        password = _get_agent_qa_ecr_password(ctx)
+        if password:
+            registry = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+            username = "AWS"
     if not running_in_ci():
-        # Authentication against agent-qa is required for all kubernetes tests, to use the cache
-        ecr_password = _get_agent_qa_ecr_password(ctx)
-        if ecr_password:
-            env_vars["E2E_IMAGE_PULL_PASSWORD"] = ecr_password
-            env_vars["E2E_IMAGE_PULL_REGISTRY"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-            env_vars["E2E_IMAGE_PULL_USERNAME"] = "AWS"
-        # If we use an agent image from sandbox registry we need to authenticate against it
-        if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
-            env_vars["E2E_IMAGE_PULL_PASSWORD"] += (
-                f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
-            )
-            env_vars["E2E_IMAGE_PULL_REGISTRY"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
-            env_vars["E2E_IMAGE_PULL_USERNAME"] += ",AWS"
+        if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
+            sandbox_pwd = ctx.run(
+                "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password",
+                hide=True,
+            ).stdout.strip()
+            password += f",{sandbox_pwd}"
+            registry += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
+            username += ",AWS"
+    if registry:
+        env_vars["E2E_IMAGE_PULL_REGISTRY"] = registry
+    if username:
+        env_vars["E2E_IMAGE_PULL_USERNAME"] = username
+    if password:
+        env_vars["E2E_IMAGE_PULL_PASSWORD"] = password
 
     for param in configparams:
         parts = param.split("=", 1)
