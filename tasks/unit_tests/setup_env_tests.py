@@ -100,13 +100,13 @@ class TestExtractVersionFromPipelineArtifacts(unittest.TestCase):
 
 
 class TestPathToFileUrl(unittest.TestCase):
-    @patch('os.name', 'nt')
+    @unittest.skipUnless(os.name == 'nt', "Windows-only test")
     @patch('os.path.abspath', return_value='C:\\omnibus\\pkg\\agent.msi')
     def test_windows_path(self, _mock_abspath):
         result = _path_to_file_url('C:\\omnibus\\pkg\\agent.msi')
         self.assertEqual(result, "file://C:/omnibus/pkg/agent.msi")
 
-    @patch('os.name', 'posix')
+    @unittest.skipUnless(os.name == 'posix', "POSIX-only test")
     @patch('os.path.abspath', return_value='/tmp/agent.msi')
     def test_unix_path(self, _mock_abspath):
         result = _path_to_file_url('/tmp/agent.msi')
