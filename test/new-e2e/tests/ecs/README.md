@@ -24,19 +24,24 @@ The ECS E2E test suite covers:
 
 ## Test Suites
 
-This directory contains **7 test suites** with **61 total tests**:
+This directory contains **7 test suites** with **59 total tests**:
 
-### 1. `apm_test.go` - APM/Tracing
+### 1. `apm_test.go` - APM/Tracing (12 tests)
 Tests APM trace collection and distributed tracing across ECS environments.
 
 **Tests**:
-- `Test00AgentAPMReady` - APM agent readiness check
+- `Test00UpAndRunning` - Infrastructure readiness check
+- `Test01AgentAPMReady` - APM agent readiness check
 - `TestBasicTraceCollection` - Basic trace ingestion and metadata
 - `TestMultiServiceTracing` - Multi-service distributed tracing
 - `TestTraceSampling` - Trace sampling priority validation
 - `TestTraceTagEnrichment` - ECS metadata tag enrichment on traces
 - `TestAPMFargate` - Fargate-specific APM (TCP transport, sidecar)
 - `TestAPMEC2` - EC2-specific APM (UDS transport, daemon mode)
+- `TestDogstatsdUDS` - DogStatsD via Unix Domain Socket
+- `TestDogstatsdUDP` - DogStatsD via UDP
+- `TestTraceUDS` - Trace collection via Unix Domain Socket
+- `TestTraceTCP` - Trace collection via TCP
 
 **Key Features Tested**:
 - Trace structure validation (TraceID, SpanID, ParentID)
@@ -68,10 +73,11 @@ Tests log collection, processing, and enrichment from ECS containers.
 
 ---
 
-### 3. `config_test.go` - Configuration & Discovery (7 tests)
+### 3. `config_test.go` - Configuration & Discovery (8 tests)
 Tests agent configuration, autodiscovery, and metadata collection.
 
 **Tests**:
+- `Test00UpAndRunning` - Infrastructure readiness check
 - `TestEnvVarConfiguration` - `DD_*` environment variable propagation
 - `TestDockerLabelDiscovery` - `com.datadoghq.ad.*` label-based config
 - `TestTaskDefinitionDiscovery` - Task definition metadata usage
@@ -89,10 +95,11 @@ Tests agent configuration, autodiscovery, and metadata collection.
 
 ---
 
-### 4. `resilience_test.go` - Resilience & Error Handling (8 tests)
+### 4. `resilience_test.go` - Resilience & Error Handling (9 tests)
 Tests agent behavior under failure and stress conditions.
 
 **Tests**:
+- `Test00UpAndRunning` - Infrastructure readiness check
 - `TestAgentRestart` - Agent restart recovery and data collection resumption
 - `TestTaskFailureRecovery` - Task replacement monitoring
 - `TestNetworkInterruption` - Network outage handling and data buffering
@@ -157,10 +164,11 @@ Tests integration check autodiscovery and execution across deployment types.
 
 ---
 
-### 7. `platform_test.go` - Platform-Specific Features (3 tests)
+### 7. `platform_test.go` - Platform-Specific Features (4 tests)
 Tests platform-specific functionality and performance monitoring.
 
 **Tests**:
+- `Test00UpAndRunning` - Infrastructure readiness check
 - `TestWindowsFargate` - Windows container support on Fargate
 - `TestCPU` - CPU metrics with value validation (stress test)
 - `TestContainerLifecycle` - Container lifecycle tracking
@@ -445,7 +453,7 @@ suite.Fakeintake.FlushServerAndResetAggregators()
 
 1. **Foundation tests**: `Test00*` (runs first, ensures infrastructure ready)
 2. **Feature tests**: `Test<Feature><Scenario>` (e.g., `TestTraceSamplingFargate`)
-3. **Integration tests**: `Test<Component1><Component2>` (e.g., `TestLogTraceCorrelation`)
+3. **Integration tests**: `Test<Component1><Component2>` (e.g., `TestMultiServiceTracing`)
 
 ### Example Test Skeleton
 
@@ -607,14 +615,14 @@ Legend: ✅ Full support | ⚠️ Partial support | ❌ Not applicable
 
 | Suite | Tests | EC2 | Fargate | Managed | Notes |
 |-------|-------|-----|---------|---------|-------|
-| apm_test | 8 | ~8 min | ~10 min | ~8 min | Trace collection delays |
-| logs_test | 9 | ~6 min | ~7 min | ~6 min | Log buffering |
-| config_test | 7 | ~5 min | ~6 min | ~5 min | Metadata endpoint access |
-| resilience_test | 8 | ~15 min | ~12 min | ~15 min | Chaos scenarios take longer |
-| managed_test | 12 | N/A | N/A | ~18 min | Managed instance specific |
+| apm_test | 12 | ~8 min | ~10 min | ~8 min | Trace collection delays |
+| logs_test | 8 | ~6 min | ~7 min | ~6 min | Log buffering |
+| config_test | 8 | ~5 min | ~6 min | ~5 min | Metadata endpoint access |
+| resilience_test | 9 | ~15 min | ~12 min | ~15 min | Stress scenarios take longer |
+| managed_test | 13 | N/A | N/A | ~18 min | Managed instance specific |
 | checks_test | 5 | ~7 min | ~8 min | ~7 min | Check execution time |
-| platform_test | 3 | ~10 min | ~12 min | ~10 min | Windows + stress tests |
-| **Total** | **61** | **~51 min** | **~55 min** | **~69 min** | With parallelism: ~30 min |
+| platform_test | 4 | ~10 min | ~12 min | ~10 min | Windows + stress tests |
+| **Total** | **59** | **~51 min** | **~55 min** | **~69 min** | With parallelism: ~30 min |
 
 ---
 
