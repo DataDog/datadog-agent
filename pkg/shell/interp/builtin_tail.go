@@ -37,6 +37,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -46,121 +48,77 @@ const (
 )
 
 func (r *Runner) builtinTail(ctx context.Context, args []string) error {
-	lineCount := 10  // default last N lines
-	byteCount := -1  // -1 means "not set"
-	lineOffset := -1 // +N: from line N to end (-1 = not set)
-	byteOffset := -1 // +N: from byte N to end (-1 = not set)
-	quiet := false
-	verbose := false
-	zeroDelim := false
-	var files []string
-	endOfFlags := false
-
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if endOfFlags || (!strings.HasPrefix(a, "-") || a == "-") {
-			files = append(files, a)
-			continue
-		}
+	// Pre-scan for follow-mode flags before pflag sees anything.  These must
+	// be hard-rejected with a specific error because they block forever.
+	// Stop scanning at "--" (end-of-flags marker).
+	for _, a := range args {
 		if a == "--" {
-			endOfFlags = true
-			continue
+			break
 		}
-
-		// Reject follow-mode flags immediately — they block forever.
-		switch a {
-		case "-f", "--follow", "-F", "--retry", "--pid",
-			"--max-unchanged-stats":
-			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
-		}
-		if strings.HasPrefix(a, "-s") || a == "--sleep-interval" || strings.HasPrefix(a, "--sleep-interval=") {
-			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
-		}
-
 		switch {
-		case a == "-n" || a == "--lines":
-			i++
-			if i >= len(args) {
-				fmt.Fprintf(r.stderr, "tail: option requires an argument -- 'n'\n")
-				r.exitCode = 1
-				return nil
-			}
-			if err := parseTailN(args[i], &lineCount, &lineOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of lines: %q\n", args[i])
-				r.exitCode = 1
-				return nil
-			}
-			byteCount = -1
-			byteOffset = -1
-
-		case strings.HasPrefix(a, "-n"):
-			raw := a[2:]
-			if err := parseTailN(raw, &lineCount, &lineOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of lines: %q\n", raw)
-				r.exitCode = 1
-				return nil
-			}
-			byteCount = -1
-			byteOffset = -1
-
-		case strings.HasPrefix(a, "--lines="):
-			raw := a[len("--lines="):]
-			if err := parseTailN(raw, &lineCount, &lineOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of lines: %q\n", raw)
-				r.exitCode = 1
-				return nil
-			}
-			byteCount = -1
-			byteOffset = -1
-
-		case a == "-c" || a == "--bytes":
-			i++
-			if i >= len(args) {
-				fmt.Fprintf(r.stderr, "tail: option requires an argument -- 'c'\n")
-				r.exitCode = 1
-				return nil
-			}
-			if err := parseTailC(args[i], &byteCount, &byteOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of bytes: %q\n", args[i])
-				r.exitCode = 1
-				return nil
-			}
-			lineCount = -1
-			lineOffset = -1
-
-		case strings.HasPrefix(a, "-c"):
-			raw := a[2:]
-			if err := parseTailC(raw, &byteCount, &byteOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of bytes: %q\n", raw)
-				r.exitCode = 1
-				return nil
-			}
-			lineCount = -1
-			lineOffset = -1
-
-		case strings.HasPrefix(a, "--bytes="):
-			raw := a[len("--bytes="):]
-			if err := parseTailC(raw, &byteCount, &byteOffset); err != nil {
-				fmt.Fprintf(r.stderr, "tail: invalid number of bytes: %q\n", raw)
-				r.exitCode = 1
-				return nil
-			}
-			lineCount = -1
-			lineOffset = -1
-
-		case a == "-q" || a == "--quiet" || a == "--silent":
-			quiet = true
-
-		case a == "-v" || a == "--verbose":
-			verbose = true
-
-		case a == "-z" || a == "--zero-terminated":
-			zeroDelim = true
-
-		default:
-			return fmt.Errorf("flag %q is not allowed for command \"tail\"", a)
+		case a == "-f", a == "--follow", a == "-F", a == "--retry",
+			a == "--pid", strings.HasPrefix(a, "--pid="),
+			a == "--max-unchanged-stats", strings.HasPrefix(a, "--max-unchanged-stats="):
+			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
+		case strings.HasPrefix(a, "-s"), a == "--sleep-interval",
+			strings.HasPrefix(a, "--sleep-interval="):
+			return fmt.Errorf("flag %q is not allowed for command \"tail\": follow/retry flags cause infinite blocking loops", a)
 		}
 	}
+
+	// Build a pflag FlagSet.  ContinueOnError makes Parse return an error
+	// instead of calling os.Exit.  SetOutput(io.Discard) suppresses pflag's
+	// own error printing so we can format errors ourselves.
+	fs := pflag.NewFlagSet("tail", pflag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	// -n and -c are registered as strings so we can handle the +N offset
+	// prefix ourselves after pflag has done the structural parsing.
+	linesStr := fs.StringP("lines", "n", "", "output the last N lines (default 10); +N outputs from line N")
+	bytesStr := fs.StringP("bytes", "c", "", "output the last N bytes; +N outputs from byte N")
+	quiet := fs.BoolP("quiet", "q", false, "never print file headers")
+	silent := fs.Bool("silent", false, "alias for --quiet")
+	verbose := fs.BoolP("verbose", "v", false, "always print file headers")
+	zeroDelim := fs.BoolP("zero-terminated", "z", false, "use NUL as line delimiter")
+
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(r.stderr, "tail: %v\n", err)
+		r.exitCode = 1
+		return nil
+	}
+
+	files := fs.Args()
+
+	// Determine mode.  If both -n and -c are given, -c (bytes) takes
+	// precedence — consistent with most tail implementations where the last
+	// positional mode flag wins and byte mode is more specific.
+	lineCount := 10  // default
+	byteCount := -1
+	lineOffset := -1
+	byteOffset := -1
+
+	if fs.Changed("bytes") {
+		lineCount = -1
+		lineOffset = -1
+		if err := parseTailC(*bytesStr, &byteCount, &byteOffset); err != nil {
+			fmt.Fprintf(r.stderr, "tail: invalid number of bytes: %q\n", *bytesStr)
+			r.exitCode = 1
+			return nil
+		}
+	} else if fs.Changed("lines") {
+		byteCount = -1
+		byteOffset = -1
+		if err := parseTailN(*linesStr, &lineCount, &lineOffset); err != nil {
+			fmt.Fprintf(r.stderr, "tail: invalid number of lines: %q\n", *linesStr)
+			r.exitCode = 1
+			return nil
+		}
+	}
+	// else: neither flag given — defaults (lineCount=10) stand.
+
+	quietFlag := *quiet || *silent
+	verboseFlag := *verbose
+	zeroDelimFlag := *zeroDelim
 
 	// tailOutput processes a single reader and writes its tail to stdout.
 	tailOutput := func(reader io.Reader, name string, showHeader bool) error {
@@ -247,7 +205,7 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 
 		// Line mode.
 		lineSep := byte('\n')
-		if zeroDelim {
+		if zeroDelimFlag {
 			lineSep = 0
 		}
 
@@ -294,7 +252,7 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 			start += n
 		}
 		sep := "\n"
-		if zeroDelim {
+		if zeroDelimFlag {
 			sep = "\x00"
 		}
 		for i := range size {
@@ -314,8 +272,8 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) error {
 		return nil
 	}
 
-	showHeader := (len(files) > 1 && !quiet) || verbose
-	if quiet {
+	showHeader := (len(files) > 1 && !quietFlag) || verboseFlag
+	if quietFlag {
 		showHeader = false
 	}
 	hasError := false

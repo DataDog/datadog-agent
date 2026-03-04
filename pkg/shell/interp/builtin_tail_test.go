@@ -276,7 +276,8 @@ func TestTail_MissingArgN(t *testing.T) {
 
 	_, stderr, err := runTailScript(t, dir, `tail -n`)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "option requires an argument")
+	// pflag message: "flag needs an argument: 'n' in -n"
+	assert.Contains(t, stderr, "needs an argument")
 }
 
 func TestTail_MissingArgC(t *testing.T) {
@@ -285,7 +286,8 @@ func TestTail_MissingArgC(t *testing.T) {
 
 	_, stderr, err := runTailScript(t, dir, `tail -c`)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "option requires an argument")
+	// pflag message: "flag needs an argument: 'c' in -c"
+	assert.Contains(t, stderr, "needs an argument")
 }
 
 // INT_MAX / very large values must clamp safely (no panic, no OOM).
@@ -466,8 +468,11 @@ func TestTail_Reject_FlagViaForLoop(t *testing.T) {
 }
 
 func TestTail_Reject_UnknownFlag(t *testing.T) {
-	_, _, err := runScript(t, fmt.Sprintf("tail --no-such-flag %s", os.DevNull))
-	require.Error(t, err)
+	// pflag converts unknown flags to exit-code-1 + stderr (not a fatal error),
+	// consistent with POSIX command failure semantics.
+	_, stderr, err := runScript(t, fmt.Sprintf("tail --no-such-flag %s", os.DevNull))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "unknown flag")
 }
 
 // =============================================================================
@@ -620,6 +625,83 @@ func TestTail_EndOfFlags(t *testing.T) {
 	stdout, _, err := runTailScript(t, dir, `tail -- f.txt`)
 	require.NoError(t, err)
 	assert.Equal(t, "x\ny\nz\n", stdout)
+}
+
+// =============================================================================
+// pflag-specific behaviour
+// =============================================================================
+
+// TestTail_FlagN_PlusOffset_CompactForm verifies that -n+5 (value glued to
+// short flag, no space) is handled correctly by pflag + parseTailN.
+func TestTail_FlagN_PlusOffset_CompactForm(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "f.txt", "a\nb\nc\nd\ne\n")
+
+	stdout, _, err := runTailScript(t, dir, `tail -n+3 f.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "c\nd\ne\n", stdout)
+}
+
+// TestTail_FlagC_PlusOffset_CompactForm verifies that -c+4 compact form works.
+func TestTail_FlagC_PlusOffset_CompactForm(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "f.txt", "abcdef\n")
+
+	stdout, _, err := runTailScript(t, dir, `tail -c+4 f.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "def\n", stdout)
+}
+
+// TestTail_CombinedBoolFlags verifies that pflag handles combined boolean
+// short flags such as -qv (quiet + verbose together; verbose wins).
+func TestTail_CombinedBoolFlags(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "a.txt", "aaa\n")
+
+	// -qv: both quiet and verbose set; verbose takes precedence for single file.
+	stdout, _, err := runTailScript(t, dir, `tail -vq a.txt`)
+	require.NoError(t, err)
+	// quiet wins over verbose when both are set (quiet suppresses header)
+	assert.Equal(t, "aaa\n", stdout)
+}
+
+// TestTail_BothNC_BytesWins verifies that when both -n and -c are given,
+// -c (bytes) takes precedence regardless of order.
+func TestTail_BothNC_BytesWins(t *testing.T) {
+	dir := t.TempDir()
+	// "hello\n" = 6 bytes; last 3 bytes = "lo\n"
+	writeTempFile(t, dir, "f.txt", "hello\n")
+
+	stdout, _, err := runTailScript(t, dir, `tail -n 2 -c 3 f.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "lo\n", stdout)
+}
+
+// TestTail_LongFormLinesEquals verifies --lines=+N (long-form +N offset).
+func TestTail_LongFormLinesEquals_PlusOffset(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "f.txt", "a\nb\nc\nd\ne\n")
+
+	stdout, _, err := runTailScript(t, dir, `tail --lines=+3 f.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "c\nd\ne\n", stdout)
+}
+
+// TestTail_LongFormBytesEquals_PlusOffset verifies --bytes=+N.
+func TestTail_LongFormBytesEquals_PlusOffset(t *testing.T) {
+	dir := t.TempDir()
+	writeTempFile(t, dir, "f.txt", "abcdef\n")
+
+	stdout, _, err := runTailScript(t, dir, `tail --bytes=+4 f.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "def\n", stdout)
+}
+
+// TestTail_Reject_PID_WithValue verifies --pid=N (value form) is also rejected.
+func TestTail_Reject_PID_WithValue(t *testing.T) {
+	_, _, err := runScript(t, fmt.Sprintf("tail --pid=123 %s", os.DevNull))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--pid")
 }
 
 // =============================================================================
