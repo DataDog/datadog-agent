@@ -84,6 +84,9 @@ func NewMetricDataReader(data *pb.MetricData) *MetricDataReader {
 // UnpackDicts reads and normalizes payload dictionaries for fast access.
 func (r *MetricDataReader) Initialize() error {
 	var err error
+	if r.data == nil {
+		return nil
+	}
 	r.dictNameStr, err = unpackStrDict(r.data.DictNameStr)
 	if err != nil {
 		return err
@@ -239,6 +242,9 @@ func unpackOriginInfoDict(raw []int32) ([]*originInfo, error) {
 
 // HaveMoreMetrics returns true if there are more metrics to read.
 func (r *MetricDataReader) HaveMoreMetrics() bool {
+	if r.data == nil {
+		return false
+	}
 	return r.metricIdx < len(r.data.Types)
 }
 

@@ -205,3 +205,21 @@ func TestSketchIndex(t *testing.T) {
 	require.True(t, r.HaveMorePoints())
 	require.Error(t, r.NextPoint())
 }
+
+func TestNil(t *testing.T) {
+	r := NewMetricDataReader(nil)
+	require.NoError(t, r.Initialize())
+	require.False(t, r.HaveMoreMetrics())
+	require.Error(t, r.NextMetric())
+	require.False(t, r.HaveMorePoints())
+	require.Error(t, r.NextPoint())
+}
+
+func TestEmpty(t *testing.T) {
+	r := NewMetricDataReader(&pb.MetricData{})
+	require.NoError(t, r.Initialize())
+	require.False(t, r.HaveMoreMetrics())
+	require.Error(t, r.NextMetric())
+	require.False(t, r.HaveMorePoints())
+	require.Error(t, r.NextPoint())
+}
