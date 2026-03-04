@@ -74,7 +74,9 @@ type languageDetectionClientImpl struct {
 	// Current batch, populated by process events and cleaned by pod events
 	currentBatch batch
 
-	// freshDataPeriod sets the interval between two fresh data sends
+    // The client must send freshly updated PodDetails as soon as possible however,
+	// streaming every update to the cluster-agent could be costly. Thus we wait for
+	// `freshDataPeriod` before sending fresh updates.
 	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]struct{}
 
@@ -232,7 +234,8 @@ func (c *languageDetectionClientImpl) startStreaming() {
 	}
 }
 
-// send sends the data to the cluster-agent.
+// send sends the data to the cluster-agent. It doesn't implement a retry mechanism because if the dca is available
+// then the data will eventually be transmitted by the periodic flush mechanism.
 func (c *languageDetectionClientImpl) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
 	if data == nil {
 		return nil
@@ -258,7 +261,8 @@ func (c *languageDetectionClientImpl) send(ctx context.Context, data *pbgo.Paren
 	return nil
 }
 
-// retryProcessEventsWithoutPod re-processes events for which the associated pod was not found
+// retryProcessEventsWithoutPod re-processes events for which the associated pod was not found.
+// This is possible because of race conditions between the kubelet collector and process collector.
 func (c *languageDetectionClientImpl) retryProcessEventsWithoutPod(containerIDs []string) {
 	for _, containerID := range containerIDs {
 		eventsForContainer, ok := c.processesWithoutPod[containerID]
