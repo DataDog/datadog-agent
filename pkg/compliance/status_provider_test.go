@@ -20,7 +20,7 @@ func TestStatus(t *testing.T) {
 	provider := statusProvider{
 		agent: &Agent{
 			opts: AgentOptions{
-				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor()),
+				Reporter: NewLogReporter("test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}, compressionfx.NewMockCompressor(), nil),
 			},
 		},
 	}
