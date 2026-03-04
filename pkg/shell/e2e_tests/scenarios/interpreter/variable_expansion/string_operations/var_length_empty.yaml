@@ -1,0 +1,11 @@
+description: The ${#VAR} syntax returns 0 for an empty variable.
+input:
+  # language=bash
+  script: |+
+    EMPTY=""
+    echo ${#EMPTY}
+expected:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

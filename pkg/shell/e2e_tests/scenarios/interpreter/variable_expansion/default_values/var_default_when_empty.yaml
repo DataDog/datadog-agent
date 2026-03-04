@@ -1,0 +1,11 @@
+description: The :- operator provides a default when the variable is set but empty.
+input:
+  # language=bash
+  script: |+
+    EMPTY=""
+    echo ${EMPTY:-fallback}
+expected:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: The - operator (without colon) does NOT use default for empty variables.
+input:
+  # language=bash
+  script: |+
+    EMPTY=""
+    echo ">${EMPTY-fallback}<"
+expected:
+  stdout: |+
+    ><
+  stderr: ""
+  exit_code: 0

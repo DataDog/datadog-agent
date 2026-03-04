@@ -1,0 +1,11 @@
+description: Variables with spaces must be quoted to preserve the value as one argument.
+input:
+  # language=bash
+  script: |+
+    MSG="hello world"
+    echo "$MSG"
+expected:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

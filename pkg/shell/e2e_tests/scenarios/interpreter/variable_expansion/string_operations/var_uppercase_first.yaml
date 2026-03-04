@@ -1,0 +1,11 @@
+description: The ${VAR^} syntax converts only the first character to uppercase.
+input:
+  # language=bash
+  script: |+
+    TEXT="hello"
+    echo ${TEXT^}
+expected:
+  stdout: |+
+    Hello
+  stderr: ""
+  exit_code: 0

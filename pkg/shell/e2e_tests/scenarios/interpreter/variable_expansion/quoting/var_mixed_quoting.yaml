@@ -1,0 +1,11 @@
+description: Mixed quoting allows partial expansion in the same argument.
+input:
+  # language=bash
+  script: |+
+    NAME=world
+    echo 'literal '"$NAME"' literal'
+expected:
+  stdout: |+
+    literal world literal
+  stderr: ""
+  exit_code: 0

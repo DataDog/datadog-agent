@@ -1,0 +1,11 @@
+description: The ${VAR#pattern} syntax removes the shortest matching prefix.
+input:
+  # language=bash
+  script: |+
+    PATH_VAR="/usr/local/bin"
+    echo ${PATH_VAR#/*/}
+expected:
+  stdout: |+
+    local/bin
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: The ${VAR/pattern/} syntax deletes the first match.
+input:
+  # language=bash
+  script: |+
+    TEXT="hello-world-hello"
+    echo ${TEXT/hello/}
+expected:
+  stdout: |+
+    -world-hello
+  stderr: ""
+  exit_code: 0

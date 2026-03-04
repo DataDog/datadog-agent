@@ -1,0 +1,12 @@
+description: The := operator assigns a default value when the variable is unset or empty.
+input:
+  # language=bash
+  script: |+
+    echo ${NEW_VAR:=assigned}
+    echo $NEW_VAR
+expected:
+  stdout: |+
+    assigned
+    assigned
+  stderr: ""
+  exit_code: 0

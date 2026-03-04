@@ -1,0 +1,10 @@
+description: The $# variable expands to the number of positional parameters.
+input:
+  # language=bash
+  script: |+
+    echo $#
+expected:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: The $(<file) shorthand reads a file via command substitution.
+setup:
+  files:
+    - path: data.txt
+      content: "file content"
+input:
+  # language=bash
+  script: |+
+    VAR=$(<data.txt)
+    echo $VAR
+expected:
+  stdout: |+
+    file content
+  stderr: ""
+  exit_code: 0

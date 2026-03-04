@@ -1,0 +1,11 @@
+description: The ${VAR//pattern/replacement} syntax replaces all matches.
+input:
+  # language=bash
+  script: |+
+    TEXT="hello world hello"
+    echo ${TEXT//hello/goodbye}
+expected:
+  stdout: |+
+    goodbye world goodbye
+  stderr: ""
+  exit_code: 0

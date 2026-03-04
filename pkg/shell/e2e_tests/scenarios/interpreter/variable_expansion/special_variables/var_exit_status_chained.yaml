@@ -1,0 +1,16 @@
+description: The $? variable is updated after each command execution.
+input:
+  # language=bash
+  script: |+
+    true
+    A=$?
+    false
+    B=$?
+    true
+    C=$?
+    echo $A $B $C
+expected:
+  stdout: |+
+    0 1 0
+  stderr: ""
+  exit_code: 0

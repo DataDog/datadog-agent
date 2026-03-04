@@ -1,0 +1,11 @@
+description: The ${VAR:offset} syntax extracts a substring from the given offset.
+input:
+  # language=bash
+  script: |+
+    TEXT="hello world"
+    echo ${TEXT:6}
+expected:
+  stdout: |+
+    world
+  stderr: ""
+  exit_code: 0

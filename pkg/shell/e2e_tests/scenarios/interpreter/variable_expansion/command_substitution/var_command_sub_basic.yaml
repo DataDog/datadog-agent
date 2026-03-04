@@ -1,0 +1,11 @@
+description: Command substitution $(cmd) captures command output into a variable.
+input:
+  # language=bash
+  script: |+
+    RESULT=$(echo hello)
+    echo $RESULT
+expected:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

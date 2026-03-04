@@ -1,0 +1,11 @@
+description: The ${VAR^^} syntax converts the entire value to uppercase.
+input:
+  # language=bash
+  script: |+
+    TEXT="hello world"
+    echo ${TEXT^^}
+expected:
+  stdout: |+
+    HELLO WORLD
+  stderr: ""
+  exit_code: 0

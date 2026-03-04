@@ -1,0 +1,10 @@
+description: The $0 variable expands to the script name, defaulting to gosh.
+input:
+  # language=bash
+  script: |+
+    echo $0
+expected:
+  stdout: |+
+    gosh
+  stderr: ""
+  exit_code: 0

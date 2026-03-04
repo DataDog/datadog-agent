@@ -1,0 +1,11 @@
+description: The ${VAR,} syntax converts only the first character to lowercase.
+input:
+  # language=bash
+  script: |+
+    TEXT="HELLO"
+    echo ${TEXT,}
+expected:
+  stdout: |+
+    hELLO
+  stderr: ""
+  exit_code: 0

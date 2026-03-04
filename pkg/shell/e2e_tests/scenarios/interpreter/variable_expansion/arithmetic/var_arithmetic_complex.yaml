@@ -1,0 +1,10 @@
+description: Arithmetic expansion supports parentheses and mixed operators.
+input:
+  # language=bash
+  script: |+
+    echo $(( (3 + 2) * 4 - 1 ))
+expected:
+  stdout: |+
+    19
+  stderr: ""
+  exit_code: 0

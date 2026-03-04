@@ -1,0 +1,10 @@
+description: Arithmetic expansion supports multiplication.
+input:
+  # language=bash
+  script: |+
+    echo $((6 * 7))
+expected:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

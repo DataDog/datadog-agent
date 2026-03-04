@@ -1,0 +1,11 @@
+description: Command substitution strips trailing newlines from the output.
+input:
+  # language=bash
+  script: |+
+    VAR=$(echo hello)
+    echo ">$VAR<"
+expected:
+  stdout: |+
+    >hello<
+  stderr: ""
+  exit_code: 0

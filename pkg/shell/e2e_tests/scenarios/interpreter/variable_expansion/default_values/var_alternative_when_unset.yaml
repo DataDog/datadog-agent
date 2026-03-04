@@ -1,0 +1,10 @@
+description: The :+ operator expands to empty when the variable is unset.
+input:
+  # language=bash
+  script: |+
+    echo ">${MISSING:+replacement}<"
+expected:
+  stdout: |+
+    ><
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Arithmetic expansion can reference shell variables.
+input:
+  # language=bash
+  script: |+
+    X=10
+    Y=20
+    echo $((X + Y))
+expected:
+  stdout: |+
+    30
+  stderr: ""
+  exit_code: 0
