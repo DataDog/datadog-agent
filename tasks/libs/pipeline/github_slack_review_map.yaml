@@ -27,7 +27,7 @@
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-trace-storage': '#apm-trace-storage'
 '@datadog/asm-go': '#k9-library-go'
-'@datadog/cloud-network-monitoring': '#cloud-network-monitoring'
+'@datadog/cloud-network-monitoring': '#cnm-agent'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-experiences': '#container-experiences'
 '@datadog/container-integrations': '#container-integrations'
