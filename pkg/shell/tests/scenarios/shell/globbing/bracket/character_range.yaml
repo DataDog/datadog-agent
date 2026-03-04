@@ -1,0 +1,22 @@
+description: Bracket glob with range matches characters in the range.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+    - path: d.txt
+      content: ""
+    - path: z.txt
+      content: ""
+input:
+  # language=bash
+  script: |+
+    echo [a-c].txt
+expect:
+  stdout: |+
+    a.txt b.txt c.txt
+  stderr: ""
+  exit_code: 0

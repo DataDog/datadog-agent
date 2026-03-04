@@ -1,0 +1,18 @@
+description: Question mark and star can be combined in a pattern.
+setup:
+  files:
+    - path: a1.txt
+      content: ""
+    - path: b2.txt
+      content: ""
+    - path: cc.log
+      content: ""
+input:
+  # language=bash
+  script: |+
+    echo ?*.txt
+expect:
+  stdout: |+
+    a1.txt b2.txt
+  stderr: ""
+  exit_code: 0

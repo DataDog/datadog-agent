@@ -1,0 +1,16 @@
+description: Star glob matches files in a subdirectory.
+setup:
+  files:
+    - path: sub/x.txt
+      content: ""
+    - path: sub/y.txt
+      content: ""
+input:
+  # language=bash
+  script: |+
+    echo sub/*.txt
+expect:
+  stdout: |+
+    sub/x.txt sub/y.txt
+  stderr: ""
+  exit_code: 0

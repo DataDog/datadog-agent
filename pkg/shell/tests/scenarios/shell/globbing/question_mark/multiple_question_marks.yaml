@@ -1,0 +1,20 @@
+description: Multiple question marks match exact number of characters.
+setup:
+  files:
+    - path: ab.txt
+      content: ""
+    - path: cd.txt
+      content: ""
+    - path: a.txt
+      content: ""
+    - path: abc.txt
+      content: ""
+input:
+  # language=bash
+  script: |+
+    echo ??.txt
+expect:
+  stdout: |+
+    ab.txt cd.txt
+  stderr: ""
+  exit_code: 0

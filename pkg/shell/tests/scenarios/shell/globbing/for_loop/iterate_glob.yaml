@@ -1,0 +1,20 @@
+description: For loop iterates over glob-expanded filenames.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+input:
+  # language=bash
+  script: |+
+    for f in *.txt; do echo "file:$f"; done
+expect:
+  stdout: |+
+    file:a.txt
+    file:b.txt
+    file:c.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: Star glob matches directories alongside files.
+setup:
+  files:
+    - path: dir/placeholder
+      content: ""
+    - path: file.txt
+      content: ""
+input:
+  # language=bash
+  script: |+
+    echo *
+expect:
+  stdout_contains: ["dir", "file.txt"]
+  stderr: ""
+  exit_code: 0
