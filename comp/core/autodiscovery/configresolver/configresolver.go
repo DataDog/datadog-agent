@@ -34,20 +34,21 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
 	// Copy original template
 	resolvedConfig := integration.Config{
-		Name:            tpl.Name,
-		Instances:       make([]integration.Data, len(tpl.Instances)),
-		InitConfig:      make(integration.Data, len(tpl.InitConfig)),
-		MetricConfig:    tpl.MetricConfig,
-		LogsConfig:      tpl.LogsConfig,
-		ADIdentifiers:   tpl.ADIdentifiers,
-		ClusterCheck:    tpl.ClusterCheck,
-		Provider:        tpl.Provider,
-		ServiceID:       svc.GetServiceID(),
-		NodeName:        tpl.NodeName,
-		Source:          tpl.Source,
-		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
-		ImageName:       svc.GetImageName(),
+		Name:                tpl.Name,
+		Instances:           make([]integration.Data, len(tpl.Instances)),
+		InitConfig:          make(integration.Data, len(tpl.InitConfig)),
+		MetricConfig:        tpl.MetricConfig,
+		LogsConfig:          tpl.LogsConfig,
+		ADIdentifiers:       tpl.ADIdentifiers,
+		ClusterCheck:        tpl.ClusterCheck,
+		Provider:            tpl.Provider,
+		ServiceID:           svc.GetServiceID(),
+		NodeName:            tpl.NodeName,
+		EndpointResolveMode: tpl.EndpointResolveMode,
+		Source:              tpl.Source,
+		MetricsExcluded:     svc.HasFilter(filter.MetricsFilter),
+		LogsExcluded:        svc.HasFilter(filter.LogsFilter),
+		ImageName:           svc.GetImageName(),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
@@ -56,18 +57,22 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		resolvedConfig.PodNamespace = namespace
 	}
 
-	if nodeName, err := svc.GetExtraConfig("node_name"); err == nil && nodeName != "" {
-		resolvedConfig.NodeName = nodeName
-	}
+	// For endpoint checks with "ip" resolve mode, skip NodeName and pod UID assignment
+	// so the check is treated as a regular cluster check by the dispatcher.
+	if resolvedConfig.EndpointResolveMode != "ip" {
+		if nodeName, err := svc.GetExtraConfig("node_name"); err == nil && nodeName != "" {
+			resolvedConfig.NodeName = nodeName
+		}
 
-	// For endpoint checks, add pod UID to ADIdentifiers for pod tag resolution
-	if podUID, err := svc.GetExtraConfig("pod_uid"); err == nil && podUID != "" {
-		podEntity := fmt.Sprintf("kubernetes_pod://%s", podUID)
-		resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, podEntity)
-		// Also add the specific service entity ID if not already present
-		serviceID := svc.GetServiceID()
-		if !contains(resolvedConfig.ADIdentifiers, serviceID) {
-			resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, serviceID)
+		// For endpoint checks, add pod UID to ADIdentifiers for pod tag resolution
+		if podUID, err := svc.GetExtraConfig("pod_uid"); err == nil && podUID != "" {
+			podEntity := fmt.Sprintf("kubernetes_pod://%s", podUID)
+			resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, podEntity)
+			// Also add the specific service entity ID if not already present
+			serviceID := svc.GetServiceID()
+			if !contains(resolvedConfig.ADIdentifiers, serviceID) {
+				resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, serviceID)
+			}
 		}
 	}
 

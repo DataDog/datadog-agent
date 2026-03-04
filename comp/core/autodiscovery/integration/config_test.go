@@ -245,6 +245,21 @@ func TestDigest(t *testing.T) {
 
 	// assert the ClusterCheck field is not taken into account
 	assert.NotEqual(t, simpleConfig.Digest(), simpleIngoreADTagsConfig.Digest())
+
+	// assert the EndpointResolveMode field is not taken into account in digest
+	configWithResolveMode := &Config{
+		Name:                "foo",
+		InitConfig:          Data(""),
+		EndpointResolveMode: "ip",
+	}
+	assert.Equal(t, simpleConfig.Digest(), configWithResolveMode.Digest())
+
+	configWithAutoResolveMode := &Config{
+		Name:                "foo",
+		InitConfig:          Data(""),
+		EndpointResolveMode: "auto",
+	}
+	assert.Equal(t, simpleConfig.Digest(), configWithAutoResolveMode.Digest())
 }
 
 func TestGetNameForInstance(t *testing.T) {

@@ -394,12 +394,12 @@ func (s *endpointSliceStore) generateConfigs() []integration.Config {
 						continue
 					}
 					seen[key] = struct{}{}
-					configs = append(configs, generateFileServiceLevelConfig(tpl, slice.Namespace, serviceName))
+					configs = append(configs, generateFileServiceLevelConfig(tpl, slice.Namespace, serviceName, epSliceConfig.resolveMode))
 				}
 			} else {
 				// Advanced AD identifier configs target a specific namespace/name,
 				// so we generate a single service-level config.
-				configs = append(configs, generateFileServiceLevelConfig(tpl, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Namespace, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Name))
+				configs = append(configs, generateFileServiceLevelConfig(tpl, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Namespace, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Name, epSliceConfig.resolveMode))
 			}
 		}
 	}
@@ -407,7 +407,7 @@ func (s *endpointSliceStore) generateConfigs() []integration.Config {
 }
 
 // generateFileServiceLevelConfig creates ONE config template for a service that matches all its endpoints.
-func generateFileServiceLevelConfig(tpl integration.Config, namespace, serviceName string) integration.Config {
+func generateFileServiceLevelConfig(tpl integration.Config, namespace, serviceName string, resolveMode endpointResolveMode) integration.Config {
 	return integration.Config{
 		Name:                    tpl.Name,
 		Instances:               tpl.Instances,
@@ -422,6 +422,7 @@ func generateFileServiceLevelConfig(tpl integration.Config, namespace, serviceNa
 		Source:                  tpl.Source,
 		IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
 		CheckTagCardinality:     tpl.CheckTagCardinality,
+		EndpointResolveMode:     string(resolveMode),
 	}
 }
 

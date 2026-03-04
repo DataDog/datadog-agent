@@ -97,6 +97,11 @@ type Config struct {
 	// NodeName is node name in case of an endpoint check backed by a pod
 	NodeName string `json:"node_name"` // (include in digest: true)
 
+	// EndpointResolveMode controls how endpoint checks are resolved:
+	// "" or "auto" means the check is dispatched to the node agent where the pod runs (NodeName + pod UID set),
+	// "ip" means NodeName/pod UID are left empty and the check is treated as a regular cluster check.
+	EndpointResolveMode string `json:"endpoint_resolve_mode"` // (include in digest: false)
+
 	// Source is the source of the configuration
 	Source string `json:"source"` // (include in digest: false)
 
@@ -511,6 +516,7 @@ func (c *Config) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("TaggerEntity: %#v,"), c.TaggerEntity)
 	fmt.Fprintf(&b, ws("ClusterCheck: %t,"), c.ClusterCheck)
 	fmt.Fprintf(&b, ws("NodeName: %#v,"), c.NodeName)
+	fmt.Fprintf(&b, ws("EndpointResolveMode: %#v,"), c.EndpointResolveMode)
 	fmt.Fprintf(&b, ws("Source: %s,"), c.Source)
 	fmt.Fprintf(&b, ws("IgnoreAutodiscoveryTags: %t,"), c.IgnoreAutodiscoveryTags)
 	fmt.Fprintf(&b, ws("MetricsExcluded: %t,"), c.MetricsExcluded)

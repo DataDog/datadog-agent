@@ -136,7 +136,7 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 
 		// Generate ONE config per service (not per endpoint IP)
 		if len(slices) > 0 {
-			config := generateServiceLevelConfig(conf.tpl, conf.namespace, conf.serviceName)
+			config := generateServiceLevelConfig(conf.tpl, conf.namespace, conf.serviceName, conf.resolveMode)
 			generatedConfigs = append(generatedConfigs, config)
 		}
 
@@ -350,7 +350,7 @@ func hasEndpointSliceAnnotations(svc *v1.Service) bool {
 }
 
 // generateServiceLevelConfig creates ONE config template for a service that matches all its endpoints
-func generateServiceLevelConfig(tpl integration.Config, namespace, serviceName string) integration.Config {
+func generateServiceLevelConfig(tpl integration.Config, namespace, serviceName string, resolveMode endpointResolveMode) integration.Config {
 	// Use service-level ADIdentifier that matches all endpoint services for this service
 	serviceID := fmt.Sprintf("kube_endpoint://%s/%s", namespace, serviceName)
 
@@ -365,6 +365,7 @@ func generateServiceLevelConfig(tpl integration.Config, namespace, serviceName s
 		Provider:                tpl.Provider,
 		Source:                  tpl.Source,
 		IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
+		EndpointResolveMode:     string(resolveMode),
 	}
 
 	return newConfig

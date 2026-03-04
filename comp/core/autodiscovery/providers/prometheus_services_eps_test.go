@@ -134,29 +134,14 @@ func TestPrometheusServicesEPS_Collect(t *testing.T) {
 			expectConfigs: []integration.Config{
 				{
 					Name:       "openmetrics",
-					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.1",
 					InitConfig: integration.Data("{}"),
 					Instances: []integration.Data{
 						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
 					},
-					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.1", "kubernetes_pod://svc-pod-1"},
-					NodeName:      "node1",
+					ADIdentifiers: []string{"kube_endpoint://ns/svc"},
 					Provider:      "prometheus-services-endpointslices",
 					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_endpoint_uid://ns/svc/10.0.0.1",
-				},
-				{
-					Name:       "openmetrics",
-					ServiceID:  "kube_endpoint_uid://ns/svc/10.0.0.2",
-					InitConfig: integration.Data("{}"),
-					Instances: []integration.Data{
-						integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:1234/mewtrix"}`),
-					},
-					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.2", "kubernetes_pod://svc-pod-2"},
-					NodeName:      "node2",
-					Provider:      "prometheus-services-endpointslices",
-					ClusterCheck:  true,
-					Source:        "prometheus_services:kube_endpoint_uid://ns/svc/10.0.0.2",
+					Source:        "prometheus_services:kube_endpoint://ns/svc",
 				},
 			},
 		},

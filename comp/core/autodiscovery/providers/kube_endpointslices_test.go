@@ -78,6 +78,46 @@ func TestParseKubeServiceAnnotationsForEndpointSlices(t *testing.T) {
 			},
 		},
 		{
+			name: "valid annotations with resolve=ip",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("test"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/endpoints.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My endpoint",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+						"ad.datadoghq.com/endpoints.resolve": "ip",
+					},
+					Name:      "myservice",
+					Namespace: "default",
+				},
+			},
+			expectedOut: []configInfoSlices{
+				{
+					tpl: integration.Config{
+						Name:                    "http_check",
+						ADIdentifiers:           []string{"default/myservice"},
+						InitConfig:              integration.Data("{}"),
+						Instances:               []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+						ClusterCheck:            false,
+						Source:                  "kube_endpoints:" + apiserver.EntityForEndpoints("default", "myservice", ""),
+						IgnoreAutodiscoveryTags: false,
+					},
+					namespace:   "default",
+					serviceName: "myservice",
+					resolveMode: "ip",
+				},
+			},
+		},
+		{
 			name: "service without endpoint annotations",
 			service: &v1.Service{
 				ObjectMeta: metav1.ObjectMeta{
@@ -106,6 +146,7 @@ func TestParseKubeServiceAnnotationsForEndpointSlices(t *testing.T) {
 				for i, expected := range tc.expectedOut {
 					assert.Equal(t, expected.namespace, configs[i].namespace)
 					assert.Equal(t, expected.serviceName, configs[i].serviceName)
+					assert.Equal(t, expected.resolveMode, configs[i].resolveMode)
 					assert.Equal(t, expected.tpl.Name, configs[i].tpl.Name)
 					assert.Equal(t, expected.tpl.ADIdentifiers, configs[i].tpl.ADIdentifiers)
 					assert.Equal(t, expected.tpl.Source, configs[i].tpl.Source)
@@ -115,201 +156,71 @@ func TestParseKubeServiceAnnotationsForEndpointSlices(t *testing.T) {
 	}
 }
 
-func TestGenerateConfigFromSlice(t *testing.T) {
-	port123 := int32(123)
-	port126 := int32(126)
-	portName123 := "port123"
-	portName126 := "port126"
-	nodeName1 := "node1"
-	nodeName2 := "node2"
-
+func TestGenerateServiceLevelConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		resolveMode endpointResolveMode
-		slice       *discv1.EndpointSlice
 		template    integration.Config
-		expectedOut []integration.Config
+		expectedOut integration.Config
 	}{
 		{
-			name:        "nil EndpointSlice",
-			slice:       nil,
-			template:    integration.Config{},
-			expectedOut: []integration.Config{{}},
-		},
-		{
-			name:        "EndpointSlice without TargetRef",
-			resolveMode: "auto",
-			slice: &discv1.EndpointSlice{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "myservice-abc",
-					Namespace: "default",
-					Labels: map[string]string{
-						"kubernetes.io/service-name": "myservice",
-					},
-				},
-				Endpoints: []discv1.Endpoint{
-					{Addresses: []string{"10.0.0.1"}},
-					{Addresses: []string{"10.0.0.2"}},
-				},
-				Ports: []discv1.EndpointPort{
-					{Name: &portName123, Port: &port123},
-					{Name: &portName126, Port: &port126},
-				},
-			},
+			name:        "empty resolve mode (defaults to auto behavior)",
+			resolveMode: "",
 			template: integration.Config{
 				Name:          "http_check",
-				ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/"},
+				ADIdentifiers: []string{"default/myservice"},
 				InitConfig:    integration.Data("{}"),
 				Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-				ClusterCheck:  false,
 			},
-			expectedOut: []integration.Config{
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-				},
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-				},
+			expectedOut: integration.Config{
+				Name:                "http_check",
+				ADIdentifiers:       []string{"kube_endpoint://default/myservice"},
+				InitConfig:          integration.Data("{}"),
+				Instances:           []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+				ClusterCheck:        true,
+				EndpointResolveMode: "",
 			},
 		},
 		{
-			name:        "EndpointSlice with TargetRef and auto mode",
+			name:        "auto resolve mode",
 			resolveMode: "auto",
-			slice: &discv1.EndpointSlice{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "myservice-abc",
-					Namespace: "default",
-					Labels: map[string]string{
-						"kubernetes.io/service-name": "myservice",
-					},
-				},
-				Endpoints: []discv1.Endpoint{
-					{
-						Addresses: []string{"10.0.0.1"},
-						TargetRef: &v1.ObjectReference{
-							Kind: "Pod",
-							UID:  types.UID("pod-uid-1"),
-						},
-						NodeName: &nodeName1,
-					},
-					{
-						Addresses: []string{"10.0.0.2"},
-						TargetRef: &v1.ObjectReference{
-							Kind: "Pod",
-							UID:  types.UID("pod-uid-2"),
-						},
-						NodeName: &nodeName2,
-					},
-				},
-				Ports: []discv1.EndpointPort{
-					{Name: &portName123, Port: &port123},
-					{Name: &portName126, Port: &port126},
-				},
-			},
 			template: integration.Config{
 				Name:          "http_check",
-				ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/"},
+				ADIdentifiers: []string{"default/myservice"},
 				InitConfig:    integration.Data("{}"),
 				Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-				ClusterCheck:  false,
 			},
-			expectedOut: []integration.Config{
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1", "kubernetes_pod://pod-uid-1"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-					NodeName:      "node1",
-				},
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2", "kubernetes_pod://pod-uid-2"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-					NodeName:      "node2",
-				},
+			expectedOut: integration.Config{
+				Name:                "http_check",
+				ADIdentifiers:       []string{"kube_endpoint://default/myservice"},
+				InitConfig:          integration.Data("{}"),
+				Instances:           []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+				ClusterCheck:        true,
+				EndpointResolveMode: "auto",
 			},
 		},
 		{
-			name:        "EndpointSlice with TargetRef but resolve=ip",
+			name:        "ip resolve mode",
 			resolveMode: "ip",
-			slice: &discv1.EndpointSlice{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "myservice-abc",
-					Namespace: "default",
-					Labels: map[string]string{
-						"kubernetes.io/service-name": "myservice",
-					},
-				},
-				Endpoints: []discv1.Endpoint{
-					{
-						Addresses: []string{"10.0.0.1"},
-						TargetRef: &v1.ObjectReference{
-							Kind: "Pod",
-							UID:  types.UID("pod-uid-1"),
-						},
-						NodeName: &nodeName1,
-					},
-					{
-						Addresses: []string{"10.0.0.2"},
-						TargetRef: &v1.ObjectReference{
-							Kind: "Pod",
-							UID:  types.UID("pod-uid-2"),
-						},
-						NodeName: &nodeName2,
-					},
-				},
-				Ports: []discv1.EndpointPort{
-					{Name: &portName123, Port: &port123},
-					{Name: &portName126, Port: &port126},
-				},
-			},
 			template: integration.Config{
 				Name:          "http_check",
-				ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/"},
+				ADIdentifiers: []string{"default/myservice"},
 				InitConfig:    integration.Data("{}"),
 				Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-				ClusterCheck:  false,
 			},
-			expectedOut: []integration.Config{
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.1",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.1"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-					NodeName:      "",
-				},
-				{
-					ServiceID:     "kube_endpoint_uid://default/myservice/10.0.0.2",
-					Name:          "http_check",
-					ADIdentifiers: []string{"kube_endpoint_uid://default/myservice/10.0.0.2"},
-					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-					ClusterCheck:  true,
-					NodeName:      "",
-				},
+			expectedOut: integration.Config{
+				Name:                "http_check",
+				ADIdentifiers:       []string{"kube_endpoint://default/myservice"},
+				InitConfig:          integration.Data("{}"),
+				Instances:           []integration.Data{integration.Data("{\"name\":\"My endpoint\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+				ClusterCheck:        true,
+				EndpointResolveMode: "ip",
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfgs := generateConfigFromSlice(tc.template, tc.resolveMode, tc.slice, "default", "myservice")
-			assert.EqualValues(t, tc.expectedOut, cfgs)
+			cfg := generateServiceLevelConfig(tc.template, "default", "myservice", tc.resolveMode)
+			assert.Equal(t, tc.expectedOut, cfg)
 		})
 	}
 }
