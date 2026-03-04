@@ -1,0 +1,10 @@
+description: Arithmetic expansion is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $((1+2))
+expected:
+  stdout: ""
+  stderr_contains:
+    - "arithmetic expansion is not supported"
+  exit_code: 2

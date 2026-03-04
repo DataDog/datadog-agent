@@ -1,0 +1,10 @@
+description: Positional parameter $1 is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $1
+expected:
+  stdout: ""
+  stderr_contains:
+    - "$1 is not supported"
+  exit_code: 2

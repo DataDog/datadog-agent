@@ -1,0 +1,11 @@
+description: Prefix removal ${var#pattern} is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    X=/a/b/c
+    echo ${X#*/}
+expected:
+  stdout: ""
+  stderr_contains:
+    - "operations (defaults, pattern removal, case conversion) are not supported"
+  exit_code: 2

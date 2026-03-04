@@ -1,0 +1,11 @@
+description: Substring expansion ${var:offset:length} is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo ${X:1:3}
+expected:
+  stdout: ""
+  stderr_contains:
+    - "${var:offset} is not supported"
+  exit_code: 2

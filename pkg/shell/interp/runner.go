@@ -22,53 +22,13 @@ func (r *Runner) fillExpandConfig(ctx context.Context) {
 	r.ectx = ctx
 	r.ecfg = &expand.Config{
 		Env: expandEnv{r},
-		CmdSubst: func(w io.Writer, cs *syntax.CmdSubst) error {
-			switch len(cs.Stmts) {
-			case 0: // nothing to do
-				return nil
-			case 1: // $(<file)
-				word := catShortcutArg(cs.Stmts[0])
-				if word == nil {
-					break
-				}
-				path := r.literal(word)
-				f, err := r.open(ctx, path, os.O_RDONLY, 0, true)
-				if err != nil {
-					return err
-				}
-				_, err = io.Copy(w, f)
-				f.Close()
-				return err
-			}
-			r2 := r.subshell(false)
-			r2.stdout = w
-			r2.stmts(ctx, cs.Stmts)
-			r2.exit.exiting = false // subshells don't exit the parent shell
-			r.lastExpandExit = r2.exit
-			if r2.exit.fatalExit {
-				return r2.exit.err // surface fatal errors immediately
-			}
-			return nil
-		},
+		// CmdSubst is intentionally nil: command substitution is blocked
+		// at the AST validation level, and a nil handler causes the expand
+		// package to return UnexpectedCommandError as defense in depth.
 	}
 	r.updateExpandOpts()
 }
 
-// catShortcutArg checks if a statement is of the form "$(<file)". The redirect
-// word is returned if there's a match, and nil otherwise.
-func catShortcutArg(stmt *syntax.Stmt) *syntax.Word {
-	if stmt.Cmd != nil || stmt.Negated || stmt.Background || stmt.Coprocess {
-		return nil
-	}
-	if len(stmt.Redirs) != 1 {
-		return nil
-	}
-	redir := stmt.Redirs[0]
-	if redir.Op != syntax.RdrIn {
-		return nil
-	}
-	return redir.Word
-}
 
 func (r *Runner) updateExpandOpts() {
 	if r.opts[optNoGlob] {
@@ -105,11 +65,6 @@ func (r *Runner) expandErr(err error) {
 	r.exit.exiting = true
 }
 
-func (r *Runner) arithm(expr syntax.ArithmExpr) int {
-	n, err := expand.Arithm(r.ecfg, expr)
-	r.expandErr(err)
-	return n
-}
 
 func (r *Runner) fields(words ...*syntax.Word) []string {
 	strs, err := expand.Fields(r.ecfg, words...)

@@ -1,0 +1,10 @@
+description: Parameter count $# is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $#
+expected:
+  stdout: ""
+  stderr_contains:
+    - "$# is not supported"
+  exit_code: 2

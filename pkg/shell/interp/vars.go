@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -114,36 +113,13 @@ func (r *Runner) lookupVar(name string) expand.Variable {
 	if name == "" {
 		panic("variable name must not be empty")
 	}
-	var vr expand.Variable
-	switch name {
-	case "#":
-		vr.Kind, vr.Str = expand.String, strconv.Itoa(len(r.Params))
-	case "@", "*":
-		vr.Kind = expand.Indexed
-		if r.Params == nil {
-			// r.Params may be nil but positional parameters always exist
-			vr.List = []string{}
-		} else {
-			vr.List = r.Params
+	// Only $? is supported as a special variable in safe-shell.
+	if name == "?" {
+		return expand.Variable{
+			Set:  true,
+			Kind: expand.String,
+			Str:  strconv.Itoa(int(r.lastExit.code)),
 		}
-	case "?":
-		vr.Kind, vr.Str = expand.String, strconv.Itoa(int(r.lastExit.code))
-	case "0":
-		vr.Kind = expand.String
-		if r.filename != "" {
-			vr.Str = r.filename
-		} else {
-			vr.Str = "gosh"
-		}
-	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
-		if i := int(name[0] - '1'); i < len(r.Params) {
-			vr.Kind = expand.String
-			vr.Str = r.Params[i]
-		}
-	}
-	if vr.Kind != expand.Unknown {
-		vr.Set = true
-		return vr
 	}
 	if vr := r.writeEnv.Get(name); vr.Declared() {
 		return vr
@@ -172,186 +148,41 @@ func (r *Runner) setVar(name string, vr expand.Variable) {
 	}
 }
 
+// setVarWithIndex sets a variable.  In safe-shell, arrays and indexing are
+// blocked by the AST validator, so we only handle simple string assignment.
 func (r *Runner) setVarWithIndex(prev expand.Variable, name string, index syntax.ArithmExpr, vr expand.Variable) {
+	if index != nil {
+		panic("setVarWithIndex: index should have been rejected by AST validation")
+	}
 	prev.Set = true
 	if name2, var2 := prev.Resolve(r.writeEnv); name2 != "" {
 		name = name2
 		prev = var2
 	}
-
-	if vr.Kind == expand.String && index == nil {
-		// When assigning a string to an array, fall back to the
-		// zero value for the index.
-		switch prev.Kind {
-		case expand.Indexed:
-			index = &syntax.Word{Parts: []syntax.WordPart{
-				&syntax.Lit{Value: "0"},
-			}}
-		case expand.Associative:
-			index = &syntax.Word{Parts: []syntax.WordPart{
-				&syntax.DblQuoted{},
-			}}
-		}
-	}
-	if index == nil {
-		r.setVar(name, vr)
-		return
-	}
-
-	// from the syntax package, we know that value must be a string if index
-	// is non-nil; nested arrays are forbidden.
-	valStr := vr.Str
-
-	var list []string
-	switch prev.Kind {
-	case expand.String:
-		list = append(list, prev.Str)
-	case expand.Indexed:
-		// TODO: only clone when inside a subshell and getting a var from outside for the first time
-		list = slices.Clone(prev.List)
-	case expand.Associative:
-		// if the existing variable is already an AssocArray, try our
-		// best to convert the key to a string
-		w, ok := index.(*syntax.Word)
-		if !ok {
-			return
-		}
-		k := r.literal(w)
-
-		// TODO: only clone when inside a subshell and getting a var from outside for the first time
-		prev.Map = maps.Clone(prev.Map)
-		if prev.Map == nil {
-			prev.Map = make(map[string]string)
-		}
-		prev.Map[k] = valStr
-		r.setVar(name, prev)
-		return
-	}
-	k := r.arithm(index)
-	for len(list) < k+1 {
-		list = append(list, "")
-	}
-	list[k] = valStr
-	prev.Kind = expand.Indexed
-	prev.List = list
-	r.setVar(name, prev)
-}
-
-func stringIndex(index syntax.ArithmExpr) bool {
-	w, ok := index.(*syntax.Word)
-	if !ok || len(w.Parts) != 1 {
-		return false
-	}
-	switch w.Parts[0].(type) {
-	case *syntax.DblQuoted, *syntax.SglQuoted:
-		return true
-	}
-	return false
+	r.setVar(name, vr)
 }
 
 // TODO: make assignVal and [setVar] consistent with the [expand.WriteEnviron] interface
 
-func (r *Runner) assignVal(prev expand.Variable, as *syntax.Assign, valType string) expand.Variable {
+// assignVal evaluates the value of an assignment.  In safe-shell, only simple
+// string assignments are supported (no append, no arrays, no NameRef).  The AST
+// validator rejects those constructs before we get here, so hitting them is a
+// programming error.
+func (r *Runner) assignVal(prev expand.Variable, as *syntax.Assign, _ string) expand.Variable {
 	prev.Set = true
+	if as.Append {
+		panic("assignVal: append should have been rejected by AST validation")
+	}
+	if as.Array != nil {
+		panic("assignVal: array assignment should have been rejected by AST validation")
+	}
 	if as.Value != nil {
-		s := r.literal(as.Value)
-		if !as.Append {
-			prev.Kind = expand.String
-			if valType == "-n" {
-				prev.Kind = expand.NameRef
-			}
-			prev.Str = s
-			return prev
-		}
-		switch prev.Kind {
-		case expand.String, expand.Unknown:
-			prev.Kind = expand.String
-			prev.Str += s
-		case expand.Indexed:
-			if len(prev.List) == 0 {
-				prev.List = append(prev.List, "")
-			}
-			prev.List[0] += s
-		case expand.Associative:
-			// TODO
-		}
-		return prev
-	}
-	if as.Array == nil {
-		// don't return the zero value, as that's an unset variable
 		prev.Kind = expand.String
-		if valType == "-n" {
-			prev.Kind = expand.NameRef
-		}
-		prev.Str = ""
+		prev.Str = r.literal(as.Value)
 		return prev
 	}
-	// Array assignment.
-	elems := as.Array.Elems
-	if valType == "" {
-		valType = "-a" // indexed
-		if len(elems) > 0 && stringIndex(elems[0].Index) {
-			valType = "-A" // associative
-		}
-	}
-	if valType == "-A" {
-		amap := make(map[string]string, len(elems))
-		for _, elem := range elems {
-			k := r.literal(elem.Index.(*syntax.Word))
-			amap[k] = r.literal(elem.Value)
-		}
-		if !as.Append {
-			prev.Kind = expand.Associative
-			prev.Map = amap
-			return prev
-		}
-		// TODO
-		return prev
-	}
-	// Evaluate values for each array element.
-	elemValues := make([]struct {
-		index  int
-		values []string
-	}, len(elems))
-	var index, maxIndex int
-	for i, elem := range elems {
-		if elem.Index != nil {
-			// Index resets our index with a literal value.
-			index = r.arithm(elem.Index)
-			elemValues[i].values = []string{r.literal(elem.Value)}
-		} else {
-			// Implicit index, advancing for every word.
-			elemValues[i].values = r.fields(elem.Value)
-		}
-		elemValues[i].index = index
-		index += len(elemValues[i].values)
-		maxIndex = max(maxIndex, index)
-	}
-	// Flatten down the values.
-	strs := make([]string, maxIndex)
-	for _, ev := range elemValues {
-		for i, str := range ev.values {
-			strs[ev.index+i] = str
-		}
-	}
-	if !as.Append {
-		prev.Kind = expand.Indexed
-		prev.List = strs
-		return prev
-	}
-	switch prev.Kind {
-	case expand.Unknown:
-		prev.Kind = expand.Indexed
-		prev.List = strs
-	case expand.String:
-		prev.Kind = expand.Indexed
-		prev.List = append([]string{prev.Str}, strs...)
-	case expand.Indexed:
-		prev.List = append(prev.List, strs...)
-	case expand.Associative:
-		// TODO
-	default:
-		panic(fmt.Sprintf("unhandled conversion of kind %d", prev.Kind))
-	}
+	// Bare assignment (e.g. VAR=)
+	prev.Kind = expand.String
+	prev.Str = ""
 	return prev
 }

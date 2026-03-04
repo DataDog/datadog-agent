@@ -1,10 +1,12 @@
-description: The IFS builtin variable is always set even without input.envs.
+description: The IFS builtin variable is set by the interpreter and controls word splitting.
 input:
   # language=bash
   script: |+
-    echo "${IFS:+set}"
+    IFS=,
+    A="a,b,c"
+    echo $A
 expected:
   stdout: |+
-    set
+    a b c
   stderr: ""
   exit_code: 0

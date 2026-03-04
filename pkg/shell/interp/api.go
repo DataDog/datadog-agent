@@ -627,6 +627,10 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) error {
 		r.Reset()
 	}
 	r.fillExpandConfig(ctx)
+	if err := validateNode(node); err != nil {
+		fmt.Fprintln(r.stderr, err)
+		return ExitStatus(2)
+	}
 	r.exit = exitStatus{}
 	r.filename = ""
 	switch node := node.(type) {

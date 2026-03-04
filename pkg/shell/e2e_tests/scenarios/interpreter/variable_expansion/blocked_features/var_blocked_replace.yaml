@@ -1,0 +1,11 @@
+description: Pattern replacement ${var/pattern/replacement} is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo ${X/l/L}
+expected:
+  stdout: ""
+  stderr_contains:
+    - "${var/pattern/replacement} is not supported"
+  exit_code: 2

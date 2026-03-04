@@ -1,0 +1,11 @@
+description: The += append operator is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    X+=world
+expected:
+  stdout: ""
+  stderr_contains:
+    - "+= is not supported"
+  exit_code: 2

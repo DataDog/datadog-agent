@@ -1,0 +1,11 @@
+description: String length expansion ${#var} is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo ${#X}
+expected:
+  stdout: ""
+  stderr_contains:
+    - "${#var} is not supported"
+  exit_code: 2

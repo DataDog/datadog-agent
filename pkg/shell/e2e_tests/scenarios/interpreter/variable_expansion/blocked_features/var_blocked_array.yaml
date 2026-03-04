@@ -1,0 +1,10 @@
+description: Array assignment is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    ARR=(a b c)
+expected:
+  stdout: ""
+  stderr_contains:
+    - "array assignment is not supported"
+  exit_code: 2

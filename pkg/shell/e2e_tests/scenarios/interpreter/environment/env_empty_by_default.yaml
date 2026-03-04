@@ -2,9 +2,9 @@ description: Without input.envs, no environment variables are available except b
 input:
   # language=bash
   script: |+
-    echo "${SOME_RANDOM_VAR:-empty}"
+    echo "val=$SOME_RANDOM_VAR"
 expected:
   stdout: |+
-    empty
+    val=
   stderr: ""
   exit_code: 0

@@ -1,0 +1,10 @@
+description: Array indexing ${var[i]} is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo ${PATH[0]}
+expected:
+  stdout: ""
+  stderr_contains:
+    - "array indexing is not supported"
+  exit_code: 2

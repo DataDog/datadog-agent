@@ -1,0 +1,10 @@
+description: Command substitution is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $(echo hello)
+expected:
+  stdout: ""
+  stderr_contains:
+    - "command substitution is not supported"
+  exit_code: 2
