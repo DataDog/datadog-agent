@@ -178,10 +178,9 @@ Each scenario is a subdirectory within `--scenarios-dir`. Parquet files can live
 
 ```
 scenario-name/
-  ├── parquet/                # Parquet metric files (preferred layout)
-  │   ├── observer-metrics-*.parquet
-  │   └── ...
-  └── logs/                   # Log files (optional)
+  └── parquet/
+      ├── observer-metrics-*.parquet    # Metric time series
+      ├── observer-logs-*.parquet       # Log entries
       └── ...
 ```
 
