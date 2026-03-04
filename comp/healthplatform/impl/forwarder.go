@@ -150,12 +150,23 @@ func (f *forwarder) sendHealthReport() {
 	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
 }
 
+// safeGetFlavor returns the current agent flavor, falling back to the default
+// if flavor.GetFlavor() panics (e.g. called before main init).
+func safeGetFlavor() (f string) {
+	defer func() {
+		if r := recover(); r != nil {
+			f = flavor.DefaultAgent
+		}
+	}()
+	return flavor.GetFlavor()
+}
+
 // buildReport creates a HealthReport from the current issues
 func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   flavor.GetFlavor(),
+		Service:   safeGetFlavor(),
 		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
 			AgentVersion: pointer.Ptr(version.AgentVersion),

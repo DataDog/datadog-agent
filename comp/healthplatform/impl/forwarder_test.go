@@ -74,7 +74,7 @@ func TestForwarderBuildReport(t *testing.T) {
 	report := fwd.buildReport(provider.issues)
 
 	assert.Equal(t, "agent-health-issues", report.EventType)
-	assert.Equal(t, flavor.GetFlavor(), report.Service)
+	assert.Equal(t, flavor.DefaultAgent, report.Service)
 	assert.Equal(t, "test-host", report.Host.Hostname)
 	assert.Equal(t, version.AgentVersion, report.Host.GetAgentVersion())
 	assert.Len(t, report.Issues, 2)

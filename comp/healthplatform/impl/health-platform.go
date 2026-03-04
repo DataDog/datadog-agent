@@ -29,7 +29,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// Import issue modules to trigger their init() registration
@@ -732,7 +731,7 @@ func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	report := &healthplatform.HealthReport{
 		EventType: "agent.health",
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   flavor.GetFlavor(),
+		Service:   safeGetFlavor(),
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
