@@ -640,14 +640,14 @@ class TestFilenameValidation(unittest.TestCase):
     def test_valid_filename_no_error(self):
         """A filename with a 16-char lowercase hex UID should pass."""
         path = self._write_note('my-cool-feature-abcdef0123456789.yaml')
-        result = lint_releasenote_file(path)
+        result = lint_releasenote_file(path, validate_filename=True)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 0)
 
     def test_hyphenated_uuid_filename_error(self):
         """A filename using a hyphenated UUID (the agentrelease bug) should fail."""
         path = self._write_note('my-feature-a1b2c3d4-e5f6-7890-abcd-ef1234567890.yaml')
-        result = lint_releasenote_file(path)
+        result = lint_releasenote_file(path, validate_filename=True)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 1)
         self.assertIn('does not match reno convention', filename_errors[0].errors[0].message)
@@ -655,20 +655,27 @@ class TestFilenameValidation(unittest.TestCase):
     def test_uppercase_hex_error(self):
         """Uppercase hex characters in the UID should fail."""
         path = self._write_note('some-note-ABCDEF0123456789.yaml')
-        result = lint_releasenote_file(path)
+        result = lint_releasenote_file(path, validate_filename=True)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 1)
 
     def test_missing_uid_suffix_error(self):
         """A filename without a hex UID suffix should fail."""
         path = self._write_note('my-feature.yaml')
-        result = lint_releasenote_file(path)
+        result = lint_releasenote_file(path, validate_filename=True)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 1)
 
     def test_file_not_under_notes_skipped(self):
         """Files not under a notes/ directory should skip the filename check."""
         path = self._write_note('bad-name.yaml', under_notes=False)
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
+
+    def test_validate_filename_off_by_default(self):
+        """Filename validation is skipped when validate_filename is False (default)."""
+        path = self._write_note('bad-name.yaml')
         result = lint_releasenote_file(path)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 0)

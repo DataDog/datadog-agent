@@ -260,7 +260,7 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         print(color_message("No release note files to lint", "yellow"))
         return
 
-    results = lint_releasenotes(file_list)
+    results = lint_releasenotes(file_list, validate_filename=only_changed)
 
     if results:
         print(color_message("RST formatting issues found in release notes:", "red"))
