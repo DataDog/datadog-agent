@@ -146,23 +146,83 @@ Docker-based reproduction with:
 5. Restart system-probe — the pre-existing connections now trigger the fallback mechanism
 6. Observe: backend plaintext connections are tagged with `StaticTags=0x2` (LIBSSL/OpenSSL)
 
-### Results
+### Results — HAProxy
 
 With system-probe restart while persistent connections are active:
-- **333,165 requests** with `tags=OpenSSL` on plaintext backend connections
-- **45.5% leak rate** among observed entries
-- Without restart (system-probe running from the start): **0% leak rate**
+- **Baseline** (system-probe running before connections): 1.3% misattribution (44/3385)
+- **After restart** (pre-existing connections trigger fallback): 10.5% misattribution (22/210)
+- Without restart (steady state): **0% misattribution**
+
+### Results — Nginx
+
+Reproduced with Nginx TLS proxy (`docker-compose-nginx.yml`) to match the customer's original ingress:
+- **After restart**: 4.8% misattribution (22/463)
+
+This confirms the customer's report that the issue existed with **both** Nginx and HAProxy. The fallback mechanism affects any proxy where `SSL_read`/`SSL_write` and plaintext `send()` share the same `pid_tgid` (thread).
 
 ### Detection Method
 
 Query `/debug/http_monitoring` and check for entries where:
-- `server_addr` is a plaintext backend (port 80)
-- `StaticTags != 0` (has TLS tags like `LIBSSL = 0x2`)
+- `Server.Port` is a plaintext backend port (e.g., 80)
+- `StaticTags != 0` (specifically `StaticTags=2` means LIBSSL/OpenSSL)
 
-This means USM is incorrectly attributing TLS-decrypted data to the plaintext backend connection tuple, causing endpoint misattribution between services.
+Example from our reproduction after a restart:
+```
+BUG (TLS tag on port 80): 22
+  172.30.0.10:36960 -> 172.30.0.30:80 /elemental/alerts tags=2
+  172.30.0.10:36960 -> 172.30.0.30:80 /elemental/channelstatus tags=2
+  172.30.0.10:60244 -> 172.30.0.20:80 /v1/btc/pasithea_image_url_json tags=2
+  172.30.0.10:60244 -> 172.30.0.20:80 /v1/graphics/render tags=2
+  ...
+```
+
+In steady state (no restart), the same query returns **0 bug entries** — all port-80 traffic correctly has `StaticTags=0`.
+
+### How to Confirm the Fallback Is Active in the Customer Environment
+
+**Method 1: Query `/debug/http_monitoring` (works with current agent)**
+
+Ask the customer to run after an agent restart while traffic is flowing:
+```bash
+sudo curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock \
+  "http://unix/network_tracer/debug/http_monitoring" > /tmp/http_debug.json
+```
+
+Then check for entries where `StaticTags=2` on plaintext backend ports. If present, the fallback mechanism is confirmed as the cause.
+
+**Method 2: `bpftool` inspection (does not consume data)**
+
+The `ssl_ctx_by_pid_tgid` eBPF map can be inspected without consuming data:
+```bash
+sudo bpftool map list | grep ssl_ctx_by_pid
+sudo bpftool map dump id <MAP_ID>
+```
+
+However, this map is always effectively empty — entries are stored by `tup_from_ssl_ctx` and immediately consumed by `map_ssl_ctx_to_sock` in the next `tcp_sendmsg` within the same thread. The window is too short to observe entries.
+
+**Method 3: Add telemetry counter (requires code change)**
+
+Currently `bpf_map_update_with_telemetry` only tracks map update **errors**, not successful updates. A dedicated counter could be added to `tup_from_ssl_ctx` to count fallback activations, which would appear in `/debug/usm_telemetry`.
+
+## Reproduction Files
+
+All reproduction files are in `pkg/network/usm/testdata/haproxy_tls_leak/`:
+
+| File | Description |
+|------|-------------|
+| `docker-compose.yml` | HAProxy + 2 nginx backends + Python traffic generator |
+| `docker-compose-nginx.yml` | Nginx TLS proxy variant (same backends + traffic gen) |
+| `haproxy.cfg` | HAProxy TLS termination with path-based routing |
+| `nginx-tls-proxy.conf` | Nginx TLS termination config |
+| `nginx-api.conf` | API backend (`/v1/btc/...`, `/v1/nfl/...`, `/conviva/...`, etc.) |
+| `nginx-blackbox.conf` | Blackbox backend (`/elemental/...`, `/probe`, `/metrics`) |
+| `persistent-client.py` | Python HTTP/1.1 keep-alive client (4 persistent connections) |
+| `analyze.py` | Categorizes `/debug/http_monitoring` entries into TLS frontend, correct plaintext, and misattributed |
+| `setup.sh` | Generates TLS certs and starts containers |
+
+The `ssl_ctx_race_test/` directory (cherry-picked from `usm-gotls-misattribution-fix`) contains earlier investigation files for the `ssl_ctx_by_pid_tgid` write-path race.
 
 ## Open Questions
 
-- The customer reports this issue existed with both Nginx and HAProxy. Nginx uses multi-process architecture (not single-threaded like HAProxy). The `pid_tgid` collision mechanism may work differently with Nginx workers — needs further investigation.
 - What is the customer's agent restart/deployment cadence? This would help correlate with observed misattribution windows.
 - Does the customer observe misattribution concentrated around specific time windows (which would correlate with agent restarts)?

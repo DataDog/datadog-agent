@@ -1,0 +1,54 @@
+version: '3.8'
+
+networks:
+  testnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+services:
+  haproxy:
+    image: haproxy:2.8
+    container_name: haproxy
+    networks:
+      testnet:
+        ipv4_address: 172.30.0.10
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./certs/server.pem:/etc/haproxy/certs/server.pem:ro
+    depends_on:
+      - backend-api
+      - backend-blackbox
+
+  backend-api:
+    image: nginx:alpine
+    container_name: backend-api
+    networks:
+      testnet:
+        ipv4_address: 172.30.0.20
+    volumes:
+      - ./nginx-api.conf:/etc/nginx/conf.d/default.conf:ro
+
+  backend-blackbox:
+    image: nginx:alpine
+    container_name: backend-blackbox
+    networks:
+      testnet:
+        ipv4_address: 172.30.0.30
+    volumes:
+      - ./nginx-blackbox.conf:/etc/nginx/conf.d/default.conf:ro
+
+  traffic:
+    image: python:3.11-slim
+    container_name: traffic-generator
+    networks:
+      testnet:
+        ipv4_address: 172.30.0.40
+    volumes:
+      - ./persistent-client.py:/app/persistent-client.py:ro
+    entrypoint: ["python3", "/app/persistent-client.py"]
+    depends_on:
+      - haproxy
