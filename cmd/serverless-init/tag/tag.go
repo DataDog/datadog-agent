@@ -105,6 +105,8 @@ func MakeTraceAgentTags(tagsMap map[string]string) map[string]string {
 	return tagsMap
 }
 
+// MakeMetricAgentTags handles tag customization for the metric agent.
+//
 // * Creates a new tag map without high cardinality tags we use on traces
 // We avoid these tags for metrics by default due to cost, as we store and bill by cardinality.
 func MakeMetricAgentTags(tags map[string]string) map[string]string {

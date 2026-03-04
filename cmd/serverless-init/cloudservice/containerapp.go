@@ -127,7 +127,7 @@ func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string
 	}
 
 	highCardinalityTags := map[string]string{
-		"replica.name": tags["replica_name"],
+		"replica_name": tags["replica_name"],
 	}
 
 	return baseTags, highCardinalityTags

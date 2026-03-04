@@ -120,12 +120,12 @@ func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float
 	c.sendMetricSample(name, value, metricSource, 0, c.tags, extraTags...)
 }
 
-// AddEnhancedMetricWithTimestamp reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
+// AddEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
 func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTags, extraTags...)
 }
 
-// AddHighCardinalityEnhancedMetricWithTimestamp reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics, including high cardinality tags.
+// AddHighCardinalityEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics, including high cardinality tags.
 func (c *ServerlessMetricAgent) AddHighCardinalityEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTagsAll, extraTags...)
 }
