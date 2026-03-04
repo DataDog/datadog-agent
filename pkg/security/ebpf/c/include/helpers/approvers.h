@@ -70,7 +70,10 @@ void __attribute__((always_inline)) monitor_ad_sample_sampled(u64 event_type) {
 }
 
 int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol) {
+    bpf_printk("bind_sample enter: pid=%d family=%d port=%d", pid, family, port);
+
     if (family != AF_INET && family != AF_INET6) {
+        bpf_printk("bind_sample family_skip: pid=%d family=%d", pid, family);
         return 0;
     }
 
@@ -126,16 +129,13 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
 
     u8 value = 0;
     if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {
-        bpf_printk("connect_sample dedup: pid=%d port=%d proto=%d", pid, port, protocol);
         return 0;
     }
 
     if (!global_limiter_allow(CONNECT_SAMPLE_LIMITER, 500, 1)) {
-        bpf_printk("connect_sample rate_limited: pid=%d port=%d", pid, port);
         return 0;
     }
 
-    bpf_printk("connect_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
     monitor_ad_sample_sampled(EVENT_CONNECT);
     return 1;
 }
