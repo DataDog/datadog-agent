@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -274,10 +275,17 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
-		r.backendCommand = filepath.Join(
-			defaultpaths.GetEmbeddedBinPath(),
-			"secret-generic-connector",
-		)
+		if runtime.GOOS == "windows" {
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector.exe",
+			)
+		} else {
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
+		}
 		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
