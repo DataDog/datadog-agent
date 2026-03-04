@@ -73,8 +73,9 @@ type TestBench struct {
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Async correlator processing
-	correlatorsProcessing bool  // true while background correlator goroutine is running
-	correlatorGen         int64 // generation counter, incremented each rerun
+	correlatorsProcessing bool       // true while background correlator goroutine is running
+	correlatorGen         int64      // generation counter, incremented each rerun
+	correlatorsDone       *sync.Cond // signaled when correlatorsProcessing transitions to false
 
 	// API server
 	api *TestBenchAPI
@@ -154,6 +155,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 	}
+	tb.correlatorsDone = sync.NewCond(tb.mu.RLocker())
 
 	// Instantiate all registry components
 	for _, reg := range defaultRegistry {
@@ -758,6 +760,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		}
 
 		tb.correlatorsProcessing = false
+		tb.correlatorsDone.Broadcast()
 	}()
 }
 
@@ -1055,15 +1058,11 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 	}
 
 	// Wait for correlators to finish (they run in a background goroutine).
-	const pollInterval = 50 * time.Millisecond
-	const maxWait = 5 * time.Minute
-	deadline := time.Now().Add(maxWait)
-	for tb.IsCorrelatorsProcessing() {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("correlators still processing after %v timeout", maxWait)
-		}
-		time.Sleep(pollInterval)
+	tb.mu.RLock()
+	for tb.correlatorsProcessing {
+		tb.correlatorsDone.Wait()
 	}
+	tb.mu.RUnlock()
 
 	// Write structured JSON output.
 	if outputPath != "" {
