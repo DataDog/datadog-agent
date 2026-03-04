@@ -40,6 +40,7 @@ fn test_fallback_on_npm_enabled() {
 
     // Run sd-agent with network tracer enabled using new -- syntax
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -83,6 +84,7 @@ fn test_no_fallback_on_discovery_only() {
     // Run sd-agent with only discovery enabled (should NOT fallback)
     // Note: --config must be after -- to be parsed as system-probe arg
     let mut child = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -123,6 +125,7 @@ fn test_config_file_only() {
     config_file.flush().unwrap();
 
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -145,6 +148,7 @@ fn test_config_file_only() {
 #[test]
 fn test_missing_fallback_binary() {
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg("/nonexistent/system-probe")
         .arg("run")
@@ -175,6 +179,7 @@ fn test_invalid_yaml_triggers_fallback() {
     config_file.flush().unwrap();
 
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -208,6 +213,7 @@ fn test_unknown_yaml_key_triggers_fallback() {
     config_file.flush().unwrap();
 
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -243,6 +249,7 @@ fn test_discovery_disabled_exits_cleanly() {
     // Discovery explicitly disabled should exit cleanly (not call system-probe)
     // Note: --config must be after -- to be parsed as system-probe arg
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -276,6 +283,7 @@ fn test_discovery_enabled_with_fallback() {
 
     // Both discovery and DD_RUNTIME_SECURITY_CONFIG_ENABLED should trigger fallback
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -314,6 +322,7 @@ fn test_killswitch_disabled_fallback() {
 
     // Killswitch disabled should trigger fallback even with discovery enabled
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -348,6 +357,7 @@ fn test_killswitch_not_set_defaults_to_fallback() {
 
     // Killswitch not set should default to fallback (safe default)
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -381,6 +391,7 @@ fn test_killswitch_enabled_runs_sd_agent() {
 
     // Killswitch enabled should allow sd-agent to run
     let mut child = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -431,6 +442,7 @@ fn test_killswitch_yaml_config() {
 
     // YAML with killswitch disabled should trigger fallback
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -472,6 +484,7 @@ fn test_killswitch_env_overrides_yaml_enabled() {
 
     // Env var (false) should override YAML (true)
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -505,6 +518,7 @@ fn test_env_var_false_no_fallback() {
 
     // Env var set to "false" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -539,6 +553,7 @@ fn test_env_var_zero_no_fallback() {
 
     // Env var set to "0" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -573,6 +588,7 @@ fn test_env_var_non_boolean_triggers_fallback() {
 
     // Env var set to a non-boolean value should trigger fallback (safety net)
     let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
