@@ -24,7 +24,7 @@ func TestBasic(t *testing.T) {
 		DictResourceType: []int64{1, 1, 2, 1, 2},
 		DictResourceName: []int64{2, 2, 2, 2, 3},
 		DictOriginInfo:   []int32{10, 10, 0},
-		Types:            []uint64{0x11, 0x21, 0x31, 0x4},
+		Types:            []uint64{0x11, 0x22, 0x33, 0x4},
 		NameRefs:         []int64{1, 0, 1, 0},
 		TagsetRefs:       []int64{1, -1, 1, 0},
 		ResourcesRefs:    []int64{1, 1, 1, -1},
@@ -47,6 +47,7 @@ func TestBasic(t *testing.T) {
 	require.True(t, r.HaveMoreMetrics())
 	require.NoError(t, r.NextMetric())
 	require.Equal(t, "foo", r.Name())
+	require.Equal(t, pb.MetricType_Count, r.Type())
 	require.EqualValues(t, []string{"baz"}, r.Tags())
 	require.Equal(t, uint64(10), r.Interval())
 	require.Equal(t, "", r.SourceTypeName())
@@ -62,6 +63,7 @@ func TestBasic(t *testing.T) {
 
 	require.True(t, r.HaveMoreMetrics())
 	require.NoError(t, r.NextMetric())
+	require.Equal(t, pb.MetricType_Rate, r.Type())
 	require.Equal(t, "foo", r.Name())
 	require.Equal(t, []string(nil), r.Tags())
 	require.Equal(t, uint64(10), r.Interval())
@@ -78,6 +80,7 @@ func TestBasic(t *testing.T) {
 
 	require.True(t, r.HaveMoreMetrics())
 	require.NoError(t, r.NextMetric())
+	require.Equal(t, pb.MetricType_Gauge, r.Type())
 	require.Equal(t, "bar", r.Name())
 	require.EqualValues(t, []string{"baz"}, r.Tags())
 	require.Equal(t, uint64(10), r.Interval())
