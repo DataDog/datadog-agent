@@ -1,7 +1,9 @@
 scenarios:
   - name: "single command"
     input:
-      script: "echo abc"
+      # language=bash
+      script: |
+        echo abc
     expected:
       stdout: "abc"
       stderr: ""

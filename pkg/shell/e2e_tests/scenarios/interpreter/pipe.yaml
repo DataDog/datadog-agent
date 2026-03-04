@@ -1,7 +1,9 @@
 scenarios:
   - name: "simple pipe"
     input:
-      script: "echo abc | grep abc"
+      # language=bash
+      script: |
+        echo abc | cat
     expected:
       stdout: "abc"
       stderr: ""
