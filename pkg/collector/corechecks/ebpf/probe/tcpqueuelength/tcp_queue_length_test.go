@@ -8,6 +8,7 @@
 package tcpqueuelength
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -111,7 +112,7 @@ func runTCPLoadTest() error {
 	serverReady := make(chan struct{})
 	bufferConfigured := make(chan struct{})
 
-	g := new(errgroup.Group)
+	g, ctx := errgroup.WithContext(context.Background())
 
 	// Server goroutine: listen, accept, configure a tiny receive buffer, then read.
 	g.Go(func() error {
@@ -153,7 +154,11 @@ func runTCPLoadTest() error {
 	// Client goroutine: connect, wait for the server to configure its small
 	// buffer, then send data.
 	g.Go(func() error {
-		<-serverReady
+		select {
+		case <-serverReady:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 
 		conn, err := net.DialTCP("tcp", nil, tcpTestAddr)
 		if err != nil {
@@ -165,7 +170,11 @@ func runTCPLoadTest() error {
 		// a small receive buffer. This ensures that when we send data, the
 		// kernel sk_rcvbuf is already small, so the eBPF probe will see a
 		// high buffer usage ratio.
-		<-bufferConfigured
+		select {
+		case <-bufferConfigured:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 
 		msg := make([]byte, msgLen)
 		for i := 0; i < msgLen-1; i++ {
