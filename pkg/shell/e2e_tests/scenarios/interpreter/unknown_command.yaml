@@ -1,0 +1,10 @@
+name: "unknown command"
+input:
+  # language=bash
+  script: |+
+    unknown_cmd
+expected:
+  stdout: ""
+  stderr: |+
+    unknown_cmd: not found
+  exit_code: 127

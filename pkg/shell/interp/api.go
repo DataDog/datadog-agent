@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
-	"time"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -548,7 +547,7 @@ func (r *Runner) Reset() {
 			panic("interp.ExecHandler should be replaced with interp.ExecHandlers, not mixed")
 		}
 		if r.execHandler == nil {
-			r.execHandler = DefaultExecHandler(2 * time.Second)
+			r.execHandler = NoExecHandler()
 		}
 		// Middlewares are chained from first to last, and each can call the
 		// next in the chain, so we need to construct the chain backwards.
