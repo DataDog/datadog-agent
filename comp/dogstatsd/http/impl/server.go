@@ -88,5 +88,8 @@ func (s *server) start(ctx context.Context) error {
 }
 
 func (s *server) stop(ctx context.Context) error {
+	if s.http == nil {
+		return nil
+	}
 	return s.http.Shutdown(ctx)
 }
