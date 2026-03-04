@@ -592,8 +592,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b h1:EgR1t4Lnq6uP6QxJQ+oIFtENOHUY3/7gMOE76vL0KcA=
 github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b/go.mod h1:X/9cHz8JVzKlvoZyKBgMgrogKZlLf+pWjmm5gSUm5dI=
 github.com/cloudflare/circl v1.6.0/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
-github.com/cloudflare/circl v1.6.2-0.20250618153321-aa837fd1539d h1:IiIprFGH6SqstblP0Y9NIo3eaUJGkI/YDOFVSL64Uq4=
-github.com/cloudflare/circl v1.6.2-0.20250618153321-aa837fd1539d/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
+github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg8=
+github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/cloudfoundry-community/go-cfclient v0.0.0-20220930021109-9c4e6c59ccf1 h1:ef0OsiQjSQggHrLFAMDRiu6DfkVSElA5jfG1/Nkyu6c=
 github.com/cloudfoundry-community/go-cfclient v0.0.0-20220930021109-9c4e6c59ccf1/go.mod h1:sgaEj3tRn0hwe7GPdEUwxrdOqjBzyjyvyOCGf1OQyZY=
 github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820 h1:ixkQUDJYG6eSxgUEl6LLE2l2TD2C5AYmlm+fVhsr6Zs=
