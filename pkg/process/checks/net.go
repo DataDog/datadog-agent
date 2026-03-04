@@ -540,7 +540,7 @@ func batchConnections(
 						destServiceCtx := serviceExtractor.GetServiceContext(destPID)
 						remoteTags = append(remoteTags, destServiceCtx...)
 
-						// platform-specific: process cache on Windows, tagger on Linux
+						// platform-specific: process cache on Windows, /proc/<pid>/environ on Linux
 						if pidTags := getRemoteProcessTags(destPID, procCacheTags, processTagProvider); len(pidTags) > 0 {
 							remoteTags = append(remoteTags, pidTags...)
 						}
