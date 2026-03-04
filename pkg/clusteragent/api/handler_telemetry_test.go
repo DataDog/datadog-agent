@@ -26,7 +26,6 @@ func TestWithTelemetryWrapper_TracingEnabled(t *testing.T) {
 		handler: func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		},
-		tracingEnabled: true,
 	}
 
 	req := httptest.NewRequest("GET", "/clusterchecks/configs/node1", nil)
@@ -54,7 +53,6 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 		handler: func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		},
-		tracingEnabled: true,
 	}
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -76,7 +74,6 @@ func TestWithTelemetryWrapper_4xxSetsErrorTag(t *testing.T) {
 		handler: func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		},
-		tracingEnabled: true,
 	}
 
 	req := httptest.NewRequest("GET", "/test", nil)
