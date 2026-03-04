@@ -105,22 +105,6 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
           </div>
         </div>
 
-        {/* Analysis settings */}
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Settings
-          </h2>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center gap-2 px-2 py-1">
-              <div className={`w-2 h-2 rounded-full ${state.status?.serverConfig?.cusumSkipCount ? 'bg-amber-500' : 'bg-slate-600'}`} />
-              <span className="text-slate-300">:count metrics</span>
-              <span className="text-slate-500 ml-auto">
-                {state.status?.serverConfig?.cusumSkipCount ? 'filtered' : 'included'}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Tag filter */}
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">

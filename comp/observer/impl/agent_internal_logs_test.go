@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
@@ -22,6 +24,10 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	// Ensure util/log is initialized so log calls actually emit (otherwise they buffer pre-init).
 	pkglog.SetupLogger(pkglog.Disabled(), "info")
 	pkglog.SetLoggerName("CORE")
+
+	// Enable analysis pipeline so GetHandle returns a real handle (not noop).
+	pkgconfigsetup.Datadog().Set("observer.analysis.enabled", true, model.SourceAgentRuntime)
+	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("observer.analysis.enabled", false, model.SourceAgentRuntime) })
 
 	provides := NewComponent(Requires{
 		AgentInternalLogTap: AgentInternalLogTapConfig{
@@ -43,7 +49,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	sig := logSignature(payload, 4096)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"
+	metricName := "_virtual.log.pattern." + toHex64(h.Sum64()) + ".count"
 	tags := []string{"source:datadog-agent", "component:core", "level:info"}
 
 	// Poll briefly since observer processes asynchronously.
@@ -54,6 +60,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+
 	t.Fatalf("expected series not found for agent internal logs: %s", metricName)
 }
 

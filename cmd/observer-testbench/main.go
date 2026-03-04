@@ -29,10 +29,9 @@ import (
 )
 
 type CLIParams struct {
-	ScenariosDir      string
-	HTTPAddr          string
-	EnableOverrides   map[string]bool
-	CUSUMIncludeCount bool
+	ScenariosDir    string
+	HTTPAddr        string
+	EnableOverrides map[string]bool
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless string // scenario name to run (empty = interactive mode)
@@ -45,7 +44,6 @@ func main() {
 	httpAddr := flag.String("http", ":8080", "HTTP server address for the API")
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
-	cusumIncludeCount := flag.Bool("cusum-include-count", false, "CUSUM: include :count metrics (default: skip them)")
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
@@ -88,7 +86,6 @@ func main() {
 			ScenariosDir:      *scenariosDir,
 			HTTPAddr:          *httpAddr,
 			EnableOverrides:   overrides,
-			CUSUMIncludeCount: *cusumIncludeCount,
 			Headless:          *headless,
 			Output:            *output,
 			Verbose:           *verbose,
@@ -103,11 +100,10 @@ func main() {
 func run(recorder recorderdef.Component, params CLIParams) error {
 	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
-		ScenariosDir:      params.ScenariosDir,
-		HTTPAddr:          params.HTTPAddr,
-		Recorder:          recorder,
-		EnableOverrides:   params.EnableOverrides,
-		CUSUMIncludeCount: params.CUSUMIncludeCount,
+		ScenariosDir:    params.ScenariosDir,
+		HTTPAddr:        params.HTTPAddr,
+		Recorder:        recorder,
+		EnableOverrides: params.EnableOverrides,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

@@ -37,10 +37,8 @@ var defaultRegistry = []ComponentRegistration{
 		DisplayName:    "CUSUM",
 		Category:       "detector",
 		DefaultEnabled: true,
-		Factory: func(tb *TestBench) interface{} {
-			cusum := NewCUSUMDetector()
-			cusum.SkipCountMetrics = !tb.config.CUSUMIncludeCount
-			return cusum
+		Factory: func(_ *TestBench) interface{} {
+			return NewCUSUMDetector()
 		},
 	},
 	{
@@ -93,18 +91,6 @@ var defaultRegistry = []ComponentRegistration{
 			})
 		},
 	},
-	// Processing
-	{
-		Name:           "dedup",
-		DisplayName:    "Deduplication",
-		Category:       "processing",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewAnomalyDeduplicator(AnomalyDedupConfig{
-				BucketSizeSeconds: 5,
-			})
-		},
-	},
 }
 
 // enabledDetectors returns all enabled MetricsDetector instances.
@@ -144,18 +130,6 @@ func (tb *TestBench) allCorrelators() []observerdef.Correlator {
 		}
 	}
 	return result
-}
-
-// getDeduplicator returns the deduplicator if it is enabled, or nil.
-func (tb *TestBench) getDeduplicator() *AnomalyDeduplicator {
-	comp, ok := tb.components["dedup"]
-	if !ok || !comp.Enabled {
-		return nil
-	}
-	if d, ok := comp.Instance.(*AnomalyDeduplicator); ok {
-		return d
-	}
-	return nil
 }
 
 // GetCorrelatorData returns the extra data and enabled status for a named correlator.
