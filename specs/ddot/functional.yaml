@@ -207,3 +207,35 @@ requirements:
       Manager for lifecycle management and log routing.
     tags: [ops, windows]
     ref: [DDOT001]
+
+  - id: DDOT029
+    short: Configure tag cardinality for infrastructure tag enrichment
+    long: |
+      The user shall be able to configure the cardinality level (`low`, `orchestrator`, or
+      `high`) of the Datadog infrastructure tags attached to telemetry by the infra-attributes
+      processor.
+      Higher cardinality levels include additional tags (e.g., container-level tags at
+      `orchestrator`, per-request tags at `high`) at the cost of increased tag volume.
+    tags: [config, enrichment]
+    ref: [DDOT014]
+
+  - id: DDOT030
+    short: Inject the Datadog-resolved hostname into telemetry
+    long: |
+      The user shall be able to have DDOT automatically attach the hostname resolved by the
+      Datadog Agent's hostname provider to telemetry resource attributes
+      (`datadog.host.name`), ensuring consistent host attribution between DDOT telemetry
+      and other data collected by the Agent on the same host.
+      Hostname injection is suppressed when DDOT operates in gateway mode (DDOT013).
+    tags: [processing, enrichment]
+    ref: [DDOT001, DDOT013]
+
+  - id: DDOT031
+    short: Configure TLS for the OTLP receiver endpoints
+    long: |
+      The user shall be able to secure the OTLP gRPC and HTTP receiver endpoints with TLS
+      or mutual TLS (mTLS), requiring connecting SDKs and Collectors to use an encrypted
+      channel and optionally present a client certificate.
+      TLS is configured under the receiver settings in the OTel configuration file.
+    tags: [config, network, security]
+    ref: [OTELCOL010, OTELCOL011]
