@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+pub type NamedProcess = (String, ProcessConfig);
+
 const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
 
 fn default_true() -> bool {
@@ -144,7 +146,7 @@ pub fn config_dir() -> PathBuf {
 /// Scan a directory for `*.yaml` files and parse each into a ProcessConfig.
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and skipped.
-pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
+pub fn load_configs(dir: &Path) -> Result<Vec<NamedProcess>> {
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 

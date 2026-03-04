@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::config::ProcessConfig;
+use crate::config::NamedProcess;
 use log::warn;
 use std::collections::{HashMap, HashSet};
 
@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Among processes whose dependencies are equally satisfied, ties are broken
 /// alphabetically by name (globally, not per batch).
-pub fn resolve_order(configs: &[(String, ProcessConfig)]) -> Result<Vec<usize>, CycleError> {
+pub fn resolve_order(configs: &[NamedProcess]) -> Result<Vec<usize>, CycleError> {
     let name_to_idx: HashMap<&str, usize> = configs
         .iter()
         .enumerate()
@@ -113,7 +113,7 @@ mod tests {
         }
     }
 
-    fn names_in_order(configs: &[(String, ProcessConfig)], order: &[usize]) -> Vec<String> {
+    fn names_in_order(configs: &[NamedProcess], order: &[usize]) -> Vec<String> {
         order.iter().map(|&i| configs[i].0.clone()).collect()
     }
 
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let configs: Vec<(String, ProcessConfig)> = vec![];
+        let configs: Vec<NamedProcess> = vec![];
         let order = resolve_order(&configs).unwrap();
         assert!(order.is_empty());
     }

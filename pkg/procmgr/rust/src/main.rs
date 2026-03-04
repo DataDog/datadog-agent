@@ -10,7 +10,7 @@ mod process;
 mod shutdown;
 mod state;
 
-use crate::config::ProcessConfig;
+use crate::config::NamedProcess;
 use anyhow::Result;
 use log::{info, warn};
 use process::ManagedProcess;
@@ -92,7 +92,7 @@ fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSen
     }
 }
 
-fn load_configs() -> Vec<(String, ProcessConfig)> {
+fn load_configs() -> Vec<NamedProcess> {
     let config_dir = config::config_dir();
 
     if !config_dir.is_dir() {
@@ -121,7 +121,7 @@ fn load_configs() -> Vec<(String, ProcessConfig)> {
     configs
 }
 
-fn resolve_startup_order(configs: &[(String, ProcessConfig)]) -> Vec<usize> {
+fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     match ordering::resolve_order(configs) {
         Ok(order) => {
             let names: Vec<&str> = order.iter().map(|&i| configs[i].0.as_str()).collect();
@@ -140,7 +140,7 @@ fn resolve_startup_order(configs: &[(String, ProcessConfig)]) -> Vec<usize> {
 }
 
 fn start_processes(
-    configs: Vec<(String, ProcessConfig)>,
+    configs: Vec<NamedProcess>,
     startup_order: &[usize],
 ) -> Vec<ManagedProcess> {
     let mut processes: Vec<ManagedProcess> = configs
