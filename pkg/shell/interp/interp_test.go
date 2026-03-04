@@ -462,8 +462,6 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 		// Blocked flags
 		{name: "find -exec", script: `find / -exec rm {} \;`, wantSubstr: "not allowed"},
 		{name: "find -delete", script: `find / -delete`, wantSubstr: "not allowed"},
-		{name: "tail -f", script: `tail -f /var/log/syslog`, wantSubstr: "not allowed"},
-
 		// Dynamic command name
 		{name: "dynamic command", script: `$CMD arg1`, wantSubstr: "literal string"},
 
@@ -518,10 +516,6 @@ func TestInterp_SecurityRegression_FlagInjection(t *testing.T) {
 		{
 			name:   "grep -f via variable",
 			script: `x=-f; grep $x /etc/shadow /dev/null`,
-		},
-		{
-			name:   "tail -f via variable",
-			script: `x=-f; tail $x /var/log/syslog`,
 		},
 	}
 	for _, tt := range tests {

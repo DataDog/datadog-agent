@@ -30,17 +30,17 @@ var builtins = map[string]bool{
 	"cat":      true,
 	"ls":       true,
 	"head":     true,
-	"tail":     true,
 	"find":     true,
 	"grep":     true,
 	"wc":       true,
 	"sort":     true,
 	"uniq":     true,
+	"tail":     true,
 }
 
 // builtin executes a builtin command. Returns (true, err) if the command is
 // a builtin, (false, nil) if it is not.
-func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, error) {
+func (r *Runner) builtin(ctx context.Context, name string, args []string) (bool, error) {
 	if !builtins[name] {
 		return false, nil
 	}
@@ -73,8 +73,6 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		err = r.builtinLs(args)
 	case "head":
 		err = r.builtinHead(args)
-	case "tail":
-		err = r.builtinTail(args)
 	case "find":
 		err = r.builtinFind(args)
 	case "grep":
@@ -85,6 +83,8 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		err = r.builtinSort(args)
 	case "uniq":
 		err = r.builtinUniq(args)
+	case "tail":
+		err = r.builtinTail(ctx, args)
 	}
 
 	return true, err
