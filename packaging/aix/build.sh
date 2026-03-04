@@ -96,6 +96,7 @@ check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
 # ── Source shared environment ─────────────────────────────────────────────────
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/env.sh"
 
 # ── Bootstrap build directories ───────────────────────────────────────────────

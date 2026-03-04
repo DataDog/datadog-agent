@@ -3,6 +3,7 @@ set -eu
 
 # Source shared environment (defines STAGING, EMBEDDED, EMBEDDED_DESTDIR, etc.)
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="06-pydantic"

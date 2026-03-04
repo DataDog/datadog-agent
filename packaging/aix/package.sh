@@ -3,6 +3,7 @@ set -eu
 
 # Source shared environment (defines STAGING, BUILD_DIR, AGENT_VRMF, log(), etc.)
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/env.sh"
 
 STAGE_NAME="package"

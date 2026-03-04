@@ -21,6 +21,7 @@
 set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
 . "$SCRIPT_DIR/lib/env.sh"
 
 FULL_CLEAN=0
