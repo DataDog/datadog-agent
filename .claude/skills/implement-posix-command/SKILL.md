@@ -6,6 +6,10 @@ argument-hint: "<command-name>"
 
 Implement the **$ARGUMENTS** command as a builtin in `pkg/shell/interp/`.
 
+## MANDATORY: Create a task list before doing anything else
+
+Before reading any files or writing any code, create one TaskCreate entry per numbered step below (Steps 1–8). Mark each task `in_progress` when you start it and `completed` when it is fully done. Do not mark a step completed until every sub-bullet in that step is satisfied. This is not optional — skipping or collapsing steps has caused defects in prior implementations.
+
 ## Context
 
 The safe shell interpreter (`pkg/shell/interp/`) implements all commands as Go builtins — it never executes host binaries. All security and safety constraints are defined in `.claude/skills/implement-posix-command/RULES.md`. Read that file first before writing any code.
