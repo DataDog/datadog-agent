@@ -1,0 +1,16 @@
+description: Glob expansion works inside allowed paths
+setup:
+  files:
+    - path: data/a.txt
+      content: ""
+    - path: data/b.txt
+      content: ""
+input:
+  allowed_paths: ["data"]
+  # language=bash
+  script: |+
+    echo data/*.txt
+expect:
+  stdout_contains: ["a.txt", "b.txt"]
+  stderr: ""
+  exit_code: 0

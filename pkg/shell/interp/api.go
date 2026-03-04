@@ -121,6 +121,12 @@ type Runner struct {
 
 	opts runnerOpts
 
+	// allowedPaths restricts file/directory access to these directories.
+	// nil means unrestricted (default); non-nil restricts access.
+	allowedPaths []string
+	// roots holds opened os.Root instances, one per allowedPaths entry.
+	roots []*os.Root
+
 	origDir    string
 	origParams []string
 	origOpts   runnerOpts
@@ -562,6 +568,25 @@ func (r *Runner) Reset() {
 		}
 		// Clean it as we will later do a string prefix match.
 		r.tempDir = filepath.Clean(r.tempDir)
+
+		// Open os.Root handles and wrap handlers for path restriction.
+		if r.allowedPaths != nil && r.roots == nil {
+			r.roots = make([]*os.Root, len(r.allowedPaths))
+			for i, p := range r.allowedPaths {
+				root, err := os.OpenRoot(p)
+				if err != nil {
+					for _, prev := range r.roots[:i] {
+						prev.Close()
+					}
+					r.exit.fatal(fmt.Errorf("AllowedPaths: cannot open root %q: %w", p, err))
+					return
+				}
+				r.roots[i] = root
+			}
+			r.openHandler = wrapOpenHandler(r.roots, r.allowedPaths, r.openHandler)
+			r.readDirHandler = wrapReadDirHandler(r.roots, r.allowedPaths)
+			r.execHandler = wrapExecHandler(r.roots, r.allowedPaths, r.execHandler)
+		}
 	}
 	// reset the internal state
 	*r = Runner{
@@ -570,6 +595,9 @@ func (r *Runner) Reset() {
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
+
+		allowedPaths: r.allowedPaths,
+		roots:        r.roots,
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -663,6 +691,16 @@ func (r *Runner) Exited() bool {
 	return r.exit.exiting
 }
 
+// Close releases resources held by the Runner, such as os.Root file descriptors
+// opened by AllowedPaths. It is safe to call Close multiple times.
+func (r *Runner) Close() error {
+	for _, root := range r.roots {
+		root.Close()
+	}
+	r.roots = nil
+	return nil
+}
+
 // Subshell makes a copy of the given [Runner], suitable for use concurrently
 // with the original. The copy will have the same environment, including
 // variables, but they can all be modified without affecting the
@@ -693,6 +731,9 @@ func (r *Runner) subshell(background bool) *Runner {
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
+
+		allowedPaths: r.allowedPaths,
+		roots:        r.roots, // safe: os.Root is goroutine-safe
 
 		stdin:          r.stdin,
 		stdout:         r.stdout,

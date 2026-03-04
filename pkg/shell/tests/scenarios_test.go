@@ -44,8 +44,9 @@ type setupFile struct {
 
 // input holds the shell script to execute.
 type input struct {
-	Envs   map[string]string `yaml:"envs"`
-	Script string            `yaml:"script"`
+	Envs         map[string]string `yaml:"envs"`
+	Script       string            `yaml:"script"`
+	AllowedPaths []string          `yaml:"allowed_paths"` // relative to test temp dir; "$DIR" resolves to temp dir itself
 }
 
 // expected holds the expected output for a scenario.
@@ -128,11 +129,24 @@ func runScenario(t *testing.T, sc scenario) {
 	require.NoError(t, err, "failed to parse script")
 
 	var stdout, stderr bytes.Buffer
-	runner, err := interp.New(
+	opts := []interp.RunnerOption{
 		interp.Dir(dir),
 		interp.StdIO(nil, &stdout, &stderr),
-	)
+	}
+	if sc.Input.AllowedPaths != nil {
+		resolved := make([]string, len(sc.Input.AllowedPaths))
+		for i, p := range sc.Input.AllowedPaths {
+			if p == "$DIR" {
+				resolved[i] = dir
+			} else {
+				resolved[i] = filepath.Join(dir, p)
+			}
+		}
+		opts = append(opts, interp.AllowedPaths(resolved))
+	}
+	runner, err := interp.New(opts...)
 	require.NoError(t, err, "failed to create runner")
+	defer runner.Close()
 
 	err = runner.Run(context.Background(), prog)
 

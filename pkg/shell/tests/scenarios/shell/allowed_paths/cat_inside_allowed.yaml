@@ -1,0 +1,14 @@
+description: Cat can read a file inside allowed paths
+setup:
+  files:
+    - path: allowed/data.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/data.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0
