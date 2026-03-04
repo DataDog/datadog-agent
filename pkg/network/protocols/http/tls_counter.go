@@ -34,3 +34,13 @@ func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tag
 		counterNodeJSTLS: metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:nodejs")...),
 	}
 }
+
+// Zero bla bla bla
+func (t *TLSCounter) Zero() {
+	t.counterPlain.Set(0)
+	t.counterGnuTLS.Set(0)
+	t.counterOpenSSL.Set(0)
+	t.counterGoTLS.Set(0)
+	t.counterIstioTLS.Set(0)
+	t.counterNodeJSTLS.Set(0)
+}
