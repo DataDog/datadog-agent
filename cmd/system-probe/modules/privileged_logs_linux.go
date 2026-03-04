@@ -17,7 +17,7 @@ func init() { registerModule(PrivilegedLogs) }
 // PrivilegedLogs is a module that provides privileged logs access capabilities
 var PrivilegedLogs = &module.Factory{
 	Name:             config.PrivilegedLogsModule,
-	ConfigNamespaces: []string{},
+	ConfigNamespaces: []string{"privileged_logs"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return privilegedlogsmodule.NewPrivilegedLogsModule(), nil
 	},
