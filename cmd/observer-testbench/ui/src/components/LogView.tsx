@@ -4,6 +4,7 @@ import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
+import { TagFilterGroups } from './TagFilterGroups';
 
 interface TimeRange {
   start: number;
@@ -687,47 +688,17 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               </button>
             )}
           </div>
-          {logTagGroups.size > 0 && (
-            <div className="space-y-2">
-              {[...logTagGroups.entries()].map(([key, tags]) => {
-                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
-                return (
-                  <div key={key}>
-                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {tags.map((tag) => {
-                        const active = activeTags.get(key)?.has(tag) ?? false;
-                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
-                        const value = tag.slice(tag.indexOf(':') + 1);
-                        const isStatus = key === 'status';
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => {
-                              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
-                              setExpandedLogIndex(null);
-                              setLogPage(1);
-                            }}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium transition-colors ring-1 ${isStatus ? 'uppercase' : ''} ${
-                              excluded
-                                ? 'bg-red-600/40 text-red-300 ring-red-500/60'
-                                : active
-                                ? `${isStatus ? levelBadgeColor(value) : 'bg-teal-600/40 text-teal-300'} ring-teal-500/60`
-                                : isStatus
-                                ? `${levelBadgeColor(value)} ring-transparent opacity-60 hover:opacity-100`
-                                : 'bg-slate-700 text-slate-400 ring-transparent hover:bg-slate-600 hover:text-slate-300'
-                            }`}
-                          >
-                            {isStatus ? value : tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <TagFilterGroups
+            tagGroups={logTagGroups}
+            tagFilterInput={tagFilterInput}
+            onToggleTag={(tag) => {
+              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
+              setExpandedLogIndex(null);
+              setLogPage(1);
+            }}
+            accentColor="teal"
+            statusAware
+          />
         </div>
 
         {/* Summary */}

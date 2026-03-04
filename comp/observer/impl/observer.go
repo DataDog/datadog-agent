@@ -423,7 +423,8 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 
 		// Add metrics from log processing to storage, then run metrics detection
 		for _, m := range result.Metrics {
-			o.storage.Add(source, m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			// Virtual metrics coming from logs starts with _.
+			o.storage.Add(source, "_."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
 			// Run metrics detection on multiple aggregations
 			for _, agg := range detectionAggregations {
 				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
