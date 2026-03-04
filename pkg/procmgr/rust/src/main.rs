@@ -122,21 +122,20 @@ fn load_configs() -> Vec<NamedProcess> {
 }
 
 fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
-    match ordering::resolve_order(configs) {
-        Ok(order) => {
-            let names: Vec<&str> = order.iter().map(|&i| configs[i].0.as_str()).collect();
-            info!("startup order: {}", names.join(" -> "));
-            order
-        }
-        Err(e) => {
-            // Deliberately non-fatal: a misconfigured dependency cycle should
-            // not prevent the daemon from starting its processes. We fall back
-            // to alphabetical order so the agent remains operational, and the
-            // warning gives operators visibility to fix the config.
-            warn!("{e}, falling back to alphabetical order");
-            (0..configs.len()).collect()
-        }
+    let result = ordering::resolve_order(configs);
+    if !result.skipped.is_empty() {
+        warn!(
+            "dependency cycle detected, skipping processes: {}",
+            result.skipped.join(", ")
+        );
     }
+    let names: Vec<&str> = result
+        .order
+        .iter()
+        .map(|&i| configs[i].0.as_str())
+        .collect();
+    info!("startup order: {}", names.join(" -> "));
+    result.order
 }
 
 fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {

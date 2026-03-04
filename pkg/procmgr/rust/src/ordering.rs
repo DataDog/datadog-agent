@@ -7,15 +7,25 @@ use crate::config::NamedProcess;
 use log::warn;
 use std::collections::{HashMap, HashSet};
 
+/// Result of resolving startup order via topological sort.
+pub struct ResolvedOrder {
+    /// Indices into the original configs slice, in startup order.
+    /// Processes involved in a cycle are excluded.
+    pub order: Vec<usize>,
+    /// Names of processes that were skipped due to dependency cycles.
+    pub skipped: Vec<String>,
+}
+
 /// Resolve the startup order of processes using a topological sort on the
 /// dependency graph built from `after` and `before` fields.
 ///
-/// Returns the indices into `configs` in the order they should be started.
-/// If there is a cycle, returns an error listing the involved processes.
+/// Processes involved in a dependency cycle are excluded from the order and
+/// reported in `skipped` so the caller can log them without stopping the
+/// daemon. Non-cyclic processes are always started in the correct order.
 ///
 /// Among processes whose dependencies are equally satisfied, ties are broken
 /// alphabetically by name (globally, not per batch).
-pub fn resolve_order(configs: &[NamedProcess]) -> Result<Vec<usize>, CycleError> {
+pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
     let name_to_idx: HashMap<&str, usize> = configs
         .iter()
         .enumerate()
@@ -73,35 +83,13 @@ pub fn resolve_order(configs: &[NamedProcess]) -> Result<Vec<usize>, CycleError>
         ready.sort_by(|a, b| configs[*b].0.cmp(&configs[*a].0));
     }
 
-    if order.len() != n {
-        let cycle_members: Vec<String> = (0..n)
-            .filter(|i| in_degree[*i] > 0)
-            .map(|i| configs[i].0.clone())
-            .collect();
-        return Err(CycleError {
-            processes: cycle_members,
-        });
-    }
+    let skipped: Vec<String> = (0..n)
+        .filter(|i| in_degree[*i] > 0)
+        .map(|i| configs[i].0.clone())
+        .collect();
 
-    Ok(order)
+    ResolvedOrder { order, skipped }
 }
-
-#[derive(Debug)]
-pub struct CycleError {
-    pub processes: Vec<String>,
-}
-
-impl std::fmt::Display for CycleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "dependency cycle detected among processes: {}",
-            self.processes.join(", ")
-        )
-    }
-}
-
-impl std::error::Error for CycleError {}
 
 #[cfg(test)]
 mod tests {
@@ -111,8 +99,8 @@ mod tests {
     fn cfg(after: &[&str], before: &[&str]) -> ProcessConfig {
         ProcessConfig {
             command: "/bin/true".to_string(),
-            after: after.iter().map(String::from).collect(),
-            before: before.iter().map(String::from).collect(),
+            after: after.iter().copied().map(String::from).collect(),
+            before: before.iter().copied().map(String::from).collect(),
             ..Default::default()
         }
     }
@@ -128,9 +116,10 @@ mod tests {
             ("alpha".to_string(), cfg(&[], &[])),
             ("bravo".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
         assert_eq!(
-            names_in_order(&configs, &order),
+            names_in_order(&configs, &result.order),
             vec!["alpha", "bravo", "charlie"]
         );
     }
@@ -141,8 +130,9 @@ mod tests {
             ("api".to_string(), cfg(&["db"], &[])),
             ("db".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["db", "api"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["db", "api"]);
     }
 
     #[test]
@@ -151,8 +141,9 @@ mod tests {
             ("db".to_string(), cfg(&[], &["api"])),
             ("api".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["db", "api"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["db", "api"]);
     }
 
     #[test]
@@ -162,19 +153,35 @@ mod tests {
             ("a".to_string(), cfg(&[], &["b"])),
             ("b".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["a", "b", "c"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["a", "b", "c"]);
     }
 
     #[test]
-    fn test_cycle_detected() {
+    fn test_cycle_skips_involved_processes() {
         let configs = vec![
             ("a".to_string(), cfg(&["b"], &[])),
             ("b".to_string(), cfg(&["a"], &[])),
         ];
-        let err = resolve_order(&configs).unwrap_err();
-        assert!(err.processes.contains(&"a".to_string()));
-        assert!(err.processes.contains(&"b".to_string()));
+        let result = resolve_order(&configs);
+        assert!(result.order.is_empty());
+        assert!(result.skipped.contains(&"a".to_string()));
+        assert!(result.skipped.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_cycle_starts_non_cyclic_processes() {
+        // a <-> b form a cycle; c and d are independent
+        let configs = vec![
+            ("a".to_string(), cfg(&["b"], &[])),
+            ("b".to_string(), cfg(&["a"], &[])),
+            ("c".to_string(), cfg(&[], &[])),
+            ("d".to_string(), cfg(&[], &[])),
+        ];
+        let result = resolve_order(&configs);
+        assert_eq!(names_in_order(&configs, &result.order), vec!["c", "d"]);
+        assert_eq!(result.skipped, vec!["a", "b"]);
     }
 
     #[test]
@@ -183,8 +190,9 @@ mod tests {
             ("api".to_string(), cfg(&["nonexistent"], &[])),
             ("db".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(order.len(), 2);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(result.order.len(), 2);
     }
 
     #[test]
@@ -196,23 +204,28 @@ mod tests {
             ("c".to_string(), cfg(&[], &["d"])),
             ("d".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        let names = names_in_order(&configs, &order);
-        assert_eq!(names, vec!["a", "b", "c", "d"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(
+            names_in_order(&configs, &result.order),
+            vec!["a", "b", "c", "d"]
+        );
     }
 
     #[test]
     fn test_single_process() {
         let configs = vec![("solo".to_string(), cfg(&[], &[]))];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(order, vec![0]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["solo"]);
     }
 
     #[test]
     fn test_empty() {
         let configs: Vec<NamedProcess> = vec![];
-        let order = resolve_order(&configs).unwrap();
-        assert!(order.is_empty());
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert!(result.order.is_empty());
     }
 
     #[test]
@@ -225,9 +238,12 @@ mod tests {
             ("b".to_string(), cfg(&[], &[])),
             ("a".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        let names = names_in_order(&configs, &order);
-        assert_eq!(names, vec!["a", "b", "c", "d"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(
+            names_in_order(&configs, &result.order),
+            vec!["a", "b", "c", "d"]
+        );
     }
 
     #[test]
@@ -240,15 +256,17 @@ mod tests {
             ("b".to_string(), cfg(&[], &[])),
             ("c".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["b", "a", "c"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a", "c"]);
     }
 
     #[test]
     fn test_self_dependency_is_cycle() {
         let configs = vec![("a".to_string(), cfg(&["a"], &[]))];
-        let err = resolve_order(&configs).unwrap_err();
-        assert_eq!(err.processes, vec!["a"]);
+        let result = resolve_order(&configs);
+        assert!(result.order.is_empty());
+        assert_eq!(result.skipped, vec!["a"]);
     }
 
     #[test]
@@ -258,8 +276,9 @@ mod tests {
             ("a".to_string(), cfg(&["b", "b"], &[])),
             ("b".to_string(), cfg(&[], &[])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["b", "a"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
     }
 
     #[test]
@@ -270,7 +289,8 @@ mod tests {
             ("a".to_string(), cfg(&["b"], &[])),
             ("b".to_string(), cfg(&[], &["a"])),
         ];
-        let order = resolve_order(&configs).unwrap();
-        assert_eq!(names_in_order(&configs, &order), vec!["b", "a"]);
+        let result = resolve_order(&configs);
+        assert!(result.skipped.is_empty());
+        assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
     }
 }
