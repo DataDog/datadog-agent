@@ -4,7 +4,7 @@ load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
@@ -274,8 +274,8 @@ pkg_files(
 # Installation target
 # ============================================================================
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":lib_files",
         ":libodbcinst_so_link",
@@ -284,5 +284,12 @@ pkg_install(
         #":bin_files",
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )
