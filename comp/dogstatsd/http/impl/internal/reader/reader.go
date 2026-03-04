@@ -163,7 +163,7 @@ func (r *MetricDataReader) unpackTagsetsDict() ([][]string, error) {
 			idx += packed[i]
 
 			if idx < 0 {
-				if -idx >= int64(len(tagsets)) {
+				if idx <= -math.MaxInt64 || -idx >= int64(len(tagsets)) {
 					return nil, errBadReference
 				}
 				tags = append(tags, tagsets[-idx]...)
