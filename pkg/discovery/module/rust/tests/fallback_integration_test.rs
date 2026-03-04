@@ -65,7 +65,9 @@ fn test_fallback_on_npm_enabled() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"),
+        stdout.contains(
+            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
+        ),
         "Expected fallback due to DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
         stdout
     );
@@ -605,7 +607,9 @@ fn test_env_var_non_boolean_triggers_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"),
+        stdout.contains(
+            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
+        ),
         "Expected fallback due to non-boolean DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
         stdout
     );
