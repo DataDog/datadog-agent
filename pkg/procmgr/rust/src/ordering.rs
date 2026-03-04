@@ -211,12 +211,7 @@ mod tests {
         ];
         let order = resolve_order(&configs).unwrap();
         let names = names_in_order(&configs, &order);
-        assert_eq!(names[0], "a");
-        assert_eq!(names[3], "d");
-        // b and c can be in either order between a and d
-        let mid: HashSet<&str> = [names[1].as_str(), names[2].as_str()].into();
-        assert!(mid.contains("b"));
-        assert!(mid.contains("c"));
+        assert_eq!(names, vec!["a", "b", "c", "d"]);
     }
 
     #[test]
