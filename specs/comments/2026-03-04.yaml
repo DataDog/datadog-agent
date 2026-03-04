@@ -1,12 +1,43 @@
 kind: comments
 default:
   date: 04/03/2026
+  from: Claude
 comments:
+- about: T001
+  text: >-
+    Concrete implementations:
+    `TestServerlessOTLPAgentReceivesTraces` sends OTLP traces over gRPC to port 4317 and verifies reception —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/pkg/serverless/otlp/otlp_test.go#L52 ;
+    `TestOTelAgentMinimal` is the E2E equivalent for the standalone OTel agent —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otel-agent/minimal_test.go#L42
+- about: T002
+  text: >-
+    Concrete implementation:
+    `TestOTLPIngest` exercises traces, metrics, and logs through the OTLP gRPC receiver in a Kubernetes E2E environment —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otlp-ingest/pipelines_test.go#L26 ;
+    `TestOTelAgentMinimal` also covers all three signal types —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otel-agent/minimal_test.go#L42
+- about: T003
+  text: >-
+    Concrete implementation:
+    `TestStartPipelineFromConfig` validates that different receiver endpoint configurations (including custom ports) are correctly parsed and applied —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/comp/otelcol/otlp/collector_test.go#L81
+- about: T004
+  text: >-
+    Concrete implementations:
+    `TestServerlessOTLPAgentReceivesTraces` sends OTLP traces over HTTP to port 4318 —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/pkg/serverless/otlp/otlp_test.go#L52 ;
+    `TestOTLPIngestDocker` is the E2E equivalent, explicitly configuring HTTP on port 4318 —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otlp-ingest/docker_pipelines_test.go#L31
+- about: T005
+  text: >-
+    Concrete implementation:
+    `TestOTLPIngestDocker` exercises traces, metrics, and logs through the OTLP HTTP receiver —
+    https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otlp-ingest/docker_pipelines_test.go#L31
 - about: DDOT015
-  from: antoine.gagniere
+  from: Antoine G.
   text: Can the container ID actually be derived from PID, cgroup inode, or pod UID + container name, or does it have to be provided as an input?
 - about: DDOT015
-  from: claude
   text: >-
     It is genuinely derived — `GenerateContainerIDFromOriginInfo` queries the WorkloadMeta store
     to resolve the container ID from PID, cgroup inode, or pod UID + container name.

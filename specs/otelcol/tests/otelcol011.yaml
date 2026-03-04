@@ -1,0 +1,151 @@
+kind: tests
+category: functional
+tests:
+- id: T004
+  ref: [OTELCOL011]
+  short: Receive OTLP traces over HTTP on the default port
+  long: |
+    Verify that the Collector accepts OTLP trace data sent over HTTP (protobuf encoding)
+    on the default port 4318 at the `/v1/traces` path and routes it through the configured
+    pipeline to the exporter.
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: |
+        Create a minimal Collector configuration with the OTLP HTTP receiver enabled
+        and a debug exporter:
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              http:
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the Collector with this configuration
+      run: ./ddot --config config.yaml
+    - action: Send a single test trace to the default HTTP port
+      run: telemetrygen traces --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --traces 1
+    - action: |
+        Verify that the Collector output contains the received span, including
+        `TraceId`, `SpanId`, and at least one resource attribute.
+
+- id: T005
+  ref: [OTELCOL011]
+  short: Receive all three signal types over HTTP via their respective paths
+  long: |
+    Verify that the OTLP HTTP receiver accepts traces, metrics, and logs at their
+    respective paths (`/v1/traces`, `/v1/metrics`, `/v1/logs`) and routes each signal
+    through its own pipeline.
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: |
+        Create a Collector configuration with three pipelines sharing the OTLP HTTP receiver:
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              http:
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+            metrics:
+              receivers: [otlp]
+              exporters: [debug]
+            logs:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the Collector with this configuration
+      run: ./ddot --config config.yaml
+    - action: Send one test trace, one metric, and one log record over HTTP
+      run: |
+        telemetrygen traces  --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --traces 1
+        telemetrygen metrics --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --metrics 1
+        telemetrygen logs    --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --logs 1
+    - action: |
+        Verify the Collector output contains one span, one metric data point, and one log record.
+
+- id: T006
+  ref: [OTELCOL011]
+  short: Receive OTLP traces over HTTP with JSON encoding
+  long: |
+    Verify that the OTLP HTTP receiver accepts JSON-encoded payloads in addition to
+    the default protobuf encoding.
+  steps:
+    - action: |
+        Create a minimal Collector configuration with the OTLP HTTP receiver enabled:
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              http:
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the Collector with this configuration
+      run: ./ddot --config config.yaml
+    - action: |
+        Send an OTLP JSON trace payload to `/v1/traces` with `Content-Type: application/json`:
+      run: |
+        curl -s -X POST http://localhost:4318/v1/traces \
+          -H "Content-Type: application/json" \
+          -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"test-service"}}]},"scopeSpans":[{"spans":[{"traceId":"0af7651916cd43dd8448eb211c80319c","spanId":"b7ad6b7169203331","name":"test-span","kind":2,"startTimeUnixNano":"1000000","endTimeUnixNano":"2000000","status":{}}]}]}]}'
+      expected: '{}'
+    - action: Verify the Collector output contains the `test-span` span with `service.name = test-service`.
+
+- id: T007
+  ref: [OTELCOL011]
+  short: Receive OTLP traces over HTTP on a custom port
+  long: |
+    Verify that the OTLP HTTP receiver can be configured to listen on a port other
+    than the default 4318.
+  initial: |
+    The `telemetrygen` tool is available:
+      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+  steps:
+    - action: |
+        Create a Collector configuration overriding the HTTP endpoint to port 14318:
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              http:
+                endpoint: 0.0.0.0:14318
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the Collector with this configuration
+      run: ./ddot --config config.yaml
+    - action: Confirm the default port 4318 is not open
+      run: nc -z localhost 4318
+      expected: Connection refused
+    - action: Send a test trace to the custom port
+      run: telemetrygen traces --otlp-insecure --otlp-http --otlp-endpoint localhost:14318 --traces 1
+    - action: Verify the span appears in the Collector output.

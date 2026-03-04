@@ -8,7 +8,7 @@ requirements:
       using fx dependency injection for lifecycle management and service wiring.
       This integration gives DDOT access to Agent-internal services (tagger, WorkloadMeta,
       configuration) without inter-process communication when running embedded.
-    tags: [architecture, integration]
+    tags: [integration]
     ref: [DDOT001]
 
   - id: DDOT024
@@ -18,7 +18,7 @@ requirements:
       without maintaining a fork.
       Standard OTel Collector components (receivers, processors, exporters, extensions,
       connectors) shall remain usable in DDOT pipelines without modification.
-    tags: [architecture, extensibility]
+    tags: [extensibility]
     ref: [DDOT001, OTELCOL001]
 
   - id: DDOT025
@@ -30,7 +30,7 @@ requirements:
         - Standalone: DDOT runs as an independent process and connects to the Datadog
           Agent via gRPC to access the tagger and WorkloadMeta.
       Both modes expose identical pipeline capabilities to the user.
-    tags: [architecture, deployment]
+    tags: [deployment]
     ref: [DDOT001, DDOT023]
 
   - id: DDOT026
@@ -39,7 +39,7 @@ requirements:
       DDOT shall not persist in-flight telemetry to disk.
       Retry queues and in-flight buffers are maintained in memory only; telemetry that has
       not been successfully delivered before process termination is not recovered.
-    tags: [architecture, reliability]
+    tags: [reliability]
     ref: [DDOT001]
 
   - id: DDOT027
@@ -48,7 +48,7 @@ requirements:
       DDOT shall be distributed as a single self-contained binary with no external runtime
       dependencies beyond the operating system (no separate interpreter, runtime, or
       dynamically linked library required at run time).
-    tags: [architecture, distribution]
+    tags: [distribution]
     ref: [DDOT001]
 
   - id: DDOT028
@@ -57,5 +57,5 @@ requirements:
       DDOT shall be buildable and runnable on Linux (amd64, arm64), Windows (amd64), and
       macOS (amd64, arm64) from a single codebase, without platform-specific source files
       for core pipeline functionality.
-    tags: [architecture, platform]
+    tags: [platform]
     ref: [DDOT001]
