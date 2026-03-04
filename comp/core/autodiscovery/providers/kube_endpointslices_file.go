@@ -43,8 +43,9 @@ func newEndpointSliceStore() *endpointSliceStore {
 
 // epSliceConfig groups file-based config templates with the EndpointSlices that match them.
 // Since file configs target services by namespace/name (not annotations), and a single service
-// can have multiple EndpointSlices (N:1 relationship), we track all matching slices to generate
-// one config per endpoint IP.
+// can have multiple EndpointSlices (N:1 relationship), we track all matching slices.
+// A single service-level config is generated per template that matches all endpoint services
+// via a shared AD identifier.
 //
 // The slices map uses UID as key for stable tracking across EndpointSlice updates, and
 // shouldCollect indicates whether any slices are currently available for config generation.
@@ -363,67 +364,65 @@ func (s *endpointSliceStore) isEmpty() bool {
 	return len(s.epSliceConfigs) == 0
 }
 
-// generateConfigs transforms the cached config templates into collectable integration.Config objects
+// generateConfigs transforms the cached config templates into collectable integration.Config objects.
+// It generates ONE config per service per template, using a service-level AD identifier
+// that matches all endpoint services created by the listener.
 func (s *endpointSliceStore) generateConfigs() []integration.Config {
 	s.Lock()
 	defer s.Unlock()
 
-	configs := []integration.Config{}
-	for _, epSliceConfig := range s.epSliceConfigs {
-		if epSliceConfig.shouldCollect() {
-			for _, tpl := range epSliceConfig.templates {
+	var configs []integration.Config
+	for id, epSliceConfig := range s.epSliceConfigs {
+		if !epSliceConfig.shouldCollect() {
+			continue
+		}
+
+		for _, tpl := range epSliceConfig.templates {
+			if id == celEndpointSliceID {
+				// CEL-based configs can match multiple services, so we need
+				// to generate one config per unique service across all slices.
+				seen := map[string]struct{}{}
 				for _, slice := range epSliceConfig.slices {
-					configs = append(configs, endpointSliceChecksFromTemplate(tpl, slice, epSliceConfig.resolveMode)...)
+					serviceName := slice.Labels[kubernetesServiceNameLabelProvider]
+					if serviceName == "" {
+						continue
+					}
+
+					// Check if a config has already been generated for this matching service.
+					key := epSliceID(slice.Namespace, serviceName)
+					if _, ok := seen[key]; ok {
+						continue
+					}
+					seen[key] = struct{}{}
+					configs = append(configs, generateFileServiceLevelConfig(tpl, slice.Namespace, serviceName))
 				}
+			} else {
+				// Advanced AD identifier configs target a specific namespace/name,
+				// so we generate a single service-level config.
+				configs = append(configs, generateFileServiceLevelConfig(tpl, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Namespace, tpl.AdvancedADIdentifiers[0].KubeEndpoints.Name))
 			}
 		}
 	}
 	return configs
 }
 
-// endpointSliceChecksFromTemplate resolves an integration.Config template based on the provided EndpointSlice object.
-func endpointSliceChecksFromTemplate(tpl integration.Config, slice *discv1.EndpointSlice, resolveMode endpointResolveMode) []integration.Config {
-	configs := []integration.Config{}
-	if slice == nil {
-		return configs
+// generateFileServiceLevelConfig creates ONE config template for a service that matches all its endpoints.
+func generateFileServiceLevelConfig(tpl integration.Config, namespace, serviceName string) integration.Config {
+	return integration.Config{
+		Name:                    tpl.Name,
+		Instances:               tpl.Instances,
+		InitConfig:              tpl.InitConfig,
+		MetricConfig:            tpl.MetricConfig,
+		LogsConfig:              tpl.LogsConfig,
+		CELSelector:             tpl.CELSelector,
+		ADIdentifiers:           []string{fmt.Sprintf("kube_endpoint://%s/%s", namespace, serviceName)},
+		AdvancedADIdentifiers:   tpl.AdvancedADIdentifiers,
+		ClusterCheck:            true,
+		Provider:                names.KubeEndpointSlicesFile,
+		Source:                  tpl.Source,
+		IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
+		CheckTagCardinality:     tpl.CheckTagCardinality,
 	}
-
-	serviceName := slice.Labels[kubernetesServiceNameLabelProvider]
-	if serviceName == "" {
-		return configs
-	}
-
-	// Check resolve mode to know how we should process this endpoint
-	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, slice.Namespace, serviceName)
-
-	for _, endpoint := range slice.Endpoints {
-		for _, ip := range endpoint.Addresses {
-			entity := apiserver.EntityForEndpoints(slice.Namespace, serviceName, ip)
-			config := &integration.Config{
-				ServiceID:               entity,
-				Name:                    tpl.Name,
-				Instances:               tpl.Instances,
-				InitConfig:              tpl.InitConfig,
-				MetricConfig:            tpl.MetricConfig,
-				LogsConfig:              tpl.LogsConfig,
-				CELSelector:             tpl.CELSelector,
-				ADIdentifiers:           []string{entity},
-				AdvancedADIdentifiers:   nil,
-				ClusterCheck:            true,
-				Provider:                names.KubeEndpointSlicesFile,
-				Source:                  tpl.Source,
-				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
-				CheckTagCardinality:     tpl.CheckTagCardinality,
-			}
-
-			if resolveFunc != nil {
-				resolveFunc(config, endpoint)
-			}
-			configs = append(configs, *config)
-		}
-	}
-
-	return configs
 }
 
 func epSliceID(ns, name string) string {
