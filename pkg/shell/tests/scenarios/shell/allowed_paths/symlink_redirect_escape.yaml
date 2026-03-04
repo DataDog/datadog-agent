@@ -1,0 +1,16 @@
+description: Redirect via symlink that escapes allowed dir is blocked by os.Root
+setup:
+  files:
+    - path: secret/data.txt
+      content: "secret"
+    - path: allowed/escape_link
+      symlink: ../secret/data.txt
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat < allowed/escape_link
+expect:
+  stdout: ""
+  stderr: "openat escape_link: path escapes from parent\n"
+  exit_code: 1

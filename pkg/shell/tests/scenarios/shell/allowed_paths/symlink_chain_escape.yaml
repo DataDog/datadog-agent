@@ -1,0 +1,18 @@
+description: Chained symlinks that escape allowed dir are blocked by os.Root
+setup:
+  files:
+    - path: secret/hidden.txt
+      content: "secret"
+    - path: middle/hop
+      symlink: ../secret/hidden.txt
+    - path: allowed/start
+      symlink: ../middle/hop
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/start
+expect:
+  stdout: ""
+  stderr: "cat: allowed/start: openat start: path escapes from parent\n"
+  exit_code: 1

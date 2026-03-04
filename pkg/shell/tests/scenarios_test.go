@@ -36,10 +36,12 @@ type setup struct {
 }
 
 // setupFile describes a file to create before executing the scenario.
+// When Symlink is set, a symbolic link is created instead of a regular file.
 type setupFile struct {
 	Path    string      `yaml:"path"`
 	Content string      `yaml:"content"`
 	Chmod   os.FileMode `yaml:"chmod"`
+	Symlink string      `yaml:"symlink"` // if set, create a symlink pointing to this target (relative to test dir)
 }
 
 // input holds the shell script to execute.
@@ -105,9 +107,14 @@ func setupTestDir(t *testing.T, sc scenario) string {
 	for _, f := range sc.Setup.Files {
 		fullPath := filepath.Join(dir, f.Path)
 		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755), "failed to create directories for %s", f.Path)
-		require.NoError(t, os.WriteFile(fullPath, []byte(f.Content), 0644), "failed to write file %s", f.Path)
-		if f.Chmod != 0 {
-			require.NoError(t, os.Chmod(fullPath, f.Chmod), "failed to chmod file %s", f.Path)
+		if f.Symlink != "" {
+			// Create a symbolic link. The target is used as-is (relative to the link's location).
+			require.NoError(t, os.Symlink(f.Symlink, fullPath), "failed to create symlink %s -> %s", f.Path, f.Symlink)
+		} else {
+			require.NoError(t, os.WriteFile(fullPath, []byte(f.Content), 0644), "failed to write file %s", f.Path)
+			if f.Chmod != 0 {
+				require.NoError(t, os.Chmod(fullPath, f.Chmod), "failed to chmod file %s", f.Path)
+			}
 		}
 	}
 	return dir
