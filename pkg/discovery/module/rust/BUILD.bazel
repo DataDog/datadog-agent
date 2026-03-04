@@ -183,7 +183,10 @@ rust_test(
     name = "dd_discovery_test",
     crate = ":dd_discovery",
     # Make test data available to tests
-    data = [":testdata"],
+    data = [
+        ":testdata",
+        "//pkg/system-probe/config:testdata/non_discovery_module_config.json",
+    ],
     edition = "2024",
     deps = [
         # Dev dependencies from Cargo.toml
