@@ -14,7 +14,7 @@ import (
 // detectingAggregator detects multiline groups and tags the start line without aggregating.
 // It outputs messages immediately for performance.
 type detectingAggregator struct {
-	collected             []CompletedMessage
+	collected             []AggregatedMessageWithTokens
 	previousMsg           *message.Message
 	previousMsgTokens     []Token
 	previousWasStartGroup bool
@@ -32,7 +32,7 @@ func NewDetectingAggregator(tailerInfo *status.InfoRegistry) Aggregator {
 }
 
 // Process processes a message with a label and returns any emitted messages.
-func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens []Token) []CompletedMessage {
+func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]
 
 	// Handle aggregate label
@@ -40,7 +40,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 		if d.previousMsg != nil && d.previousWasStartGroup {
 			// Tag the previous message as start of multiline group
 			d.previousMsg.ParsingExtra.Tags = append(d.previousMsg.ParsingExtra.Tags, "auto_multiline_detected:true")
-			d.collected = append(d.collected, CompletedMessage{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			// Track that we detected and tagged a multiline log
 			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line_detected")
 			d.previousMsg = nil
@@ -48,13 +48,13 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 			d.previousWasStartGroup = false
 		} else if d.previousMsg != nil {
 			// Previous message wasn't a startGroup, so just output it without tags
-			d.collected = append(d.collected, CompletedMessage{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			d.previousMsg = nil
 			d.previousMsgTokens = nil
 			d.previousWasStartGroup = false
 		}
 		// Output the current aggregate message immediately
-		d.collected = append(d.collected, CompletedMessage{Msg: msg, Tokens: tokens})
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 		return d.collected
 	}
 
@@ -62,19 +62,19 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 	if label == noAggregate {
 		// Flush any pending previous message first
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, CompletedMessage{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			d.previousMsg = nil
 			d.previousMsgTokens = nil
 			d.previousWasStartGroup = false
 		}
-		d.collected = append(d.collected, CompletedMessage{Msg: msg, Tokens: tokens})
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
 		return d.collected
 	}
 
 	// Handle startGroup: flush previous and store current
 	if label == startGroup {
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, CompletedMessage{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 		}
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
@@ -87,10 +87,10 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens 
 }
 
 // Flush returns any pending message (called on handler flush).
-func (d *detectingAggregator) Flush() []CompletedMessage {
+func (d *detectingAggregator) Flush() []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]
 	if d.previousMsg != nil {
-		d.collected = append(d.collected, CompletedMessage{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 		d.previousMsg = nil
 		d.previousMsgTokens = nil
 		d.previousWasStartGroup = false

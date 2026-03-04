@@ -86,7 +86,7 @@ func limitTokensToBytes(tokens []Token, indices []int, maxBytes int) ([]Token, [
 }
 
 // Step 5: Sample and emit the log
-func (p *Preprocessor) sample(completed CompletedMessage) {
+func (p *Preprocessor) sample(completed AggregatedMessageWithTokens) {
 	if out := p.sampler.Process(completed.Msg, completed.Tokens); out != nil {
 		p.outputChan <- out
 	}

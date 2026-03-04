@@ -8,9 +8,9 @@ package preprocessor
 
 import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
-// CompletedMessage pairs a completed log message with the tokens from its first line.
+// AggregatedMessageWithTokens pairs a completed log message with the tokens from its first line.
 // Tokens are used by the sampler for pattern-based rate limiting.
-type CompletedMessage struct {
+type AggregatedMessageWithTokens struct {
 	Msg    *message.Message
 	Tokens []Token
 }
@@ -23,11 +23,11 @@ type CompletedMessage struct {
 type Aggregator interface {
 	// Process handles a log line and returns zero or more completed messages.
 	// label is the result of labeling this message; aggregators that don't use it may ignore it.
-	// tokens are the tokenized first line, forwarded into CompletedMessage.Tokens for the sampler.
-	Process(msg *message.Message, label Label, tokens []Token) []CompletedMessage
+	// tokens are the tokenized first line, forwarded into AggregatedMessageWithTokens.Tokens for the sampler.
+	Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens
 
 	// Flush returns any buffered messages and clears internal state.
-	Flush() []CompletedMessage
+	Flush() []AggregatedMessageWithTokens
 
 	// IsEmpty returns true if the aggregator has no buffered data.
 	IsEmpty() bool

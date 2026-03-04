@@ -36,7 +36,7 @@ type RegexAggregator struct {
 	multiLineTagValue string
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
-	collected         []CompletedMessage
+	collected         []AggregatedMessageWithTokens
 	// patternMatchedOnce tracks whether the regex has ever matched.
 	// Before the first match, lines are sent individually to prevent a misconfigured
 	// pattern from silently joining all lines into a single message.
@@ -57,7 +57,7 @@ func NewRegexAggregator(newContentRe *regexp.Regexp, lineLimit int, telemetryEna
 		multiLineTagValue: multiLineTagValue,
 		countInfo:         status.NewCountInfo("MultiLine matches"),
 		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
-		collected:         make([]CompletedMessage, 0, 1),
+		collected:         make([]AggregatedMessageWithTokens, 0, 1),
 	}
 }
 
@@ -85,7 +85,7 @@ func (a *RegexAggregator) SetLinesCombinedInfo(info *status.CountInfo) {
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
 // Returns any completed messages (may be empty if the current line is buffered). label is unused.
-func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token) []CompletedMessage {
+func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	if a.newContentRe.Match(msg.GetContent()) {
@@ -129,7 +129,7 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 }
 
 // Flush returns any buffered content as a completed message and resets state.
-func (a *RegexAggregator) Flush() []CompletedMessage {
+func (a *RegexAggregator) Flush() []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 	a.sendBuffer()
 	return a.collected
@@ -185,5 +185,5 @@ func (a *RegexAggregator) sendBuffer() {
 		}
 	}
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	a.collected = append(a.collected, CompletedMessage{Msg: msg, Tokens: a.firstLineTokens})
+	a.collected = append(a.collected, AggregatedMessageWithTokens{Msg: msg, Tokens: a.firstLineTokens})
 }
