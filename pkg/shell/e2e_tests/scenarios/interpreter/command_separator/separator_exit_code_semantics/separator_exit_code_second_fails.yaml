@@ -1,0 +1,10 @@
+description: When last command fails, the overall exit code reflects that failure.
+input:
+  # language=bash
+  script: |+
+    echo ok; false
+expected:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 1

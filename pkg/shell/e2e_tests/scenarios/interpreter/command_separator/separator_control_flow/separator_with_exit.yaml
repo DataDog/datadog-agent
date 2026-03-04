@@ -1,0 +1,10 @@
+description: Exit stops execution; commands after exit do not run.
+input:
+  # language=bash
+  script: |+
+    echo before; exit 0; echo after
+expected:
+  stdout: |+
+    before
+  stderr: ""
+  exit_code: 0

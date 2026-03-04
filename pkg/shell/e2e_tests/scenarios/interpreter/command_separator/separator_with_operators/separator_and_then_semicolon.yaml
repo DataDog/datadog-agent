@@ -1,0 +1,12 @@
+description: A && chain followed by a semicolon and another command.
+input:
+  # language=bash
+  script: |+
+    echo one && echo two; echo three
+expected:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: For loop with newline-separated body and commands after.
+input:
+  # language=bash
+  script: |+
+    for i in x y; do
+      echo $i
+    done
+    echo after
+expected:
+  stdout: |+
+    x
+    y
+    after
+  stderr: ""
+  exit_code: 0

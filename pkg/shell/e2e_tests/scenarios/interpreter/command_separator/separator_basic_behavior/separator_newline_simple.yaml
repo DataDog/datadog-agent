@@ -1,0 +1,12 @@
+description: Two commands separated by a newline execute sequentially.
+input:
+  # language=bash
+  script: |+
+    echo first
+    echo second
+expected:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

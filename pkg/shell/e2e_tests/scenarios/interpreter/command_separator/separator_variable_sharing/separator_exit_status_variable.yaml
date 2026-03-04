@@ -1,0 +1,11 @@
+description: The $? variable reflects the exit code of the immediately preceding command.
+input:
+  # language=bash
+  script: |+
+    false; echo $?; true; echo $?
+expected:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

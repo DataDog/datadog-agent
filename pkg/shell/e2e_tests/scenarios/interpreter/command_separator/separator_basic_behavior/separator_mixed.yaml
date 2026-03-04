@@ -1,0 +1,14 @@
+description: Semicolons and newlines can be mixed freely as command separators.
+input:
+  # language=bash
+  script: |+
+    echo one; echo two
+    echo three; echo four
+expected:
+  stdout: |+
+    one
+    two
+    three
+    four
+  stderr: ""
+  exit_code: 0

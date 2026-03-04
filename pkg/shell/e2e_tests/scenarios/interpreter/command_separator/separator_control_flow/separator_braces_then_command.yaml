@@ -1,0 +1,11 @@
+description: A brace group followed by a semicolon and another command.
+input:
+  # language=bash
+  script: |+
+    { echo inside; }; echo outside
+expected:
+  stdout: |+
+    inside
+    outside
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: A pipe command followed by a semicolon and another command.
+input:
+  # language=bash
+  script: |+
+    echo hello | cat; echo world
+expected:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

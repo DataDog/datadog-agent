@@ -1,0 +1,16 @@
+description: Empty lines between commands are ignored.
+input:
+  # language=bash
+  script: |+
+    echo first
+
+    echo second
+
+    echo third
+expected:
+  stdout: |+
+    first
+    second
+    third
+  stderr: ""
+  exit_code: 0
