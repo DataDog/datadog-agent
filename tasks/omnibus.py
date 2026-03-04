@@ -85,7 +85,7 @@ def get_omnibus_env(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
+    with_system_probe_lite=False,
     with_dd_procmgrd=False,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
@@ -137,8 +137,8 @@ def get_omnibus_env(
 
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if with_sd_agent:
-        env['WITH_SD_AGENT'] = 'true'
+    if with_system_probe_lite:
+        env['WITH_SYSTEM_PROBE_LITE'] = 'true'
     if with_dd_procmgrd:
         env['WITH_DD_PROCMGRD'] = 'true'
     env['AGENT_FLAVOR'] = flavor.name
@@ -205,7 +205,7 @@ def build(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
+    with_system_probe_lite=False,
     with_dd_procmgrd=False,
     go_mod_cache=None,
     python_mirror=None,
@@ -239,7 +239,7 @@ def build(
         skip_sign=skip_sign,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
+        with_system_probe_lite=with_system_probe_lite,
         with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
@@ -384,7 +384,7 @@ def manifest(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
+    with_system_probe_lite=False,
     with_dd_procmgrd=False,
     go_mod_cache=None,
 ):
@@ -397,7 +397,7 @@ def manifest(
         skip_sign=skip_sign,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
+        with_system_probe_lite=with_system_probe_lite,
         with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
