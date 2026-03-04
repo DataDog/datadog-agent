@@ -5,7 +5,11 @@
 
 package remoteagentregistry
 
-import "time"
+import (
+	"time"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+)
 
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
@@ -45,4 +49,26 @@ type RegistrationData struct {
 	AgentPID         string
 	APIEndpointURI   string
 	Services         []string
+}
+
+// ObserverTracesData contains traces and stats fetched from a remote agent's observer buffer.
+type ObserverTracesData struct {
+	RegisteredAgent
+	FailureReason string
+	Traces        []*pb.TraceChunkData
+	DroppedCount  uint64
+	HasMore       bool
+	// StatsPayloads contains msgpack-encoded StatsPayload objects (trace stats/metrics).
+	StatsPayloads [][]byte
+	// StatsDroppedCount indicates how many stats payloads were dropped due to buffer overflow.
+	StatsDroppedCount uint64
+}
+
+// ObserverProfilesData contains profiles fetched from a remote agent's observer buffer.
+type ObserverProfilesData struct {
+	RegisteredAgent
+	FailureReason string
+	Profiles      []*pb.ProfileData
+	DroppedCount  uint64
+	HasMore       bool
 }
