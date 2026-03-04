@@ -113,7 +113,9 @@ fn get_yaml_string_option(doc: &Yaml, key: &str) -> Option<String> {
 }
 
 /// YAML key paths from system-probe.yaml that trigger non-discovery modules.
-/// These keys are derived from Go's enableModules() implementation.
+/// Validated against the canonical JSON at
+/// pkg/system-probe/config/testdata/non_discovery_module_config.json
+/// by test_non_discovery_config_matches_canonical.
 static NON_DISCOVERY_SYSPROBE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
     "ccm_network_config.enabled",
     "compliance_config.database_benchmarks.enabled",
@@ -136,7 +138,9 @@ static NON_DISCOVERY_SYSPROBE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
 };
 
 /// YAML key paths from datadog.yaml (core config) that trigger non-discovery modules.
-/// These keys are derived from Go's enableModules() implementation.
+/// Validated against the canonical JSON at
+/// pkg/system-probe/config/testdata/non_discovery_module_config.json
+/// by test_non_discovery_config_matches_canonical.
 static NON_DISCOVERY_CORE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
     "compliance_config.enabled",
     "compliance_config.run_in_system_probe",
@@ -147,7 +151,7 @@ static NON_DISCOVERY_CORE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
 ///
 /// Checks sysprobe keys against the system-probe.yaml doc and core keys
 /// against the datadog.yaml doc. The sets of keys are derived from Go's
-/// enableModules() implementation.
+/// enableModules() and kept in sync via the canonical JSON file.
 fn find_non_discovery_yaml_key(
     sysprobe_doc: &Option<Yaml>,
     core_doc: &Option<Yaml>,
@@ -177,7 +181,10 @@ fn find_non_discovery_yaml_key(
     None
 }
 
-/// These keys are derived from Go's enableModules() implementation.
+/// Validated against the canonical JSON at
+/// pkg/system-probe/config/testdata/non_discovery_module_config.json
+/// by test_non_discovery_config_matches_canonical. See also
+/// TestEnableModulesConfig in pkg/system-probe/config/module_config_sync_test.go.
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_CCM_NETWORK_CONFIG_ENABLED",
   "DD_COMPLIANCE_CONFIG_DATABASE_BENCHMARKS_ENABLED",
@@ -1547,5 +1554,107 @@ system_probe_config:
     fn test_resolve_core_config_path_fallback_sysprobe_dir() {
         let resolved = resolve_core_config_path(&None, &Some(PathBuf::from("/custom/dir")));
         assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
+    }
+
+    // Sync test: validates NON_DISCOVERY_ENV_VARS, NON_DISCOVERY_SYSPROBE_YAML_KEYS,
+    // and NON_DISCOVERY_CORE_YAML_KEYS match the canonical JSON file.
+
+    #[derive(serde::Deserialize)]
+    struct CanonicalConfig {
+        env_vars: Vec<String>,
+        sysprobe_yaml_keys: Vec<String>,
+        core_yaml_keys: Vec<String>,
+    }
+
+    #[test]
+    fn test_non_discovery_config_matches_canonical() {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        let json_path = std::path::PathBuf::from(manifest_dir)
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("system-probe")
+            .join("config")
+            .join("testdata")
+            .join("non_discovery_module_config.json");
+
+        let json_content = std::fs::read_to_string(&json_path).unwrap_or_else(|e| {
+            panic!("Cannot read canonical JSON at {}: {e}", json_path.display())
+        });
+
+        let canonical: CanonicalConfig = serde_json::from_str(&json_content).unwrap_or_else(|e| {
+            panic!(
+                "Cannot parse canonical JSON at {}: {e}",
+                json_path.display()
+            )
+        });
+
+        // Validate env vars
+        let file_env_vars: std::collections::BTreeSet<&str> =
+            canonical.env_vars.iter().map(|s| s.as_str()).collect();
+        let rust_env_vars: std::collections::BTreeSet<&str> =
+            NON_DISCOVERY_ENV_VARS.iter().copied().collect();
+
+        let env_in_file_not_rust: Vec<&&str> = file_env_vars.difference(&rust_env_vars).collect();
+        let env_in_rust_not_file: Vec<&&str> = rust_env_vars.difference(&file_env_vars).collect();
+
+        assert!(
+            env_in_file_not_rust.is_empty() && env_in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_ENV_VARS does not match canonical JSON at {}.\n\
+             In JSON but not in Rust: {:?}\n\
+             In Rust but not in JSON: {:?}\n\
+             Update NON_DISCOVERY_ENV_VARS to match the file.",
+            json_path.display(),
+            env_in_file_not_rust,
+            env_in_rust_not_file
+        );
+
+        // Validate sysprobe YAML keys
+        let file_sp_keys: std::collections::BTreeSet<&str> = canonical
+            .sysprobe_yaml_keys
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        let rust_sp_keys: std::collections::BTreeSet<&str> =
+            NON_DISCOVERY_SYSPROBE_YAML_KEYS.iter().copied().collect();
+
+        let sp_in_file_not_rust: Vec<&&str> = file_sp_keys.difference(&rust_sp_keys).collect();
+        let sp_in_rust_not_file: Vec<&&str> = rust_sp_keys.difference(&file_sp_keys).collect();
+
+        assert!(
+            sp_in_file_not_rust.is_empty() && sp_in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_SYSPROBE_YAML_KEYS does not match canonical JSON at {}.\n\
+             In JSON but not in Rust: {:?}\n\
+             In Rust but not in JSON: {:?}\n\
+             Update NON_DISCOVERY_SYSPROBE_YAML_KEYS to match the file.",
+            json_path.display(),
+            sp_in_file_not_rust,
+            sp_in_rust_not_file
+        );
+
+        // Validate core YAML keys
+        let file_core_keys: std::collections::BTreeSet<&str> = canonical
+            .core_yaml_keys
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        let rust_core_keys: std::collections::BTreeSet<&str> =
+            NON_DISCOVERY_CORE_YAML_KEYS.iter().copied().collect();
+
+        let core_in_file_not_rust: Vec<&&str> =
+            file_core_keys.difference(&rust_core_keys).collect();
+        let core_in_rust_not_file: Vec<&&str> =
+            rust_core_keys.difference(&file_core_keys).collect();
+
+        assert!(
+            core_in_file_not_rust.is_empty() && core_in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_CORE_YAML_KEYS does not match canonical JSON at {}.\n\
+             In JSON but not in Rust: {:?}\n\
+             In Rust but not in JSON: {:?}\n\
+             Update NON_DISCOVERY_CORE_YAML_KEYS to match the file.",
+            json_path.display(),
+            core_in_file_not_rust,
+            core_in_rust_not_file
+        );
     }
 }
