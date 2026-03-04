@@ -34,7 +34,7 @@ const (
 // * Must contain only lowercase letters, numbers, dots, hyphens and underscores.
 // * Must start with an alphanumeric character.
 // * Must end with an alphanumeric character.
-// * Must be a valid FQDN (without trailing period)
+// * Must be FQDN-like, without a trailing period.
 var validClusterName = regexp.MustCompile(`^([a-z0-9]([a-z0-9\-_]*[a-z0-9])?\.)*([a-z0-9]([a-z0-9\-_]*[a-z0-9])?)$`)
 
 type clusterNameData struct {
@@ -83,13 +83,14 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 					"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
 					"\t- must start with an alphanumeric character, \n"+
 					"\t- must end with an alphanumeric character, \n"+
-					"\t- must be a valid FQDN (without trailing period), \n"+
+					"\t- must be FQDN-like, without a trailing period, \n"+
 					"and \"%s\" must not exceed 255 chars", data.clusterName, hostAlias)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
 			} else if !IsRFC1123CompliantClusterName(data.clusterName) {
-				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted", data.clusterName)
-				data.clusterName = MakeClusterNameRFC1123Compliant(data.clusterName)
+				RFC1123CompliantClusterName := MakeClusterNameRFC1123Compliant(data.clusterName)
+				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted to \"%s\"", data.clusterName, RFC1123CompliantClusterName)
+				data.clusterName = RFC1123CompliantClusterName
 			}
 		}
 
