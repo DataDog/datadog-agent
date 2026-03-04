@@ -94,6 +94,13 @@ class Job:
         return "other"
 
     @property
+    def is_manual(self) -> bool:
+        """True if this job is never triggered automatically."""
+        if self.rules:
+            return all(isinstance(r, dict) and r.get("when") in ("manual", "never") for r in self.rules)
+        return self.raw.get("when") == "manual"
+
+    @property
     def s3_produces(self) -> list[str]:
         """S3 URI patterns found in script where this job writes."""
         return _extract_s3_writes(self.script)

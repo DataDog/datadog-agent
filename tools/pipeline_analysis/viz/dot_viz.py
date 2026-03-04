@@ -10,6 +10,7 @@ Three render modes:
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from pathlib import Path
 
 import networkx as nx
@@ -95,10 +96,15 @@ def render_stages(
     stages: list[str],
     output_path: str | Path,
     fmt: str = "svg",
+    compound_edges: bool = True,
+    show_buckets: bool = False,
 ) -> Path:
     """
     Render a stage-level summary: one subgraph cluster per stage,
     showing job counts and inter-stage dependency edges.
+
+    compound_edges: draw arrows to/from cluster borders (cleaner than individual nodes).
+    show_buckets: add S3 bucket/registry nodes that connect producer and consumer stages.
     """
     if not HAS_GRAPHVIZ:
         raise ImportError("graphviz package is required: pip install graphviz")
@@ -110,21 +116,20 @@ def render_stages(
         format=fmt,
     )
     dot.attr(rankdir="LR", fontsize="10", fontname="Helvetica", splines="ortho")
+    if compound_edges or show_buckets:
+        dot.attr(compound="true")
     dot.attr("node", fontname="Helvetica", fontsize="9", shape="box", style="filled,rounded")
     dot.attr("edge", fontname="Helvetica", fontsize="8")
 
     # Group jobs by stage
     stage_jobs: dict[str, list[str]] = {s: [] for s in stages}
-    ungrouped: list[str] = []
     for node, attrs in G.nodes(data=True):
         stage = attrs.get("stage", "")
         if stage in stage_jobs:
             stage_jobs[stage].append(node)
-        else:
-            ungrouped.append(node)
 
     # One cluster per stage
-    for _, stage in enumerate(stages):
+    for stage in stages:
         jobs = stage_jobs[stage]
         if not jobs:
             continue
@@ -149,23 +154,73 @@ def render_stages(
                     color=border,
                 )
 
+    # Build stage → representative node mapping
+    stage_rep: dict[str, str] = {stage: jobs[0] for stage, jobs in stage_jobs.items() if jobs}
+
     # Add inter-stage edges (deduplicated by stage pair)
     stage_edges: set[tuple[str, str]] = set()
     for src, dst in G.edges():
         src_stage = G.nodes[src].get("stage", "")
         dst_stage = G.nodes[dst].get("stage", "")
-        if src_stage != dst_stage and src_stage in stage_jobs and dst_stage in stage_jobs:
+        if src_stage != dst_stage and src_stage in stage_rep and dst_stage in stage_rep:
             stage_edges.add((src_stage, dst_stage))
 
-    # Use representative nodes as edge endpoints
-    stage_rep: dict[str, str] = {}
-    for stage, jobs in stage_jobs.items():
-        if jobs:
-            stage_rep[stage] = jobs[0]
-
     for src_stage, dst_stage in sorted(stage_edges):
-        if src_stage in stage_rep and dst_stage in stage_rep:
-            dot.edge(_node_id(stage_rep[src_stage]), _node_id(stage_rep[dst_stage]), style="dashed", color="#999999")
+        edge_attrs: dict[str, str] = {"style": "dashed", "color": "#999999"}
+        if compound_edges:
+            edge_attrs["ltail"] = f"cluster_{src_stage}"
+            edge_attrs["lhead"] = f"cluster_{dst_stage}"
+        dot.edge(_node_id(stage_rep[src_stage]), _node_id(stage_rep[dst_stage]), **edge_attrs)
+
+    # S3 bucket / registry nodes
+    if show_buckets:
+        stage_produces: dict[str, set[str]] = defaultdict(set)
+        stage_consumes: dict[str, set[str]] = defaultdict(set)
+
+        for _node, node_attrs in G.nodes(data=True):
+            stage = node_attrs.get("stage", "")
+            if stage not in stage_rep:
+                continue
+            for uri in node_attrs.get("produces_s3", []):
+                stage_produces[stage].add(_extract_bucket(uri))
+            for uri in node_attrs.get("consumes_s3", []):
+                stage_consumes[stage].add(_extract_bucket(uri))
+
+        all_produced = set().union(*stage_produces.values()) if stage_produces else set()
+        all_consumed = set().union(*stage_consumes.values()) if stage_consumes else set()
+
+        for bucket in sorted(all_produced & all_consumed):
+            prod_stages = sorted(s for s, bs in stage_produces.items() if bucket in bs and s in stage_rep)
+            cons_stages = sorted(s for s, bs in stage_consumes.items() if bucket in bs and s in stage_rep)
+            # Skip if the same set of stages both produce and consume (self-contained)
+            if set(prod_stages) == set(cons_stages):
+                continue
+
+            bucket_id = "bucket_" + re.sub(r"[^a-zA-Z0-9_]", "_", bucket)
+            dot.node(
+                bucket_id,
+                label=_short_name(bucket, 35),
+                shape="cylinder",
+                style="filled,rounded",
+                fillcolor="#ffffcc",
+                color="#888800",
+            )
+            for stage in prod_stages:
+                dot.edge(
+                    _node_id(stage_rep[stage]),
+                    bucket_id,
+                    ltail=f"cluster_{stage}",
+                    color="#0000aa",
+                    style="dashed",
+                )
+            for stage in cons_stages:
+                dot.edge(
+                    bucket_id,
+                    _node_id(stage_rep[stage]),
+                    lhead=f"cluster_{stage}",
+                    color="#aa0000",
+                    style="dashed",
+                )
 
     output_file = str(output_path.with_suffix(""))
     dot.render(output_file, cleanup=True)
@@ -183,9 +238,13 @@ def render_jobs(
     output_path: str | Path,
     fmt: str = "svg",
     max_nodes: int = 500,
+    compound_edges: bool = True,
 ) -> Path:
     """
     Render all jobs as nodes, grouped by stage cluster, with needs: edges.
+
+    compound_edges: collapse inter-stage edges to one arrow per stage pair,
+    drawn between cluster borders.  Intra-stage edges are kept as-is.
     """
     if not HAS_GRAPHVIZ:
         raise ImportError("graphviz package is required: pip install graphviz")
@@ -197,10 +256,11 @@ def render_jobs(
         format=fmt,
     )
     dot.attr(rankdir="LR", fontsize="9", fontname="Helvetica", splines="true")
+    if compound_edges:
+        dot.attr(compound="true")
     dot.attr("node", fontname="Helvetica", fontsize="8", shape="box", style="filled,rounded")
     dot.attr("edge", fontname="Helvetica", fontsize="7", arrowsize="0.5")
 
-    # If graph is too large, warn
     if G.number_of_nodes() > max_nodes:
         print(f"Warning: {G.number_of_nodes()} nodes — large graph may render slowly")
 
@@ -234,8 +294,34 @@ def render_jobs(
                     tooltip=tooltip,
                 )
 
-    for src, dst in G.edges():
-        dot.edge(_node_id(src), _node_id(dst), arrowsize="0.4")
+    if compound_edges:
+        stage_rep: dict[str, str] = {stage: jobs[0] for stage, jobs in stage_jobs.items() if jobs}
+        inter_edges: set[tuple[str, str]] = set()
+
+        for src, dst in G.edges():
+            src_stage = G.nodes[src].get("stage", "")
+            dst_stage = G.nodes[dst].get("stage", "")
+            if src_stage == dst_stage:
+                dot.edge(_node_id(src), _node_id(dst), arrowsize="0.4")
+            else:
+                inter_edges.add((src_stage, dst_stage))
+
+        for src_stage, dst_stage in sorted(inter_edges):
+            src_rep = stage_rep.get(src_stage)
+            dst_rep = stage_rep.get(dst_stage)
+            if src_rep and dst_rep:
+                dot.edge(
+                    _node_id(src_rep),
+                    _node_id(dst_rep),
+                    ltail=f"cluster_{src_stage}",
+                    lhead=f"cluster_{dst_stage}",
+                    arrowsize="0.5",
+                    style="dashed",
+                    color="#888888",
+                )
+    else:
+        for src, dst in G.edges():
+            dot.edge(_node_id(src), _node_id(dst), arrowsize="0.4")
 
     output_file = str(output_path.with_suffix(""))
     dot.render(output_file, cleanup=True)
@@ -387,3 +473,14 @@ def _short_uri(uri: str, max_len: int = 40) -> str:
     if len(short) > max_len:
         short = short[: max_len - 2] + ".."
     return short
+
+
+def _extract_bucket(uri: str) -> str:
+    """Extract a short display name for an S3 bucket or registry from a URI or variable."""
+    if uri.startswith("s3://"):
+        return uri[5:].split("/")[0]
+    # $VAR/path, ${VAR}/path, or bare $VAR_NAME
+    m = re.match(r"\$\{?([A-Z][A-Z0-9_]+)\}?", uri)
+    if m:
+        return m.group(1)
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", uri)[:40]
