@@ -15,30 +15,30 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	md:= &pb.MetricData{
-		DictNameStr:      []byte("\x03foo\x03bar"),
-		DictTagStr:       []byte("\x03baz"),
-		DictTagsets:      []int64{1, 1},
-		DictResourceStr:  []byte("\x01a\x01b\x01c\x01d\x01e"),
-		DictResourceLen:  []int64{1, 2, 2},
-		DictResourceType: []int64{1, 1, 2, 1, 2},
-		DictResourceName: []int64{2, 2, 2, 2, 3},
-		DictOriginInfo:   []int32{10, 10, 0},
-		Types:            []uint64{0x11, 0x22, 0x33, 0x4},
-		NameRefs:         []int64{1, 0, 1, 0},
-		TagsetRefs:       []int64{1, -1, 1, 0},
-		ResourcesRefs:    []int64{1, 1, 1, -1},
-		Intervals:        []uint64{10, 10, 10, 0},
-		OriginInfoRefs:   []int64{1, 0, 0, -1},
+	md := &pb.MetricData{
+		DictNameStr:        []byte("\x03foo\x03bar"),
+		DictTagStr:         []byte("\x03baz"),
+		DictTagsets:        []int64{1, 1},
+		DictResourceStr:    []byte("\x01a\x01b\x01c\x01d\x01e"),
+		DictResourceLen:    []int64{1, 2, 2},
+		DictResourceType:   []int64{1, 1, 2, 1, 2},
+		DictResourceName:   []int64{2, 2, 2, 2, 3},
+		DictOriginInfo:     []int32{10, 10, 0},
+		Types:              []uint64{0x11, 0x22, 0x33, 0x4},
+		NameRefs:           []int64{1, 0, 1, 0},
+		TagsetRefs:         []int64{1, -1, 1, 0},
+		ResourcesRefs:      []int64{1, 1, 1, -1},
+		Intervals:          []uint64{10, 10, 10, 0},
+		OriginInfoRefs:     []int64{1, 0, 0, -1},
 		SourceTypeNameRefs: []int64{0, 0, 0, 0},
-		NumPoints:        []uint64{1, 1, 1, 1},
-		Timestamps:       []int64{10000, 0, 0, 0},
-		ValsSint64:       []int64{42, 4},
-		ValsFloat32:      []float32{0.5},
-		ValsFloat64:      []float64{3.14},
-		SketchNumBins:    []uint64{1},
-		SketchBinKeys:    []int32{0},
-		SketchBinCnts:    []uint32{4},
+		NumPoints:          []uint64{1, 1, 1, 1},
+		Timestamps:         []int64{10000, 0, 0, 0},
+		ValsSint64:         []int64{42, 4},
+		ValsFloat32:        []float32{0.5},
+		ValsFloat64:        []float64{3.14},
+		SketchNumBins:      []uint64{1},
+		SketchBinKeys:      []int32{0},
+		SketchBinCnts:      []uint32{4},
 	}
 
 	r := NewMetricDataReader(md)
@@ -184,17 +184,17 @@ func FuzzReader(f *testing.F) {
 
 func TestSketchIndex(t *testing.T) {
 	pb := &pb.MetricData{
-		Types:            []uint64{0x4},
-		NameRefs:         []int64{0},
-		TagsetRefs:       []int64{0},
-		ResourcesRefs:    []int64{0},
-		Intervals:        []uint64{0},
-		OriginInfoRefs:   []int64{0},
+		Types:              []uint64{0x4},
+		NameRefs:           []int64{0},
+		TagsetRefs:         []int64{0},
+		ResourcesRefs:      []int64{0},
+		Intervals:          []uint64{0},
+		OriginInfoRefs:     []int64{0},
 		SourceTypeNameRefs: []int64{0},
-		NumPoints:        []uint64{1},
-		Timestamps:       []int64{0},
-		ValsSint64:       []int64{1},
-		SketchNumBins:    []uint64{}, // malformed
+		NumPoints:          []uint64{1},
+		Timestamps:         []int64{0},
+		ValsSint64:         []int64{1},
+		SketchNumBins:      []uint64{}, // malformed
 	}
 
 	r := NewMetricDataReader(pb)
