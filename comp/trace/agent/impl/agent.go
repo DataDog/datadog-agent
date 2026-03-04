@@ -217,6 +217,9 @@ func start(ag component) error {
 		pprof.StartCPUProfile(f) //nolint:errcheck
 		log.Info("CPU profiling started...")
 	}
+
+	log.Info("some small log to trigger SMP")
+
 	if ag.params.PIDFilePath != "" {
 		err := pidfile.WritePID(ag.params.PIDFilePath)
 		if err != nil {
