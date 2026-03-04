@@ -1,0 +1,10 @@
+description: Echo treats -n as a literal argument, not as an option.
+input:
+  # language=bash
+  script: |+
+    echo -n hello
+expected:
+  stdout: |+
+    -n hello
+  stderr: ""
+  exit_code: 0

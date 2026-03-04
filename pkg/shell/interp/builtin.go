@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -69,32 +68,13 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		}
 		exit.exiting = true
 	case "echo":
-		newline, doExpand := true, false
-	echoOpts:
-		for len(args) > 0 {
-			switch args[0] {
-			case "-n":
-				newline = false
-			case "-e":
-				doExpand = true
-			case "-E": // default
-			default:
-				break echoOpts
-			}
-			args = args[1:]
-		}
 		for i, arg := range args {
 			if i > 0 {
 				r.out(" ")
 			}
-			if doExpand {
-				arg, _, _ = expand.Format(r.ecfg, arg, nil)
-			}
 			r.out(arg)
 		}
-		if newline {
-			r.out("\n")
-		}
+		r.out("\n")
 	case "cat":
 		return r.builtinCat(ctx, args)
 	case "break", "continue":

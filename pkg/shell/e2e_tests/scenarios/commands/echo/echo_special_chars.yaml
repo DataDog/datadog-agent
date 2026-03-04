@@ -1,0 +1,10 @@
+description: Echo outputs special characters verbatim without interpreting escape sequences.
+input:
+  # language=bash
+  script: |+
+    echo 'hello\nworld\ttab'
+expected:
+  stdout: |+
+    hello\nworld\ttab
+  stderr: ""
+  exit_code: 0

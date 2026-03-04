@@ -1,0 +1,10 @@
+description: Echo with an empty string argument outputs only a newline.
+input:
+  # language=bash
+  script: |+
+    echo ""
+expected:
+  stdout: |+
+
+  stderr: ""
+  exit_code: 0
