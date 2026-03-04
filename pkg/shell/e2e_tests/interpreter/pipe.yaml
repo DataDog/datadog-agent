@@ -1,0 +1,8 @@
+scenarios:
+  - name: "simple pipe"
+    input:
+      script: "echo abc | grep abc"
+    expected:
+      stdout: "abc"
+      stderr: ""
+      exit_code: 0
