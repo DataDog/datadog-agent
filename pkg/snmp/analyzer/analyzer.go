@@ -12,8 +12,9 @@ import (
 const _cached_sys_obj_id = ".1.3.6.1.2.1.1.2"
 
 type MetricProfile struct {
-	value interface{}
-	oid   string
+	value   interface{}
+	oid     string
+	profile string
 }
 
 // SysObjectOID returns the OID to walk to fetch sysObjectID (e.g. for a fallback walk).
@@ -39,128 +40,103 @@ func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 	return snmp.BuildProfileForSysObjectID(sysOID)
 }
 
-// FindExtendedProfiles returns the list of extended profile names for the given profile definition.
-func FindExtendedProfiles(profileDef profiledefinition.ProfileDefinition) ([]string, error) {
-	return snmp.GetExtendedProfileNames(profileDef.Name)
+func profileDefinitions(profiles []string) []profiledefinition.ProfileDefinition {
+	var p []profiledefinition.ProfileDefinition
+
+	for _, profile := range profiles {
+		profileDefs, err := snmp.GetProfileDefinition(profile)
+		//improve error message
+		if err != nil {
+			fmt.Printf("Unable to parse profiles")
+		}
+		p = append(p, profileDefs)
+	}
+	return p
 }
 
 func normalizeOID(oid string) string {
 	newOID := strings.TrimPrefix(oid, ".")
 	return newOID
 }
-func oidMap(metrics []profiledefinition.MetricsConfig, mapType string) map[string]string {
+func oidMap(profiles []profiledefinition.ProfileDefinition, mapType string) map[string]string {
 	metricMap := make(map[string]string)
+	// Go through symbol
 
-	if mapType == "symbol" {
+	for _, profile := range profiles {
+		metrics := profile.Metrics
 		for _, metric := range metrics {
 			oid := normalizeOID(metric.Symbol.OID)
 			if oid != "" {
-				metricMap[oid] = metric.Symbol.Name
+				metricMap[oid] = profile.Name
 			}
 		}
-	}
+		// Go through symbols
 
-	if mapType == "symbols" {
 		for _, metric := range metrics {
 			for _, symbol := range metric.Symbols {
 				oid := normalizeOID(symbol.OID)
 				if oid != "" {
-					metricMap[oid] = symbol.Name
+					metricMap[oid] = profile.Name
 				}
-
 			}
 		}
-	}
+		// Go through metric tags (per-metric tags, e.g. table column tags)
 
-	if mapType == "metric_tags" {
 		for _, metric := range metrics {
 			for _, metricTag := range metric.MetricTags {
-				oid := normalizeOID(metricTag.Symbol.OID)
+				oid := normalizeOID(metricTag.OID)
 				if oid != "" {
-					metricMap[oid] = metricTag.Symbol.Name
+					metricMap[oid] = profile.Name
 				}
 			}
 		}
-	}
-	return metricMap
-}
+		// Profile-level metric tags (e.g. _base has sysName at 1.3.6.1.2.1.1.5.0 here, not in metrics)
 
-func tagOidMap(metrics []profiledefinition.MetricTagConfig) map[string]string {
-	metricMap := make(map[string]string)
-
-	for _, tag := range metrics {
-		oid := normalizeOID(tag.OID)
-		if oid != "" {
-			metricMap[oid] = tag.Symbol.Name
+		profileTags := profile.MetricTags
+		for _, tag := range profileTags {
+			oid := normalizeOID(tag.Symbol.OID)
+			if oid != "" {
+				metricMap[oid] = profile.Name
+			}
 		}
 	}
 
 	return metricMap
 }
 
-// ToDO: Derive the profile that it extended from to match the metric.
-
 // Analyze runs analysis on the first walk (pdus) using the given sysObjectID to resolve profile.
-func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) ([]MetricProfile, string, error) {
+func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) ([]MetricProfile, error) {
+	//ToDO: correct return types to state what they are, Will also have a device profile type
 	profileDef, err := FindProfile(sysOID)
 	if err != nil {
 		fmt.Printf("profile lookup: %v\n", err)
-		return []MetricProfile{}, "", err
+		return []MetricProfile{}, err
 	}
 
-	//extendedProfiles, err := FindExtendedProfiles(profileDef)
-	// if err != nil {
-	// 	fmt.Printf("extend profile lookup: %v\n", err)
-	// }
+	var profileList []profiledefinition.ProfileDefinition
+
+	extendedProfiles := profileDef.Extends
+	extendedProfileDefs := profileDefinitions(extendedProfiles)
+
+	profileList = append(profileList, profileDef)
+	profileList = append(profileList, extendedProfileDefs...)
+
 	oids := pdus
-	profileMetrics := profileDef.Metrics
-	profileName := profileDef.Name
-	profileTags := profileDef.MetricTags
+
 	var foundMetrics []MetricProfile
 
 	//Go through symbol
-	symbolMap := oidMap(profileMetrics, "symbol")
+	metricMap := oidMap(profileList, "symbol")
+
 	for _, oid := range oids {
-		if _, found := symbolMap[normalizeOID(oid.Name)]; found {
+		if profileName, found := metricMap[normalizeOID(oid.Name)]; found {
 			foundMetrics = append(foundMetrics, MetricProfile{
-				value: oid.Value,
-				oid:   oid.Name,
+				value:   oid.Value,
+				oid:     oid.Name,
+				profile: profileName,
 			})
 		}
 	}
 
-	// Go through symbols
-	symbolsMap := oidMap(profileMetrics, "symbols")
-	for _, oid := range oids {
-		if _, found := symbolsMap[normalizeOID(oid.Name)]; found {
-			foundMetrics = append(foundMetrics, MetricProfile{
-				value: oid.Value,
-				oid:   oid.Name,
-			})
-		}
-	}
-
-	// Go through metric tags (per-metric tags, e.g. table column tags)
-	metricTagMap := oidMap(profileMetrics, "metric_tags")
-	for _, oid := range oids {
-		if _, found := metricTagMap[normalizeOID(oid.Name)]; found {
-			foundMetrics = append(foundMetrics, MetricProfile{
-				value: oid.Value,
-				oid:   oid.Name,
-			})
-		}
-	}
-
-	// Profile-level metric tags (e.g. _base has sysName at 1.3.6.1.2.1.1.5.0 here, not in metrics)
-	profileTagMap := tagOidMap(profileTags)
-	for _, oid := range oids {
-		if _, found := profileTagMap[normalizeOID(oid.Name)]; found {
-			foundMetrics = append(foundMetrics, MetricProfile{
-				value: oid.Value,
-				oid:   oid.Name,
-			})
-		}
-	}
-
-	return foundMetrics, profileName, nil
+	return foundMetrics, nil
 }
