@@ -32,6 +32,15 @@ function formatTimestamp(ts: number): string {
   });
 }
 
+function formatTimestampMs(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
 function levelBadgeColor(status: string): string {
   switch (status.toLowerCase()) {
     case 'error':
@@ -115,8 +124,9 @@ function LogRateChart({
     const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
     const counts = new Array(bucketCount).fill(0);
     for (const l of logs) {
-      if (l.timestamp < displayStart || l.timestamp > displayEnd) continue;
-      const idx = Math.min(Math.floor((l.timestamp - displayStart) / bucketSize), bucketCount - 1);
+      const ts = l.timestampMs / 1000;
+      if (ts < displayStart || ts > displayEnd) continue;
+      const idx = Math.min(Math.floor((ts - displayStart) / bucketSize), bucketCount - 1);
       if (idx >= 0) counts[idx]++;
     }
     return counts.map((count, i) => ({
@@ -178,8 +188,8 @@ function LogRateChart({
       .attr('fill', (d) => {
         const isHovered =
           hoveredTimestamp != null &&
-          hoveredTimestamp >= d.startTs &&
-          hoveredTimestamp < d.endTs;
+          hoveredTimestamp / 1000 >= d.startTs &&
+          hoveredTimestamp / 1000 < d.endTs;
         if (isHovered) return 'rgba(251, 191, 36, 0.85)';
         return d.count > 0 ? 'rgba(45, 212, 191, 0.35)' : 'rgba(51, 65, 85, 0.25)';
       })
@@ -207,7 +217,7 @@ function LogRateChart({
 
     // Hovered-log timestamp indicator
     if (hoveredTimestamp != null) {
-      const x = xScale(hoveredTimestamp * 1000);
+      const x = xScale(hoveredTimestamp);
       if (x >= 0 && x <= innerWidth) {
         barsG.append('line')
           .attr('x1', x).attr('x2', x)
@@ -372,7 +382,7 @@ function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHover
       >
         <div className="flex items-start gap-2">
           <span className="flex-shrink-0 text-xs text-slate-500 font-mono pt-0.5 w-20 text-right">
-            {formatTimestamp(entry.timestamp)}
+            {formatTimestampMs(entry.timestampMs)}
           </span>
           <span className={`flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(entry.status)}`}>
             {entry.status}
@@ -561,7 +571,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
         if (filter.include.size === 0 && filter.exclude.size === 0) return true;
         return matchesTagFilter(getEffectiveTags(l.tags ?? [], l.status), filter);
       })
-      .sort((a, b) => a.timestamp - b.timestamp);
+      .sort((a, b) => a.timestampMs - b.timestampMs);
   }, [allLogs, tagFilterInput]);
 
   const regularLogs = useMemo(
@@ -782,11 +792,11 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                     <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
                       {regularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
                         <LogEntryRow
-                          key={`${entry.timestamp}-${idx}`}
+                          key={`${entry.timestampMs}-${idx}`}
                           entry={entry}
                           isExpanded={expandedLogIndex === idx}
                           onToggle={() => setExpandedLogIndex(expandedLogIndex === idx ? null : idx)}
-                          onHoverEnter={() => setHoveredLogTimestamp(entry.timestamp)}
+                          onHoverEnter={() => setHoveredLogTimestamp(entry.timestampMs)}
                           onHoverLeave={() => setHoveredLogTimestamp(null)}
                         />
                       ))}
@@ -830,12 +840,12 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                       <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
                         {telemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
                           <LogEntryRow
-                            key={`telem-${entry.timestamp}-${idx}`}
+                            key={`telem-${entry.timestampMs}-${idx}`}
                             entry={entry}
                             isExpanded={expandedTelemetryLogIndex === idx}
                             onToggle={() => setExpandedTelemetryLogIndex(expandedTelemetryLogIndex === idx ? null : idx)}
                             isTelemetry
-                            onHoverEnter={() => setHoveredLogTimestamp(entry.timestamp)}
+                            onHoverEnter={() => setHoveredLogTimestamp(entry.timestampMs)}
                             onHoverLeave={() => setHoveredLogTimestamp(null)}
                           />
                         ))}

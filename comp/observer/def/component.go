@@ -66,6 +66,7 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
+	GetTimestampMs() int64
 }
 
 // TraceView provides read-only access to a trace (collection of spans with the same trace ID).

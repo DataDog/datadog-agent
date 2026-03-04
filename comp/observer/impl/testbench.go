@@ -15,16 +15,35 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// TODO(recorder): Update this interface with possibly a ms timestamp / rely on another interface
-// storedLogEntry is a raw log entry stored in memory.
-type storedLogEntry struct {
-	Timestamp int64    `json:"timestamp"`
-	Status    string   `json:"status"`
-	Content   string   `json:"content"`
-	Tags      []string `json:"tags"`
+type logDataView struct {
+	data *recorderdef.LogData
+}
+
+// Ensure logDataView implements observer.LogView
+var _ observer.LogView = (*logDataView)(nil)
+
+func (v *logDataView) GetContent() []byte {
+	return v.data.Content
+}
+
+func (v *logDataView) GetStatus() string {
+	return v.data.Status
+}
+
+func (v *logDataView) GetHostname() string {
+	return v.data.Hostname
+}
+
+func (v *logDataView) GetTags() []string {
+	return v.data.Tags
+}
+
+func (v *logDataView) GetTimestampMs() int64 {
+	return v.data.TimestampMs
 }
 
 // TestBenchConfig configures the test bench.
@@ -66,7 +85,7 @@ type TestBench struct {
 	metricsBySeriesID map[observerdef.SeriesID][]observerdef.Anomaly // metric anomalies grouped by source series id
 
 	// Raw log entries (collected during log loading)
-	rawLogs []storedLogEntry
+	rawLogs []observer.LogView
 
 	// Log anomalies (collected during log loading, independent of metrics detection reruns)
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
@@ -284,16 +303,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
-	// Load log files
-	logsDir := filepath.Join(scenarioPath, "logs")
-	logsStart := time.Now()
-	if _, err := os.Stat(logsDir); err == nil {
-		if err := tb.loadLogsDir(logsDir); err != nil {
-			return fmt.Errorf("failed to load logs: %w", err)
-		}
-	}
-	fmt.Printf("  Log loading took %s\n", time.Since(logsStart))
-
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	analysisStart := time.Now()
 	tb.rerunDetectorsLocked()
@@ -361,6 +370,16 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			view := &parquetTraceStatsView{agentHostname: key.hostname, agentEnv: key.env, rows: rows}
 			processStatsView(sh, view)
 		}
+	}
+
+	// Load logs from parquet files
+	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
+	if err != nil {
+		return fmt.Errorf("failed to read parquet logs: %w", err)
+	}
+
+	for _, log := range parquetLogs {
+		tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
 	}
 
 	return nil
@@ -435,80 +454,40 @@ func (r *parquetTraceStatRow) GetOkSummary() []byte         { return r.data.OkSu
 func (r *parquetTraceStatRow) GetErrorSummary() []byte      { return r.data.ErrorSummary }
 func (r *parquetTraceStatRow) GetPeerTags() []string        { return r.data.PeerTags }
 
-// loadLogsDir loads all log files from a directory.
-func (tb *TestBench) loadLogsDir(dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*"))
-	if err != nil {
-		return err
-	}
-
-	totalLogs := 0
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil || info.IsDir() {
-			continue
-		}
-
-		logs, err := LoadLogFile(file)
-		if err != nil {
-			fmt.Printf("  Warning: failed to load log file %s: %v\n", filepath.Base(file), err)
-			continue
-		}
-
-		for _, log := range logs {
-			// Get timestamp from testLogView
-			var timestamp int64
-			if tlv, ok := log.(*testLogView); ok {
-				timestamp = tlv.timestamp
+// runLogDetectors runs all the log detectors on the raw logs.
+func (tb *TestBench) runLogDetectors() error {
+	for _, log := range tb.rawLogs {
+		// Process through log detectors
+		for _, detector := range tb.logDetectors {
+			result := detector.Process(log)
+			ts := log.GetTimestampMs()
+			for _, m := range result.Metrics {
+				tb.storage.Add("logs", m.Name, m.Value, ts/1000, m.Tags)
 			}
-
-			// Store raw log entry
-			tags := log.GetTags()
-			if tags == nil {
-				tags = []string{}
-			}
-			tb.rawLogs = append(tb.rawLogs, storedLogEntry{
-				Timestamp: timestamp,
-				Status:    log.GetStatus(),
-				Content:   string(log.GetContent()),
-				Tags:      tags,
-			})
-
-			// Process through log detectors
-			for _, detector := range tb.logDetectors {
-				result := detector.Process(log)
-				for _, m := range result.Metrics {
-					tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
+			for _, anomaly := range result.Anomalies {
+				// Fill in fields the detector may not have set
+				anomaly.Type = observerdef.AnomalyTypeLog
+				if anomaly.DetectorName == "" {
+					anomaly.DetectorName = detector.Name()
 				}
-				for _, anomaly := range result.Anomalies {
-					// Fill in fields the detector may not have set
-					anomaly.Type = observerdef.AnomalyTypeLog
-					if anomaly.DetectorName == "" {
-						anomaly.DetectorName = detector.Name()
-					}
-					if anomaly.Timestamp == 0 {
-						anomaly.Timestamp = timestamp
-					}
-					// If still zero (log had no parseable timestamp), use current time
-					if anomaly.Timestamp == 0 {
-						anomaly.Timestamp = time.Now().Unix()
-					}
-					if anomaly.Source == "" {
-						anomaly.Source = "logs"
-					}
-					tb.logAnomalies = append(tb.logAnomalies, anomaly)
-					tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
-						tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
+				if anomaly.Timestamp == 0 {
+					anomaly.Timestamp = ts / 1000
 				}
-				tb.handleTelemetry(result.Telemetry, detector.Name(), timestamp)
+				// If still zero (log had no parseable timestamp), use current time
+				if anomaly.Timestamp == 0 {
+					anomaly.Timestamp = time.Now().Unix()
+				}
+				if anomaly.Source == "" {
+					anomaly.Source = "logs"
+				}
+				tb.logAnomalies = append(tb.logAnomalies, anomaly)
+				tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
+					tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
 			}
+			tb.handleTelemetry(result.Telemetry, detector.Name(), ts)
 		}
-		totalLogs += len(logs)
 	}
 
-	if totalLogs > 0 {
-		fmt.Printf("  Loaded %d log entries\n", totalLogs)
-	}
 	return nil
 }
 
@@ -537,6 +516,27 @@ func (tb *TestBench) GetStatus() StatusResponse {
 	}
 
 	scenarioStart, scenarioEnd, hasBounds := tb.storage.TimeBounds()
+
+	// Extend bounds to include log timestamps (parquet logs can fall outside the metrics range)
+	for _, l := range tb.rawLogs {
+		ts := l.GetTimestampMs()
+		if ts == 0 {
+			continue
+		}
+		if !hasBounds {
+			scenarioStart = ts / 1000
+			scenarioEnd = ts / 1000
+			hasBounds = true
+		} else {
+			if ts/1000 < scenarioStart {
+				scenarioStart = ts / 1000
+			}
+			if (ts+999)/1000 > scenarioEnd {
+				scenarioEnd = (ts + 999) / 1000
+			}
+		}
+	}
+
 	var scenarioStartPtr *int64
 	var scenarioEndPtr *int64
 	if hasBounds {
@@ -617,6 +617,13 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 // Detectors run synchronously (fast), then correlators run asynchronously in a
 // background goroutine so the UI is not blocked by slow correlators.
 func (tb *TestBench) rerunDetectorsLocked() {
+	// --- Logs ---
+	// We want to process logs first in case they produce metrics that are used by other detectors.
+	if err := tb.runLogDetectors(); err != nil {
+		fmt.Printf("  Warning: failed to run log detectors: %v\n", err)
+	}
+
+	// --- Metrics ---
 	// Clear existing results
 	tb.metricsAnomalies = tb.metricsAnomalies[:0]
 	tb.correlations = tb.correlations[:0]
@@ -678,6 +685,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		}
 	}
 
+	// --- Correlations ---
 	// Mark scenario ready now that detectors are done — anomalies are available
 	tb.ready = true
 
@@ -763,7 +771,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 
 // This will handle custom telemetry created by the anomaly detectors.
 // It includes metrics and logs.
-func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestamp int64) {
+func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestampMs int64) {
 	for _, telemetryEvent := range telemetry {
 		// Generate missing fields if needed
 		if telemetryEvent.Metric != nil {
@@ -774,7 +782,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
 			}
 			if metric.timestamp == 0 {
-				metric.timestamp = baseTimestamp
+				metric.timestamp = baseTimestampMs / 1000
 			}
 			if telemetryEvent.DetectorName == "" {
 				telemetryEvent.DetectorName = detectorName
@@ -784,23 +792,21 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 		}
 
 		if telemetryEvent.Log != nil {
-			timestamp := int64(0)
-			if tlv, ok := telemetryEvent.Log.(logTimestamper); ok {
-				timestamp = tlv.GetTimestamp()
-			}
+			timestamp := telemetryEvent.Log.GetTimestampMs()
 			if timestamp == 0 {
-				timestamp = baseTimestamp
+				timestamp = baseTimestampMs
 			}
 			logTags := telemetryEvent.Log.GetTags()
 			tagsCopy := make([]string, 0, len(logTags)+2)
 			copy(tagsCopy, logTags)
 			tagsCopy = append(tagsCopy, "detector:"+detectorName)
 			tagsCopy = append(tagsCopy, "telemetry:true")
-			log := storedLogEntry{
-				Content:   string(telemetryEvent.Log.GetContent()),
-				Status:    telemetryEvent.Log.GetStatus(),
-				Tags:      tagsCopy,
-				Timestamp: timestamp,
+			log := recorderdef.LogData{
+				Content:     telemetryEvent.Log.GetContent(),
+				Status:      telemetryEvent.Log.GetStatus(),
+				Tags:        tagsCopy,
+				TimestampMs: timestamp,
+				Hostname:    telemetryEvent.Log.GetHostname(),
 			}
 			if log.Status == "" {
 				log.Status = "info"
@@ -809,7 +815,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.rawLogs = append(tb.rawLogs, log)
+			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
 		}
 	}
 }
@@ -1171,12 +1177,13 @@ func (tb *TestBench) loadDemoScenario() error {
 			} else {
 				servicetag = "service:service_b"
 			}
-			tb.rawLogs = append(tb.rawLogs, storedLogEntry{
-				Timestamp: timestamp,
-				Status:    "error",
-				Content:   content,
-				Tags:      []string{servicetag},
-			})
+			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &recorderdef.LogData{
+				TimestampMs: timestamp * 1000,
+				Status:      "error",
+				Content:     []byte(content),
+				Tags:        []string{servicetag},
+				Hostname:    "host:web-1",
+			}})
 		}
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
@@ -1225,13 +1232,11 @@ func (tb *TestBench) loadDemoScenario() error {
 }
 
 // GetRawLogs returns all stored raw log entries.
-func (tb *TestBench) GetRawLogs() []storedLogEntry {
+func (tb *TestBench) GetRawLogs() []observerdef.LogView {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make([]storedLogEntry, len(tb.rawLogs))
-	copy(result, tb.rawLogs)
-	return result
+	return tb.rawLogs
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.
