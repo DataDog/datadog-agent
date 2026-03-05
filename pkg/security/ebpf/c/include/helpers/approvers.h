@@ -334,7 +334,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
             return DISCARDED;
         }
     }
-
+    // temporary disabled global limiter
     // We can use the global limiter as a security measure, but from the tests we can conclude that the sampler above should be enough.
     /*if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 500, 1)) {
         return DISCARDED;
