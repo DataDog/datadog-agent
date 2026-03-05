@@ -9,11 +9,39 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// fetchIISTagsCache is not applicable on Linux; returns nil.
+func fetchIISTagsCache(_ *http.Client) map[string][]string {
+	return nil
+}
+
+// fetchProcessCacheTags is not applicable on Linux; returns nil.
+func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
+	return nil
+}
+
+// getRemoteProcessTags returns process tags for a remote PID by reading DD_SERVICE directly from /proc/<pid>/environ.
+func getRemoteProcessTags(pid int32, _ map[uint32][]string, _ func(int32) ([]string, error)) []string {
+	data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(int(pid)), "environ"))
+	if err != nil {
+		log.Debugf("Unable to read environ for pid %d: %v", pid, err)
+		return nil
+	}
+	if svc, ok := parser.ChooseServiceNameFromEnvs(strings.Split(string(data), "\x00")); ok {
+		return []string{"service:" + svc}
+	}
+	return nil
+}
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {

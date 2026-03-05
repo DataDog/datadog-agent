@@ -1169,9 +1169,11 @@ workflow:
       paths:
         - pkg/discovery/module/*
         - pkg/network/**/*
+        - pkg/process/checks/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
+        - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

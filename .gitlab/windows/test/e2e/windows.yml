@@ -201,6 +201,8 @@ new-e2e-windows-systemprobe:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
       - EXTRA_PARAMS: --run TestVMSuite
+      - TARGETS: ./tests/usm
+        EXTRA_PARAMS: --run TestIISRemoteTagsSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
