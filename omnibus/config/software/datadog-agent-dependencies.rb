@@ -19,12 +19,12 @@ dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 dependency 'cacerts'
 
 # External agents
-dependency 'jmxfetch'
+build do
+    command_on_repo_root "bazelisk run -- //deps/jmxfetch:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+end
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
-
-dependency "systemd" if linux_target?
 
 dependency 'datadog-agent-integrations-py3'
 
