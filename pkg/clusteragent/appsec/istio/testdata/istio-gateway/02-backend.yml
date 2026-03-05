@@ -1,20 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-istio-gateway
+  name: httpbin
   namespace: appsec-gw-test
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test-istio
+      app: httpbin
   template:
     metadata:
       labels:
-        app: test-istio
+        app: httpbin
     spec:
       containers:
-      - name: istio-proxy
+      - name: httpbin
         image: nginx:alpine
         ports:
         - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  namespace: appsec-gw-test
+spec:
+  selector:
+    app: httpbin
+  ports:
+  - port: 80
+    targetPort: 80

@@ -5,7 +5,6 @@ metadata:
   namespace: appsec-gw-test
 spec:
   selector:
-    app: test-istio-gateway
     istio: ingressgateway
   servers:
   - port:

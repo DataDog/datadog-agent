@@ -56,5 +56,5 @@ spec:
             - endpoint:
                 address:
                   socket_address:
-                    address: appsec-processor.datadog.svc
-                    port_value: 8080
+                    address: appsec-processor.appsec-gw-test.svc.cluster.local
+                    port_value: 443
