@@ -45,13 +45,6 @@ import (
 const (
 	collectorID   = "docker"
 	componentName = "workloadmeta-docker"
-
-	// nvidiaVisibleDevicesEnvVar is the environment variable set by NVIDIA container runtime
-	// to specify which GPUs are visible to the container. Values can be:
-	// - GPU UUIDs: "GPU-uuid" or "GPU-uuid1,GPU-uuid2" (ECS, some K8s setups)
-	// - Device indices: "0", "1", "0,1" (local Docker)
-	// - Special values: "all", "none", "void"
-	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
 )
 
 // imageEventActionSbom is an event that we set to create a fake docker event.
@@ -336,7 +329,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			PID:          container.State.Pid,
 			RestartCount: container.RestartCount,
 			Resources:    extractResources(container),
-			GPUDeviceIDs: extractGPUDeviceIDsForECS(container.Config.Env),
+			GPUDeviceIDs: util.ExtractGPUDeviceIDsFromEnvVars(container.Config.Env),
 		}
 
 	case events.ActionDie, docker.ActionDied:
@@ -745,39 +738,6 @@ func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, insp
 	}
 
 	return layers
-}
-
-// extractGPUDeviceIDsForECS extracts GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable,
-// but ONLY when running in ECS. For regular Docker containers, the NVIDIA container toolkit adds
-// NVIDIA_VISIBLE_DEVICES in a way that's not visible in container.Config.Env (it's added by the
-// runtime, not the container config), so we must rely on reading from procfs at metric collection time.
-// In ECS, the env var IS visible in container.Config.Env because ECS sets it directly.
-// ECS typically sets GPU UUIDs (e.g., "GPU-uuid1,GPU-uuid2"), but users can also set "all" for GPU sharing.
-func extractGPUDeviceIDsForECS(envVars []string) []string {
-	// Only extract from container config in ECS.
-	// For regular Docker, NVIDIA_VISIBLE_DEVICES is added by the container runtime
-	// and won't be visible here - the GPU probe will read it from procfs instead.
-	if !env.IsECS() {
-		return nil
-	}
-	return extractGPUDeviceIDs(envVars)
-}
-
-// extractGPUDeviceIDs parses GPU device identifiers from NVIDIA_VISIBLE_DEVICES environment variable.
-// ECS typically sets GPU UUIDs (e.g., "GPU-uuid1,GPU-uuid2"), but users can also set "all" for GPU sharing.
-// Special values "all", "none", "void" are preserved and handled in matchByGPUDeviceIDs().
-// Empty value returns nil (env var set but empty).
-func extractGPUDeviceIDs(envVars []string) []string {
-	prefix := nvidiaVisibleDevicesEnvVar + "="
-	for _, e := range envVars {
-		if value, found := strings.CutPrefix(e, prefix); found {
-			if value == "" {
-				return nil
-			}
-			return strings.Split(value, ",")
-		}
-	}
-	return nil
 }
 
 func extractResources(container container.InspectResponse) workloadmeta.ContainerResources {
