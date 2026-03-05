@@ -1009,6 +1009,22 @@ new-e2e-ssi-eks:
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PRE_INITIALIZED: "true"
 
+new-e2e-ssi-gke-init:
+  extends: .new-e2e_ssi_extra_distribution_init
+  variables:
+    E2E_PROVISIONER: gke
+    E2E_STACK_NAME_SUFFIX: gke
+
+new-e2e-ssi-gke:
+  extends: .new-e2e_ssi_extra_distribution
+  needs:
+    - !reference [.new-e2e_ssi_extra_distribution, needs]
+    - new-e2e-ssi-gke-init
+  variables:
+    E2E_PROVISIONER: gke
+    E2E_STACK_NAME_SUFFIX: gke
+    E2E_PRE_INITIALIZED: "true"
+
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
