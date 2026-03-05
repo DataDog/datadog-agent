@@ -284,6 +284,28 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			updateProperty(RunningAsRootProperty)
 		}
 
+		// If LastAccessProperty is not present in the merged component (neither from
+		// existingBom nor from newBom), set it to zero so downstream consumers can
+		// distinguish "never seen running" from "unknown".
+		hasLastAccess := false
+		for _, prop := range mergedComp.Properties {
+			if prop != nil && prop.Name == LastAccessProperty {
+				hasLastAccess = true
+				break
+			}
+		}
+		if !hasLastAccess {
+			if mergedComp.Properties == nil {
+				mergedComp.Properties = []*cyclonedx_v1_4.Property{}
+			}
+			zeroValue := "0"
+			mergedComp.Properties = append(mergedComp.Properties, &cyclonedx_v1_4.Property{
+				Name:  LastAccessProperty,
+				Value: &zeroValue,
+			})
+			log.Tracef("Set %s to zero for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
+		}
+
 		mergedBom.Components = append(mergedBom.Components, mergedComp)
 	}
 
