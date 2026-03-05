@@ -527,7 +527,7 @@ func (tb *TestBench) runLogDetectors() error {
 func (tb *TestBench) flushLogDetectors(timestampMs int64) {
 	for _, detector := range tb.logDetectors {
 		result := detector.Flush(timestampMs)
-		tb.handleLogDetectorResult(result, tb.nextFlushTimestampMs, detector.Name())
+		tb.handleLogDetectorResult(result, timestampMs, detector.Name())
 	}
 }
 

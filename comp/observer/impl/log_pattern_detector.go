@@ -29,8 +29,9 @@ type LogPatternEntry struct {
 	Cluster *patterns.Cluster
 }
 
-// 1. Process: Logs are processed (clustered) and registered to the ToProcess batch
-// 2. Flush: We update the pattern rate
+// This outputs few virtual metrics:
+// - The log rate grouped by patterns
+// - The new pattern rate
 type LogPatternDetector struct {
 	PatternClusterer *patterns.PatternClusterer
 	// This is the batch we process when we flush.
@@ -41,6 +42,8 @@ type LogPatternDetector struct {
 	// Used to O(1) compute the rate of the recent patterns.
 	// [cluster_id] = count
 	RecentPatternRate map[int64]int
+	// The queue contains timestamps in ms
+	NewPatternQueue *queue.Queue[int64]
 }
 
 func NewLogPatternDetector() *LogPatternDetector {
@@ -53,6 +56,7 @@ func NewLogPatternDetector() *LogPatternDetector {
 		ToProcess:          queue.NewQueue[*LogPatternEntry](),
 		RecentPatternBatch: queue.NewQueue[*LogPatternEntry](),
 		RecentPatternRate:  make(map[int64]int),
+		NewPatternQueue:    queue.NewQueue[int64](),
 	}
 }
 
@@ -80,6 +84,7 @@ func (d *LogPatternDetector) Process(log observer.LogView) observer.LogDetection
 
 		if cluster.IsNew {
 			telemetry = append(telemetry, newTelemetryLog(fmt.Sprintf("New cluster(id: %d): %s", cluster.Cluster.ID, cluster.Cluster.PatternString()), log))
+			d.NewPatternQueue.Enqueue(log.GetTimestampMs())
 		}
 	}
 
@@ -107,15 +112,13 @@ func (d *LogPatternDetector) Flush(timestampMs int64) observer.LogDetectionResul
 		},
 	})
 
+	// --- Pattern rates ---
 	// Update recent patterns
 	for entry, ok := d.ToProcess.Dequeue(); ok; entry, ok = d.ToProcess.Dequeue() {
 		// TODO: We should have a P queue in case timestamps are not in order (or use the batch timestamp)
 		d.addRecentPattern(entry)
 	}
 	d.flushRecentPatterns(timestampMs)
-
-	// Flush batch
-	d.ToProcess.Flush()
 
 	// Emit metrics based on pattern rate
 	// TODO: 0 metrics could be optimized
@@ -124,22 +127,30 @@ func (d *LogPatternDetector) Flush(timestampMs int64) observer.LogDetectionResul
 	for _, cluster := range d.PatternClusterer.GetClusters() {
 		rate := 0.0
 		if count, ok := d.RecentPatternRate[cluster.ID]; ok {
-			rate = float64(count) / float64(logPatternDetectorRatePeriod/time.Nanosecond) * 1e9
-		}
-
-		// TODO: Remove
-		if rate == 0.0 {
-			continue
+			rate = float64(count) / (float64(logPatternDetectorRatePeriod/time.Nanosecond) * 1e-9)
 		}
 
 		metrics = append(metrics, observer.MetricOutput{
-			// TODO: Single metrics, different tags
-			Name:  fmt.Sprintf("pattern_rate_%d", cluster.ID),
+			Name:  "pattern_rate",
 			Value: rate,
-			Tags:  []string{fmt.Sprintf("cluster_id:%d", cluster.ID)},
+			Tags:  []string{fmt.Sprintf("cluster_id:%d", cluster.ID), fmt.Sprintf("cluster_sample:%s", cluster.Samples[0])},
 		})
-
 	}
+
+	d.ToProcess.Flush()
+
+	// --- New clusters ---
+	// TODO: We should group this as well
+	// Remove timestamps that are too old
+	for timestamp, ok := d.NewPatternQueue.Dequeue(); ok && timestamp < timestampMs-int64(logPatternDetectorRatePeriod/time.Millisecond); timestamp, ok = d.NewPatternQueue.Dequeue() {
+	}
+
+	newPatternRate := float64(d.NewPatternQueue.Len()) / (float64(logPatternDetectorRatePeriod/time.Nanosecond) * 1e-9)
+	metrics = append(metrics, observer.MetricOutput{
+		Name:  "new_pattern_rate",
+		Value: newPatternRate,
+		Tags:  []string{},
+	})
 
 	// fmt.Printf("[cc] LogPatternDetector: Flush(timestampMs: %d)\n", timestampMs)
 
