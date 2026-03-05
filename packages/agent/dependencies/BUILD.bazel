@@ -39,12 +39,10 @@ pkg_filegroup(
             "@libpcap//:all_files",
         ],
         "//packages/agent:linux_heroku": [],
-        "@platforms//os:windows": [
-            "//deps/compile_policy:all_files",
-        ],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [
+            "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
             "//packages/windows:all_files",
         ],
