@@ -50,7 +50,6 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
-	mux.HandleFunc("/api/correlators/", api.cors(api.handleCorrelatorData))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
 	api.server = &http.Server{
@@ -595,7 +594,7 @@ func (api *TestBenchAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 	api.writeJSON(w, stats)
 }
 
-// handleComponentAction handles POST /api/components/{name}/toggle.
+// handleComponentAction handles /api/components/{name}/{action} (toggle, data).
 func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/components/")
 	parts := strings.Split(path, "/")
@@ -618,19 +617,19 @@ func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Re
 			return
 		}
 		api.writeJSON(w, api.tb.GetStatus())
+	case "data":
+		if r.Method != "GET" {
+			api.writeError(w, http.StatusMethodNotAllowed, "use GET for component data")
+			return
+		}
+		data, enabled := api.tb.GetComponentData(name)
+		api.writeJSON(w, map[string]interface{}{
+			"enabled": enabled,
+			"data":    data,
+		})
 	default:
 		api.writeError(w, http.StatusBadRequest, "unknown action: "+action)
 	}
-}
-
-// handleCorrelatorData handles GET /api/correlators/{name}.
-func (api *TestBenchAPI) handleCorrelatorData(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, "/api/correlators/")
-	data, enabled := api.tb.GetCorrelatorData(name)
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"data":    data,
-	})
 }
 
 // handleCompressedCorrelations returns compressed group descriptions.

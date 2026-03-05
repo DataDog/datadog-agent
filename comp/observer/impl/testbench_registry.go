@@ -23,9 +23,9 @@ type registeredComponent struct {
 	Enabled      bool
 }
 
-// CorrelatorDataProvider is implemented by correlators that expose extra data
-// beyond what the Correlator interface provides (e.g. edges, clusters).
-type CorrelatorDataProvider interface {
+// ComponentDataProvider is implemented by components that expose extra data
+// beyond what their primary interface provides (e.g. edges, clusters, scores).
+type ComponentDataProvider interface {
 	GetExtraData() interface{}
 }
 
@@ -50,6 +50,17 @@ var defaultRegistry = []ComponentRegistration{
 			return NewBOCPDDetector()
 		},
 	},
+	{
+		Name:           "rrcf",
+		DisplayName:    "RRCF",
+		Category:       "detector",
+		DefaultEnabled: false,
+		Factory: func(_ *TestBench) interface{} {
+			config := DefaultRRCFConfig()
+			config.Metrics = TestBenchRRCFMetrics()
+			return NewRRCFDetector(config)
+		},
+	},
 	// Correlators
 	{
 		Name:           "time_cluster",
@@ -59,7 +70,6 @@ var defaultRegistry = []ComponentRegistration{
 		Factory: func(_ *TestBench) interface{} {
 			return NewTimeClusterCorrelator(TimeClusterConfig{
 				ProximitySeconds: 10,
-				MinClusterSize:   2,
 				WindowSeconds:    120,
 			})
 		},
@@ -93,13 +103,26 @@ var defaultRegistry = []ComponentRegistration{
 	},
 }
 
-// enabledDetectors returns all enabled MetricsDetector instances.
+// enabledDetectors returns all enabled MetricsDetector instances (per-series detectors).
 func (tb *TestBench) enabledDetectors() []observerdef.MetricsDetector {
 	var result []observerdef.MetricsDetector
 	for _, comp := range tb.components {
 		if comp.Enabled && comp.Registration.Category == "detector" {
 			if a, ok := comp.Instance.(observerdef.MetricsDetector); ok {
 				result = append(result, a)
+			}
+		}
+	}
+	return result
+}
+
+// enabledMultiDetectors returns all enabled MultiSeriesDetector instances (pull-based).
+func (tb *TestBench) enabledMultiDetectors() []observerdef.MultiSeriesDetector {
+	var result []observerdef.MultiSeriesDetector
+	for _, comp := range tb.components {
+		if comp.Enabled && comp.Registration.Category == "detector" {
+			if d, ok := comp.Instance.(observerdef.MultiSeriesDetector); ok {
+				result = append(result, d)
 			}
 		}
 	}
@@ -132,15 +155,27 @@ func (tb *TestBench) allCorrelators() []observerdef.Correlator {
 	return result
 }
 
-// GetCorrelatorData returns the extra data and enabled status for a named correlator.
-func (tb *TestBench) GetCorrelatorData(name string) (data interface{}, enabled bool) {
+// getDeduplicator returns the deduplicator if it is enabled, or nil.
+func (tb *TestBench) getDeduplicator() *AnomalyDeduplicator {
+	comp, ok := tb.components["dedup"]
+	if !ok || !comp.Enabled {
+		return nil
+	}
+	if d, ok := comp.Instance.(*AnomalyDeduplicator); ok {
+		return d
+	}
+	return nil
+}
+
+// GetComponentData returns the extra data and enabled status for a named component.
+func (tb *TestBench) GetComponentData(name string) (data interface{}, enabled bool) {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	comp, ok := tb.components[name]
 	if !ok {
 		return nil, false
 	}
-	if provider, ok := comp.Instance.(CorrelatorDataProvider); ok {
+	if provider, ok := comp.Instance.(ComponentDataProvider); ok {
 		return provider.GetExtraData(), comp.Enabled
 	}
 	return nil, comp.Enabled

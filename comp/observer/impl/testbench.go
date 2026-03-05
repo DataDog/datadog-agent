@@ -278,7 +278,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.ready = false
 	tb.loadedScenario = name
 
-	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
+	// Reset ALL components so disabled ones clear stale state
 	tb.resetAllState()
 
 	// Load data from scenario
@@ -490,13 +490,13 @@ func (tb *TestBench) runLogDetectors() error {
 	return nil
 }
 
-// resetAllState resets all correlators.
+// resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
-	for _, proc := range tb.allCorrelators() {
-		if resetter, ok := proc.(interface{ Reset() }); ok {
+	for _, comp := range tb.components {
+		if resetter, ok := comp.Instance.(interface{ Reset() }); ok {
 			resetter.Reset()
-		} else {
-			proc.Flush()
+		} else if flusher, ok := comp.Instance.(interface{ Flush() }); ok {
+			flusher.Flush()
 		}
 	}
 }
@@ -577,7 +577,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		delete(tb.metricsBySeriesID, k)
 	}
 
-	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
+	// Reset ALL components (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
 
 	detectors := tb.enabledDetectors()
@@ -618,6 +618,31 @@ func (tb *TestBench) rerunDetectorsLocked() {
 				}
 			}
 		}
+	}
+
+	// Phase 1b (sync): Run multi-series detectors (pull-based, e.g. RRCF)
+	dataTime := tb.storage.MaxTimestamp()
+	for _, detector := range tb.enabledMultiDetectors() {
+		multiResult := detector.Detect(tb.storage, dataTime)
+		for _, anomaly := range multiResult.Anomalies {
+			// If the anomaly has a Source (telemetry metric name) but no SourceSeriesID,
+			// resolve it to the telemetry series using the same naming convention as handleTelemetry.
+			if anomaly.SourceSeriesID == "" && anomaly.Source != "" {
+				telemetryName := "telemetry." + detector.Name() + "." + string(anomaly.Source)
+				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
+			}
+			if dedup != nil {
+				if !dedup.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
+					continue
+				}
+			}
+			tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
+			tb.metricsByDetector[anomaly.DetectorName] = append(tb.metricsByDetector[anomaly.DetectorName], anomaly)
+			if anomaly.SourceSeriesID != "" {
+				tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
+			}
+		}
+		tb.handleTelemetry(multiResult.Telemetry, detector.Name(), dataTime)
 	}
 
 	// --- Correlations ---
@@ -857,11 +882,12 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 		if comp.Registration.Category != "detector" {
 			continue
 		}
-		detector, ok := comp.Instance.(observerdef.MetricsDetector)
-		if !ok {
-			continue
+		if detector, ok := comp.Instance.(observerdef.MetricsDetector); ok {
+			result[detector.Name()] = componentName
 		}
-		result[detector.Name()] = componentName
+		if detector, ok := comp.Instance.(observerdef.MultiSeriesDetector); ok {
+			result[detector.Name()] = componentName
+		}
 	}
 	return result
 }
@@ -946,7 +972,7 @@ func (tb *TestBench) seriesCount() int {
 
 // GetLeadLagEdges returns lead-lag edges if the correlator is enabled.
 func (tb *TestBench) GetLeadLagEdges() ([]LeadLagEdge, bool) {
-	data, enabled := tb.GetCorrelatorData("lead_lag")
+	data, enabled := tb.GetComponentData("lead_lag")
 	if edges, ok := data.([]LeadLagEdge); ok {
 		return edges, enabled
 	}
@@ -955,7 +981,7 @@ func (tb *TestBench) GetLeadLagEdges() ([]LeadLagEdge, bool) {
 
 // GetSurpriseEdges returns surprise edges if the correlator is enabled.
 func (tb *TestBench) GetSurpriseEdges() ([]SurpriseEdge, bool) {
-	data, enabled := tb.GetCorrelatorData("surprise")
+	data, enabled := tb.GetComponentData("surprise")
 	if edges, ok := data.([]SurpriseEdge); ok {
 		return edges, enabled
 	}
