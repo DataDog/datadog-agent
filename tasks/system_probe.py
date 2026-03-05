@@ -2131,6 +2131,18 @@ def save_build_outputs(ctx, destfile):
                 outfiles.append(relpath)
                 count += 1
 
+        # Include inplace targets (e.g. uprobe-trigger.o) that live in
+        # their source directories rather than the central build dir.
+        for _, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+            for obj in glob.glob(os.path.join(dest_dir, "*.o")):
+                relpath = os.path.relpath(obj)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(obj, outdir)
+                outfiles.append(relpath)
+                count += 1
+
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
