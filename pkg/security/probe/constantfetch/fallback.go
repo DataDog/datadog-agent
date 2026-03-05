@@ -67,6 +67,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameInodeSuperblock:                 40,
 		OffsetNamePathMnt:                         0,
 		OffsetNameMountMntMountpoint:              24,
+		OffsetNameMountParent:                     16,
 		OffsetNameMountpointDentry:                16,
 		OffsetNameVfsmountMntFlags:                16,
 		OffsetNameSuperblockSType:                 40,
@@ -129,6 +130,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
+		OffsetNameMountMountpoint:             getMountMountpointOffset,
 		OffsetNameTaskStructRealParent:        getTaskStructRealParentOffset,
 		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 	}
@@ -1035,6 +1037,15 @@ func getMountMntNsOffset(kv *kernel.Version) uint64 {
 	}
 }
 
+func getMountMountpointOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel():
+		return 240
+	default:
+		return 232
+	}
+}
+
 func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_9:
@@ -1058,6 +1069,12 @@ func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		return 1248
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 2248
+	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
+		return 2232
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
+		return 2208
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
 		return 2248
 	default:
 		return ErrorSentinel
@@ -1087,6 +1104,12 @@ func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
 		return 1236
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 2236
+	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
+		return 2220
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
+		return 2196
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
 		return 2236
 	default:
 		return ErrorSentinel
