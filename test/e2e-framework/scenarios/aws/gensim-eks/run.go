@@ -260,6 +260,12 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 	// unchanged source — we check ECR for this hash tag first. If all images are
 	// already present, we skip the docker-compose build entirely (saves 5-10 min).
 	//
+	// TODO: the e2e infra-cleaner job purges ECR repositories weekly, which
+	// defeats this cache between weeks. To make the cache durable, the ECR repos
+	// need to be tagged so the cleaner skips them (e.g. a "gensim:keep" tag or
+	// an exclusion rule in the cleaner config). Until then, the cache only helps
+	// within the same week or on same-day cluster recreations.
+	//
 	// The :latest tag is always pushed so the Helm chart's imageRegistry prefix works
 	// without any changes to chart values.
 	buildAndPush, err := buildHost.OS.Runner().Command(
