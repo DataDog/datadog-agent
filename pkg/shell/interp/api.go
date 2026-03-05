@@ -1,16 +1,13 @@
 // Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
 // See LICENSE for licensing information
 
-// Package interp implements an interpreter that executes shell
-// programs. It aims to support POSIX, but its support is not complete
-// yet. It also supports some Bash features.
+// Package interp implements a restricted shell interpreter designed for
+// safe, sandboxed execution. It supports a subset of Bash syntax with
+// many features intentionally blocked (see [validateNode]).
 //
-// The interpreter generally aims to behave like Bash,
-// but it does not support all of its features.
-//
-// The interpreter currently aims to behave like a non-interactive shell,
-// which is how most shells run scripts, and is more useful to machines.
-// In the future, it may gain an option to behave like an interactive shell.
+// The interpreter behaves like a non-interactive shell. External command
+// execution and filesystem access are denied by default and must be
+// explicitly enabled via [RunnerOption] functions.
 package interp
 
 import (
@@ -43,7 +40,8 @@ type Runner struct {
 	Dir string
 
 	// Params are the current shell parameters, e.g. from running a shell
-	// file. Accessible via the $@/$* family of vars.
+	// file. Note: positional parameter expansion ($@, $*, $1, etc.) is
+	// blocked by the AST validator in this restricted interpreter.
 	Params []string
 
 	// execHandler is responsible for executing programs. It must not be nil.
@@ -103,15 +101,10 @@ type Runner struct {
 // exitStatus holds the state of the shell after running one command.
 // Beyond the exit status code, it also holds whether the shell should return or exit,
 // as well as any Go error values that should be given back to the user.
-//
-// TODO(v4): consider replacing ExitStatus with a struct like this,
-// so that an [ExecHandlerFunc] can e.g. mimic `exit 0` or fatal errors
-// with specific exit codes.
 type exitStatus struct {
 	// code is the exit status code.
 	code uint8
 
-	// TODO: consider an enum, as only one of these should be set at a time
 	exiting bool // whether the current shell is exiting
 	fatalExit bool // whether the current shell is exiting due to a fatal error; err below must not be nil
 
@@ -194,8 +187,6 @@ func New(opts ...RunnerOption) (*Runner, error) {
 }
 
 // RunnerOption can be passed to [New] to alter a [Runner]'s behaviour.
-// It can also be applied directly on an existing Runner,
-// such as interp.Params("-e")(runner).
 type RunnerOption func(*Runner) error
 
 func stdinFile(r io.Reader) (*os.File, error) {
@@ -317,7 +308,6 @@ func (r *Runner) Reset() {
 
 		usedNew: r.usedNew,
 	}
-	// TODO(v4): Use the supplied Env directly if it implements enough methods.
 	r.writeEnv = &overlayEnviron{parent: r.Env}
 	r.setVarString("PWD", r.Dir)
 	r.setVarString("IFS", " \t\n")
@@ -333,14 +323,11 @@ func (s ExitStatus) Error() string { return fmt.Sprintf("exit status %d", s) }
 
 // Run interprets a node, which can be a [*File], [*Stmt], or [Command]. If a non-nil
 // error is returned, it will typically contain a command's exit status, which
-// can be retrieved with [IsExitStatus].
+// can be retrieved with [errors.As] and [ExitStatus].
 //
 // Run can be called multiple times synchronously to interpret programs
 // incrementally. To reuse a [Runner] without keeping the internal shell state,
 // call Reset.
-//
-// Calling Run on an entire [*File] implies an exit, meaning that an exit trap may
-// run.
 func (r *Runner) Run(ctx context.Context, node syntax.Node) error {
 	if !r.didReset {
 		r.Reset()
@@ -383,14 +370,15 @@ func (r *Runner) Close() error {
 	return nil
 }
 
-// subshell is like [Runner.Subshell], but allows skipping some allocations and copies
-// when creating subshells which will not be used concurrently with the parent shell.
+// subshell creates a child Runner that inherits the parent's state.
+// If background is false, the child shares the parent's environment overlay
+// without copying, which is more efficient but must not be used concurrently.
 func (r *Runner) subshell(background bool) *Runner {
 	if !r.didReset {
 		r.Reset()
 	}
 	// Keep in sync with the Runner type. Manually copy fields, to not copy
-	// sensitive ones like [errgroup.Group], and to do deep copies of slices.
+	// sensitive ones, and to do deep copies of slices.
 	r2 := &Runner{
 		Dir:             r.Dir,
 		Params:          r.Params,

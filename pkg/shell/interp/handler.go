@@ -44,8 +44,6 @@ type HandlerContext struct {
 	// It may be invalid if the operation has no relevant position information.
 	Pos syntax.Pos
 
-	// TODO(v4): use an os.File for stdin below directly.
-
 	// Stdin is the interpreter's current standard input reader.
 	// It is always an [*os.File], but the type here remains an [io.Reader]
 	// due to backwards compatibility.
@@ -61,7 +59,7 @@ type HandlerContext struct {
 // where the first argument is not a builtin.
 //
 // Returning a nil error means a zero exit status.
-// Other exit statuses can be set by returning or wrapping a [NewExitStatus] error,
+// Other exit statuses can be set by returning or wrapping an [ExitStatus] error,
 // and such an error is returned via the API if it is the last statement executed.
 // Any other error will halt the [Runner] and will be returned via the API.
 type ExecHandlerFunc func(ctx context.Context, args []string) error

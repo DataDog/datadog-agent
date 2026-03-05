@@ -137,8 +137,6 @@ func (r *Runner) setVarWithIndex(prev expand.Variable, name string, index syntax
 	r.setVar(name, vr)
 }
 
-// TODO: make assignVal and [setVar] consistent with the [expand.WriteEnviron] interface
-
 // assignVal evaluates the value of an assignment.  In safe-shell, only simple
 // string assignments are supported (no append, no arrays, no NameRef).  The AST
 // validator rejects those constructs before we get here, so hitting them is a
