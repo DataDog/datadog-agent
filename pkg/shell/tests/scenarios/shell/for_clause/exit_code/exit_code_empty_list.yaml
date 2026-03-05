@@ -1,6 +1,6 @@
 description: For loop with empty list exits with code 0.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in; do false; done
 expect:

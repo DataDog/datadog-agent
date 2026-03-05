@@ -1,6 +1,6 @@
 description: Herestring preserves special characters inside quotes.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <<< "tabs	and * globs ? here"
 expect:

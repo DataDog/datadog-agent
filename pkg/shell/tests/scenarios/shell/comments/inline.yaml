@@ -1,6 +1,6 @@
 description: Inline comments after a command are ignored.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello # this is a comment
 expect:

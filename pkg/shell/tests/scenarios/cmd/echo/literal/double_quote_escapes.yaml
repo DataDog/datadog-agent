@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Backslash escape sequences in double-quoted echo are passed literally.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "hello\nworld"
 expect:

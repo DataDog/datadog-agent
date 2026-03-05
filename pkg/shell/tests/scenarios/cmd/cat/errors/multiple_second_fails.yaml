@@ -9,7 +9,7 @@ setup:
       chmod: 0644
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     cat existing.txt nonexistent.txt
 expect:

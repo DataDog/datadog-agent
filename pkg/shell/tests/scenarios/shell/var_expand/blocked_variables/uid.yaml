@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: The $UID variable has no special meaning and expands to empty.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "[$UID]"
 expect:

@@ -1,6 +1,6 @@
 description: The $? variable captures 1 after false.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false
     echo $?

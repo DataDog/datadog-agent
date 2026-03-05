@@ -1,7 +1,7 @@
 description: Bracket glob with no matches expands to the literal pattern.
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     echo [abc].xyz
 expect:

@@ -1,6 +1,6 @@
 description: Herestring with empty string produces a newline.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <<< ""
 expect:

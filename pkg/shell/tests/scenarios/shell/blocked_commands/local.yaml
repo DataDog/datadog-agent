@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: local is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     local X=42
 expect:

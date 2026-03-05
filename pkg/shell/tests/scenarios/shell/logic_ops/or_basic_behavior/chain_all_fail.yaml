@@ -1,6 +1,6 @@
 description: In a || chain, when all commands fail the exit code is from the last.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false || false || false
 expect:

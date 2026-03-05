@@ -1,6 +1,6 @@
 description: Exit with no arguments after a failed command propagates the failure code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo before
     false

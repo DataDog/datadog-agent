@@ -1,6 +1,6 @@
 description: Negation applies to the entire && chain, not just the first command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     ! echo first && echo second
 expect:

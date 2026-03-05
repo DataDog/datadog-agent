@@ -1,6 +1,6 @@
 description: When left fails in ||, exit code is from the right side.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false || exit 3
 expect:

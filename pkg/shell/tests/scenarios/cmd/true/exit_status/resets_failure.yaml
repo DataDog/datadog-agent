@@ -1,6 +1,6 @@
 description: The true builtin resets $? to 0 after a failed command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false
     echo $?

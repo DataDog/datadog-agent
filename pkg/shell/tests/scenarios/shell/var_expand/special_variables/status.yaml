@@ -1,6 +1,6 @@
 description: The $? variable holds the exit status of the last command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true
     echo $?

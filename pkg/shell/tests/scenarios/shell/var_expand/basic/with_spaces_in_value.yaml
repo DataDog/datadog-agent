@@ -1,6 +1,6 @@
 description: Variables with spaces must be quoted to preserve the value as one argument.
 input:
-  # language=sh
+  # language=bash
   script: |+
     MSG="hello world"
     echo "$MSG"

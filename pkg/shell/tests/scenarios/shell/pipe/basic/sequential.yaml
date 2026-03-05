@@ -1,6 +1,6 @@
 description: Multiple pipe statements execute independently in sequence.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo first | cat
     echo second | cat

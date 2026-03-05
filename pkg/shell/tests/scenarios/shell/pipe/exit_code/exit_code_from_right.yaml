@@ -1,6 +1,6 @@
 description: Pipe exit code comes from the rightmost (last) command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo ok | false
 expect:

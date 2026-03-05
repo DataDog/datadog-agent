@@ -1,6 +1,6 @@
 description: A variable can be assigned from another variable's value.
 input:
-  # language=sh
+  # language=bash
   script: |+
     A=hello
     B=$A

@@ -1,6 +1,6 @@
 description: Negating a command-not-found (exit 127) produces exit code 0.
 input:
-  # language=sh
+  # language=bash
   script: |+
     ! nonexistent_command_xyz
 expect:

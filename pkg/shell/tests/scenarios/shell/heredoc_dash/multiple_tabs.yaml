@@ -1,6 +1,6 @@
 description: Dash heredoc strips multiple leading tabs.
 input:
-  # language=sh
+  # language=bash
   script: "cat <<-EOF\n\t\t\tdeeply indented\nEOF\n"
 expect:
   stdout: |+

@@ -8,7 +8,7 @@ setup:
       content: "secret"
 input:
   allowed_paths: ["allowed"]
-  # language=sh
+  # language=bash
   script: |+
     cat < secret/data.txt
 expect:

@@ -1,6 +1,6 @@
 description: Variables are NOT expanded inside single quotes.
 input:
-  # language=sh
+  # language=bash
   script: |+
     NAME=world
     echo 'hello $NAME'
