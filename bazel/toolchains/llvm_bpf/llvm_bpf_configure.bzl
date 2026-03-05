@@ -17,31 +17,33 @@ def _get_url(url_prefix, arch):
     return "{}/{}-{}.{}.{}".format(_S3_BASE, url_prefix, CLANG_VERSION, arch, CLANG_BUILD_VERSION)
 
 def _download_llvm_bpf_impl(rctx):
-    arch = rctx.os.arch
-    if arch == "x86_64":
-        arch = "amd64"
-    elif arch == "aarch64":
-        arch = "arm64"
-    else:
-        fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
-
     downloaded = {}
-    for binary, url_prefix in _BINARIES.items():
-        url = _get_url(url_prefix, arch)
-        output = "bin/" + binary
 
-        if rctx.attr.verbose:
-            # buildifier: disable=print
-            print("Downloading {} from {}".format(binary, url))
+    if "linux" in rctx.os.name:
+        arch = rctx.os.arch
+        if arch in ("x86_64", "amd64"):
+            arch = "amd64"
+        elif arch in ("aarch64", "arm64"):
+            arch = "arm64"
+        else:
+            fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
-        result = rctx.download(
-            url = url,
-            output = output,
-            executable = True,
-        )
-        if not result.success:
-            fail("Failed to download {} from {}".format(binary, url))
-        downloaded[binary] = output
+        for binary, url_prefix in _BINARIES.items():
+            url = _get_url(url_prefix, arch)
+            output = "bin/" + binary
+
+            if rctx.attr.verbose:
+                # buildifier: disable=print
+                print("Downloading {} from {}".format(binary, url))
+
+            result = rctx.download(
+                url = url,
+                output = output,
+                executable = True,
+            )
+            if not result.success:
+                fail("Failed to download {} from {}".format(binary, url))
+            downloaded[binary] = output
 
     rctx.template(
         "BUILD.bazel",

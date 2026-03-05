@@ -226,7 +226,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
-        "bzlTransitiveDigest": "gouRQOfWae3pBqyj2PizMsmaBjUiG/HAyn9QniUclUg=",
+        "bzlTransitiveDigest": "BYfGPFTOX6QzH1rIZm4bEYfVamz9iYxvGBN048ySBPE=",
         "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -242,7 +242,7 @@
     },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "HxWiBnjamtbTPdZydu5y6hYtUefK6cEZWTSpoo430Os=",
+        "bzlTransitiveDigest": "jCNsXPIwxRh2Po5BIpyzONXYMGmwv+DCu1QUvD/WfdM=",
         "usagesDigest": "zVMywqtcDCrcDt/bRMHd1VJ/EnqarG0lOrpUiziqZ9w=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
