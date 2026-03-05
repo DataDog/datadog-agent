@@ -328,6 +328,14 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 	require.NoError(s.T(), err)
 	_, nginxLoaded := status.RunnerStats.Checks["nginx"]
 	assert.True(s.T(), nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	status, err = s.Agent.Status()
+	require.NoError(s.T(), err)
+	_, nginxLoaded = status.RunnerStats.Checks["nginx"]
+	assert.True(s.T(), nginxLoaded, "nginx check should still be loaded after promotion")
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
