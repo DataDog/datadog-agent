@@ -302,17 +302,18 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 
+	runnerNamePrefix := runnerHostname
 	// For cluster agent, use cluster name instead of hostname for better identification
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		clusterName := clustername.GetClusterName(ctx, runnerHostname)
 		if clusterName != "" {
-			runnerHostname = clusterName
+			runnerNamePrefix = clusterName
 		} else {
 			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
 		}
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerHostname, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
