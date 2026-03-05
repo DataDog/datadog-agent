@@ -77,7 +77,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
 	for idx, probe := range program.Probes {
+		// Determine which event kind has a condition (if any).
+		var conditionEventKind ir.EventKind
 		for _, event := range probe.Events {
+			if event.Condition != nil {
+				conditionEventKind = event.Kind
+				break
+			}
+		}
+		for _, event := range probe.Events {
+			throttleMode := computeThrottleMode(event, conditionEventKind)
 			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
 					injectionPoint,
@@ -86,6 +95,8 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 					uint32(idx),
 					event.Type,
 					event.Kind,
+					event.Condition,
+					throttleMode,
 				)
 				if err != nil {
 					return Program{}, err
@@ -151,6 +162,36 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	}, nil
 }
 
+// computeThrottleMode determines the throttle mode for an event based on
+// whether this event or its sibling has a condition.
+//
+// Note importantly at time of writing only one event can have a condition!
+func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
+	hasCond := event.Condition != nil
+	isReturn := event.Kind == ir.EventKindReturn
+
+	if hasCond {
+		// This event has a condition: throttle after condition check.
+		// Note: if we later support compound conditions where the entry and
+		// return both have conditions, we will need to adjust this to only
+		// throttle the return.
+		return ThrottleAfterCondCheck
+	}
+	if conditionEventKind != 0 && conditionEventKind != event.Kind {
+		// Sibling event has a condition: skip throttling for this event.
+		// For entry with conditional return: don't throttle entry so the return
+		// condition can evaluate.
+		// For return with conditional entry: unconditional returns never throttle.
+		return ThrottleNone
+	}
+	if isReturn {
+		// Unconditional return without sibling condition: never throttle.
+		return ThrottleNone
+	}
+	// Default: throttle at start.
+	return ThrottleAtStart
+}
+
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
@@ -161,6 +202,8 @@ func (g *generator) addEventHandler(
 	probeID uint32,
 	rootType *ir.EventRootType,
 	eventKind ir.EventKind,
+	condition *ir.Expression,
+	throttleMode ThrottleMode,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
@@ -172,11 +215,25 @@ func (g *generator) addEventHandler(
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
 		NoReturnReason:      injectionPoint.NoReturnReason,
 		TopPCOffset:         injectionPoint.TopPCOffset,
+		ThrottleMode:        throttleMode,
 		ProbeID:             probeID,
 		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
-	ops := make([]Op, 0, 2+len(rootType.Expressions))
+	ops := make([]Op, 0, 3+len(rootType.Expressions))
+
+	// If there's a condition, insert the condition check before
+	// PrepareEventRoot so that non-matching events are skipped entirely.
+	if condition != nil {
+		condFunctionID, err := g.addConditionHandler(injectionPoint.PC, rootType, condition)
+		if err != nil {
+			return err
+		}
+		ops = append(ops, CallOp{
+			FunctionID: condFunctionID,
+		})
+	}
+
 	ops = append(ops, PrepareEventRootOp{
 		EventRootType: rootType,
 	})
@@ -191,6 +248,61 @@ func (g *generator) addEventHandler(
 	}
 	ops = append(ops, ReturnOp{})
 	return g.addFunction(id, ops)
+}
+
+// Generates a function that evaluates a condition expression. If the condition
+// evaluates to false, the stack machine sets condition_failed and aborts.
+func (g *generator) addConditionHandler(
+	injectionPC uint64,
+	rootType *ir.EventRootType,
+	condition *ir.Expression,
+) (FunctionID, error) {
+	id := ProcessCondition{
+		EventRootType: rootType,
+		InjectionPC:   injectionPC,
+	}
+	ops := make([]Op, 0, 5+len(condition.Operations))
+	ops = append(ops, ConditionBeginOp{})
+	ops = append(ops, ExprPrepareOp{})
+
+	for _, op := range condition.Operations {
+		switch op := op.(type) {
+		case *ir.LocationOp:
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			if err != nil {
+				logLocationIssue(
+					"error encoding location op for condition: %v", err,
+				)
+				opsAfter = append(ops, ReturnOp{})
+			}
+			ops = opsAfter
+		case *ir.DereferenceOp:
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias: op.Bias,
+				Len:  op.ByteSize,
+			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ConditionCheckOp:
+			ops = append(ops, ConditionCheckOp{})
+		default:
+			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
+		}
+	}
+	ops = append(ops, ReturnOp{})
+	err := g.addFunction(id, ops)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
 var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
