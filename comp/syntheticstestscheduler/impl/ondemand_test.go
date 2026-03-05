@@ -234,7 +234,7 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 		log:                          l,
 		hostNameService:              &mockHostname{},
 		statsdClient:                 &teststatsd.Client{},
-		traceroute:                   &tracerouteRunner{fn: func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
+		traceroute: &tracerouteRunner{fn: func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
 			return payload.NetworkPath{}, nil
 		}},
 	}
