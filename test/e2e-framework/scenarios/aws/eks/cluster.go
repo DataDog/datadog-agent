@@ -88,6 +88,18 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			return err
 		}
 
+		// Pre-create the Fargate pod execution role so its ARN is known before
+		// eks.NewCluster runs. pulumi-eks manages aws-auth with patchForce:true,
+		// overwriting the entire mapRoles list with only the roles in RoleMappings.
+		// If we let pulumi-eks auto-create the Fargate role internally, it never
+		// appears in RoleMappings and gets silently dropped from aws-auth on every
+		// update — causing CoreDNS and other kube-system Fargate pods to fail with
+		// "Pod execution role is not found in auth config".
+		fargatePodExecutionRole, err := localEks.GetFargatePodExecutionRole(e, "eks-fargate-pod-execution-role")
+		if err != nil {
+			return err
+		}
+
 		// Fargate Configuration
 		var fargateProfileSelectors awsEks.FargateProfileSelectorArray
 		if fargateNamespace := e.EKSFargateNamespace(); fargateNamespace != "" {
@@ -105,6 +117,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			EndpointPrivateAccess: pulumi.BoolPtr(true),
 			EndpointPublicAccess:  pulumi.BoolPtr(false),
 			Fargate: eks.FargateProfileArgs{
+				PodExecutionRoleArn: fargatePodExecutionRole.Arn,
 				Selectors: append(awsEks.FargateProfileSelectorArray{
 					// Put CoreDNS pods on Fargate because this addon needs to be deployed
 					// before the node groups are created.
@@ -147,6 +160,18 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 					RoleArn: pulumi.String(e.EKSReadOnlySSORole()),
 					Groups: pulumi.StringArray{
 						pulumi.String("read-only"),
+					},
+				},
+				// Include the Fargate pod execution role so that Fargate nodes
+				// (e.g. CoreDNS in kube-system) can authenticate to the API server.
+				// aws-auth is managed with patchForce:true; without this entry the
+				// role is silently dropped on every update.
+				eks.RoleMappingArgs{
+					RoleArn:  fargatePodExecutionRole.Arn,
+					Username: pulumi.String("system:node:{{SessionName}}"),
+					Groups: pulumi.StringArray{
+						pulumi.String("system:bootstrappers"),
+						pulumi.String("system:nodes"),
 					},
 				},
 			},
