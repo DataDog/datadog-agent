@@ -13,11 +13,15 @@ func builtinCat(ctx context.Context, callCtx *CallContext, args []string) Result
 	if len(args) == 0 {
 		args = []string{"-"}
 	}
+	var failed bool
 	for _, arg := range args {
 		if err := catFile(ctx, callCtx, arg); err != nil {
 			callCtx.Errf("cat: %s: %v\n", arg, err)
-			return Result{Code: 1}
+			failed = true
 		}
+	}
+	if failed {
+		return Result{Code: 1}
 	}
 	return Result{}
 }

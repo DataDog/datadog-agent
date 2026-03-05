@@ -1,5 +1,5 @@
 test_against_local_shell: false
-description: When all files are missing, cat stops at the first failure without attempting the rest.
+description: When all files are missing, cat reports errors for each file.
 target_os: [linux, darwin]
 input:
   allowed_paths: ["$DIR"]
@@ -10,5 +10,6 @@ expect:
   stdout: ""
   stderr_contains:
     - "cat: missing1.txt:"
+    - "cat: missing2.txt:"
     - "no such file or directory"
   exit_code: 1
