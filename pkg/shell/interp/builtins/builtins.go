@@ -76,8 +76,3 @@ func Lookup(name string) (HandlerFunc, bool) {
 	return fn, ok
 }
 
-// IsBuiltin returns true if the given name is a builtin command.
-func IsBuiltin(name string) bool {
-	_, ok := registry[name]
-	return ok
-}
