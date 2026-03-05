@@ -1,0 +1,15 @@
+description: Input redirection works inside a for loop across iterations.
+setup:
+  files:
+    - path: greet.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for i in 1 2; do
+      cat < greet.txt
+    done
+expect:
+  stdout: "hellohello"
+  stderr: ""
+  exit_code: 0
