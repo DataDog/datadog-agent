@@ -99,7 +99,7 @@ func TestAllowedPathsCatOutside(t *testing.T) {
 	secret := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "hidden.txt"), []byte("secret"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat "+filepath.Join(secret, "hidden.txt"), allowed,
+	_, stderr, exitCode := runScript(t, "cat "+filepath.ToSlash(filepath.Join(secret, "hidden.txt")), allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -122,7 +122,7 @@ func TestAllowedPathsRedirectOutside(t *testing.T) {
 	secret := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "data.txt"), []byte("secret"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat < "+filepath.Join(secret, "data.txt"), allowed,
+	_, stderr, exitCode := runScript(t, "cat < "+filepath.ToSlash(filepath.Join(secret, "data.txt")), allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
@@ -149,7 +149,7 @@ func TestAllowedPathsGlobOutside(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "b.txt"), []byte(""), 0644))
 
 	// Glob on a directory outside allowed paths should return the literal pattern
-	stdout, _, exitCode := runScript(t, `echo `+filepath.Join(secret, "*.txt"), allowed,
+	stdout, _, exitCode := runScript(t, `echo `+filepath.ToSlash(filepath.Join(secret, "*.txt")), allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 0, exitCode)

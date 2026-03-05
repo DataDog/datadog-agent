@@ -78,7 +78,11 @@ func wrapOpenHandler(roots []*os.Root, allowedPaths []string) OpenHandlerFunc {
 			return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrPermission}
 		}
 
-		return root.OpenFile(relPath, flag, perm)
+		f, err := root.OpenFile(relPath, flag, perm)
+		if err != nil {
+			return nil, normalizeOSError(err)
+		}
+		return f, nil
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -66,9 +67,17 @@ func runScriptInternal(t *testing.T, script, dir string, opts ...RunnerOption) (
 
 func TestAllowedPathsExecInside(t *testing.T) {
 	dir := t.TempDir()
-	// /bin/echo should be within the allowed path if we allow /bin or /usr
-	stdout, _, exitCode := runScriptInternal(t, `/bin/echo hello`, dir,
-		AllowedPaths([]string{dir, "/bin", "/usr"}),
+	var script string
+	var allowed []string
+	if runtime.GOOS == "windows" {
+		script = `C:\Windows\System32\cmd.exe /c echo hello`
+		allowed = []string{dir, `C:\Windows\System32`}
+	} else {
+		script = `/bin/echo hello`
+		allowed = []string{dir, "/bin", "/usr"}
+	}
+	stdout, _, exitCode := runScriptInternal(t, script, dir,
+		AllowedPaths(allowed),
 	)
 	assert.Equal(t, 0, exitCode)
 	assert.Equal(t, "hello\n", stdout)
@@ -76,8 +85,14 @@ func TestAllowedPathsExecInside(t *testing.T) {
 
 func TestAllowedPathsExecOutside(t *testing.T) {
 	dir := t.TempDir()
-	// Only allow the temp dir, so /bin/echo should be blocked
-	_, stderr, exitCode := runScriptInternal(t, `/bin/echo hello`, dir,
+	// Only allow the temp dir, so the system command should be blocked
+	var script string
+	if runtime.GOOS == "windows" {
+		script = `C:\Windows\System32\cmd.exe /c echo hello`
+	} else {
+		script = `/bin/echo hello`
+	}
+	_, stderr, exitCode := runScriptInternal(t, script, dir,
 		AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 127, exitCode)
@@ -87,8 +102,14 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 func TestAllowedPathsExecNonexistent(t *testing.T) {
 	dir := t.TempDir()
 	// Command that doesn't exist at all — LookPathDir fails
+	allowed := []string{dir}
+	if runtime.GOOS == "windows" {
+		allowed = append(allowed, `C:\Windows\System32`)
+	} else {
+		allowed = append(allowed, "/bin", "/usr")
+	}
 	_, stderr, exitCode := runScriptInternal(t, `totally_nonexistent_cmd_12345`, dir,
-		AllowedPaths([]string{dir, "/bin", "/usr"}),
+		AllowedPaths(allowed),
 	)
 	assert.Equal(t, 127, exitCode)
 	assert.Contains(t, stderr, "not found")
@@ -107,7 +128,13 @@ func TestAllowedPathsExecViaPathLookup(t *testing.T) {
 func TestAllowedPathsExecDefaultBlocksAll(t *testing.T) {
 	dir := t.TempDir()
 	// No AllowedPaths option — default blocks all exec
-	_, stderr, exitCode := runScriptInternal(t, `/bin/echo hello`, dir)
+	var script string
+	if runtime.GOOS == "windows" {
+		script = `C:\Windows\System32\cmd.exe /c echo hello`
+	} else {
+		script = `/bin/echo hello`
+	}
+	_, stderr, exitCode := runScriptInternal(t, script, dir)
 	assert.Equal(t, 127, exitCode)
 	assert.Contains(t, stderr, "not found")
 }
