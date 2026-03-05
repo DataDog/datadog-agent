@@ -196,10 +196,7 @@ func New(opts ...RunnerOption) (*Runner, error) {
 // RunnerOption can be passed to [New] to alter a [Runner]'s behaviour.
 // It can also be applied directly on an existing Runner,
 // such as interp.Params("-e")(runner).
-// Note that options cannot be applied once Run or Reset have been called.
 type RunnerOption func(*Runner) error
-
-// TODO: enforce the rule above via didReset.
 
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {

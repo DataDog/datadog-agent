@@ -160,8 +160,6 @@ func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (str
 // extra files and goroutines for input redirections; see [StdIO].
 type OpenHandlerFunc func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error)
 
-// TODO: paths passed to [OpenHandlerFunc] should be cleaned.
-
 // defaultOpenHandler returns the [OpenHandlerFunc] used by default.
 // It uses [os.OpenFile] to open files.
 //
