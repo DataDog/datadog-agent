@@ -62,6 +62,7 @@ ALL_TAGS = {
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
+    "private_runner_experimental",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
@@ -445,6 +446,7 @@ def filter_incompatible_tags(include, platform=sys.platform):
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
+    platform = platform or sys.platform
     exclude = set()
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)

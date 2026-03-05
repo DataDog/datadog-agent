@@ -24,7 +24,10 @@ func buildEnv(allowedEnvVars []string) []string {
 }
 
 func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) (*exec.Cmd, error) {
-	cmd := exec.CommandContext(ctx, "/bin/sh", append([]string{"-c", scriptFile}, args...)...)
+	// Execute the script file as an argument to /bin/sh instead of using `-c`.
+	// This avoids requiring the script file itself to be executable and preserves
+	// positional args for the script (`$1`, `$2`, ...).
+	cmd := exec.CommandContext(ctx, "/bin/sh", append([]string{scriptFile}, args...)...)
 	cmd.Env = buildEnv(nil)
 	return cmd, nil
 }
