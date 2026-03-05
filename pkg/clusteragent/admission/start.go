@@ -125,14 +125,16 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
 
-	// Start the admission probe to periodically verify webhook connectivity.
-	admissionProbe := admprobe.New(ctx.Client, isLeaderFunc)
-	probeCtx, probeCancel := context.WithCancel(context.Background())
-	go func() {
-		<-ctx.StopCh
-		probeCancel()
-	}()
-	go admissionProbe.Run(probeCtx)
+	if datadogConfig.GetBool("admission_controller.probe.enabled") {
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, datadogConfig)
+		setProbe(admissionProbe)
+		probeCtx, probeCancel := context.WithCancel(context.Background())
+		go func() {
+			<-ctx.StopCh
+			probeCancel()
+		}()
+		go admissionProbe.Run(probeCtx)
+	}
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }

@@ -954,6 +954,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.probe.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.probe.namespace", "datadog-admission-probe-dryrun")
+	config.BindEnvAndSetDefault("admission_controller.probe.interval", 60)     // in seconds
+	config.BindEnvAndSetDefault("admission_controller.probe.grace_period", 60) // in seconds
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
