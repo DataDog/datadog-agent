@@ -866,6 +866,7 @@
 /tools/windows/                         @DataDog/windows-products
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-products @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-devx
+/tools/build-ddot-byoc/                 @DataDog/opentelemetry-agent
 
 /internal/remote-agent                  @DataDog/agent-runtimes
 /internal/tools/                        @DataDog/agent-devx

@@ -67,6 +67,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameInodeSuperblock:                 40,
 		OffsetNamePathMnt:                         0,
 		OffsetNameMountMntMountpoint:              24,
+		OffsetNameMountParent:                     16,
 		OffsetNameMountpointDentry:                16,
 		OffsetNameVfsmountMntFlags:                16,
 		OffsetNameSuperblockSType:                 40,
@@ -129,6 +130,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
+		OffsetNameMountMountpoint:             getMountMountpointOffset,
 	}
 }
 
@@ -1030,5 +1032,14 @@ func getMountMntNsOffset(kv *kernel.Version) uint64 {
 		return 232
 	default:
 		return 224
+	}
+}
+
+func getMountMountpointOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel():
+		return 240
+	default:
+		return 232
 	}
 }

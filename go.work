@@ -189,5 +189,6 @@ use (
 	test/fakeintake
 	test/new-e2e
 	test/otel
+	tools/build-ddot-byoc
 	tools/retry_file_dump
 )
