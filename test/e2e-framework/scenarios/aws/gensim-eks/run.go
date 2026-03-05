@@ -253,7 +253,7 @@ func Run(ctx *pulumi.Context) error {
 	// only (useful for debugging before committing to a full run).
 	scenario := cfg.Get("scenario")
 	if scenario != "" && awsEnv.AgentDeploy() {
-		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName, s3Bucket); err != nil {
+		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName, s3Bucket, episodeName); err != nil {
 			return err
 		}
 	}
@@ -271,7 +271,7 @@ func deployRunnerJob(
 	ctx *pulumi.Context,
 	awsEnv *resAws.Environment,
 	kubeProvider *pulumiKubernetes.Provider,
-	episodePath, scenario, namespace, ddEnv, s3Bucket string,
+	episodePath, scenario, namespace, ddEnv, s3Bucket, episodeName string,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -411,12 +411,28 @@ func deployRunnerJob(
 							corev1.ContainerArgs{
 								Name:  pulumi.String("runner"),
 								Image: pulumi.String("alpine/k8s:1.31.0"),
-								Command: pulumi.StringArray{
-									pulumi.String("bash"),
-									pulumi.String("/episode/play-episode.sh"),
-									pulumi.String("run-episode"),
-									pulumi.String(scenario),
-								},
+								// Run episode then collect observer parquet and upload to S3.
+								// bash -c chains all steps in one container without sidecars.
+								Command: pulumi.StringArray{pulumi.String("bash"), pulumi.String("-c")},
+								Args: pulumi.StringArray{pulumi.Sprintf(
+									`set -euo pipefail
+
+bash /episode/play-episode.sh run-episode %s
+
+AGENT_POD=$(kubectl get pod -n %s -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+if [ -n "$AGENT_POD" ]; then
+  mkdir -p /episode/results/parquet
+  kubectl cp %s/$AGENT_POD:/tmp/observer-parquet /episode/results/parquet/ 2>/dev/null || echo "Warning: parquet collection failed"
+fi
+
+if [ -n "%s" ]; then
+  DEST="s3://%s/gensim-results-%s-$(date -u +%%%%Y%%%%m%%%%d)"
+  echo "Uploading results to $DEST/..."
+  aws s3 cp /episode/results/ "$DEST/" --recursive
+  echo "Uploaded to $DEST/"
+fi`,
+									scenario, namespace, namespace, s3Bucket, s3Bucket, episodeName,
+								)},
 								Env: corev1.EnvVarArray{
 									corev1.EnvVarArgs{
 										Name: pulumi.String("DD_API_KEY"),
