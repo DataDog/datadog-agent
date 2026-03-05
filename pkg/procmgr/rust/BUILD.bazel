@@ -79,6 +79,7 @@ rust_test(
     name = "dd-procmgrd_test",
     crate = ":dd-procmgrd",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     deps = [
         "@crates//:hyper-util",
         "@crates//:tempfile",
