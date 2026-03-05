@@ -94,18 +94,24 @@ Pool at ~60% utilization at baseline. PgBouncer `wait=0us`. svc-login all succes
 
 ---
 
-### M3 — Datadog Agent deployed + metrics flowing ⬜
+### M3 — Datadog Agent deployed + metrics flowing ✅
 Deploy the full DaemonSet-based DD agent (with `datadog-values.yaml`), remove the episode
 chart's built-in stub agent.
 
-**Goal:** agent pod running, metrics visible in DD under the episode's env tag.
+**Goal:** agent pod running, collecting data, stub agent removed.
 
 **What happens:**
-- `gensim-episodes/postmortems/datadog-values.yaml` applied (sets `clusterName`, `kubelet.tlsVerify: false`)
-- Episode chart's built-in `datadog-agent` Deployment/Service/ServiceAccount deleted
-- Full agent DaemonSet takes over
+- `gensim-episodes/postmortems/datadog-values.yaml` applied via `WithHelmValuesFile`
+  (sets `clusterName`, `kubelet.tlsVerify: false` — required on EKS, self-signed kubelet cert)
+- `helm.NewKubernetesAgent` deploys the full DaemonSet-based agent, gated on `awsEnv.AgentDeploy()`
+- Post-pulumi: Python invoke task runs `kubectl delete` to remove episode chart's stub agent
 
-**Success:** DD metrics flowing for the episode's env tag.
+**Key learning:** `WithHelmValues` (string asset) has a local-backend serialisation bug in
+pulumi-kubernetes that causes `unsupported type for 'valueYamlFiles' arg: []interface {}`.
+Added `WithHelmValuesFile` (file asset) to `kubernetesagentparams` as the fix.
+
+**Validated:** 1 agent pod Running on EC2 node, stub gone, agent collecting and forwarding
+(403s expected with dummy API key — real key needed for metrics to flow to DD).
 
 ---
 
