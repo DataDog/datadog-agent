@@ -16,7 +16,7 @@ pub mod proto {
 
 #[cfg(bazel)]
 pub mod proto {
-    pub use process_manager_rust_proto::datadog::procmgr::*;
+    pub use process_manager_proto::datadog::procmgr::*;
 }
 
 #[cfg(test)]
