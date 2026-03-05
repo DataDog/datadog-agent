@@ -505,7 +505,7 @@ func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 	fh.init()
 
 	// mock mutate the resolver's base domain like default forwarder does
-	resolvers[originalDomain].SetBaseDomain("https://7-76-1-app.agent.datadoghq.com.")
+	resolvers[originalDomain].SetBaseDomain("https://mock-mutated-app.agent.datadoghq.com.")
 
 	resolvers[originalDomain].SetForwarderHealth(&fh)
 	resolver.OnUpdateConfig(resolvers[originalDomain], log, cfg)
