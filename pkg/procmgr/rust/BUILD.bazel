@@ -19,6 +19,14 @@ rust_prost_library(
     visibility = ["//visibility:public"],
 )
 
+# rust_prost_library propagates CcInfo from proto_library, which transitively
+# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
+# so we provide it explicitly.
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = ["-lstdc++"],
+)
+
 # ============================================================================
 # Binary
 # ============================================================================
@@ -33,6 +41,7 @@ rust_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":cpp_stdlib",
         ":process_manager_rust_proto",
         "@crates//:anyhow",
         "@crates//:log",

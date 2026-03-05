@@ -21,7 +21,6 @@ rust_prost_toolchain(
     prost_plugin = "@crates//:protoc-gen-prost__protoc-gen-prost",
     prost_runtime = ":prost_runtime",
     prost_types = "@crates//:prost-types",
-    proto_compiler = "@protobuf//:protoc",
     tonic_plugin = "@crates//:protoc-gen-tonic__protoc-gen-tonic",
     tonic_runtime = ":tonic_runtime",
 )
