@@ -5,11 +5,12 @@
 
 mod config;
 mod env;
+mod ordering;
 mod process;
 mod shutdown;
 mod state;
 
-use crate::config::ProcessConfig;
+use crate::config::NamedProcess;
 use anyhow::Result;
 use log::{info, warn};
 use process::ManagedProcess;
@@ -30,7 +31,8 @@ async fn main() -> Result<()> {
     );
 
     let configs = load_configs();
-    let mut processes = start_processes(configs);
+    let startup_order = resolve_startup_order(&configs);
+    let mut processes = start_processes(configs, &startup_order);
 
     let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
     for (i, proc) in processes.iter_mut().enumerate() {
@@ -64,7 +66,8 @@ async fn main() -> Result<()> {
     }
 
     info!("dd-procmgrd shutting down");
-    shutdown::shutdown_all(&mut processes).await;
+    let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+    shutdown::shutdown_ordered(&mut processes, &shutdown_order).await;
     info!("dd-procmgrd stopped");
     Ok(())
 }
@@ -89,7 +92,7 @@ fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSen
     }
 }
 
-fn load_configs() -> Vec<(String, ProcessConfig)> {
+fn load_configs() -> Vec<NamedProcess> {
     let config_dir = config::config_dir();
 
     if !config_dir.is_dir() {
@@ -118,16 +121,36 @@ fn load_configs() -> Vec<(String, ProcessConfig)> {
     configs
 }
 
-fn start_processes(configs: Vec<(String, ProcessConfig)>) -> Vec<ManagedProcess> {
-    let mut processes = Vec::new();
-    for (name, cfg) in configs {
-        let mut proc = ManagedProcess::new(name, cfg);
+fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
+    let result = ordering::resolve_order(configs);
+    if !result.skipped.is_empty() {
+        warn!(
+            "dependency cycle detected, skipping processes: {}",
+            result.skipped.join(", ")
+        );
+    }
+    let names: Vec<&str> = result
+        .order
+        .iter()
+        .map(|&i| configs[i].0.as_str())
+        .collect();
+    info!("startup order: {}", names.join(" -> "));
+    result.order
+}
+
+fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
+    let mut processes: Vec<ManagedProcess> = configs
+        .into_iter()
+        .map(|(name, cfg)| ManagedProcess::new(name, cfg))
+        .collect();
+
+    for &idx in startup_order {
+        let proc = &mut processes[idx];
         if proc.should_start()
             && let Err(e) = proc.spawn()
         {
             warn!("{e:#}");
         }
-        processes.push(proc);
     }
     processes
 }
