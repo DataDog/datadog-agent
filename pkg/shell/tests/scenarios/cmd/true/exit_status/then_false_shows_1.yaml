@@ -1,0 +1,11 @@
+description: True followed by false then echo shows the last exit status.
+input:
+  script: |+
+    true
+    false
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

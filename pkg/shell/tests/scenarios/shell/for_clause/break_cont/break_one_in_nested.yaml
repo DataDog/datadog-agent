@@ -1,0 +1,27 @@
+description: Break 1 in nested for loop only breaks the inner loop, outer continues with all iterations.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        break 1
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    out 1
+    in 2
+    in 2 a
+    out 2
+    in 3
+    in 3 a
+    out 3
+    done 0
+  stderr: ""
+  exit_code: 0

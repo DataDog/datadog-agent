@@ -1,0 +1,16 @@
+description: Cat reads from an empty file without error.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat empty.txt
+    echo "exit:$?"
+expect:
+  stdout: |+
+    exit:0
+  stderr: ""
+  exit_code: 0

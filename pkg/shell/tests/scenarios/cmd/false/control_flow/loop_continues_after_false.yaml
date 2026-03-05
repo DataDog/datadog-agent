@@ -1,0 +1,14 @@
+description: False in a for loop does not prevent further loop iterations.
+input:
+  script: |+
+    for i in a b c; do
+      false
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

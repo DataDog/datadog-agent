@@ -1,0 +1,11 @@
+description: Exit inside a brace group terminates the script.
+input:
+  script: |+
+    echo before
+    { exit 42; }
+    echo not reached
+expect:
+  stdout: |+
+    before
+  stderr: ""
+  exit_code: 42
