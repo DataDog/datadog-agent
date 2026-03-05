@@ -33,24 +33,46 @@ func NewKubeCRDConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry
 		return nil, fmt.Errorf("failed to read configuration files: '%w'", err)
 	}
 
-	log.Infof("CRD Config Provider: %d configs loaded from files", len(configs))
-
 	crdConfigs := []integration.Config{}
 	for _, cfg := range configs {
 		for _, adadid := range cfg.AdvancedADIdentifiers {
 			if adadid.Crd.IsEmpty() {
 				continue
 			}
-			// run this configuration as a KSM check.
-			cfg.Name = "kubernetes_state_core"
-			// in order for this config to start a KSM check, it needs to not be a cluster check, otherwise it will only be picked up by the cluster check provider and not the CRD provider.
-			cfg.ClusterCheck = false
-			// use the given AdvancedADIdentifier as the AutoDiscovery identifier for this config.
-			cfg.ADIdentifiers = []string{strings.ToLower(adadid.Crd.Gvr)}
 
-			crdConfigs = append(crdConfigs, cfg)
+			newCfg := integration.Config{
+				// run this configuration as a KSM check.
+				Name: "kubernetes_state_core",
+				// in order for this config to start a KSM check, it needs to not be a cluster check,
+				// otherwise it will only be picked up by the cluster check provider and not the CRD provider.
+				ClusterCheck: false,
+				// use the given AdvancedADIdentifier as the AutoDiscovery identifier for this config.
+				ADIdentifiers:           []string{strings.ToLower(adadid.Crd.Gvr)},
+				Instances:               cfg.Instances,
+				InitConfig:              cfg.InitConfig,
+				MetricConfig:            cfg.MetricConfig,
+				LogsConfig:              cfg.LogsConfig,
+				CELSelector:             cfg.CELSelector,
+				Provider:                cfg.Provider,
+				ServiceID:               cfg.ServiceID,
+				TaggerEntity:            cfg.TaggerEntity,
+				NodeName:                cfg.NodeName,
+				Source:                  cfg.Source,
+				IgnoreAutodiscoveryTags: cfg.IgnoreAutodiscoveryTags,
+				CheckTagCardinality:     cfg.CheckTagCardinality,
+				MetricsExcluded:         cfg.MetricsExcluded,
+				LogsExcluded:            cfg.LogsExcluded,
+				ImageName:               cfg.ImageName,
+				PodNamespace:            cfg.PodNamespace,
+			}
+
+			log.Infof("add new config for CRD %s with ADIdentifier %v, instance: %v", adadid.Crd.Gvr, newCfg.ADIdentifiers, newCfg.Instances)
+
+			crdConfigs = append(crdConfigs, newCfg)
 		}
 	}
+
+	log.Infof("CRD Config Provider: %d configs loaded from files", len(crdConfigs))
 
 	return &CRDConfigProvider{
 		store: crdConfigs,
