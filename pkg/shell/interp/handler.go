@@ -98,12 +98,12 @@ func findExecutable(dir, file string) (string, error) {
 	return checkStat(dir, file, true)
 }
 
-// LookPathDir is similar to [os/exec.LookPath], with the difference that it uses the
+// ExecLookPathDir is similar to [os/exec.LookPath], with the difference that it uses the
 // provided environment. env is used to fetch relevant environment variables
 // such as PWD and PATH.
 //
 // If no error is returned, the returned path must be valid.
-func LookPathDir(cwd string, env expand.Environ, file string) (string, error) {
+func ExecLookPathDir(cwd string, env expand.Environ, file string) (string, error) {
 	return lookPathDir(cwd, env, file, findExecutable)
 }
 
@@ -192,4 +192,3 @@ func defaultReadDirHandler() ReadDirHandlerFunc {
 		return os.ReadDir(path)
 	}
 }
-
