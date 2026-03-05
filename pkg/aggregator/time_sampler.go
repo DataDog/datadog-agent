@@ -214,6 +214,9 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	// tagsForStrippedKey: stripped key -> composite tags after filtering
 	tagsForStrippedKey := make(map[ckey.ContextKey]tagset.CompositeTags, len(pointsByCtx))
 
+	preaggPoints := 0
+	postaggPoints := 0
+
 	for ck, points := range pointsByCtx {
 		ctx, ok := s.contextResolver.get(ck)
 		if !ok {
@@ -240,7 +243,15 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 				pointsByStrippedCtx[strippedKey][p.Ts] = p.Sketch
 			}
 		}
+
+		preaggPoints += len(points)
+		postaggPoints += len(pointsByStrippedCtx[strippedKey])
 	}
+
+	tlmPreFilterContexts.Set(float64(len(pointsByCtx)))
+	tlmPostFilterContexts.Set(float64(len(pointsByStrippedCtx)))
+	tlmPreFilterPoints.Set(float64(preaggPoints))
+	tlmPostFilterPoints.Set(float64(postaggPoints))
 
 	for strippedCk, pointsByTs := range pointsByStrippedCtx {
 		ctx := firstCtxByStrippedKey[strippedCk]
@@ -271,8 +282,12 @@ func (s *TimeSampler) computeStrippedKey(ctx *Context, keepTag func(string) bool
 	cr.taggerBuffer.IncludeTag = keepTag
 	cr.metricBuffer.IncludeAll = false
 	cr.metricBuffer.IncludeTag = keepTag
+
 	cr.taggerBuffer.Append(ctx.taggerTags.Tags()...)
 	cr.metricBuffer.Append(ctx.metricTags.Tags()...)
+
+	tlmFilteredTags.Add(float64(len(ctx.metricTags.Tags()) - len(cr.metricBuffer.Get())))
+
 	key, _, _ := cr.keyGenerator.GenerateWithTags2(ctx.Name, ctx.Host, cr.taggerBuffer, cr.metricBuffer)
 	// Capture tags after GenerateWithTags2 deduplication
 	filteredTags := tagset.NewCompositeTags(

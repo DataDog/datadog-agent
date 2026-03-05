@@ -43,11 +43,11 @@ generator:
             set: 0
             histogram: 0
           metric_names:
-            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-4}}{{0-9}}{{0-9}}
+            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{3-4}}{{8-9}}{{8-9}}
           tag_names:
-            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-9}}{{0-9}}
+            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{5-9}}{{0-9}}
           tag_values:
-            - value{{0-9}}{{0-9}}{{0-9}}{{0-9}}
+            - value{{0-1}}
 
 telemetry:
   path: "nong"
@@ -57,7 +57,7 @@ target_metrics:
       uri: "http://127.0.0.1:5000/telemetry"
       tags:
         sub_agent: "core"
-  - prometheus: #process agent telemetry 
+  - prometheus: #process agent telemetry
       uri: "http://127.0.0.1:6062/telemetry"
       tags:
         sub_agent: "process"

@@ -43,11 +43,11 @@ generator:
             set: 0
             histogram: 0
           metric_names:
-            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{0-9}}{{0-9}}
+            - metricname_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{{8-9}}{{8-9}}
           tag_names:
-            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{0-9}}{{0-9}}
+            - tagname_aaaaaaaaaaaaaaaaaaaaaa_{{5-9}}{{0-9}}
           tag_values:
-            - value{{0-9}}{{0-9}}{{0-9}}{{0-9}}
+            - value{{0-1}}
 
 telemetry:
   path: "nong"
