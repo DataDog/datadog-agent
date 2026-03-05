@@ -1,0 +1,10 @@
+description: Brace group failure triggers the OR fallback brace group.
+input:
+  # language=bash
+  script: |+
+    { false; } || { echo fallback; }
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

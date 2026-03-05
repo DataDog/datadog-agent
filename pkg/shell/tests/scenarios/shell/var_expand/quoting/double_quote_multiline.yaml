@@ -1,0 +1,12 @@
+description: Double quotes can span multiple lines preserving the literal newline.
+input:
+  # language=bash
+  script: |+
+    echo "line1
+    line2"
+expect:
+  stdout: |+
+    line1
+    line2
+  stderr: ""
+  exit_code: 0

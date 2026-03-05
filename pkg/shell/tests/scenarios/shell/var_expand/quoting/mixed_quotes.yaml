@@ -1,0 +1,11 @@
+description: Adjacent single-quoted and double-quoted strings are concatenated into one word.
+input:
+  # language=bash
+  script: |+
+    a=world
+    echo 'hello '"$a"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: Variable names can start with an underscore.
+input:
+  # language=bash
+  script: |+
+    _foo=bar
+    echo $_foo
+expect:
+  stdout: |+
+    bar
+  stderr: ""
+  exit_code: 0

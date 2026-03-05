@@ -1,0 +1,11 @@
+description: Brace groups can be used as pipeline components.
+input:
+  # language=bash
+  script: |+
+    { echo foo; echo bar; } | cat
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

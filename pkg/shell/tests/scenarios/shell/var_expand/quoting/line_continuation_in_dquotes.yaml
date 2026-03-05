@@ -1,0 +1,11 @@
+description: Backslash-newline inside double quotes joins the lines.
+input:
+  # language=bash
+  script: |+
+    echo "hello\
+    world"
+expect:
+  stdout: |+
+    helloworld
+  stderr: ""
+  exit_code: 0

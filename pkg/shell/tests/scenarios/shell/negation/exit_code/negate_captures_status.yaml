@@ -1,0 +1,14 @@
+description: Negation captures the exit status in $? as 0 or 1.
+input:
+  # language=bash
+  script: |+
+    ! false
+    echo $?
+    ! true
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0
