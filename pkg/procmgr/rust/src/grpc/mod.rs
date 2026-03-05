@@ -50,8 +50,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
         tokio::spawn(async move {
-            let pm_service =
-                proto::process_manager_server::ProcessManagerServer::new(svc);
+            let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
             #[cfg(not(bazel))]
             let router = {
@@ -65,8 +64,7 @@ mod tests {
             };
 
             #[cfg(bazel)]
-            let router =
-                tonic::transport::Server::builder().add_service(pm_service);
+            let router = tonic::transport::Server::builder().add_service(pm_service);
 
             router
                 .serve_with_incoming_shutdown(uds_stream, async {
