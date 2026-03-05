@@ -378,6 +378,9 @@ variables:
   changes:
     paths:
       - omnibus/**/*
+      - pkg/config/config_template.yaml
+      - pkg/config/security-agent_template.yaml
+      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
