@@ -1,6 +1,5 @@
 description: Comments can appear inside brace groups.
 input:
-  # language=bash
   script: |+
     { # comment after open brace
     echo foo # comment after command

@@ -1,6 +1,5 @@
 description: Pipeline exit status is from the last command and can be checked via $?.
 input:
-  # language=bash
   script: |+
     echo foo | true
     echo $?

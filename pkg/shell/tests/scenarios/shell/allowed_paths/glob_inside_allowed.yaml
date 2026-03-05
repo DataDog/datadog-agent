@@ -8,7 +8,6 @@ setup:
       content: ""
 input:
   allowed_paths: ["data"]
-  # language=bash
   script: |+
     echo data/*.txt
 expect:

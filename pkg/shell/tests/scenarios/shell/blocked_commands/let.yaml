@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: let is not supported.
 input:
-  # language=bash
   script: |+
     let "x=1+2"
 expect:

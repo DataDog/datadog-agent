@@ -1,6 +1,5 @@
 description: A comment after && or || is ignored and the list continues.
 input:
-  # language=bash
   script: |+
     echo foo &&# comment after &&
     echo bar ||# comment after ||

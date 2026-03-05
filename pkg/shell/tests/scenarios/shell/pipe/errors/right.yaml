@@ -1,6 +1,5 @@
 description: Unknown command on right side of pipe sets exit code 127.
 input:
-  # language=bash
   script: |+
     echo ok | foo
 expect:

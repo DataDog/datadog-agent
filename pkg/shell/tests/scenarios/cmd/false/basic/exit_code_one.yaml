@@ -1,6 +1,5 @@
 description: The false builtin always returns exit code 1.
 input:
-  # language=bash
   script: |+
     false
     echo $?

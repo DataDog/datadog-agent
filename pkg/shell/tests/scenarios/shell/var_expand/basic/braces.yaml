@@ -1,6 +1,5 @@
 description: Variables can be expanded using brace syntax ${VAR}.
 input:
-  # language=bash
   script: |+
     GREETING=hello
     echo ${GREETING}

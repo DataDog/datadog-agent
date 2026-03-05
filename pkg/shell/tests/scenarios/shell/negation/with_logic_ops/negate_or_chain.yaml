@@ -1,6 +1,5 @@
 description: Negation applies only to the pipeline, so (! false) succeeds and || skips the fallback.
 input:
-  # language=bash
   script: |+
     ! false || echo fallback
 expect:

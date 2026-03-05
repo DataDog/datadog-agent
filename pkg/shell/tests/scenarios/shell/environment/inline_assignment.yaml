@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Variables assigned in the script are accessible, even without input.envs.
 input:
-  # language=bash
   script: |+
     MY_VAR=hello
     echo "$MY_VAR"

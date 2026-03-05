@@ -1,6 +1,5 @@
 description: A variable set before a semicolon is visible after the semicolon.
 input:
-  # language=bash
   script: |+
     x=hello; echo $x
 expect:

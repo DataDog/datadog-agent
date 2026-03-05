@@ -1,6 +1,5 @@
 description: Failed pipe followed by || executes the fallback command.
 input:
-  # language=bash
   script: |+
     echo abc | false || echo fallback
 expect:

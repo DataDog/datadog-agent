@@ -1,6 +1,5 @@
 description: The true builtin succeeds so || skips the fallback command.
 input:
-  # language=bash
   script: |+
     true || echo fallback
 expect:

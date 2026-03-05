@@ -1,6 +1,5 @@
 description: The $? variable captures 0 after true.
 input:
-  # language=bash
   script: |+
     true
     echo $?

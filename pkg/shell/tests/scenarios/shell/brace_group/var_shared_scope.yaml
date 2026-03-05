@@ -1,6 +1,5 @@
 description: Variables modified inside a brace group are visible outside (shared scope).
 input:
-  # language=bash
   script: |+
     V=1
     { V=2; echo inner $V; }

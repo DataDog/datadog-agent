@@ -1,6 +1,5 @@
 description: Exit with large number wraps via uint8 conversion (513 mod 256 = 1).
 input:
-  # language=bash
   script: |+
     exit 513
 expect:

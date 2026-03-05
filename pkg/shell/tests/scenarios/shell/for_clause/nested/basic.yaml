@@ -1,6 +1,5 @@
 description: Nested for loops iterate correctly over all combinations.
 input:
-  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2; do

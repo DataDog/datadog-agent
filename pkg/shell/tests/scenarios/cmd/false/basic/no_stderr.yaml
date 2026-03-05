@@ -1,6 +1,5 @@
 description: The false builtin produces no stderr output.
 input:
-  # language=bash
   script: |+
     false
 expect:

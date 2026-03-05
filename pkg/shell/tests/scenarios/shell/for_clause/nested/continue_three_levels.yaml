@@ -1,6 +1,5 @@
 description: Continue 3 in three-level nested loop continues the outermost loop.
 input:
-  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2; do

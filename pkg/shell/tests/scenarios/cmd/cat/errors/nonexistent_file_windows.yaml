@@ -3,7 +3,6 @@ description: Cat on a nonexistent file prints an error to stderr and exits with 
 target_os: [windows]
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     cat nonexistent.txt
 expect:

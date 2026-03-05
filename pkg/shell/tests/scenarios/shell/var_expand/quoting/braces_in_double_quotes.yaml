@@ -1,6 +1,5 @@
 description: Brace syntax works inside double quotes.
 input:
-  # language=bash
   script: |+
     ANIMAL=cat
     echo "the ${ANIMAL}s"

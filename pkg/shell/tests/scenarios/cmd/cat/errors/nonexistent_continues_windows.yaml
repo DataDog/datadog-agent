@@ -3,7 +3,6 @@ description: Cat failure does not stop script execution; the exit code is from t
 target_os: [windows]
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     cat nonexistent.txt
     echo hello

@@ -6,7 +6,6 @@ setup:
       content: "nested dotdot"
 input:
   allowed_paths: ["allowed"]
-  # language=bash
   script: |+
     cat allowed/sub/..data.txt
 expect:

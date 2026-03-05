@@ -1,6 +1,5 @@
 description: Line continuation after pipe operator continues the pipeline on the next line.
 input:
-  # language=bash
   script: |+
     echo hello |
     cat

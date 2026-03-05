@@ -1,6 +1,5 @@
 description: The exit status is 1 when false is the last command in a chain.
 input:
-  # language=bash
   script: |+
     echo first; false
 expect:

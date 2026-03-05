@@ -5,7 +5,6 @@ setup:
       content: "hello from file"
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     cat < data.txt
 expect:

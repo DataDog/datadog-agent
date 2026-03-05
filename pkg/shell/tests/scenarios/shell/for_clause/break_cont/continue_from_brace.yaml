@@ -1,6 +1,5 @@
 description: Continue inside a brace group skips to next iteration of the enclosing for loop.
 input:
-  # language=bash
   script: |+
     for i in 1 2; do
     { echo $i; continue; }

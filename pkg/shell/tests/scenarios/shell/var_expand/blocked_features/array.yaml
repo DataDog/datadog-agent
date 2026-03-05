@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Array assignment is not supported.
 input:
-  # language=bash
   script: |+
     ARR=(a b c)
 expect:

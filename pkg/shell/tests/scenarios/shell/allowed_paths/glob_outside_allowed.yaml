@@ -10,7 +10,6 @@ setup:
       content: ""
 input:
   allowed_paths: ["allowed"]
-  # language=bash
   script: |+
     echo secret/*.txt
 expect:

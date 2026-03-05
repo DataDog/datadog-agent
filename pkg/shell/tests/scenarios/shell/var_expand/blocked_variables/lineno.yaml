@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: The $LINENO variable is not supported.
 input:
-  # language=bash
   script: |+
     echo $LINENO
 expect:

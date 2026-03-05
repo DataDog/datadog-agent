@@ -1,6 +1,5 @@
 description: Reassigning a variable updates its value for subsequent expansions.
 input:
-  # language=bash
   script: |+
     X=first
     echo $X

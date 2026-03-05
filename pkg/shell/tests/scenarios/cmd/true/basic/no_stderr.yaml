@@ -1,6 +1,5 @@
 description: The true builtin produces no stderr output.
 input:
-  # language=bash
   script: |+
     true
 expect:

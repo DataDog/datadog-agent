@@ -1,6 +1,5 @@
 description: A backslash at the end of a comment does not continue the line.
 input:
-  # language=bash
   script: |+
     # \
     echo foo

@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Break with non-numeric argument breaks the loop and produces an error.
 input:
-  # language=bash
   script: |+
     for i in a b c; do
       break abc

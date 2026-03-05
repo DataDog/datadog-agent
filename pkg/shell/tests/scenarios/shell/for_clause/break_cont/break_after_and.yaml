@@ -1,6 +1,5 @@
 description: Break after && exits the loop when the left side succeeds.
 input:
-  # language=bash
   script: |+
     for i in 1; do
     true && break

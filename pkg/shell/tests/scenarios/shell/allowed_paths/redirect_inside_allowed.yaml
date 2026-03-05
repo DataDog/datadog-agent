@@ -6,7 +6,6 @@ setup:
       content: "from redirect"
 input:
   allowed_paths: ["data"]
-  # language=bash
   script: |+
     cat < data/input.txt
 expect:

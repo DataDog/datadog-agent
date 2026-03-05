@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Continue outside a loop produces an error message.
 input:
-  # language=bash
   script: |+
     continue
     echo after

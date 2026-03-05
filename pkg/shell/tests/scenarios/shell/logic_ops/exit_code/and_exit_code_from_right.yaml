@@ -1,6 +1,5 @@
 description: When both sides of && run, exit code is from the right.
 input:
-  # language=bash
   script: |+
     true && exit 7
 expect:

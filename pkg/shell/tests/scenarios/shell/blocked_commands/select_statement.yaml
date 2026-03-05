@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Select statements are not supported.
 input:
-  # language=bash
   script: |+
     select x in a b c; do echo $x; done
 expect:

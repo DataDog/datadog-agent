@@ -6,7 +6,6 @@ setup:
       content: "dotdot content"
 input:
   allowed_paths: ["allowed"]
-  # language=bash
   script: |+
     cat allowed/..hidden
 expect:

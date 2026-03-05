@@ -1,6 +1,5 @@
 description: Dash heredoc (<<-) strips leading tabs from content.
 input:
-  # language=bash
   script: "cat <<-EOF\n\thello\n\tworld\nEOF\n"
 expect:
   stdout: |+

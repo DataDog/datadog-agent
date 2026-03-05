@@ -1,6 +1,5 @@
 description: Empty lines between commands are ignored.
 input:
-  # language=bash
   script: |+
     echo first
 

@@ -1,6 +1,5 @@
 description: The false builtin fails so || executes the fallback command.
 input:
-  # language=bash
   script: |+
     false || echo fallback
 expect:

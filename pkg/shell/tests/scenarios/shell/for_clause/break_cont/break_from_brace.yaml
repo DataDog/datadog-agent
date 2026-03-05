@@ -1,6 +1,5 @@
 description: Break inside a brace group exits the enclosing for loop.
 input:
-  # language=bash
   script: |+
     for i in 1; do
     { break; }

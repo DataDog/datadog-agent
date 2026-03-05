@@ -1,6 +1,5 @@
 description: Continue after && skips to next iteration when left side succeeds.
 input:
-  # language=bash
   script: |+
     for i in 1 2; do
     true && continue

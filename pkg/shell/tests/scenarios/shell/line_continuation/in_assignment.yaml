@@ -1,6 +1,5 @@
 description: Line continuation in variable assignment joins name and value across lines.
 input:
-  # language=bash
   script: |+
     fo\
     o=bar

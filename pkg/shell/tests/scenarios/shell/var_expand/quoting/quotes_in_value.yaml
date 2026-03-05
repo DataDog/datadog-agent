@@ -1,6 +1,5 @@
 description: Assignment values can contain quotes from the other quoting style.
 input:
-  # language=bash
   script: |+
     a='A"B"C'
     b="A'B'C"

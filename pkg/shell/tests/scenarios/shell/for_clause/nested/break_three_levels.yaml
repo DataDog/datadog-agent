@@ -1,6 +1,5 @@
 description: Break 3 in three-level nested loop breaks all loops.
 input:
-  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2; do

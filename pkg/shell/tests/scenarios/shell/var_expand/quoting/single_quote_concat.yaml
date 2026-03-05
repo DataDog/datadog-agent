@@ -1,6 +1,5 @@
 description: Adjacent single-quoted strings are concatenated.
 input:
-  # language=bash
   script: |+
     echo 'hel''lo'
 expect:

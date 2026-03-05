@@ -1,6 +1,5 @@
 description: Output produced before exit is preserved.
 input:
-  # language=bash
   script: |+
     echo first
     echo second

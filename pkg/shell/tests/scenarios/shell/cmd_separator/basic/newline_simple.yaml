@@ -1,6 +1,5 @@
 description: Two commands separated by a newline execute sequentially.
 input:
-  # language=bash
   script: |+
     echo first
     echo second

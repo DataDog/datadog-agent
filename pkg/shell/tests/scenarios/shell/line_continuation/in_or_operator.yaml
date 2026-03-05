@@ -1,6 +1,5 @@
 description: Line continuation after || operator continues the or-list on the next line.
 input:
-  # language=bash
   script: |+
     false ||
     false ||

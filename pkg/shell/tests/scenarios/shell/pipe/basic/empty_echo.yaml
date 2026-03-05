@@ -1,6 +1,5 @@
 description: Piping empty echo output to cat produces a newline.
 input:
-  # language=bash
   script: |+
     echo "" | cat
 expect:

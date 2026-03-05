@@ -1,6 +1,5 @@
 description: For loop iterates over items built from variable expansion.
 input:
-  # language=bash
   script: |+
     A=one
     B=two

@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Herestring (<<<) is not supported (bash extension).
 input:
-  # language=bash
   script: |+
     cat <<< "hello"
 expect:

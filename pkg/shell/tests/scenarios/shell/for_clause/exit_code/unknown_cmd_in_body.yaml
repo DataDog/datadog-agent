@@ -1,6 +1,5 @@
 description: Unknown command in for loop body produces error on stderr.
 input:
-  # language=bash
   script: |+
     for i in a; do nonexistent_cmd; done
 expect:

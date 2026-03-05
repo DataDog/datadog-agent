@@ -3,7 +3,6 @@ description: When all files are missing, cat reports errors for each file (Windo
 target_os: [windows]
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     cat missing1.txt missing2.txt
 expect:

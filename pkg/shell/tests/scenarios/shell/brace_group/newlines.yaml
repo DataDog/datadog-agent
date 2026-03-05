@@ -1,6 +1,5 @@
 description: Brace group works with multi-line formatting using newlines.
 input:
-  # language=bash
   script: |+
     {
     echo hello

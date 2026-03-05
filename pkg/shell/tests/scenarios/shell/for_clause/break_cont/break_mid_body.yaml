@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Break in the middle of the loop body stops execution.
 input:
-  # language=bash
   script: |+
     for i in a b c; do
       echo "start $i"

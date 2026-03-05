@@ -1,6 +1,5 @@
 description: Failed && skips the right side but semicolon starts a fresh statement.
 input:
-  # language=bash
   script: |+
     false && echo skipped; echo runs
 expect:

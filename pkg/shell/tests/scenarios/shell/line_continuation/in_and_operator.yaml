@@ -1,6 +1,5 @@
 description: Line continuation after && operator continues the and-list on the next line.
 input:
-  # language=bash
   script: |+
     echo 1 &&
     echo 2 &&

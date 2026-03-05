@@ -1,6 +1,5 @@
 description: When left side succeeds but right side fails, exit code is from right.
 input:
-  # language=bash
   script: |+
     echo ok && false
 expect:

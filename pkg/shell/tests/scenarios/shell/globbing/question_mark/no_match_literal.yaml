@@ -1,7 +1,6 @@
 description: Question mark glob with no matches expands to the literal pattern.
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     echo ?.xyz
 expect:

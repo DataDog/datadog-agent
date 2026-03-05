@@ -1,6 +1,5 @@
 description: Chained && with false short-circuits at the first false.
 input:
-  # language=bash
   script: |+
     false && echo a && echo b
 expect:
