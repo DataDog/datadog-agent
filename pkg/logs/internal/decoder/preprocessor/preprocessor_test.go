@@ -157,9 +157,9 @@ func TestPreprocessor_FlushChanNilWhenEmpty(t *testing.T) {
 	assert.Nil(t, preprocessor.FlushChan(), "FlushChan should be nil when preprocessor is empty")
 }
 
-// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokenss verifies that messages returned by the
+// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens verifies that messages returned by the
 // aggregator flow to the sampler.
-func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokenss(t *testing.T) {
+func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens(t *testing.T) {
 	preprocessor, _, sampler := newTestPreprocessor(false)
 
 	preprocessor.Process(newTestPreprocessorMessage(`hello world`))

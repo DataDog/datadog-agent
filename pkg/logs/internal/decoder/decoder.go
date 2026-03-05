@@ -125,23 +125,9 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	// autoMLBytes is the byte window the auto-multiline labeler needs.
-	// It is kept separate so it can be used as labelerMaxBytes in the Preprocessor,
-	// ensuring the labeler only sees tokens from the log header even when the tokenizer
-	// window is wider (e.g. because the adaptive sampler needs more context).
-	autoMLBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
-
-	tokenizerMaxInputBytes := autoMLBytes
-	if pkgconfigsetup.Datadog().GetBool("logs_adaptive_sampler_EXPERIMENTAL.enabled") {
-		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_adaptive_sampler_EXPERIMENTAL.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
-			tokenizerMaxInputBytes = samplerMin
-		}
-	}
-	if opts := source.Config().AutoMultiLineOptions; opts != nil && opts.TokenizerMaxInputBytes != nil {
-		tokenizerMaxInputBytes = *opts.TokenizerMaxInputBytes
-	}
+	tokenizerMaxInputBytes, labelerMaxBytes := resolveTokenizerAndLabelerMaxInputBytes(source.Config().AutoMultiLineOptions)
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, autoMLBytes)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, labelerMaxBytes)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -155,18 +141,38 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
+// resolveTokenizerAndLabelerMaxInputBytes computes the tokenizer and labeler byte windows.
+// The labeler uses the effective auto-multiline tokenizer window (global, optionally overridden per source).
+// The tokenizer can be widened beyond that when adaptive sampling is enabled, so the sampler
+// can observe more context without changing labeler behavior.
+func resolveTokenizerAndLabelerMaxInputBytes(sourceAutoMLSettings *config.SourceAutoMultiLineOptions) (tokenizerMaxInputBytes int, labelerMaxBytes int) {
+	labelerMaxBytes = pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	if sourceAutoMLSettings != nil && sourceAutoMLSettings.TokenizerMaxInputBytes != nil {
+		labelerMaxBytes = *sourceAutoMLSettings.TokenizerMaxInputBytes
+	}
+
+	tokenizerMaxInputBytes = labelerMaxBytes
+	if pkgconfigsetup.Datadog().GetBool("logs_adaptive_sampler_EXPERIMENTAL.enabled") {
+		if samplerMin := pkgconfigsetup.Datadog().GetInt("logs_adaptive_sampler_EXPERIMENTAL.tokenizer_max_input_bytes"); samplerMin > tokenizerMaxInputBytes {
+			tokenizerMaxInputBytes = samplerMin
+		}
+	}
+
+	return tokenizerMaxInputBytes, labelerMaxBytes
+}
+
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, labelerMaxBytes int) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
 	var sampler preprocessor.Sampler
 	if pkgconfigsetup.Datadog().GetBool("logs_adaptive_sampler_EXPERIMENTAL.enabled") {
-		sampler = preprocessor.NewAdaptiveSampler(preprocessor.AdaptiveSamplerConfig{
+		sampler = preprocessor.NewAdaptiveSampler(validateAdaptiveSamplerConfig(preprocessor.AdaptiveSamplerConfig{
 			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_adaptive_sampler_EXPERIMENTAL.max_patterns"),
 			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.rate_limit"),
 			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.burst_size"),
 			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_adaptive_sampler_EXPERIMENTAL.match_threshold"),
-		}, source.UnderlyingSource().Name)
+		}), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
 	}
@@ -219,6 +225,18 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, labelerMaxBytes)
 	}
 	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout, 0)
+}
+
+func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preprocessor.AdaptiveSamplerConfig {
+	if c.MaxPatterns <= 0 {
+		c.MaxPatterns = 1
+	}
+
+	if c.BurstSize <= 0 {
+		c.BurstSize = 1
+	}
+
+	return c
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
