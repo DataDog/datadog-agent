@@ -90,10 +90,61 @@ func TestAnalyze(t *testing.T) {
 
 	sysOID := "1.3.6.1.4.1.674.1"
 
-	found, notFound, profileName, _, err := Analyze(pdus, sysOID)
+	found, notFound, profileName, extendedProfiles, err := Analyze(pdus, sysOID)
 	if err != nil {
 		t.Skipf("profile lookup not available (analyzer returned 0 metrics): %v", err)
 	}
 	t.Logf("Analyze returned %d matched, %d not found, profile=%s", len(found), len(notFound), profileName)
 
+	report := FormatReport(found, notFound, profileName, extendedProfiles)
+	if report == "" {
+		t.Fatal("FormatReport returned empty string")
+	}
+	if !strings.Contains(report, "SNMP Walk Analysis") {
+		t.Error("report missing header")
+	}
+	if !strings.Contains(report, profileName) {
+		t.Errorf("report missing profile name %q", profileName)
+	}
+	if !strings.Contains(report, "Matched:") || !strings.Contains(report, "Unmatched:") {
+		t.Error("report missing matched/unmatched counts")
+	}
+	if !strings.Contains(report, "Matched OIDs") || !strings.Contains(report, "Unmatched OIDs") {
+		t.Error("report missing section headers")
+	}
+}
+
+func TestFormatReport(t *testing.T) {
+	pdus := []gosnmp.SnmpPDU{
+		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+		{Name: ".1.3.6.1.2.1.1.1.0", Value: "Dell iDRAC SNMP Agent"},
+		{Name: ".1.3.6.1.2.1.1.5.0", Value: "dell-pdu-01"},
+		{Name: ".1.3.6.1.2.1.1.3.0", Value: uint32(12345678)},
+	}
+	sysOID := "1.3.6.1.4.1.674.1"
+
+	found, notFound, profileName, extendedProfiles, err := Analyze(pdus, sysOID)
+	if err != nil {
+		t.Skipf("profile lookup not available: %v", err)
+	}
+
+	report := FormatReport(found, notFound, profileName, extendedProfiles)
+	if report == "" {
+		t.Fatal("FormatReport returned empty string")
+	}
+	if !strings.Contains(report, "SNMP Walk Analysis") {
+		t.Error("report missing header")
+	}
+	if !strings.Contains(report, profileName) {
+		t.Errorf("report missing profile name %q", profileName)
+	}
+	if !strings.Contains(report, "Matched:") || !strings.Contains(report, "Unmatched:") {
+		t.Error("report missing matched/unmatched counts")
+	}
+	if !strings.Contains(report, "Matched OIDs") || !strings.Contains(report, "Unmatched OIDs") {
+		t.Error("report missing section headers")
+	}
+	if !strings.Contains(report, "1.3.6.1.2.1.1.1.0") && !strings.Contains(report, "Dell iDRAC") {
+		t.Error("report should contain at least one analyzed OID or value from the walk")
+	}
 }

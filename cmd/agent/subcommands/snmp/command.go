@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -35,6 +37,7 @@ import (
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/snmp/analyzer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,6 +49,9 @@ const (
 
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
+
+// analyzeFlag is the type for the --analyze flag so it can be injected via fx.
+type analyzeFlag bool
 
 // configErr wraps any error caused by invalid configuration.
 // If the main script returns a configErr it will print the usage string along
@@ -82,6 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 	}
 
+	var analyze bool
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID]",
 		Short: "Perform an snmpwalk.",
@@ -92,6 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(snmpWalk,
 				fx.Supply(connParams),
 				fx.Provide(func() argsType { return args }),
+				fx.Provide(func() analyzeFlag { return analyzeFlag(analyze) }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
@@ -139,6 +147,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpWalkCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpWalkCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+	snmpWalkCmd.Flags().BoolVarP(&analyze, "analyze", "", false, "Analyze snmp walk results")
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
@@ -301,7 +310,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, client ipc.HTTPClient) error {
+func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, analyze analyzeFlag, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -335,11 +344,65 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	defer func() { _ = snmp.Conn.Close() }()
 
-	err = snmpScanner.RunSnmpWalk(snmp, oid)
+	if analyze {
+		// 1) First walk: user's OID (or full tree). Keep these results for analysis.
+		pdus, err := snmpScanner.RunSnmpWalkAll(snmp, oid)
+		if err != nil {
+			return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", connParams.IPAddress, connParams.Port, err)
+		}
+		// 2) Get sysObjectID from first walk; if missing, do a second walk just for sysObjectID.
+		sysOID := analyzer.FindSysOID(pdus)
+		if sysOID == "" {
+			fallbackPdus, fallbackErr := snmpScanner.RunSnmpWalkAll(snmp, analyzer.SysObjectOID())
+			if fallbackErr == nil {
+				sysOID = analyzer.FindSysOID(fallbackPdus)
+			}
+		}
+		// 3) Use sysOID to resolve profile and analyze the first walk.
+		found, notFound, profileName, extendedProfiles, err := analyzer.Analyze(pdus, sysOID)
+		if err != nil {
+			return fmt.Errorf("analyze walk: %w", err)
+		}
+		report := analyzer.FormatReport(found, notFound, profileName, extendedProfiles)
+		if err := runPager(report); err != nil {
+			fmt.Print(report)
+		}
+		return nil
+	}
 
+	err = snmpScanner.RunSnmpWalk(snmp, oid)
 	if err != nil {
 		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", connParams.IPAddress, connParams.Port, err)
 	}
 
 	return nil
+}
+
+// runPager writes content to a temp file and runs PAGER (or "less") so the user can scroll. Falls back to stdout on error.
+func runPager(content string) error {
+	f, err := os.CreateTemp("", "datadog-snmp-analyze-*.txt")
+	if err != nil {
+		return err
+	}
+	tmpPath := f.Name()
+	defer os.Remove(tmpPath)
+	if _, err := f.WriteString(content); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		pager = "less"
+	}
+	parts := strings.Fields(pager)
+	if len(parts) == 0 {
+		return fmt.Errorf("PAGER is empty")
+	}
+	cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
