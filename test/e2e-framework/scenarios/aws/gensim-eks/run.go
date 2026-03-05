@@ -272,7 +272,8 @@ func deployRunnerJob(
 				rbacv1.PolicyRuleArgs{
 					ApiGroups: pulumi.StringArray{pulumi.String("apps")},
 					Resources: pulumi.StringArray{pulumi.String("deployments"), pulumi.String("deployments/scale")},
-					Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("update")},
+					// patch is required: `kubectl scale` issues a PATCH on deployments/scale, not update.
+					Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("update"), pulumi.String("patch")},
 				},
 			},
 		}, kubeOpts...)
