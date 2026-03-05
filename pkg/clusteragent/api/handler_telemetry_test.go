@@ -17,7 +17,25 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 )
 
-func TestWithTelemetryWrapper_TracingEnabled(t *testing.T) {
+// TestWithTelemetryWrapper_NoopTracer verifies that the handler works correctly
+// when the tracer has not been started (no-op spans, no panics).
+func TestWithTelemetryWrapper_NoopTracer(t *testing.T) {
+	// Intentionally no mocktracer.Start() — tracer returns NoopSpan.
+	th := &TelemetryHandler{
+		handlerName: "noopHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWithTelemetryWrapper_SpanCreation(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 

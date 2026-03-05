@@ -93,7 +93,5 @@ func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
 	apiElapsed.Observe(time.Since(w.startTime).Seconds(), w.handlerName, strconv.Itoa(statusCode), forwarded)
 	apiRequests.Inc(w.handlerName, strconv.Itoa(statusCode), forwarded)
 
-	if w.setSpanTags != nil {
-		w.setSpanTags(statusCode)
-	}
+	w.setSpanTags(statusCode)
 }
