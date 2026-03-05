@@ -1,0 +1,17 @@
+# Security: -f (--follow) is rejected — would cause indefinite blocking
+description: tail -f is rejected with exit code 1 and an error message.
+setup:
+  files:
+    - path: f.txt
+      content: "data\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -f f.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail:"
+  exit_code: 1

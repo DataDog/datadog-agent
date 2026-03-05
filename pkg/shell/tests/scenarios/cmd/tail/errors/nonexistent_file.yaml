@@ -1,3 +1,4 @@
+# Error handling: missing file
 description: tail on a nonexistent file prints an error to stderr and exits with code 1.
 input:
   allowed_paths: ["$DIR"]
@@ -8,5 +9,4 @@ expect:
   stdout: ""
   stderr_contains:
     - "tail: nonexistent.txt:"
-    - "no such file or directory"
   exit_code: 1

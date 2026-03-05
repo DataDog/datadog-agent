@@ -1,0 +1,18 @@
+# Error handling: missing file does not stop processing subsequent files
+description: tail continues processing remaining files even when one is missing.
+setup:
+  files:
+    - path: good.txt
+      content: "present\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail missing.txt good.txt
+expect:
+  stdout_contains:
+    - "present"
+  stderr_contains:
+    - "tail: missing.txt:"
+  exit_code: 1

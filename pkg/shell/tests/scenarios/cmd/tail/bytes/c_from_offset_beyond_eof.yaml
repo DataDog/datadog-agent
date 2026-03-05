@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl test obs-plus-c2 (+8c on 4-byte input)
+description: tail -c +N where N exceeds file size outputs nothing.
+setup:
+  files:
+    - path: f.txt
+      content: "abcd"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -c +99 f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

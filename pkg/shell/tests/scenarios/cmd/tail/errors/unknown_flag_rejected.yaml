@@ -1,0 +1,11 @@
+# Security: unknown flags are rejected
+description: tail with an unknown flag exits with code 1 and prints an error.
+input:
+  # language=bash
+  script: |+
+    tail --no-such-flag
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail:"
+  exit_code: 1

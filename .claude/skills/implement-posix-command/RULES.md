@@ -48,6 +48,27 @@ Every command MUST register `-h` / `--help` as a flag. When `--help` is passed:
 
 Do not write help output to stderr. Help is not an error.
 
+### File Access — Safe Wrappers Only
+
+Builtins MUST access the filesystem exclusively through `callCtx.OpenFile`. Never call
+`os.Open`, `os.OpenFile`, `os.ReadFile`, `os.ReadDir`, `os.Stat`, `os.Lstat`, or any other
+`os`-package filesystem function directly.
+
+`callCtx.OpenFile` routes through the `AllowedPaths` sandbox (backed by `os.Root`), which
+enforces path restrictions atomically via `openat` syscalls. Bypassing it — even for a
+"harmless" stat or existence check — defeats the sandbox entirely.
+
+```go
+// CORRECT
+f, err := callCtx.OpenFile(ctx, path, os.O_RDONLY, 0)
+
+// WRONG — bypasses the sandbox
+f, err := os.Open(path)
+```
+
+Using `os` constants (`os.O_RDONLY`, `os.FileMode`) and types (`*os.File` for stdin) is fine;
+only the filesystem-accessing *functions* are forbidden.
+
 ---
 
 ## Implementation Rules

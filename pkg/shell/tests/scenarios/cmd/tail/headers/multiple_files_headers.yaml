@@ -1,10 +1,13 @@
-description: tail with two file arguments prints headers before each file's output.
+# Derived from GNU coreutils tail.pl: multiple files get headers
+description: tail with multiple files prints a header before each file's content.
 setup:
   files:
     - path: a.txt
       content: "aaa\n"
+      chmod: 0644
     - path: b.txt
       content: "bbb\n"
+      chmod: 0644
 input:
   allowed_paths: ["$DIR"]
   # language=bash

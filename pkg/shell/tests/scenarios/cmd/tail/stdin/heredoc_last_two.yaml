@@ -1,0 +1,14 @@
+# stdin support via shell heredoc
+description: tail reads last 2 lines from stdin via heredoc.
+input:
+  # language=bash
+  script: |+
+    tail -n 2 << 'EOF'
+    a
+    b
+    c
+    EOF
+expect:
+  stdout: "b\nc\n"
+  stderr: ""
+  exit_code: 0

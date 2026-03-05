@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl test obs-plus-c1 (+2c form)
+description: tail -c +2 outputs from byte 2 to EOF.
+setup:
+  files:
+    - path: f.txt
+      content: "abcd"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -c +2 f.txt
+expect:
+  stdout: "bcd"
+  stderr: ""
+  exit_code: 0

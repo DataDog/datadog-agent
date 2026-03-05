@@ -1,13 +1,15 @@
-description: tail -n 3 returns the last 3 lines of a file.
+# Derived from GNU coreutils tail.pl test n-1
+description: tail -n 3 outputs the last 3 lines of a file.
 setup:
   files:
-    - path: input.txt
+    - path: f.txt
       content: "a\nb\nc\nd\ne\n"
+      chmod: 0644
 input:
   allowed_paths: ["$DIR"]
   # language=bash
   script: |+
-    tail -n 3 input.txt
+    tail -n 3 f.txt
 expect:
   stdout: "c\nd\ne\n"
   stderr: ""

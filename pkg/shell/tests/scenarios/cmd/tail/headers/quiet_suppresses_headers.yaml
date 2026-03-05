@@ -1,10 +1,13 @@
-description: tail -q suppresses headers even when multiple files are given.
+# Derived from GNU coreutils tail -q behaviour
+description: tail -q suppresses headers even with multiple files.
 setup:
   files:
     - path: a.txt
       content: "aaa\n"
+      chmod: 0644
     - path: b.txt
       content: "bbb\n"
+      chmod: 0644
 input:
   allowed_paths: ["$DIR"]
   # language=bash

@@ -1,0 +1,16 @@
+# Derived from GNU coreutils overlay-headers.sh
+description: tail -v always prints a header even with a single file.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -v f.txt
+expect:
+  stdout: "==> f.txt <==\nhello\n"
+  stderr: ""
+  exit_code: 0

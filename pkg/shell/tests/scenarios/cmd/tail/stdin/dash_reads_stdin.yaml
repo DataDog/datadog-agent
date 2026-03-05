@@ -1,0 +1,10 @@
+# stdin: - argument reads from stdin
+description: tail - with no stdin attached produces no output and exits 0.
+input:
+  # language=bash
+  script: |+
+    tail -
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

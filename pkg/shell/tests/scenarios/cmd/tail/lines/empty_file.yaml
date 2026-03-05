@@ -1,13 +1,15 @@
+# Edge case: empty file
 description: tail on an empty file produces no output and exits 0.
 setup:
   files:
-    - path: input.txt
+    - path: empty.txt
       content: ""
+      chmod: 0644
 input:
   allowed_paths: ["$DIR"]
   # language=bash
   script: |+
-    tail input.txt
+    tail empty.txt
 expect:
   stdout: ""
   stderr: ""

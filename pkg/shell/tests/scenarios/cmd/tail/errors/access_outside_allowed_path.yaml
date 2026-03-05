@@ -1,0 +1,12 @@
+# Security: sandbox blocks access outside allowed paths
+description: tail cannot read files outside the allowed path sandbox.
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail ../../etc/passwd
+expect:
+  stdout: ""
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

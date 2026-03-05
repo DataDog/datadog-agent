@@ -130,10 +130,15 @@ input:
   script: |+
     $ARGUMENTS some/file
 expect:
-  stdout: "expected output\n"
-  stderr: ""                # use stderr_contains for partial matches
+  stdout: "expected output\n"    # exact match
+  stdout_contains: ["substring"] # list; use instead of stdout for partial matches
+  stderr: ""                     # exact match; use stderr_contains for partial matches
+  stderr_contains: ["partial"]   # list
   exit_code: 0
 ```
+
+**`stdout_contains` and `stderr_contains` must be YAML lists**, not scalar strings.
+`stdout_contains: "text"` is invalid — always write `stdout_contains: ["text"]`.
 
 Group scenario files into subdirectories by concern (e.g. `lines/`, `bytes/`, `headers/`, `stdin/`, `errors/`, `hardening/`).
 
@@ -161,36 +166,37 @@ The shell scripts are run automatically by `go test ./pkg/shell/interp` via
 and runs it with `sh` (skipping gracefully if `sh` or the agent binary is absent).
 No extra CI configuration is required.
 
-Using `package interp` lets the tests access unexported helpers and constants (e.g. for clamping checks).
+All test files use `package interp_test` (the external test package). Do **not** use `package interp`. Unexported helpers do not need to be tested directly — test them through their exported surface.
 
 ### Exit code behaviour in Go tests
 
-Builtins signal failure with `r.exitCode = 1; return nil` — they do **not** return a Go error. This
-means `runScript` always returns `err == nil` unless the interpreter itself crashes. To verify that a
-command rejected a bad flag or argument:
+`runScript` returns `(stdout, stderr string, exitCode int)` — you can assert the exit code directly
+without writing any custom helper. Builtins signal failure via `Result{Code: 1}`, which the
+interpreter converts to an `ExitStatus` error that `runScript` already unwraps for you.
+
+To verify that a command rejected a bad flag or argument, check both stderr and the returned exit
+code:
 
 ```go
-// WRONG — err is nil even when the builtin sets exitCode=1
-_, _, err := runScript(t, "tail --follow file")
-require.Error(t, err) // will fail
-
-// CORRECT — check stderr content
-_, stderr, err := runScript(t, "tail --follow file")
-require.NoError(t, err)
-assert.Contains(t, stderr, "unknown flag")
+_, stderr, code := runScript(t, "tail --follow file", dir, interp.AllowedPaths([]string{dir}))
+assert.Equal(t, 1, code)
+assert.Contains(t, stderr, "tail:")
 ```
 
-When you also need to assert the exit code numerically, create a local helper in the test file:
+### Command-specific test wrapper
+
+To avoid repeating `interp.AllowedPaths([]string{dir})` on every `runScript` call, define a
+command-specific wrapper at the top of `builtin_$ARGUMENTS_test.go`:
 
 ```go
-func runWithExitCode(t *testing.T, script string) (stdout, stderr string, exitCode int) {
+func cmdRun(t *testing.T, script, dir string) (stdout, stderr string, exitCode int) {
     t.Helper()
-    var out, errOut bytes.Buffer
-    r := New(WithStdout(&out), WithStderr(&errOut))
-    _ = r.Run(context.Background(), script)
-    return out.String(), errOut.String(), r.exitCode
+    return runScript(t, script, dir, interp.AllowedPaths([]string{dir}))
 }
 ```
+
+Use this wrapper throughout the test file. Use `runScript` directly only when you need different or
+no `AllowedPaths` (e.g. for access-denied tests).
 
 Tests should be written to the following specifications:
 
@@ -201,6 +207,7 @@ Tests should be written to the following specifications:
   - `builtin_$ARGUMENTS_unix_test.go` with `//go:build unix` at the top
   - `builtin_$ARGUMENTS_windows_test.go` with `//go:build windows` at the top
 - When writing tests that pipe through another builtin (e.g. `cat file | $ARGUMENTS`), account for that builtin's output behaviour. For example, the `cat` builtin uses `fmt.Fprintln` which adds a trailing `\n` to each line — a binary file piped through `cat` will have a `\n` appended that was not in the original file.
+- Do **not** use `echo -n` — the `echo` builtin does not support the `-n` flag and will emit the literal string `-n ` instead of suppressing the newline. For empty or newline-free stdin, write an empty file via `setup.files` in a YAML scenario or create a temp file in the test setup.
 
 Verify the tests build and all fail (since we have no implementation yet).
 
@@ -215,7 +222,7 @@ the existing builtins (e.g. `cat.go`):
 2. **I/O**: Write output via `callCtx.Out(s)` / `callCtx.Outf(format, ...)` and errors via `callCtx.Errf(format, ...)`. Do not use `os.Stdout`/`os.Stderr` directly.
 3. **File access**: Open files via `callCtx.OpenFile(ctx, path, os.O_RDONLY, 0)` — never `os.Open()`. This enforces the allowed-paths sandbox automatically.
 4. **Return values**: Return `Result{}` for success and `Result{Code: 1}` for failure. Do not panic or return Go errors for user-facing failures.
-5. **Flag parsing**: Use pflag. Any unregistered flag is automatically rejected. Register `-h`/`--help` and handle it per RULES.md.
+5. **Flag parsing**: Use pflag. Any unregistered flag is automatically rejected. Register `-h`/`--help` and handle it per RULES.md. For string flags that may receive an empty value or a special prefix (e.g. `+N` offset syntax), detect whether the flag was explicitly provided using `fs.Changed("flagname")` rather than comparing the value to `""`. Using `*flagStr != ""` is wrong in these cases — an explicit `cmd -n ""` would silently fall through to the default instead of being rejected.
 6. **Bounded reads**: Cap all buffer allocations; never allocate based on unclamped user input.
 
 Register the command in `pkg/shell/interp/builtins/builtins.go`:
@@ -274,12 +281,22 @@ For each issue found in either review, fix it immediately. Re-run tests after al
 
 **GATE CHECK**: Call TaskList. Step 7 must be `completed` before starting this step. Set this step to `in_progress` now.
 
-Build the agent binary (`dda inv agent.build --build-exclude=systemd`) and exercise the new command through `agent shell --command "..."` looking for unexpected faults, DoS vectors, and memory issues. Cover each category below. For any surprising result, check whether GNU coreutils behaves the same way before deciding whether to fix it — surprising-but-matching-GNU is documenting a known behaviour, not a bug.
+The agent binary does **not** have a `shell` subcommand — do not attempt `agent shell --command`. Instead, perform all pentest exercises as Go tests in a dedicated file:
 
-```sh
-AGENT=/path/to/bin/agent/agent
-run() { local label="$1"; shift; local out ec; out=$(timeout 6 "$AGENT" shell --command "$*" 2>&1); ec=$?; printf "%-55s exit=%-3s %s\n" "$label" "$ec" "$(echo "$out" | head -1 | cut -c1-60)"; }
+`pkg/shell/interp/builtin_$ARGUMENTS_pentest_test.go` (`package interp_test`)
+
+Use the command-specific wrapper (e.g. `cmdRun`) or `runScript` directly. Use `context.WithTimeout` on individual tests to catch hangs:
+
+```go
+func TestCmdPentestInfiniteSource(t *testing.T) {
+    dir := t.TempDir()
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    // exercise the command ...
+}
 ```
+
+Run with `go test ./pkg/shell/interp -run TestCmdPentest -timeout 120s`. For any surprising result, check whether GNU coreutils behaves the same way before deciding whether to fix it — surprising-but-matching-GNU is documenting a known behaviour, not a bug.
 
 ### Integer edge cases
 - `-n 0`, `-n 1`, `-n MaxInt32`, `-n MaxInt64`, `-n MaxInt64+1`, `-n 99999999999999999999`

@@ -1,0 +1,16 @@
+# Edge case: file with no trailing newline
+description: tail preserves a file that ends without a newline.
+setup:
+  files:
+    - path: f.txt
+      content: "a\nb\nc"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 2 f.txt
+expect:
+  stdout: "b\nc"
+  stderr: ""
+  exit_code: 0
