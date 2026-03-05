@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -21,10 +22,11 @@ func main() {
 	scenariosDir := flag.String("scenarios-dir", "./scenarios", "Directory containing scenario subdirectories (for metadata.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides metadata.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
+	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	flag.Parse()
 
 	if *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: observer-scorer --output <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>]\n")
+		fmt.Fprintf(os.Stderr, "Usage: observer-scorer --output <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--json]\n")
 		os.Exit(1)
 	}
 
@@ -37,6 +39,16 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *jsonOutput {
+		data, err := json.Marshal(result)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "JSON marshal failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+		return
 	}
 
 	fmt.Printf("Gaussian F1 Score\n")

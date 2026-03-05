@@ -1,8 +1,11 @@
+import json
 import os
 
 from invoke import task
 
 from tasks.libs.common.color import Color, color_message
+
+SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
 
 # --- Build ---
@@ -24,22 +27,103 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval(ctx, scenario: str = ""):
+def eval(ctx, scenario: str = "", scenarios_dir: str = "./scenarios", sigma: float = 30.0):
     """
-    Runs the observer eval suite: replays scenarios headless and scores against ground truth.
+    Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
 
-    Requires parquet data in the scenarios directory. Skips scenarios with missing data.
+    Output JSONs are saved to /tmp/observer-eval-<scenario>.json for inspection.
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for scoring.
     """
-    run_arg = "-run TestEval"
-    if scenario:
-        run_arg = f"-run TestEval/{scenario}"
+    print(color_message("Building observer-testbench...", Color.BLUE))
+    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    print(color_message("Building observer-scorer...", Color.BLUE))
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
 
-    cmd = f"go test ./comp/observer/impl/ {run_arg} -count=1 -v -timeout 300s"
-    print(color_message("Running observer eval...", Color.BLUE))
-    ctx.run(cmd)
+    scenarios_to_run = [scenario] if scenario else SCENARIOS
+
+    results = []
+    for name in scenarios_to_run:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        if not os.path.isdir(parquet_dir):
+            print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+            continue
+
+        output_path = f"/tmp/observer-eval-{name}.json"
+        print(color_message(f"\n{'='*60}", Color.BLUE))
+        print(color_message(f"  {name}", Color.BLUE))
+        print(color_message(f"{'='*60}", Color.BLUE))
+
+        ctx.run(f"bin/observer-testbench --headless {name} --output {output_path} --scenarios-dir {scenarios_dir}")
+
+        scorer_result = ctx.run(
+            f"bin/observer-scorer --output {output_path} --scenarios-dir {scenarios_dir} --sigma {sigma} --json",
+            hide=True,
+        )
+
+        score = json.loads(scorer_result.stdout.strip())
+        results.append({"name": name, **score})
+
+    # Print summary table
+    if results:
+        print(color_message(f"\n{'='*60}", Color.GREEN))
+        print(color_message("  Observer Eval Summary", Color.GREEN))
+        print(color_message(f"{'='*60}\n", Color.GREEN))
+
+        # Header
+        header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Scored':>6}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Cascading (excl)':>16}"
+        print(header)
+        print("-" * len(header))
+
+        for r in results:
+            # Count baseline FPs from the output JSON
+            baseline_fps = _count_baseline_fps(
+                f"/tmp/observer-eval-{r['name']}.json",
+                os.path.join(scenarios_dir, r['name'], 'metadata.json'),
+            )
+
+            print(
+                f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
+                f"  {r['num_predictions']:>6}  {baseline_fps:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+            )
+
+        print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+
+def _count_baseline_fps(output_path, metadata_path):
+    """Count scored predictions that fired before ground truth onset."""
+    try:
+        with open(output_path) as f:
+            output = json.load(f)
+        with open(metadata_path) as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return 0
+
+    from datetime import datetime
+
+    gt_str = meta.get("disruption", {}).get("start", "")
+    bl_str = meta.get("baseline", {}).get("start", "")
+    if not gt_str:
+        return 0
+
+    gt_ts = int(datetime.fromisoformat(gt_str.replace("Z", "+00:00")).timestamp())
+    bl_ts = int(datetime.fromisoformat(bl_str.replace("Z", "+00:00")).timestamp()) if bl_str else 0
+
+    count = 0
+    cutoff = gt_ts + 60  # 2 * default sigma
+    for p in output.get("anomaly_periods", []):
+        ts = p["period_start"]
+        if bl_ts and ts < bl_ts:
+            continue
+        if ts > cutoff:
+            continue
+        if ts < gt_ts:
+            count += 1
+    return count
 
 
 @task
