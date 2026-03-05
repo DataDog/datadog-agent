@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )

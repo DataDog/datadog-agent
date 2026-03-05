@@ -5,6 +5,7 @@ setup:
       content: "placeholder"
       chmod: 0644
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     cat mydir

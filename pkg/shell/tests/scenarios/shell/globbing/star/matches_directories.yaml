@@ -6,6 +6,7 @@ setup:
     - path: file.txt
       content: ""
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     echo *

@@ -6,6 +6,7 @@ setup:
         line one
         line two
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     cat data.txt | cat

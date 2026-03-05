@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -100,7 +101,22 @@ func wrapReadDirHandler(roots []*os.Root, allowedPaths []string) ReadDirHandlerF
 			return nil, err
 		}
 		defer f.Close()
-		return f.ReadDir(-1)
+		entries, err := f.ReadDir(-1)
+		if err != nil {
+			return nil, err
+		}
+		// os.Root's ReadDir does not guarantee sorted order like os.ReadDir.
+		// Sort to match POSIX glob expansion expectations.
+		slices.SortFunc(entries, func(a, b fs.DirEntry) int {
+			if a.Name() < b.Name() {
+				return -1
+			}
+			if a.Name() > b.Name() {
+				return 1
+			}
+			return 0
+		})
+		return entries, nil
 	}
 }
 

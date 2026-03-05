@@ -12,6 +12,7 @@ setup:
     - path: z.txt
       content: ""
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     echo [a-c].txt

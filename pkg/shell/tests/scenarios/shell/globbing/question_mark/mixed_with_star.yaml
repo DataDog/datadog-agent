@@ -8,6 +8,7 @@ setup:
     - path: cc.log
       content: ""
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     echo ?*.txt

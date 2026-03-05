@@ -1,5 +1,6 @@
 description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     cat nonexistent.txt

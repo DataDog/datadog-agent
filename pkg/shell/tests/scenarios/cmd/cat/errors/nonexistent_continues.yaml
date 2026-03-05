@@ -1,5 +1,6 @@
 description: Cat failure does not stop script execution; the exit code is from the last command.
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     cat nonexistent.txt

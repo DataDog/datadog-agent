@@ -1,5 +1,6 @@
 description: Input redirect from a nonexistent file fails at the redirect level, not cat itself, so the error has no "cat:" prefix.
 input:
+  allowed_paths: ["$DIR"]
   # language=bash
   script: |+
     cat < nonexistent.txt
