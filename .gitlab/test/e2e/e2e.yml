@@ -49,10 +49,6 @@
     # The service account is called `agent-e2e-tests`
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json > ~/gcp-credentials.json || exit $?
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
-    # Image pull credentials for GCP Artifact Registry (read-only service account key)
-    - |
-      gcp_acr_key=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_acr_readonly) || exit $?
-      export E2E_GCP_IMAGE_PULL_PASSWORD="b64=$(printf '%s' "$gcp_acr_key" | base64 -w 0)"
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
@@ -99,7 +95,7 @@
       if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
-    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev -c ddagent:imagePullUsername=AWS,_json_key -c ddagent:imagePullPassword=$(aws ecr get-login-password),$E2E_GCP_IMAGE_PULL_PASSWORD --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
