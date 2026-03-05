@@ -187,7 +187,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
 
                   {/* Dynamic correlator sections */}
                   {correlatorComponents.map((comp) => {
-                    const corrData = state.correlatorData.get(comp.name);
+                    const corrData = state.componentData.get(comp.name);
                     return (
                       <CorrelatorSection
                         key={comp.name}

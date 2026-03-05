@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, Correlation,
-  CompressedGroup, CorrelatorDataResponse, CorrelatorStats
+  CompressedGroup, ComponentDataResponse, CorrelatorStats
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -17,8 +17,8 @@ export interface ObserverState {
   logs: LogEntry[];
   logAnomalies: LogAnomaly[];
   correlations: Correlation[];
-  // Generic correlator data keyed by correlator name
-  correlatorData: Map<string, CorrelatorDataResponse>;
+  // Generic component data keyed by component name
+  componentData: Map<string, ComponentDataResponse>;
   compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
   activeScenario: string | null;
@@ -43,7 +43,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logAnomalies, setLogAnomalies] = useState<LogAnomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
-  const [correlatorData, setCorrelatorData] = useState<Map<string, CorrelatorDataResponse>>(new Map());
+  const [componentData, setComponentData] = useState<Map<string, ComponentDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
@@ -80,18 +80,16 @@ export function useObserver(): [ObserverState, ObserverActions] {
           api.getStats(),
         ]);
 
-      // Discover correlator names from components and fetch their data
-      const correlatorNames = componentsData
-        .filter((c: ComponentInfo) => c.category === 'correlator')
-        .map((c: ComponentInfo) => c.name);
+      // Fetch data for ALL components (any component may provide extra data)
+      const componentNames = componentsData.map((c: ComponentInfo) => c.name);
 
-      const correlatorResults = await Promise.all(
-        correlatorNames.map(async (name: string) => {
+      const componentDataResults = await Promise.all(
+        componentNames.map(async (name: string) => {
           try {
-            const data = await api.getCorrelatorData(name);
-            return [name, data] as [string, CorrelatorDataResponse];
+            const data = await api.getComponentData(name);
+            return [name, data] as [string, ComponentDataResponse];
           } catch {
-            return [name, { enabled: false, data: null }] as [string, CorrelatorDataResponse];
+            return [name, { enabled: false, data: null }] as [string, ComponentDataResponse];
           }
         })
       );
@@ -105,7 +103,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setLogAnomalies(logAnomaliesData);
       setCorrelations(correlationsData);
       setCompressedGroups(compressedGroupsData);
-      setCorrelatorData(new Map(correlatorResults));
+      setComponentData(new Map(componentDataResults));
       setCorrelatorStats(statsData);
       setError(null);
 
@@ -215,7 +213,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       logs,
       logAnomalies,
       correlations,
-      correlatorData,
+      componentData,
       compressedGroups,
       correlatorStats,
       activeScenario,

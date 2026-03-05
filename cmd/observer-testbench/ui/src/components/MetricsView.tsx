@@ -59,7 +59,6 @@ export function MetricsView({
   smoothLines,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
-  const [enabledDetectors, setEnabledDetectors] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
@@ -76,14 +75,15 @@ export function MetricsView({
     [components]
   );
 
+  // Derive enabled detectors from backend component state (source of truth)
+  const enabledDetectors = useMemo(
+    () => new Set(detectorComponents.filter((c) => c.enabled).map((c) => c.name)),
+    [detectorComponents]
+  );
+
   const anomalies = useMemo(
     () => allAnomalies.filter((a) => enabledDetectors.has(getDetectorComponent(a))),
     [allAnomalies, enabledDetectors]
-  );
-
-  const tsDetectorNames = useMemo(
-    () => detectorComponents.map((c) => c.name),
-    [detectorComponents]
   );
 
   // Map comp.name (detectorComponent) → detectorName used by the timeline for coloring
@@ -174,12 +174,11 @@ export function MetricsView({
 
   const initializedScenarioRef = useRef<string | null>(null);
   useEffect(() => {
-    if (tsDetectorNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
+    if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
-      setEnabledDetectors(new Set(tsDetectorNames));
       setTagFilterInput('');
     }
-  }, [tsDetectorNames, state.activeScenario]);
+  }, [state.activeScenario]);
 
   const [autoSelectedScenario, setAutoSelectedScenario] = useState<string | null>(null);
   useEffect(() => {
@@ -237,13 +236,7 @@ export function MetricsView({
   }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
-    const next = new Set(enabledDetectors);
-    if (next.has(name)) {
-      next.delete(name);
-    } else {
-      next.add(name);
-    }
-    setEnabledDetectors(next);
+    actions.toggleComponent(name);
   };
 
   const anomalousGroupKeys = useMemo(() => {

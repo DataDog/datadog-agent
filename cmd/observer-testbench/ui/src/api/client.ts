@@ -169,8 +169,8 @@ export interface CompressedGroup {
   lastUpdated?: number;
 }
 
-// Generic correlator data response
-export interface CorrelatorDataResponse {
+// Generic component data response
+export interface ComponentDataResponse {
   enabled: boolean;
   data: unknown;
 }
@@ -245,8 +245,8 @@ class ApiClient {
     return this.fetch('/correlations');
   }
 
-  async getCorrelatorData(name: string): Promise<CorrelatorDataResponse> {
-    return this.fetch(`/correlators/${encodeURIComponent(name)}`);
+  async getComponentData(name: string): Promise<ComponentDataResponse> {
+    return this.fetch(`/components/${encodeURIComponent(name)}/data`);
   }
 
   // Legacy endpoints (thin wrappers for backward compat)
