@@ -320,16 +320,16 @@ def run(
         # Authentication against agent-qa is required for all kubernetes tests, to use the cache
         ecr_password = _get_agent_qa_ecr_password(ctx)
         if ecr_password:
-            parsed_params["ddagent:imagePullPassword"] = ecr_password
-            parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-            parsed_params["ddagent:imagePullUsername"] = "AWS"
+            env_vars["E2E_IMAGE_PULL_PASSWORD"] = ecr_password
+            env_vars["E2E_IMAGE_PULL_REGISTRY"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+            env_vars["E2E_IMAGE_PULL_USERNAME"] = "AWS"
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
-            parsed_params["ddagent:imagePullPassword"] += (
+            env_vars["E2E_IMAGE_PULL_PASSWORD"] += (
                 f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
             )
-            parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
-            parsed_params["ddagent:imagePullUsername"] += ",AWS"
+            env_vars["E2E_IMAGE_PULL_REGISTRY"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
+            env_vars["E2E_IMAGE_PULL_USERNAME"] += ",AWS"
 
     for param in configparams:
         parts = param.split("=", 1)
@@ -545,26 +545,7 @@ def run(
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
 
-        configparams_to_retain = {
-            "ddagent:imagePullRegistry",
-            "ddagent:imagePullUsername",
-        }
-
-        registry_to_password_commands = {
-            "669783387624.dkr.ecr.us-east-1.amazonaws.com": "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password"
-        }
-
-        for configparam in configparams:
-            parts = configparam.split("=", 1)
-            key = parts[0]
-            if key in configparams_to_retain:
-                params.append(f"-c {configparam}")
-
-                if key == "ddagent:imagePullRegistry" and len(parts) > 1:
-                    registry = parts[1]
-                    password_cmd = registry_to_password_commands.get(registry)
-                    if password_cmd is not None:
-                        params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
+        params.extend(f"-c {configparam}" for configparam in configparams)
 
         command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
