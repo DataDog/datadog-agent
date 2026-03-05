@@ -155,18 +155,6 @@ func (tb *TestBench) allCorrelators() []observerdef.Correlator {
 	return result
 }
 
-// getDeduplicator returns the deduplicator if it is enabled, or nil.
-func (tb *TestBench) getDeduplicator() *AnomalyDeduplicator {
-	comp, ok := tb.components["dedup"]
-	if !ok || !comp.Enabled {
-		return nil
-	}
-	if d, ok := comp.Instance.(*AnomalyDeduplicator); ok {
-		return d
-	}
-	return nil
-}
-
 // GetComponentData returns the extra data and enabled status for a named component.
 func (tb *TestBench) GetComponentData(name string) (data interface{}, enabled bool) {
 	tb.mu.RLock()

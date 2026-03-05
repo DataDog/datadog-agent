@@ -631,11 +631,6 @@ func (tb *TestBench) rerunDetectorsLocked() {
 				telemetryName := "telemetry." + detector.Name() + "." + string(anomaly.Source)
 				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
 			}
-			if dedup != nil {
-				if !dedup.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
-					continue
-				}
-			}
 			tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
 			tb.metricsByDetector[anomaly.DetectorName] = append(tb.metricsByDetector[anomaly.DetectorName], anomaly)
 			if anomaly.SourceSeriesID != "" {

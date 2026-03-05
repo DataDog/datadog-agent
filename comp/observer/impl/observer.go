@@ -361,10 +361,7 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
-
-	// Deduplication layer (optional) - filters anomalies before correlation
-	deduplicator *AnomalyDeduplicator
+	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -377,8 +374,6 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	dedupSkipped         int                             // count of anomalies skipped by dedup
-
 	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
 }
 
