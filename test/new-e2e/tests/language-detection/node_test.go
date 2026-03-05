@@ -23,7 +23,7 @@ func (s *languageDetectionSuite) installNode() {
 	// Installation instructions taken from https://github.com/nodesource/distributions
 	s.Env().RemoteHost.MustExecute("sudo apt-get update")
 	s.Env().RemoteHost.MustExecute("sudo apt-get install -y curl")
-	s.Env().RemoteHost.MustExecute("curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-x64.tar.gz | sudo tar -xz -C /usr/local --strip-components=1")
+	s.Env().RemoteHost.MustExecute("curl -fsSL https://nodejs.org/dist/v20.20.1/node-v20.20.1-linux-x64.tar.gz | sudo tar -xz -C /usr/local --strip-components=1")
 
 	// Verify that node was installed correctly
 	nodeVersion := s.Env().RemoteHost.MustExecute("node --version")
