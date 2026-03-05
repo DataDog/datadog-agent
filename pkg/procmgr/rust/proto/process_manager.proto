@@ -1,0 +1,81 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+syntax = "proto3";
+
+package datadog.procmgr;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr";
+
+service ProcessManager {
+  rpc List (ListRequest) returns (ListResponse);
+  rpc Describe (DescribeRequest) returns (DescribeResponse);
+  rpc GetStatus (GetStatusRequest) returns (GetStatusResponse);
+}
+
+enum ProcessState {
+  UNKNOWN = 0;
+  CREATED = 1;
+  STARTING = 2;
+  RUNNING = 3;
+  STOPPING = 4;
+  STOPPED = 5;
+  CRASHED = 6;
+  EXITED = 7;
+  FAILED = 8;
+}
+
+message ListRequest {}
+
+message Process {
+  string name = 2;
+  uint32 pid = 3;
+  string command = 4;
+  repeated string args = 5;
+  ProcessState state = 6;
+}
+
+message ListResponse {
+  repeated Process processes = 1;
+}
+
+message DescribeRequest {
+  string name = 1;
+}
+
+message ProcessDetail {
+  string name = 2;
+  string description = 3;
+  uint32 pid = 4;
+  ProcessState state = 5;
+  string command = 9;
+  repeated string args = 10;
+  string working_dir = 14;
+  map<string, string> env = 15;
+  string restart_policy = 17;
+  string stdout = 28;
+  string stderr = 29;
+  bool auto_start = 30;
+  string condition_path_exists = 31;
+  repeated string after = 36;
+  repeated string before = 37;
+}
+
+message DescribeResponse {
+  ProcessDetail detail = 1;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  bool ready = 1;
+  string version = 2;
+  uint64 uptime_seconds = 3;
+  uint32 total_processes = 4;
+  uint32 running_processes = 5;
+  uint32 stopped_processes = 6;
+  uint32 failed_processes = 7;
+  string config_path = 10;
+}
