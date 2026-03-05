@@ -534,6 +534,13 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
         }
     }
 
+    if (syscall->state == SAMPLED) {
+        syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+
+        // force to be accepted as this event will be part of a dump
+        syscall->state = ACCEPTED;
+    }
+
     return syscall->state;
 }
 
