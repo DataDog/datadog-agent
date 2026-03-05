@@ -10,8 +10,8 @@
 //	M1 (✓): EKS cluster + kubeconfig export — no workloads.
 //	M2 (✓): Episode services built on an EC2 build VM, pushed to ECR, deployed to EKS.
 //	M3 (✓): Datadog Agent DaemonSet deployed; stub agent removed.
-//	M4 (this file): Kubernetes Job running play-episode.sh autonomously.
-//	M5: S3 results upload, destroy cleanup, full parity with Kind-based scenario.
+//	M4 (✓): Kubernetes Job running play-episode.sh autonomously.
+//	M5 (this file): S3 results upload + parquet collection, observer-recorder agent image.
 package gensimeks
 
 import (
@@ -84,6 +84,7 @@ func Run(ctx *pulumi.Context) error {
 	episodeName := cfg.Require("episodeName")
 	episodePath := cfg.Get("episodePath")     // full path to episode dir on the developer's machine
 	imageRegistry := cfg.Get("imageRegistry") // ECR registry URL, computed by the invoke task
+	s3Bucket := cfg.Get("s3Bucket")           // optional: upload results here after episode completes
 	namespace := cfg.Get("namespace")
 	if namespace == "" {
 		namespace = "default"
@@ -195,6 +196,15 @@ func Run(ctx *pulumi.Context) error {
 					"tlsVerify": pulumi.Bool(false),
 				},
 				"clusterName": pulumi.String("gensim"),
+				// Observer-recorder: captures metrics as parquet for offline analysis.
+				// parquet_output_dir must match the path the runner collects from.
+				"additionalConfig": pulumi.String(
+					"observer:\n" +
+						"  capture_metrics:\n" +
+						"    enabled: true\n" +
+						"  parquet_output_dir: /tmp/observer-parquet\n" +
+						"  parquet_flush_interval: 30s\n",
+				),
 			},
 			// Cluster-checks runners are not needed for a single-node test cluster.
 			// Disabling them removes the 2 extra pods whose readiness probe blocks
@@ -203,6 +213,29 @@ func Run(ctx *pulumi.Context) error {
 				"enabled": pulumi.Bool(false),
 			},
 		}))
+
+		// S3 upload (M5): attach write access to the EKS Linux node role so the Job
+		// pod can push results. The role name follows the same naming convention used
+		// in cluster.go when creating the node group.
+		if s3Bucket != "" {
+			_, err = awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-s3-upload"),
+				&awsIam.RolePolicyArgs{
+					Role: awsEnv.CommonNamer().DisplayName(64, pulumi.String("eks-linux-node-role")),
+					Policy: pulumi.Sprintf(`{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+    "Resource": ["arn:aws:s3:::%s", "arn:aws:s3:::%s/*"]
+  }]
+}`, s3Bucket, s3Bucket),
+				},
+				awsEnv.WithProviders(e2econfig.ProviderAWS),
+			)
+			if err != nil {
+				return err
+			}
+		}
 
 		if awsEnv.AgentFullImagePath() != "" {
 			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(awsEnv.AgentFullImagePath()))
@@ -220,7 +253,7 @@ func Run(ctx *pulumi.Context) error {
 	// only (useful for debugging before committing to a full run).
 	scenario := cfg.Get("scenario")
 	if scenario != "" && awsEnv.AgentDeploy() {
-		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName); err != nil {
+		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName, s3Bucket); err != nil {
 			return err
 		}
 	}
@@ -238,7 +271,7 @@ func deployRunnerJob(
 	ctx *pulumi.Context,
 	awsEnv *resAws.Environment,
 	kubeProvider *pulumiKubernetes.Provider,
-	episodePath, scenario, namespace, ddEnv string,
+	episodePath, scenario, namespace, ddEnv, s3Bucket string,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -268,6 +301,12 @@ func deployRunnerJob(
 					ApiGroups: pulumi.StringArray{pulumi.String("")},
 					Resources: pulumi.StringArray{pulumi.String("pods")},
 					Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
+				},
+				// pods/exec is required for kubectl cp to collect parquet from the agent pod.
+				rbacv1.PolicyRuleArgs{
+					ApiGroups: pulumi.StringArray{pulumi.String("")},
+					Resources: pulumi.StringArray{pulumi.String("pods/exec")},
+					Verbs:     pulumi.StringArray{pulumi.String("create")},
 				},
 				rbacv1.PolicyRuleArgs{
 					ApiGroups: pulumi.StringArray{pulumi.String("apps")},

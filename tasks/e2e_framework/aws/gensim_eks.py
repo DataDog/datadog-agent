@@ -33,6 +33,8 @@ def create_gensim_eks(
     ctx: Context,
     episode: str | None = None,
     scenario: str | None = None,
+    s3_bucket: str | None = None,
+    full_image_path: str | None = None,
     namespace: str = "default",
     stack_name: str = _DEFAULT_STACK_NAME,
     instance_type: str = "t3.xlarge",
@@ -79,6 +81,8 @@ def create_gensim_eks(
         extra_flags.update(_episode_flags(ctx, cfg, episode, namespace))
         if scenario is not None:
             extra_flags["gensim:scenario"] = scenario
+        if s3_bucket is not None:
+            extra_flags["gensim:s3Bucket"] = s3_bucket
 
     full_stack_name = deploy(
         ctx,
@@ -90,6 +94,8 @@ def create_gensim_eks(
         # which gates the M3 DD agent deployment in run.go via awsEnv.AgentDeploy().
         install_agent=episode is not None,
         install_workload=False,
+        # full_image_path allows overriding the agent image (e.g. observer-recorder build).
+        full_image_path=full_image_path,
         extra_flags=extra_flags,
     )
 
