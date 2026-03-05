@@ -112,13 +112,13 @@ func validateNode(node syntax.Node) error {
 // blockedSpecialParams are single-character parameter names that are not
 // supported in the safe-shell interpreter (positional params, $#, $0, $@, $*).
 var blockedSpecialParams = map[string]bool{
-	"#": true,
-	"!": true,
-	"0": true,
-	"1": true, "2": true, "3": true, "4": true,
+	"#": true, // $# - number of positional parameters
+	"!": true, // $! - PID of the last background command
+	"0": true, // $0 - name of the shell or script
+	"1": true, "2": true, "3": true, "4": true, // $1-$9 - positional parameters
 	"5": true, "6": true, "7": true, "8": true, "9": true,
-	"@": true,
-	"*": true,
+	"@": true, // $@ - all positional parameters as separate words
+	"*": true, // $* - all positional parameters as a single word
 }
 
 func validateParamExp(pe *syntax.ParamExp) error {
