@@ -269,6 +269,7 @@ def run(
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
+    recursive=True,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -450,6 +451,7 @@ def run(
             result_junit=partial_result_junit,
             result_json=partial_result_json,
             test_profiler=None,
+            recursive=recursive,
         )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
