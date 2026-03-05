@@ -409,6 +409,13 @@ func deployRunnerJob(
 										Name:      pulumi.String("episode-scenarios"),
 										MountPath: pulumi.String("/episode/episodes"),
 									},
+									// Writable directory for play-episode.sh results.
+									// ConfigMap volumes are read-only; play-episode.sh hardcodes
+									// RESULTS_DIR="${SCRIPT_DIR}/results" so we mount an emptyDir there.
+									corev1.VolumeMountArgs{
+										Name:      pulumi.String("episode-results"),
+										MountPath: pulumi.String("/episode/results"),
+									},
 								},
 							},
 						},
@@ -439,6 +446,11 @@ func deployRunnerJob(
 										},
 									},
 								},
+							},
+							// emptyDir provides a writable /episode/results for play-episode.sh.
+							corev1.VolumeArgs{
+								Name:     pulumi.String("episode-results"),
+								EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 							},
 						},
 					},
