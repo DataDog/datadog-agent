@@ -219,6 +219,20 @@ requirements:
     tags: [config, enrichment]
     ref: [DDOT014]
 
+  - id: DDOT037
+    short: Resolve the hostname from the core Agent, with fallback to local resolution
+    long: |
+      DDOT shall resolve the hostname using the following priority order:
+        1. Query the core Datadog Agent via gRPC (only attempted when `cmd_port` is
+           configured to a positive value).
+        2. Fall back to local hostname resolution (reads `DD_HOSTNAME`, then derives
+           from the OS) if the core Agent is unreachable or IPC is disabled.
+      Once resolved, the hostname is cached for the lifetime of the process.
+    tags: [config]
+    ref: [DDOT030, DDOT025]
+    properties:
+      source: https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/comp/core/hostname/remotehostnameimpl/hostname.go#L134
+
   - id: DDOT030
     short: Inject the Datadog-resolved hostname into telemetry
     long: |
@@ -229,6 +243,20 @@ requirements:
       Hostname injection is suppressed when DDOT operates in gateway mode (DDOT013).
     tags: [processing, enrichment]
     ref: [DDOT001, DDOT013]
+
+  - id: DDOT035
+    short: Transform the effective configuration through converters before startup
+    long: |
+      The user-provided OTel YAML configuration shall be passed through a converter
+      pipeline before being applied at runtime.
+      Converters may inject or modify components (receivers, processors, exporters,
+      extensions, connectors) that are not present in the user's file — for example,
+      automatically adding debug extensions when `DD_OTELCOLLECTOR_CONVERTER_FEATURES`
+      includes `health_check`, `pprof`, or `zpages`.
+      The effective runtime configuration may therefore differ from the file the user
+      provided; the actual applied configuration is visible via the flare (DDOT016).
+    tags: [config]
+    ref: [DDOT009, DDOT010, DDOT016]
 
   - id: DDOT031
     short: Configure TLS for the OTLP receiver endpoints

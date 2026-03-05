@@ -2,6 +2,7 @@ kind: comments
 default:
   date: 04/03/2026
   from: Claude
+  external: true
 comments:
 - about: T001
   text: >-
@@ -36,6 +37,7 @@ comments:
     https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/test/new-e2e/tests/otel/otlp-ingest/docker_pipelines_test.go#L31
 - about: DDOT015
   from: Antoine G.
+  external: false
   text: Can the container ID actually be derived from PID, cgroup inode, or pod UID + container name, or does it have to be provided as an input?
 - about: DDOT015
   text: >-
