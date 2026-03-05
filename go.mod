@@ -17,9 +17,6 @@ retract (
 
 // Internal deps fix version
 replace (
-
-	// Local agent-payload with TCP congestion signal proto fields
-	github.com/DataDog/agent-payload/v5 => /Users/jim.wilson/dd/agent-payload
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
@@ -36,7 +33,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.182
+	github.com/DataDog/agent-payload/v5 v5.0.184-0.20260305013150-862de1be0e62
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
