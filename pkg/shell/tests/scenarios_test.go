@@ -11,7 +11,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -26,7 +25,6 @@ import (
 // scenario represents a single test scenario.
 type scenario struct {
 	Description string   `yaml:"description"`
-	TargetOS []string `yaml:"target_os"` // if set, only run on these OS (linux, darwin, windows); empty means all
 	Setup       setup    `yaml:"setup"`
 	Input       input    `yaml:"input"`
 	Expect      expected `yaml:"expect"`
@@ -126,19 +124,6 @@ func setupTestDir(t *testing.T, sc scenario) string {
 // and asserts the expected output.
 func runScenario(t *testing.T, sc scenario) {
 	t.Helper()
-
-	if len(sc.TargetOS) > 0 {
-		matched := false
-		for _, goos := range sc.TargetOS {
-			if goos == runtime.GOOS {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			t.Skipf("skipping: scenario targets %v, current GOOS is %s", sc.TargetOS, runtime.GOOS)
-		}
-	}
 
 	dir := setupTestDir(t, sc)
 
