@@ -18,12 +18,11 @@ mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
+    use crate::ProcessManager;
     use crate::config::{ProcessConfig, RestartPolicy};
     use crate::process::ManagedProcess;
     use hyper_util::rt::TokioIo;
-    use std::sync::Arc;
     use tokio::net::UnixListener;
-    use tokio::sync::RwLock;
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::transport::{Channel, Endpoint, Uri};
     use tower::service_fn;
@@ -39,8 +38,8 @@ mod tests {
         let uds = UnixListener::bind(&sock_path).unwrap();
         let uds_stream = UnixListenerStream::new(uds);
 
-        let shared = Arc::new(RwLock::new(processes));
-        let svc = ProcessManagerService::new(shared, "/test/config/path".to_string());
+        let mgr = ProcessManager::new(processes);
+        let svc = ProcessManagerService::new(mgr, "/test/config/path".to_string());
 
         let reflection = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
