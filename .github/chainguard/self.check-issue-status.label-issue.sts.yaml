@@ -6,7 +6,6 @@ subject: repo:DataDog/datadog-agent:environment:main
 claim_pattern:
   event_name: (issue_comment|workflow_dispatch)
   ref: refs/heads/main
-  ref_protected: "true"
   job_workflow_ref: DataDog/datadog-agent/\.github/workflows/check_issue_status\.yml@refs/heads/main
 
 permissions:
