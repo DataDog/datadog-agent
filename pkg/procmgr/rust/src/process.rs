@@ -163,12 +163,24 @@ impl ManagedProcess {
         cmd.args(&self.config.args);
 
         cmd.env_clear();
-        if let Some(ref path) = self.config.environment_file {
-            let vars = parse_environment_file(path).with_context(|| {
-                format!("[{}] failed to read environment file: {path}", self.name)
-            })?;
-            for (k, v) in &vars {
-                cmd.env(k, v);
+        if let Some(ref raw_path) = self.config.environment_file {
+            let (optional, path) = if let Some(stripped) = raw_path.strip_prefix('-') {
+                (true, stripped)
+            } else {
+                (false, raw_path.as_str())
+            };
+            if optional && !std::path::Path::new(path).exists() {
+                info!(
+                    "[{}] optional environment file not found, skipping: {path}",
+                    self.name
+                );
+            } else {
+                let vars = parse_environment_file(path).with_context(|| {
+                    format!("[{}] failed to read environment file: {path}", self.name)
+                })?;
+                for (k, v) in &vars {
+                    cmd.env(k, v);
+                }
             }
         }
         for (k, v) in &self.config.env {
@@ -370,28 +382,14 @@ fn stdio_from_str(s: &str) -> Stdio {
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use std::collections::HashMap;
 
     pub fn make_config(command: &str, args: Vec<&str>) -> ProcessConfig {
         ProcessConfig {
-            description: None,
             command: command.to_string(),
             args: args.into_iter().map(String::from).collect(),
-            env: HashMap::new(),
-            environment_file: None,
-            working_dir: None,
-            pidfile: None,
             stdout: "null".to_string(),
             stderr: "null".to_string(),
-            auto_start: true,
-            condition_path_exists: None,
-            stop_timeout: None,
-            restart: RestartPolicy::Never,
-            restart_sec: None,
-            restart_max_delay_sec: None,
-            start_limit_burst: None,
-            start_limit_interval_sec: None,
-            runtime_success_sec: None,
+            ..Default::default()
         }
     }
 
@@ -647,14 +645,27 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_fails_on_missing_environment_file() {
-        let mut cfg = make_config("/bin/true", vec![]);
+        let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.environment_file = Some("/nonexistent/env".to_string());
         let mut proc = ManagedProcess::new("bad-envfile".into(), cfg);
         assert!(
             proc.spawn().is_err(),
-            "spawn should fail if environment_file is unreadable"
+            "spawn should fail if environment_file is missing without - prefix"
         );
         assert!(!proc.is_running());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_skips_missing_optional_environment_file() {
+        let mut cfg = make_config("/usr/bin/true", vec![]);
+        cfg.environment_file = Some("-/nonexistent/env".to_string());
+        let mut proc = ManagedProcess::new("optional-envfile".into(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert!(
+            status.success(),
+            "spawn should succeed when optional environment_file (- prefix) is missing"
+        );
     }
 
     // -- restart policy tests --
