@@ -55,6 +55,7 @@ type MetricView interface {
 	GetRawTags() []string
 	GetTimestamp() float64
 	GetSampleRate() float64
+	GetMetricTypeName() string
 }
 
 // LogView provides read-only access to a log message.

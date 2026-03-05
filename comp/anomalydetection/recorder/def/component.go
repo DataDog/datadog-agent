@@ -50,11 +50,12 @@ type Component interface {
 // MetricData represents a single metric read from parquet files.
 // Used by ReadAllMetrics for batch loading scenarios.
 type MetricData struct {
-	Source    string   // Source/namespace (RunID in parquet)
-	Name      string   // Metric name
-	Value     float64  // Metric value
-	Timestamp int64    // Unix timestamp in seconds
-	Tags      []string // Tags in "key:value" format
+	Source     string   // Source/namespace (RunID in parquet)
+	Name       string   // Metric name
+	MetricType string   // Metric type (e.g. "Gauge", "Count", "MonotonicCount", "Rate", "Histogram")
+	Value      float64  // Metric value
+	Timestamp  int64    // Unix timestamp in seconds
+	Tags       []string // Tags in "key:value" format
 }
 
 // TraceData represents a trace read from parquet files.

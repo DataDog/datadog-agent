@@ -25,6 +25,7 @@ type FGMMetric struct {
 	RunID      string
 	Time       int64 // milliseconds
 	MetricName string
+	MetricType string // e.g. "Gauge", "Count", "MonotonicCount", "Rate", "Histogram"
 	ValueInt   *uint64
 	ValueFloat *float64
 	Tags       map[string]string
@@ -206,6 +207,11 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	runIDIdx := findColumnIndexInSchema(schema, "runid")
 	timeIdx := findColumnIndexInSchema(schema, "time")
 	metricNameIdx := findColumnIndexInSchema(schema, "metricname")
+	// BACKCOMPAT: MetricType column was added 2026-03-05. Parquet files written before
+	// this date won't have it, so metricTypeIdx will be -1 and MetricType will be "".
+	// DELETEME: Safe to make this required (and remove the -1 guard) after 2026-04-01,
+	// when no pre-MetricType parquet files should still be in use.
+	metricTypeIdx := findColumnIndexInSchema(schema, "metrictype")
 	valueFloatIdx := findColumnIndexInSchema(schema, "valuefloat")
 	tagsIdx := findColumnIndexInSchema(schema, "tags")
 
@@ -227,6 +233,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	// Get typed column references (safe type switches)
 	var runIDCol *array.String
 	var metricNameCol *array.String
+	var metricTypeCol *array.String
 	var valueFloatCol *array.Float64
 	var tagsCol *array.List
 	var timeColRaw arrow.Array
@@ -242,6 +249,11 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	if metricNameIdx >= 0 {
 		if c, ok := record.Column(metricNameIdx).(*array.String); ok {
 			metricNameCol = c
+		}
+	}
+	if metricTypeIdx >= 0 {
+		if c, ok := record.Column(metricTypeIdx).(*array.String); ok {
+			metricTypeCol = c
 		}
 	}
 	if valueFloatIdx >= 0 {
@@ -275,7 +287,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	// Build metrics
 	metrics := make([]FGMMetric, numRows)
 	for i := 0; i < numRows; i++ {
-		var runID, metricName string
+		var runID, metricName, metricType string
 		var timestamp int64
 		var valueFloat *float64
 		tags := make(map[string]string)
@@ -288,6 +300,9 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 		}
 		if metricNameCol != nil && !metricNameCol.IsNull(i) {
 			metricName = metricNameCol.Value(i)
+		}
+		if metricTypeCol != nil && !metricTypeCol.IsNull(i) {
+			metricType = metricTypeCol.Value(i)
 		}
 		if valueFloatCol != nil && !valueFloatCol.IsNull(i) {
 			v := valueFloatCol.Value(i)
@@ -324,6 +339,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 			RunID:      runID,
 			Time:       timestamp,
 			MetricName: metricName,
+			MetricType: metricType,
 			ValueFloat: valueFloat,
 			Tags:       tags,
 		}
