@@ -563,9 +563,9 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
-		deltaEncode(k)
+		kDelta := deltaEncoder{}
 		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, int64(k[i]))
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
 			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
 		}
 		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
