@@ -1,0 +1,17 @@
+description: Variable containing glob characters is NOT glob-matched when double-quoted.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    PATTERN="*.txt"
+    echo "$PATTERN"
+expect:
+  stdout: |+
+    *.txt
+  stderr: ""
+  exit_code: 0

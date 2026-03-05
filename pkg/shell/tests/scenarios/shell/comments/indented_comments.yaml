@@ -1,0 +1,13 @@
+description: Leading spaces and tabs before hash still make it a comment.
+input:
+  script: |+
+    echo first
+      # indented with spaces
+    	# indented with tab
+    echo second
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0
