@@ -107,14 +107,9 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     go clean -cache; \
     fi
 
-# TODO: Uncomment this section once build-ddot-byoc is merged
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
-#RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-#    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
-#    fi
-COPY build-ddot-byoc/ /workspace/build-ddot-byoc/
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.
