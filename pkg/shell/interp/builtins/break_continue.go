@@ -28,8 +28,12 @@ func loopControl(call *CallContext, name string, args []string) Result {
 	case 1:
 		parsed, err := strconv.Atoi(args[0])
 		if err != nil {
-			call.Errf("usage: %s [n]\n", name)
+			call.Errf("%s: %s: numeric argument required\n", name, args[0])
 			return Result{Code: 2}
+		}
+		if parsed < 1 {
+			call.Errf("%s: %s: loop count out of range\n", name, args[0])
+			return Result{Code: 1}
 		}
 		n = parsed
 	default:

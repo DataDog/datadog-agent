@@ -113,6 +113,7 @@ func validateNode(node syntax.Node) error {
 // supported in the safe-shell interpreter (positional params, $#, $0, $@, $*).
 var blockedSpecialParams = map[string]bool{
 	"#": true,
+	"!": true,
 	"0": true,
 	"1": true, "2": true, "3": true, "4": true,
 	"5": true, "6": true, "7": true, "8": true, "9": true,
