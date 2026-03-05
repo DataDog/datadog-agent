@@ -11,7 +11,7 @@ import (
 )
 
 // HandlerFunc is the signature for a builtin command implementation.
-type HandlerFunc func(ctx context.Context, call *CallContext, args []string) Result
+type HandlerFunc func(ctx context.Context, callCtx *CallContext, args []string) Result
 
 // CallContext provides the capabilities available to builtin commands.
 // It is created by the Runner for each builtin invocation.

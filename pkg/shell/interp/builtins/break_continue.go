@@ -8,17 +8,17 @@ import (
 	"strconv"
 )
 
-func builtinBreak(_ context.Context, call *CallContext, args []string) Result {
-	return loopControl(call, "break", args)
+func builtinBreak(_ context.Context, callCtx *CallContext, args []string) Result {
+	return loopControl(callCtx, "break", args)
 }
 
-func builtinContinue(_ context.Context, call *CallContext, args []string) Result {
-	return loopControl(call, "continue", args)
+func builtinContinue(_ context.Context, callCtx *CallContext, args []string) Result {
+	return loopControl(callCtx, "continue", args)
 }
 
-func loopControl(call *CallContext, name string, args []string) Result {
-	if !call.InLoop {
-		call.Errf("%s is only useful in a loop\n", name)
+func loopControl(callCtx *CallContext, name string, args []string) Result {
+	if !callCtx.InLoop {
+		callCtx.Errf("%s is only useful in a loop\n", name)
 		return Result{}
 	}
 
@@ -28,12 +28,12 @@ func loopControl(call *CallContext, name string, args []string) Result {
 	case 1:
 		parsed, err := strconv.Atoi(args[0])
 		if err != nil {
-			call.Errf("usage: %s [n]\n", name)
+			callCtx.Errf("usage: %s [n]\n", name)
 			return Result{Code: 2}
 		}
 		n = parsed
 	default:
-		call.Errf("usage: %s [n]\n", name)
+		callCtx.Errf("usage: %s [n]\n", name)
 		return Result{Code: 2}
 	}
 

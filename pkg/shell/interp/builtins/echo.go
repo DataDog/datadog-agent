@@ -5,13 +5,13 @@ package builtins
 
 import "context"
 
-func builtinEcho(_ context.Context, call *CallContext, args []string) Result {
+func builtinEcho(_ context.Context, callCtx *CallContext, args []string) Result {
 	for i, arg := range args {
 		if i > 0 {
-			call.Out(" ")
+			callCtx.Out(" ")
 		}
-		call.Out(arg)
+		callCtx.Out(arg)
 	}
-	call.Out("\n")
+	callCtx.Out("\n")
 	return Result{}
 }
