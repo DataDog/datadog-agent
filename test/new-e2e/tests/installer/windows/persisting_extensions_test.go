@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agenttests
+package installer
 
 import (
 	"fmt"
@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
-	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -31,17 +30,17 @@ const (
 )
 
 type testExtensionsSuite struct {
-	installerwindows.BaseSuite
+	BaseSuite
 }
 
 // TestExtensionPersistence tests Agent extension persistence behaviour on Windows.
 func TestExtensionPersistence(t *testing.T) {
 	s := &testExtensionsSuite{}
-	s.CreateStableAgent = func() (*installerwindows.AgentVersionManager, error) {
-		oci, err := installerwindows.NewPackageConfig(
-			installerwindows.WithName(consts.AgentPackage),
-			installerwindows.WithVersion(stableExtensionsVersion),
-			installerwindows.WithRegistry(consts.BetaS3OCIRegistry),
+	s.CreateStableAgent = func() (*AgentVersionManager, error) {
+		oci, err := NewPackageConfig(
+			WithName(consts.AgentPackage),
+			WithVersion(stableExtensionsVersion),
+			WithRegistry(consts.BetaS3OCIRegistry),
 		)
 		if err != nil {
 			return nil, err
@@ -57,7 +56,7 @@ func TestExtensionPersistence(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return installerwindows.NewAgentVersionManager(stableExtensionsAgentVersion, stableExtensionsVersion, oci, msi)
+		return NewAgentVersionManager(stableExtensionsAgentVersion, stableExtensionsVersion, oci, msi)
 	}
 	e2e.Run(t, s,
 		e2e.WithProvisioner(
@@ -75,7 +74,7 @@ func (s *testExtensionsSuite) runInstallerCommand(args string) (string, error) {
 }
 
 // installExtension installs an extension using the datadog-installer.
-func (s *testExtensionsSuite) installExtension(pkg installerwindows.TestPackageConfig, extensionName string) {
+func (s *testExtensionsSuite) installExtension(pkg TestPackageConfig, extensionName string) {
 	output, err := s.runInstallerCommand(fmt.Sprintf("extension install %s %s", pkg.URL(), extensionName))
 	s.Require().NoError(err, "Failed to install extension: %s", output)
 }
@@ -133,10 +132,10 @@ installer:
 }
 
 // installPreviousAgentVersion installs the previous stable agent version.
-func (s *testExtensionsSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-previous-version.log"),
+func (s *testExtensionsSuite) installPreviousAgentVersion(opts ...MsiOption) {
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
 	s.InstallWithDiagnostics(options...)
@@ -149,10 +148,10 @@ func (s *testExtensionsSuite) installPreviousAgentVersion(opts ...installerwindo
 }
 
 // installCurrentAgentVersion installs the current agent version.
-func (s *testExtensionsSuite) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
-	options := []installerwindows.MsiOption{
-		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
-		installerwindows.WithMSILogFile("install-current-version.log"),
+func (s *testExtensionsSuite) installCurrentAgentVersion(opts ...MsiOption) {
+	options := []MsiOption{
+		WithOption(WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
+		WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
 	s.InstallWithDiagnostics(options...)
