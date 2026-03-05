@@ -71,7 +71,7 @@ Blocked features are rejected before execution with exit code 2.
 
 ## Execution
 
-- ✅ External commands — when an ExecHandler is configured and the binary is within AllowedPaths
+- ✅ External commands — when an ExecHandler is configured and the binary is within AllowedPaths (blocked by default; requires both options to be set)
 - ✅ AllowedPaths filesystem sandboxing — restricts all file access to specified directories
 - ❌ Background execution: `cmd &`
 - ❌ Coprocesses: `coproc`
