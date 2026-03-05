@@ -1,0 +1,9 @@
+description: Negation of a brace group where the last command fails produces exit code 0.
+input:
+  script: |+
+    ! { echo hello; false; }
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

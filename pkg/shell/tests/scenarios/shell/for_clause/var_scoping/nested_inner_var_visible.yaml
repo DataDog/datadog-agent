@@ -1,0 +1,14 @@
+description: Loop variable from inner nested for loop is visible after both loops complete.
+input:
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        true
+      done
+    done
+    echo "i=$i j=$j"
+expect:
+  stdout: |+
+    i=b j=2
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Negation of a pipeline where the last command fails produces exit code 0.
+input:
+  script: |+
+    ! echo hello | false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0
