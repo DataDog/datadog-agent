@@ -224,6 +224,13 @@ type StatCounters struct {
 	//   are established with the same tuple between two agent checks;
 	TCPEstablished uint16
 	TCPClosed      uint16
+
+	// TCP congestion signal counters (CO-RE/runtime only; 0 on prebuilt)
+	TCPRTOCount      uint32 // RTO loss events (tcp_enter_loss invocations)
+	TCPRecoveryCount uint32 // fast-recovery events (tcp_enter_recovery invocations)
+	TCPProbe0Count   uint32 // zero-window probe events (tcp_send_probe0 invocations)
+	TCPDeliveredCE   uint32 // segments delivered with ECN CE mark (4.19+)
+	TCPReordSeen     uint32 // reordering events detected (4.19+)
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -283,18 +290,11 @@ type ConnectionStats struct {
 	Last      StatCounters
 	Cookie    StatCookie
 	// LastUpdateEpoch is the last time the stats for this connection were updated
-	LastUpdateEpoch uint64
-	Duration        time.Duration
-	RTT             uint32 // Stored in µs
-	RTTVar          uint32
-	// TCP congestion fields (CO-RE/runtime tracer only; 0 on prebuilt).
-	TCPDeliveredCE   uint32 // segments delivered with ECN CE mark (counter, 4.19+)
-	TCPReordSeen     uint32 // reordering events detected (counter, 4.19+)
-	TCPECNNegotiated uint8  // 1 if ECN was negotiated on this connection
-	// TCP RTO/recovery event counters (CO-RE/runtime only; 0 on prebuilt)
-	TCPRTOCount      uint32 // number of RTO loss events (tcp_enter_loss invocations)
-	TCPRecoveryCount uint32 // number of fast-recovery events (tcp_enter_recovery invocations)
-	TCPProbe0Count   uint32 // number of zero-window probe events (tcp_send_probe0 invocations)
+	LastUpdateEpoch  uint64
+	Duration         time.Duration
+	RTT              uint32 // Stored in µs
+	RTTVar           uint32
+	TCPECNNegotiated uint8 // 1 if ECN was negotiated on this connection (CO-RE/runtime only; 0 on prebuilt)
 	StaticTags       uint64
 	ProtocolStack    protocols.Stack
 	TLSTags          tls.Tags
@@ -501,26 +501,36 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 // Add returns s+other
 func (s StatCounters) Add(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      s.RecvBytes + other.RecvBytes,
-		RecvPackets:    s.RecvPackets + other.RecvPackets,
-		Retransmits:    s.Retransmits + other.Retransmits,
-		SentBytes:      s.SentBytes + other.SentBytes,
-		SentPackets:    s.SentPackets + other.SentPackets,
-		TCPClosed:      s.TCPClosed + other.TCPClosed,
-		TCPEstablished: s.TCPEstablished + other.TCPEstablished,
+		RecvBytes:        s.RecvBytes + other.RecvBytes,
+		RecvPackets:      s.RecvPackets + other.RecvPackets,
+		Retransmits:      s.Retransmits + other.Retransmits,
+		SentBytes:        s.SentBytes + other.SentBytes,
+		SentPackets:      s.SentPackets + other.SentPackets,
+		TCPClosed:        s.TCPClosed + other.TCPClosed,
+		TCPEstablished:   s.TCPEstablished + other.TCPEstablished,
+		TCPRTOCount:      s.TCPRTOCount + other.TCPRTOCount,
+		TCPRecoveryCount: s.TCPRecoveryCount + other.TCPRecoveryCount,
+		TCPProbe0Count:   s.TCPProbe0Count + other.TCPProbe0Count,
+		TCPDeliveredCE:   s.TCPDeliveredCE + other.TCPDeliveredCE,
+		TCPReordSeen:     s.TCPReordSeen + other.TCPReordSeen,
 	}
 }
 
 // Max returns max(s, other)
 func (s StatCounters) Max(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      max(s.RecvBytes, other.RecvBytes),
-		RecvPackets:    max(s.RecvPackets, other.RecvPackets),
-		Retransmits:    max(s.Retransmits, other.Retransmits),
-		SentBytes:      max(s.SentBytes, other.SentBytes),
-		SentPackets:    max(s.SentPackets, other.SentPackets),
-		TCPClosed:      max(s.TCPClosed, other.TCPClosed),
-		TCPEstablished: max(s.TCPEstablished, other.TCPEstablished),
+		RecvBytes:        max(s.RecvBytes, other.RecvBytes),
+		RecvPackets:      max(s.RecvPackets, other.RecvPackets),
+		Retransmits:      max(s.Retransmits, other.Retransmits),
+		SentBytes:        max(s.SentBytes, other.SentBytes),
+		SentPackets:      max(s.SentPackets, other.SentPackets),
+		TCPClosed:        max(s.TCPClosed, other.TCPClosed),
+		TCPEstablished:   max(s.TCPEstablished, other.TCPEstablished),
+		TCPRTOCount:      max(s.TCPRTOCount, other.TCPRTOCount),
+		TCPRecoveryCount: max(s.TCPRecoveryCount, other.TCPRecoveryCount),
+		TCPProbe0Count:   max(s.TCPProbe0Count, other.TCPProbe0Count),
+		TCPDeliveredCE:   max(s.TCPDeliveredCE, other.TCPDeliveredCE),
+		TCPReordSeen:     max(s.TCPReordSeen, other.TCPReordSeen),
 	}
 }
 

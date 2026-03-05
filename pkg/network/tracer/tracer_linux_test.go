@@ -3386,9 +3386,9 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 			return
 		}
 		t.Logf("Congestion: rto_count=%d recovery_count=%d reord_seen=%d delivered_ce=%d ecn_negotiated=%d probe0_count=%d",
-			conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPReordSeen,
-			conn.TCPDeliveredCE, conn.TCPECNNegotiated, conn.TCPProbe0Count)
-		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
+			conn.Last.TCPRTOCount, conn.Last.TCPRecoveryCount, conn.Last.TCPReordSeen,
+			conn.Last.TCPDeliveredCE, conn.TCPECNNegotiated, conn.Last.TCPProbe0Count)
+		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
@@ -3466,8 +3466,8 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 		if !assert.True(ct, found, "connection not found") {
 			return
 		}
-		t.Logf("Zero-window signals: probe0_count=%d", conn.TCPProbe0Count)
-		assert.Greater(ct, conn.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
+		t.Logf("Zero-window signals: probe0_count=%d", conn.Last.TCPProbe0Count)
+		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
 	}, 5*time.Second, 100*time.Millisecond)
 }
 

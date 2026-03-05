@@ -516,19 +516,19 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 				"\n  ecn[delivered_ce=%d ecn_negotiated=%d] "+
 				"\n  zero-window[probe0_count=%d]",
 				c.Source, c.SPort, c.Dest, c.DPort,
-				c.TCPRTOCount, c.TCPRecoveryCount,
-				c.TCPReordSeen,
-				c.TCPDeliveredCE, c.TCPECNNegotiated,
-				c.TCPProbe0Count,
+				c.Last.TCPRTOCount, c.Last.TCPRecoveryCount,
+				c.Last.TCPReordSeen,
+				c.Last.TCPDeliveredCE, c.TCPECNNegotiated,
+				c.Last.TCPProbe0Count,
 			)
 		}
 
-		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", float64(c.TCPECNNegotiated), tags, 1) //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)       //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.TCPReordSeen), tags, 1)           //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.TCPRTOCount), tags, 1)             //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.TCPRecoveryCount), tags, 1)   //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.TCPProbe0Count), tags, 1)       //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", float64(c.TCPECNNegotiated), tags, 1)    //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.Last.TCPDeliveredCE), tags, 1)     //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.Last.TCPReordSeen), tags, 1)         //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.Last.TCPRTOCount), tags, 1)           //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.Last.TCPRecoveryCount), tags, 1) //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.Last.TCPProbe0Count), tags, 1)     //nolint:errcheck
 	}
 }
 
