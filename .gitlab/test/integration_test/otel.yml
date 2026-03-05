@@ -95,7 +95,7 @@ datadog_otel_components_ocb_build:
   tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [docker_image_build_otel, before_script]
-    - apt-get install -y --no-install-recommends zstd
+    - apt-get update && apt-get install -y --no-install-recommends zstd
   script:
     - !reference [.login_to_docker_readonly]
     - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
