@@ -12,12 +12,12 @@ import (
 
 // Used to compute cluster IDs on multiple threads without locking
 type IDComputeInfo struct {
-	Offset int
-	Stride int
-	Index  int
+	Offset int64
+	Stride int64
+	Index  int64
 }
 
-func (idComputeInfo *IDComputeInfo) NextID() int {
+func (idComputeInfo *IDComputeInfo) NextID() int64 {
 	newId := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
 	idComputeInfo.Index++
 
@@ -27,7 +27,7 @@ func (idComputeInfo *IDComputeInfo) NextID() int {
 // Cluster represents a group of similar log messages.
 type Cluster struct {
 	// TODO(celian): Use a map to efficiently get the cluster by ID
-	ID        int
+	ID        int64
 	Signature string
 	Pattern   []Token
 	Count     int
@@ -37,7 +37,7 @@ type Cluster struct {
 
 // "Shallow" copy of the cluster
 type ClusterInfo struct {
-	ID            int
+	ID            int64
 	Signature     string
 	PatternString string
 	Count         int
@@ -256,7 +256,7 @@ func (pc *PatternClusterer) GetClusters() []*Cluster {
 	return pc.allClusters
 }
 
-func (pc *PatternClusterer) GetCluster(id int) (*Cluster, error) {
+func (pc *PatternClusterer) GetCluster(id int64) (*Cluster, error) {
 	// TODO: Optimize with map
 	for _, c := range pc.allClusters {
 		if c.ID == id {

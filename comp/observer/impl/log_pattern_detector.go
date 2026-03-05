@@ -9,6 +9,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
@@ -20,6 +21,7 @@ import (
 // We keep all the patterns during this period to have a moving average of the pattern rate.
 // TODO(celian): 5m?
 const logPatternDetectorRatePeriod = 20 * time.Second
+const logPatternDetectorOnlyErrorOrWarningLogs = true
 
 // A pre-processed log entry
 type LogPatternEntry struct {
@@ -59,21 +61,24 @@ func (d *LogPatternDetector) Name() string {
 }
 
 func (d *LogPatternDetector) Process(log observer.LogView) observer.LogDetectionResult {
+	if logPatternDetectorOnlyErrorOrWarningLogs {
+		status := strings.ToLower(log.GetStatus())
+		if status != "error" && status != "warning" && status != "warn" {
+			return observer.LogDetectionResult{}
+		}
+	}
+
 	telemetry := []observer.ObserverTelemetry{}
 	cluster := d.PatternClusterer.Process(string(log.GetContent()))
 
-	if cluster == nil {
-		fmt.Printf("[cc] LogPatternDetector: No cluster for log: %s\n", log.GetContent())
-	} else {
+	// Could be nil if empty log
+	if cluster != nil {
 		d.ToProcess.Enqueue(&LogPatternEntry{
 			Log:     log,
 			Cluster: cluster.Cluster,
 		})
 
-		// fmt.Printf("[cc] LogPatternDetector: Processed log(id: %d): %s\n", cluster.Cluster.ID, log.GetContent())
-
 		if cluster.IsNew {
-			// fmt.Printf("[cc] LogPatternDetector: New cluster(id: %d): %s\n", cluster.Cluster.ID, cluster.Cluster.PatternString())
 			telemetry = append(telemetry, newTelemetryLog(fmt.Sprintf("New cluster(id: %d): %s", cluster.Cluster.ID, cluster.Cluster.PatternString()), log))
 		}
 	}
@@ -95,16 +100,65 @@ func (d *LogPatternDetector) Flush(timestampMs int64) observer.LogDetectionResul
 	})
 	telemetry = append(telemetry, observer.ObserverTelemetry{
 		Metric: &metricObs{
-			name:      "log_pattern_detector.cluster_count",
+			name:      "cluster_count",
 			value:     float64(d.PatternClusterer.NumClusters()),
 			tags:      []string{},
 			timestamp: timestampMs / 1000,
 		},
 	})
 
+	// Update recent patterns
+	for entry, ok := d.ToProcess.Dequeue(); ok; entry, ok = d.ToProcess.Dequeue() {
+		// TODO: We should have a P queue in case timestamps are not in order (or use the batch timestamp)
+		d.addRecentPattern(entry)
+	}
+	d.flushRecentPatterns(timestampMs)
+
+	// Flush batch
+	d.ToProcess.Flush()
+
+	// Emit metrics based on pattern rate
+	// TODO: 0 metrics could be optimized
+	metrics := []observer.MetricOutput{}
+	// TODO: Split by GroupID, not cluster id to properly handle tags
+	for _, cluster := range d.PatternClusterer.GetClusters() {
+		rate := 0.0
+		if count, ok := d.RecentPatternRate[cluster.ID]; ok {
+			rate = float64(count) / float64(logPatternDetectorRatePeriod/time.Nanosecond) * 1e9
+		}
+
+		// TODO: Remove
+		if rate == 0.0 {
+			continue
+		}
+
+		metrics = append(metrics, observer.MetricOutput{
+			// TODO: Single metrics, different tags
+			Name:  fmt.Sprintf("pattern_rate_%d", cluster.ID),
+			Value: rate,
+			Tags:  []string{fmt.Sprintf("cluster_id:%d", cluster.ID)},
+		})
+
+	}
+
 	// fmt.Printf("[cc] LogPatternDetector: Flush(timestampMs: %d)\n", timestampMs)
 
-	return observer.LogDetectionResult{Telemetry: telemetry}
+	return observer.LogDetectionResult{Telemetry: telemetry, Metrics: metrics}
+}
+
+// Will add the pattern to the RecentPatternBatch and update the RecentPatternRate
+func (d *LogPatternDetector) addRecentPattern(entry *LogPatternEntry) {
+	d.RecentPatternBatch.Enqueue(entry)
+	d.RecentPatternRate[entry.Cluster.ID]++
+}
+
+func (d *LogPatternDetector) flushRecentPatterns(timestampMs int64) {
+	// Remove entries that are too old
+	lowerBound := timestampMs - int64(logPatternDetectorRatePeriod/time.Millisecond)
+	for entry, ok := d.RecentPatternBatch.Peek(); ok && entry.Log.GetTimestampMs() < lowerBound; entry, ok = d.RecentPatternBatch.Peek() {
+		d.RecentPatternBatch.Dequeue()
+		d.RecentPatternRate[entry.Cluster.ID]--
+	}
 }
 
 // New telemetry based on a log we process.
