@@ -107,7 +107,9 @@ func (ds *DataSource) QueryCadvisor() ([]byte, int, error) {
 // and parsing them if not yet cached in this check run.
 func (ds *DataSource) GetCadvisorMetrics(textFilterBlacklist []string) ([]prometheus.MetricFamily, error) {
 	// Ensure raw data is fetched first
-	ds.QueryCadvisor()
+	if _, _, err := ds.QueryCadvisor(); err != nil {
+		return nil, err
+	}
 
 	ds.mu.Lock()
 	defer ds.mu.Unlock()

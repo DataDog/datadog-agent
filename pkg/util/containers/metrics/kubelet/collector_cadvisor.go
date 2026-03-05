@@ -292,4 +292,3 @@ func mergeContainerStats(primary *provider.ContainerStats, cadvisor *provider.Co
 		}
 	}
 }
-

@@ -33,25 +33,25 @@ var metricsNameMapping = map[string]string{
 	"container.cpu.limit":             "", // Percentage format, not emitted by cadvisor
 
 	// Memory metrics — from cgroup memory stats, same data as cadvisor
-	"container.memory.usage":            "kubernetes.memory.usage",
-	"container.memory.rss":              "kubernetes.memory.rss",
-	"container.memory.cache":            "kubernetes.memory.cache",
-	"container.memory.swap":             "kubernetes.memory.swap",
-	"container.memory.limit":            "kubernetes.memory.limits",
-	"container.memory.working_set":      "kubernetes.memory.working_set",
-	"container.memory.kernel":           "", // No cadvisor equivalent
-	"container.memory.soft_limit":       "", // No cadvisor equivalent
-	"container.memory.oom_events":       "", // No cadvisor equivalent
-	"container.memory.commit":           "", // Windows only
-	"container.memory.commit.peak":      "", // Windows only
-	"container.memory.usage.peak":       "", // No cadvisor equivalent
-	"container.memory.partial_stall":    "", // PSI data, no cadvisor equivalent
-	"container.memory.page_faults":      "", // No cadvisor equivalent (cadvisor doesn't emit this)
+	"container.memory.usage":             "kubernetes.memory.usage",
+	"container.memory.rss":               "kubernetes.memory.rss",
+	"container.memory.cache":             "kubernetes.memory.cache",
+	"container.memory.swap":              "kubernetes.memory.swap",
+	"container.memory.limit":             "kubernetes.memory.limits",
+	"container.memory.working_set":       "kubernetes.memory.working_set",
+	"container.memory.kernel":            "", // No cadvisor equivalent
+	"container.memory.soft_limit":        "", // No cadvisor equivalent
+	"container.memory.oom_events":        "", // No cadvisor equivalent
+	"container.memory.commit":            "", // Windows only
+	"container.memory.commit.peak":       "", // Windows only
+	"container.memory.usage.peak":        "", // No cadvisor equivalent
+	"container.memory.partial_stall":     "", // PSI data, no cadvisor equivalent
+	"container.memory.page_faults":       "", // No cadvisor equivalent (cadvisor doesn't emit this)
 	"container.memory.major_page_faults": "", // No cadvisor equivalent
 
 	// IO metrics — from cgroup blkio/io stats, same data as cadvisor
-	"container.io.read":            "kubernetes.io.read_bytes",
-	"container.io.write":           "kubernetes.io.write_bytes",
+	"container.io.read":             "kubernetes.io.read_bytes",
+	"container.io.write":            "kubernetes.io.write_bytes",
 	"container.io.read.operations":  "", // No cadvisor equivalent
 	"container.io.write.operations": "", // No cadvisor equivalent
 	"container.io.partial_stall":    "", // PSI data, no cadvisor equivalent
@@ -67,7 +67,7 @@ var metricsNameMapping = map[string]string{
 	"kubernetes.network.rx_bytes": "kubernetes.network.rx_bytes",
 
 	// No kubernetes.* equivalent
-	"container.uptime":         "",
+	"container.uptime":           "",
 	"container.pid.thread_count": "",
 	"container.pid.thread_limit": "",
 	"container.pid.open_files":   "",
