@@ -40,68 +40,60 @@ func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 	return snmp.BuildProfileForSysObjectID(sysOID)
 }
 
-func profileDefinitions(profiles []string) []profiledefinition.ProfileDefinition {
-	var p []profiledefinition.ProfileDefinition
-
-	for _, profile := range profiles {
-		profileDefs, err := snmp.GetProfileDefinition(profile)
-		//improve error message
+// profileDefinitions returns profile definitions for the given profile names (e.g. extended profile names).
+func profileDefinitions(profileNames []string) []profiledefinition.ProfileDefinition {
+	var defs []profiledefinition.ProfileDefinition
+	for _, name := range profileNames {
+		profileDef, err := snmp.GetProfileDefinition(name)
 		if err != nil {
-			fmt.Printf("Unable to parse profiles")
+			fmt.Printf("Unable to parse profile %v", name)
 		}
-		p = append(p, profileDefs)
+		defs = append(defs, profileDef)
 	}
-	return p
+	return defs
 }
 
 func normalizeOID(oid string) string {
 	newOID := strings.TrimPrefix(oid, ".")
 	return newOID
 }
-func oidMap(profiles []profiledefinition.ProfileDefinition) map[string]string {
-	metricMap := make(map[string]string)
-	// Go through symbol
 
-	for _, profile := range profiles {
-		metrics := profile.Metrics
-		for _, metric := range metrics {
+// oidMap builds a map of normalized OID -> profile name from the given profile definitions.
+func oidMap(profileDefs []profiledefinition.ProfileDefinition) map[string]string {
+	oidToProfile := make(map[string]string)
+
+	for _, profileDef := range profileDefs {
+		profileName := profileDef.Name
+		// Scalar metrics: single OID per metric (e.g. sysUpTimeInstance).
+		for _, metric := range profileDef.Metrics {
 			oid := normalizeOID(metric.Symbol.OID)
 			if oid != "" {
-				metricMap[oid] = profile.Name
+				oidToProfile[oid] = profileName
 			}
-		}
-		// Go through symbols
-
-		for _, metric := range metrics {
-			for _, symbol := range metric.Symbols {
-				oid := normalizeOID(symbol.OID)
+			// Table column metrics: base OID for each column (e.g. ifDescr, ifInOctets).
+			for _, columnSymbol := range metric.Symbols {
+				oid := normalizeOID(columnSymbol.OID)
 				if oid != "" {
-					metricMap[oid] = profile.Name
+					oidToProfile[oid] = profileName
+				}
+			}
+			// Per-metric tag OIDs (tags defined on this metric).
+			for _, tagConfig := range metric.MetricTags {
+				oid := normalizeOID(tagConfig.Symbol.OID)
+				if oid != "" {
+					oidToProfile[oid] = profileName
 				}
 			}
 		}
-		// Go through metric tags (per-metric tags, e.g. table column tags)
-
-		for _, metric := range metrics {
-			for _, metricTag := range metric.MetricTags {
-				oid := normalizeOID(metricTag.OID)
-				if oid != "" {
-					metricMap[oid] = profile.Name
-				}
-			}
-		}
-		// Profile-level metric tags (e.g. _base has sysName at 1.3.6.1.2.1.1.5.0 here, not in metrics)
-
-		profileTags := profile.MetricTags
-		for _, tag := range profileTags {
-			oid := normalizeOID(tag.Symbol.OID)
+		// Profile-level tag OIDs (e.g. sysName, device tags).
+		for _, tagConfig := range profileDef.MetricTags {
+			oid := normalizeOID(tagConfig.Symbol.OID)
 			if oid != "" {
-				metricMap[oid] = profile.Name
+				oidToProfile[oid] = profileName
 			}
 		}
 	}
-
-	return metricMap
+	return oidToProfile
 }
 
 // Analyze runs analysis on the first walk (pdus) using the given sysObjectID to resolve profile.
