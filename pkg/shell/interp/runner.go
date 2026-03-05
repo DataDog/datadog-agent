@@ -11,8 +11,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -65,11 +63,6 @@ func (r *Runner) expandErr(err error) {
 func (r *Runner) fields(words ...*syntax.Word) []string {
 	strs, err := expand.Fields(r.ecfg, words...)
 	r.expandErr(err)
-	if runtime.GOOS == "windows" {
-		for i, s := range strs {
-			strs[i] = filepath.ToSlash(s)
-		}
-	}
 	return strs
 }
 
@@ -434,7 +427,6 @@ func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileM
 	case nil:
 		return f, nil
 	case *os.PathError:
-		err = normalizeOSError(err)
 		if print {
 			r.errf("%v\n", err)
 		}
