@@ -533,7 +533,7 @@ func (tb *TestBench) flushLogDetectors(timestampMs int64) {
 
 func (tb *TestBench) handleLogDetectorResult(result observerdef.LogDetectionResult, timestampMs int64, detectorName string) {
 	for _, m := range result.Metrics {
-		tb.storage.Add("logs", "_virtual."+m.Name, m.Value, timestampMs/1000, m.Tags)
+		tb.storage.Add("logs", "_virtual."+detectorName+"."+m.Name, m.Value, timestampMs/1000, m.Tags)
 	}
 	for _, anomaly := range result.Anomalies {
 		// Fill in fields the detector may not have set

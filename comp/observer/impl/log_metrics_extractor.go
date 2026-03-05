@@ -54,7 +54,11 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogDetectionResult{Metrics: metrics}
+	// TODO(celian): Uncomment
+	// Temporarily disabling this since it is too verbose and we have lags on the UI
+	// return observer.LogDetectionResult{Metrics: metrics}
+
+	return observer.LogDetectionResult{}
 }
 
 func (a *LogMetricsExtractor) Flush(timestampMs int64) observer.LogDetectionResult {

@@ -412,7 +412,7 @@ func (o *observerImpl) flushDetectors(source string, timestampMs int64) {
 	// TODO: We may prefer to wait a little bit to flush logs, metrics and then correlators (to handle virtual metrics properly)
 	for _, detector := range o.logDetectors {
 		result := detector.Flush(timestampMs)
-		o.processLogDetectionResult(result, source, timestampMs)
+		o.processLogDetectionResult(result, source, timestampMs, detector.Name())
 	}
 	// TODO: I think we should redesign a bit the metrics detectors
 	// for _, detector := range o.metricsDetectors {
@@ -455,17 +455,17 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 
 	for _, detector := range o.logDetectors {
 		result := detector.Process(view)
-		o.processLogDetectionResult(result, source, l.timestampMs)
+		o.processLogDetectionResult(result, source, l.timestampMs, detector.Name())
 	}
 
 	o.flushAndReport()
 }
 
-func (o *observerImpl) processLogDetectionResult(result observerdef.LogDetectionResult, source string, timestampMs int64) {
+func (o *observerImpl) processLogDetectionResult(result observerdef.LogDetectionResult, source string, timestampMs int64, detectorName string) {
 	// Add metrics from log processing to storage, then run metrics detection
 	for _, m := range result.Metrics {
 		// Virtual metrics coming from logs starts with _virtual.
-		o.storage.Add(source, "_virtual."+m.Name, m.Value, timestampMs/1000, m.Tags)
+		o.storage.Add(source, "_virtual."+detectorName+"."+m.Name, m.Value, timestampMs/1000, m.Tags)
 		// Run metrics detection on multiple aggregations
 		for _, agg := range detectionAggregations {
 			if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
