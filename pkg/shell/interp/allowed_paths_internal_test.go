@@ -83,3 +83,31 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 	assert.Equal(t, 127, exitCode)
 	assert.Contains(t, stderr, "not found")
 }
+
+func TestAllowedPathsExecNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	// Command that doesn't exist at all — LookPathDir fails
+	_, stderr, exitCode := runScriptInternal(t, `totally_nonexistent_cmd_12345`, dir,
+		AllowedPaths([]string{dir, "/bin", "/usr"}),
+	)
+	assert.Equal(t, 127, exitCode)
+	assert.Contains(t, stderr, "not found")
+}
+
+func TestAllowedPathsExecViaPathLookup(t *testing.T) {
+	dir := t.TempDir()
+	// "ls" is resolved via PATH (not absolute), but /bin and /usr are not allowed
+	_, stderr, exitCode := runScriptInternal(t, `ls`, dir,
+		AllowedPaths([]string{dir}),
+	)
+	assert.Equal(t, 127, exitCode)
+	assert.Contains(t, stderr, "not found")
+}
+
+func TestAllowedPathsExecDefaultBlocksAll(t *testing.T) {
+	dir := t.TempDir()
+	// No AllowedPaths option — default blocks all exec
+	_, stderr, exitCode := runScriptInternal(t, `/bin/echo hello`, dir)
+	assert.Equal(t, 127, exitCode)
+	assert.Contains(t, stderr, "not found")
+}

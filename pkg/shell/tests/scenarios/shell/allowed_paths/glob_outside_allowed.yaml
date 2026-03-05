@@ -1,0 +1,18 @@
+description: Glob expansion on directory outside allowed paths returns literal pattern
+setup:
+  files:
+    - path: allowed/keep.txt
+      content: ""
+    - path: secret/a.txt
+      content: ""
+    - path: secret/b.txt
+      content: ""
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    echo secret/*.txt
+expect:
+  stdout: "secret/*.txt\n"
+  stderr: ""
+  exit_code: 0

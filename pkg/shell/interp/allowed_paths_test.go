@@ -142,6 +142,20 @@ func TestAllowedPathsGlobInside(t *testing.T) {
 	assert.Contains(t, stdout, "b.txt")
 }
 
+func TestAllowedPathsGlobOutside(t *testing.T) {
+	allowed := t.TempDir()
+	secret := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(secret, "a.txt"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(secret, "b.txt"), []byte(""), 0644))
+
+	// Glob on a directory outside allowed paths should return the literal pattern
+	stdout, _, exitCode := runScript(t, `echo `+filepath.Join(secret, "*.txt"), allowed,
+		interp.AllowedPaths([]string{allowed}),
+	)
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stdout, "*.txt") // pattern not expanded
+}
+
 func TestAllowedPathsTraversalBlocked(t *testing.T) {
 	dir := t.TempDir()
 	// Even if we try to traverse with .., os.Root should block it
