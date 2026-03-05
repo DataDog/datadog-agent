@@ -1,0 +1,12 @@
+description: Inline assignment can set a variable to empty, and it restores to the original value afterward.
+input:
+  script: |+
+    A=original
+    A= echo test
+    echo $A
+expect:
+  stdout: |+
+    test
+    original
+  stderr: ""
+  exit_code: 0

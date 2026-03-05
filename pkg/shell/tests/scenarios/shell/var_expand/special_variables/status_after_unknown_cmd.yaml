@@ -1,0 +1,11 @@
+description: The $? variable is 127 after an unknown command.
+input:
+  script: |+
+    nonexistent_cmd
+    echo $?
+expect:
+  stdout: |+
+    127
+  stderr_contains:
+    - "not found"
+  exit_code: 0
