@@ -57,7 +57,6 @@ type TestBenchConfig struct {
 	// If a name is present, its value overrides the registry DefaultEnabled.
 	// Components not listed use their registry default.
 	EnableOverrides map[string]bool
-
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -1033,6 +1032,22 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 	}
 
 	return nil
+}
+
+// RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then
+// delegates to notify.go to send one Datadog event per correlation.
+// When dryRun is true, events are printed to stdout instead of being sent.
+func (tb *TestBench) RunSendAnomalyEvents(scenario string, dryRun bool) error {
+	if err := tb.LoadScenario(scenario); err != nil {
+		return fmt.Errorf("loading scenario %q: %w", scenario, err)
+	}
+
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	for tb.correlatorsProcessing {
+		tb.correlatorsDone.Wait()
+	}
+	return sendCorrelationEvents(tb.correlations, dryRun)
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
