@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"strings"
@@ -130,10 +131,6 @@ type RRCFDetector struct {
 	// cursors tracks read position per metric for incremental reads.
 	cursors map[string]int64
 
-	// shingleBuffer accumulates recent points to form shingles.
-	// Key is metric name, value is recent values (up to ShingleSize).
-	shingleBuffer map[string][]float64
-
 	// forest is the RRCF forest structure.
 	forest *rcForest
 
@@ -171,7 +168,6 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 		metrics:       metrics,
 		resolvedKeys:  make(map[string]observer.SeriesKey),
 		cursors:       make(map[string]int64),
-		shingleBuffer: make(map[string][]float64),
 		forest:        forest,
 		recentScores:  make([]float64, 0, 100),
 		allScores:     make([]RRCFScoredPoint, 0, 1024),
@@ -297,9 +293,9 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	}
 
 	if bestMetricCount < numMetrics {
-		fmt.Printf("  RRCF: best tag set has %d/%d metrics (tags=%s)\n", bestMetricCount, numMetrics, bestSig)
+		log.Printf("  RRCF WARNING: only %d/%d configured metrics found (tags=%s); alignment requires all metrics so no vectors will be produced until the missing metrics appear\n", bestMetricCount, numMetrics, bestSig)
 	}
-	fmt.Printf("  RRCF: resolved %d metrics to tag set with %d total points\n", bestMetricCount, bestPointCount)
+	log.Printf("  RRCF: resolved %d metrics to tag set with %d total points\n", bestMetricCount, bestPointCount)
 
 	// Resolve all metrics to this tag set
 	for cursorKey, key := range tagSetMetrics[bestSig] {
@@ -309,7 +305,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	return true
 }
 
-// readNewPoints reads new data points for each metric since the last cursor position.
+// readNewPoints reads new data points for each metric since the last read.
 func (r *RRCFDetector) readNewPoints(storage observer.StorageReader, dataTime int64) map[string][]observer.Point {
 	result := make(map[string][]observer.Point)
 
@@ -322,20 +318,13 @@ func (r *RRCFDetector) readNewPoints(storage observer.StorageReader, dataTime in
 		cursorKey := m.Namespace + "|" + m.Name
 		cursor := r.cursors[cursorKey]
 
-		points, newCursor := storage.ReadSince(key, cursor, m.Agg)
-
-		// Only include points up to dataTime for determinism
-		var filteredPoints []observer.Point
-		for _, p := range points {
-			if p.Timestamp <= dataTime {
-				filteredPoints = append(filteredPoints, p)
-			}
+		series := storage.GetSeriesRange(key, cursor, dataTime, m.Agg)
+		if series == nil || len(series.Points) == 0 {
+			continue
 		}
 
-		if len(filteredPoints) > 0 {
-			result[cursorKey] = filteredPoints
-			r.cursors[cursorKey] = newCursor
-		}
+		result[cursorKey] = series.Points
+		r.cursors[cursorKey] = series.Points[len(series.Points)-1].Timestamp
 	}
 
 	return result
@@ -565,7 +554,6 @@ func (r *RRCFDetector) scoreShingle(s shingle) float64 {
 func (r *RRCFDetector) Reset() {
 	r.resolvedKeys = make(map[string]observer.SeriesKey)
 	r.cursors = make(map[string]int64)
-	r.shingleBuffer = make(map[string][]float64)
 	r.recentScores = r.recentScores[:0]
 	r.allScores = r.allScores[:0]
 	r.totalScored = 0
