@@ -379,7 +379,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
 
 		// try to collect more information about the mount point
-		if seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing() {
+		if (seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing()) && p.mountResolver != nil {
 			var (
 				bestPrefix string
 				bestFS     string
@@ -410,7 +410,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = false
 		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
-	} else if entry.Process.FileEvent.MountID != 0 {
+	} else if p.mountResolver != nil && entry.Process.FileEvent.MountID != 0 {
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
@@ -575,7 +575,9 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 }
 
 func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext model.CGroupContext, source uint64) {
-	p.mountResolver.SetPidMntNs(entry.Pid, entry.MntNS)
+	if p.mountResolver != nil {
+		p.mountResolver.SetPidMntNs(entry.Pid, entry.MntNS)
+	}
 	entry.Source = source
 
 	p.entryCache[entry.Pid] = entry
@@ -673,7 +675,9 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	// Start by updating the exit timestamp of the pid cache entry
-	p.mountResolver.DeletePid(pid)
+	if p.mountResolver != nil {
+		p.mountResolver.DeletePid(pid)
+	}
 	entry, ok := p.entryCache[pid]
 	if !ok {
 		return
