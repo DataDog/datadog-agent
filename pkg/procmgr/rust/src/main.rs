@@ -5,6 +5,7 @@
 
 mod config;
 mod env;
+mod grpc;
 mod ordering;
 mod process;
 mod shutdown;
@@ -14,8 +15,9 @@ use crate::config::NamedProcess;
 use anyhow::Result;
 use log::{info, warn};
 use process::ManagedProcess;
+use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::sync::mpsc;
+use tokio::sync::{RwLock, mpsc, oneshot};
 
 struct ExitEvent {
     index: usize,
@@ -32,12 +34,25 @@ async fn main() -> Result<()> {
 
     let configs = load_configs();
     let startup_order = resolve_startup_order(&configs);
-    let mut processes = start_processes(configs, &startup_order);
+    let processes = start_processes(configs, &startup_order);
+
+    let processes = Arc::new(RwLock::new(processes));
+
+    let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
+    let config_path = config::config_dir().display().to_string();
+    let grpc_handle = tokio::spawn(grpc::server::run(
+        Arc::clone(&processes),
+        config_path,
+        grpc_shutdown_rx,
+    ));
 
     let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-    for (i, proc) in processes.iter_mut().enumerate() {
-        if proc.is_running() {
-            spawn_watcher(i, proc, exit_tx.clone());
+    {
+        let mut procs = processes.write().await;
+        for (i, proc) in procs.iter_mut().enumerate() {
+            if proc.is_running() {
+                spawn_watcher(i, proc, exit_tx.clone());
+            }
         }
     }
 
@@ -55,7 +70,8 @@ async fn main() -> Result<()> {
                 break;
             }
             Some(event) = exit_rx.recv() => {
-                let proc = &mut processes[event.index];
+                let mut procs = processes.write().await;
+                let proc = &mut procs[event.index];
                 info!("[{}] exited with {}", proc.name, event.status);
                 proc.set_last_status(event.status);
                 if proc.handle_restart().await {
@@ -66,8 +82,15 @@ async fn main() -> Result<()> {
     }
 
     info!("dd-procmgrd shutting down");
+
+    let _ = grpc_shutdown_tx.send(());
+    if let Err(e) = grpc_handle.await {
+        warn!("gRPC server task error: {e}");
+    }
+
+    let mut procs = processes.write().await;
     let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
-    shutdown::shutdown_ordered(&mut processes, &shutdown_order).await;
+    shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
     info!("dd-procmgrd stopped");
     Ok(())
 }

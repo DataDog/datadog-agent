@@ -103,9 +103,16 @@ impl ManagedProcess {
         }
     }
 
-    #[cfg(test)]
     pub fn state(&self) -> ProcessState {
         self.state
+    }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    pub fn config(&self) -> &ProcessConfig {
+        &self.config
     }
 
     fn transition_to(&mut self, next: ProcessState) {
