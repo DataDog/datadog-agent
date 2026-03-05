@@ -197,10 +197,15 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values[k] = v
 	}
 
-	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
-
+	// Pass agent default values via the Values map (pulumi.Map) rather than
+	// ValuesYAML (AssetOrArchiveArray). AssetOrArchiveArray values deserialise
+	// as []interface{} in the local Pulumi backend, causing the Helm provider to
+	// fail with "unsupported type for 'valueYamlFiles' arg: []interface{}" on any
+	// update. pulumi.Map values are JSON-serialised and round-trip correctly.
+	//
+	// User-provided ValuesYAML (WithHelmValues/WithHelmValuesFile) still use the
+	// old path and remain broken with the local backend — prefer WithExtraHelmValues.
 	var valuesYAML pulumi.AssetOrArchiveArray
-	valuesYAML = append(valuesYAML, defaultYAMLValues)
 	valuesYAML = append(valuesYAML, args.ValuesYAML...)
 	if args.OTelAgentGateway {
 		valuesYAML = append(valuesYAML, buildOTelAgentGatewayConfigWithFakeintake(args.OTelGatewayConfig, args.Fakeintake))
@@ -224,7 +229,8 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		ChartName:      args.ChartPath,
 		InstallName:    linuxInstallName,
 		Namespace:      args.Namespace,
-		ValuesYAML:     valuesYAML,
+		Values:         pulumi.Map(values), // defaults via Values map — works with local backend
+		ValuesYAML:     valuesYAML,         // user YAML + OTel configs
 		Version:        pulumi.String(HelmVersion),
 		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
