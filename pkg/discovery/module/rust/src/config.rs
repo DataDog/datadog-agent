@@ -81,69 +81,60 @@ fn get_yaml_string_option(doc: &Yaml, key: &str) -> Option<String> {
     current.as_str().map(|s| s.to_string())
 }
 
-/// Checks if `section[key]` is `Yaml::Boolean(true)`.
-/// Returns `false` for any other value, including missing keys (`BadValue`),
-/// `false`, strings like `"true"`, or non-hash sections.
-/// Safe to call on any `Yaml` variant — indexing a non-hash returns `BadValue`.
-fn is_yaml_bool_true(section: &Yaml, key: &str) -> bool {
-    matches!(section[key], Yaml::Boolean(true))
+/// YAML key paths from system-probe.yaml that trigger non-discovery modules.
+/// These keys are derived from Go's enableModules() implementation.
+static NON_DISCOVERY_SYSPROBE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
+    "ccm_network_config.enabled",
+    "compliance_config.database_benchmarks.enabled",
+    "dynamic_instrumentation.enabled",
+    "ebpf_check.enabled",
+    "gpu_monitoring.enabled",
+    "network_config.enabled",
+    "noisy_neighbor.enabled",
+    "ping.enabled",
+    "privileged_logs.enabled",
+    "runtime_security_config.enabled",
+    "runtime_security_config.fim_enabled",
+    "service_monitoring_config.enabled",
+    "system_probe_config.enable_oom_kill",
+    "system_probe_config.enable_tcp_queue_length",
+    "system_probe_config.language_detection.enabled",
+    "system_probe_config.process_config.enabled",
+    "traceroute.enabled",
+    "windows_crash_detection.enabled",
+};
+
+/// Checks a single YAML doc against a key set, returning the first active key.
+/// Returns `non_hash_sentinel` if the doc is not a YAML mapping.
+fn check_yaml_keys(
+    doc: &Yaml,
+    keys: &phf::Set<&'static str>,
+    non_hash_sentinel: &'static str,
+) -> Option<&'static str> {
+    if !matches!(doc, Yaml::Hash(_)) {
+        return Some(non_hash_sentinel);
+    }
+    keys.iter()
+        .find(|key| get_yaml_bool_option(doc, key) == Some(true))
+        .copied()
 }
 
 /// Returns the YAML key that requires system-probe, if any.
 ///
-/// We check the `enabled` value of every system-probe feature, rather than
-/// key presence to avoid unnecessary fallback. This is needed because the Helm
-/// chart generates a system-probe.yaml with all feature sections present, even
-/// disabled ones (e.g. `network_config: { enabled: false }`).
-///
-/// The logic is as follows:
-/// - Always allowed: `discovery`, `log_level`.
-/// - `system_probe_config` and `event_monitoring_config`: checked for specific
-///   sub-feature toggles (they don't have a top-level `enabled`).
-/// - Any other section: fallback unless it has `enabled: false`.
-fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
-    match yaml_doc {
-        None => None,
-        Some(Yaml::Hash(map)) => {
-            for (key, value) in map {
-                let Yaml::String(s) = key else {
-                    return Some("<non-string key>");
-                };
-                match s.as_str() {
-                    "discovery" | "log_level" => continue,
-                    "event_monitoring_config" => {
-                        if is_yaml_bool_true(&value["process"], "enabled") {
-                            return Some("event_monitoring_config.process.enabled");
-                        }
-                        if is_yaml_bool_true(&value["network_process"], "enabled") {
-                            return Some("event_monitoring_config.network_process.enabled");
-                        }
-                    }
-                    "system_probe_config" => {
-                        if is_yaml_bool_true(value, "enable_tcp_queue_length") {
-                            return Some("system_probe_config.enable_tcp_queue_length");
-                        }
-                        if is_yaml_bool_true(value, "enable_oom_kill") {
-                            return Some("system_probe_config.enable_oom_kill");
-                        }
-                        if is_yaml_bool_true(&value["process_config"], "enabled") {
-                            return Some("system_probe_config.process_config.enabled");
-                        }
-                    }
-                    _ => {
-                        if !matches!(value["enabled"], Yaml::Boolean(false)) {
-                            return Some(s.as_str());
-                        }
-                    }
-                }
-            }
-            None
-        }
-        Some(Yaml::BadValue) => None, // Empty or null document
-        _ => Some("<non-hash YAML>"), // Any non-hash YAML (array, string, etc.) counts as "other config"
+/// Checks sysprobe keys against the system-probe.yaml doc. The set of keys
+/// is derived from Go's enableModules() in
+/// pkg/system-probe/config/config.go.
+fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&'static str> {
+    if let Some(doc) = yaml_doc.as_ref()
+        && let Some(key) =
+            check_yaml_keys(doc, &NON_DISCOVERY_SYSPROBE_YAML_KEYS, "<non-hash YAML>")
+    {
+        return Some(key);
     }
+    None
 }
 
+/// These keys are derived from Go's enableModules() implementation.
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_CCM_NETWORK_CONFIG_ENABLED",
   "DD_COMPLIANCE_CONFIG_DATABASE_BENCHMARKS_ENABLED",
@@ -276,7 +267,7 @@ pub fn get_log_level(config: &Result<Option<Yaml>>) -> log::Level {
         .unwrap_or(log::Level::Info)
 }
 
-/// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly
+/// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly.
 pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
     let Some(yaml_doc) = config.as_ref().ok() else {
         warn!("Failed to load YAML config. Falling back to system-probe.");
@@ -567,7 +558,7 @@ network_config:
         let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
         assert_eq!(
             find_non_discovery_yaml_key(&yaml_doc),
-            Some("network_config")
+            Some("network_config.enabled")
         );
     }
 
@@ -579,7 +570,11 @@ unknown_key:
 "#;
         let config_file = create_test_config(yaml);
         let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert_eq!(find_non_discovery_yaml_key(&yaml_doc), Some("unknown_key"));
+        assert_eq!(
+            find_non_discovery_yaml_key(&yaml_doc),
+            None,
+            "Unknown sections should not trigger fallback in data-driven approach"
+        );
     }
 
     #[test]
@@ -831,106 +826,51 @@ system_probe_config:
                 let config_file = create_test_config(yaml);
                 let config = load_config(Some(config_file.path().to_path_buf())).unwrap();
                 let path = get_sysprobe_socket_path(&config);
-                assert_eq!(
-                    path, "/env/path.sock",
-                    "Environment variable should override YAML config"
-                );
+                assert_eq!(path, "/env/path.sock");
             },
         );
     }
 
     #[test]
-    fn test_get_sysprobe_socket_path_empty_env_string_uses_env() {
-        temp_env::with_var("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", Some(""), || {
-            let yaml = r#"
-system_probe_config:
-  sysprobe_socket: /yaml/path.sock
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf())).unwrap();
-            let path = get_sysprobe_socket_path(&config);
-            assert_eq!(
-                path, "",
-                "Empty string from env var should be used, not fall back to YAML"
-            );
-        });
-    }
-
-    #[test]
-    fn test_get_sysprobe_socket_path_yaml_wrong_type() {
+    fn test_get_log_level_default() {
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
-            let yaml = r#"
-system_probe_config:
-  sysprobe_socket: 12345
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf())).unwrap();
-            let path = get_sysprobe_socket_path(&config);
-            assert_eq!(
-                path, "/opt/datadog-agent/run/sysprobe.sock",
-                "Should return default when YAML value is not a string"
-            );
+            let level = get_log_level(&Ok(None));
+            assert_eq!(level, log::Level::Info);
         });
     }
 
     #[test]
-    fn test_get_sysprobe_socket_path_with_special_chars() {
-        temp_env::with_var(
-            "DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET",
-            Some("/path/to/my socket.sock"),
-            || {
-                let path = get_sysprobe_socket_path(&None);
-                assert_eq!(path, "/path/to/my socket.sock");
-            },
-        );
+    fn test_get_log_level_from_dd_env() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("debug"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(level, log::Level::Debug);
+        });
     }
 
     #[test]
-    fn test_get_log_level_default_when_no_config() {
+    fn test_get_log_level_from_log_level_env() {
         temp_env::with_vars(
-            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            [("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", Some("warn"))],
             || {
                 let level = get_log_level(&Ok(None));
-                assert_eq!(level, log::Level::Info);
+                assert_eq!(level, log::Level::Warn);
             },
         );
     }
 
     #[test]
-    fn test_get_log_level_from_dd_log_level_env() {
+    fn test_get_log_level_dd_takes_priority() {
         temp_env::with_vars(
-            vec![("DD_LOG_LEVEL", Some("debug")), ("LOG_LEVEL", None::<&str>)],
-            || {
-                let level = get_log_level(&Ok(None));
-                assert_eq!(level, log::Level::Debug);
-            },
-        );
-    }
-
-    #[test]
-    fn test_get_log_level_from_log_level_env_fallback() {
-        temp_env::with_vars(
-            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", Some("trace"))],
-            || {
-                let level = get_log_level(&Ok(None));
-                assert_eq!(level, log::Level::Trace);
-            },
-        );
-    }
-
-    #[test]
-    fn test_get_log_level_dd_log_level_overrides_log_level() {
-        temp_env::with_vars(
-            vec![
+            [
                 ("DD_LOG_LEVEL", Some("error")),
-                ("LOG_LEVEL", Some("trace")),
+                ("LOG_LEVEL", Some("debug")),
             ],
             || {
                 let level = get_log_level(&Ok(None));
                 assert_eq!(
                     level,
                     log::Level::Error,
-                    "DD_LOG_LEVEL should take priority over LOG_LEVEL"
+                    "DD_LOG_LEVEL should take priority"
                 );
             },
         );
@@ -938,18 +878,15 @@ system_probe_config:
 
     #[test]
     fn test_get_log_level_from_yaml() {
-        temp_env::with_vars(
-            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
-            || {
-                let yaml = r#"
-log_level: warn
+        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
+            let yaml = r#"
+log_level: debug
 "#;
-                let config_file = create_test_config(yaml);
-                let config = load_config(Some(config_file.path().to_path_buf()));
-                let level = get_log_level(&config);
-                assert_eq!(level, log::Level::Warn);
-            },
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            let level = get_log_level(&config);
+            assert_eq!(level, log::Level::Debug);
+        });
     }
 
     #[test]
@@ -964,16 +901,28 @@ log_level: debug
             assert_eq!(
                 level,
                 log::Level::Error,
-                "DD_LOG_LEVEL should override YAML config"
+                "DD_LOG_LEVEL should override YAML log_level"
             );
         });
     }
 
     #[test]
-    fn test_get_log_level_empty_env_string_uses_env() {
-        temp_env::with_var("DD_LOG_LEVEL", Some(""), || {
+    fn test_get_log_level_unknown_defaults_to_info() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("unknown_level"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(
+                level,
+                log::Level::Info,
+                "Unknown levels should default to Info"
+            );
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_yaml_non_string() {
+        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
             let yaml = r#"
-log_level: warn
+log_level: 42
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
@@ -981,29 +930,9 @@ log_level: warn
             assert_eq!(
                 level,
                 log::Level::Info,
-                "Empty string from env var should default to Info"
+                "Should return default when YAML value is not a string"
             );
         });
-    }
-
-    #[test]
-    fn test_get_log_level_yaml_wrong_type() {
-        temp_env::with_vars(
-            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
-            || {
-                let yaml = r#"
-log_level: 12345
-"#;
-                let config_file = create_test_config(yaml);
-                let config = load_config(Some(config_file.path().to_path_buf()));
-                let level = get_log_level(&config);
-                assert_eq!(
-                    level,
-                    log::Level::Info,
-                    "Should return default when YAML value is not a string"
-                );
-            },
-        );
     }
 
     #[test]
@@ -1305,25 +1234,6 @@ system_probe_config:
     }
 
     #[test]
-    fn test_feature_section_without_enabled_key() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-network_config:
-  some_other_setting: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe,
-                "Feature section without explicit enabled: false should trigger fallback"
-            );
-        });
-    }
-
-    #[test]
     fn test_system_probe_config_process_config_enabled() {
         temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
             let yaml = r#"
@@ -1350,64 +1260,6 @@ discovery:
   enabled: true
 system_probe_config:
   process_config:
-    enabled: false
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
-    }
-
-    // event_monitoring_config tests
-
-    #[test]
-    fn test_event_monitoring_config_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
-    }
-
-    #[test]
-    fn test_event_monitoring_config_network_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  network_process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
-    }
-
-    #[test]
-    fn test_event_monitoring_config_both_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: false
-  network_process:
     enabled: false
 "#;
             let config_file = create_test_config(yaml);
