@@ -123,6 +123,9 @@ func TestProvider_Provide(t *testing.T) {
 				err:  nil,
 			},
 			want: want{
+				// Container-level CPU/memory/filesystem metrics are now handled by the
+				// generic processor via the kubelet metrics.Collector. Only system stats,
+				// ephemeral storage, and pod-level network remain in the summary provider.
 				gaugeMetrics: []metrics{
 					{
 						name:  common.KubeletMetricsPrefix + "node.filesystem.usage",
@@ -180,105 +183,9 @@ func TestProvider_Provide(t *testing.T) {
 						tags:  []string{"instance_tag:something", "app:datadog-agent"},
 					},
 					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage",
-						value: 94208,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage_pct",
-						value: 9.070208938178244e-07,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage",
-						value: 102400,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage_pct",
-						value: 9.858922758889397e-07,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage",
-						value: 69632,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage_pct",
-						value: 6.704067476044789e-07,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
 						name:  common.KubeletMetricsPrefix + "ephemeral_storage.usage",
 						value: 32768,
 						tags:  []string{"instance_tag:something", "app:pending-pod"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage",
-						value: 28672,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "filesystem.usage_pct",
-						value: 1.4589260524364285e-07,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 80461824,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 85618688,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 52338688,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 52842496,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 68685824,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 69447680,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.working_set",
-						value: 229376,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "memory.usage",
-						value: 229376,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
 					},
 				},
 				rateMetrics: []metrics{
@@ -293,24 +200,6 @@ func TestProvider_Provide(t *testing.T) {
 						tags:  []string{"instance_tag:something", "app:datadog-agent"},
 					},
 					{
-						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
-						value: 45241120000,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
-						value: 6361765000,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:security-agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
-						value: 6903135000,
-						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
-							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
-					},
-					{
 						name:  common.KubeletMetricsPrefix + "network.tx_bytes",
 						value: 1146,
 						tags:  []string{"instance_tag:something", "app:pending-pod"},
@@ -319,12 +208,6 @@ func TestProvider_Provide(t *testing.T) {
 						name:  common.KubeletMetricsPrefix + "network.rx_bytes",
 						value: 0,
 						tags:  []string{"instance_tag:something", "app:pending-pod"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
-						value: 9927000,
-						tags: []string{"instance_tag:something", "kube_namespace:default",
-							"pod_name:long-running-init", "kube_container_name:init"},
 					},
 				},
 				err: nil,
@@ -650,13 +533,11 @@ func (suite *FilteringTestSuite) TestContainerNameFiltering() {
 	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
 	suite.Assert().NoError(err)
 
-	// Verify that istio-proxy container metrics are excluded
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:istio-proxy"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:istio-proxy"})
-
-	// Verify that main-app container still has metrics
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:main-app"})
+	// Container-level metrics (memory.working_set, cpu.usage.total, etc.) are now
+	// handled by the generic processor. The summary provider only emits pod-level
+	// metrics (ephemeral_storage, network) and system metrics.
+	// Verify that pod-level metrics are still present for the pod containing main-app
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"pod_name:filtered-container-pod"})
 
 	// Reset for next test
 	suite.mockSender.ResetCalls()
@@ -695,15 +576,9 @@ func (suite *FilteringTestSuite) TestPauseContainerImageFiltering() {
 	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
 	suite.Assert().NoError(err)
 
-	// Verify that pause container metrics are excluded
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:paused-container"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:paused-container"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"filesystem.usage", []string{"kube_container_name:paused-container"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:paused-container"})
-
-	// Verify that non-pause containers still have metrics
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:app-container"})
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
+	// Container-level metrics (memory.working_set, filesystem.usage, cpu.usage.total)
+	// are now handled by the generic processor. Verify pod-level metrics still work.
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"pod_name:regular-pod"})
 
 	// Reset for next test
 	suite.mockSender.ResetCalls()
@@ -720,15 +595,9 @@ func (suite *FilteringTestSuite) TestSpecificImageNameFiltering() {
 	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
 	suite.Assert().NoError(err)
 
-	// Verify that istio-proxy container metrics are excluded
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:istio-proxy"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:istio-proxy"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"filesystem.usage", []string{"kube_container_name:istio-proxy"})
-	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:istio-proxy"})
-
-	// Verify that other containers still have metrics
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
-	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:app-container"})
+	// Container-level metrics are now handled by the generic processor.
+	// Verify pod-level metrics still work for non-excluded pods.
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"pod_name:regular-pod"})
 
 	// Reset for next test
 	suite.mockSender.ResetCalls()

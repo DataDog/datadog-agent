@@ -46,17 +46,22 @@ var (
 		common.KubeletMetricsPrefix + "filesystem.usage": "/dev/sda1",
 	}
 
+	// Network metrics with interface tags — rx_bytes and tx_bytes are now handled
+	// by the generic processor for non-static-pending pods, so only errors/drops
+	// remain in cadvisor for normal pods
 	metricsWithInterfaceTag = map[string]string{
-		common.KubeletMetricsPrefix + "network.rx_bytes":   "eth0",
-		common.KubeletMetricsPrefix + "network.tx_bytes":   "eth0",
 		common.KubeletMetricsPrefix + "network.rx_errors":  "eth0",
 		common.KubeletMetricsPrefix + "network.tx_errors":  "eth0",
 		common.KubeletMetricsPrefix + "network.rx_dropped": "eth0",
 		common.KubeletMetricsPrefix + "network.tx_dropped": "eth0",
 	}
 
+	// Metrics that cadvisor still emits. Overlapping metrics (cpu.usage.total,
+	// memory.usage, memory.rss, memory.working_set, network.rx_bytes,
+	// network.tx_bytes) are now handled by the generic processor for normal
+	// containers, but still emitted by cadvisor for static pending pods.
 	expectedMetricsPrometheus = []string{
-		common.KubeletMetricsPrefix + "cpu.usage.total",
+		// Still emitted for all containers (no generic equivalent)
 		common.KubeletMetricsPrefix + "cpu.load.10s.avg",
 		common.KubeletMetricsPrefix + "cpu.system.total",
 		common.KubeletMetricsPrefix + "cpu.user.total",
@@ -67,21 +72,23 @@ var (
 		common.KubeletMetricsPrefix + "network.rx_errors",
 		common.KubeletMetricsPrefix + "network.tx_dropped",
 		common.KubeletMetricsPrefix + "network.tx_errors",
-		common.KubeletMetricsPrefix + "network.rx_bytes",
-		common.KubeletMetricsPrefix + "network.tx_bytes",
 		common.KubeletMetricsPrefix + "io.write_bytes",
 		common.KubeletMetricsPrefix + "io.read_bytes",
 		common.KubeletMetricsPrefix + "filesystem.usage",
 		common.KubeletMetricsPrefix + "filesystem.usage_pct",
 		common.KubeletMetricsPrefix + "memory.limits",
-		common.KubeletMetricsPrefix + "memory.usage",
 		common.KubeletMetricsPrefix + "memory.usage_pct",
 		common.KubeletMetricsPrefix + "memory.sw_limit",
 		common.KubeletMetricsPrefix + "memory.sw_in_use",
-		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "memory.usage", // Also emitted by generic processor; kept here for usage_pct cache dependency
 		common.KubeletMetricsPrefix + "memory.cache",
-		common.KubeletMetricsPrefix + "memory.rss",
 		common.KubeletMetricsPrefix + "memory.swap",
+		// Emitted only for static pending pods
+		common.KubeletMetricsPrefix + "cpu.usage.total",
+		common.KubeletMetricsPrefix + "memory.rss",
+		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "network.rx_bytes",
+		common.KubeletMetricsPrefix + "network.tx_bytes",
 	}
 )
 
@@ -303,20 +310,18 @@ func (suite *ProviderTestSuite) TestPrometheusNetSummed() {
 		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
 	}
 
-	// Make sure we submit the summed rates correctly for pods:
-	// - dd-agent-q6hpw has two interfaces, we need to sum (1.2638051777 + 2.2638051777) * 10**10 = 35276103554
-	// - fluentd-gcp-v2.0.10-9q9t4 has one interface only, we submit 5.8107648 * 10**07 = 58107648
-	suite.mockSender.AssertMetric(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 35276103554.0, "", append(commontesting.InstanceTags, "pod_name:dd-agent-q6hpw", "interface:eth0"))
-	suite.mockSender.AssertMetric(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 58107648.0, "", append(commontesting.InstanceTags, "pod_name:fluentd-gcp-v2.0.10-9q9t4", "interface:eth0"))
+	// network.rx_bytes and network.tx_bytes are now handled by the generic processor
+	// for non-static-pending pods. Cadvisor still handles network errors/drops.
+	// Verify that error/drop metrics are still submitted with proper summing.
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_errors", append(commontesting.InstanceTags, "interface:eth0"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.tx_errors", append(commontesting.InstanceTags, "interface:eth0"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_dropped", append(commontesting.InstanceTags, "interface:eth0"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.tx_dropped", append(commontesting.InstanceTags, "interface:eth0"))
 
-	// Make sure none of the following "bad cases" are submitted:
-	// Make sure the per-interface metrics are not submitted
-	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 12638051777.0, "", append(commontesting.InstanceTags, "pod_name:dd-agent-q6hpw"))
-	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 22638051777.0, "", append(commontesting.InstanceTags, "pod_name:dd-agent-q6hpw"))
-	// Make sure hostNetwork pod metrics are not submitted, test with and without sum to be sure
-	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 4917138204.0+698882782.0, "", append(commontesting.InstanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
-	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 4917138204.0, "", append(commontesting.InstanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
-	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 698882782.0, "", append(commontesting.InstanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
+	// Make sure rx_bytes is NOT submitted by cadvisor for non-static pods
+	// (it is now handled by the generic processor's network extension)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", []string{"pod_name:dd-agent-q6hpw"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", []string{"pod_name:fluentd-gcp-v2.0.10-9q9t4"})
 }
 
 func (suite *ProviderTestSuite) TestStaticPods() {

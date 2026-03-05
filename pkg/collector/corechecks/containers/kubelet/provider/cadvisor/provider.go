@@ -423,7 +423,28 @@ func (p *Provider) getKubeContainerNameTag(labels prom.Metric) string {
 	return ""
 }
 
+// filterToStaticPendingSamples filters metric samples to only retain those
+// from static pending pods. This is used for metrics that are now handled by
+// the generic processor for normal containers, but still need cadvisor's
+// special static pending pod handling (pod-level tag fallback).
+func (p *Provider) filterToStaticPendingSamples(metricFam *prom.MetricFamily) bool {
+	filtered := make([]prom.Sample, 0)
+	for i := range metricFam.Samples {
+		sample := &metricFam.Samples[i]
+		pod := p.getPodByMetricLabel(sample.Metric)
+		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
+			filtered = append(filtered, *sample)
+		}
+	}
+	metricFam.Samples = filtered
+	return len(filtered) > 0
+}
+
 func (p *Provider) containerCPUUsageSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.usage.total"
 	for i := range metricFam.Samples {
 		// Replace sample value to convert cores to nano cores
@@ -475,12 +496,22 @@ func (p *Provider) containerFsWritesBytesTotal(metricFam *prom.MetricFamily, sen
 }
 
 func (p *Provider) containerNetworkReceiveBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal pods are handled by the generic processor's network extension;
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "network.rx_bytes"
 	labels := []string{"interface"}
 	p.processPodRate(metricName, metricFam, labels, sender)
 }
 
 func (p *Provider) containerNetworkTransmitBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal pods are handled by the generic processor's network extension;
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "network.tx_bytes"
 	labels := []string{"interface"}
 	p.processPodRate(metricName, metricFam, labels, sender)
@@ -534,11 +565,20 @@ func (p *Provider) containerMemoryUsageBytes(metricFam *prom.MetricFamily, sende
 		log.Errorf("Metric type %s unsupported for metric %s", metricFam.Type, metricFam.Name)
 		return
 	}
+	// processUsageMetric populates memUsageBytes cache (needed for memory.usage_pct
+	// computation in containerSpecMemoryLimitBytes) AND emits the metric.
+	// This causes duplication with the generic processor for memory.usage on
+	// non-static-pending containers, which is acceptable to preserve the
+	// memory.usage_pct computation dependency.
 	metricName := common.KubeletMetricsPrefix + "memory.usage"
 	p.processUsageMetric(metricName, metricFam, p.memUsageBytes, nil, sender)
 }
 
 func (p *Provider) containerMemoryWorkingSetBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "memory.working_set"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
@@ -549,7 +589,6 @@ func (p *Provider) containerMemoryCache(metricFam *prom.MetricFamily, sender sen
 }
 
 func (p *Provider) containerMemoryRss(metricFam *prom.MetricFamily, sender sender.Sender) {
-	metricName := common.KubeletMetricsPrefix + "memory.rss"
 	// Filter out aberrant values
 	filteredSamples := []prom.Sample{}
 	for i := range metricFam.Samples {
@@ -558,6 +597,11 @@ func (p *Provider) containerMemoryRss(metricFam *prom.MetricFamily, sender sende
 		}
 	}
 	metricFam.Samples = filteredSamples
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
+	metricName := common.KubeletMetricsPrefix + "memory.rss"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
 
