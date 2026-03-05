@@ -28,9 +28,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.146.1"
+OCB_VERSION = "0.147.0"
 # The version the the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.146.0"
+OTEL_CONTRIB_VERSION = "0.147.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
