@@ -1,6 +1,6 @@
 description: When last command fails, the overall exit code reflects that failure.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ok; false
 expect:

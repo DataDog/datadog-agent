@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: A blocked command after valid commands still causes rejection.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo before
     if true; then echo yes; fi

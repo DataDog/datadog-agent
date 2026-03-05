@@ -1,6 +1,6 @@
 description: Block producing multiple lines pipes all output through.
 input:
-  # language=bash
+  # language=sh
   script: |+
     { echo a; echo b; echo c; } | cat
 expect:

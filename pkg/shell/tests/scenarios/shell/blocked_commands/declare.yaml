@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: declare is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     declare -i X=42
 expect:

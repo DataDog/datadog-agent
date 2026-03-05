@@ -3,7 +3,7 @@ description: Script can assign variables that exist as parent env vars without i
 input:
   envs:
     MY_VAR: parent_value
-  # language=bash
+  # language=sh
   script: |+
     echo "$MY_VAR"
     MY_VAR=script_value

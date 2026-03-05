@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: The += append operator is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     X=hello
     X+=world

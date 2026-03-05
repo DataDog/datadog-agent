@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Alternative value expansion ${var:+alt} is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     X=set
     echo ${X:+alt}

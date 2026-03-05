@@ -1,6 +1,6 @@
 description: Semicolons separate commands inside a brace group.
 input:
-  # language=bash
+  # language=sh
   script: |+
     { echo one; echo two; echo three; }
 expect:

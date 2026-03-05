@@ -1,6 +1,6 @@
 description: Whitespace around semicolons does not affect execution.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo one ;  echo two  ;  echo three
 expect:

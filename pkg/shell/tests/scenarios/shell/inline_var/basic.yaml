@@ -1,6 +1,6 @@
 description: Inline variable assignment is scoped to the command and not visible afterward.
 input:
-  # language=bash
+  # language=sh
   script: |+
     VAR=hello echo test
     echo "after=$VAR"

@@ -1,6 +1,6 @@
 description: A variable set on one line is visible on the next line.
 input:
-  # language=bash
+  # language=sh
   script: |+
     x=hello
     echo $x

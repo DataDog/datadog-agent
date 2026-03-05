@@ -1,6 +1,6 @@
 description: Variable set before && is visible in the right side.
 input:
-  # language=bash
+  # language=sh
   script: |+
     X=hello && echo $X
 expect:

@@ -1,6 +1,6 @@
 description: In a || chain, commands execute until one succeeds.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false || false || echo reached
 expect:

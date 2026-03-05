@@ -1,6 +1,6 @@
 description: Variable names are case-sensitive.
 input:
-  # language=bash
+  # language=sh
   script: |+
     foo=lower
     FOO=upper

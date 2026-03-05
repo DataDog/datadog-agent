@@ -1,6 +1,6 @@
 description: Backslash at end of line continues the command on the next line.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo hel\
     lo

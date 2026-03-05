@@ -1,6 +1,6 @@
 description: Exit with no arguments returns 0 when no previous command has run.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit
 expect:

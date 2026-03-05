@@ -1,6 +1,6 @@
 description: The true builtin on the left side of a pipe produces no input.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true | echo piped
 expect:

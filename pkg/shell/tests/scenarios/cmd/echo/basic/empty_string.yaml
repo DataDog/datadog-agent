@@ -1,6 +1,6 @@
 description: Echo with an empty string argument outputs only a newline.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ""
 expect:

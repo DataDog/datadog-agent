@@ -1,6 +1,6 @@
 description: A && chain stops when a middle command fails.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo one && false && echo three
 expect:

@@ -28,7 +28,7 @@ import (
 type scenario struct {
 	Description           string   `yaml:"description"`
 	TargetOS              []string `yaml:"target_os"`                // if set, only run on these OS (linux, darwin, windows); empty means all
-	TestAgainstLocalShell *bool    `yaml:"test_against_local_shell"` // nil = true (default); false = skip bash comparison
+	TestAgainstLocalShell *bool    `yaml:"test_against_local_shell"` // nil = true (default); false = skip sh comparison
 	Setup                 setup    `yaml:"setup"`
 	Input                 input    `yaml:"input"`
 	Expect                expected `yaml:"expect"`
@@ -210,8 +210,8 @@ func assertExpectations(t *testing.T, sc scenario, stdout, stderr string, exitCo
 	}
 }
 
-// runScenarioAgainstBash executes a scenario against real /bin/bash and asserts expectations.
-func runScenarioAgainstBash(t *testing.T, sc scenario) {
+// runScenarioAgainstSh executes a scenario against real /bin/sh and asserts expectations.
+func runScenarioAgainstSh(t *testing.T, sc scenario) {
 	t.Helper()
 
 	if len(sc.TargetOS) > 0 {
@@ -234,7 +234,7 @@ func runScenarioAgainstBash(t *testing.T, sc scenario) {
 		env = append(env, k+"="+v)
 	}
 
-	cmd := exec.Command("/bin/bash", "-c", sc.Input.Script)
+	cmd := exec.Command("/bin/sh", "-c", sc.Input.Script)
 	cmd.Dir = dir
 	cmd.Env = env
 
@@ -250,19 +250,19 @@ func runScenarioAgainstBash(t *testing.T, sc scenario) {
 		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
-			t.Fatalf("unexpected error running bash: %v", err)
+			t.Fatalf("unexpected error running sh: %v", err)
 		}
 	}
 
 	assertExpectations(t, sc, stdout.String(), stderr.String(), exitCode)
 }
 
-func TestShellScenariosAgainstBash(t *testing.T) {
+func TestShellScenariosAgainstSh(t *testing.T) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("bash comparison tests only run on linux and darwin")
+		t.Skip("sh comparison tests only run on linux and darwin")
 	}
-	if _, err := exec.LookPath("/bin/bash"); err != nil {
-		t.Skip("/bin/bash not found, skipping bash comparison tests")
+	if _, err := exec.LookPath("/bin/sh"); err != nil {
+		t.Skip("/bin/sh not found, skipping sh comparison tests")
 	}
 
 	scenariosDir := filepath.Join("scenarios")
@@ -278,7 +278,7 @@ func TestShellScenariosAgainstBash(t *testing.T) {
 				}
 				name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 				t.Run(name, func(t *testing.T) {
-					runScenarioAgainstBash(t, sc)
+					runScenarioAgainstSh(t, sc)
 				})
 			}
 		})

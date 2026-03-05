@@ -1,6 +1,6 @@
 description: Newline-separated commands continue executing after a failure.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false
     echo still running

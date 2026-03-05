@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Continue with non-numeric argument breaks the loop and produces an error.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b c; do
       continue abc

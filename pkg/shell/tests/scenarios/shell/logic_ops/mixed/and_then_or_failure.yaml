@@ -1,6 +1,6 @@
 description: Failed && triggers the || fallback.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false && echo skipped || echo fallback
 expect:

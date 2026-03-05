@@ -1,6 +1,6 @@
 description: Empty for loop body executes successfully with no output.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b c; do
       true

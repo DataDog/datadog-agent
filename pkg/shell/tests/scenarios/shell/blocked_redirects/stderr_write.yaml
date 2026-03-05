@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Stderr redirection (2>) is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo hello 2> errors.txt
 expect:

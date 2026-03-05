@@ -1,6 +1,6 @@
 description: Successful pipe followed by && executes the next command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo abc | cat && echo done
 expect:

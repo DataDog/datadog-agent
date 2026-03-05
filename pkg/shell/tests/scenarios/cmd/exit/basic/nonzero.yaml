@@ -1,6 +1,6 @@
 description: Exit 1 terminates with a non-zero exit code.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit 1
 expect:

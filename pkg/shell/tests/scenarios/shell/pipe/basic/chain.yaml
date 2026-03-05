@@ -1,6 +1,6 @@
 description: Triple pipe chain passes data through multiple stages.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo abc | cat | cat
 expect:

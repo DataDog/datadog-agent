@@ -1,6 +1,6 @@
 description: When left side of || succeeds, right side is skipped.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ok || echo skipped
 expect:

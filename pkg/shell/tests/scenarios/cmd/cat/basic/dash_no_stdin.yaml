@@ -1,6 +1,6 @@
 description: Explicit stdin reference (cat -) with no stdin connected exits successfully with no output.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat -
 expect:

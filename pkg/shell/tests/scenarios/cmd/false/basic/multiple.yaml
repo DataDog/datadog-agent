@@ -1,6 +1,6 @@
 description: Multiple false commands all fail with exit code 1.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false
     false

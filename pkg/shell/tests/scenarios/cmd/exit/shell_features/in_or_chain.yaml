@@ -1,6 +1,6 @@
 description: Exit executes when reached via || after a failed command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false || exit 3
     echo unreachable

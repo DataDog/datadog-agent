@@ -1,6 +1,6 @@
 description: Brace group propagates the exit code of the last command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     { true; false; }
 expect:

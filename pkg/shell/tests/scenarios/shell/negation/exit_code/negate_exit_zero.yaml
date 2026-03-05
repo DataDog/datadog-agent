@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Negating exit 0 produces exit code 1.
 input:
-  # language=bash
+  # language=sh
   script: |+
     ! exit 0
 expect:

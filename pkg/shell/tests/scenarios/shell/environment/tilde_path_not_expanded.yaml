@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Tilde with path ~/dir is not expanded.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ~/mydir
 expect:

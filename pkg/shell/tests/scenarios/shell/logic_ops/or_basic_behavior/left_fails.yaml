@@ -1,6 +1,6 @@
 description: When left side of || fails, right side executes.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false || echo fallback
 expect:

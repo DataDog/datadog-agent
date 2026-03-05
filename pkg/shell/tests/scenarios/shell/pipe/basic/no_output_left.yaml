@@ -1,6 +1,6 @@
 description: Pipe with no output from left side produces empty stdout.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true | cat
 expect:

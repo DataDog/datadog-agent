@@ -1,6 +1,6 @@
 description: Commands before a for loop execute normally.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo before
     for i in a b; do echo $i; done

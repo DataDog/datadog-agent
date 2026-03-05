@@ -1,6 +1,6 @@
 description: Dash heredoc expands variables when delimiter is unquoted.
 input:
-  # language=bash
+  # language=sh
   script: "NAME=world\ncat <<-EOF\n\thello $NAME\nEOF\n"
 expect:
   stdout: |+

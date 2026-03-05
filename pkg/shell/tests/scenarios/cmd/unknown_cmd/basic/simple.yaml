@@ -1,6 +1,6 @@
 description: A simple unknown command prints "command not found" to stderr.
 input:
-  # language=bash
+  # language=sh
   script: |+
     foo
 expect:

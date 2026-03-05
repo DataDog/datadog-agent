@@ -1,6 +1,6 @@
 description: The $? variable reflects the exit code of the immediately preceding command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false; echo $?; true; echo $?
 expect:

@@ -1,6 +1,6 @@
 description: The || operator runs the next command after an unknown command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     foo || echo fallback
 expect:

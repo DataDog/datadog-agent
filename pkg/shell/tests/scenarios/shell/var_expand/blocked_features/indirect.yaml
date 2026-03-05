@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Indirect expansion ${!var} is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     X=HOME
     echo ${!X}

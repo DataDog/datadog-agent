@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: The chmod command is not a builtin and is rejected as unknown.
 input:
-  # language=bash
+  # language=sh
   script: |+
     chmod 755 file.txt
 expect:

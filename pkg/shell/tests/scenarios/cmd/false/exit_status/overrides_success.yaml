@@ -1,6 +1,6 @@
 description: The false builtin sets $? to 1 after a successful command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true
     echo $?

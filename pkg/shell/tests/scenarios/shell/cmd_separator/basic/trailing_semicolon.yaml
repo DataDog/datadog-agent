@@ -1,6 +1,6 @@
 description: A trailing semicolon after the last command is harmless.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo hello;
 expect:

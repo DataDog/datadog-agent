@@ -1,6 +1,6 @@
 description: Exit executes when reached via && after a successful command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true && exit 3
     echo unreachable

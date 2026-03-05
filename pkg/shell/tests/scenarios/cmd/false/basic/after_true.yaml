@@ -1,6 +1,6 @@
 description: The false builtin sets exit code to 1 after true.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true
     false

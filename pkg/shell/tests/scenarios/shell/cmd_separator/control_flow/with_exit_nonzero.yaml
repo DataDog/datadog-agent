@@ -1,6 +1,6 @@
 description: Exit with non-zero code stops execution and propagates the exit code.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo before; exit 7; echo after
 expect:

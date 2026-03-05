@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Assign default expansion ${var:=default} is not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ${UNSET:=fallback}
 expect:

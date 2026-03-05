@@ -1,6 +1,6 @@
 description: Herestring expands variables.
 input:
-  # language=bash
+  # language=sh
   script: |+
     NAME=world
     cat <<< "hello $NAME"

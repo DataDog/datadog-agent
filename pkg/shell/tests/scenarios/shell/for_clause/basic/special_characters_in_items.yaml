@@ -1,6 +1,6 @@
 description: For loop items can contain special characters when quoted.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for f in "hello world" "foo bar"; do echo "$f"; done
 expect:

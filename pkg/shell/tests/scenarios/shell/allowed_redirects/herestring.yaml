@@ -1,6 +1,6 @@
 description: Here-strings are still allowed.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<< "hello herestring"
 expect:

@@ -1,6 +1,6 @@
 description: Multiple unknown commands on separate lines all execute and report errors.
 input:
-  # language=bash
+  # language=sh
   script: |+
     foo
     bar

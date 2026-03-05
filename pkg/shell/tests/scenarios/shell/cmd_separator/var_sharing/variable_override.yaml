@@ -1,6 +1,6 @@
 description: A variable can be overridden across semicolon-separated commands.
 input:
-  # language=bash
+  # language=sh
   script: |+
     x=first; echo $x; x=second; echo $x
 expect:

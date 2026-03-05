@@ -1,6 +1,6 @@
 description: Double quotes preserve internal spaces in expanded variables.
 input:
-  # language=bash
+  # language=sh
   script: |+
     VAR="hello    world"
     echo "$VAR"
