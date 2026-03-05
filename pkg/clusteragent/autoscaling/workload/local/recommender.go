@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	pollingInterval           = 30 * time.Second
-	localRecommenderID string = "lr"
+	pollingInterval                         = 30 * time.Second
+	localRecommenderID autoscaling.SenderID = "lr"
 )
 
 // Recommender is the interface used to generate local recommendations

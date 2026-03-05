@@ -204,7 +204,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+  && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
 
 # Check that the UID of dd-agent is still 100.
 #
