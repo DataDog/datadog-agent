@@ -328,10 +328,7 @@ type PackageOption func(*Package) error
 // (e.g. URL from PipelineID or Version+Channel). Options that set URL directly
 // (WithURL) make Resolve() a no-op.
 func NewPackage(opts ...PackageOption) (*Package, error) {
-	pkg := &Package{
-		Product: "datadog-agent",
-		Arch:    "x86_64",
-	}
+	pkg := &Package{}
 	for _, opt := range opts {
 		if err := opt(pkg); err != nil {
 			return nil, err
