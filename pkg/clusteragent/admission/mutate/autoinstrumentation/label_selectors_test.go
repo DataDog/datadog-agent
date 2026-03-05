@@ -70,6 +70,21 @@ func TestLabelSelectorsConfig(t *testing.T) {
 				DisabledNamespaces: []string{},
 			},
 		},
+		"enabled namespaces webhook filter values match expected": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":                               true,
+				"apm_config.instrumentation.enabled_namespaces":                    []string{"bar"},
+				"admission_controller.auto_instrumentation.webhook_filter_namespaces": true,
+			},
+			expected: &autoinstrumentation.LabelSelectorsConfig{
+				Enabled:                        true,
+				MutateUnlabelled:               false,
+				AddAksSelectors:                false,
+				EnabledNamespaces:              []string{"bar"},
+				EnabledNamespacesWebhookFilter: true,
+				DisabledNamespaces:             []string{},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -204,10 +219,36 @@ func TestLabelSelectors(t *testing.T) {
 				},
 			},
 		},
-		"enabled namespaces should add an In expression on the namespace selector": {
+		"enabled namespaces without webhook filter should not add an In expression": {
 			config: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:           true,
 				EnabledNamespaces: []string{"foo"},
+			},
+			useNamespaceSelector: false,
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   mutatecommon.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+			expectedObjectSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
+				},
+			},
+		},
+		"enabled namespaces with webhook filter should add an In expression on the namespace selector": {
+			config: &autoinstrumentation.LabelSelectorsConfig{
+				Enabled:                        true,
+				EnabledNamespaces:              []string{"foo"},
+				EnabledNamespacesWebhookFilter: true,
 			},
 			useNamespaceSelector: false,
 			expectedNamespaceSelector: &metav1.LabelSelector{
@@ -234,10 +275,11 @@ func TestLabelSelectors(t *testing.T) {
 				},
 			},
 		},
-		"enabled namespaces with useNamespaceSelector should merge all expressions into the namespace selector": {
+		"enabled namespaces with webhook filter and useNamespaceSelector should merge all expressions into the namespace selector": {
 			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:           true,
-				EnabledNamespaces: []string{"foo", "bar"},
+				Enabled:                        true,
+				EnabledNamespaces:              []string{"foo", "bar"},
+				EnabledNamespacesWebhookFilter: true,
 			},
 			useNamespaceSelector: true,
 			expectedNamespaceSelector: &metav1.LabelSelector{

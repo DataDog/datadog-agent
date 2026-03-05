@@ -973,7 +973,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
-	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false)                           // adds in the webhook some selectors that are required in AKS
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.webhook_filter_namespaces", false) // adds an In namespaceSelector for enabled_namespaces
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
