@@ -1,0 +1,3 @@
+service_monitoring_config:
+  enabled: true
+  enable_http_monitoring: true
