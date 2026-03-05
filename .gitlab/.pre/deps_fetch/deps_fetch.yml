@@ -4,26 +4,26 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
-  - rm -f modcache.tar.xz
+  - mkdir -p $GOPATH/pkg/mod/cache && tar --zstd -xf modcache.tar.zst -C $GOPATH/pkg/mod/cache
+  - rm -f modcache.tar.zst
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
-  - rm -f modcache_tools.tar.xz
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_tools.tar.zst -C $GOPATH
+  - rm -f modcache_tools.tar.zst
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_tools_deps_arm64:
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
-  - rm -f modcache_tools_arm64.tar.xz
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_tools_arm64.tar.zst -C $GOPATH
+  - rm -f modcache_tools_arm64.tar.zst
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
-  - rm -f modcache_e2e.tar.xz
+  - mkdir -p $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_e2e.tar.zst -C $GOPATH/pkg/mod/cache
+  - rm -f modcache_e2e.tar.zst
 
 .retrieve_linux_pulumi_plugins:
-  - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
-  - rm -f pulumi_plugins.tar.xz
+  - mkdir -p ~/.pulumi && tar --zstd -xf pulumi_plugins.tar.zst -C ~/.pulumi
+  - rm -f pulumi_plugins.tar.zst
 
 .cache:
   stage: deps_fetch
@@ -50,13 +50,13 @@ go_deps:
   script:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
-    - if [ -f modcache.tar.xz  ]; then exit 0; fi
+    - if [ -f modcache.tar.zst  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.zst .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache.tar.xz
+      - $CI_PROJECT_DIR/modcache.tar.zst
   cache:
     # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
     # We should also include the file this job is defined in to invalicate the cache when this job is modified.
@@ -64,52 +64,52 @@ go_deps:
         files:
           - go.mod
           - ./**/go.mod
-        prefix: "go_deps_modcache"
+        prefix: "go_deps_modcache_zstd"
       paths:
-        - modcache.tar.xz
+        - modcache.tar.zst
   timeout: 35m
 
 go_tools_deps:
   extends: .cache
   tags: ["arch:amd64", "specific:true"]
   script:
-    - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
+    - if [ -f modcache_tools.tar.zst  ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
-    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
+    - cd $GOPATH && tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.zst $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools.tar.xz
+      - $CI_PROJECT_DIR/modcache_tools.tar.zst
   cache:
     - key:
         files:
           - ./**/go.mod
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_tools_deps_modcache"
+        prefix: "go_tools_deps_modcache_zstd"
       paths:
-        - modcache_tools.tar.xz
+        - modcache_tools.tar.zst
 
 go_tools_deps_arm64:
   extends: .cache
   tags: ["arch:arm64", "specific:true"]
   script:
-    - if [ -f modcache_tools_arm64.tar.xz  ]; then exit 0; fi
+    - if [ -f modcache_tools_arm64.tar.zst  ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
-    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
+    - cd $GOPATH && tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.zst $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
+      - $CI_PROJECT_DIR/modcache_tools_arm64.tar.zst
   cache:
     - key:
         files:
           - ./**/go.mod
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_tools_deps_modcache_arm64"
+        prefix: "go_tools_deps_modcache_arm64_zstd"
       paths:
-        - modcache_tools_arm64.tar.xz
+        - modcache_tools_arm64.tar.zst
 
 go_e2e_deps:
   id_tokens:
@@ -121,38 +121,38 @@ go_e2e_deps:
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
   script:
     - |
-      if [ ! -f modcache_e2e.tar.xz ]; then
+      if [ ! -f modcache_e2e.tar.zst ]; then
         dda inv -- -e new-e2e-tests.deps
-        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache/ .
+        tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.zst -C $GOPATH/pkg/mod/cache/ .
       fi
     - |
-      if [ ! -f pulumi_plugins.tar.xz ]; then
+      if [ ! -f pulumi_plugins.tar.zst ]; then
         # Pre-download Pulumi plugins used by e2e scenarios and components, should no longer be needed when we move test-infra-definitions to datadog-agent
         pushd ./test/new-e2e
         PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install
         popd
-        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/pulumi_plugins.tar.xz -C ~/.pulumi plugins
+        tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/pulumi_plugins.tar.zst -C ~/.pulumi plugins
       fi
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_e2e.tar.xz
-      - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
+      - $CI_PROJECT_DIR/modcache_e2e.tar.zst
+      - $CI_PROJECT_DIR/pulumi_plugins.tar.zst
   cache:
     - key:
         files:
           - ./test/new-e2e/go.mod
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_e2e_deps_modcache"
+        prefix: "go_e2e_deps_modcache_zstd"
       paths:
-        - modcache_e2e.tar.xz
+        - modcache_e2e.tar.zst
     - key:
         files:
           - ./test/new-e2e/go.mod
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "pulumi_plugins"
+        prefix: "pulumi_plugins_zstd"
       paths:
-        - pulumi_plugins.tar.xz
+        - pulumi_plugins.tar.zst
 
 fetch_openjdk:
   needs: []
