@@ -64,9 +64,8 @@ common:ci --config=cache
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
-# Project configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/sdagent.bazelrc
-import %workspace%/bazel/configs/procmgrd.bazelrc
+# Project/Language configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/rust.bazelrc
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
