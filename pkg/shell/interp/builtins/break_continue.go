@@ -38,9 +38,8 @@ func loopControl(callCtx *CallContext, name string, args []string) Result {
 		}
 		n = parsed
 	default:
-		callCtx.Errf("usage: %s [n]\n", name)
-		// In bash, invalid args still break the loop.
-		return Result{Code: 2, BreakN: 1}
+		callCtx.Errf("%s: too many arguments\n", name)
+		return Result{Code: 1, BreakN: 1}
 	}
 
 	var r Result

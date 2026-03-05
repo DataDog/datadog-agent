@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Echo does not interpret backslash sequences in unquoted arguments.
 input:
   script: |+

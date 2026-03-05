@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Break with default operand only breaks innermost loop in triple nesting.
 input:
   script: |+

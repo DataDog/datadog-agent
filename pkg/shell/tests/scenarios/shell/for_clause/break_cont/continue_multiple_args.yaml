@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Continue with multiple arguments produces an error.
 input:
   script: |+
@@ -9,4 +8,5 @@ expect:
   stdout: ""
   stderr_contains:
     - "continue"
-  exit_code: 2
+    - "too many arguments"
+  exit_code: 1

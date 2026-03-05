@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Break 0 is an invalid operand and produces an error.
 input:
   script: |+
@@ -9,4 +8,6 @@ expect:
   stdout: ""
   stderr_contains:
     - "break"
+    - "0"
+    - "loop count out of range"
   exit_code: 1

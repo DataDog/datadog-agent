@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Echo treats a single hyphen as a regular argument, not as an option.
 input:
   script: |+

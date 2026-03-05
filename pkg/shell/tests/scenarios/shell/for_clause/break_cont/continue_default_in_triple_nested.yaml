@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Continue with default operand only continues innermost loop in triple nesting.
 input:
   script: |+

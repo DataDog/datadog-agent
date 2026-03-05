@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Break 1 in nested for loop only breaks the inner loop, outer continues with all iterations.
 input:
   script: |+

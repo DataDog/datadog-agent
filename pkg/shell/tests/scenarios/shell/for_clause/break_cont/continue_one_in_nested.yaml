@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Continue 1 in nested for loops only continues the inner loop.
 input:
   script: |+
