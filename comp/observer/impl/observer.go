@@ -199,8 +199,12 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		metricsDetectors: []observerdef.MetricsDetector{
-			NewCUSUMDetector(),
+		multiDetectors: []observerdef.MultiSeriesDetector{
+			newMetricsDetectorAdapter(NewCUSUMDetector(), []observerdef.Aggregate{
+				observerdef.AggregateAverage,
+				observerdef.AggregateCount,
+			}),
+			NewRRCFDetector(DefaultRRCFConfig()),
 		},
 		correlators: []observerdef.Correlator{
 			correlator,
@@ -351,13 +355,16 @@ func samplePass(rate float64, n uint64) bool {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	logDetectors     []observerdef.LogDetector
-	metricsDetectors []observerdef.MetricsDetector
-	correlators      []observerdef.Correlator
-	reporters        []observerdef.Reporter
-	storage          *timeSeriesStorage
-	obsCh            chan observation
-	handleFunc       observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	logDetectors   []observerdef.LogDetector
+	multiDetectors []observerdef.MultiSeriesDetector
+	correlators    []observerdef.Correlator
+	reporters      []observerdef.Reporter
+	storage        *timeSeriesStorage
+	obsCh          chan observation
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+
+	// Deduplication layer (optional) - filters anomalies before correlation
+	deduplicator *AnomalyDeduplicator
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -370,6 +377,9 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
+	dedupSkipped         int                             // count of anomalies skipped by dedup
+
+	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -390,88 +400,126 @@ func (o *observerImpl) run() {
 	}
 }
 
-// detectionAggregations defines which aggregations to run metrics detection on.
-// This allows detecting both value elevation (average) and frequency elevation (count).
-var detectionAggregations = []Aggregate{AggregateAverage, AggregateCount}
-
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
-	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
-
-	// Run metrics detection on multiple aggregations
-	for _, agg := range detectionAggregations {
-		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
-			o.runMetricsDetectors(*series, agg)
-		}
-	}
-
-	o.flushAndReport()
+	o.maybeRunDetectors(m.timestamp)
 }
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
-	// Create a view for log detectors
 	view := &logView{obs: l}
-
 	for _, detector := range o.logDetectors {
 		result := detector.Process(view)
-
-		// Add metrics from log processing to storage, then run metrics detection
 		for _, m := range result.Metrics {
 			// Virtual metrics coming from logs starts with _virtual.
 			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
-			// Run metrics detection on multiple aggregations
-			for _, agg := range detectionAggregations {
-				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
-					o.runMetricsDetectors(*series, agg)
-				}
-			}
 		}
-
 		// Route directly emitted anomalies through the standard pipeline
 		for _, anomaly := range result.Anomalies {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
 	}
+	o.maybeRunDetectors(l.timestampMs / 1000)
+}
+
+// maybeRunDetectors checks if data time has advanced enough to trigger detection.
+// We only analyze complete seconds - when we see data at time T, we analyze up to T-1.
+// This ensures deterministic output regardless of batch vs streaming ingestion.
+func (o *observerImpl) maybeRunDetectors(dataTime int64) {
+	// Only analyze complete seconds (everything strictly before current second)
+	analyzeUpTo := dataTime - 1
+
+	if analyzeUpTo <= o.lastAnalyzedDataTime {
+		return
+	}
+
+	o.runDetectorsUpTo(analyzeUpTo)
+	o.lastAnalyzedDataTime = analyzeUpTo
+}
+
+// runDetectorsUpTo runs all multi-series detectors, providing them access to storage
+// and the data timestamp up to which they should analyze.
+func (o *observerImpl) runDetectorsUpTo(upTo int64) {
+	for _, detector := range o.multiDetectors {
+		result := detector.Detect(o.storage, upTo)
+		for _, anomaly := range result.Anomalies {
+			o.captureRawAnomaly(anomaly)
+			o.processAnomaly(anomaly)
+		}
+		// TODO: handle result.Telemetry in live observer (currently only used by testbench)
+	}
 
 	o.flushAndReport()
 }
 
-// runMetricsDetectors runs all metrics detectors on a series with the given aggregation.
-// It appends an aggregation suffix to the series name for distinct Source tracking.
-func (o *observerImpl) runMetricsDetectors(series observerdef.Series, agg Aggregate) {
-	// Append aggregation suffix to series name for distinct Source tracking
-	seriesWithAgg := series
-	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+// metricsDetectorAdapter wraps a stateless MetricsDetector to implement MultiSeriesDetector.
+// It runs the wrapped detector on all series, handling aggregation suffixes.
+type metricsDetectorAdapter struct {
+	detector     observerdef.MetricsDetector
+	aggregations []observerdef.Aggregate
+}
 
-	for _, metricsDetector := range o.metricsDetectors {
-		result := metricsDetector.Detect(seriesWithAgg)
-		for _, anomaly := range result.Anomalies {
-			// Set the detector name so we can identify who produced this anomaly
-			anomaly.DetectorName = metricsDetector.Name()
-			anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
-			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			// Capture raw anomaly before passing to correlators
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
+func newMetricsDetectorAdapter(detector observerdef.MetricsDetector, aggregations []observerdef.Aggregate) *metricsDetectorAdapter {
+	return &metricsDetectorAdapter{
+		detector:     detector,
+		aggregations: aggregations,
+	}
+}
+
+func (a *metricsDetectorAdapter) Name() string {
+	return a.detector.Name()
+}
+
+func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.MultiSeriesDetectionResult {
+	var allAnomalies []observerdef.Anomaly
+	var allTelemetry []observerdef.ObserverTelemetry
+
+	// Get all series (no filter = everything)
+	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
+
+	for _, key := range seriesKeys {
+		for _, agg := range a.aggregations {
+			// Get series up to dataTime
+			series := storage.GetSeriesRange(key, 0, dataTime, agg)
+			if series == nil || len(series.Points) == 0 {
+				continue
+			}
+
+			// Append aggregation suffix for distinct tracking
+			seriesWithAgg := *series
+			seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+
+			result := a.detector.Detect(seriesWithAgg)
+			for _, anomaly := range result.Anomalies {
+				anomaly.DetectorName = a.detector.Name()
+				anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
+				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
+				allAnomalies = append(allAnomalies, anomaly)
+			}
+			allTelemetry = append(allTelemetry, result.Telemetry...)
 		}
+	}
+
+	return observerdef.MultiSeriesDetectionResult{
+		Anomalies: allAnomalies,
+		Telemetry: allTelemetry,
 	}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.
-func aggSuffix(agg Aggregate) string {
+func aggSuffix(agg observerdef.Aggregate) string {
 	switch agg {
-	case AggregateAverage:
+	case observerdef.AggregateAverage:
 		return "avg"
-	case AggregateSum:
+	case observerdef.AggregateSum:
 		return "sum"
-	case AggregateCount:
+	case observerdef.AggregateCount:
 		return "count"
-	case AggregateMin:
+	case observerdef.AggregateMin:
 		return "min"
-	case AggregateMax:
+	case observerdef.AggregateMax:
 		return "max"
 	default:
 		return "unknown"
