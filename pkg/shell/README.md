@@ -67,7 +67,7 @@ Notes:
 - if some tests fail, keep in mind it's possible that pkg/shell implementation is wrong, and it's fine to fix the implementation
 ```
 
-Avoid disabling test_against_local_shell when possible
+Prompt for avoid disabling test_against_local_shell when possible
 ```
 In pkg/shell/tests, for each scenarios with test_against_local_shell is disabled,
 examine why test_against_local_shell is disabled.
