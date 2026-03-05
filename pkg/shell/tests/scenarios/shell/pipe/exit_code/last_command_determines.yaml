@@ -1,0 +1,16 @@
+description: Pipeline exit status is determined by the last command.
+input:
+  script: |+
+    true | true | true
+    echo a $?
+    false | false | true
+    echo b $?
+    true | true | false
+    echo c $?
+expect:
+  stdout: |+
+    a 0
+    b 0
+    c 1
+  stderr: ""
+  exit_code: 0

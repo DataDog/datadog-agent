@@ -217,6 +217,9 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 		switch cm.Op {
 		case syntax.AndStmt, syntax.OrStmt:
 			r.stmt(ctx, cm.X)
+			if r.breakEnclosing > 0 || r.contnEnclosing > 0 || r.exit.exiting {
+				break
+			}
 			if r.exit.ok() == (cm.Op == syntax.AndStmt) {
 				r.stmt(ctx, cm.Y)
 			}

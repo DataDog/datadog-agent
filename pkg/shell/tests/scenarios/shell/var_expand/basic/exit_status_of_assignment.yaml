@@ -1,0 +1,10 @@
+description: Variable assignment alone has exit status 0.
+input:
+  script: |+
+    a=1
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0
