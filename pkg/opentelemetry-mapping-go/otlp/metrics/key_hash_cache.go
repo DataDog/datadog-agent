@@ -17,7 +17,10 @@ package metrics
 import (
 	"encoding/ascii85"
 	"encoding/binary"
+	"sort"
+	"sync"
 	"time"
+	"unsafe"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/twmb/murmur3"
@@ -49,13 +52,71 @@ func (m *keyHashCache) set(s keyHashCacheKey, v interface{}, expiration time.Dur
 	m.cache.Set(string(s), v, expiration)
 }
 
+// ascii85EncodedLen128 is the exact output length of ascii85.Encode for a
+// 128-bit (16-byte) input. ascii85.MaxEncodedLen(16) == ceil(16/4)*5 == 20.
+const ascii85EncodedLen128 = 20
+
+// dimensionSep is the single-byte separator written between each dimension field.
+const dimensionSep = byte(0)
+
+// hasherState holds a reusable murmur3 Hash128 and the sort buffer.
+// Pooling avoids the heap allocations that murmur3.New128() and slice growth make per call.
+type hasherState struct {
+	h    murmur3.Hash128
+	dims []string
+}
+
+var hasherPool = sync.Pool{
+	New: func() interface{} {
+		return &hasherState{
+			h:    murmur3.New128(),
+			dims: make([]string, 0, 16),
+		}
+	},
+}
+
 func (m *keyHashCache) computeKey(s string) keyHashCacheKey {
 	h1, h2 := murmur3.StringSum128(s)
-	var bytes [16]byte
-	binary.LittleEndian.PutUint64(bytes[0:], h1)
-	binary.LittleEndian.PutUint64(bytes[8:], h2)
+	var raw [16]byte
+	binary.LittleEndian.PutUint64(raw[0:], h1)
+	binary.LittleEndian.PutUint64(raw[8:], h2)
 
-	buf := make([]byte, ascii85.MaxEncodedLen(len(bytes)))
-	n := ascii85.Encode(buf, bytes[:])
+	// Use a stack-allocated array to avoid a heap allocation for every cache lookup.
+	var buf [ascii85EncodedLen128]byte
+	n := ascii85.Encode(buf[:], raw[:])
+	return keyHashCacheKey(buf[:n])
+}
+
+// computeKeyFromDimensions computes the cache key directly from a Dimensions
+// value, bypassing the intermediate string allocation that Dimensions.String()
+// would produce.  It replicates the same sort-then-join semantics so that the
+// resulting key is identical to computeKey(dimensions.String()).
+func (m *keyHashCache) computeKeyFromDimensions(d *Dimensions) keyHashCacheKey {
+	hs := hasherPool.Get().(*hasherState)
+	hs.dims = hs.dims[:0]
+	hs.dims = append(hs.dims, d.tags...)
+	hs.dims = append(hs.dims, "name:"+d.name, "host:"+d.host, "originID:"+d.originID)
+	sort.Strings(hs.dims)
+
+	// Feed each sorted dimension directly into the pooled streaming hasher,
+	// using unsafe to avoid the []byte allocation from string→[]byte conversion.
+	hs.h.Reset()
+	sep := [1]byte{dimensionSep}
+	for _, dim := range hs.dims {
+		if len(dim) > 0 {
+			_, _ = hs.h.Write(unsafe.Slice(unsafe.StringData(dim), len(dim)))
+		}
+		_, _ = hs.h.Write(sep[:])
+	}
+	h1, h2 := hs.h.Sum128()
+
+	hasherPool.Put(hs)
+
+	var raw [16]byte
+	binary.LittleEndian.PutUint64(raw[0:], h1)
+	binary.LittleEndian.PutUint64(raw[8:], h2)
+
+	var buf [ascii85EncodedLen128]byte
+	n := ascii85.Encode(buf[:], raw[:])
 	return keyHashCacheKey(buf[:n])
 }

@@ -51,3 +51,45 @@ func TestKeyHashCache_ComputeKey(t *testing.T) {
 	// Make sure we have 100 unique keys
 	require.Equal(t, 100, len(keys))
 }
+
+// TestComputeKeyFromDimensions verifies that computeKeyFromDimensions produces
+// the same cache key as computeKey(dimensions.String()).
+func TestComputeKeyFromDimensions(t *testing.T) {
+	khc := newKeyHashCache(cache.New(5*time.Minute, 10*time.Minute))
+
+	cases := []Dimensions{
+		{name: "metric.name", host: "host-one"},
+		{name: "metric.name", host: "host-one", tags: []string{"key1:val1", "key2:val2"}},
+		{name: "metric.name", host: "host-two", tags: []string{"key2:val2", "key1:val1"}, originID: "orig"},
+		{name: "a.metric.name", tags: []string{"zzz:last", "aaa:first"}},
+		// Empty fields
+		{},
+	}
+
+	for _, d := range cases {
+		d := d
+		fromString := khc.computeKey(d.String())
+		fromDims := khc.computeKeyFromDimensions(&d)
+		require.Equal(t, fromString, fromDims,
+			"key mismatch for dims %+v", d)
+	}
+}
+
+// TestComputeKeyFromDimensions_Uniqueness verifies that different Dimensions produce different keys.
+func TestComputeKeyFromDimensions_Uniqueness(t *testing.T) {
+	khc := newKeyHashCache(cache.New(5*time.Minute, 10*time.Minute))
+
+	dims := []Dimensions{
+		{name: "m1", host: "h1"},
+		{name: "m2", host: "h1"},
+		{name: "m1", host: "h2"},
+		{name: "m1", host: "h1", tags: []string{"k:v"}},
+		{name: "m1", host: "h1", originID: "o1"},
+	}
+	keys := make(map[keyHashCacheKey]struct{})
+	for _, d := range dims {
+		d := d
+		keys[khc.computeKeyFromDimensions(&d)] = struct{}{}
+	}
+	require.Equal(t, len(dims), len(keys), "expected all keys to be unique")
+}
