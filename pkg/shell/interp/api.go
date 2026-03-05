@@ -174,8 +174,8 @@ func (e *exitStatus) fromHandlerError(err error) {
 func New(opts ...RunnerOption) (*Runner, error) {
 	r := &Runner{
 		usedNew:        true,
-		openHandler:    DefaultOpenHandler(),
-		readDirHandler: DefaultReadDirHandler2(),
+		openHandler:    defaultOpenHandler(),
+		readDirHandler: defaultReadDirHandler2(),
 	}
 	for _, opt := range opts {
 		if err := opt(r); err != nil {
@@ -279,7 +279,7 @@ func (r *Runner) Reset() {
 		r.origStderr = r.stderr
 
 		if r.execHandler == nil {
-			r.execHandler = NoExecHandler()
+			r.execHandler = noExecHandler()
 		}
 		// Fill tempDir; only need to do this once given that Env will not change.
 		if dir := r.Env.Get("TMPDIR").String(); filepath.IsAbs(dir) {

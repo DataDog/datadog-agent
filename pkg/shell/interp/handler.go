@@ -9,11 +9,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -68,81 +66,14 @@ type HandlerContext struct {
 // Any other error will halt the [Runner] and will be returned via the API.
 type ExecHandlerFunc func(ctx context.Context, args []string) error
 
-// NoExecHandler returns an [ExecHandlerFunc] that rejects all commands.
+// noExecHandler returns an [ExecHandlerFunc] that rejects all commands.
 // It prints "<cmd>: not found" to stderr and returns exit code 127,
 // without ever searching PATH or executing host binaries.
-func NoExecHandler() ExecHandlerFunc {
+func noExecHandler() ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		hc := HandlerCtx(ctx)
 		fmt.Fprintf(hc.Stderr, "%s: not found\n", args[0])
 		return ExitStatus(127)
-	}
-}
-
-// DefaultExecHandler returns the [ExecHandlerFunc] used by default.
-// It finds binaries in PATH and executes them.
-// When context is cancelled, an interrupt signal is sent to running processes.
-// killTimeout is a duration to wait before sending the kill signal.
-// A negative value means that a kill signal will be sent immediately.
-//
-// On Windows, the kill signal is always sent immediately,
-// because Go doesn't currently support sending Interrupt on Windows.
-// [Runner] defaults to a killTimeout of 2 seconds.
-func DefaultExecHandler(killTimeout time.Duration) ExecHandlerFunc {
-	return func(ctx context.Context, args []string) error {
-		hc := HandlerCtx(ctx)
-		path, err := LookPathDir(hc.Dir, hc.Env, args[0])
-		if err != nil {
-			fmt.Fprintln(hc.Stderr, err)
-			return ExitStatus(127)
-		}
-		cmd := exec.Cmd{
-			Path:   path,
-			Args:   args,
-			Env:    execEnv(hc.Env),
-			Dir:    hc.Dir,
-			Stdin:  hc.Stdin,
-			Stdout: hc.Stdout,
-			Stderr: hc.Stderr,
-		}
-
-		err = cmd.Start()
-		if err == nil {
-			stopf := context.AfterFunc(ctx, func() {
-				if killTimeout <= 0 || runtime.GOOS == "windows" {
-					_ = cmd.Process.Signal(os.Kill)
-					return
-				}
-				_ = cmd.Process.Signal(os.Interrupt)
-				// TODO: don't sleep in this goroutine if the program
-				// stops itself with the interrupt above.
-				time.Sleep(killTimeout)
-				_ = cmd.Process.Signal(os.Kill)
-			})
-			defer stopf()
-
-			err = cmd.Wait()
-		}
-
-		switch err := err.(type) {
-		case *exec.ExitError:
-			// Windows and Plan9 do not have support for [syscall.WaitStatus]
-			// with methods like Signaled and Signal, so for those, [waitStatus] is a no-op.
-			// Note: [waitStatus] is an alias [syscall.WaitStatus]
-			if status, ok := err.Sys().(waitStatus); ok && status.Signaled() {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				return ExitStatus(128 + status.Signal())
-			}
-			return ExitStatus(err.ExitCode())
-		case *exec.Error:
-			// did not start
-			fmt.Fprintf(hc.Stderr, "%v\n", err)
-			return ExitStatus(127)
-		default:
-			return err
-		}
 	}
 }
 
@@ -231,11 +162,11 @@ type OpenHandlerFunc func(ctx context.Context, path string, flag int, perm os.Fi
 
 // TODO: paths passed to [OpenHandlerFunc] should be cleaned.
 
-// DefaultOpenHandler returns the [OpenHandlerFunc] used by default.
+// defaultOpenHandler returns the [OpenHandlerFunc] used by default.
 // It uses [os.OpenFile] to open files.
 //
 // For the sake of portability, /dev/null opens NUL on Windows.
-func DefaultOpenHandler() OpenHandlerFunc {
+func defaultOpenHandler() OpenHandlerFunc {
 	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
 		mc := HandlerCtx(ctx)
 		if runtime.GOOS == "windows" && path == "/dev/null" {
@@ -255,9 +186,9 @@ func DefaultOpenHandler() OpenHandlerFunc {
 // shell globbing, if enabled.
 type ReadDirHandlerFunc2 func(ctx context.Context, path string) ([]fs.DirEntry, error)
 
-// DefaultReadDirHandler2 returns the [ReadDirHandlerFunc2] used by default.
+// defaultReadDirHandler2 returns the [ReadDirHandlerFunc2] used by default.
 // It uses [os.ReadDir].
-func DefaultReadDirHandler2() ReadDirHandlerFunc2 {
+func defaultReadDirHandler2() ReadDirHandlerFunc2 {
 	return func(ctx context.Context, path string) ([]fs.DirEntry, error) {
 		return os.ReadDir(path)
 	}

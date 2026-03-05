@@ -9,9 +9,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,20 @@ func runScriptInternal(t *testing.T, script, dir string, opts ...RunnerOption) (
 	if dir != "" {
 		runner.Dir = dir
 	}
-	runner.execHandler = DefaultExecHandler(2 * time.Second)
+	runner.execHandler = func(ctx context.Context, args []string) error {
+		hc := HandlerCtx(ctx)
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = hc.Dir
+		cmd.Stdout = hc.Stdout
+		cmd.Stderr = hc.Stderr
+		if err := cmd.Run(); err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				return ExitStatus(exitErr.ExitCode())
+			}
+			return err
+		}
+		return nil
+	}
 
 	err = runner.Run(context.Background(), prog)
 	exitCode = 0
