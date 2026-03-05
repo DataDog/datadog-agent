@@ -218,6 +218,12 @@ func (s *configSuite) TestConfigFilePermissions() {
 	assert.Equal(s.T(), "dd-agent", nginxPerms.Owner, "integration configs should be owned by dd-agent")
 	assert.Equal(s.T(), "dd-agent", nginxPerms.Group, "integration configs should have group dd-agent")
 
+	// Verify the experiment agent reads integrations from the experiment conf.d directory.
+	// This ensures that nginx.yaml deployed above is visible to the running experiment agent.
+	status, err := s.Agent.Status()
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), "/etc/datadog-agent-exp/conf.d", status.Config.ConfdPath)
+
 	// Promote and verify permissions persist
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
@@ -294,27 +300,6 @@ func (s *configSuite) TestSystemProbeConfig() {
 	status, err = s.Agent.Status()
 	require.NoError(s.T(), err, "agent should be running after promotion to stable")
 	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
-}
-
-// TestExperimentConfdPath verifies that when the agent runs in experiment mode,
-// confd_path is set to the experiment config directory instead of the hardcoded default.
-func (s *configSuite) TestExperimentConfdPath() {
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
-	}
-
-	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
-
-	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
-		DeploymentID:   "confd-path-test",
-		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{}`)}},
-	}, nil)
-	require.NoError(s.T(), err)
-
-	status, err := s.Agent.Status()
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "/etc/datadog-agent-exp/conf.d", status.Config.ConfdPath)
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
