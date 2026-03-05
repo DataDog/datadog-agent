@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	logonduration "github.com/DataDog/datadog-agent/comp/logonduration/def"
 )
 
 // Requires defines the dependencies for the logon duration component
