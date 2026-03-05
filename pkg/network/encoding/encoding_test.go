@@ -112,6 +112,13 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
 				},
+
+				LastTcpRtoCount:      3,
+				LastTcpRecoveryCount: 1,
+				LastTcpProbe0Count:   2,
+				LastTcpDeliveredCe:   5,
+				LastTcpReordSeen:     4,
+				TcpEcnNegotiated:     true,
 			},
 			{
 				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
@@ -234,6 +241,13 @@ func TestSerialization(t *testing.T) {
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
+
+					TCPRTOCount:      3,
+					TCPRecoveryCount: 1,
+					TCPProbe0Count:   2,
+					TCPDeliveredCE:   5,
+					TCPReordSeen:     4,
+					TCPECNNegotiated: 1,
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),

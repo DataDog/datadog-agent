@@ -97,6 +97,12 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetIntraHost(conn.IntraHost)
 	builder.SetLastTcpEstablished(uint32(conn.Last.TCPEstablished))
 	builder.SetLastTcpClosed(uint32(conn.Last.TCPClosed))
+	builder.SetLastTcpRtoCount(conn.TCPRTOCount)
+	builder.SetLastTcpRecoveryCount(conn.TCPRecoveryCount)
+	builder.SetLastTcpProbe0Count(conn.TCPProbe0Count)
+	builder.SetLastTcpDeliveredCe(conn.TCPDeliveredCE)
+	builder.SetLastTcpReordSeen(conn.TCPReordSeen)
+	builder.SetTcpEcnNegotiated(conn.TCPECNNegotiated != 0)
 	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
 		for p := range FormatProtocolStack(conn.ProtocolStack, conn.StaticTags) {
 			w.AddStack(uint64(p))
