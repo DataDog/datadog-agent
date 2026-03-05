@@ -220,6 +220,10 @@ ddot_byoc_package_build_test_linux_oci:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 ddot_byoc_binary_build_test_ubuntu2004:
   stage: integration_test
