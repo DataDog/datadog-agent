@@ -1,12 +1,11 @@
 test_against_local_shell: false
-description: An invalid exit argument does not stop execution; subsequent commands still run.
+description: An invalid exit argument exits the shell; subsequent commands do not run.
 input:
   # language=bash
   script: |+
     exit abc; echo still running
 expect:
-  stdout: |+
-    still running
+  stdout: ""
   stderr: |+
     invalid exit status code: "abc"
-  exit_code: 0
+  exit_code: 2

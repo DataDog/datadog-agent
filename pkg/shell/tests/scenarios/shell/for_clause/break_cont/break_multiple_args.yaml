@@ -1,5 +1,5 @@
 test_against_local_shell: false
-description: Break with multiple arguments produces a usage error on each iteration.
+description: Break with multiple arguments breaks the loop and produces a usage error.
 input:
   # language=bash
   script: |+
@@ -9,7 +9,5 @@ input:
 expect:
   stdout: ""
   stderr: |+
-    usage: break [n]
-    usage: break [n]
     usage: break [n]
   exit_code: 2
