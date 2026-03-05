@@ -126,7 +126,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// When fetch fails uses defaultRequestLocationPermissionWhenFetchFails; when flag missing uses defaultRequestLocationPermissionWhenMissing.
     private func requestLocationPermissionEnabled() -> Bool {
         if let cached = Self.cachedRequestLocationPermissionEnabled {
-            Logger.debug("request_location_permission: \(cached) (cached)", context: "WiFiDataProvider")
             return cached
         }
         guard let output = Self.runAgentConfig() else {
@@ -286,7 +285,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
                 Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
                 attemptPermissionPrompt(authStatus: authStatus)
             } else if !requestLocationPermissionEnabled() {
-                Logger.info("Location permission prompt disabled by agent config (request_location_permission: false) - skipping prompt", context: "WiFiDataProvider")
+                Logger.info("Location permission prompt disabled by config - skipping prompt", context: "WiFiDataProvider")
             } else {
                 Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
@@ -328,11 +327,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let bssid = interface.bssid() ?? ""
         let macAddress = interface.hardwareAddress() ?? ""
 
-        // Log if SSID/BSSID are empty (might indicate permission issue)
-        if !isAuthorized && (ssid.isEmpty || bssid.isEmpty) {
-            Logger.info("WARN: SSID/BSSID empty - location permission not granted", context: "WiFiDataProvider")
-        }
-
         let wifiData = WiFiData(
             rssi: interface.rssiValue(),
             ssid: ssid,
@@ -349,7 +343,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             error: nil
         )
 
-        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized)", context: "WiFiDataProvider")
+        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized), permission=\(isAuthorized ? "<granted>" : "<not granted>"), permission_prompt=\(requestLocationPermissionEnabled() ? "<enabled>" : "<disabled>")", context: "WiFiDataProvider")
         return wifiData
     }
 
