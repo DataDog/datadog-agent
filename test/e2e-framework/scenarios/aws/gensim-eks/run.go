@@ -8,9 +8,9 @@
 // Milestones:
 //
 //	M1 (✓): EKS cluster + kubeconfig export — no workloads.
-//	M2 (this file): Episode services built on an EC2 build VM, pushed to ECR, deployed to EKS.
-//	M3: Datadog Agent deployment.
-//	M4: Kubernetes Job running play-episode.sh autonomously.
+//	M2 (✓): Episode services built on an EC2 build VM, pushed to ECR, deployed to EKS.
+//	M3 (✓): Datadog Agent DaemonSet deployed; stub agent removed.
+//	M4 (this file): Kubernetes Job running play-episode.sh autonomously.
 //	M5: S3 results upload, destroy cleanup, full parity with Kind-based scenario.
 package gensimeks
 
@@ -36,7 +36,11 @@ import (
 
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	pulumiKubernetes "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	batchv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/batch/v1"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	helmv3 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
@@ -199,7 +203,238 @@ func Run(ctx *pulumi.Context) error {
 		}
 	}
 
+	// ── Episode runner Job (M4) ──────────────────────────────────────────────
+	// Runs play-episode.sh autonomously inside the cluster as a Kubernetes Job.
+	// Only started when gensim:scenario is set; omitting it deploys infrastructure
+	// only (useful for debugging before committing to a full run).
+	scenario := cfg.Get("scenario")
+	if scenario != "" && awsEnv.AgentDeploy() {
+		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// deployRunnerJob creates the RBAC, Secret, ConfigMap, and Job needed to run
+// play-episode.sh autonomously inside the cluster.
+//
+// The Job uses alpine/k8s which provides kubectl, bash, curl, and jq.
+// play-episode.sh uses in-cluster config automatically (no explicit KUBECONFIG),
+// authenticating via the gensim-runner ServiceAccount and ClusterRoleBinding.
+func deployRunnerJob(
+	ctx *pulumi.Context,
+	awsEnv *resAws.Environment,
+	kubeProvider *pulumiKubernetes.Provider,
+	episodePath, scenario, namespace, ddEnv string,
+) error {
+	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
+
+	// ── ServiceAccount ───────────────────────────────────────────────────────
+	sa, err := corev1.NewServiceAccount(ctx, awsEnv.Namer.ResourceName("runner-sa"),
+		&corev1.ServiceAccountArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String("gensim-runner"),
+				Namespace: pulumi.String(namespace),
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
+	// ── ClusterRole ───────────────────────────────────────────────────────────
+	// play-episode.sh requires:
+	//   kubectl scale deployment   → update deployments/scale
+	//   kubectl wait pods --for=condition=ready → get/list/watch pods
+	clusterRole, err := rbacv1.NewClusterRole(ctx, awsEnv.Namer.ResourceName("runner-role"),
+		&rbacv1.ClusterRoleArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name: pulumi.String("gensim-runner"),
+			},
+			Rules: rbacv1.PolicyRuleArray{
+				rbacv1.PolicyRuleArgs{
+					ApiGroups: pulumi.StringArray{pulumi.String("")},
+					Resources: pulumi.StringArray{pulumi.String("pods")},
+					Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
+				},
+				rbacv1.PolicyRuleArgs{
+					ApiGroups: pulumi.StringArray{pulumi.String("apps")},
+					Resources: pulumi.StringArray{pulumi.String("deployments"), pulumi.String("deployments/scale")},
+					Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("update")},
+				},
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
+	// ── ClusterRoleBinding ────────────────────────────────────────────────────
+	_, err = rbacv1.NewClusterRoleBinding(ctx, awsEnv.Namer.ResourceName("runner-binding"),
+		&rbacv1.ClusterRoleBindingArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name: pulumi.String("gensim-runner"),
+			},
+			RoleRef: rbacv1.RoleRefArgs{
+				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+				Kind:     pulumi.String("ClusterRole"),
+				Name:     clusterRole.Metadata.Name().Elem(),
+			},
+			Subjects: rbacv1.SubjectArray{
+				rbacv1.SubjectArgs{
+					Kind:      pulumi.String("ServiceAccount"),
+					Name:      sa.Metadata.Name().Elem(),
+					Namespace: pulumi.String(namespace),
+				},
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
+	// ── Secret (DD credentials) ───────────────────────────────────────────────
+	ddSecret, err := corev1.NewSecret(ctx, awsEnv.Namer.ResourceName("runner-secret"),
+		&corev1.SecretArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String("gensim-secrets"),
+				Namespace: pulumi.String(namespace),
+			},
+			StringData: pulumi.StringMap{
+				"DD_API_KEY": awsEnv.AgentAPIKey(),
+				"DD_APP_KEY": awsEnv.AgentAPPKey(),
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
+	// ── ConfigMap (play-episode.sh + scenario YAML) ───────────────────────────
+	// We only mount the specific scenario YAML rather than the whole episodes/
+	// directory to keep the ConfigMap small.
+	playScriptContent, err := os.ReadFile(filepath.Join(episodePath, "play-episode.sh"))
+	if err != nil {
+		return fmt.Errorf("reading play-episode.sh: %w", err)
+	}
+	scenarioContent, err := os.ReadFile(filepath.Join(episodePath, "episodes", scenario+".yaml"))
+	if err != nil {
+		return fmt.Errorf("reading episode scenario %q: %w", scenario, err)
+	}
+
+	configMap, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("runner-config"),
+		&corev1.ConfigMapArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String("gensim-episode"),
+				Namespace: pulumi.String(namespace),
+			},
+			Data: pulumi.StringMap{
+				"play-episode.sh":  pulumi.String(string(playScriptContent)),
+				scenario + ".yaml": pulumi.String(string(scenarioContent)),
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
+	// ── Job ───────────────────────────────────────────────────────────────────
+	// alpine/k8s provides kubectl, bash, curl, and jq — everything play-episode.sh needs.
+	// The Job uses in-cluster config (ServiceAccount token) so no KUBECONFIG is needed.
+	// pulumi.com/skipAwait prevents Pulumi from waiting for Job completion (30-60 min).
+	_, err = batchv1.NewJob(ctx, awsEnv.Namer.ResourceName("runner-job"),
+		&batchv1.JobArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String("gensim-runner"),
+				Namespace: pulumi.String(namespace),
+				Annotations: pulumi.StringMap{
+					// Do not wait for the Job to complete — it runs for 30-60 min.
+					// Pulumi returns as soon as the Job resource is created.
+					"pulumi.com/skipAwait": pulumi.String("true"),
+				},
+			},
+			Spec: batchv1.JobSpecArgs{
+				BackoffLimit: pulumi.IntPtr(0), // no retries — a failed run is a failed run
+				Template: corev1.PodTemplateSpecArgs{
+					Spec: corev1.PodSpecArgs{
+						ServiceAccountName: sa.Metadata.Name().Elem(),
+						RestartPolicy:      pulumi.String("Never"),
+						Containers: corev1.ContainerArray{
+							corev1.ContainerArgs{
+								Name:  pulumi.String("runner"),
+								Image: pulumi.String("alpine/k8s:1.31.0"),
+								Command: pulumi.StringArray{
+									pulumi.String("bash"),
+									pulumi.String("/episode/play-episode.sh"),
+									pulumi.String("run-episode"),
+									pulumi.String(scenario),
+								},
+								Env: corev1.EnvVarArray{
+									corev1.EnvVarArgs{
+										Name: pulumi.String("DD_API_KEY"),
+										ValueFrom: &corev1.EnvVarSourceArgs{
+											SecretKeyRef: &corev1.SecretKeySelectorArgs{
+												Name: ddSecret.Metadata.Name().Elem(),
+												Key:  pulumi.String("DD_API_KEY"),
+											},
+										},
+									},
+									corev1.EnvVarArgs{
+										Name: pulumi.String("DD_APP_KEY"),
+										ValueFrom: &corev1.EnvVarSourceArgs{
+											SecretKeyRef: &corev1.SecretKeySelectorArgs{
+												Name: ddSecret.Metadata.Name().Elem(),
+												Key:  pulumi.String("DD_APP_KEY"),
+											},
+										},
+									},
+									corev1.EnvVarArgs{Name: pulumi.String("DD_ENV"), Value: pulumi.StringPtr(ddEnv)},
+									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
+									corev1.EnvVarArgs{Name: pulumi.String("DD_SITE"), Value: pulumi.StringPtr(awsEnv.Site())},
+								},
+								VolumeMounts: corev1.VolumeMountArray{
+									corev1.VolumeMountArgs{
+										Name:      pulumi.String("episode-script"),
+										MountPath: pulumi.String("/episode"),
+									},
+									corev1.VolumeMountArgs{
+										Name:      pulumi.String("episode-scenarios"),
+										MountPath: pulumi.String("/episode/episodes"),
+									},
+								},
+							},
+						},
+						Volumes: corev1.VolumeArray{
+							// play-episode.sh → /episode/play-episode.sh
+							corev1.VolumeArgs{
+								Name: pulumi.String("episode-script"),
+								ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+									Name: configMap.Metadata.Name().Elem(),
+									Items: corev1.KeyToPathArray{
+										corev1.KeyToPathArgs{
+											Key:  pulumi.String("play-episode.sh"),
+											Path: pulumi.String("play-episode.sh"),
+											Mode: pulumi.IntPtr(0o755),
+										},
+									},
+								},
+							},
+							// <scenario>.yaml → /episode/episodes/<scenario>.yaml
+							corev1.VolumeArgs{
+								Name: pulumi.String("episode-scenarios"),
+								ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+									Name: configMap.Metadata.Name().Elem(),
+									Items: corev1.KeyToPathArray{
+										corev1.KeyToPathArgs{
+											Key:  pulumi.String(scenario + ".yaml"),
+											Path: pulumi.String(scenario + ".yaml"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, kubeOpts...)
+	return err
 }
 
 // buildAndPushImages provisions a small EC2 build VM, copies the episode's service

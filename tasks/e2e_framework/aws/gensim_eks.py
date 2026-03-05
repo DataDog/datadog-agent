@@ -32,6 +32,7 @@ _DEFAULT_STACK_NAME = "gensim-eks"
 def create_gensim_eks(
     ctx: Context,
     episode: str | None = None,
+    scenario: str | None = None,
     namespace: str = "default",
     stack_name: str = _DEFAULT_STACK_NAME,
     instance_type: str = "t3.xlarge",
@@ -76,6 +77,8 @@ def create_gensim_eks(
 
     if episode is not None:
         extra_flags.update(_episode_flags(ctx, cfg, episode, namespace))
+        if scenario is not None:
+            extra_flags["gensim:scenario"] = scenario
 
     full_stack_name = deploy(
         ctx,
@@ -92,7 +95,7 @@ def create_gensim_eks(
 
     _show_connection_message(ctx, full_stack_name, config_path)
 
-    # M3: remove the episode chart's stub agent now that the real DaemonSet is deployed.
+    # M3+: post-deploy cleanup and monitoring instructions.
     if episode is not None:
         kubeconfig_path = f"{full_stack_name}-kubeconfig.yaml"
         try:
@@ -100,7 +103,19 @@ def create_gensim_eks(
             aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
         except Exception:
             aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+
+        # M3: remove stub agent
         _delete_stub_agent(ctx, kubeconfig_path, aws_wrapper, namespace)
+
+        # M4: show runner monitoring instructions
+        if scenario is not None:
+            kube = f"KUBECONFIG={kubeconfig_path} {aws_wrapper}"
+            tool.info("\n" + "=" * 70)
+            tool.info("Episode runner started. Monitor progress:")
+            tool.info(f"  {kube}kubectl logs -f job/gensim-runner -n {namespace}")
+            tool.info("\nCheck pod status:")
+            tool.info(f"  {kube}kubectl get pods -n {namespace}")
+            tool.info("=" * 70)
 
 
 @task(help={"stack_name": doc.stack_name})
