@@ -1,0 +1,15 @@
+description: Negated exit status is captured correctly in a variable via $?.
+input:
+  script: |+
+    ! true
+    A=$?
+    echo $A
+    ! false
+    B=$?
+    echo $B
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

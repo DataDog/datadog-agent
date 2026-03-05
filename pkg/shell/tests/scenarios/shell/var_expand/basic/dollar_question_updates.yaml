@@ -1,0 +1,16 @@
+description: The $? variable updates after each command to reflect its exit code.
+input:
+  script: |+
+    true
+    echo $?
+    false
+    echo $?
+    true
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    0
+  stderr: ""
+  exit_code: 0

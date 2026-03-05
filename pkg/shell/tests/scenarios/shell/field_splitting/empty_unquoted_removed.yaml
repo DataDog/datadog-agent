@@ -1,0 +1,12 @@
+description: Empty unquoted variable expansion produces no fields and is removed.
+test_against_local_shell: false
+input:
+  script: |+
+    A=""
+    for w in $A; do echo "word: $w"; done
+    echo "done"
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

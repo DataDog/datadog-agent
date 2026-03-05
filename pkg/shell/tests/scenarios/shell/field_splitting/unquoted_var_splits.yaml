@@ -1,0 +1,13 @@
+description: Unquoted variable expansion is split on default IFS whitespace.
+test_against_local_shell: false
+input:
+  script: |+
+    A="hello world foo"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: |+
+    [hello]
+    [world]
+    [foo]
+  stderr: ""
+  exit_code: 0

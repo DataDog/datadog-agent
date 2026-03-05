@@ -1,0 +1,13 @@
+description: Line continuation works within the for loop item list.
+input:
+  script: |+
+    for i in a \
+    b \
+    c; do echo $i; done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

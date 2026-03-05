@@ -1,0 +1,13 @@
+description: Heredoc can be used inside a brace group.
+input:
+  script: |+
+    {
+      cat <<EOF
+    hello from brace
+    EOF
+    }
+expect:
+  stdout: |+
+    hello from brace
+  stderr: ""
+  exit_code: 0

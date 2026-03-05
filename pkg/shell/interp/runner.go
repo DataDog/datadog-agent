@@ -31,7 +31,6 @@ func (r *Runner) fillExpandConfig(ctx context.Context) {
 	r.updateExpandOpts()
 }
 
-
 func (r *Runner) updateExpandOpts() {
 	r.ecfg.ReadDir2 = func(s string) ([]fs.DirEntry, error) {
 		return r.readDirHandler(r.handlerCtx(r.ectx, todoPos), s)
@@ -58,7 +57,6 @@ func (r *Runner) expandErr(err error) {
 	r.exit.code = 1
 	r.exit.exiting = true
 }
-
 
 func (r *Runner) fields(words ...*syntax.Word) []string {
 	strs, err := expand.Fields(r.ecfg, words...)
@@ -337,6 +335,15 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 		r.stdin = pr
 		return pr, nil
 	}
+	if rd.Op == syntax.Hdoc || rd.Op == syntax.DashHdoc {
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			return nil, err
+		}
+		go func() { pw.Close() }()
+		r.stdin = pr
+		return pr, nil
+	}
 
 	arg := r.literal(rd.Word)
 	switch rd.Op {
@@ -420,4 +427,3 @@ func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileM
 	}
 	return nil, err
 }
-

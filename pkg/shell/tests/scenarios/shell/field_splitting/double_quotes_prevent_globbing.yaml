@@ -1,0 +1,15 @@
+description: Double-quoted variable expansion prevents pathname (glob) expansion.
+test_against_local_shell: false
+setup:
+  files:
+    - path: "abc.txt"
+      content: "test"
+input:
+  script: |+
+    A="*.txt"
+    echo "$A"
+expect:
+  stdout: |+
+    *.txt
+  stderr: ""
+  exit_code: 0
