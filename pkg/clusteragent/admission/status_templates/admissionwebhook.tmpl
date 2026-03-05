@@ -66,6 +66,9 @@
     {{- end }}
     Last Successful Probe: {{ .admissionWebhook.Probe.LastSuccessTime }}
     {{- end }}
+    {{- if and .admissionWebhook.Probe.DiagnosticHint (gt .admissionWebhook.Probe.TotalExecutions 0) (not .admissionWebhook.Probe.LastExecutionSuccess) }}
+    Hint: {{ .admissionWebhook.Probe.DiagnosticHint }}
+    {{- end }}
     {{- end }}
   {{- end }}
   {{- end }}

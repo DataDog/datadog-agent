@@ -123,6 +123,9 @@ func (p *Probe) GetStatsForStatus() map[string]interface{} {
 	result["LastExecutionSuccess"] = snap.LastExecutionSuccess
 	result["LastExecutionError"] = snap.LastExecutionError
 	result["LastSuccessTime"] = formatTime(snap.LastSuccessTime)
+	if p.diagnosticHint != "" {
+		result["DiagnosticHint"] = p.diagnosticHint
+	}
 	return result
 }
 
