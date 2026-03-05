@@ -82,7 +82,9 @@ func (l *LocalService) GetTags() map[string]string {
 
 // GetEnhancedMetricTags is a default implementation that returns an empty tag set
 func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
-	baseTags := map[string]string{}
+	baseTags := map[string]string{
+		"origin": tags["origin"],
+	}
 
 	highCardinalityTags := map[string]string{}
 

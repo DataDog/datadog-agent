@@ -5,11 +5,12 @@
 
 //go:build linux
 
+// Package collector provides enhanced metrics collection
 package collector
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -63,7 +64,7 @@ type Collector struct {
 
 func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
 	if metricAgent == nil {
-		return nil, fmt.Errorf("metricAgent cannot be nil")
+		return nil, errors.New("metricAgent cannot be nil")
 	}
 
 	cgroupReader, err := cgroups.NewSelfReader("/proc", true)
@@ -72,11 +73,12 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 	}
 
 	return &Collector{
-		metricAgent:       metricAgent,
-		metricSource:      metricSource,
-		cgroupReader:      cgroupReader,
-		metricPrefix:      metricPrefix + ".enhanced.",
-		previousRateStats: NullServerlessRateStats,
+		metricAgent:        metricAgent,
+		metricSource:       metricSource,
+		cgroupReader:       cgroupReader,
+		collectionInterval: 3 * time.Second,
+		metricPrefix:       metricPrefix + ".enhanced.",
+		previousRateStats:  NullServerlessRateStats,
 	}, nil
 }
 
@@ -99,7 +101,7 @@ func (c *Collector) Stop() {
 }
 
 func (c *Collector) collectLoop(ctx context.Context) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(c.collectionInterval)
 	defer ticker.Stop()
 
 	// Do an initial collect before starting to collect on a ticker
@@ -169,14 +171,12 @@ func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) S
 		currentTotal := statValue(inStats.CPU.Total, -1)
 		enhancedMetrics.CPUUsage = c.calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
 
-		// Store current cpu total for next calculation
+		// Store current cpu total and collection time for next rate calculation
 		c.previousRateStats.TotalCPU = currentTotal
+		c.previousRateStats.CollectionTime = inStats.CollectionTime
 
 		enhancedMetrics.CPULimit = statValue(inStats.CPU.Limit, 0)
 	}
-
-	// Store current collection time for next calculation
-	c.previousRateStats.CollectionTime = inStats.CollectionTime
 
 	return enhancedMetrics
 }
