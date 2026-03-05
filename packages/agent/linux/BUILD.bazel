@@ -45,6 +45,7 @@ pkg_filegroup(
         "@krb5//:all_files",
         "@nghttp2//:all_files",
         "@xz//:all_files",
+        "@zlib//:all_files",
     ],
     prefix = "/opt/datadog-agent",
 )
