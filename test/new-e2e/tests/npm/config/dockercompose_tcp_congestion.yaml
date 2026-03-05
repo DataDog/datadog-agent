@@ -4,24 +4,28 @@ services:
     image: ubuntu:22.04
     container_name: tcp-lab-server
     hostname: tcp-lab-server
-    cap_add: [NET_ADMIN]
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    sysctls:
+      - net.ipv4.tcp_ecn=1
     networks:
       tcp-lab-net:
         ipv4_address: 172.28.0.10
     command: >
-      bash -c "apt-get update -qq && apt-get install -y -qq iperf3 netcat-openbsd > /dev/null &&
+      bash -c "apt-get update -qq && apt-get install -y -qq iperf3 netcat-openbsd iproute2 python3 > /dev/null &&
       iperf3 -s -p 5201 -D && sleep infinity"
   tcp-lab-client:
     image: ubuntu:22.04
     container_name: tcp-lab-client
     hostname: tcp-lab-client
-    cap_add: [NET_ADMIN]
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    sysctls:
+      - net.ipv4.tcp_ecn=1
     networks:
       tcp-lab-net:
         ipv4_address: 172.28.0.20
     depends_on: [tcp-lab-server]
     command: >
-      bash -c "apt-get update -qq && apt-get install -y -qq iperf3 iproute2 > /dev/null &&
+      bash -c "apt-get update -qq && apt-get install -y -qq iperf3 iproute2 netcat-openbsd > /dev/null &&
       sleep infinity"
 networks:
   tcp-lab-net:
