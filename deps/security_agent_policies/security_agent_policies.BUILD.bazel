@@ -1,0 +1,70 @@
+# datadog-security-agent-policies
+# Policy files for the security agent: compliance and runtime policies.
+
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":package_metadata"])
+
+_VERSION = "0.77.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "security-agent-policies",
+        version = _VERSION,
+        download_url = "https://github.com/DataDog/security-agent-policies/archive/refs/tags/v{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+_COMPLIANCE_FILES = glob(
+    ["compliance/containers/*"],
+    exclude_directories = 1,
+)
+
+_RUNTIME_FILES = glob(
+    ["runtime/*"],
+    exclude_directories = 1,
+)
+
+pkg_files(
+    name = "compliance_files",
+    srcs = _COMPLIANCE_FILES,
+    prefix = "etc/datadog-agent/compliance.d",
+)
+
+pkg_files(
+    name = "runtime_files",
+    srcs = _RUNTIME_FILES,
+    prefix = "etc/datadog-agent/runtime-security.d",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [":runtime_files"] + select({
+        "@platforms//os:linux": [":compliance_files"],
+        "//conditions:default": [],
+    }),
+    visibility = [
+        "@@//deps/security_agent_policies:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)
