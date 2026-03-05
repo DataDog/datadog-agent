@@ -5805,6 +5805,21 @@ Issues:
         Kind: 3
         Message: 'unsupported condition expression type: *exprlang.RefExpr'
     - probe_definition:
+        id: condErr_int8_overflow
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condInt8}
+        tags: ['issue:ConditionExpressionUnresolvable']
+        when: {dsl: x == 128, json: {eq: [{ref: x}, 128]}}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 8
+        Message: 'failed to resolve condition: condition: literal 128 out of range for int8 (8-bit)'
+    - probe_definition:
         id: condErr_map
         version: 0
         type: LOG_PROBE
@@ -5879,6 +5894,36 @@ Issues:
       issue:
         Kind: 8
         Message: 'failed to resolve condition: condition: unsupported LHS type *ir.StructureType for equality comparison'
+    - probe_definition:
+        id: condErr_uint32_negative
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condUint32}
+        tags: ['issue:ConditionExpressionUnresolvable']
+        when: {dsl: x == -1, json: {eq: [{ref: x}, -1]}}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 8
+        Message: 'failed to resolve condition: condition: literal -1 out of range for uint32 (32-bit)'
+    - probe_definition:
+        id: condErr_uint8_overflow
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condUint8}
+        tags: ['issue:ConditionExpressionUnresolvable']
+        when: {dsl: x == 256, json: {eq: [{ref: x}, 256]}}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 8
+        Message: 'failed to resolve condition: condition: literal 256 out of range for uint8 (8-bit)'
     - probe_definition:
         id: condErr_unknown_var
         version: 0

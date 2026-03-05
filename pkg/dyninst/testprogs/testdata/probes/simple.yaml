@@ -944,6 +944,48 @@ probes:
   tags:
     - "issue:ConditionExpressionUnresolvable"
 
+# int64 literal out of range for uint8 (256 > 255).
+- id: condErr_uint8_overflow
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint8
+  when:
+    dsl: "x == 256"
+    json: {eq: [{ref: "x"}, 256]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# int64 literal negative for unsigned target.
+- id: condErr_uint32_negative
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x == -1"
+    json: {eq: [{ref: "x"}, -1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# int64 literal out of range for int8 (128 > 127).
+- id: condErr_int8_overflow
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condInt8
+  when:
+    dsl: "x == 128"
+    json: {eq: [{ref: "x"}, 128]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
 # String literal non-string comparison (string var compared with int).
 - id: condErr_string_vs_int
   type: LOG_PROBE

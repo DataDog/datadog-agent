@@ -3656,14 +3656,36 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 
 	bitSize := int(byteSize * 8)
 
+	// checkInt validates that v fits in the target integer and encodes it.
+	checkInt := func(v int64) error {
+		if isUnsigned(targetKind) {
+			if v < 0 || (bitSize < 64 && uint64(v) >= 1<<bitSize) {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeUint(uint64(v))
+		} else {
+			minVal := -(int64(1) << (bitSize - 1))
+			maxVal := int64(1)<<(bitSize-1) - 1
+			if v < minVal || v > maxVal {
+				return fmt.Errorf(
+					"condition: literal %d out of range for %v (%d-bit)",
+					v, targetKind, bitSize,
+				)
+			}
+			encodeInt(v)
+		}
+		return nil
+	}
+
 	switch v := value.(type) {
 	case int64:
 		switch {
 		case isInteger(targetKind):
-			if isUnsigned(targetKind) {
-				encodeUint(uint64(v))
-			} else {
-				encodeInt(v)
+			if err := checkInt(v); err != nil {
+				return nil, err
 			}
 		case isFloat(targetKind):
 			return litData, encodeFloat(float64(v))
@@ -3679,17 +3701,14 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 		case isFloat(targetKind):
 			return litData, encodeFloat(v)
 		case isInteger(targetKind):
-			// Allow float-to-int coercion only for whole numbers.
 			if v != math.Trunc(v) {
 				return nil, fmt.Errorf(
 					"condition: non-integer float64 %v cannot be coerced to %v",
 					v, targetKind,
 				)
 			}
-			if isUnsigned(targetKind) {
-				encodeUint(uint64(v))
-			} else {
-				encodeInt(int64(v))
+			if err := checkInt(int64(v)); err != nil {
+				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf(
