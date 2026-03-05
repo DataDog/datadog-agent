@@ -21,10 +21,10 @@ processors:
   batch:
   memory_limiter:
     check_interval: 1s
-    # Hard limit is 400 MiB; soft limit is 320 MiB (hard limit - spike limit).
+    # Hard limit is 300 MiB; soft limit is 240 MiB (hard limit - spike limit).
     # Spike limit is set to 20% of the hard limit per memory_limiter guidance.
-    limit_mib: 400
-    spike_limit_mib: 80
+    limit_mib: 300
+    spike_limit_mib: 60
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
