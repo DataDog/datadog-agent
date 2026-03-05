@@ -193,9 +193,8 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 		return nil, err
 	}
 
-	// Use the Amazon Linux ECS AMI — Docker is pre-installed and the daemon is
-	// already running, saving the 3-5 min apt-get install step on every fresh VM.
-	// AWS CLI is also pre-installed. Only docker-compose needs to be added.
+	// Use the Amazon Linux ECS AMI — Docker 25 (including buildx) is pre-installed
+	// and the daemon is already running. Only AWS CLI needs to be added (~30s via yum).
 	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder", ec2.WithOS(osComp.AmazonLinuxECSDefault))
 	if err != nil {
 		return nil, err
