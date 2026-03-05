@@ -112,8 +112,8 @@ api_key: ENC[api_key]
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
-	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status = v.Env().Agent.Client.Status()
 		assert.Contains(t, status.Content, "API key ending with vwxyz")
 	}, 1*time.Minute, 10*time.Second)
 }

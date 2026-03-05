@@ -714,7 +714,16 @@ func (c *Check) fetchAllDeviceLabels() error {
 	if c.instanceConfig.BlkidCacheFile != "" {
 		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
-	return c.fetchAllDeviceLabelsFromBlkid()
+	err := c.fetchAllDeviceLabelsFromBlkid()
+	if err != nil {
+		log.Debugf("blkid failed (%s), falling back to lsblk", err)
+		return c.fetchAllDeviceLabelsFromLsblk()
+	}
+	if len(c.deviceLabels) == 0 {
+		log.Debugf("blkid returned no labels, falling back to lsblk")
+		return c.fetchAllDeviceLabelsFromLsblk()
+	}
+	return nil
 }
 
 // Factory creates a new check factory
