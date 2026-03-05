@@ -15,10 +15,10 @@ require (
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
+	github.com/weppos/publicsuffix-go v0.50.3
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/net v0.50.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/text v0.34.0
 	sigs.k8s.io/yaml v1.6.0
@@ -32,6 +32,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

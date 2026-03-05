@@ -1192,6 +1192,7 @@ require (
 	github.com/tink-crypto/tink-go/v2 v2.4.0 // indirect
 	github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c // indirect
 	github.com/vmware/govmomi v0.18.0 // indirect
+	github.com/weppos/publicsuffix-go v0.50.3 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
