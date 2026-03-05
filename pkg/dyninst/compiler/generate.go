@@ -651,6 +651,21 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 
 func nilPieceOp(piece ir.Piece) bool { return piece.Op == nil }
 
+// hasDuplicateInterfacePieces returns true if an interface type has both
+// pieces claiming the same register. Interface types have two distinct
+// pointers (type/itab and data) that can never have the same value, so
+// duplicate registers indicate invalid DWARF. Seen on ARM64 with go1.26rc1.
+func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
+	switch typ.(type) {
+	case *ir.GoInterfaceType, *ir.GoEmptyInterfaceType:
+		// Interfaces always have exactly 2 pieces
+		if len(pieces) == 2 && pieces[0].Op == pieces[1].Op {
+			return true
+		}
+	}
+	return false
+}
+
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
 	for _, loclist := range op.Variable.Locations {
@@ -673,10 +688,15 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 
 		// Check if the matching location list is unavailable (partially or
-		// completely). If so, we'll want by breaking here we'll make sure we
-		// don't mark the variable as available.
+		// completely). If so, by breaking here we'll make sure we don't mark
+		// the variable as available.
+		//
+		// Also check for duplicate interface pieces where both claim the same
+		// register (seen on ARM64 with go1.26rc1). Interface types have two
+		// distinct pointers that can never share a register.
 		if len(loclist.Pieces) == 0 ||
-			slices.ContainsFunc(loclist.Pieces, nilPieceOp) {
+			slices.ContainsFunc(loclist.Pieces, nilPieceOp) ||
+			hasDuplicateInterfacePieces(op.Variable.Type, loclist.Pieces) {
 			break
 		}
 
