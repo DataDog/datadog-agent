@@ -26,7 +26,7 @@ def _get_security_agent_policies_impl(rctx):
     vars = release_info["dependencies"]
 
     version = vars["SECURITY_AGENT_POLICIES_VERSION"]  # e.g. "v0.77.0"
-    sha256 = vars.get("SECURITY_AGENT_POLICIES_SHA256", "")
+    sha256 = vars["SECURITY_AGENT_POLICIES_SHA256"]
 
     # Strip the leading 'v' to get the bare version number used in the strip prefix
     version_num = version.lstrip("v")
