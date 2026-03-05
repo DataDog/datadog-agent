@@ -8,8 +8,9 @@ use log::warn;
 use phf::phf_set;
 use std::env;
 use std::fs::File;
+use std::io::ErrorKind;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use yaml_rust2::{Yaml, YamlLoader};
 
 /// Represents the decision for whether to run sd-agent, fallback, or exit
@@ -20,39 +21,112 @@ pub enum FallbackDecision {
     ExitCleanly,
 }
 
-/// Resolves the system-probe config file path from a user-supplied `--config` argument.
+const DEFAULT_SYSPROBE_CONFIG_PATH: &str = "/etc/datadog-agent/system-probe.yaml";
+
+/// Loads the system-probe YAML config file if it exists
+pub fn load_config(config_path: Option<&Path>) -> Result<Option<Yaml>> {
+    let path = config_path.unwrap_or(Path::new(DEFAULT_SYSPROBE_CONFIG_PATH));
+    load_config_from_path(path)
+}
+
+const DEFAULT_CORE_CONFIG_PATH: &str = "/etc/datadog-agent/datadog.yaml";
+
+/// Loads the core config (`datadog.yaml`), mirroring Go's two-path search:
 ///
-/// Mirrors Go's `newSysprobeConfig`: if the supplied path is a directory, look for
-/// `system-probe.yaml` inside it; otherwise use the path as-is.
-fn resolve_sysprobe_config_path(config_path: Option<PathBuf>) -> PathBuf {
-    match config_path {
-        None => PathBuf::from("/etc/datadog-agent/system-probe.yaml"),
-        Some(path) if path.is_dir() => path.join("system-probe.yaml"),
-        Some(path) => path,
+/// 1. Derive the primary path via `resolve_core_config_path` (honours
+///    `--datadogcfgpath` / `--config` flags, then the system-probe config
+///    directory, then the default `/etc/datadog-agent/datadog.yaml`).
+/// 2. Try to load from the primary path.
+/// 3. If the file was **not found** there **and** the primary path differs from
+///    the default, fall back to `/etc/datadog-agent/datadog.yaml` — matching
+///    Viper's behaviour of always registering the default search directory
+///    alongside any custom path.
+/// 4. When either `--config` or `--datadogcfgpath` was supplied but the file
+///    was not found at either path, return an error. This mirrors Go's
+///    `DatadogConfFilePath()` which returns a non-empty path whenever either
+///    flag is set, causing the "not found" error to be fatal in `setup.go`.
+pub fn load_core_config(
+    datadog_config_path: &Option<PathBuf>,
+    sysprobe_config_path: &Option<PathBuf>,
+) -> Result<Option<Yaml>> {
+    // Mirror Go's DatadogConfFilePath(): confFilePath is non-empty when either
+    // --config or --datadogcfgpath is provided, making "not found" fatal.
+    let explicit_cfg_path = datadog_config_path.is_some() || sysprobe_config_path.is_some();
+    let core_path = resolve_core_config_path(datadog_config_path, sysprobe_config_path);
+    let default_path = Path::new(DEFAULT_CORE_CONFIG_PATH);
+
+    let (found, result) = try_load_config_from_path(&core_path)?;
+    let (found, result) = if !found && core_path != default_path {
+        // Mirror Viper: also search the default directory.
+        try_load_config_from_path(default_path)?
+    } else {
+        (found, result)
+    };
+
+    // When an explicit config path was given but datadog.yaml was not found
+    // anywhere, mirror the real system-probe which also fails in this case.
+    if !found && explicit_cfg_path {
+        anyhow::bail!(
+            "datadog.yaml not found (searched {} and {})",
+            core_path.display(),
+            default_path.display()
+        );
+    }
+    Ok(result)
+}
+
+fn resolve_core_config_path(
+    datadog_config_path: &Option<PathBuf>,
+    sysprobe_config_path: &Option<PathBuf>,
+) -> PathBuf {
+    let default_path = PathBuf::from(DEFAULT_CORE_CONFIG_PATH);
+
+    if let Some(dd_path) = datadog_config_path {
+        if dd_path.extension().is_some_and(|ext| ext == "yaml") {
+            return dd_path.clone();
+        }
+        return dd_path.join("datadog.yaml");
+    }
+
+    if let Some(sp_path) = sysprobe_config_path {
+        if sp_path.extension().is_some_and(|ext| ext == "yaml") {
+            return sp_path
+                .parent()
+                .map(|p| p.join("datadog.yaml"))
+                .unwrap_or(default_path);
+        }
+        return sp_path.join("datadog.yaml");
+    }
+
+    default_path
+}
+
+/// Tries to load a YAML config file.
+///
+/// Returns `(true, content)` if the file exists (content is `None` for an empty file),
+/// `(false, None)` if the file does not exist, or `Err` for I/O / parse errors.
+fn try_load_config_from_path(path: &Path) -> Result<(bool, Option<Yaml>)> {
+    match File::open(path) {
+        Ok(mut file) => {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .context("Failed to read config file")?;
+            let docs =
+                YamlLoader::load_from_str(&contents).context("Failed to parse YAML config")?;
+            Ok((true, docs.into_iter().next()))
+        }
+        Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            warn!("Config file not found at {}.", path.display());
+            Ok((false, None))
+        }
+        Err(e) => Err(e).context("Failed to open config file"),
     }
 }
 
-/// Loads the YAML config file if it exists
-pub fn load_config(config_path: Option<PathBuf>) -> Result<Option<Yaml>> {
-    let path = resolve_sysprobe_config_path(config_path);
-
-    // Try to load YAML, but don't fail if file doesn't exist
-    // (env vars might be sufficient)
-    if path.exists() {
-        let mut file = File::open(&path).context("Failed to open system-probe config file")?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .context("Failed to read system-probe config file")?;
-
-        let docs = YamlLoader::load_from_str(&contents).context("Failed to parse YAML config")?;
-        Ok(docs.into_iter().next())
-    } else {
-        warn!(
-            "Config file not found at {}. Checking environment variables only.",
-            path.display()
-        );
-        Ok(None)
-    }
+/// Loads a YAML config file from the given path, returning `None` if it doesn't exist.
+fn load_config_from_path(path: &Path) -> Result<Option<Yaml>> {
+    let (_, content) = try_load_config_from_path(path)?;
+    Ok(content)
 }
 
 /// Get boolean value from YAML, returning Option<bool> instead of defaulting to false
@@ -104,6 +178,14 @@ static NON_DISCOVERY_SYSPROBE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
     "windows_crash_detection.enabled",
 };
 
+/// YAML key paths from datadog.yaml (core config) that trigger non-discovery modules.
+/// These keys are derived from pkg/system-probe/config/config.go.
+static NON_DISCOVERY_CORE_YAML_KEYS: phf::Set<&'static str> = phf_set! {
+    "compliance_config.enabled",
+    "compliance_config.run_in_system_probe",
+    "software_inventory.enabled",
+};
+
 /// Checks a single YAML doc against a key set, returning the first active key.
 /// Returns `non_hash_sentinel` if the doc is not a YAML mapping.
 fn check_yaml_keys(
@@ -121,13 +203,22 @@ fn check_yaml_keys(
 
 /// Returns the YAML key that requires system-probe, if any.
 ///
-/// Checks sysprobe keys against the system-probe.yaml doc. The set of keys
-/// is derived from Go's enableModules() in
+/// Checks sysprobe keys against the system-probe.yaml doc and core keys
+/// against the datadog.yaml doc. The sets of keys are derived from
 /// pkg/system-probe/config/config.go.
-fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&'static str> {
-    if let Some(doc) = yaml_doc.as_ref()
+fn find_non_discovery_yaml_key(
+    sysprobe_doc: &Option<Yaml>,
+    core_doc: &Option<Yaml>,
+) -> Option<&'static str> {
+    if let Some(doc) = sysprobe_doc.as_ref()
         && let Some(key) =
             check_yaml_keys(doc, &NON_DISCOVERY_SYSPROBE_YAML_KEYS, "<non-hash YAML>")
+    {
+        return Some(key);
+    }
+    if let Some(doc) = core_doc.as_ref()
+        && let Some(key) =
+            check_yaml_keys(doc, &NON_DISCOVERY_CORE_YAML_KEYS, "<non-hash core YAML>")
     {
         return Some(key);
     }
@@ -268,15 +359,23 @@ pub fn get_log_level(config: &Result<Option<Yaml>>) -> log::Level {
 }
 
 /// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly.
-pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
-    let Some(yaml_doc) = config.as_ref().ok() else {
-        warn!("Failed to load YAML config. Falling back to system-probe.");
+///
+/// `sysprobe_config` is loaded from system-probe.yaml and `core_config` from
+/// datadog.yaml.  Each config's YAML keys are checked against the appropriate
+/// document so that core-only keys (like `compliance_config.enabled`) are not
+/// silently missed when they appear only in datadog.yaml.
+pub fn determine_action(
+    sysprobe_config: &Result<Option<Yaml>>,
+    core_config: &Result<Option<Yaml>>,
+) -> FallbackDecision {
+    let Some(sysprobe_doc) = sysprobe_config.as_ref().ok() else {
+        warn!("Failed to load system-probe YAML config. Falling back to system-probe.");
         return FallbackDecision::FallbackToSystemProbe;
     };
     let use_sd_agent = is_config_enabled(
         "DD_DISCOVERY_USE_SD_AGENT",
         "discovery.use_sd_agent",
-        yaml_doc,
+        sysprobe_doc,
     );
 
     if use_sd_agent.is_none_or(|enabled| !enabled) {
@@ -287,12 +386,24 @@ pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
         warn!("Falling back to system-probe: env var {var} is set");
         return FallbackDecision::FallbackToSystemProbe;
     }
-    if let Some(key) = find_non_discovery_yaml_key(yaml_doc) {
+
+    // core_config failure (unreadable, parse error, or --datadogcfgpath pointed to
+    // a missing file) mirrors the real system-probe which would also fail.
+    let core_doc = match core_config {
+        Err(_) => {
+            warn!("Failed to load datadog.yaml config. Falling back to system-probe.");
+            return FallbackDecision::FallbackToSystemProbe;
+        }
+        Ok(doc) => doc.clone(),
+    };
+
+    if let Some(key) = find_non_discovery_yaml_key(sysprobe_doc, &core_doc) {
         warn!("Falling back to system-probe: YAML key {key} is active");
         return FallbackDecision::FallbackToSystemProbe;
     }
 
-    if let Some(enabled) = is_config_enabled("DD_DISCOVERY_ENABLED", "discovery.enabled", yaml_doc)
+    if let Some(enabled) =
+        is_config_enabled("DD_DISCOVERY_ENABLED", "discovery.enabled", sysprobe_doc)
         && !enabled
     {
         return FallbackDecision::ExitCleanly;
@@ -321,8 +432,8 @@ mod tests {
 
     fn determine_action_no_config() -> FallbackDecision {
         let config_file = create_test_config("");
-        let config = load_config(Some(config_file.path().to_path_buf()));
-        determine_action(&config)
+        let config = load_config(Some(config_file.path()));
+        determine_action(&config, &Ok(None))
     }
 
     #[test]
@@ -359,8 +470,8 @@ discovery:
 
         // Env var says true, YAML says false
         temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true"), || {
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             assert_eq!(
                 decision,
                 FallbackDecision::FallbackToSystemProbe,
@@ -378,8 +489,8 @@ discovery:
   enabled: false
 "#;
         let config_file = create_test_config(yaml);
-        let config = load_config(Some(config_file.path().to_path_buf()));
-        let decision = determine_action(&config);
+        let config = load_config(Some(config_file.path()));
+        let decision = determine_action(&config, &Ok(None));
         assert_eq!(
             decision,
             FallbackDecision::FallbackToSystemProbe,
@@ -392,8 +503,8 @@ discovery:
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
             let yaml = "invalid: yaml: content:\n  bad indentation";
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let result = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let result = determine_action(&config, &Ok(None));
             assert!(
                 matches!(result, FallbackDecision::FallbackToSystemProbe),
                 "Should fallback on invalid YAML"
@@ -532,7 +643,7 @@ discovery:
     #[test]
     fn test_find_non_discovery_yaml_key_empty() {
         let yaml_doc: Option<Yaml> = None;
-        assert!(find_non_discovery_yaml_key(&yaml_doc).is_none());
+        assert!(find_non_discovery_yaml_key(&yaml_doc, &None).is_none());
     }
 
     #[test]
@@ -542,8 +653,8 @@ discovery:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(find_non_discovery_yaml_key(&yaml_doc).is_none());
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
+        assert!(find_non_discovery_yaml_key(&yaml_doc, &None).is_none());
     }
 
     #[test]
@@ -555,9 +666,9 @@ network_config:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert_eq!(
-            find_non_discovery_yaml_key(&yaml_doc),
+            find_non_discovery_yaml_key(&yaml_doc, &None),
             Some("network_config.enabled")
         );
     }
@@ -569,11 +680,59 @@ unknown_key:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert_eq!(
-            find_non_discovery_yaml_key(&yaml_doc),
+            find_non_discovery_yaml_key(&yaml_doc, &None),
             None,
             "Unknown sections should not trigger fallback in data-driven approach"
+        );
+    }
+
+    #[test]
+    fn test_find_non_discovery_yaml_key_core_config() {
+        // Core config keys should be detected in the core doc, not the sysprobe doc
+        let core_yaml = r#"
+compliance_config:
+  enabled: true
+"#;
+        let core_file = create_test_config(core_yaml);
+        let core_doc = load_config(Some(core_file.path())).unwrap();
+        assert_eq!(
+            find_non_discovery_yaml_key(&None, &core_doc),
+            Some("compliance_config.enabled"),
+            "Core config key should be detected in core doc"
+        );
+    }
+
+    #[test]
+    fn test_find_non_discovery_yaml_key_core_software_inventory() {
+        let core_yaml = r#"
+software_inventory:
+  enabled: true
+"#;
+        let core_file = create_test_config(core_yaml);
+        let core_doc = load_config(Some(core_file.path())).unwrap();
+        assert_eq!(
+            find_non_discovery_yaml_key(&None, &core_doc),
+            Some("software_inventory.enabled"),
+            "software_inventory.enabled should be detected in core doc"
+        );
+    }
+
+    #[test]
+    fn test_find_non_discovery_yaml_key_core_key_in_sysprobe_ignored() {
+        // If a core key appears in the sysprobe doc, it should NOT be detected
+        // (it's only checked against core config)
+        let sysprobe_yaml = r#"
+compliance_config:
+  enabled: true
+"#;
+        let sp_file = create_test_config(sysprobe_yaml);
+        let sp_doc = load_config(Some(sp_file.path())).unwrap();
+        assert_eq!(
+            find_non_discovery_yaml_key(&sp_doc, &None),
+            None,
+            "Core config key in sysprobe doc should not be detected"
         );
     }
 
@@ -586,9 +745,9 @@ system_probe_config:
   sysprobe_socket: /custom/path.sock
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert!(
-            find_non_discovery_yaml_key(&yaml_doc).is_none(),
+            find_non_discovery_yaml_key(&yaml_doc, &None).is_none(),
             "Should allow system_probe_config with only sysprobe_socket"
         );
     }
@@ -603,9 +762,9 @@ system_probe_config:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert!(
-            find_non_discovery_yaml_key(&yaml_doc).is_none(),
+            find_non_discovery_yaml_key(&yaml_doc, &None).is_none(),
             "Should allow system_probe_config with general settings (no tcp_queue_length/oom_kill)"
         );
     }
@@ -619,9 +778,9 @@ system_probe_config:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert!(
-            find_non_discovery_yaml_key(&yaml_doc).is_none(),
+            find_non_discovery_yaml_key(&yaml_doc, &None).is_none(),
             "Should allow system_probe_config with general settings only"
         );
     }
@@ -634,9 +793,9 @@ discovery:
 system_probe_config:
 "#;
         let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
+        let yaml_doc = load_config(Some(config_file.path())).unwrap();
         assert!(
-            find_non_discovery_yaml_key(&yaml_doc).is_none(),
+            find_non_discovery_yaml_key(&yaml_doc, &None).is_none(),
             "Should allow empty system_probe_config"
         );
     }
@@ -649,8 +808,8 @@ discovery:
   enabled: true
                 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             assert_eq!(decision, FallbackDecision::RunSdAgent);
         });
     }
@@ -686,9 +845,25 @@ network_config:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let config = load_config(Some(config_file.path().to_path_buf()));
-        let decision = determine_action(&config);
+        let config = load_config(Some(config_file.path()));
+        let decision = determine_action(&config, &Ok(None));
         assert_eq!(decision, FallbackDecision::FallbackToSystemProbe);
+    }
+
+    #[test]
+    fn test_determine_action_fallback_core_yaml_key() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let sp_file = create_test_config("discovery:\n  enabled: true\n");
+            let sp_config = load_config(Some(sp_file.path()));
+            let core_file = create_test_config("software_inventory:\n  enabled: true\n");
+            let core_config = load_config(Some(core_file.path()));
+            let decision = determine_action(&sp_config, &core_config);
+            assert_eq!(
+                decision,
+                FallbackDecision::FallbackToSystemProbe,
+                "Core config key in datadog.yaml should trigger fallback"
+            );
+        });
     }
 
     #[test]
@@ -713,8 +888,8 @@ discovery:
   enabled: false
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             // Note: This test may fail if other DD_* vars exist in the environment
             match decision {
                 FallbackDecision::ExitCleanly => {}
@@ -750,8 +925,8 @@ network_config:
   enabled: true
 "#;
         let config_file = create_test_config(yaml);
-        let config = load_config(Some(config_file.path().to_path_buf()));
-        let decision = determine_action(&config);
+        let config = load_config(Some(config_file.path()));
+        let decision = determine_action(&config, &Ok(None));
         assert_eq!(decision, FallbackDecision::FallbackToSystemProbe);
     }
 
@@ -760,8 +935,8 @@ network_config:
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
             let yaml = "";
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             match decision {
                 FallbackDecision::RunSdAgent => {}
                 FallbackDecision::FallbackToSystemProbe => {
@@ -807,7 +982,7 @@ system_probe_config:
   sysprobe_socket: /yaml/path.sock
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf())).unwrap();
+            let config = load_config(Some(config_file.path())).unwrap();
             let path = get_sysprobe_socket_path(&config);
             assert_eq!(path, "/yaml/path.sock");
         });
@@ -824,53 +999,108 @@ system_probe_config:
   sysprobe_socket: /yaml/path.sock
 "#;
                 let config_file = create_test_config(yaml);
-                let config = load_config(Some(config_file.path().to_path_buf())).unwrap();
+                let config = load_config(Some(config_file.path())).unwrap();
                 let path = get_sysprobe_socket_path(&config);
-                assert_eq!(path, "/env/path.sock");
+                assert_eq!(
+                    path, "/env/path.sock",
+                    "Environment variable should override YAML config"
+                );
             },
         );
     }
 
     #[test]
-    fn test_get_log_level_default() {
+    fn test_get_sysprobe_socket_path_empty_env_string_uses_env() {
+        temp_env::with_var("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", Some(""), || {
+            let yaml = r#"
+system_probe_config:
+  sysprobe_socket: /yaml/path.sock
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path())).unwrap();
+            let path = get_sysprobe_socket_path(&config);
+            assert_eq!(
+                path, "",
+                "Empty string from env var should be used, not fall back to YAML"
+            );
+        });
+    }
+
+    #[test]
+    fn test_get_sysprobe_socket_path_yaml_wrong_type() {
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
-            let level = get_log_level(&Ok(None));
-            assert_eq!(level, log::Level::Info);
+            let yaml = r#"
+system_probe_config:
+  sysprobe_socket: 12345
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path())).unwrap();
+            let path = get_sysprobe_socket_path(&config);
+            assert_eq!(
+                path, "/opt/datadog-agent/run/sysprobe.sock",
+                "Should return default when YAML value is not a string"
+            );
         });
     }
 
     #[test]
-    fn test_get_log_level_from_dd_env() {
-        temp_env::with_var("DD_LOG_LEVEL", Some("debug"), || {
-            let level = get_log_level(&Ok(None));
-            assert_eq!(level, log::Level::Debug);
-        });
+    fn test_get_sysprobe_socket_path_with_special_chars() {
+        temp_env::with_var(
+            "DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET",
+            Some("/path/to/my socket.sock"),
+            || {
+                let path = get_sysprobe_socket_path(&None);
+                assert_eq!(path, "/path/to/my socket.sock");
+            },
+        );
     }
 
     #[test]
-    fn test_get_log_level_from_log_level_env() {
+    fn test_get_log_level_default_when_no_config() {
         temp_env::with_vars(
-            [("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", Some("warn"))],
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
             || {
                 let level = get_log_level(&Ok(None));
-                assert_eq!(level, log::Level::Warn);
+                assert_eq!(level, log::Level::Info);
             },
         );
     }
 
     #[test]
-    fn test_get_log_level_dd_takes_priority() {
+    fn test_get_log_level_from_dd_log_level_env() {
         temp_env::with_vars(
-            [
+            vec![("DD_LOG_LEVEL", Some("debug")), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(level, log::Level::Debug);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_from_log_level_env_fallback() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", Some("trace"))],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(level, log::Level::Trace);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_dd_log_level_overrides_log_level() {
+        temp_env::with_vars(
+            vec![
                 ("DD_LOG_LEVEL", Some("error")),
-                ("LOG_LEVEL", Some("debug")),
+                ("LOG_LEVEL", Some("trace")),
             ],
             || {
                 let level = get_log_level(&Ok(None));
                 assert_eq!(
                     level,
                     log::Level::Error,
-                    "DD_LOG_LEVEL should take priority"
+                    "DD_LOG_LEVEL should take priority over LOG_LEVEL"
                 );
             },
         );
@@ -878,15 +1108,18 @@ system_probe_config:
 
     #[test]
     fn test_get_log_level_from_yaml() {
-        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
-            let yaml = r#"
-log_level: debug
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let yaml = r#"
+log_level: warn
 "#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let level = get_log_level(&config);
-            assert_eq!(level, log::Level::Debug);
-        });
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path()));
+                let level = get_log_level(&config);
+                assert_eq!(level, log::Level::Warn);
+            },
+        );
     }
 
     #[test]
@@ -896,43 +1129,51 @@ log_level: debug
 log_level: debug
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
+            let config = load_config(Some(config_file.path()));
             let level = get_log_level(&config);
             assert_eq!(
                 level,
                 log::Level::Error,
-                "DD_LOG_LEVEL should override YAML log_level"
+                "DD_LOG_LEVEL should override YAML config"
             );
         });
     }
 
     #[test]
-    fn test_get_log_level_unknown_defaults_to_info() {
-        temp_env::with_var("DD_LOG_LEVEL", Some("unknown_level"), || {
-            let level = get_log_level(&Ok(None));
-            assert_eq!(
-                level,
-                log::Level::Info,
-                "Unknown levels should default to Info"
-            );
-        });
-    }
-
-    #[test]
-    fn test_get_log_level_yaml_non_string() {
-        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
+    fn test_get_log_level_empty_env_string_uses_env() {
+        temp_env::with_var("DD_LOG_LEVEL", Some(""), || {
             let yaml = r#"
-log_level: 42
+log_level: warn
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
+            let config = load_config(Some(config_file.path()));
             let level = get_log_level(&config);
             assert_eq!(
                 level,
                 log::Level::Info,
-                "Should return default when YAML value is not a string"
+                "Empty string from env var should default to Info"
             );
         });
+    }
+
+    #[test]
+    fn test_get_log_level_yaml_wrong_type() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let yaml = r#"
+log_level: 12345
+"#;
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path()));
+                let level = get_log_level(&config);
+                assert_eq!(
+                    level,
+                    log::Level::Info,
+                    "Should return default when YAML value is not a string"
+                );
+            },
+        );
     }
 
     #[test]
@@ -980,7 +1221,7 @@ log_level: 42
                 ("DD_DISCOVERY_ENABLED", Some("true")),
             ],
             || {
-                let decision = determine_action(&Ok(None));
+                let decision = determine_action(&Ok(None), &Ok(None));
                 assert_eq!(
                     decision,
                     FallbackDecision::FallbackToSystemProbe,
@@ -993,7 +1234,7 @@ log_level: 42
     #[test]
     fn test_killswitch_not_set_defaults_to_fallback() {
         temp_env::with_var("DD_DISCOVERY_ENABLED", Some("true"), || {
-            let decision = determine_action(&Ok(None));
+            let decision = determine_action(&Ok(None), &Ok(None));
             assert_eq!(
                 decision,
                 FallbackDecision::FallbackToSystemProbe,
@@ -1010,7 +1251,7 @@ log_level: 42
                 ("DD_DISCOVERY_ENABLED", Some("true")),
             ],
             || {
-                let decision = determine_action(&Ok(None));
+                let decision = determine_action(&Ok(None), &Ok(None));
                 assert_eq!(
                     decision,
                     FallbackDecision::RunSdAgent,
@@ -1029,7 +1270,7 @@ log_level: 42
                 ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")), // Non-discovery module
             ],
             || {
-                let decision = determine_action(&Ok(None));
+                let decision = determine_action(&Ok(None), &Ok(None));
                 assert_eq!(
                     decision,
                     FallbackDecision::FallbackToSystemProbe,
@@ -1047,7 +1288,7 @@ log_level: 42
                 ("DD_DISCOVERY_ENABLED", Some("false")),
             ],
             || {
-                let decision = determine_action(&Ok(None));
+                let decision = determine_action(&Ok(None), &Ok(None));
                 assert_eq!(
                     decision,
                     FallbackDecision::ExitCleanly,
@@ -1055,26 +1296,6 @@ log_level: 42
                 );
             },
         );
-    }
-
-    #[test]
-    fn test_load_config_from_directory() {
-        use tempfile::TempDir;
-        let dir = TempDir::new().unwrap();
-        let sp_path = dir.path().join("system-probe.yaml");
-        std::fs::write(
-            &sp_path,
-            "discovery:\n  enabled: true\n  use_sd_agent: true\n",
-        )
-        .unwrap();
-
-        let config = load_config(Some(dir.path().to_path_buf())).unwrap();
-        assert!(
-            config.is_some(),
-            "should load system-probe.yaml from directory"
-        );
-        let enabled = get_yaml_bool_option(config.as_ref().unwrap(), "discovery.enabled");
-        assert_eq!(enabled, Some(true));
     }
 
     // Helm chart scenario tests
@@ -1111,8 +1332,8 @@ log_level: info
 "#;
         let config_file = create_test_config(yaml);
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             assert_eq!(
                 decision,
                 FallbackDecision::RunSdAgent,
@@ -1151,8 +1372,8 @@ log_level: info
 "#;
         let config_file = create_test_config(yaml);
         temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            let decision = determine_action(&config);
+            let config = load_config(Some(config_file.path()));
+            let decision = determine_action(&config, &Ok(None));
             assert_eq!(
                 decision,
                 FallbackDecision::FallbackToSystemProbe,
@@ -1173,9 +1394,9 @@ system_probe_config:
   enable_tcp_queue_length: true
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
+            let config = load_config(Some(config_file.path()));
             assert_eq!(
-                determine_action(&config),
+                determine_action(&config, &Ok(None)),
                 FallbackDecision::FallbackToSystemProbe
             );
         });
@@ -1191,9 +1412,9 @@ system_probe_config:
   enable_oom_kill: true
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
+            let config = load_config(Some(config_file.path()));
             assert_eq!(
-                determine_action(&config),
+                determine_action(&config, &Ok(None)),
                 FallbackDecision::FallbackToSystemProbe
             );
         });
@@ -1210,8 +1431,11 @@ system_probe_config:
   enable_oom_kill: false
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+            let config = load_config(Some(config_file.path()));
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
         });
     }
 
@@ -1228,8 +1452,30 @@ system_probe_config:
     enabled: true
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+            let config = load_config(Some(config_file.path()));
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
+        });
+    }
+
+    #[test]
+    fn test_feature_section_without_enabled_key() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
+network_config:
+  some_other_setting: true
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path()));
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent,
+                "Feature section without a known key set to true should not trigger fallback"
+            );
         });
     }
 
@@ -1244,9 +1490,9 @@ system_probe_config:
     enabled: true
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
+            let config = load_config(Some(config_file.path()));
             assert_eq!(
-                determine_action(&config),
+                determine_action(&config, &Ok(None)),
                 FallbackDecision::FallbackToSystemProbe
             );
         });
@@ -1263,8 +1509,154 @@ system_probe_config:
     enabled: false
 "#;
             let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+            let config = load_config(Some(config_file.path()));
+            assert_eq!(
+                determine_action(&config, &Ok(None)),
+                FallbackDecision::RunSdAgent
+            );
+        });
+    }
+
+    // resolve_core_config_path tests
+
+    #[test]
+    fn test_load_core_config_explicit_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: test123\n").unwrap();
+
+        let dd_path = Some(temp_dir.path().to_path_buf());
+        let result = load_core_config(&dd_path, &None).unwrap();
+        assert!(
+            result.is_some(),
+            "Should load datadog.yaml from explicit directory"
+        );
+    }
+
+    #[test]
+    fn test_load_core_config_explicit_yaml_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: test123\n").unwrap();
+
+        let dd_path = Some(core_yaml.clone());
+        let result = load_core_config(&dd_path, &None).unwrap();
+        assert!(
+            result.is_some(),
+            "Should load datadog.yaml when path ends with .yaml"
+        );
+    }
+
+    #[test]
+    fn test_load_core_config_fallback_to_sysprobe_dir() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let sp_yaml = temp_dir.path().join("system-probe.yaml");
+        std::fs::write(&sp_yaml, "discovery:\n  enabled: true\n").unwrap();
+        let core_yaml = temp_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: from_sp_dir\n").unwrap();
+
+        let sp_path = Some(sp_yaml);
+        let result = load_core_config(&None, &sp_path).unwrap();
+        assert!(
+            result.is_some(),
+            "Should fallback to sysprobe dir for datadog.yaml"
+        );
+    }
+
+    #[test]
+    fn test_load_core_config_falls_back_to_default() {
+        // Primary dir has no datadog.yaml but the default path is tried next.
+        // We write an empty datadog.yaml to the primary dir to simulate a real
+        // installation where the file is present but empty; the result must be
+        // Ok(None) (file found, empty) rather than Err.
+        let dir = tempfile::TempDir::new().unwrap();
+        let sp_yaml = dir.path().join("system-probe.yaml");
+        std::fs::write(&sp_yaml, "discovery:\n  enabled: true\n").unwrap();
+        let dd_yaml = dir.path().join("datadog.yaml");
+        std::fs::write(&dd_yaml, "").unwrap();
+
+        let result = load_core_config(&None, &Some(sp_yaml));
+        assert!(
+            result.is_ok(),
+            "Should not error when datadog.yaml exists (even if empty)"
+        );
+    }
+
+    #[test]
+    fn test_load_core_config_primary_takes_precedence() {
+        // Both a custom dir (with datadog.yaml) and the default path may exist;
+        // the primary path must win.
+        let primary_dir = tempfile::TempDir::new().unwrap();
+        let core_yaml = primary_dir.path().join("datadog.yaml");
+        std::fs::write(&core_yaml, "api_key: primary_key\n").unwrap();
+
+        let dd_path = Some(primary_dir.path().to_path_buf());
+        let result = load_core_config(&dd_path, &None).unwrap();
+        assert!(
+            result.is_some(),
+            "Should load datadog.yaml from primary path"
+        );
+        let api_key = get_yaml_string_option(result.as_ref().unwrap(), "api_key");
+        assert_eq!(
+            api_key.as_deref(),
+            Some("primary_key"),
+            "Primary path content should be returned, not the default"
+        );
+    }
+
+    #[test]
+    fn test_load_core_config_both_none_uses_default() {
+        let resolved = resolve_core_config_path(&None, &None);
+        assert_eq!(
+            resolved,
+            PathBuf::from("/etc/datadog-agent/datadog.yaml"),
+            "Should use default path when both are None"
+        );
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_explicit_dir() {
+        let resolved = resolve_core_config_path(
+            &Some(PathBuf::from("/opt/datadog")),
+            &Some(PathBuf::from("/etc/system-probe.yaml")),
+        );
+        assert_eq!(resolved, PathBuf::from("/opt/datadog/datadog.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_explicit_yaml() {
+        let resolved = resolve_core_config_path(
+            &Some(PathBuf::from("/opt/datadog/custom.yaml")),
+            &Some(PathBuf::from("/etc/system-probe.yaml")),
+        );
+        assert_eq!(resolved, PathBuf::from("/opt/datadog/custom.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_fallback_sysprobe_yaml() {
+        let resolved =
+            resolve_core_config_path(&None, &Some(PathBuf::from("/custom/dir/system-probe.yaml")));
+        assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
+    }
+
+    #[test]
+    fn test_resolve_core_config_path_fallback_sysprobe_dir() {
+        let resolved = resolve_core_config_path(&None, &Some(PathBuf::from("/custom/dir")));
+        assert_eq!(resolved, PathBuf::from("/custom/dir/datadog.yaml"));
+    }
+
+    #[test]
+    fn test_core_config_error_triggers_fallback() {
+        temp_env::with_var("DD_DISCOVERY_USE_SD_AGENT", Some("true"), || {
+            let config_file = create_test_config("");
+            let config = load_config(Some(config_file.path()));
+            let core_err: Result<Option<Yaml>> = Err(anyhow::anyhow!("simulated read error"));
+            let decision = determine_action(&config, &core_err);
+            assert_eq!(
+                decision,
+                FallbackDecision::FallbackToSystemProbe,
+                "core config error should trigger fallback"
+            );
         });
     }
 }

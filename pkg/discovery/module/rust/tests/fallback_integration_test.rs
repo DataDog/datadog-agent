@@ -67,8 +67,13 @@ fn test_no_fallback_on_discovery_only() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Use a proper config dir with both system-probe.yaml (empty) and
+    // datadog.yaml (empty) — mirrors a real installation where both files
+    // are present but contain no non-discovery configuration.
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(&sp_config_path, b"").unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Run sd-agent with only discovery enabled (should NOT fallback)
     // Note: --config must be after -- to be parsed as system-probe arg
@@ -77,8 +82,7 @@ fn test_no_fallback_on_discovery_only() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg("--config")
-        .arg(config_file.path())
+        .arg(format!("--config={}", sp_config_path.display()))
         .env("DD_DISCOVERY_ENABLED", "true")
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .spawn()
@@ -178,8 +182,7 @@ fn test_unknown_yaml_key_triggers_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create config with unknown key — killswitch is not set so this falls
-    // back regardless, but it exercises the unknown-key code path.
+    // Create config with unknown key
     let mut config_file = NamedTempFile::new().unwrap();
     config_file
         .write_all(b"unknown_module:\n  enabled: true\n")
@@ -209,8 +212,11 @@ fn test_discovery_disabled_exits_cleanly() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Use a proper config dir with both yaml files (mirrors a real installation).
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(&sp_config_path, b"").unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Discovery explicitly disabled should exit cleanly (not call system-probe)
     // Note: --config must be after -- to be parsed as system-probe arg
@@ -219,8 +225,7 @@ fn test_discovery_disabled_exits_cleanly() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg("--config")
-        .arg(config_file.path())
+        .arg(format!("--config={}", sp_config_path.display()))
         .env("DD_DISCOVERY_ENABLED", "false")
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
@@ -243,7 +248,7 @@ fn test_discovery_enabled_with_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Both discovery and DD_RUNTIME_SECURITY_CONFIG_ENABLED should trigger fallback
+    // Both discovery and DD_SERVICE should trigger fallback
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
@@ -260,41 +265,125 @@ fn test_discovery_enabled_with_fallback() {
     );
 }
 
+// --datadogcfgpath integration tests
 #[test]
-fn test_config_directory_path_loads_sysprobe_yaml() {
+fn test_datadogcfgpath_overrides_sysprobe_dir() {
     let temp_dir = TempDir::new().unwrap();
     let marker_file = temp_dir.path().join("sp-called");
+
     let mock_sp_source = mock_system_probe_path();
 
-    // Directory containing system-probe.yaml — mirrors a real installation.
-    let config_dir = TempDir::new().unwrap();
+    // Create two separate directories: one for system-probe.yaml, one for datadog.yaml
+    let sp_dir = TempDir::new().unwrap();
+    let dd_dir = TempDir::new().unwrap();
+
+    // system-probe.yaml with only discovery enabled
+    let sp_config_path = sp_dir.path().join("system-probe.yaml");
     fs::write(
-        config_dir.path().join("system-probe.yaml"),
-        b"discovery:\n  enabled: true\n  use_sd_agent: true\n",
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
     )
     .unwrap();
 
-    // Pass the directory (not the .yaml file) as --config.
-    let mut child = Command::new(SD_AGENT_BIN)
+    // datadog.yaml in a DIFFERENT directory with a core config key that triggers fallback
+    let core_config_path = dd_dir.path().join("datadog.yaml");
+    fs::write(&core_config_path, "software_inventory:\n  enabled: true\n").unwrap();
+
+    // Use --datadogcfgpath to point to the separate directory
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .arg(format!("--datadogcfgpath={}", dd_dir.path().display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "--datadogcfgpath should cause core config to be loaded from the specified directory, \
+         triggering fallback due to software_inventory.enabled"
+    );
+}
+
+// Core config (datadog.yaml) integration tests
+#[test]
+fn test_core_config_key_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with both system-probe.yaml and datadog.yaml
+    let config_dir = TempDir::new().unwrap();
+
+    // system-probe.yaml with only discovery enabled
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    // datadog.yaml with a core config key that should trigger fallback
+    let core_config_path = config_dir.path().join("datadog.yaml");
+    fs::write(&core_config_path, "software_inventory:\n  enabled: true\n").unwrap();
+
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Core config key (software_inventory.enabled) in datadog.yaml should trigger fallback"
+    );
+}
+
+#[test]
+fn test_core_config_absent_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create a config directory with only system-probe.yaml (no datadog.yaml).
+    // The real system-probe fails when --config is given but datadog.yaml is
+    // missing (DatadogConfFilePath() is non-empty), so sd-agent must fall back.
+    let config_dir = TempDir::new().unwrap();
+
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+
+    let output = Command::new(SD_AGENT_BIN)
         .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_dir.path().display()))
-        .env("DD_DISCOVERY_ENABLED", "true")
-        .spawn()
-        .expect("Failed to spawn sd-agent");
-
-    std::thread::sleep(std::time::Duration::from_millis(500));
+        .arg(format!("--config={}", sp_config_path.display()))
+        .output()
+        .expect("Failed to execute sd-agent");
 
     assert!(
-        !marker_file.exists(),
-        "--config pointing to a directory should load system-probe.yaml, not fall back"
+        marker_file.exists(),
+        "Missing datadog.yaml with --config should trigger fallback (mirrors real system-probe)"
     );
-
-    child.kill().ok();
-    child.wait().expect("Failed to wait on sd-agent");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Failed to load datadog.yaml config. Falling back to system-probe."),
+        "Expected fallback warn, got: {}",
+        stdout
+    );
 }
 
 // Killswitch integration tests
@@ -352,8 +441,11 @@ fn test_killswitch_enabled_runs_sd_agent() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Use a proper config dir with both yaml files (mirrors a real installation).
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(&sp_config_path, b"").unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Killswitch enabled should allow sd-agent to run
     let mut child = Command::new(SD_AGENT_BIN)
@@ -361,7 +453,7 @@ fn test_killswitch_enabled_runs_sd_agent() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
+        .arg(format!("--config={}", sp_config_path.display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
         .spawn()
@@ -464,8 +556,11 @@ fn test_env_var_false_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Use a proper config dir with both yaml files (mirrors a real installation).
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(&sp_config_path, b"").unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Env var set to "false" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
@@ -473,7 +568,7 @@ fn test_env_var_false_no_fallback() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
+        .arg(format!("--config={}", sp_config_path.display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
         .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
@@ -498,8 +593,11 @@ fn test_env_var_zero_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Use a proper config dir with both yaml files (mirrors a real installation).
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(&sp_config_path, b"").unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Env var set to "0" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
@@ -507,7 +605,7 @@ fn test_env_var_zero_no_fallback() {
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
+        .arg(format!("--config={}", sp_config_path.display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
         .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "0")
@@ -546,5 +644,44 @@ fn test_env_var_non_boolean_triggers_fallback() {
     assert!(
         marker_file.exists(),
         "Env var with non-boolean value should trigger fallback as safety net"
+    );
+}
+
+#[test]
+fn test_datadogcfgpath_missing_yaml_triggers_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+    let mock_sp_source = mock_system_probe_path();
+
+    // sp dir has system-probe.yaml with discovery+killswitch, but NO datadog.yaml
+    let config_dir = TempDir::new().unwrap();
+    let sp_config_path = config_dir.path().join("system-probe.yaml");
+    fs::write(
+        &sp_config_path,
+        "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+    // No datadog.yaml in config_dir — --datadogcfgpath points here
+
+    let output = Command::new(SD_AGENT_BIN)
+        .env_clear()
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", sp_config_path.display()))
+        .arg(format!("--datadogcfgpath={}", config_dir.path().display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "--datadogcfgpath set but datadog.yaml missing should trigger fallback"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Failed to load datadog.yaml config. Falling back to system-probe."),
+        "Expected fallback due to missing datadog.yaml, got: {}",
+        stdout
     );
 }
