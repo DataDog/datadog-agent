@@ -50,6 +50,9 @@ type setupFile struct {
 
 // input holds the shell script to execute.
 type input struct {
+	// Envs sets OS-level environment variables for the bash comparison test
+	// only. These are intentionally NOT passed to the restricted interpreter,
+	// which starts with an empty environment for security (no host env inheritance).
 	Envs         map[string]string `yaml:"envs"`
 	Script       string            `yaml:"script"`
 	AllowedPaths []string          `yaml:"allowed_paths"` // relative to test temp dir; "$DIR" resolves to temp dir itself
@@ -144,6 +147,9 @@ func runScenario(t *testing.T, sc scenario) {
 
 	dir := setupTestDir(t, sc)
 
+	// Set OS-level env vars so the bash comparison path (runScenarioAgainstBash)
+	// picks them up via os.Environ(). The restricted interpreter intentionally
+	// does NOT inherit these — it starts with an empty environment for security.
 	for k, v := range sc.Input.Envs {
 		t.Setenv(k, v)
 	}

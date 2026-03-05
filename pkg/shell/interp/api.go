@@ -154,8 +154,8 @@ func (e *exitStatus) fromHandlerError(err error) {
 // the options results in an error, it is returned.
 //
 // Any unset options fall back to their defaults. For example, not supplying the
-// environment falls back to the process's environment, and not supplying the
-// standard output writer means that the output will be discarded.
+// environment defaults to an empty environment (no host env inherited), and not
+// supplying the standard output writer means that the output will be discarded.
 func New(opts ...RunnerOption) (*Runner, error) {
 	r := &Runner{
 		usedNew:        true,
