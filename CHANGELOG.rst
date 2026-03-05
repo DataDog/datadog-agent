@@ -12,15 +12,9 @@ Release Notes
 Prelude
 -------
 
-Released on: 2026-02-23
-
-- Please refer to the `7.76.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7760>`_ for the list of changes on the Core Checks
-
-
 Released on: 2026-02-26
 
-- Refer to the `7.76.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7761>`_ for the list of changes on the Core Checks
-
+- Please refer to the `7.76.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7762>`_ for the list of changes on the Core Checks
 
 .. _Release Notes_7.76.2_Bug Fixes:
 
