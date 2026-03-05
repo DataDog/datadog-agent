@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
-	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
@@ -198,7 +196,7 @@ func (kc *kubeletCollector) refreshContainerCache(currentTime time.Time, cacheVa
 	return err
 }
 
-func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
+func (kc *kubeletCollector) getStatsSummary() (*kutil.Summary, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), kubeletCallTimeout)
 	statsSummary, err := kc.kubeletClient.GetLocalStatsSummary(ctx)
 	cancel()
@@ -210,7 +208,7 @@ func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
 	return statsSummary, err
 }
 
-func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSummary *v1alpha1.Summary) {
+func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSummary *kutil.Summary) {
 	if statsSummary == nil {
 		return
 	}
@@ -260,7 +258,7 @@ func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSumm
 	}
 }
 
-func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outContainerStats *provider.ContainerStats) {
+func convertContainerStats(kubeContainerStats *kutil.ContainerStats, outContainerStats *provider.ContainerStats) {
 	if kubeContainerStats == nil {
 		return
 	}
@@ -290,7 +288,7 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 	}
 }
 
-func convertNetworkStats(podNetworkStats *v1alpha1.NetworkStats, outNetworkStats *provider.ContainerNetworkStats) {
+func convertNetworkStats(podNetworkStats *kutil.NetworkStats, outNetworkStats *provider.ContainerNetworkStats) {
 	if podNetworkStats == nil {
 		return
 	}

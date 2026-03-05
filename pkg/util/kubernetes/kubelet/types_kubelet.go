@@ -9,8 +9,6 @@ package kubelet
 
 import (
 	"time"
-
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Pod contains fields for unmarshalling a Pod
@@ -122,7 +120,7 @@ func GetGPUResourceNames() []ResourceName {
 }
 
 // ResourceList is the type of fields in Pod.Spec.Containers.Resources
-type ResourceList map[ResourceName]resource.Quantity
+type ResourceList map[ResourceName]Quantity
 
 // ContainerResourcesSpec contains fields for unmarshalling a Pod.Spec.Containers.Resources
 type ContainerResourcesSpec struct {

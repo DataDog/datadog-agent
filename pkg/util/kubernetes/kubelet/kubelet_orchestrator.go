@@ -16,7 +16,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
@@ -29,7 +28,7 @@ type KubeUtilInterface interface {
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
-	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
+	GetLocalStatsSummary(ctx context.Context) (*Summary, error)
 	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 	GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error)
 	GetDevicesList(ctx context.Context) ([]*Device, error)

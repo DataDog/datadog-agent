@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -171,7 +169,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *workl
 	tagList = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, containerID, tagList)
 
 	for r, value := range containerEntity.Resources.RawRequests {
-		quantity, err := resource.ParseQuantity(value)
+		quantity, err := kubelet.ParseQuantityString(value)
 		if err != nil {
 			log.Warnf("Failed to parse resource quantity %s: %s", value, err)
 			continue
@@ -180,7 +178,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *workl
 	}
 
 	for r, value := range containerEntity.Resources.RawLimits {
-		quantity, err := resource.ParseQuantity(value)
+		quantity, err := kubelet.ParseQuantityString(value)
 		if err != nil {
 			log.Warnf("Failed to parse resource quantity %s: %s", value, err)
 			continue
