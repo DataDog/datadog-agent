@@ -68,11 +68,11 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 	sites := []windows.IISSiteDefinition{
 		{
 			Name:        "DatadogTestSiteA",
-			BindingPort: "*:8081",
+			BindingPort: "*:8081:",
 		},
 		{
 			Name:        "DatadogTestSiteB",
-			BindingPort: "*:8082",
+			BindingPort: "*:8082:",
 		},
 	}
 	err = windows.CreateIISSite(host, sites)
