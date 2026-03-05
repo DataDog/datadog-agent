@@ -1,4 +1,4 @@
-description: Until loops are not supported in safe-shell.
+description: Until loops are not supported.
 input:
   # language=bash
   script: |+

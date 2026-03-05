@@ -1,4 +1,4 @@
-description: export is not supported in safe-shell.
+description: export is not supported.
 input:
   # language=bash
   script: |+

@@ -1,4 +1,4 @@
-description: The $$ variable has no special meaning in safe-shell and expands to empty.
+description: The $$ variable has no special meaning and expands to empty.
 input:
   # language=bash
   script: |+

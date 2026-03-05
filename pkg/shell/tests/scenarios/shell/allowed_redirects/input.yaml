@@ -1,4 +1,4 @@
-description: Input redirection (<) is still allowed in safe-shell.
+description: Input redirection (<) is still allowed.
 setup:
   files:
     - path: data.txt

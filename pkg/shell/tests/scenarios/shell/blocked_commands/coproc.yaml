@@ -1,4 +1,4 @@
-description: Coprocesses are not supported in safe-shell.
+description: Coprocesses are not supported.
 input:
   # language=bash
   script: |+

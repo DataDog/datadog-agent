@@ -1,4 +1,4 @@
-description: Positional parameter $1 is not supported in safe-shell.
+description: Positional parameter $1 is not supported.
 input:
   # language=bash
   script: |+

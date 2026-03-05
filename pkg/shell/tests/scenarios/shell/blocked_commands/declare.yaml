@@ -1,4 +1,4 @@
-description: declare is not supported in safe-shell.
+description: declare is not supported.
 input:
   # language=bash
   script: |+

@@ -1,4 +1,4 @@
-description: Arithmetic commands are not supported in safe-shell.
+description: Arithmetic commands are not supported.
 input:
   # language=bash
   script: |+

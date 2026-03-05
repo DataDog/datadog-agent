@@ -1,4 +1,4 @@
-description: Output fd duplication (>&N) is blocked in safe-shell.
+description: Output fd duplication (>&N) is blocked.
 input:
   # language=bash
   script: |+

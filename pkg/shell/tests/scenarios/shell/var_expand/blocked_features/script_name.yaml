@@ -1,4 +1,4 @@
-description: Script name $0 is not supported in safe-shell.
+description: Script name $0 is not supported.
 input:
   # language=bash
   script: |+

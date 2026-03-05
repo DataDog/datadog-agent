@@ -1,4 +1,4 @@
-description: Append redirection (>>) is not supported in safe-shell.
+description: Append redirection (>>) is not supported.
 input:
   # language=bash
   script: |+

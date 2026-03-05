@@ -1,4 +1,4 @@
-description: Function declarations are not supported in safe-shell.
+description: Function declarations are not supported.
 input:
   # language=bash
   script: |+

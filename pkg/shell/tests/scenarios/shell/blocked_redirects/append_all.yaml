@@ -1,4 +1,4 @@
-description: Append all (&>>) is not supported in safe-shell.
+description: Append all (&>>) is not supported.
 input:
   # language=bash
   script: |+

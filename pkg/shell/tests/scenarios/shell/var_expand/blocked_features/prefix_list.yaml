@@ -1,4 +1,4 @@
-description: Prefix variable listing ${!prefix*} is not supported in safe-shell (caught by indirect expansion check).
+description: Prefix variable listing ${!prefix*} is not supported (caught by indirect expansion check).
 input:
   # language=bash
   script: |+

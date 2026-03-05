@@ -1,4 +1,4 @@
-description: Error if unset expansion ${var:?message} is not supported in safe-shell.
+description: Error if unset expansion ${var:?message} is not supported.
 input:
   # language=bash
   script: |+

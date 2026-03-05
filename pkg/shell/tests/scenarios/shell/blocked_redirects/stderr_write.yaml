@@ -1,4 +1,4 @@
-description: Stderr redirection (2>) is not supported in safe-shell.
+description: Stderr redirection (2>) is not supported.
 input:
   # language=bash
   script: |+

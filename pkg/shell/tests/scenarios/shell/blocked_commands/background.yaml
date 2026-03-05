@@ -1,4 +1,4 @@
-description: Background execution (&) is blocked in safe-shell.
+description: Background execution (&) is blocked.
 input:
   # language=bash
   script: |+

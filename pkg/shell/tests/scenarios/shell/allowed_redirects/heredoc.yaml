@@ -1,4 +1,4 @@
-description: Here-documents are still allowed in safe-shell.
+description: Here-documents are still allowed.
 input:
   # language=bash
   script: |+

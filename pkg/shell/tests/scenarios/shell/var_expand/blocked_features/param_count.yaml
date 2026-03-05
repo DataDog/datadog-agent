@@ -1,4 +1,4 @@
-description: Parameter count $# is not supported in safe-shell.
+description: Parameter count $# is not supported.
 input:
   # language=bash
   script: |+
