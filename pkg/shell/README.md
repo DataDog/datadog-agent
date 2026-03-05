@@ -19,6 +19,8 @@ Scripts are processed in two phases:
    configured ExecHandler. File access goes through the configured OpenHandler, which enforces
    AllowedPaths restrictions.
 
+## Shell Features
+
 See [SHELL_FEATURES.md](SHELL_FEATURES.md) for the complete list of supported and blocked features.
 
 ## Security Model
@@ -35,15 +37,6 @@ Every access path is default-deny:
 **AllowedPaths** restricts all file operations (open, read, readdir, exec) to a set of specified
 directories. It is built on Go's `os.Root` API, which uses kernel-level `openat` syscalls
 for atomic path validation, making it immune to symlink traversal, TOCTOU races, and `..` escape attacks.
-
-## Configuration
-
-The interpreter is configured through `RunnerOption` functions passed to `New()`:
-
-- **`StdIO(in, out, err)`** — Sets stdin, stdout, stderr streams.
-- **`AllowedPaths(dirs)`** — Restricts filesystem access to the given directories.
-- **`Env`** — Sets the initial environment variables (empty by default).
-- **`ExecHandler`** — Handles external command execution. Defaults to `NoExecHandler` which rejects all commands.
 
 ## Testing
 
