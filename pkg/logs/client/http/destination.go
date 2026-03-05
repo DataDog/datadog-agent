@@ -331,9 +331,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		sourceTag = "epforwarder"
 	}
 
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+	// Use GetAgentIdentityTag() to identify which agent is sending logs
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {

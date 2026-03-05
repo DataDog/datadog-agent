@@ -15,7 +15,6 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -27,8 +26,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -277,21 +276,21 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector.exe",
+			)
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
 	r.responseMaxSize = params.MaxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
@@ -303,9 +302,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
-	if r.auditFileMaxSize == 0 {
-		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
-	}
 
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace

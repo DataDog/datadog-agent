@@ -1,0 +1,26 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Process Manager Daemon
+After=datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-procmgrd-exp.service
+{{- else}}
+Description=Datadog Process Manager Daemon Experiment
+After=datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-procmgrd.service
+{{- end}}
+ConditionPathExists={{.InstallDir}}/embedded/bin/dd-procmgrd
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_PM_CONFIG_DIR={{.EtcDir}}/processes.d"
+ExecStart={{.InstallDir}}/embedded/bin/dd-procmgrd
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

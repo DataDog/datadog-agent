@@ -132,7 +132,12 @@ type Component interface {
 	Notify(events []CollectorEvent)
 
 	// Dump lists the content of the store, for debugging purposes.
+	// When verbose=true, includes per-source entities in addition to merged entities.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// DumpStructured lists the content of the store as structured entities.
+	// Always returns only merged entities. Use Dump(verbose=true) for per-source details.
+	DumpStructured() WorkloadDumpStructuredResponse
 
 	// ResetProcesses resets the state of the store so that newProcesses are the
 	// only entites stored.

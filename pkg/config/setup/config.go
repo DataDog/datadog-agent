@@ -7,9 +7,11 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -20,8 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -32,6 +37,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+)
+
+// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
+// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
+// Using a map ensures each prefix is only registered once.
+// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
+var (
+	registeredDelegatedAuthConfigs   = make(map[string]string)
+	registeredDelegatedAuthConfigsMu sync.Mutex
 )
 
 const (
@@ -73,7 +87,7 @@ const (
 	megaByte = 1024 * 1024
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5
+	DefaultBatchWait = 5.0
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
 	DefaultBatchMaxConcurrentSend = 0
@@ -188,11 +202,6 @@ var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
 )
-
-// GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func GetDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
-}
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
@@ -309,8 +318,9 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// We first load the configuration to see which config library should be used.
 	configLib := resolveConfigLibType(cliPath, defaultDir)
 
-	datadog = create.NewConfig("datadog", configLib)
-	systemProbe = create.NewConfig("system-probe", configLib)
+	// Assign the config globals, using locks to make the tests happy
+	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults
 	initConfig()
@@ -332,6 +342,11 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
+	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
+	registeredDelegatedAuthConfigsMu.Lock()
+	registeredDelegatedAuthConfigs = make(map[string]string)
+	registeredDelegatedAuthConfigsMu.Unlock()
+
 	initCommonWithServerless(config)
 
 	// Auto exit configuration
@@ -423,8 +438,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -434,7 +449,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
 	config.BindEnvAndSetDefault("secret_image_to_handle", map[string][]string{})
-	config.SetDefault("secret_audit_file_max_size", 0)
+	config.BindEnvAndSetDefault("secret_audit_file_max_size", 1024*1024)
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
@@ -554,7 +569,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -655,6 +670,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
+	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
 
 	// Processor mode and sidecar configuration
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
@@ -962,6 +982,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
 	})
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -999,6 +1021,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
@@ -1007,7 +1031,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetDefault("metadata_providers", []map[string]interface{}{})
 	config.SetDefault("config_providers", []map[string]interface{}{})
-	config.SetDefault("cluster_name", "")
 	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1195,6 +1218,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.max_payload_size")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.receiver_timeout")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for evp_proxy
+	bindDelegatedAuthConfig(config, "evp_proxy_config")
 
 	// trace-agent's ol_proxy
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
@@ -1202,6 +1227,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("ol_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
+	// Delegated authentication for ol_proxy_config
+	bindDelegatedAuthConfig(config, "ol_proxy_config")
 
 	// command line options
 	config.SetDefault("cmd.check.fullsketches", false)
@@ -1314,6 +1341,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
 
+	// Delegated authentication (global)
+	// Cloud provider and region are auto-detected if not specified
+	// Enabled automatically when org_uuid is specified
+	bindDelegatedAuthConfig(config, "")
+
 	// Filterlist
 	config.BindEnvAndSetDefault("metric_filterlist", []string{})
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
@@ -1347,7 +1379,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// If enabled, all origin detection mechanisms will be unified to use the same logic.
 	// Will override all other origin detection settings in favor of the unified one.
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
-	config.BindEnv("env") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("env", "")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
@@ -1499,6 +1531,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
+	// Logon Duration (EUDM)
+	config.BindEnvAndSetDefault("logon_duration.enabled", false)
+
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
@@ -1543,6 +1578,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("remote_configuration.rc_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for remote_configuration
+	bindDelegatedAuthConfig(config, "remote_configuration")
 	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
@@ -1650,7 +1687,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnv("no_proxy_nonexact_match") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
@@ -1752,8 +1789,8 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*1024*1024)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -1816,6 +1853,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -1910,6 +1948,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for logs
+	bindDelegatedAuthConfig(config, "logs_config")
 
 	// Duration during which the host tags will be submitted with log events.
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
@@ -2086,14 +2126,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
 
 	// Max size in MB an integration logs file can use
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
@@ -2103,6 +2140,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Pipeline failover configuration
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
 }
 
 // vector integration
@@ -2474,7 +2515,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) error {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2497,6 +2538,14 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	if err := resolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
 		return err
+	}
+
+	// Configure delegated auth after secrets are resolved but before other components initialize
+	// Cloud provider detection happens automatically within the delegatedauth component
+	// Use a background context since LoadDatadog doesn't take a context parameter.
+	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
+	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
+		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
@@ -2526,6 +2575,127 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	return setupFipsEndpoints(config)
+}
+
+// configureDelegatedAuth initializes the delegated auth component with configuration parameters.
+// This allows the component to fetch API keys from cloud providers and write them to the config
+// before other components are initialized.
+// Delegated auth can be configured for any config prefix that has an api_key.
+// Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
+// Cloud provider detection happens automatically within the delegatedauth component.
+// The context is used for cloud provider detection and initial API key fetch.
+func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
+	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
+	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
+	// during config initialization (see bindDelegatedAuthConfig for examples)
+
+	// Get global provider config from delegated_auth prefix (used for all instances)
+	var providerConfig common.ProviderConfig
+	provider := config.GetString("delegated_auth.provider")
+	switch provider {
+	case "aws":
+		providerConfig = &cloudauthconfig.AWSProviderConfig{
+			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	case "":
+		// Empty provider means auto-detect; ProviderConfig stays nil
+		// But if aws config is present, we can still use it when auto-detect picks AWS
+		if awsRegion := config.GetString("delegated_auth.aws.region"); awsRegion != "" {
+			providerConfig = &cloudauthconfig.AWSProviderConfig{
+				Region: awsRegion,
+			}
+		}
+	}
+
+	// Copy the registered configs map while holding the lock to avoid races during iteration
+	registeredDelegatedAuthConfigsMu.Lock()
+	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
+	registeredDelegatedAuthConfigsMu.Unlock()
+
+	// Scan all registered prefixes to find which ones have delegated auth enabled
+	for prefix, apiKeyConfigKey := range configsCopy {
+		// Build the config key prefix for delegated_auth settings
+		var configPrefix string
+		if prefix == "" {
+			configPrefix = "delegated_auth"
+		} else {
+			configPrefix = prefix + ".delegated_auth"
+		}
+
+		// Check if org_uuid is set for this prefix
+		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		if orgUUID == "" {
+			continue
+		}
+
+		// Build description for logging
+		description := "global"
+		if prefix != "" {
+			description = prefix
+		}
+
+		log.Infof("Configuring delegated authentication for '%s'", description)
+
+		// Call AddInstance - the component auto-initializes on the first call
+		// Config and ProviderConfig are only used on the first call
+		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+			Config:          config,
+			ProviderConfig:  providerConfig,
+			OrgUUID:         orgUUID,
+			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
+			APIKeyConfigKey: apiKeyConfigKey,
+		})
+		if err != nil {
+			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+		}
+	}
+
+	return nil
+}
+
+// bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.
+// This utility function allows any config prefix that has an api_key to also support delegated_auth configuration.
+//
+// Parameters:
+//   - config: The config object to bind keys to
+//   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
+//
+// Example usage:
+//
+//	bindDelegatedAuthConfig(config, "")             // For global api_key
+//	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
+//	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
+func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
+	// Build the config key prefix
+	var configPrefix string
+	if prefix == "" {
+		configPrefix = "delegated_auth"
+	} else {
+		configPrefix = prefix + ".delegated_auth"
+	}
+
+	// Bind all delegated auth config keys
+	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
+	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault(configPrefix+".provider", "")
+
+	// Provider-specific configuration (nested under provider name)
+	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
+
+	// Register this prefix for use in configureDelegatedAuth
+	// Build the API key config key
+	var apiKeyConfigKey string
+	if prefix == "" {
+		apiKeyConfigKey = "api_key"
+	} else {
+		apiKeyConfigKey = prefix + ".api_key"
+	}
+
+	// Map automatically handles duplicates - repeated registrations just overwrite with same value
+	// Use mutex to protect concurrent access during tests
+	registeredDelegatedAuthConfigsMu.Lock()
+	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
+	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

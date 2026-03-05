@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func openTreeIsSupported() bool {
@@ -190,7 +189,6 @@ func TestOpenTree(t *testing.T) {
 	}()
 
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 		seen := 0
 
 		err = test.GetProbeEvent(func() error {

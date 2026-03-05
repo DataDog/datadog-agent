@@ -38,7 +38,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "dynamic_instrumentation.circuit_breaker.interrupt_overhead",
-			defaultValue: 5 * time.Microsecond,
+			defaultValue: 2 * time.Microsecond,
 		},
 	} {
 		t.Run(tc.key, func(t *testing.T) {

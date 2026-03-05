@@ -258,6 +258,7 @@ logs:
     service: random-logger
     include_units:
       random-logger.service
+    default_application_name: random-logger
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
@@ -269,6 +270,8 @@ logs:
 				assert.Equal(t, "random-logger", config.Service)
 				require.Equal(t, len(config.IncludeSystemUnits), 1)
 				assert.Equal(t, "random-logger.service", config.IncludeSystemUnits[0])
+				assert.NotNil(t, config.DefaultApplicationName)
+				assert.Equal(t, "random-logger", *config.DefaultApplicationName)
 			},
 		},
 		{
@@ -309,6 +312,7 @@ logs:
 				assert.Equal(t, "journald", config.Type)
 				assert.Equal(t, "hello", config.Service)
 				assert.Equal(t, "custom_log", config.Source)
+				assert.Nil(t, config.DefaultApplicationName)
 			},
 		},
 		{
@@ -341,6 +345,7 @@ logs:
     exclude_matches:
       - some_exclude_match
     container_mode: true
+    default_application_name: "container-runtime"
     image: test_image
     label: test_label
     name: test_container
@@ -382,6 +387,8 @@ logs:
 				require.Equal(t, len(config.IncludeMatches), 1)
 				require.Equal(t, len(config.ExcludeMatches), 1)
 				assert.Equal(t, true, config.ContainerMode)
+				require.NotNil(t, config.DefaultApplicationName, "DefaultApplicationName should be set")
+				assert.Equal(t, "container-runtime", *config.DefaultApplicationName)
 				assert.Equal(t, "test_image", config.Image)
 				assert.Equal(t, "test_label", config.Label)
 				assert.Equal(t, "test_container", config.Name)

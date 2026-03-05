@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -28,20 +29,17 @@ import (
 
 // testSSHUser représente un utilisateur de test pour SSH
 type testSSHUser struct {
-	Username string
-	HomeDir  string
-	KeyPath  string
+	Username          string
+	HomeDir           string
+	KeyPath           string
+	PubKeyFingerprint string // SHA256 fingerprint of the public key (base64 hash only, e.g. "J3I5W45pnQ...")
 }
 
-// createTestUser crée un utilisateur système temporaire pour les tests SSH
+// createTestUser creates a temporary system user for SSH tests
 func createTestUser() (*testSSHUser, error) {
 	username := fmt.Sprintf("ddtest_ssh_%d", time.Now().Unix())
 
-	// Create a user system with useradd
-	// -r : system user
-	// -m : create home directory
-	// -s : shell
-	// -K MAIL_DIR=/dev/null : deactivate mailbox
+	// 1. Create a system user with a home directory
 	cmd := exec.Command("sudo", "useradd", "-r", "-m", "-s", "/bin/bash", "-K", "MAIL_DIR=/dev/null", username)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("useradd failed: %v (out: %s)", err, string(out))
@@ -58,18 +56,17 @@ func createTestUser() (*testSSHUser, error) {
 	gid := u.Gid
 	sshDir := filepath.Join(homeDir, ".ssh")
 
-	// Create the .ssh directory with the correct permissions
+	// 2. Create ~/.ssh with mode 700
 	if err := exec.Command("sudo", "mkdir", "-p", sshDir).Run(); err != nil {
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
 		return nil, fmt.Errorf("mkdir .ssh: %w", err)
 	}
-
 	if err := exec.Command("sudo", "chmod", "700", sshDir).Run(); err != nil {
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
 		return nil, fmt.Errorf("chmod .ssh: %w", err)
 	}
 
-	// Generate an ed25519 key pair
+	// 3. Generate an ed25519 key pair in a temp directory
 	tmpDir, err := os.MkdirTemp("", "ssh_test_keys_*")
 	if err != nil {
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
@@ -86,7 +83,7 @@ func createTestUser() (*testSSHUser, error) {
 		return nil, fmt.Errorf("ssh-keygen: %v (out: %s)", err, string(out))
 	}
 
-	// Copy the public key to the authorized_keys file
+	// 4. Install the public key as authorized_keys (mode 600, correct owner)
 	authzPath := filepath.Join(sshDir, "authorized_keys")
 	cmd = exec.Command("sudo", "cp", pubPath, authzPath)
 	if err := cmd.Run(); err != nil {
@@ -94,23 +91,43 @@ func createTestUser() (*testSSHUser, error) {
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
 		return nil, fmt.Errorf("copy authorized_keys: %w", err)
 	}
-
-	// Définir les bonnes permissions et propriétaire
 	if err := exec.Command("sudo", "chmod", "600", authzPath).Run(); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
 		return nil, fmt.Errorf("chmod authorized_keys: %w", err)
 	}
-
 	if err := exec.Command("sudo", "chown", "-R", uid+":"+gid, sshDir).Run(); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		_ = exec.Command("sudo", "userdel", "-r", username).Run()
 		return nil, fmt.Errorf("chown .ssh: %w", err)
 	}
+
+	// 5. Extract the SHA256 fingerprint of the public key (base64 hash only)
+	//    ssh-keygen -lf outputs: "256 SHA256:<base64hash> comment (ED25519)"
+	fingerprintOut, err := exec.Command("ssh-keygen", "-lf", pubPath, "-E", "sha256").Output()
+	if err != nil {
+		_ = os.RemoveAll(tmpDir)
+		_ = exec.Command("sudo", "userdel", "-r", username).Run()
+		return nil, fmt.Errorf("ssh-keygen fingerprint: %w", err)
+	}
+	fingerprintStr := strings.TrimSpace(string(fingerprintOut))
+	var pubKeyFingerprint string
+	for _, field := range strings.Fields(fingerprintStr) {
+		if strings.HasPrefix(field, "SHA256:") {
+			pubKeyFingerprint = strings.TrimPrefix(field, "SHA256:")
+			break
+		}
+	}
+	if pubKeyFingerprint == "" {
+		_ = os.RemoveAll(tmpDir)
+		_ = exec.Command("sudo", "userdel", "-r", username).Run()
+		return nil, fmt.Errorf("failed to extract SHA256 fingerprint from: %s", fingerprintStr)
+	}
 	return &testSSHUser{
-		Username: username,
-		HomeDir:  homeDir,
-		KeyPath:  keyPath,
+		Username:          username,
+		HomeDir:           homeDir,
+		KeyPath:           keyPath,
+		PubKeyFingerprint: pubKeyFingerprint,
 	}, nil
 }
 
@@ -152,20 +169,18 @@ func (u *testSSHUser) cleanup() error {
 
 // SSHUserSessionExpected contient les valeurs attendues pour vérifier une session SSH
 type SSHUserSessionExpected struct {
-	SessionType    *string  // If nil, only check if the field exists and is "ssh"
-	AuthMethod     *string  // If nil, only check if the field exists and is either "password" or "public_key" or "unknown"
-	ClientIP       *string  // If nil, only check it's local host
-	ClientPort     *float64 // If nil, only check if port > 0
-	SessionID      *string  // If nil, only check if ssh_session_id > 0
-	CheckPublicKey bool     // If true and AuthMethod == "public_key", checks if the public key is valid
+	SessionType       *string  // If nil, only check if the field exists and is "ssh"
+	AuthMethod        *string  // If nil, only check if the field exists and is either "password" or "public_key" or "unknown"
+	ClientIP          *string  // If nil, only check it's local host
+	ClientPort        *float64 // If nil, only check if port > 0
+	SessionID         *string  // If nil, only check if ssh_session_id > 0
+	ExpectedPublicKey *string  // If not nil and AuthMethod == "public_key", checks that the public key matches this value
 }
 
 // checkSSHUserSessionJSON check if all the fields in the JSON are valid for a SSH Session
 func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte, expected *SSHUserSessionExpected) {
 	if expected == nil {
-		expected = &SSHUserSessionExpected{
-			CheckPublicKey: true,
-		}
+		expected = &SSHUserSessionExpected{}
 	}
 
 	jsonPathValidation(testMod, data, func(_ *testModule, jsonData interface{}) {
@@ -259,13 +274,15 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte, exp
 			}
 		}
 
-		if expected.CheckPublicKey {
+		if expected.ExpectedPublicKey != nil {
 			if authMethod, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_auth_method`); err == nil {
 				if authMethodStr, ok := authMethod.(string); ok && authMethodStr == "public_key" {
 					if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_public_key`); err != nil || el == nil {
 						t.Errorf("user_session.ssh_public_key not found for publickey auth: %v", err)
 					} else if pubKey, ok := el.(string); !ok || pubKey == "" {
 						t.Errorf("user_session.ssh_public_key is empty for publickey auth: %v", el)
+					} else if pubKey != *expected.ExpectedPublicKey {
+						t.Errorf("user_session.ssh_public_key mismatch: got %v, want %v", pubKey, *expected.ExpectedPublicKey)
 					}
 				}
 			}
@@ -448,7 +465,8 @@ func TestSSHUserSession(t *testing.T) {
 			// Check all the fields
 			expectedAuthType := "public_key"
 			expected := &SSHUserSessionExpected{
-				AuthMethod: &expectedAuthType,
+				AuthMethod:        &expectedAuthType,
+				ExpectedPublicKey: &testUser.PubKeyFingerprint,
 			}
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 
@@ -540,7 +558,8 @@ func TestSSHUserSessionRotated(t *testing.T) {
 			// Check all the fields
 			expectedAuthType := "public_key"
 			expected := &SSHUserSessionExpected{
-				AuthMethod: &expectedAuthType,
+				AuthMethod:        &expectedAuthType,
+				ExpectedPublicKey: &testUser.PubKeyFingerprint,
 			}
 
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
@@ -598,7 +617,7 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 
 	host := testUser.Username + "@localhost"
 
-	// 2) Start master in background: -M (master), -N (pas de commande), -f (fork background)
+	// 2) Start master in background: -M (master), -N (no command), -f (fork background)
 	masterArgs := append([]string{}, baseOpts...)
 	masterArgs = append(masterArgs,
 		"-o", "ControlMaster=yes",
@@ -655,10 +674,10 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			// Check that the field is unknown since the connection is multiplexed and ws initialized before the resolver started
-			expectedAuthType := "unknown"
+			expectedAuthType := "public_key"
 			expected := &SSHUserSessionExpected{
-				AuthMethod: &expectedAuthType,
+				AuthMethod:        &expectedAuthType,
+				ExpectedPublicKey: &testUser.PubKeyFingerprint,
 			}
 			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 			return nil
@@ -670,4 +689,171 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 	exitArgs = append(exitArgs, "-O", "exit", host)
 	_ = exec.Command("ssh", exitArgs...).Run()
 
+}
+
+func TestSSHUserSessionSnapshot(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	isLogFileExist, _, _ := getLogFile()
+	// We skip test when we don't have a log file because we don't use journalctl for now
+	if !isLogFileExist {
+		t.Skip("Skip test if log file does not exist")
+	}
+
+	testUser, err := createTestUser()
+	if err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+	defer func() {
+		if err := testUser.cleanup(); err != nil {
+			t.Logf("warning: failed to cleanup test user: %v", err)
+		}
+	}()
+
+	cmdChan := make(chan string, 10)
+	stopChan := make(chan struct{})
+	doneChan := make(chan struct{})
+
+	args := []string{
+		"-i", testUser.KeyPath,
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "PasswordAuthentication=no",
+		"-o", "PubkeyAuthentication=yes",
+		"-o", "LogLevel=ERROR",
+		testUser.Username + "@localhost",
+		"bash -s",
+	}
+
+	cmd := exec.Command("ssh", args...)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdin pipe: %v", err)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Failed to start SSH session: %v", err)
+	}
+	// Go routine to send commands to the SSH session
+	go func() {
+		defer close(doneChan)
+		for {
+			select {
+			case <-stopChan:
+				stdin.Close()
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+					_ = cmd.Wait()
+				}
+				return
+			case command := <-cmdChan:
+				_, err := fmt.Fprintf(stdin, "%s\n", command)
+				if err != nil {
+					t.Logf("Failed to send command '%s': %v", command, err)
+				}
+			}
+		}
+	}()
+
+	defer func() {
+		close(stopChan)
+		<-doneChan
+	}()
+
+	// Wait for ssh session to start
+	time.Sleep(2 * time.Second)
+
+	// Helper to send commands
+	sendCommand := func(command string) {
+		cmdChan <- command
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_ssh_user_session_snapshot",
+			Expression: `exec.file.name != "" && process.comm == "ls"`,
+		},
+	}
+
+	commands := []string{
+		"ls",
+		"whoami",
+		"pwd",
+		"pwd",
+	}
+
+	for _, command := range commands {
+		sendCommand(command)
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("ssh_session_started_before_agent", func(t *testing.T) {
+		err = test.GetEventSent(t, func() error {
+			sendCommand("ls")
+			commands = append(commands, "ls")
+
+			return nil
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			eventSSHSessionID := event.ProcessContext.UserSession.SSHSessionID
+
+			if eventSSHSessionID == 0 {
+				t.Logf("SSH Session ID is 0 for %s", event.ProcessContext.Comm)
+				return false
+			}
+			// Now we check if we got all the executed commands
+			i := len(commands) - 1
+			ancestor := event.ProcessContext.Ancestor
+			for ancestor != nil && !strings.HasPrefix(ancestor.Comm, "sshd") {
+				if ancestor.UserSession.SSHSessionID != eventSSHSessionID && ancestor.ProcessContext.Comm != commands[i] {
+					t.Logf("SSH Session incorrect: expected %s with id %d, got %s with id %d",
+						ancestor.Comm, ancestor.UserSession.SSHSessionID, event.ProcessContext.Comm, eventSSHSessionID)
+					return false
+				}
+				ancestor = ancestor.Ancestor
+			}
+			// Now we check if we end with sshd
+			if ancestor == nil {
+				t.Log("ancestor is nil")
+				return false
+			}
+			if !strings.HasPrefix(ancestor.Comm, "sshd") || ancestor.UserSession.SSHSessionID != 0 {
+				t.Logf("sshd not found with id 0, got %s with id %d (current session had id %d)", ancestor.Comm, ancestor.UserSession.SSHSessionID, eventSSHSessionID)
+				return false
+			}
+			return true
+		}, time.Second*10, "test_rule_ssh_user_session_snapshot")
+
+		if err != nil {
+			t.Error(err)
+		}
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_ssh_user_session_snapshot")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			expectedAuthType := "public_key"
+			expected := &SSHUserSessionExpected{
+				AuthMethod:        &expectedAuthType,
+				ExpectedPublicKey: &testUser.PubKeyFingerprint,
+			}
+			checkSSHUserSessionJSON(test, t, msg.Data, expected)
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
 }

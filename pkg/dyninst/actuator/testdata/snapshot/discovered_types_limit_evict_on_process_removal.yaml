@@ -1,0 +1,357 @@
+# Tests that removing the last process of a service triggers eviction of that
+# service's discovered types when the total exceeds the limit.
+#
+# Flow:
+# 1. Configure low limit (4)
+# 2. Two services get types, total exceeds limit
+# 3. Removing svc-a's last process triggers eviction of svc-a's types
+- !config {discovered_types_limit: 4}
+# Add svc-a process
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app-a}
+      service: svc-a
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+- !loaded {program_id: 1}
+- !attached {program_id: 1, process_id: 1001}
+- !missing-types-reported {process_id: 1001, type_names: [TypeA, TypeB]}
+- !detached {program_id: 1, process_id: 1001}
+- !unloaded {program_id: 1}
+- !loaded {program_id: 2}
+- !attached {program_id: 2, process_id: 1001}
+# Add svc-b process
+- !processes-updated
+  updated:
+    - process_id: {pid: 2001}
+      executable: {path: /usr/bin/app-b}
+      service: svc-b
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+- !loaded {program_id: 3}
+- !attached {program_id: 3, process_id: 2001}
+# svc-b gets types, total = 2 + 3 = 5 > limit (4)
+- !missing-types-reported {process_id: 2001, type_names: [TypeC, TypeD, TypeE]}
+- !detached {program_id: 3, process_id: 2001}
+- !unloaded {program_id: 3}
+- !loaded {program_id: 4}
+- !attached {program_id: 4, process_id: 2001}
+# Now remove svc-a process; svc-a's 2 types are evicted because total > limit
+- !processes-updated
+  removed: [1001]
+- !detached {program_id: 2, process_id: 1001}
+- !unloaded {program_id: 2}
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app-a}
+      service: svc-a
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/app-a@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
+---
+event: !loaded {program_id: 1}
+effects:
+  - !attach-to-process {executable: /usr/bin/app-a@0.0m0.0, process_id: 1001, program_id: 1}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [TypeA, TypeB]}
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) -> Detaching (prog 1)
+  programs:
+    1: Loaded (proc 1001) -> Draining (proc 1001)
+  discovered_types:
+    svc-a: '[] -> [TypeA TypeB]'
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 0 -> 1
+---
+event: !detached {program_id: 1, process_id: 1001}
+effects:
+  - !unload-program {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+  programs:
+    1: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 0 -> 1
+---
+event: !unloaded {program_id: 1}
+effects:
+  - !spawn-bpf-loading {additional_types: [TypeA, TypeB], executable: /usr/bin/app-a@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil> -> 2
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) -> WaitingForProgram (prog 2)
+  programs:
+    1: Unloading (proc 1001) -> <nil>
+    2: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 0 -> 1
+---
+event: !loaded {program_id: 2}
+effects:
+  - !attach-to-process {executable: /usr/bin/app-a@0.0m0.0, process_id: 1001, program_id: 2}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 2) -> Attaching (prog 2)
+  programs:
+    2: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 2, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 2) -> Attached (prog 2)
+  programs:
+    2: Loaded (proc 1001)
+  stats:
+    attached: 1 -> 2
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 2001}
+      executable: {path: /usr/bin/app-b}
+      service: svc-b
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/app-b@0.0m0.0, probes: [probe2], process_id: 2001, program_id: 3}
+state:
+  currently_loading: <nil> -> 3
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: <nil> -> WaitingForProgram (prog 3)
+  programs:
+    2: Loaded (proc 1001)
+    3: <nil> -> Loading (proc 2001)
+  stats:
+    numProcesses: 1 -> 2
+    numPrograms: 1 -> 2
+    numWaitingForProgram: 0 -> 1
+---
+event: !loaded {program_id: 3}
+effects:
+  - !attach-to-process {executable: /usr/bin/app-b@0.0m0.0, process_id: 2001, program_id: 3}
+state:
+  currently_loading: 3 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: WaitingForProgram (prog 3) -> Attaching (prog 3)
+  programs:
+    2: Loaded (proc 1001)
+    3: Loading (proc 2001) -> Loaded (proc 2001)
+  stats:
+    loaded: 2 -> 3
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 3, process_id: 2001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: Attaching (prog 3) -> Attached (prog 3)
+  programs:
+    2: Loaded (proc 1001)
+    3: Loaded (proc 2001)
+  stats:
+    attached: 2 -> 3
+    numAttached: 1 -> 2
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 2001, type_names: [TypeC, TypeD, TypeE]}
+effects:
+  - !detach-from-process {failure: "no", process_id: 2001, program_id: 3}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: Attached (prog 3) -> Detaching (prog 3)
+  programs:
+    2: Loaded (proc 1001)
+    3: Loaded (proc 2001) -> Draining (proc 2001)
+  discovered_types:
+    svc-b: '[] -> [TypeC TypeD TypeE]'
+  stats:
+    numAttached: 2 -> 1
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 1 -> 2
+---
+event: !detached {program_id: 3, process_id: 2001}
+effects:
+  - !unload-program {program_id: 3}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: Detaching (prog 3)
+  programs:
+    2: Loaded (proc 1001)
+    3: Draining (proc 2001) -> Unloading (proc 2001)
+  stats:
+    detached: 1 -> 2
+---
+event: !unloaded {program_id: 3}
+effects:
+  - !spawn-bpf-loading {additional_types: [TypeC, TypeD, TypeE], executable: /usr/bin/app-b@0.0m0.0, probes: [probe2], process_id: 2001, program_id: 4}
+state:
+  currently_loading: <nil> -> 4
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: Detaching (prog 3) -> WaitingForProgram (prog 4)
+  programs:
+    2: Loaded (proc 1001)
+    3: Unloading (proc 2001) -> <nil>
+    4: <nil> -> Loading (proc 2001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 1 -> 2
+---
+event: !loaded {program_id: 4}
+effects:
+  - !attach-to-process {executable: /usr/bin/app-b@0.0m0.0, process_id: 2001, program_id: 4}
+state:
+  currently_loading: 4 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: WaitingForProgram (prog 4) -> Attaching (prog 4)
+  programs:
+    2: Loaded (proc 1001)
+    4: Loading (proc 2001) -> Loaded (proc 2001)
+  stats:
+    loaded: 3 -> 4
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 4, process_id: 2001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2)
+    2001: Attaching (prog 4) -> Attached (prog 4)
+  programs:
+    2: Loaded (proc 1001)
+    4: Loaded (proc 2001)
+  stats:
+    attached: 3 -> 4
+    numAttached: 1 -> 2
+    numAttaching: 1 -> 0
+---
+event: !processes-updated
+  removed: [1001]
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2) -> Detaching (prog 2)
+    2001: Attached (prog 4)
+  programs:
+    2: Loaded (proc 1001) -> Draining (proc 1001)
+    4: Loaded (proc 2001)
+  stats:
+    numAttached: 2 -> 1
+    numDetaching: 0 -> 1
+---
+event: !detached {program_id: 2, process_id: 1001}
+effects:
+  - !unload-program {program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2)
+    2001: Attached (prog 4)
+  programs:
+    2: Draining (proc 1001) -> Unloading (proc 1001)
+    4: Loaded (proc 2001)
+  stats:
+    detached: 2 -> 3
+---
+event: !unloaded {program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2) -> <nil>
+    2001: Attached (prog 4)
+  programs:
+    2: Unloading (proc 1001) -> <nil>
+    4: Loaded (proc 2001)
+  discovered_types:
+    svc-a: '[TypeA TypeB] -> []'
+  stats:
+    numDetaching: 1 -> 0
+    numProcesses: 2 -> 1
+    numPrograms: 2 -> 1
+    unloaded: 2 -> 3
+---

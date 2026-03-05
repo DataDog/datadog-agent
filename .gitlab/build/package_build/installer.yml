@@ -21,7 +21,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --with-sd-agent --host-distribution=ociru --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -114,27 +114,6 @@ installer-install-scripts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-
-#
-# Windows install script
-#
-powershell_script_signing:
-  extends: .windows_docker_default
-  stage: package_build
-  needs: []
-  variables:
-    ARCH: "x64"
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $WINDOWS_POWERSHELL_DIR
-  script:
-    - mkdir $WINDOWS_POWERSHELL_DIR
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e CI -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
-    - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1
 
 #
 # The installer program

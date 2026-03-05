@@ -347,7 +347,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -570,7 +570,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -1299,7 +1299,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetWithoutSource("site", tt.site)
 			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", true) // FQDN is enabled by default
 
-			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedHost, endpoints.Main.Host, "Host should match expected FQDN with trailing dot")
@@ -1309,7 +1309,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetWithoutSource("site", tt.site)
 			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", false)
 
-			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")

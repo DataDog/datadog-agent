@@ -58,6 +58,16 @@ func newRunParams() *RunParams {
 // GetRunParams returns RunParams after applying options
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := newRunParams()
+
+	// Enable TestSigning when testsigned drivers are requested via environment
+	// this is used for kicking off testsigned windows drivers on CI
+	if v := os.Getenv("WINDOWS_DDNPM_DRIVER"); v == "testsigned" {
+		p.testsigningOptions = append(p.testsigningOptions, testsigning.WithTestSigningEnabled())
+	}
+	if v := os.Getenv("WINDOWS_DDPROCMON_DRIVER"); v == "testsigned" {
+		p.testsigningOptions = append(p.testsigningOptions, testsigning.WithTestSigningEnabled())
+	}
+
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
 	}

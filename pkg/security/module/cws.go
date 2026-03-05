@@ -9,8 +9,8 @@ package module
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -310,8 +310,8 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 
 	// send metric with number of success and fails
 	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
+		"success:" + strconv.Itoa(len(success)),
+		"fails:" + strconv.Itoa(len(fails)),
 		"os:" + runtime.GOOS,
 		"arch:" + utils.RuntimeArch(),
 		"origin:" + c.probe.Origin(),
@@ -389,16 +389,6 @@ func (c *CWSConsumer) sendStats() {
 	}
 
 	c.ruleEngine.SendStats()
-
-	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
-		if counter > 0 {
-			tags := []string{
-				"rule_id:" + statsTags.RuleID,
-				"suppression_type:" + statsTags.SuppressionType,
-			}
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
-		}
-	}
 }
 
 func (c *CWSConsumer) statsSender() {

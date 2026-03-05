@@ -20,10 +20,14 @@ import (
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -41,6 +45,7 @@ type ExtraFactories interface {
 	GetProcessors() []processor.Factory
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
+	GetLoggingOptions() []zap.Option
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -54,6 +59,12 @@ type extraFactoriesWithAgentCore struct {
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
+
+const (
+	// zapCoreStackDepth skips the slog handler and wrapper frames in the logging
+	// pipeline to show the actual caller location in log output.
+	zapCoreStackDepth = 7
+)
 
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(
@@ -73,6 +84,15 @@ func NewExtraFactoriesWithAgentCore(
 	}
 }
 
+func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
+	zapCore := zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
+	return []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapCore
+		}),
+	}
+}
+
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
@@ -83,6 +103,7 @@ func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+		resourceprocessor.NewFactory(),
 	}
 }
 
@@ -102,6 +123,10 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
 }
 
+func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
+	return []zap.Option{}
+}
+
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{}
@@ -112,6 +137,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
 		k8sattributesprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
+		resourceprocessor.NewFactory(),
 	}
 }
 

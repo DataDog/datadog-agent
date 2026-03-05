@@ -488,7 +488,8 @@ func (t *teeConfig) GetSecretSettingPaths() []string {
 	return t.baseline.GetSecretSettingPaths()
 }
 
-// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
 func (t *teeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	base, baseSequenceID := t.baseline.AllFlattenedSettingsWithSequenceID()
 	compare, compareSequenceID := t.compare.AllFlattenedSettingsWithSequenceID()

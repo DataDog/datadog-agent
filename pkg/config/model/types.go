@@ -177,8 +177,9 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
-	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map (e.g., "logs_config.enabled"
-	// instead of nested {"logs_config": {"enabled": ...}}) along with the current sequence ID.
+	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+	// (for example, "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}})
+	// along with the current sequence ID.
 	// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 	AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64)
 

@@ -1743,6 +1743,7 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
+	UsesGPU        bool           // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1909,6 +1910,11 @@ type Event struct {
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
 	Entity Entity
+
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For example, in Kubernetes, a pod is complete when both
+	// the kubelet and kubemetadata collectors have reported.
+	IsComplete bool
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -2198,6 +2204,10 @@ func (crd CRD) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
 
 	return sb.String()
+}
+
+func (crd CRD) BuildGVK() string {
+	return crd.Group + "/" + crd.Version + "/" + crd.Kind
 }
 
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate
