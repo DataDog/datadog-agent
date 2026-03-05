@@ -201,11 +201,12 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 		return nil, err
 	}
 
-	// Install docker-compose only — Docker and AWS CLI are pre-installed on the ECS AMI.
+	// Install AWS CLI — Docker 25 (including buildx) is pre-installed on the ECS AMI,
+	// but AWS CLI is not. This is the only setup step needed (~30s vs ~4 min on Ubuntu).
 	installToolsCmd, err := buildHost.OS.Runner().Command(
 		awsEnv.Namer.ResourceName("install-build-tools"),
 		&command.Args{
-			Create: pulumi.String(`pip3 install docker-compose`),
+			Create: pulumi.String(`yum install -y awscli`),
 			Sudo:   true,
 		},
 	)
@@ -277,6 +278,9 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 			Create: pulumi.Sprintf(
 				`set -euo pipefail
 
+# AWS CLI is installed on the ECS AMI but not in the default SSH PATH.
+export PATH=$PATH:/usr/bin:/usr/local/bin
+
 cd /tmp/gensim-build
 
 REGION="%s"
@@ -284,10 +288,19 @@ ECR_REGISTRY="%s"
 CACHE_TAG="%s"  # first 12 chars of services hash — stable cache key
 
 # Authenticate Docker with ECR using the instance IAM role.
+# --password-stdin works without a TTY, which is how Pulumi executes remote commands.
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-IMAGES=$(docker-compose config --images)
+# Parse image names from docker-compose.yaml via Python (no docker-compose needed).
+IMAGES=$(python3 -c "
+import yaml
+with open('docker-compose.yaml') as f:
+    c = yaml.safe_load(f)
+for svc in c['services'].values():
+    if 'image' in svc:
+        print(svc['image'])
+")
 
 # Check if all images are already cached in ECR under the hash tag.
 # On a fresh cluster with unchanged source code this saves the full build.
@@ -312,8 +325,10 @@ if [ "$ALL_CACHED" = "true" ]; then
     docker push "$ECR_REGISTRY/$IMAGE"
   done
 else
-  echo "[cache miss] Building images..."
-  docker-compose build
+  echo "[cache miss] Building images with docker buildx bake..."
+  # buildx bake understands docker-compose.yaml natively, builds all images
+  # in parallel, and deduplicates shared base layers.
+  docker buildx bake -f docker-compose.yaml
 
   for IMAGE in $IMAGES; do
     REPO="${IMAGE%%:*}"
@@ -321,7 +336,7 @@ else
     # :latest — consumed by the Helm chart via imageRegistry
     docker tag  "$IMAGE" "$ECR_REGISTRY/$IMAGE"
     docker push "$ECR_REGISTRY/$IMAGE"
-    # :hash — cache key for future runs
+    # :hash — cache key for future cluster recreations
     docker tag  "$IMAGE" "$ECR_REGISTRY/$REPO:$CACHE_TAG"
     docker push "$ECR_REGISTRY/$REPO:$CACHE_TAG"
   done
