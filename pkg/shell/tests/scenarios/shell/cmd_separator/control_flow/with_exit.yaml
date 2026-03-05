@@ -1,6 +1,6 @@
 description: Exit stops execution; commands after exit do not run.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo before; exit 0; echo after
 expect:

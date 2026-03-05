@@ -3,7 +3,7 @@ description: When all files are missing, cat stops at the first failure without 
 target_os: [linux, darwin]
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     cat missing1.txt missing2.txt
 expect:

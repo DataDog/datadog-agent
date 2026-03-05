@@ -8,7 +8,7 @@ setup:
       symlink: ../secret/hidden.txt
 input:
   allowed_paths: ["allowed"]
-  # language=sh
+  # language=bash
   script: |+
     cat allowed/escape_link
 expect:

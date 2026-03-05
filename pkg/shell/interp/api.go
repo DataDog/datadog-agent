@@ -2,7 +2,7 @@
 // See LICENSE for licensing information
 
 // Package interp implements a restricted shell interpreter designed for
-// safe, sandboxed execution. It supports a subset of sh/POSIX syntax with
+// safe, sandboxed execution. It supports a subset of Bash syntax with
 // many features intentionally blocked (see [validateNode]).
 //
 // The interpreter behaves like a non-interactive shell. External command

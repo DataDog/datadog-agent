@@ -1,6 +1,6 @@
 description: Echo output can be piped to another command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello world | cat
 expect:

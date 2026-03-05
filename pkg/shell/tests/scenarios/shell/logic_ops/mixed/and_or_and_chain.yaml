@@ -1,6 +1,6 @@
 description: A complex chain mixing && and || operators.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true && false || echo recovered && echo final
 expect:

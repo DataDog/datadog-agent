@@ -9,7 +9,7 @@ setup:
       symlink: ../secret
 input:
   allowed_paths: ["allowed"]
-  # language=sh
+  # language=bash
   script: |+
     cat allowed/escape_dir/data.txt
 expect:

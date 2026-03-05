@@ -1,6 +1,6 @@
 description: An unknown command with quoted arguments still prints "command not found".
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo "hello world" 'single quoted'
 expect:

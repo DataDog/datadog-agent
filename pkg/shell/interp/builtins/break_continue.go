@@ -29,7 +29,7 @@ func loopControl(callCtx *CallContext, name string, args []string) Result {
 		parsed, err := strconv.Atoi(args[0])
 		if err != nil {
 			callCtx.Errf("%s: %s: numeric argument required\n", name, args[0])
-			// In sh, invalid args still break the loop.
+			// In bash, invalid args still break the loop.
 			return Result{Code: 2, BreakN: 1}
 		}
 		if parsed < 1 {
@@ -39,7 +39,7 @@ func loopControl(callCtx *CallContext, name string, args []string) Result {
 		n = parsed
 	default:
 		callCtx.Errf("usage: %s [n]\n", name)
-		// In sh, invalid args still break the loop.
+		// In bash, invalid args still break the loop.
 		return Result{Code: 2, BreakN: 1}
 	}
 

@@ -1,6 +1,6 @@
 description: Exit inside a for loop terminates the entire script.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for x in a b c; do
       echo $x

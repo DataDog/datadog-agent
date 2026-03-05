@@ -1,6 +1,6 @@
 description: Exit with no arguments returns the last command's exit code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false
     exit

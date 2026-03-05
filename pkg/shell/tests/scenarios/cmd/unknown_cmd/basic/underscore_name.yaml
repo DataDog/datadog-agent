@@ -1,6 +1,6 @@
 description: An unknown command with underscores in the name prints "command not found".
 input:
-  # language=sh
+  # language=bash
   script: |+
     my_unknown_command
 expect:

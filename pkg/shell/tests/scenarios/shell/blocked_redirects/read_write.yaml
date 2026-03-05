@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Read-write redirection (<>) is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <> file.txt
 expect:

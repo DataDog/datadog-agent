@@ -1,6 +1,6 @@
 description: Echo always exits with code 0.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello
 expect:

@@ -1,6 +1,6 @@
 description: The && operator skips the next command after an unknown command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo && echo should_not_run
 expect:

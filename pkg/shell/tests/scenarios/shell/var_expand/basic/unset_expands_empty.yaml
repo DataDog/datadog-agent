@@ -1,6 +1,6 @@
 description: An unset variable expands to an empty string by default.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "before${UNSET_VAR}after"
 expect:

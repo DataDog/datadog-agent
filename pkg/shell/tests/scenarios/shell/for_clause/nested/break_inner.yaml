@@ -1,6 +1,6 @@
 description: Break in inner nested loop only breaks the inner loop.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2 3; do

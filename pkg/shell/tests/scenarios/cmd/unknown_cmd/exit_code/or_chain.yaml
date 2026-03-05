@@ -1,6 +1,6 @@
 description: A chain of unknown commands with || reaches the first valid command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo || bar || echo reached
 expect:

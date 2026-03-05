@@ -1,6 +1,6 @@
 description: An unknown command with a multi-word-like name (with hyphens) prints "command not found".
 input:
-  # language=sh
+  # language=bash
   script: |+
     my-unknown-command
 expect:

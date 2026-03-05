@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Without input.envs, no environment variables are available except builtins.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "val=$SOME_RANDOM_VAR"
 expect:

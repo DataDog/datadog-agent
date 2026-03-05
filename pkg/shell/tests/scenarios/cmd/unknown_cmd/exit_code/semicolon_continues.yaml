@@ -1,6 +1,6 @@
 description: A semicolon separator allows execution to continue after an unknown command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo; echo after
 expect:

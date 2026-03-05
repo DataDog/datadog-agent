@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: The $! variable is blocked.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "[$!]"
 expect:

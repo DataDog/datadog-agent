@@ -1,6 +1,6 @@
 description: Exit on right side of pipe sets the pipe exit code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo ok | exit 42
 expect:

@@ -1,6 +1,6 @@
 description: Unknown command on left side of pipe sends error to stderr; right side still runs.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo | echo ok
 expect:

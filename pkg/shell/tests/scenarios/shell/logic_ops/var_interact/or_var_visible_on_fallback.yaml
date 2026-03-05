@@ -1,6 +1,6 @@
 description: Variable set before || is visible in the fallback.
 input:
-  # language=sh
+  # language=bash
   script: |+
     X=world; false || echo $X
 expect:

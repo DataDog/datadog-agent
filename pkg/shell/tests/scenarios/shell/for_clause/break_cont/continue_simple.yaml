@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Continue skips the rest of the loop body and goes to the next iteration.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in a b c; do
       echo "before $i"

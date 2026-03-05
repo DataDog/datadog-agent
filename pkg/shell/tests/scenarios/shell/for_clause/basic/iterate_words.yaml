@@ -1,6 +1,6 @@
 description: For loop iterates over a list of words.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in a b c; do echo $i; done
 expect:

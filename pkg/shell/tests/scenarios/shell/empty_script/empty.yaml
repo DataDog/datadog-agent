@@ -1,6 +1,6 @@
 description: An empty script produces no output and exits successfully.
 input:
-  # language=sh
+  # language=bash
   script: ""
 expect:
   stdout: ""

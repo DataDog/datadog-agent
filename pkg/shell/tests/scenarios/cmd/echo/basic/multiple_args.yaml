@@ -1,6 +1,6 @@
 description: Echo with multiple arguments outputs them separated by spaces.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello world foo
 expect:

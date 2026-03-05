@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Substring expansion ${var:offset:length} is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     X=hello
     echo ${X:1:3}

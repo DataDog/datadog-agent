@@ -1,6 +1,6 @@
 description: Right side true overrides left side false exit code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false | true
 expect:

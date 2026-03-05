@@ -1,6 +1,6 @@
 description: Chained || with false keeps falling through until success.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false || false || echo reached
 expect:

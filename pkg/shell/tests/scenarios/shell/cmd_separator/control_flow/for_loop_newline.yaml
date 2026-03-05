@@ -1,6 +1,6 @@
 description: For loop with newline-separated body and commands after.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in x y; do
       echo $i

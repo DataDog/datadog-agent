@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Output fd duplication (>&N) is blocked.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello 2>&1
 expect:

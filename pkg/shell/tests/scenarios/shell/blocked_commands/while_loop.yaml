@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: While loops are not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     while true; do echo loop; break; done
 expect:

@@ -1,6 +1,6 @@
 description: Commands after false separated by semicolons still execute.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false; echo after
 expect:

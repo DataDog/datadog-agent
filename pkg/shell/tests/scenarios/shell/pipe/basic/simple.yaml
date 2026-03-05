@@ -1,6 +1,6 @@
 description: Pipe connects stdout of one command to stdin of another.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo abc | cat
 expect:

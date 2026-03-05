@@ -1,6 +1,6 @@
 description: An unknown command with arguments still prints "command not found" for the command name.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo arg1 arg2 arg3
 expect:
