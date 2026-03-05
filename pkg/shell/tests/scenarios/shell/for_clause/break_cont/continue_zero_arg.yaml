@@ -1,0 +1,12 @@
+test_against_local_shell: false
+description: Continue 0 is an invalid operand and produces an error.
+input:
+  script: |+
+    for i in 1; do
+      continue 0
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "continue"
+  exit_code: 1

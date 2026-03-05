@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Echo does not interpret backslash sequences in unquoted arguments.
+input:
+  script: |+
+    echo hello\\world
+expect:
+  stdout: |+
+    hello\world
+  stderr: ""
+  exit_code: 0

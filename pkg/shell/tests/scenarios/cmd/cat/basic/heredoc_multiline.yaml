@@ -1,0 +1,15 @@
+description: Cat reads multiline content from a heredoc.
+input:
+  script: |+
+    cat <<EOF
+    line one
+    line two
+    line three
+    EOF
+expect:
+  stdout: |+
+    line one
+    line two
+    line three
+  stderr: ""
+  exit_code: 0

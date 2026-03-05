@@ -1,0 +1,32 @@
+test_against_local_shell: false
+description: Continue 3 in triple nested for loops continues the outermost loop.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        for k in + -; do
+          echo in $i $j $k
+          continue 3
+          echo out $i $j $k
+        done
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    in 1 a +
+    in 2
+    in 2 a
+    in 2 a +
+    in 3
+    in 3 a
+    in 3 a +
+    done 0
+  stderr: ""
+  exit_code: 0

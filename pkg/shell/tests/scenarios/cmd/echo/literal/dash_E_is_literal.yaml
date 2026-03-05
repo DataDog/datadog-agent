@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Echo treats -E as a literal argument, not as an option.
+input:
+  script: |+
+    echo -E hello
+expect:
+  stdout: |+
+    -E hello
+  stderr: ""
+  exit_code: 0

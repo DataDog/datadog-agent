@@ -1,0 +1,9 @@
+test_against_local_shell: false
+description: Exit with -- separator preceding operand.
+input:
+  script: |+
+    exit -- 56
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 56

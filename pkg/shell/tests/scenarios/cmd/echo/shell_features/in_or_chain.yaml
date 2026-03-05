@@ -1,0 +1,9 @@
+description: Echo executes in a || chain when the previous command fails.
+input:
+  script: |+
+    false || echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

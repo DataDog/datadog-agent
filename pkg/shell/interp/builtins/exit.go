@@ -10,6 +10,9 @@ import (
 
 func builtinExit(_ context.Context, callCtx *CallContext, args []string) Result {
 	var r Result
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
+	}
 	switch len(args) {
 	case 0:
 		r.Code = callCtx.LastExitCode
