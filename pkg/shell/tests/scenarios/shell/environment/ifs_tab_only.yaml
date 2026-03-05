@@ -1,5 +1,4 @@
 description: "IFS set to tab only splits on tabs, not spaces"
-test_against_local_shell: false
 input:
   script: "IFS=\"\t\"\nA=\"hello world\tfoo\"\nfor w in $A; do echo \"[$w]\"; done\n"
 expect:

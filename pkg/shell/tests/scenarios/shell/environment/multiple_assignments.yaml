@@ -1,5 +1,4 @@
 description: "Multiple variables assigned in sequence are all accessible"
-test_against_local_shell: false
 input:
   script: |
     A=one
