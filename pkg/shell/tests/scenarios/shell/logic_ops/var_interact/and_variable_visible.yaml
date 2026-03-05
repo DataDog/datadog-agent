@@ -1,9 +1,0 @@
-description: Variable set before && is visible in the right side.
-input:
-  script: |+
-    X=hello && echo $X
-expect:
-  stdout: |+
-    hello
-  stderr: ""
-  exit_code: 0

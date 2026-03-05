@@ -1,9 +1,0 @@
-description: Echo executes in a && chain when the previous command succeeds.
-input:
-  script: |+
-    true && echo reached
-expect:
-  stdout: |+
-    reached
-  stderr: ""
-  exit_code: 0

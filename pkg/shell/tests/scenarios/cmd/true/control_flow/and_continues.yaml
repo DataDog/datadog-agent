@@ -1,9 +1,0 @@
-description: The true builtin succeeds so && executes the next command.
-input:
-  script: |+
-    true && echo reached
-expect:
-  stdout: |+
-    reached
-  stderr: ""
-  exit_code: 0

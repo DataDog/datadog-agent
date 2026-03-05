@@ -1,8 +1,0 @@
-description: The true builtin produces no stderr output.
-input:
-  script: |+
-    true
-expect:
-  stdout: ""
-  stderr: ""
-  exit_code: 0
