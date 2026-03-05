@@ -43,7 +43,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	}
 
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil, nil)
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, errors.New("wrong number of metrics parsed")
 	}
@@ -60,7 +60,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, "", 0, "", conf, nil), nil
+	return enrichMetricSample(samples, parsed, "", 0, "", conf, nil, nil), nil
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
@@ -1003,7 +1003,7 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter, nil)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -1021,7 +1021,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil, nil)
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -1039,7 +1039,7 @@ func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filterList)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filterList, nil)
 
 	assert.Equal(t, 1, len(samples))
 }
