@@ -31,8 +31,8 @@ Every access path is default-deny:
 | Output redirections  | Blocked at validation (exit code 2) | Not configurable — always blocked         |
 
 **AllowedPaths** restricts all file operations (open, read, readdir, exec) to a set of specified
-directories. It uses kernel-level `openat` syscalls for atomic path validation, making it immune
-to symlink traversal, TOCTOU races, and `..` escape attacks.
+directories. It is built on Go's `os.Root` API, which uses kernel-level `openat` syscalls
+for atomic path validation, making it immune to symlink traversal, TOCTOU races, and `..` escape attacks.
 
 ## Configuration
 
