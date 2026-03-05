@@ -50,6 +50,7 @@ single_version_override(
     patch_strip = 1,
     patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
 )
+
 bazel_dep(name = "re.bzl", version = "0.2.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
