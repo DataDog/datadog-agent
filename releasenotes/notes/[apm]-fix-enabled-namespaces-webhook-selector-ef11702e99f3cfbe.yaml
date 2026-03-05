@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Set ``namespaceSelector`` on the MutatingWebhookConfiguration when
+    ``apm_config.instrumentation.enabled_namespaces`` is configured. Previously,
+    only ``disabled_namespaces`` set a namespace selector at the Kubernetes level;
+    ``enabled_namespaces`` was only filtered at the application level, causing
+    every pod CREATE event across all namespaces to be sent to the admission
+    controller webhook. This could overwhelm the Cluster Agent on large clusters.

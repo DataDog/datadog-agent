@@ -20,6 +20,7 @@ type LabelSelectorsConfig struct {
 	Enabled            bool
 	MutateUnlabelled   bool
 	AddAksSelectors    bool
+	EnabledNamespaces  []string
 	DisabledNamespaces []string
 }
 
@@ -29,6 +30,7 @@ func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConf
 		Enabled:            datadogConfig.GetBool("apm_config.instrumentation.enabled"),
 		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
 		AddAksSelectors:    datadogConfig.GetBool("admission_controller.add_aks_selectors"),
+		EnabledNamespaces:  datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
 		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
 	}
 }
@@ -70,6 +72,15 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 		Operator: metav1.LabelSelectorOpNotIn,
 		Values:   disabledNamespaces,
 	})
+
+	// Apply enabled namespaces so we only receive mutation requests for them.
+	if len(ls.config.EnabledNamespaces) > 0 {
+		namespaceSelector.MatchExpressions = append(namespaceSelector.MatchExpressions, metav1.LabelSelectorRequirement{
+			Key:      common.NamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   ls.config.EnabledNamespaces,
+		})
+	}
 
 	// AKS automatically adds some selector requirements if we don't so we need to add them to avoid conflicts when
 	// updating the webhook. Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
