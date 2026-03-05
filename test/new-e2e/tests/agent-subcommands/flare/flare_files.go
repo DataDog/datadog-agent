@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flare provides helpers for testing the agent flare subcommand.
 package flare
 
 // DefaultFlareFiles contains all the files that are included in the flare archive by default (no need for a specific configuration option)

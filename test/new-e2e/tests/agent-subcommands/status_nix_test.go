@@ -91,6 +91,9 @@ func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 
 func (v *linuxStatusSuite) TestDefaultInstallStatus() {
 	// wake up the trace-agent
-	v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+	resp, _ := v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+	if resp != nil {
+		resp.Body.Close()
+	}
 	v.testDefaultInstallStatus([]string{"Status: Not running or unreachable"}, nil)
 }

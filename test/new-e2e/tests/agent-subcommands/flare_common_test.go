@@ -70,7 +70,10 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 func (v *baseFlareSuite) TestFlareProfiling() {
 	if runtime.GOOS != "windows" {
 		// wake up the trace-agent
-		v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+		resp, _ := v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+		if resp != nil {
+			resp.Body.Close()
+		}
 	}
 
 	args := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--profile", "31",
