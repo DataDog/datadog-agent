@@ -4,25 +4,25 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar --zstd -xf modcache.tar.zst -C $GOPATH/pkg/mod/cache
+  - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_tools.tar.zst -C $GOPATH
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools.tar.zst | tar xf - -C $GOPATH
   - rm -f modcache_tools.tar.zst
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_tools_deps_arm64:
-  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_tools_arm64.tar.zst -C $GOPATH
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools_arm64.tar.zst | tar xf - -C $GOPATH
   - rm -f modcache_tools_arm64.tar.zst
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar --zstd -xf modcache_e2e.tar.zst -C $GOPATH/pkg/mod/cache
+  - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache_e2e.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.zst
 
 .retrieve_linux_pulumi_plugins:
-  - mkdir -p ~/.pulumi && tar --zstd -xf pulumi_plugins.tar.zst -C ~/.pulumi
+  - mkdir -p ~/.pulumi && zstd -dc pulumi_plugins.tar.zst | tar xf - -C ~/.pulumi
   - rm -f pulumi_plugins.tar.zst
 
 .cache:
