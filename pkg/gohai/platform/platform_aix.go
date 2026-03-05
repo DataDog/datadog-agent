@@ -7,6 +7,8 @@
 package platform
 
 import (
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/unix"
 )
@@ -22,8 +24,10 @@ func (info *Info) fillPlatformInfo() {
 		info.KernelRelease = utils.NewValue(utils.StringFromBytes(uname.Release[:]))
 		machine := utils.StringFromBytes(uname.Machine[:])
 		info.Machine = utils.NewValue(machine)
-		info.Processor = utils.NewValue(machine)
-		info.HardwarePlatform = utils.NewValue(machine)
+		// On AIX, uname.Machine is the hardware serial (e.g. "00F9D80F4C00"), not the
+		// CPU architecture. Use runtime.GOARCH for the processor/hardware platform fields.
+		info.Processor = utils.NewValue(runtime.GOARCH)
+		info.HardwarePlatform = utils.NewValue(runtime.GOARCH)
 		info.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
 	} else {
 		info.KernelName = utils.NewErrorValue[string](err)

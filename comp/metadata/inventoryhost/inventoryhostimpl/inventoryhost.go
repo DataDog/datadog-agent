@@ -216,22 +216,32 @@ func (ih *invHost) fillData() {
 
 	networkInfo, err := networkGet()
 	if err == nil {
-		_, warnings, err = networkInfo.AsJSON()
-	}
-	if err != nil {
-		ih.log.Errorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
-	} else {
-		logWarnings(warnings)
-
-		ih.data.IPAddress = networkInfo.IPAddress
-		ih.data.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
-		ih.data.MacAddress = networkInfo.MacAddress
-		jsonInterfaces, err := json.Marshal(networkInfo.Interfaces)
+		var netJSON interface{}
+		var warnings []string
+		netJSON, warnings, err = networkInfo.AsJSON()
 		if err != nil {
-			ih.log.Errorf("failed to marshal network interfaces: %s", err) //nolint:errcheck
+			ih.log.Errorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 		} else {
-			ih.data.Interfaces = string(jsonInterfaces)
+			logWarnings(warnings)
+
+			ih.data.IPAddress = networkInfo.IPAddress
+			ih.data.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
+			ih.data.MacAddress = networkInfo.MacAddress
+			// Use the interfaces from AsJSON() which correctly handles utils.Value[string]
+			// fields (omitting error-valued fields rather than serializing them as {}).
+			if netData, ok := netJSON.(map[string]interface{}); ok {
+				if ifaces, ok := netData["interfaces"]; ok {
+					jsonInterfaces, jsonErr := json.Marshal(ifaces)
+					if jsonErr != nil {
+						ih.log.Errorf("failed to marshal network interfaces: %s", jsonErr) //nolint:errcheck
+					} else {
+						ih.data.Interfaces = string(jsonInterfaces)
+					}
+				}
+			}
 		}
+	} else {
+		ih.log.Errorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	}
 
 	if ih.conf.GetBool("metadata_ip_resolution_from_hostname") {
