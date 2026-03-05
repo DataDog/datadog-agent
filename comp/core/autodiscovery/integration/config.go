@@ -150,7 +150,7 @@ type CommonGlobalConfig struct {
 type AdvancedADIdentifier struct {
 	KubeService   KubeNamespacedName      `yaml:"kube_service,omitempty"`
 	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
-	Crd           CrdsIdentifier          `yaml:"crd,omitempty"`
+	Crd           CrdIdentifier           `yaml:"crd,omitempty"`
 }
 
 // KubeEndpointsIdentifier identifies a kubernetes endpoints object
@@ -171,12 +171,12 @@ func (k KubeNamespacedName) IsEmpty() bool {
 	return k.Name == "" && k.Namespace == ""
 }
 
-type CrdsIdentifier struct {
+type CrdIdentifier struct {
 	Gvr string `yaml:"gvr"`
 }
 
 // IsEmpty returns true if the CrdsIdentifier is empty
-func (c CrdsIdentifier) IsEmpty() bool {
+func (c CrdIdentifier) IsEmpty() bool {
 	return c.Gvr == ""
 }
 
