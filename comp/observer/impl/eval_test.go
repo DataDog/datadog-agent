@@ -6,11 +6,13 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"text/tabwriter"
 
 	recorderimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl"
 	"github.com/stretchr/testify/require"
@@ -56,6 +58,30 @@ func scenariosDir(t *testing.T) string {
 	return dir
 }
 
+// countBaselineFPs counts scored predictions that fired before ground truth onset.
+func countBaselineFPs(outputPath string, groundTruthTS, baselineStart int64, sigma float64) int {
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		return 0
+	}
+	var output ObserverOutput
+	if err := json.Unmarshal(data, &output); err != nil {
+		return 0
+	}
+	cutoff := float64(groundTruthTS) + 2*sigma
+	count := 0
+	for _, p := range output.AnomalyPeriods {
+		ts := p.PeriodStart
+		if ts < baselineStart || float64(ts) > cutoff {
+			continue
+		}
+		if ts < groundTruthTS {
+			count++
+		}
+	}
+	return count
+}
+
 func TestEval(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping eval in short mode")
@@ -66,8 +92,9 @@ func TestEval(t *testing.T) {
 	sigma := 30.0
 
 	type result struct {
-		name  string
-		score *ScoreResult
+		name        string
+		score       *ScoreResult
+		baselineFPs int
 	}
 	var results []result
 
@@ -91,28 +118,28 @@ func TestEval(t *testing.T) {
 			score, err := ScoreOutputFile(outputPath, []int64{sc.groundTruthTS}, sDir, sigma)
 			require.NoError(t, err)
 
-			results = append(results, result{name: sc.name, score: score})
+			bfps := countBaselineFPs(outputPath, sc.groundTruthTS, sc.baselineStart, sigma)
 
-			t.Logf("F1=%.4f  P=%.4f  R=%.4f  TP=%.2f  FP=%.2f  scored=%d  warmup(excl)=%d  cascading(excl)=%d",
+			results = append(results, result{name: sc.name, score: score, baselineFPs: bfps})
+
+			t.Logf("F1=%.4f  P=%.4f  R=%.4f  TP=%.2f  FP=%.2f  scored=%d  baseline_fps=%d  warmup(excl)=%d  cascading(excl)=%d",
 				score.F1, score.Precision, score.Recall, score.TP, score.FP,
-				score.NumPredictions, score.NumFilteredWarmup, score.NumFilteredCascading)
+				score.NumPredictions, bfps,
+				score.NumFilteredWarmup, score.NumFilteredCascading)
 		})
 	}
 
-	// Print summary table
 	if len(results) > 0 {
 		fmt.Println()
-		fmt.Printf("%-25s  %6s  %9s  %6s  %4s  %4s  %6s  %18s  %20s\n",
-			"Scenario", "F1", "Precision", "Recall", "TP", "FP", "Scored", "Warmup (excluded)", "Cascading (excluded)")
-		fmt.Printf("%-25s  %6s  %9s  %6s  %4s  %4s  %6s  %18s  %20s\n",
-			"─────────────────────────", "──────", "─────────", "──────", "────", "────", "──────",
-			"──────────────────", "────────────────────")
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "Scenario\tF1\tPrecision\tRecall\tScored\tBaseline FPs\tWarmup (excluded)\tCascading (excluded)")
 		for _, r := range results {
-			fmt.Printf("%-25s  %6.4f  %9.4f  %6.4f  %4.2f  %4.2f  %6d  %18d  %20d\n",
+			fmt.Fprintf(w, "%s\t%.4f\t%.4f\t%.4f\t%d\t%d\t%d\t%d\n",
 				r.name, r.score.F1, r.score.Precision, r.score.Recall,
-				r.score.TP, r.score.FP,
-				r.score.NumPredictions, r.score.NumFilteredWarmup, r.score.NumFilteredCascading)
+				r.score.NumPredictions, r.baselineFPs,
+				r.score.NumFilteredWarmup, r.score.NumFilteredCascading)
 		}
+		w.Flush()
 		fmt.Println()
 	}
 }

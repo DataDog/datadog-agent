@@ -15,6 +15,34 @@ def build_testbench(ctx):
 
 
 @task
+def build_scorer(ctx):
+    """
+    Builds the observer-scorer binary.
+    """
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer")
+
+
+# --- Eval ---
+@task
+def eval(ctx, scenario: str = ""):
+    """
+    Runs the observer eval suite: replays scenarios headless and scores against ground truth.
+
+    Requires parquet data in the scenarios directory. Skips scenarios with missing data.
+
+    Args:
+        scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+    """
+    run_arg = "-run TestEval"
+    if scenario:
+        run_arg = f"-run TestEval/{scenario}"
+
+    cmd = f"go test ./comp/observer/impl/ {run_arg} -count=1 -v -timeout 300s"
+    print(color_message("Running observer eval...", Color.BLUE))
+    ctx.run(cmd)
+
+
+@task
 def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/anomaly_datasets_converted", build: bool = False):
     """
     Will launch both the observer-testbench backend and UI.
