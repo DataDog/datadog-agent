@@ -57,6 +57,26 @@ def _download_llvm_bpf_impl(rctx):
             strip = downloaded["llvm-strip"],
         )
 
+    install_target = ""
+    if downloaded:
+        install_target = """
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+pkg_files(
+    name = "bin_files",
+    srcs = glob(["bin/*"]),
+    prefix = "embedded/bin",
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":bin_files"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+"""
+
     rctx.file("BUILD.bazel", content = """\
 load("@@//bazel/toolchains/llvm_bpf:llvm_bpf.bzl", "llvm_bpf_toolchain")
 
@@ -76,7 +96,11 @@ toolchain(
     toolchain_type = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type",
     visibility = ["//visibility:public"],
 )
-""".format(binary_attrs = binary_attrs, version = CLANG_VERSION))
+{install_target}""".format(
+        binary_attrs = binary_attrs,
+        version = CLANG_VERSION,
+        install_target = install_target,
+    ))
 
 download_llvm_bpf = repository_rule(
     implementation = _download_llvm_bpf_impl,

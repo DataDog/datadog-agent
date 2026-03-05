@@ -186,7 +186,7 @@ def _ebpf_prog_impl(ctx):
 
     return [DefaultInfo(files = depset([final_obj]))]
 
-ebpf_prog = rule(
+_ebpf_prog = rule(
     implementation = _ebpf_prog_impl,
     attrs = {
         "src": attr.label(
@@ -223,6 +223,10 @@ ebpf_prog = rule(
     },
     toolchains = [_TOOLCHAIN_TYPE],
 )
+
+def ebpf_prog(target_compatible_with = ["@platforms//os:linux"], **kwargs):
+    """eBPF program target, Linux-only by default."""
+    _ebpf_prog(target_compatible_with = target_compatible_with, **kwargs)
 
 def ebpf_program_suite(name, src, deps = [], core = False, strip = True, extra_flags = [], target_arch = "", **kwargs):
     """Create both normal and debug variants of an eBPF program.
