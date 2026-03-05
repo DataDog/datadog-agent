@@ -1,0 +1,34 @@
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+
+cc_library(
+    name = "dyninst_ebpf_headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+ebpf_prog(
+    name = "dyninst_event",
+    src = "event.c",
+    core = True,
+    extra_flags = ["-Ipkg/dyninst/ebpf"],
+    deps = [
+        ":dyninst_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)
+
+ebpf_prog(
+    name = "dyninst_event-debug",
+    src = "event.c",
+    core = True,
+    debug = True,
+    extra_flags = [
+        "-Ipkg/dyninst/ebpf",
+        "-DDYNINST_DEBUG=1",
+    ],
+    deps = [
+        ":dyninst_ebpf_headers",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)

@@ -1,0 +1,13 @@
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+
+ebpf_prog(
+    name = "btf_test",
+    src = "btf_test.c",
+    core = True,
+    extra_flags = [
+        "-g",
+        "-DDEBUG=1",
+    ],
+    strip = False,
+    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
+)

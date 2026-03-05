@@ -1,0 +1,22 @@
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+
+cc_library(
+    name = "ebpf_c_headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+ebpf_prog(
+    name = "lock_contention",
+    src = "lock_contention.c",
+    core = True,
+    deps = [":ebpf_c_headers"],
+)
+
+ebpf_prog(
+    name = "ksyms_iter",
+    src = "ksyms_iter.c",
+    core = True,
+    deps = [":ebpf_c_headers"],
+)

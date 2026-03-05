@@ -1,0 +1,6 @@
+cc_library(
+    name = "security_ebpf_headers",
+    hdrs = glob(["**/*.h"]),
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

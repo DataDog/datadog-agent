@@ -653,6 +653,7 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
+    skip_ebpf=False,
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -683,19 +684,24 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-            ninja_define_binary_compiler(nw)
-            ninja_define_co_re_compiler(nw, arch=arch)
-            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_kernel_bugs_ebpf_programs(nw)
-            ninja_kernel_bug_binaries(nw, arch)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
+
+            if not skip_ebpf:
+                # eBPF compilation via ninja (legacy path, replaced by Bazel)
+                ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+                ninja_define_binary_compiler(nw)
+                ninja_define_co_re_compiler(nw, arch=arch)
+                ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
+                ninja_test_ebpf_programs(nw, co_re_build_dir)
+                ninja_kernel_bugs_ebpf_programs(nw)
+                ninja_kernel_bug_binaries(nw, arch)
+                ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
+                ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
+                ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
+                ninja_gpu_ebpf_programs(nw, co_re_build_dir)
+                ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
+
+            # These always run (godefs + runtime compilation bundles)
             ninja_runtime_compilation_files(nw, gobin)
-            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -1431,6 +1437,7 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    skip_ebpf=False,
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
@@ -1442,6 +1449,7 @@ def run_ninja(
         strip_object_files,
         kernel_release,
         with_unit_test,
+        skip_ebpf=skip_ebpf,
     )
 
     # generate full compilation database for easy clangd integration
@@ -1553,6 +1561,108 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+# All Bazel eBPF targets, grouped by output directory.
+# Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
+_BAZEL_EBPF_PREBUILT_TARGETS = [
+    "//pkg/network/ebpf/c/prebuilt:dns",
+    "//pkg/network/ebpf/c/prebuilt:dns-debug",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+    "//pkg/network/ebpf/c/prebuilt:tracer",
+    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm",
+    "//pkg/network/ebpf/c/prebuilt:usm-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+    "//pkg/network/ebpf/c/prebuilt:conntrack",
+    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+]
+
+_BAZEL_EBPF_CORE_TARGETS = [
+    "//pkg/ebpf/c:lock_contention",
+    "//pkg/ebpf/c:ksyms_iter",
+    "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c:tracer-debug",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+    "//pkg/network/ebpf/c/runtime:usm",
+    "//pkg/network/ebpf/c/runtime:usm-debug",
+    "//pkg/network/ebpf/c/runtime:shared-libraries",
+    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+    "//pkg/network/ebpf/c/runtime:conntrack",
+    "//pkg/network/ebpf/c/runtime:conntrack-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/gpu/ebpf/c/runtime:gpu",
+    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+    "//pkg/dyninst/ebpf:dyninst_event",
+    "//pkg/dyninst/ebpf:dyninst_event-debug",
+    "//pkg/ebpf/testdata/c:logdebug-test",
+    "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
+    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
+]
+
+# Targets that go to their own source directory, not build_dir/co-re/
+_BAZEL_EBPF_INPLACE_TARGETS = {
+    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+}
+
+
+def _bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str) -> None:
+    """Build eBPF object files using Bazel and copy them to the build directory."""
+    import shutil
+
+    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
+    targets_str = " ".join(all_targets)
+
+    print(f"Building {len(all_targets)} eBPF targets via Bazel...")
+    ctx.run(f"bazelisk build {targets_str}")
+
+    # Resolve the output path (bazel-bin symlink is not available in CI)
+    result = ctx.run("bazelisk info bazel-bin", hide=True)
+    bazel_bin = result.stdout.strip()
+
+    co_re_dir = os.path.join(build_dir, "co-re")
+    os.makedirs(build_dir, exist_ok=True)
+    os.makedirs(co_re_dir, exist_ok=True)
+
+    def _copy_output(target: str, dest_dir: str):
+        """Copy the .o output for a Bazel target to the destination directory."""
+        # //pkg/foo/bar:name -> pkg/foo/bar/name.o
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        src = os.path.join(bazel_bin, label_path, f"{name}.o")
+        dst = os.path.join(dest_dir, f"{name}.o")
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+        else:
+            print(f"Warning: expected output {src} not found")
+
+    for target in _BAZEL_EBPF_PREBUILT_TARGETS:
+        _copy_output(target, build_dir)
+
+    for target in _BAZEL_EBPF_CORE_TARGETS:
+        _copy_output(target, co_re_dir)
+
+    for target, dest in _BAZEL_EBPF_INPLACE_TARGETS.items():
+        os.makedirs(dest, exist_ok=True)
+        _copy_output(target, dest)
+
+    print(f"Copied eBPF objects to {build_dir}")
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
@@ -1568,10 +1678,12 @@ def build_object_files(
     runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
-        setup_runtime_clang(ctx)
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
+
+        # Build eBPF .o files via Bazel
+        _bazel_build_ebpf(ctx, arch_obj, build_dir)
 
     run_ninja(
         ctx,
@@ -1581,6 +1693,7 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
+        skip_ebpf=True,
     )
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)

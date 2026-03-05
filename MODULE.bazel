@@ -123,6 +123,19 @@ register_toolchains(
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 ######################################
+## LLVM BPF toolchain for eBPF    ##
+####################################
+
+llvm_bpf_ext = use_extension("//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl", "llvm_bpf_extension")
+use_repo(llvm_bpf_ext, "llvm_bpf")
+
+register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
+
+## Linux kernel headers for eBPF prebuilt compilation
+linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
+use_repo(linux_headers_ext, "linux_headers")
+
+######################################
 ## Compilers and toolchains        ##
 ####################################
 
