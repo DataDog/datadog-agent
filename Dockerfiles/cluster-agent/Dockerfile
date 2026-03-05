@@ -66,6 +66,10 @@ FROM release-base
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
+ARG KUBECTL_VERSION=v1.34.3
+ARG KUBECTL_SHA256_AMD64=ab60ca5f0fd60c1eb81b52909e67060e3ba0bd27e55a8ac147cbc2172ff14212
+ARG KUBECTL_SHA256_ARM64=46913a7aa0327f6cc2e1cc2775d53c4a2af5e52f7fd8dacbfbfd098e757f19e9
+ARG TARGETARCH
 ENV \
     # Allow User Group to exec the secret backend script.
     DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
@@ -77,6 +81,73 @@ COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-clust
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
 # secret-generic-connector for secret_backend_type / secret_backend_command
 COPY --from=artifacts secret-generic-connector /opt/datadog-agent/bin/secret-generic-connector
+
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+        kubectl_arch="amd64"; \
+        kubectl_sha256="${KUBECTL_SHA256_AMD64}"; \
+    elif [ "${TARGETARCH}" = "arm64" ]; then \
+        kubectl_arch="arm64"; \
+        kubectl_sha256="${KUBECTL_SHA256_ARM64}"; \
+    else \
+        echo "Unsupported TARGETARCH '${TARGETARCH}' for kubectl install in this POC"; \
+        exit 1; \
+    fi && \
+    curl -fsSLo /usr/local/bin/kubectl-real "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${kubectl_arch}/kubectl" && \
+    echo "${kubectl_sha256}  /usr/local/bin/kubectl-real" | sha256sum -c - \
+    && printf '%s\n' \
+        '#!/bin/sh' \
+        'set -eu' \
+        '' \
+        'REAL_KUBECTL="/usr/local/bin/kubectl-real"' \
+        'SA_DIR="/var/run/secrets/kubernetes.io/serviceaccount"' \
+        'TOKEN_FILE="${SA_DIR}/token"' \
+        'CA_FILE="${SA_DIR}/ca.crt"' \
+        'CONFIG_FILE="/tmp/kubectl-incluster-config"' \
+        'SERVER="https://kubernetes.default.svc:443"' \
+        '' \
+        'has_connection_flag=0' \
+        'for arg in "$@"; do' \
+        '    case "$arg" in' \
+        '        --kubeconfig|--kubeconfig=*|--server|--server=*|--context|--context=*|--cluster|--cluster=*|--user|--user=*|--token|--token=*|--certificate-authority|--certificate-authority=*|--client-certificate|--client-certificate=*|--client-key|--client-key=*|--insecure-skip-tls-verify|--insecure-skip-tls-verify=*)' \
+        '            has_connection_flag=1' \
+        '            break' \
+        '            ;;' \
+        '    esac' \
+        'done' \
+        '' \
+        'if [ "$has_connection_flag" -eq 0 ] && [ -z "${KUBECONFIG:-}" ] && [ -r "$TOKEN_FILE" ] && [ -r "$CA_FILE" ]; then' \
+        "    token=\"\$(tr -d '\\n' < \"\$TOKEN_FILE\")\"" \
+        '    if [ -n "$token" ]; then' \
+        '        umask 077' \
+        '        tmp_config="${CONFIG_FILE}.tmp.$$"' \
+        '        cat > "$tmp_config" <<EOK' \
+        'apiVersion: v1' \
+        'kind: Config' \
+        'clusters:' \
+        '- name: in-cluster' \
+        '  cluster:' \
+        '    certificate-authority: ${CA_FILE}' \
+        '    server: ${SERVER}' \
+        'users:' \
+        '- name: in-cluster' \
+        '  user:' \
+        '    token: ${token}' \
+        'contexts:' \
+        '- name: in-cluster' \
+        '  context:' \
+        '    cluster: in-cluster' \
+        '    user: in-cluster' \
+        'current-context: in-cluster' \
+        'EOK' \
+        '        mv "$tmp_config" "$CONFIG_FILE"' \
+        '        export KUBECONFIG="$CONFIG_FILE"' \
+        '    fi' \
+        'fi' \
+        '' \
+        'exec "$REAL_KUBECTL" "$@"' \
+    > /usr/local/bin/kubectl \
+    && chmod 0755 /usr/local/bin/kubectl-real /usr/local/bin/kubectl \
+    && kubectl version --client=true --output=yaml >/dev/null
 
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
@@ -96,6 +167,8 @@ RUN addgroup --system secret-manager \
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
     && addgroup --system secret-manager \
     && usermod -a -G secret-manager dd-agent \
+    && adduser --system --no-create-home --disabled-password dd-scriptuser --shell /bin/sh \
+    && sed -i '/@include common-auth/i auth sufficient pam_succeed_if.so user = dd-scriptuser ruser = dd-agent' /etc/pam.d/su \
     && mkdir -p /var/log/datadog/ /conf.d /opt/datadog-agent/run \
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \

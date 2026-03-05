@@ -84,7 +84,7 @@ func (h *RunShellScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(maxOutputSize)
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 	start := time.Now()
