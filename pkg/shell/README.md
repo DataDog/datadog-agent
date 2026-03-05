@@ -11,9 +11,7 @@ For the complete list of supported and blocked shell features, see [SHELL_FEATUR
 Scripts are processed in two phases:
 
 1. **Parse & Validate** — The script is parsed into an AST, then validated against an allowlist of
-   supported syntax nodes. Disallowed constructs (e.g., `if`, `while`, command substitution) are
-   rejected with exit code 2 _before any code runs_. This guarantees that partially executed
-   scripts cannot occur due to an unsupported feature mid-script.
+   supported syntax nodes.
 
 2. **Execute** — The validated AST is interpreted. Commands are dispatched to builtins or to the
    configured ExecHandler. File access goes through the configured OpenHandler, which enforces
