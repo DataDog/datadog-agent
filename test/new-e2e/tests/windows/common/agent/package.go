@@ -235,7 +235,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // Optional [PackageOption] arguments are applied as defaults before the
 // CURRENT_AGENT_* overrides, so environment variables always take priority.
 //
-// If none of the above are set, the latest stable version is used.
+// If none of the above resolve to a URL, an error is returned.
 func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 	var opts []PackageOption
 	opts = append(opts, defaults...)
@@ -245,16 +245,9 @@ func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 		return nil, err
 	}
 
-	// Fallback: if nothing resolved to a URL, default to the latest stable MSI.
+	// if URL is still not set, return an error to avoid silently using a different MSI
 	if pkg.URL == "" {
-		url, err := GetLatestMSIURL(defaultMajorVersion, pkg.Arch, pkg.Flavor)
-		if err != nil {
-			return nil, err
-		}
-		pkg.URL = url
-		if pkg.Channel == "" {
-			pkg.Channel = stableChannel
-		}
+		return nil, errors.New("CURRENT_AGENT_SOURCE_VERSION, CURRENT_AGENT_PIPELINE, or a more specific CURRENT_AGENT_MSI_* override is required")
 	}
 
 	return pkg, nil
