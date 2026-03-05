@@ -22,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -143,6 +144,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
+			delegatedauthnoopfx.Module(),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 			fxinstrumentation.Module(),
@@ -175,14 +177,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component, cfg coreconfig.Component) (serializerexporter.SourceProviderFunc, error) {
-			if cfg.GetBool("otelcollector.gateway.mode") {
-				// In gateway mode the agent does not represent a specific host, so return an empty
-				// hostname without error instead of failing when hostname resolution is not available.
-				return func(_ context.Context) (string, error) {
-					return "", nil
-				}, nil
-			}
+		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
 		remotehostnameimpl.Module(),
@@ -256,6 +251,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
+		delegatedauthnoopfx.Module(),
 		fxinstrumentation.Module(),
 	)
 }

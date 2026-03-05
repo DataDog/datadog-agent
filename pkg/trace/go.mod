@@ -14,9 +14,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2
@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/shirou/gopsutil/v4 v4.26.1
+	github.com/shirou/gopsutil/v4 v4.26.2
 	go.opentelemetry.io/collector/component/componenttest v0.146.1
 )
 
@@ -82,10 +82,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -121,7 +121,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
-	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
