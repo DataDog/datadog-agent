@@ -58,6 +58,21 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	if s.TCPClosed > 0 {
 		sc.TCPClosed = s.TCPClosed - other.TCPClosed
 	}
+	if s.TCPRTOCount > 0 {
+		sc.TCPRTOCount = s.TCPRTOCount - other.TCPRTOCount
+	}
+	if s.TCPRecoveryCount > 0 {
+		sc.TCPRecoveryCount = s.TCPRecoveryCount - other.TCPRecoveryCount
+	}
+	if s.TCPProbe0Count > 0 {
+		sc.TCPProbe0Count = s.TCPProbe0Count - other.TCPProbe0Count
+	}
+	if s.TCPDeliveredCE > 0 {
+		sc.TCPDeliveredCE = s.TCPDeliveredCE - other.TCPDeliveredCE
+	}
+	if s.TCPReordSeen > 0 {
+		sc.TCPReordSeen = s.TCPReordSeen - other.TCPReordSeen
+	}
 
 	return sc, false
 }
@@ -155,26 +170,27 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 	}
 }
 
-// FromTCPCongestionStats populates the TCP congestion fields on ConnectionStats.
+// FromTCPCongestionStats populates the TCP congestion counters in Monotonic and
+// the ECN negotiated flag on ConnectionStats.
 func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats) {
 	if c.Type != TCP || cs == nil {
 		return
 	}
 
-	c.TCPDeliveredCE = cs.Delivered_ce
-	c.TCPReordSeen = cs.Reord_seen
+	c.Monotonic.TCPDeliveredCE = cs.Delivered_ce
+	c.Monotonic.TCPReordSeen = cs.Reord_seen
 	c.TCPECNNegotiated = cs.Ecn_negotiated
 }
 
-// FromTCPRTORecoveryStats populates the RTO and fast-recovery event counter fields on ConnectionStats.
+// FromTCPRTORecoveryStats populates the RTO and fast-recovery event counters in Monotonic.
 func (c *ConnectionStats) FromTCPRTORecoveryStats(rs *netebpf.TCPRTORecoveryStats) {
 	if c.Type != TCP || rs == nil {
 		return
 	}
 
-	c.TCPRTOCount = rs.Rto_count
-	c.TCPRecoveryCount = rs.Recovery_count
-	c.TCPProbe0Count = rs.Probe0_count
+	c.Monotonic.TCPRTOCount = rs.Rto_count
+	c.Monotonic.TCPRecoveryCount = rs.Recovery_count
+	c.Monotonic.TCPProbe0Count = rs.Probe0_count
 }
 
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments
