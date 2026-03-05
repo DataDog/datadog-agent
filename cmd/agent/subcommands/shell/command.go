@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"mvdan.cc/sh/v3/syntax"
@@ -24,6 +25,7 @@ import (
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	var scriptFlag string
 	var allowedPathsFlag string
+	var timeoutFlag time.Duration
 
 	shellCmd := &cobra.Command{
 		Use:    "shell",
@@ -48,7 +50,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 			if scriptFlag != "" {
 				reader = strings.NewReader(scriptFlag)
 			}
-			err = run(r, reader)
+			err = run(r, reader, timeoutFlag)
 			var es interp.ExitStatus
 			if errors.As(err, &es) {
 				os.Exit(int(es))
@@ -58,15 +60,22 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	}
 	shellCmd.Flags().StringVar(&scriptFlag, "script", "", "script string to execute")
 	shellCmd.Flags().StringVar(&allowedPathsFlag, "allowed-paths", "", "comma-separated list of directories to restrict file access to")
+	shellCmd.Flags().DurationVar(&timeoutFlag, "timeout", 60*time.Second, "maximum execution time for the shell script (0 for no timeout)")
 
 	return []*cobra.Command{shellCmd}
 }
 
-func run(r *interp.Runner, reader io.Reader) error {
+func run(r *interp.Runner, reader io.Reader, timeout time.Duration) error {
 	prog, err := syntax.NewParser().Parse(reader, "")
 	if err != nil {
 		return err
 	}
 	r.Reset()
-	return r.Run(context.Background(), prog)
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return r.Run(ctx, prog)
 }
