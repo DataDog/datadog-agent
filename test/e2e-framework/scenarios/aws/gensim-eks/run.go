@@ -393,6 +393,9 @@ func deployRunnerJob(
 									corev1.EnvVarArgs{Name: pulumi.String("DD_ENV"), Value: pulumi.StringPtr(ddEnv)},
 									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
 									corev1.EnvVarArgs{Name: pulumi.String("DD_SITE"), Value: pulumi.StringPtr(awsEnv.Site())},
+									// play-episode.sh creates results/ relative to its script dir.
+									// ConfigMap volumes are read-only, so redirect to a writable path.
+									corev1.EnvVarArgs{Name: pulumi.String("RESULTS_DIR"), Value: pulumi.StringPtr("/tmp/results")},
 								},
 								VolumeMounts: corev1.VolumeMountArray{
 									corev1.VolumeMountArgs{
