@@ -28,37 +28,28 @@ const (
 // baseAutoscalerTags generates the common base tags for autoscaler metrics
 func baseAutoscalerTags(namespace, targetName, autoscalerName string) []string {
 	return []string{
-		"namespace:" + namespace,
+		"namespace:" + namespace, // keep "namespace" for backward compatibility, even if it's redundant with "kube_namespace"
+		"kube_namespace:" + namespace,
 		"target_name:" + targetName,
-		"autoscaler_name:" + autoscalerName,
+		"autoscaler_name:" + autoscalerName, // keep it for backward compatibility, even if it's redundant with "name"
+		"name:" + autoscalerName,
 		le.JoinLeaderLabel + ":" + le.JoinLeaderValue,
 	}
 }
 
-// autoscalerTagsWithSource generates autoscaler tags with a source field
-func autoscalerTagsWithSource(namespace, targetName, autoscalerName, source string) []string {
-	tags := baseAutoscalerTags(namespace, targetName, autoscalerName)
-	return append(tags, "source:"+source)
-}
-
-// autoscalerTagsWithContainer generates autoscaler tags for container-level metrics
-func autoscalerTagsWithContainer(namespace, targetName, autoscalerName, source, containerName, resourceName string) []string {
-	tags := autoscalerTagsWithSource(namespace, targetName, autoscalerName, source)
-	return append(tags,
-		"container_name:"+containerName,
-		"resource_name:"+resourceName,
-	)
+func resourceTags(resournceName string) []string {
+	return []string{
+		"resource_name:" + resournceName,
+	}
 }
 
 // conditionTags generates tags for autoscaler condition metrics
-func conditionTags(namespace, targetName, autoscalerName, conditionType string) []string {
-	tags := baseAutoscalerTags(namespace, targetName, autoscalerName)
-	tags = append(tags, "type:"+conditionType)
-	return tags
+func conditionTags(baseTags []string, conditionType string) []string {
+	return append(baseTags, "type:"+conditionType)
 }
 
 // GeneratePodAutoscalerMetrics generates structured metrics from a PodAutoscaler object
-func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetrics {
+func GeneratePodAutoscalerMetrics(obj any) metricsstore.StructuredMetrics {
 	internal, ok := obj.(*model.PodAutoscalerInternal)
 	if !ok {
 		log.Debugf("GeneratePodAutoscalerMetrics: unexpected type %T, expected *model.PodAutoscalerInternal", obj)
@@ -79,13 +70,38 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 	// Get scaling values
 	scalingValues := internal.MainScalingValues()
 
+	// Precompute base tags shared across all metrics for this autoscaler
+	baseTags := baseAutoscalerTags(namespace, targetName, name)
+	var baseWithHorizontalSourceTags []string
+	if scalingValues.Horizontal != nil {
+		baseWithHorizontalSourceTags = append(baseWithHorizontalSourceTags, "source:"+string(scalingValues.Horizontal.Source))
+	}
+	baseWithHorizontalSourceTags = append(baseWithHorizontalSourceTags, baseTags...)
+	// Cap to prevent slice aliasing in the container resources loop below
+	baseWithHorizontalSourceTags = baseWithHorizontalSourceTags[:len(baseWithHorizontalSourceTags):len(baseWithHorizontalSourceTags)] // Cap to prevent slice aliasing in the horizontal metrics below
+
+	var baseWithVerticalSourceTags []string
+	if scalingValues.Vertical != nil {
+		baseWithVerticalSourceTags = append(baseWithVerticalSourceTags, "source:"+string(scalingValues.Vertical.Source))
+	}
+	baseWithVerticalSourceTags = append(baseWithVerticalSourceTags, baseTags...)
+	// Cap to prevent slice aliasing in the container resources loop below
+	baseWithVerticalSourceTags = baseWithVerticalSourceTags[:len(baseWithVerticalSourceTags):len(baseWithVerticalSourceTags)]
+	// TODO: containerExtraTags will be used in the future when we add container-level metrics, to include tags from "ad.datadoghq.com/<container-name>.tags" annotations
+	/* containerExtraTags, err := parseContainerAnnotationTags(internal.Annotations())
+	if err != nil {
+		log.Debugf("failed to parse container annotation tags on DatadogPodAutoscaler %s/%s: %s",
+			namespace, name, err)
+	}
+	*/
+
 	// 1. Received recommendations version
 	if version := internal.MainScalingValuesVersion(); version > 0 {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".received_recommendations_version",
 			Type:  metricsstore.MetricTypeGauge,
 			Value: float64(version),
-			Tags:  baseAutoscalerTags(namespace, targetName, name),
+			Tags:  baseTags,
 		})
 	}
 
@@ -95,7 +111,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 			Name:  metricPrefix + ".horizontal_scaling_received_replicas",
 			Type:  metricsstore.MetricTypeGauge,
 			Value: float64(scalingValues.Horizontal.Replicas),
-			Tags:  autoscalerTagsWithSource(namespace, targetName, name, string(scalingValues.Horizontal.Source)),
+			Tags:  baseWithHorizontalSourceTags,
 		})
 	}
 
@@ -108,7 +124,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 					Name:  metricPrefix + ".vertical_scaling_received_requests",
 					Type:  metricsstore.MetricTypeGauge,
 					Value: value.AsApproximateFloat64(),
-					Tags:  autoscalerTagsWithContainer(namespace, targetName, name, string(scalingValues.Vertical.Source), containerResources.Name, string(resource)),
+					Tags:  append(baseWithVerticalSourceTags, resourceTags(string(resource))...),
 				})
 			}
 
@@ -118,7 +134,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 					Name:  metricPrefix + ".vertical_scaling_received_limits",
 					Type:  metricsstore.MetricTypeGauge,
 					Value: value.AsApproximateFloat64(),
-					Tags:  autoscalerTagsWithContainer(namespace, targetName, name, string(scalingValues.Vertical.Source), containerResources.Name, string(resource)),
+					Tags:  append(baseWithVerticalSourceTags, resourceTags(string(resource))...),
 				})
 			}
 		}
@@ -130,6 +146,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 	if sv := internal.ScalingValues(); sv.Horizontal != nil {
 		actionSource = string(sv.Horizontal.Source)
 	}
+	horizontalTags := append(baseTags, "source:"+actionSource)
 
 	if len(lastHorizontalActions) > 0 {
 		lastAction := lastHorizontalActions[len(lastHorizontalActions)-1]
@@ -137,11 +154,10 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 			Name:  metricPrefix + ".horizontal_scaling_applied_replicas",
 			Type:  metricsstore.MetricTypeGauge,
 			Value: float64(lastAction.ToReplicas),
-			Tags:  autoscalerTagsWithSource(namespace, targetName, name, actionSource),
+			Tags:  horizontalTags,
 		})
 	}
 
-	horizontalTags := autoscalerTagsWithSource(namespace, targetName, name, actionSource)
 	// Cap the slice to its length so each status append allocates independently
 	horizontalTags = horizontalTags[:len(horizontalTags):len(horizontalTags)]
 	if internal.HorizontalActionErrorCount() > 0 {
@@ -162,13 +178,12 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 	}
 
 	// 5. Vertical scaling last action metrics
-	verticalTags := baseAutoscalerTags(namespace, targetName, name)
 	if internal.VerticalActionErrorCount() > 0 {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".vertical_rollout_triggered",
 			Type:  metricsstore.MetricTypeMonotonicCount,
 			Value: float64(internal.VerticalActionErrorCount()),
-			Tags:  append(verticalTags, "status:error"),
+			Tags:  append(baseWithVerticalSourceTags, "status:error"),
 		})
 	}
 	if internal.VerticalActionSuccessCount() > 0 {
@@ -176,7 +191,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 			Name:  metricPrefix + ".vertical_rollout_triggered",
 			Type:  metricsstore.MetricTypeMonotonicCount,
 			Value: float64(internal.VerticalActionSuccessCount()),
-			Tags:  append(verticalTags, "status:ok"),
+			Tags:  append(baseWithVerticalSourceTags, "status:ok"),
 		})
 	}
 
@@ -191,7 +206,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 				Name:  metricPrefix + ".autoscaler_conditions",
 				Type:  metricsstore.MetricTypeGauge,
 				Value: value,
-				Tags:  conditionTags(namespace, targetName, name, string(condition.Type)),
+				Tags:  conditionTags(baseTags, string(condition.Type)),
 			})
 		}
 	}
@@ -207,7 +222,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 		Name:  metricPrefix + ".local_fallback_enabled",
 		Type:  metricsstore.MetricTypeGauge,
 		Value: localFallbackValue,
-		Tags:  baseAutoscalerTags(namespace, targetName, name),
+		Tags:  baseTags,
 	})
 
 	return metrics
