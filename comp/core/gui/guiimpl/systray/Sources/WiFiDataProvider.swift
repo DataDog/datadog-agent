@@ -56,8 +56,11 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// Tracks whether we already failed once when fetching the flag (allows one retry before caching the default).
     private static var requestLocationPermissionFetchFailedOnce: Bool = false
 
-    /// Default value when request_location_permission cannot be obtained (agent not running, configcheck fails, or parse fails). Used to keep behavior flexible.
-    private static let defaultRequestLocationPermissionEnabled = false
+    /// Default when agent configcheck wlan fails (e.g. agent not running). Case 2: do not show prompt.
+    private static let defaultRequestLocationPermissionWhenFetchFails = false
+
+    /// Default when configcheck succeeds but request_location_permission is missing or unparseable in WLAN config. Case 1: show prompt.
+    private static let defaultRequestLocationPermissionWhenMissing = true
 
     /// Returns the path to the agent binary (uses DD_INSTALL_PATH from LaunchAgent plist or default).
     private static func agentBinaryPath() -> String {
@@ -97,29 +100,30 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let init_config: String?
     }
 
-    /// Parses request_location_permission from WLAN check init_config (from configcheck wlan JSON). Returns true only if key is present and true; false otherwise.
-    private static func parseRequestLocationPermission(from jsonOutput: String) -> Bool {
-        guard let data = jsonOutput.data(using: .utf8) else { return false }
+    /// Parses request_location_permission from WLAN check init_config (from configcheck wlan JSON).
+    /// Returns true if key present and value "true", false if key present and value "false", nil if missing or unparseable.
+    private static func parseRequestLocationPermission(from jsonOutput: String) -> Bool? {
+        guard let data = jsonOutput.data(using: .utf8) else { return nil }
         let decoder = JSONDecoder()
         guard let items = try? decoder.decode([ConfigCheckItem].self, from: data),
               let first = items.first,
               let initConfig = first.init_config, !initConfig.isEmpty else {
-            return false
+            return nil
         }
         let pattern = #"^\s*request_location_permission\s*:\s*(true|false)\s*($|#)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines, .caseInsensitive]) else {
-            return false
+            return nil
         }
         let range = NSRange(initConfig.startIndex..., in: initConfig)
         guard let match = regex.firstMatch(in: initConfig, options: [], range: range),
               let valueRange = Range(match.range(at: 1), in: initConfig) else {
-            return false
+            return nil
         }
         return initConfig[valueRange].lowercased() == "true"
     }
 
     /// Returns true if the location permission prompt is allowed (request_location_permission from WLAN check via agent configcheck wlan). Cached for process lifetime with one retry on failure.
-    /// When the flag cannot be obtained, returns defaultRequestLocationPermissionEnabled.
+    /// When fetch fails uses defaultRequestLocationPermissionWhenFetchFails; when flag missing uses defaultRequestLocationPermissionWhenMissing.
     private func requestLocationPermissionEnabled() -> Bool {
         if let cached = Self.cachedRequestLocationPermissionEnabled {
             Logger.debug("request_location_permission: \(cached) (cached)", context: "WiFiDataProvider")
@@ -127,21 +131,27 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
         guard let output = Self.runAgentConfig() else {
             if Self.requestLocationPermissionFetchFailedOnce {
-                Self.cachedRequestLocationPermissionEnabled = Self.defaultRequestLocationPermissionEnabled
-                Logger.debug("agent configcheck wlan failed again, caching default (\(Self.defaultRequestLocationPermissionEnabled))", context: "WiFiDataProvider")
-                Logger.info("request_location_permission: \(Self.defaultRequestLocationPermissionEnabled) (default, unable to get value)", context: "WiFiDataProvider")
+                Self.cachedRequestLocationPermissionEnabled = Self.defaultRequestLocationPermissionWhenFetchFails
+                Logger.debug("agent configcheck wlan failed again, caching default (\(Self.defaultRequestLocationPermissionWhenFetchFails))", context: "WiFiDataProvider")
+                Logger.info("request_location_permission: \(Self.defaultRequestLocationPermissionWhenFetchFails) (default, unable to get value)", context: "WiFiDataProvider")
             } else {
                 Self.requestLocationPermissionFetchFailedOnce = true
                 Logger.debug("agent configcheck wlan failed (will retry once on next check)", context: "WiFiDataProvider")
-                Logger.debug("request_location_permission: \(Self.defaultRequestLocationPermissionEnabled) (default, fetch failed)", context: "WiFiDataProvider")
+                Logger.debug("request_location_permission: \(Self.defaultRequestLocationPermissionWhenFetchFails) (default, fetch failed)", context: "WiFiDataProvider")
             }
-            return Self.defaultRequestLocationPermissionEnabled
+            return Self.defaultRequestLocationPermissionWhenFetchFails
         }
         Self.requestLocationPermissionFetchFailedOnce = false
-        let result = Self.parseRequestLocationPermission(from: output)
-        Self.cachedRequestLocationPermissionEnabled = result
-        Logger.info("request_location_permission: \(result) (from WLAN config)", context: "WiFiDataProvider")
-        return result
+        let parsed = Self.parseRequestLocationPermission(from: output)
+        if let value = parsed {
+            Self.cachedRequestLocationPermissionEnabled = value
+            Logger.info("request_location_permission: \(value) (from WLAN config)", context: "WiFiDataProvider")
+            return value
+        }
+        let defaultWhenMissing = Self.defaultRequestLocationPermissionWhenMissing
+        Self.cachedRequestLocationPermissionEnabled = defaultWhenMissing
+        Logger.info("request_location_permission: \(defaultWhenMissing) (default, flag missing in WLAN config)", context: "WiFiDataProvider")
+        return defaultWhenMissing
     }
 
     override init() {
