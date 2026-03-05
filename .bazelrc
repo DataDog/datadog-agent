@@ -30,6 +30,7 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_gro
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
 # Linux config ---------------------------------------------------------------------------------------------------------
+common:linux --host_linkopt=-lstdc++ # GCC toolchain links C++ exec-tools with gcc; provide libstdc++ explicitly
 common:linux --strategy=sandboxed
 common:linux --remote_local_fallback_strategy=sandboxed
 
