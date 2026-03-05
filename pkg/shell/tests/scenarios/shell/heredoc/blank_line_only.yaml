@@ -1,0 +1,11 @@
+description: Heredoc with only a blank line between delimiters outputs the blank line.
+input:
+  # language=bash
+  script: |+
+    cat <<EOF
+
+    EOF
+expect:
+  stdout: "\n"
+  stderr: ""
+  exit_code: 0

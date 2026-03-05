@@ -1,0 +1,11 @@
+description: Brace groups can be chained with the AND operator.
+input:
+  # language=bash
+  script: |+
+    { echo 1; } && { echo 2; }
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

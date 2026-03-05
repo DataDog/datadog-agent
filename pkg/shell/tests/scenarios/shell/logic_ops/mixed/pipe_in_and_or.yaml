@@ -1,0 +1,11 @@
+description: Pipelines can be used as components of and-or lists.
+input:
+  # language=bash
+  script: |+
+    echo hello | cat && echo world
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

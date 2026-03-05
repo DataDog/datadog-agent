@@ -1,0 +1,11 @@
+description: Single quotes prevent variable expansion, preserving the literal dollar sign.
+input:
+  # language=bash
+  script: |+
+    a=hello
+    echo '$a'
+expect:
+  stdout: |+
+    $a
+  stderr: ""
+  exit_code: 0

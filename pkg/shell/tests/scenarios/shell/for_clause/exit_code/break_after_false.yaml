@@ -1,0 +1,14 @@
+description: Break resets exit status to zero even after a failed command.
+input:
+  # language=bash
+  script: |+
+    for i in 1; do
+      false
+      break
+    done
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

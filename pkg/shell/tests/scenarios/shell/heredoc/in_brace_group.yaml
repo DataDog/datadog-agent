@@ -1,0 +1,14 @@
+description: Heredoc works inside a brace group.
+input:
+  # language=bash
+  script: |+
+    {
+      cat <<EOF
+    hello
+    EOF
+    }
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

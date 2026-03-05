@@ -1,0 +1,12 @@
+description: Three-command list with failure then or-fallback then and-continuation.
+input:
+  # language=bash
+  script: |+
+    false && echo foo || echo bar
+    true || echo foo && echo bar
+expect:
+  stdout: |+
+    bar
+    bar
+  stderr: ""
+  exit_code: 0

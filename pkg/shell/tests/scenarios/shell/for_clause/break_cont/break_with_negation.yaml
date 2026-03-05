@@ -1,0 +1,14 @@
+description: Break preceded by negation still exits the loop.
+input:
+  # language=bash
+  script: |+
+    for i in 1 2 3; do
+      ! break
+      echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

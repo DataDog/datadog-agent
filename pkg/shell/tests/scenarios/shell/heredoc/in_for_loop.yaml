@@ -1,0 +1,15 @@
+description: Heredocs can be used inside a for loop body.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      cat <<EOF
+    $i
+    EOF
+    done
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Adjacent variable expansions are concatenated without spaces.
+input:
+  # language=bash
+  script: |+
+    A=hello
+    B=world
+    echo $A$B
+expect:
+  stdout: |+
+    helloworld
+  stderr: ""
+  exit_code: 0

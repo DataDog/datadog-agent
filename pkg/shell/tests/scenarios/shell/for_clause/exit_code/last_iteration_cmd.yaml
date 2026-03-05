@@ -1,0 +1,14 @@
+description: Exit status of for loop is from the last command of the last iteration.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      false
+      true
+    done
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

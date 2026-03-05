@@ -1,0 +1,11 @@
+description: Double-quoted expansion preserves internal whitespace without field splitting.
+input:
+  # language=bash
+  script: |+
+    a='hello   world'
+    echo "$a"
+expect:
+  stdout: |+
+    hello   world
+  stderr: ""
+  exit_code: 0

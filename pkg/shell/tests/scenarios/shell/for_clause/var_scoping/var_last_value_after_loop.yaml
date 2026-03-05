@@ -1,0 +1,13 @@
+description: Loop variable retains the value from the last iteration after loop ends.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      true
+    done
+    echo $i
+expect:
+  stdout: |+
+    c
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+description: A script with only comments produces no output and exits zero.
+input:
+  # language=bash
+  script: |+
+    #
+    # foo
+    #	bar
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

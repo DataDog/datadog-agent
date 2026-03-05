@@ -1,0 +1,15 @@
+description: For loop with do on a separate line from the word list.
+input:
+  # language=bash
+  script: |+
+    for i in a b c
+    do
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Negated pipelines interact correctly with and-or lists.
+input:
+  # language=bash
+  script: |+
+    ! false && echo foo | cat
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

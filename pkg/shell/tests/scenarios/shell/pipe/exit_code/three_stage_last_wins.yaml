@@ -1,0 +1,11 @@
+description: In a three-stage pipeline the exit status comes from the last command.
+input:
+  # language=bash
+  script: |+
+    false | true | false
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0
