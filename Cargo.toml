@@ -21,6 +21,9 @@ hyper = "1"
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 log = "0.4"
 prost = "0.13"
+prost-types = "0.13"
+protoc-gen-prost = "0.4"
+protoc-gen-tonic = "0.4"
 lru = { version = "0.16.0", default-features = false }
 memchr = "2.7.6"
 nom = "7.1"

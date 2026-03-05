@@ -1,23 +1,49 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
+
+# ============================================================================
+# Protobuf / gRPC
+# ============================================================================
+
+proto_library(
+    name = "process_manager_proto",
+    srcs = ["proto/process_manager.proto"],
+)
+
+rust_prost_library(
+    name = "process_manager_rust_proto",
+    proto = ":process_manager_proto",
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
+# Binary
+# ============================================================================
 
 rust_binary(
     name = "dd-procmgrd",
     srcs = glob(["src/**/*.rs"]),
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = [
         "@platforms//os:linux",
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":process_manager_rust_proto",
         "@crates//:anyhow",
         "@crates//:log",
         "@crates//:nix",
+        "@crates//:prost",
         "@crates//:serde",
         "@crates//:serde_yaml",
         "@crates//:simple_logger",
         "@crates//:tokio",
+        "@crates//:tokio-stream",
+        "@crates//:tonic",
     ],
 )
 
@@ -44,7 +70,9 @@ rust_test(
     crate = ":dd-procmgrd",
     edition = "2024",
     deps = [
+        "@crates//:hyper-util",
         "@crates//:tempfile",
+        "@crates//:tower",
     ],
 )
 
