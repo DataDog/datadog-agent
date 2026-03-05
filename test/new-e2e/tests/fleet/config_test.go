@@ -300,6 +300,10 @@ func (s *configSuite) TestSystemProbeConfig() {
 // (-c /etc/datadog-agent-exp), confd_path and additional_checksd are derived
 // from the experiment config directory instead of the hardcoded defaults.
 func (s *configSuite) TestExperimentConfdPath() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
+	}
+
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
