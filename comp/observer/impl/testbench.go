@@ -197,6 +197,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			NewLogPatternDetector(),
 		},
 
 		components:             make(map[string]*registeredComponent),

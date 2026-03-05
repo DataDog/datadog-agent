@@ -203,6 +203,7 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			NewLogPatternDetector(),
 		},
 		metricsDetectors: []observerdef.MetricsDetector{
 			NewCUSUMDetector(),
