@@ -60,6 +60,7 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_fx",
     "com_github_datadog_datadog_agent_comp_core_config",
     "com_github_datadog_datadog_agent_comp_core_configsync",
+    "com_github_datadog_datadog_agent_comp_core_delegatedauth",
     "com_github_datadog_datadog_agent_comp_core_flare_builder",
     "com_github_datadog_datadog_agent_comp_core_flare_types",
     "com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface",
