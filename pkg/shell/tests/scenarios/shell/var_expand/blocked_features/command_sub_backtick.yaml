@@ -1,0 +1,10 @@
+description: Backtick command substitution is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo `echo hello`
+expect:
+  stdout: ""
+  stderr: |+
+    command substitution is not supported
+  exit_code: 2

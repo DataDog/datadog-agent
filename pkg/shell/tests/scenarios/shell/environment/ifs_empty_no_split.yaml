@@ -1,0 +1,14 @@
+description: Empty IFS disables word splitting.
+input:
+  # language=bash
+  script: |+
+    IFS=
+    A="hello world"
+    for w in $A; do
+      echo "$w"
+    done
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

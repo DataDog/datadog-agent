@@ -1,0 +1,10 @@
+description: Backslash escape sequences in double-quoted echo are passed literally.
+input:
+  # language=bash
+  script: |+
+    echo "hello\nworld"
+expect:
+  stdout: |+
+    hello\nworld
+  stderr: ""
+  exit_code: 0

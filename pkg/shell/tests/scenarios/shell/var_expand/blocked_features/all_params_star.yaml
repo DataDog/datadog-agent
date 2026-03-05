@@ -1,0 +1,10 @@
+description: All positional parameters $* is not supported in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo $*
+expect:
+  stdout: ""
+  stderr: |+
+    $* is not supported
+  exit_code: 2

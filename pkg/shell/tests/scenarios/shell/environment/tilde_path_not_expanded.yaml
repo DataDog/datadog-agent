@@ -1,0 +1,10 @@
+description: Tilde with path ~/dir is not expanded in safe-shell.
+input:
+  # language=bash
+  script: |+
+    echo ~/mydir
+expect:
+  stdout: |+
+    ~/mydir
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: Prefix variable listing ${!prefix*} is not supported in safe-shell (caught by indirect expansion check).
+input:
+  # language=bash
+  script: |+
+    MY_A=1
+    MY_B=2
+    echo ${!MY_*}
+expect:
+  stdout: ""
+  stderr: |+
+    ${!var} is not supported
+  exit_code: 2
