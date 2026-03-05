@@ -195,6 +195,18 @@ func WithHelmValues(values string) func(*Params) error {
 	}
 }
 
+// WithHelmValuesFile adds helm values from a file path to the agent installation.
+// Prefer this over WithHelmValues when using a local Pulumi backend: string assets
+// (pulumi.NewStringAsset) serialise differently from file assets in local state and
+// can cause "unsupported type for 'valueYamlFiles' arg: []interface{}" errors in the
+// Helm provider. File assets are read from disk at apply time and avoid this issue.
+func WithHelmValuesFile(path string) func(*Params) error {
+	return func(p *Params) error {
+		p.HelmValues = append(p.HelmValues, pulumi.NewFileAsset(path))
+		return nil
+	}
+}
+
 // WithFakeintake configures the Agent to use the given fake intake.
 func WithFakeintake(fakeintake *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
