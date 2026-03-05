@@ -1,0 +1,22 @@
+description: Continue 3 in three-level nested loop continues the outermost loop.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        for k in x y; do
+          echo "$i$j$k"
+          continue 3
+        done
+        echo "inner-done"
+      done
+      echo "mid-done"
+    done
+    echo done
+expect:
+  stdout: |+
+    a1x
+    b1x
+    done
+  stderr: ""
+  exit_code: 0

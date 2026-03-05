@@ -1,0 +1,13 @@
+test_against_local_shell: false
+description: The IFS builtin variable is set by the interpreter and controls word splitting.
+input:
+  # language=bash
+  script: |+
+    IFS=,
+    A="a,b,c"
+    echo $A
+expect:
+  stdout: |+
+    a b c
+  stderr: ""
+  exit_code: 0

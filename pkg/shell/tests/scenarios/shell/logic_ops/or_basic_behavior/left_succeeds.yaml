@@ -1,0 +1,10 @@
+description: When left side of || succeeds, right side is skipped.
+input:
+  # language=bash
+  script: |+
+    echo ok || echo skipped
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,41 @@
+{
+   Memcheck:Cond:re_compile_fastmap_iter/re_compile_fastmap/regcomp
+   Memcheck:Cond
+   fun:re_compile_fastmap_iter*
+   fun:re_compile_fastmap
+   fun:regcomp
+}
+{
+   Memcheck:Cond:wcsnlen
+   Memcheck:Cond
+   fun:__wcsnlen_sse4_1
+}
+{
+   Memcheck:Addr16:wcsnlen
+   Memcheck:Addr16
+   fun:__wcsnlen_sse4_1
+}
+{
+   Memcheck:Addr32:wcsncpy
+   Memcheck:Addr32
+   fun:__wcsncpy_avx2
+}
+{
+   Memcheck:Leak:getpwnam_r@@GLIBC_2.2.5
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:getpwnam_r@@GLIBC_2.2.5
+}
+{
+   Memcheck:Leak:open_redirections
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:realloc_wcstombs
+   fun:expand_redir_filename
+   fun:open_redirections
+   fun:exec_simple_command_without_words
+}

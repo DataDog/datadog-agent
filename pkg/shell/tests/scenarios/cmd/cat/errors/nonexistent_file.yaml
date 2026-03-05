@@ -1,0 +1,14 @@
+test_against_local_shell: false
+description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
+target_os: [linux, darwin]
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

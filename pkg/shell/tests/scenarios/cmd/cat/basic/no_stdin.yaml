@@ -1,0 +1,9 @@
+description: Cat with no arguments reads from stdin; when stdin is nil it exits successfully with no output.
+input:
+  # language=bash
+  script: |+
+    cat
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

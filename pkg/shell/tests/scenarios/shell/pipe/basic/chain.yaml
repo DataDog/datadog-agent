@@ -1,0 +1,10 @@
+description: Triple pipe chain passes data through multiple stages.
+input:
+  # language=bash
+  script: |+
+    echo abc | cat | cat
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

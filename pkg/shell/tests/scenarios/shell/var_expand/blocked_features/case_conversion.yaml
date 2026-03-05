@@ -1,0 +1,12 @@
+test_against_local_shell: false
+description: Case conversion ${var^^} is not supported.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo ${X^^}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

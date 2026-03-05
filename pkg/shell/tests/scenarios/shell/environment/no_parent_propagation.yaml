@@ -1,0 +1,16 @@
+test_against_local_shell: false
+description: Parent environment variables set via input.envs are not visible in the interpreter.
+input:
+  envs:
+    MY_SECRET_KEY: supersecret
+    MY_API_TOKEN: abc123
+  # language=bash
+  script: |+
+    echo "key=$MY_SECRET_KEY"
+    echo "token=$MY_API_TOKEN"
+expect:
+  stdout: |+
+    key=
+    token=
+  stderr: ""
+  exit_code: 0

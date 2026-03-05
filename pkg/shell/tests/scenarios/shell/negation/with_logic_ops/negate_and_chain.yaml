@@ -1,0 +1,10 @@
+description: Negation applies to the entire && chain, not just the first command.
+input:
+  # language=bash
+  script: |+
+    ! echo first && echo second
+expect:
+  stdout: |+
+    first
+  stderr: ""
+  exit_code: 1

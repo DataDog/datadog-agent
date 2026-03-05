@@ -1,0 +1,15 @@
+test_against_local_shell: false
+description: Empty allowed_paths blocks all file access
+setup:
+  files:
+    - path: test.txt
+      content: "test"
+input:
+  allowed_paths: []
+  # language=bash
+  script: |+
+    cat test.txt
+expect:
+  stdout: ""
+  stderr_contains: ["permission denied"]
+  exit_code: 1

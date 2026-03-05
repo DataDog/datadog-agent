@@ -1,0 +1,16 @@
+description: Heredoc preserves multiple lines including blank lines.
+input:
+  # language=bash
+  script: |+
+    cat <<EOF
+    line1
+
+    line3
+    EOF
+expect:
+  stdout: |+
+    line1
+
+    line3
+  stderr: ""
+  exit_code: 0

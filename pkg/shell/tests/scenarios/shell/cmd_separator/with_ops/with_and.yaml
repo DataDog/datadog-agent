@@ -1,0 +1,12 @@
+description: Semicolon separates independent statements; && chains within a statement.
+input:
+  # language=bash
+  script: |+
+    echo first; echo second && echo third
+expect:
+  stdout: |+
+    first
+    second
+    third
+  stderr: ""
+  exit_code: 0

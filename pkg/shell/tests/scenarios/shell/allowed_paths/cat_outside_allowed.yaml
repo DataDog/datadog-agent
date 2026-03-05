@@ -1,0 +1,17 @@
+test_against_local_shell: false
+description: Cat cannot read a file outside allowed paths
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok"
+    - path: secret/hidden.txt
+      content: "secret"
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat secret/hidden.txt
+expect:
+  stdout: ""
+  stderr_contains: ["permission denied"]
+  exit_code: 1

@@ -1,0 +1,15 @@
+test_against_local_shell: false
+description: Files with names starting with .. (e.g. ..hidden) are accessible inside allowed paths
+setup:
+  files:
+    - path: allowed/..hidden
+      content: "dotdot content"
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/..hidden
+expect:
+  stdout: "dotdot content"
+  stderr: ""
+  exit_code: 0

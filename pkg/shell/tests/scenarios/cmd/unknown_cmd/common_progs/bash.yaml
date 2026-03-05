@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: The bash command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    bash -c "echo hello"
+expect:
+  stdout: ""
+  stderr: |+
+    bash: command not found
+  exit_code: 127

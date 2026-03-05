@@ -1,0 +1,13 @@
+test_against_local_shell: false
+description: Continue outside a loop produces an error message.
+input:
+  # language=bash
+  script: |+
+    continue
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    continue is only useful in a loop
+  exit_code: 0

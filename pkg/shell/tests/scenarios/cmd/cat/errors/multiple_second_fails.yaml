@@ -1,0 +1,21 @@
+test_against_local_shell: false
+description: When the second of multiple files fails, the first file is output before the error.
+target_os: [linux, darwin]
+setup:
+  files:
+    - path: existing.txt
+      content: |+
+        hello world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat existing.txt nonexistent.txt
+expect:
+  stdout: |+
+    hello world
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

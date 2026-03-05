@@ -1,0 +1,15 @@
+test_against_local_shell: false
+description: Files with ..-prefixed names in subdirectories are accessible inside allowed paths
+setup:
+  files:
+    - path: allowed/sub/..data.txt
+      content: "nested dotdot"
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/sub/..data.txt
+expect:
+  stdout: "nested dotdot"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+test_against_local_shell: false
+description: Path traversal with .. is blocked by os.Root
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok"
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat ../../etc/passwd
+expect:
+  stdout: ""
+  stderr_contains: ["permission denied"]
+  exit_code: 1

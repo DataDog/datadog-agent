@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: The chmod command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    chmod 755 file.txt
+expect:
+  stdout: ""
+  stderr: |+
+    chmod: command not found
+  exit_code: 127

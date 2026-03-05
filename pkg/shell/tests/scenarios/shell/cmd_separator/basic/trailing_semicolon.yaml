@@ -1,0 +1,10 @@
+description: A trailing semicolon after the last command is harmless.
+input:
+  # language=bash
+  script: |+
+    echo hello;
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

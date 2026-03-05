@@ -1,0 +1,11 @@
+description: An unknown command after a successful echo still fails.
+input:
+  # language=bash
+  script: |+
+    echo hello
+    foo
+expect:
+  stdout: |+
+    hello
+  stderr_contains: ["foo", "command not found"]
+  exit_code: 127

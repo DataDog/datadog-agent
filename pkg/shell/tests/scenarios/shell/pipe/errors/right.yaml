@@ -1,0 +1,9 @@
+description: Unknown command on right side of pipe sets exit code 127.
+input:
+  # language=bash
+  script: |+
+    echo ok | foo
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "command not found"]
+  exit_code: 127

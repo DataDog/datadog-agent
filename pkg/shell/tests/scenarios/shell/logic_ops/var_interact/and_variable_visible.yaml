@@ -1,0 +1,10 @@
+description: Variable set before && is visible in the right side.
+input:
+  # language=bash
+  script: |+
+    X=hello && echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

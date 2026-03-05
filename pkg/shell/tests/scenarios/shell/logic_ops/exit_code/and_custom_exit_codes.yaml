@@ -1,0 +1,9 @@
+description: Custom exit codes propagate correctly through && chains.
+input:
+  # language=bash
+  script: |+
+    exit 2 && echo skipped
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 2

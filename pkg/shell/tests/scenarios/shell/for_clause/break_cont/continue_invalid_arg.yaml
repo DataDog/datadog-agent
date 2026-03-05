@@ -1,0 +1,13 @@
+test_against_local_shell: false
+description: Continue with non-numeric argument breaks the loop and produces an error.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      continue abc
+    done
+expect:
+  stdout: ""
+  stderr: |+
+    continue: abc: numeric argument required
+  exit_code: 2

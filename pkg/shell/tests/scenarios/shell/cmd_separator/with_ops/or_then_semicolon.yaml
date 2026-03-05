@@ -1,0 +1,10 @@
+description: A || chain followed by a semicolon and another command.
+input:
+  # language=bash
+  script: |+
+    true || echo skipped; echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

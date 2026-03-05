@@ -1,0 +1,10 @@
+description: Alternating || and && operators evaluate left to right.
+input:
+  # language=bash
+  script: |+
+    false || true && echo yes || echo no
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

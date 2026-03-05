@@ -1,0 +1,14 @@
+description: Reassigning a variable updates its value for subsequent expansions.
+input:
+  # language=bash
+  script: |+
+    X=first
+    echo $X
+    X=second
+    echo $X
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

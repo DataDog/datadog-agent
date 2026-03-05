@@ -1,0 +1,17 @@
+description: Star glob does not match dotfiles.
+setup:
+  files:
+    - path: visible.txt
+      content: ""
+    - path: .hidden
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    echo *
+expect:
+  stdout: |+
+    visible.txt
+  stderr: ""
+  exit_code: 0

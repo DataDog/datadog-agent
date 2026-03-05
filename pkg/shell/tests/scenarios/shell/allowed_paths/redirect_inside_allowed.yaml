@@ -1,0 +1,15 @@
+test_against_local_shell: false
+description: Input redirect can read file inside allowed paths
+setup:
+  files:
+    - path: data/input.txt
+      content: "from redirect"
+input:
+  allowed_paths: ["data"]
+  # language=bash
+  script: |+
+    cat < data/input.txt
+expect:
+  stdout: "from redirect"
+  stderr: ""
+  exit_code: 0

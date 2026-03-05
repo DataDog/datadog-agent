@@ -1,0 +1,19 @@
+description: Continue 2 in inner loop continues the outer loop.
+input:
+  # language=bash
+  script: |+
+    for i in a b; do
+      for j in 1 2 3; do
+        echo "$i$j"
+        continue 2
+      done
+      echo "inner-done"
+    done
+    echo done
+expect:
+  stdout: |+
+    a1
+    b1
+    done
+  stderr: ""
+  exit_code: 0

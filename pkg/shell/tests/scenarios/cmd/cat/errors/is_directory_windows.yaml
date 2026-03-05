@@ -1,0 +1,19 @@
+test_against_local_shell: false
+description: Cat on a directory fails with "Incorrect function." error on Windows and exits with code 1.
+target_os: [windows]
+setup:
+  files:
+    - path: mydir/placeholder.txt
+      content: "placeholder"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat mydir
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: mydir:"
+    - "Incorrect function."
+  exit_code: 1

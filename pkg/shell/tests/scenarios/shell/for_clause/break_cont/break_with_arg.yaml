@@ -1,0 +1,16 @@
+test_against_local_shell: false
+description: Break with argument 1 breaks one level (same as simple break).
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      echo $i
+      break 1
+    done
+    echo done
+expect:
+  stdout: |+
+    a
+    done
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: The wget command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    wget http://example.com
+expect:
+  stdout: ""
+  stderr: |+
+    wget: command not found
+  exit_code: 127

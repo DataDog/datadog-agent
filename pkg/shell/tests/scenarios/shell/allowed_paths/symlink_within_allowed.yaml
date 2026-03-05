@@ -1,0 +1,17 @@
+test_against_local_shell: false
+description: Symlink pointing to another file inside the same allowed dir works
+setup:
+  files:
+    - path: allowed/real.txt
+      content: "real content\n"
+    - path: allowed/link.txt
+      symlink: real.txt
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/link.txt
+expect:
+  stdout: "real content\n"
+  stderr: ""
+  exit_code: 0

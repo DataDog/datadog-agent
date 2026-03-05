@@ -1,0 +1,10 @@
+description: Exit code of a semicolon-separated list is the exit code of the last command.
+input:
+  # language=bash
+  script: |+
+    echo hello; true
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Array indexing ${var[i]} is not supported.
+input:
+  # language=bash
+  script: |+
+    echo ${PATH[0]}
+expect:
+  stdout: ""
+  stderr: |+
+    array indexing is not supported
+  exit_code: 2

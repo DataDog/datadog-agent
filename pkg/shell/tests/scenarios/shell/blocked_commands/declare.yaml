@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: declare is not supported.
+input:
+  # language=bash
+  script: |+
+    declare -i X=42
+expect:
+  stdout: ""
+  stderr: |+
+    declare is not supported
+  exit_code: 2

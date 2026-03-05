@@ -1,0 +1,13 @@
+description: Empty for loop body executes successfully with no output.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      true
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

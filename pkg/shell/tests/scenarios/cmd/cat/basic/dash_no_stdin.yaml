@@ -1,0 +1,9 @@
+description: Explicit stdin reference (cat -) with no stdin connected exits successfully with no output.
+input:
+  # language=bash
+  script: |+
+    cat -
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

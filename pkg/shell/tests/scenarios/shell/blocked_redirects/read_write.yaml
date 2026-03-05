@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Read-write redirection (<>) is not supported.
+input:
+  # language=bash
+  script: |+
+    cat <> file.txt
+expect:
+  stdout: ""
+  stderr: |+
+    <> file redirection is not supported
+  exit_code: 2

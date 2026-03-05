@@ -1,0 +1,10 @@
+description: Exit code can be provided via variable expansion.
+input:
+  # language=bash
+  script: |+
+    CODE=5
+    exit $CODE
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 5

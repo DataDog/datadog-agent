@@ -1,0 +1,10 @@
+description: A semicolon separator allows execution to continue after an unknown command.
+input:
+  # language=bash
+  script: |+
+    foo; echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["foo", "command not found"]
+  exit_code: 0

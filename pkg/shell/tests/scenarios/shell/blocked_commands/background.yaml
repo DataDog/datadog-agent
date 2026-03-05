@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Background execution (&) is blocked.
+input:
+  # language=bash
+  script: |+
+    echo hello &
+expect:
+  stdout: ""
+  stderr: |+
+    background execution (&) is not supported
+  exit_code: 2

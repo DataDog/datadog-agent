@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Redirect all (&>) is not supported.
+input:
+  # language=bash
+  script: |+
+    echo hello &> output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    &> file redirection is not supported
+  exit_code: 2

@@ -1,0 +1,11 @@
+description: Exit code after break is 0.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      break
+    done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

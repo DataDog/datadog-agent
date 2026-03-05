@@ -1,0 +1,119 @@
+# Makefile.in for test of yash
+# (C) 2007-2025 magicant
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+.POSIX:
+.SUFFIXES: .c .h .d .o .tst .trs
+
+@MAKE_SHELL@
+topdir = ..
+subdir = tests
+
+CC = @CC@
+CFLAGS = @CFLAGS@
+CPPFLAGS = @CPPFLAGS@
+LDFLAGS = @LDFLAGS@
+LDLIBS = @LDLIBS@
+SOURCES = checkfg.c ptwrap.c resetsig.c
+POSIX_TEST_SOURCES = $(POSIX_SIGNAL_TEST_SOURCES) alias-p.tst andor-p.tst arith-p.tst async-p.tst bg-p.tst break-p.tst builtins-p.tst case-p.tst cd-p.tst cmdsub-p.tst command-p.tst comment-p.tst continue-p.tst declutil-p.tst dot-p.tst errexit-p.tst error-p.tst eval-p.tst exec-p.tst exit-p.tst export-p.tst fg-p.tst fnmatch-p.tst for-p.tst fsplit-p.tst function-p.tst getopts-p.tst grouping-p.tst if-p.tst input-p.tst job-p.tst kill1-p.tst kill2-p.tst kill3-p.tst kill4-p.tst lineno-p.tst nop-p.tst option-p.tst param-p.tst path-p.tst pipeline-p.tst ppid-p.tst quote-p.tst read-p.tst readonly-p.tst redir-p.tst return-p.tst set-p.tst shift-p.tst simple-p.tst startup-p.tst test-p.tst testtty-p.tst tilde-p.tst trap-p.tst umask-p.tst unset-p.tst until-p.tst wait-p.tst while-p.tst
+POSIX_SIGNAL_TEST_SOURCES = sigcont1-p.tst sigcont2-p.tst sigcont3-p.tst sigcont4-p.tst sigcont5-p.tst sigcont6-p.tst sigcont7-p.tst sigcont8-p.tst sighup1-p.tst sighup2-p.tst sighup3-p.tst sighup4-p.tst sighup5-p.tst sighup6-p.tst sighup7-p.tst sighup8-p.tst sigint1-p.tst sigint2-p.tst sigint3-p.tst sigint4-p.tst sigint5-p.tst sigint6-p.tst sigint7-p.tst sigint8-p.tst sigquit1-p.tst sigquit2-p.tst sigquit3-p.tst sigquit4-p.tst sigquit5-p.tst sigquit6-p.tst sigquit7-p.tst sigquit8-p.tst sigstop3-p.tst sigstop7-p.tst sigterm1-p.tst sigterm2-p.tst sigterm3-p.tst sigterm4-p.tst sigterm5-p.tst sigterm6-p.tst sigterm7-p.tst sigterm8-p.tst sigtstp3-p.tst sigtstp4-p.tst sigtstp7-p.tst sigtstp8-p.tst sigttin3-p.tst sigttin4-p.tst sigttin7-p.tst sigttin8-p.tst sigttou3-p.tst sigttou4-p.tst sigttou7-p.tst sigttou8-p.tst sigurg1-p.tst sigurg2-p.tst sigurg3-p.tst sigurg4-p.tst sigurg5-p.tst sigurg6-p.tst sigurg7-p.tst sigurg8-p.tst
+YASH_TEST_SOURCES = $(YASH_SIGNAL_TEST_SOURCES) alias-y.tst andor-y.tst arith-y.tst array-y.tst async-y.tst bg-y.tst bindkey-y.tst brace-y.tst bracket-y.tst break-y.tst builtins-y.tst case-y.tst cd-y.tst cmdprint-y.tst cmdsub-y.tst command-y.tst complete-y.tst continue-y.tst declutil-y.tst dirstack-y.tst disown-y.tst dot-y.tst echo-y.tst errexit-y.tst error-y.tst errretur-y.tst eval-y.tst exec-y.tst exit-y.tst export-y.tst fc-y.tst fg-y.tst for-y.tst fsplit-y.tst function-y.tst getopts-y.tst grouping-y.tst hash-y.tst help-y.tst history-y.tst history1-y.tst history2-y.tst if-y.tst job-y.tst jobs-y.tst kill-y.tst lineno-y.tst local-y.tst option-y.tst param-y.tst path-y.tst pipeline-y.tst printf-y.tst prompt-y.tst pwd-y.tst quote-y.tst random-y.tst read-y.tst readonly-y.tst redir-y.tst return-y.tst set-y.tst settty-y.tst shift-y.tst signal-y.tst simple-y.tst startup-y.tst suspend-y.tst test1-y.tst test2-y.tst tilde-y.tst times-y.tst trap-y.tst trap2-y.tst typeset-y.tst ulimit-y.tst umask-y.tst unset-y.tst until-y.tst wait-y.tst while-y.tst
+YASH_SIGNAL_TEST_SOURCES = sigalrm1-y.tst sigalrm2-y.tst sigalrm3-y.tst sigalrm4-y.tst sigalrm5-y.tst sigalrm6-y.tst sigalrm7-y.tst sigalrm8-y.tst sigchld1-y.tst sigchld2-y.tst sigchld3-y.tst sigchld4-y.tst sigchld5-y.tst sigchld6-y.tst sigchld7-y.tst sigchld8-y.tst sigrtmax1-y.tst sigrtmax2-y.tst sigrtmax3-y.tst sigrtmax4-y.tst sigrtmax5-y.tst sigrtmax6-y.tst sigrtmax7-y.tst sigrtmax8-y.tst sigrtmin1-y.tst sigrtmin2-y.tst sigrtmin3-y.tst sigrtmin4-y.tst sigrtmin5-y.tst sigrtmin6-y.tst sigrtmin7-y.tst sigrtmin8-y.tst sigwinch1-y.tst sigwinch2-y.tst sigwinch3-y.tst sigwinch4-y.tst sigwinch5-y.tst sigwinch6-y.tst sigwinch7-y.tst sigwinch8-y.tst
+TEST_SOURCES = $(POSIX_TEST_SOURCES) $(YASH_TEST_SOURCES)
+TEST_RESULTS = $(TEST_SOURCES:.tst=.trs)
+RECHECK_LOGS = $(TEST_RESULTS)
+TARGET = @TARGET@
+YASH = $(topdir)/$(TARGET)
+TESTERS = $(SOURCES:.c=)
+TESTEE = $(YASH)
+RUN_TEST = ./resetsig $(YASH) ./run-test.sh
+SUMMARY = summary.log
+BYPRODUCTS = $(SOURCES:.c=.o) $(TESTERS) $(TEST_RESULTS) $(SUMMARY) *.dSYM
+
+test:
+	rm -rf $(RECHECK_LOGS)
+	@$(MAKE) $(SUMMARY)
+	@tail -n 6 $(SUMMARY)
+	@tail -n 6 $(SUMMARY) | grep ^ERROR: | \
+		(read _ fail_count && \
+		if [ "$$fail_count" -ne 0 ]; then \
+			echo See $(subdir)/$(SUMMARY) for details; \
+			exit 1; \
+		fi)
+test-posix:
+	@$(MAKE) TEST_SOURCES='$$(POSIX_TEST_SOURCES)' test
+test-yash:
+	@$(MAKE) TEST_SOURCES='$$(YASH_TEST_SOURCES)' test
+test-valgrind:
+	@$(MAKE) RUN_TEST='$(RUN_TEST) -v' test
+
+$(SUMMARY): $(TEST_RESULTS)
+	$(SHELL) ./summarize.sh $(TEST_RESULTS) >| $@
+$(TEST_RESULTS): $(TESTERS) $(YASH)
+.tst.trs:
+	@set $(RUN_TEST) $(TESTEE) $<; \
+	if grep -q %REQUIRETTY% $<; then \
+		if ./ptwrap ./checkfg 2>/dev/null; then \
+			set ./ptwrap "$$@"; \
+		else \
+			set $(SHELL) ./enqueue.sh "$$@"; \
+		fi; \
+	fi; \
+	echo "$$*"; \
+	"$$@"
+
+$(POSIX_SIGNAL_TEST_SOURCES:.tst=.trs): signal.sh
+$(YASH_SIGNAL_TEST_SOURCES:.tst=.trs): signal.sh
+test1-y.trs test2-y.trs: test-y.sh
+
+tester: $(TESTERS)
+$(TESTERS):
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $@.c $(LDLIBS)
+$(YASH):
+	@echo Make $(TARGET) in $(topdir) first >&2; false
+
+.c.o:
+	@rm -f $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+DISTFILES = $(SOURCES) $(SOURCES:.c=.d) Makefile.in POSIX README.md enqueue.sh run-test.sh signal.sh test-y.sh summarize.sh valgrind.supp
+distfiles: makedeps $(DISTFILES)
+copy-distfiles: distfiles
+	mkdir -p $(topdir)/$(DISTTARGETDIR)
+	cp $(DISTFILES) $(TEST_SOURCES) $(topdir)/$(DISTTARGETDIR)
+makedeps: _PHONY
+	@(cd $(topdir) && $(MAKE) $(TARGET))
+	CC='$(CC)' $(topdir)/$(TARGET) $(topdir)/makedeps.yash $(SOURCES)
+
+mostlyclean:
+	rm -fr $(BYPRODUCTS)
+clean: mostlyclean
+distclean: clean
+	rm -fr Makefile
+maintainer-clean: distclean
+	rm -fr $(SOURCES:.c=.d)
+
+Makefile: Makefile.in $(topdir)/config.status
+	@+(cd $(topdir) && $(MAKE) config.status)
+	@(cd $(topdir) && $(SHELL) config.status $(subdir)/$@)
+
+.IGNORE: ptwrap
+
+.PHONY: test test-posix test-yash test-valgrind tester distfiles copy-distfiles makedeps mostlyclean clean distclean maintainer-clean
+_PHONY:
+
+@MAKE_INCLUDE@ checkfg.d
+@MAKE_INCLUDE@ ptwrap.d
+@MAKE_INCLUDE@ resetsig.d

@@ -1,0 +1,10 @@
+description: The fallback command after || produces output when left fails.
+input:
+  # language=bash
+  script: |+
+    false || echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

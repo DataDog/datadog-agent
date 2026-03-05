@@ -1,0 +1,10 @@
+description: The false builtin on the left side of a pipe does not affect the right side exit code.
+input:
+  # language=bash
+  script: |+
+    false | echo piped
+expect:
+  stdout: |+
+    piped
+  stderr: ""
+  exit_code: 0

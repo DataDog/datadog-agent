@@ -1,0 +1,9 @@
+description: Exit with code 256 wraps to 0 via uint8 overflow.
+input:
+  # language=bash
+  script: |+
+    exit 256
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

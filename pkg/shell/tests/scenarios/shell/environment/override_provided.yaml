@@ -1,0 +1,16 @@
+test_against_local_shell: false
+description: Script can assign variables that exist as parent env vars without inheriting them.
+input:
+  envs:
+    MY_VAR: parent_value
+  # language=bash
+  script: |+
+    echo "$MY_VAR"
+    MY_VAR=script_value
+    echo "$MY_VAR"
+expect:
+  stdout: |+
+
+    script_value
+  stderr: ""
+  exit_code: 0

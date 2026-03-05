@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: time is not supported.
+input:
+  # language=bash
+  script: |+
+    time echo hello
+expect:
+  stdout: ""
+  stderr: |+
+    time is not supported
+  exit_code: 2
