@@ -180,11 +180,11 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar czf test-binaries.tar.gz test-binaries
+    - tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f test-binaries.tar.zst test-binaries
   artifacts:
     expire_in: 1 week
     paths:
-      - test-binaries.tar.gz
+      - test-binaries.tar.zst
       - manifest.json
   rules:
     - !reference [.except_mergequeue]

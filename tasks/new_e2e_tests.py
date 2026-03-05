@@ -373,9 +373,9 @@ def run(
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
     if use_prebuilt_binaries:
-        if not os.path.exists("test-binaries.tar.gz") or not os.path.exists("manifest.json"):
+        if not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
             print(
-                "WARNING: required artifacts test-binaries.tar.gz and manifest.json not found, disabling use_prebuilt_binaries"
+                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
             )
             use_prebuilt_binaries = False
 
