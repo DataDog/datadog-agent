@@ -1070,10 +1070,8 @@ type Status struct {
 		OrgEnabled   string `json:"orgEnabled"`
 	} `json:"remoteConfiguration"`
 	RunnerStats struct {
-		Checks struct {
-		} `json:"Checks"`
-		Running struct {
-		} `json:"Running"`
+		Checks  map[string]interface{} `json:"Checks"`
+		Running map[string]interface{} `json:"Running"`
 		RunningChecks int `json:"RunningChecks"`
 		Runs          int `json:"Runs"`
 		Workers       struct {
