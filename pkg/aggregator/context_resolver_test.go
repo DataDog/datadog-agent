@@ -421,10 +421,12 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(fakeTagger, store, "test")
 
+	// Metric tags are pre-filtered upstream in enrichMetricSample (DSD path).
+	// "thing" is in the exclude list, so it is removed before reaching trackContext.
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
+		Tags:  []string{"version:1.0"}, // thing:zing already removed upstream
 		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container1",
 			Cardinality:           "low",
@@ -433,7 +435,7 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 	dist2 := &metrics.MetricSample{
 		Name:  "distribution.metric",
 		Mtype: metrics.DistributionType,
-		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
+		Tags:  []string{"version:1.0"}, // thing:zang already removed upstream
 		OriginInfo: taggertypespkg.OriginInfo{
 			ContainerIDFromSocket: "container_id://container2",
 			Cardinality:           "low",
@@ -443,7 +445,8 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
 	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
 
-	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
+	// Both distributions have identical (pre-filtered) metric tags.
+	// trackContext still strips differing tagger tags (env, pod_name), so both get the same key.
 	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
 
 	// Check only the unstripped tags remain

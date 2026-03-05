@@ -237,8 +237,11 @@ func TestUpdateTagFilterList(t *testing.T) {
 		return len(demux.aggregator.tagfilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
-	// Tag 1 and 2 are excluded
-	testCountBlocked([]string{"tag3:three", "tag4:four"}, 32.0)
+	// Tag filtering for metric (client-provided) tags only applies to the DSD server path
+	// (via enrichMetricSample). Direct AggregateSample calls bypass that path, so all tags
+	// are preserved regardless of the tag filter list.
+	allTags := []string{"tag1:one", "tag2:two", "tag3:three", "tag4:four"}
+	testCountBlocked(allTags, 32.0)
 
 	// Reset the mock
 	s.sketches = []*metrics.SketchSeries{}
@@ -254,7 +257,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		return len(demux.aggregator.tagfilterListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
-	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
+	testCountBlocked(allTags, 62.0)
 
 	demux.Stop(false)
 

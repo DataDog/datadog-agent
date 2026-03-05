@@ -8,6 +8,7 @@ package server
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -36,8 +37,10 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	FilterListUpdate chan utilstrings.Matcher
-	filterList       utilstrings.Matcher
+	FilterListUpdate    chan utilstrings.Matcher
+	filterList          utilstrings.Matcher
+	TagFilterListUpdate chan filterlist.TagMatcher
+	tagFilterList       filterlist.TagMatcher
 }
 
 func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
@@ -49,12 +52,13 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 	}
 
 	return &worker{
-		server:           s,
-		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
-		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
+		server:              s,
+		batcher:             batcher,
+		parser:              newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		samples:             make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry:    packetsTelemetry,
+		FilterListUpdate:    make(chan utilstrings.Matcher),
+		TagFilterListUpdate: make(chan filterlist.TagMatcher),
 	}
 }
 
@@ -68,12 +72,14 @@ func (w *worker) run() {
 			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
+		case tagFilterList := <-w.TagFilterListUpdate:
+			w.tagFilterList = tagFilterList
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList, w.tagFilterList)
 		}
 
 	}

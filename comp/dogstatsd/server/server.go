@@ -545,6 +545,20 @@ func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstring
 	}
 }
 
+func (s *server) onTagFilterListUpdate(tagFilterList filterlist.TagMatcher) {
+	s.startedMtx.RLock()
+	defer s.startedMtx.RUnlock()
+
+	if !s.IsRunning() {
+		// The workers have stopped so can't receive updates.
+		return
+	}
+
+	for _, worker := range s.workers {
+		worker.TagFilterListUpdate <- tagFilterList
+	}
+}
+
 func (s *server) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
@@ -579,6 +593,7 @@ func (s *server) handleMessages() {
 	// It is important to set this up after the workers are running so they receive
 	// the initial  filterlist and any updates.
 	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
+	s.filterList.OnUpdateTagFilterList(s.onTagFilterListUpdate)
 }
 
 func (s *server) UDPLocalAddr() string {
@@ -681,7 +696,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher, tagFilterList filterlist.TagMatcher) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -717,7 +732,7 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList, tagFilterList)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -793,7 +808,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
-	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher) ([]metrics.MetricSample, error) {
+	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher, tagFilterList filterlist.TagMatcher) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -831,7 +846,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList, tagFilterList)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
