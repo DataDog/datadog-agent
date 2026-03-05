@@ -129,7 +129,7 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {
-		podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, false)
+		podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, false)
 		// If the PodAutoscaler is not found, it must be created through the controller
 		// discarding the values received here.
 		// The store is not locked as we call LockRead with lockOnMissing = false
