@@ -555,6 +555,10 @@ type AgentConfig struct {
 
 	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
+
+	// OTelGateway indicates whether the agent is configured as an OTel gateway.
+	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
+	OTelGateway bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
