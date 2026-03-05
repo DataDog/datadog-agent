@@ -1,0 +1,51 @@
+---
+name: Add labels to community PRs
+
+on:
+  # run in the context of the base branch, so that it still works in PR from forks
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  add-label-community-prs:
+    name: Add labels to community PRs
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - name: Get GitHub token
+        uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.add-labels-pr.label-pr
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          token: ${{ steps.octo-sts.outputs.token }}
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/CODEOWNERS
+            .github/actions
+            .ddqa/config.toml
+            tasks
+          persist-credentials: false
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Set community label and warn teams
+        if: github.event.action == 'opened'
+        run: dda inv -- -e github.handle-community-pr --repo="${{ github.repository }}" --pr-id="${{ github.event.number }}" --labels="community"
+        env:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+      - name: Assign team label
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: dda inv -- -e github.assign-team-label --pr-id="${PR_NUMBER}"

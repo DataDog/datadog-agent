@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -106,13 +107,54 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 		})
 	}
 
+	// This covers for the edge case where the higher-priority API is returning
+	// an error but the lower-priority API is still returning metrics. More
+	// detailed explanation follows:
+	//
+	// First, we want to always emit memory.limit even if the process-level API
+	// returns an error. The limit is always retrievable, and this way we have a
+	// consistent limit that can be shown in the UI or dashboards.
+	//
+	// Second, we have two different APIs for getting the process-level memory
+	// usage. One is higher-priority as it's more reliable, but it's not
+	// available on all architectures, so we need to keep the lower-priority API
+	// as a fallback.
+	//
+	// The edge case is when the higher-priority API returns an error but the
+	// lower-priority API is still returning metrics. In that case, the
+	// higher-priority API would still try to send the corresponding
+	// memory.limit metric with high priority, which would not have all the
+	// workload tags because we don't have the process data. The lower-priority
+	// API would have all the workload tags, but the memory.limit metric would
+	// be emitted with low priority and get overridden by the higher-priority
+	// API's memory.limit metric. The end result is that we would have
+	// process.memory.usage metrics tagged with PIDs, but no memory.limit metric
+	// with corresponding tags.
+	//
+	// The solution is the following change: the priority for memory.limit is
+	// set to low if there are no workloads associated with the metric. It fixes
+	// the edge case described above. In the case that all APIs are returning no
+	// workloads, the memory.limit will have the same tag and value so it
+	// doesn't matter which one we choose. If there are conflicts between the
+	// data reported by the two APIs, we will still keep the high-priority
+	// metric, consistently sending the highest-priority metric for both
+	// memory.limit and process.memory.usage.
+	//
+	// We set MediumLow as the priority as we still want to ensure that any of the APIs
+	// for the stateless collector are higher priority than the eBPF collector, which should
+	// only emit metrics if neither of the NVML APIs are supported.
+	metricLimitPriority := priority
+	if len(allWorkloadIDs) == 0 {
+		metricLimitPriority = MediumLow
+	}
+
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
 		Name:                "memory.limit",
 		Value:               float64(devInfo.Memory),
 		Type:                metrics.GaugeType,
-		Priority:            priority,
+		Priority:            metricLimitPriority,
 		AssociatedWorkloads: allWorkloadIDs,
 	})
 
@@ -231,6 +273,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "fan_speed_v2",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				var output []Metric
+				numFans, err := device.GetNumFans()
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
+				}
+
+				var multiErr error
+				for i := 0; i < numFans; i++ {
+					speed, err := device.GetFanSpeed_v2(i)
+					if err != nil {
+						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+					} else {
+						output = append(output, Metric{
+							Name:     "fan_speed",
+							Value:    float64(speed),
+							Type:     metrics.GaugeType,
+							Priority: Medium,
+							Tags:     []string{"fan_index:" + strconv.Itoa(i)},
+						})
+					}
+				}
+
+				return output, 0, multiErr
 			},
 		},
 		{
@@ -360,7 +430,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.CountType}}, 0, nil
+				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
@@ -424,10 +494,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				}
 
 				return []Metric{
-					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.CountType},
-					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.CountType},
-					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.CountType},
-					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.CountType},
+					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
+					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},

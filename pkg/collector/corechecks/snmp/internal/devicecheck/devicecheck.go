@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
@@ -40,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const (
@@ -140,8 +138,7 @@ func (pc *profileCache) RemoveMissingOIDs(values *valuestore.ResultValueStore) {
 type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
 	sender                  *report.MetricSender
-	session                 session.Session
-	sessionFactory          session.Factory
+	connMgr                 ConnectionManager
 	oidBatchSizeOptimizers  *fetch.OidBatchSizeOptimizers
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
@@ -156,28 +153,26 @@ type DeviceCheck struct {
 const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory, agentConfig config.Component) (*DeviceCheck, error) {
-	newConfig := config.CopyWithNewIP(ipAddress)
-
+func NewDeviceCheck(config *checkconfig.CheckConfig, connMgr ConnectionManager, agentConfig config.Component) (*DeviceCheck, error) {
 	var devicePinger pinger.Pinger
 	var err error
-	if newConfig.PingEnabled {
-		devicePinger, err = createPinger(newConfig.PingConfig)
+	if config.PingEnabled {
+		devicePinger, err = createPinger(config.PingConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create pinger: %s", err)
 		}
 	}
 
-	configHash := newConfig.DeviceDigest(newConfig.IPAddress)
+	configHash := config.DeviceDigest(config.IPAddress)
 	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	d := DeviceCheck{
-		config:                  newConfig,
-		sessionFactory:          sessionFactory,
-		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(newConfig.OidBatchSize),
+		config:                  config,
+		connMgr:                 connMgr,
+		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(config.OidBatchSize),
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
-		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
+		diagnoses:               diagnoses.NewDeviceDiagnoses(config.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
 		agentConfig:             agentConfig,
@@ -240,18 +235,39 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
-	var err error
-	d.session, err = d.sessionFactory(d.config)
+	// Connect to device
+	sess, deviceReachable, err := d.connMgr.Connect()
+
+	// Ensure session cleanup regardless of errors
+	defer func() {
+		if sess != nil {
+			err := d.connMgr.Close()
+			if err != nil {
+				d.sessionCloseErrorCount.Inc()
+				log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
+			}
+		}
+	}()
+
+	var checkErr error
 	if err != nil {
-		return err
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
+		checkErr = fmt.Errorf("snmp connection error: %s", err)
+		sess = nil // Prevent using invalid session
+	} else if !deviceReachable {
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
 	}
 
-	// Fetch and report metrics
-	var checkErr error
-	var deviceStatus metadata.DeviceStatus
-	var pingStatus metadata.DeviceStatus
+	profile := d.profileCache.GetProfile()
+	var dynamicTags []string
+	var values *valuestore.ResultValueStore
 
-	deviceReachable, profile, dynamicTags, values, checkErr := d.getValuesAndTags()
+	if sess != nil {
+		profile, dynamicTags, values, err = d.getValuesAndTags(sess, deviceReachable)
+		if err != nil {
+			checkErr = err
+		}
+	}
 
 	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
@@ -276,6 +292,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ReportMetrics(profile.Metrics, values, metricTags, d.config.DeviceID)
 	}
 
+	var pingStatus metadata.DeviceStatus
 	// Get a system appropriate ping check
 	if d.devicePinger != nil {
 		log.Tracef("%s: pinging host", d.config.IPAddress)
@@ -301,6 +318,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		log.Tracef("%s: SNMP ping disabled for host", d.config.IPAddress)
 	}
 
+	var deviceStatus metadata.DeviceStatus
 	if d.config.CollectDeviceMetadata {
 		if deviceReachable {
 			deviceStatus = metadata.DeviceStatusReachable
@@ -326,7 +344,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
-	d.submitTelemetryMetrics(startTime, metricTags)
+	d.submitTelemetryMetrics(sess, startTime, metricTags)
 	d.setDeviceHostExternalTags()
 	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
 
@@ -349,42 +367,22 @@ func (d *DeviceCheck) buildExternalTags() []string {
 
 // getValuesAndTags build (or fetches from cache) a profile describing all the
 // metrics, tags, etc. to be fetched for this device, fetches the resulting
-// values, and returns (reachable, profile, tags, values, error). In the event
+// values, and returns (profile, tags, values, error). In the event
 // of an error, the returned profile will be the last cached profile.
-func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinition, []string, *valuestore.ResultValueStore, error) {
-	var deviceReachable bool
+func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable bool) (profiledefinition.ProfileDefinition, []string, *valuestore.ResultValueStore, error) {
 	var checkErrors []string
 	var tags []string
 
-	// Create connection
-	connErr := d.session.Connect()
-	if connErr != nil {
-		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
-		// cannot connect -> use cached profile
-		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
-	}
-	defer func() {
-		err := d.session.Close()
-		if err != nil {
-			d.sessionCloseErrorCount.Inc()
-			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
-		}
-	}()
-
-	// Check if the device is reachable
-	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-	if err != nil {
-		deviceReachable = false
-		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
-		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
+	// Log device reachability status
+	if !deviceReachable {
+		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext")
 	} else {
-		deviceReachable = true
 		if log.ShouldLog(log.DebugLvl) {
-			log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsString(getNextValue))
+			log.Debugf("check device reachable: success (verified during connection)")
 		}
 	}
 
-	profile, err := d.detectMetricsToMonitor(d.session)
+	profile, err := d.detectMetricsToMonitor(sess)
 	if err != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
@@ -392,7 +390,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	tags = append(tags, profile.StaticTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
+	valuesStore, err := fetch.Fetch(sess, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
 		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
@@ -408,7 +406,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	if len(checkErrors) > 0 {
 		joinedError = errors.New(strings.Join(checkErrors, "; "))
 	}
-	return deviceReachable, profile, tags, valuesStore, joinedError
+	return profile, tags, valuesStore, joinedError
 }
 
 func (d *DeviceCheck) getSysObjectID(sess session.Session) (string, error) {
@@ -435,7 +433,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	return profile, nil
 }
 
-func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
+func (d *DeviceCheck) submitTelemetryMetrics(sess session.Session, startTime time.Time, tags []string) {
 	newTags := append(utils.CopyStrings(tags), snmpLoaderTag, utils.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
@@ -444,9 +442,20 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
+
+	// Only collect SNMP request metrics if session is available
+	if sess == nil {
+		return
+	}
+
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
+
+	// Emit metric if using unconnected UDP socket mode
+	if sess.IsUnconnectedUDP() {
+		d.sender.Gauge("snmp.devices.using_unconnected_socket", 1, newTags)
+	}
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI

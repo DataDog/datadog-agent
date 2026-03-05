@@ -59,6 +59,9 @@ type Request struct {
 	Object []byte
 	// OldObject is the existing object. It is null for CREATE and CONNECT operations
 	OldObject []byte
+	// DryRun indicates whether the request is a dry-run
+	// If true, the webhook should not create any side effects
+	DryRun *bool
 	// DynamicClient holds a dynamic Kubernetes client
 	DynamicClient dynamic.Interface
 	// APIClient holds a Kubernetes client
@@ -211,6 +214,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			UserInfo:      &admissionReviewReq.Request.UserInfo,
 			Object:        admissionReviewReq.Request.Object.Raw,
 			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DryRun:        admissionReviewReq.Request.DryRun,
 			DynamicClient: dc,
 			APIClient:     apiClient,
 		}
@@ -237,6 +241,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			UserInfo:      &admissionReviewReq.Request.UserInfo,
 			Object:        admissionReviewReq.Request.Object.Raw,
 			OldObject:     admissionReviewReq.Request.OldObject.Raw,
+			DryRun:        admissionReviewReq.Request.DryRun,
 			DynamicClient: dc,
 			APIClient:     apiClient,
 		}

@@ -98,4 +98,14 @@ var (
 		"Number of errors on the remote workloadmeta server while streaming events",
 		commonOpts,
 	)
+
+	// PendingEventBundles tracks the current number of event bundles pending to
+	// be handled by workloadmeta.
+	PendingEventBundles = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"pending_event_bundles",
+		[]string{},
+		"Number of event bundles pending to be handled by workloadmeta",
+		commonOpts,
+	)
 )

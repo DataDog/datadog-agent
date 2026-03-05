@@ -159,6 +159,42 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
+// test1HostFakeIntakeNPMResolvConf validates that connections include resolv.conf
+// data. It looks for at least one connection with a non-zero ResolvConfIdx whose
+// corresponding entry in CollectorConnections.ResolvConfs contains "nameserver".
+// Any connection with a non-zero ResolvConfIdx that is out of bounds of the
+// ResolvConfs list is treated as a hard failure.
+func test1HostFakeIntakeNPMResolvConf[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
+	t := v.T()
+	t.Helper()
+	t.Log(time.Now())
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		cnx, err := FakeIntake.Client().GetConnections()
+		require.NoError(c, err, "GetConnections() errors")
+		require.NotNil(c, cnx, "GetConnections() returned nil ConnectionsAggregator")
+		require.NotEmpty(c, cnx.GetNames(), "no connections yet")
+
+		resolvConfsFound := 0
+		cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			if conn.ResolvConfIdx < 0 {
+				return
+			}
+			// fail the whole test if out of bounds
+			require.Less(t, int(conn.ResolvConfIdx), len(cc.ResolvConfs),
+				"ResolvConfIdx %d out of bounds (len=%d) on host %s",
+				conn.ResolvConfIdx, len(cc.ResolvConfs), hostname)
+
+			resolvConfsFound++
+			rc := cc.ResolvConfs[conn.ResolvConfIdx]
+			t.Logf("found resolv.conf data: idx=%d content=%q", conn.ResolvConfIdx, rc)
+
+			require.Contains(c, rc, "nameserver", "resolv.conf data didn't contain a nameserver")
+		})
+		assert.NotZero(c, resolvConfsFound, "no connection with resolv.conf data found")
+	}, 60*time.Second, time.Second)
+}
+
 // test1HostFakeIntakeNPMTCPUDPDNS validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func test1HostFakeIntakeNPMTCPUDPDNS[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {

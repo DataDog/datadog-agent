@@ -30,7 +30,10 @@ func makeTestImageRef(server *httptest.Server) string {
 }
 
 func TestHttpDigestFetcher_buildManifestRequest_Success(t *testing.T) {
-	f := newHTTPDigestFetcher()
+	transport := &mockRoundTripper{
+		responses: make(map[string]*http.Response),
+	}
+	f := newHTTPDigestFetcher(transport)
 	tests := []struct {
 		name               string
 		imageRef           string
@@ -94,7 +97,10 @@ func TestHttpDigestFetcher_buildManifestRequest_Success(t *testing.T) {
 }
 
 func TestHttpDigestFetcher_buildManifestRequest_Error(t *testing.T) {
-	f := newHTTPDigestFetcher()
+	transport := &mockRoundTripper{
+		responses: make(map[string]*http.Response),
+	}
+	f := newHTTPDigestFetcher(transport)
 	tests := []struct {
 		name     string
 		imageRef string

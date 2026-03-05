@@ -41,6 +41,12 @@ type Dispatcher struct {
 	wg           sync.WaitGroup
 	shuttingDown chan<- struct{}
 
+	flush struct {
+		*sync.Cond      // uses its own sync.Mutex
+		flushing   bool // true while a flush cycle is in progress
+		stopped    bool // true after the run goroutine exits
+	}
+
 	mu struct {
 		sync.Mutex
 		sinks map[ir.ProgramID]Sink
@@ -58,6 +64,7 @@ func NewDispatcher(reader *ringbuf.Reader) *Dispatcher {
 		reader:       reader,
 		shuttingDown: shuttingDown,
 	}
+	rt.flush.Cond = sync.NewCond(&sync.Mutex{})
 	rt.mu.sinks = make(map[ir.ProgramID]Sink)
 	rt.wg.Add(1)
 	go func() {
@@ -71,9 +78,21 @@ func NewDispatcher(reader *ringbuf.Reader) *Dispatcher {
 // Shutdown shuts down the dispatcher. It returns any errors that occurred while
 // from closing the underlying ringbuf.Reader.
 func (d *Dispatcher) Shutdown() error {
+	d.flushAndWait()
+
 	close(d.shuttingDown)
 	err := d.reader.Close()
 	d.wg.Wait()
+
+	// Close any remaining sinks.
+	d.mu.Lock()
+	sinks := d.mu.sinks
+	d.mu.sinks = nil
+	d.mu.Unlock()
+	for _, s := range sinks {
+		s.Close()
+	}
+
 	return err
 }
 
@@ -91,27 +110,72 @@ func (d *Dispatcher) RegisterSink(progID ir.ProgramID, sink Sink) {
 //
 // The sink will no longer receive events for the program. If the sink is not
 // registered, this is a no-op. If it is, the Close method will be called.
+//
+// This method flushes the ringbuffer before removing and closing the sink,
+// ensuring that all pending events are delivered and no concurrent
+// HandleEvent call is in progress when Close is called.
 func (d *Dispatcher) UnregisterSink(progID ir.ProgramID) {
+	d.mu.Lock()
+	_, registered := d.mu.sinks[progID]
+	d.mu.Unlock()
+	if !registered {
+		return
+	}
+
+	d.flushAndWait()
+
 	s := func() Sink {
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		s, ok := d.mu.sinks[progID]
-		if !ok {
-			return nil
-		}
+		s := d.mu.sinks[progID]
 		delete(d.mu.sinks, progID)
 		return s
 	}()
-	// TODO: We should flush the reading goroutine to prove that the sink is no
-	// longer in use prior to calling Close.
 	if s != nil {
 		s.Close()
+	}
+}
+
+// flushAndWait triggers a flush of the ringbuffer reader and waits until the
+// run goroutine has processed all pending records and acknowledged the flush.
+// Concurrent callers are serialized: only one flush cycle is in flight at a
+// time.
+func (d *Dispatcher) flushAndWait() {
+	d.flush.L.Lock()
+	defer d.flush.L.Unlock()
+
+	// Wait until no other flush is in progress or the run goroutine has
+	// stopped.
+	for d.flush.flushing && !d.flush.stopped {
+		d.flush.Wait()
+	}
+	if d.flush.stopped {
+		return
+	}
+
+	// Begin our flush cycle.
+	d.flush.flushing = true
+	d.flush.L.Unlock()
+	d.reader.Flush()
+	d.flush.L.Lock()
+
+	// Wait until the run goroutine acks our flush (sets flushing=false) or
+	// the run goroutine has stopped.
+	for d.flush.flushing && !d.flush.stopped {
+		d.flush.Wait()
 	}
 }
 
 // run runs in a separate goroutine and processes messages from the
 // ringbuffer and to hand them to the dispatcher.
 func (d *Dispatcher) run(shuttingDown <-chan struct{}) (retErr error) {
+	defer func() {
+		d.flush.L.Lock()
+		d.flush.stopped = true
+		d.flush.Broadcast()
+		d.flush.L.Unlock()
+	}()
+
 	reader := d.reader
 	inShutdown := func() bool {
 		select {
@@ -121,6 +185,12 @@ func (d *Dispatcher) run(shuttingDown <-chan struct{}) (retErr error) {
 			return false
 		}
 	}
+	ackFlush := func() {
+		d.flush.L.Lock()
+		d.flush.flushing = false
+		d.flush.Broadcast()
+		d.flush.L.Unlock()
+	}
 	for {
 		if inShutdown() {
 			return nil
@@ -128,6 +198,7 @@ func (d *Dispatcher) run(shuttingDown <-chan struct{}) (retErr error) {
 		rec := recordPool.Get().(*ringbuf.Record)
 		if err := reader.ReadInto(rec); err != nil {
 			if errors.Is(err, ringbuf.ErrFlushed) {
+				ackFlush()
 				continue
 			}
 			return fmt.Errorf("error reading message: %w", err)

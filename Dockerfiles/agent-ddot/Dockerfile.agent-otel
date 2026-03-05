@@ -1,11 +1,12 @@
-ARG AGENT_DOCKER_REPO=registry.datadoghq.com/agent
+ARG AGENT_DOCKER_REPO=datadog/agent
 ARG AGENT_VERSION=7.72.2
 ARG UBUNTU_VERSION=24.04
 ARG AGENT_DOCKER_TAG=${AGENT_VERSION}-full
 ARG AGENT_GIT_REF=${AGENT_VERSION}
+ARG BASE_IMAGE_REGISTRY=docker.io
 
 # Use the Ubuntu Slim AMD64 base image
-FROM ubuntu:${UBUNTU_VERSION} AS builder
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$UBUNTU_VERSION AS builder
 
 # Set environment variables
 ARG AGENT_VERSION
@@ -76,11 +77,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
-# Generate the files
-RUN dda inv collector.generate
+# Generate the files and clean up go cache to free space
+RUN dda inv collector.generate && \
+    go clean -cache -modcache
 
-# Build the OTel agent
-RUN dda inv otel-agent.build --byoc
+# Build the OTel agent with cleanup
+RUN dda inv otel-agent.build --byoc && \
+    go clean -cache
 
 # Install nfpm if package type is specified
 ARG PACKAGE_TYPE

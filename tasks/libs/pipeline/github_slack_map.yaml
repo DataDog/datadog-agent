@@ -30,11 +30,13 @@
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-platform': '#container-platform'
+'@datadog/core-authn': '#aaa-authn'
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/data-streams-monitoring': '#data-streams-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'
 '@datadog/debugger-go': '#dynamic-instrumentation-go'
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL
+'@datadog/ecs-experiences': '#ecs-experiences'
 '@datadog/ebpf-platform': '#ebpf-platform-ops'
 '@datadog/fleet': '#fleet-automation-monitoring'
 '@datadog/injection-platform': '#injection-platform'

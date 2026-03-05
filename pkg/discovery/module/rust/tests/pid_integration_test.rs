@@ -37,6 +37,7 @@ fn test_pid_file_created_and_cleaned_up_on_sigterm() {
         .arg("--pid")
         .arg(&pid_path)
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
         .expect("Failed to spawn sd-agent");
@@ -96,6 +97,7 @@ fn test_pid_file_created_and_cleaned_up_on_sigint() {
         .arg("--pid")
         .arg(&pid_path)
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
         .expect("Failed to spawn sd-agent");
@@ -153,6 +155,7 @@ fn test_no_pid_file_without_flag() {
         .arg(&mock_sp)
         .arg("run")
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
         .expect("Failed to spawn sd-agent");

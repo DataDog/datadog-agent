@@ -149,6 +149,7 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 		if !containersLanguages.dirty {
 			continue
 		}
+
 		if event := generatePushEvent(owner, containersLanguages.languages); event != nil {
 			events = append(events, *event)
 			containersLanguages.dirty = false

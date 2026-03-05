@@ -294,6 +294,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 			return probe.NewSSHUserSessionPatcher(
 				userSessionCtx,
 				ebpfProbe.Resolvers.UserSessionsResolver,
+				ev.ProcessContext.UserSession.SSHDPid,
 			)
 		}
 	}

@@ -36,3 +36,26 @@ func FuzzZlibIdentity(f *testing.F) {
 		}
 	})
 }
+
+// Asserts that len(compress(b)) <= CompressBound(len(b)) for all b.
+func FuzzZlibCompressBound(f *testing.F) {
+	f.Add([]byte("hello world"))
+	f.Add([]byte(""))
+	f.Add([]byte("a"))
+	f.Add([]byte(string(make([]byte, 1000))))
+	f.Add([]byte("The quick brown fox jumps over the lazy dog"))
+	f.Add(bytes.Repeat([]byte("abcd"), 250))
+
+	c := New()
+	f.Fuzz(func(t *testing.T, data []byte) {
+		compressed, err := c.Compress(data)
+		if err != nil {
+			t.Fatalf("Compress failed: %v", err)
+		}
+
+		bound := c.CompressBound(len(data))
+		if len(compressed) > bound {
+			t.Errorf("CompressBound violated: len(compress(b))=%d > CompressBound(len(b))=%d", len(compressed), bound)
+		}
+	})
+}

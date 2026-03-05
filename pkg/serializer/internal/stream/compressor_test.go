@@ -176,7 +176,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
+		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 27},
 		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 90},
 	}
 	logger := logmock.New(t)
@@ -232,7 +232,7 @@ func TestTwoPayload(t *testing.T) {
 		kind           string
 		maxPayloadSize int
 	}{
-		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
+		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 27},
 		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 70},
 	}
 	logger := logmock.New(t)
@@ -295,7 +295,7 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 		kind                       string
 		maxUncompressedPayloadSize int
 	}{
-		"zlib": {kind: compression.ZlibKind, maxUncompressedPayloadSize: 40},
+		"zlib": {kind: compression.ZlibKind, maxUncompressedPayloadSize: 45},
 		"zstd": {kind: compression.ZstdKind, maxUncompressedPayloadSize: 170},
 	}
 	logger := logmock.New(t)

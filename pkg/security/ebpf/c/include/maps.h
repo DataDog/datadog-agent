@@ -15,7 +15,8 @@
         __type(key, u32);                      \
     } _name SEC(".maps");
 
-BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
+BPF_ARRAY_MAP(path_id_high, u32, PATH_ID_HIGH_MAP_SIZE)
+BPF_ARRAY_MAP(path_id_low, u32, PATH_ID_LOW_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 5)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH * 2], 1)
@@ -75,6 +76,7 @@ BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overri
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
+BPF_LRU_MAP(mntns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(prctl_discarders, char[MAX_PRCTL_NAME_LEN], int, 1024)
@@ -93,7 +95,6 @@ BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_userspace_lru_entry_t, 1024)
 BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabilities_usage_entry_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(sock_cookie_pid, u64, u32, 1); // max entries will be overridden at runtime
-BPF_LRU_MAP(hardlink_ids, u64, u8, 10240);
 BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)

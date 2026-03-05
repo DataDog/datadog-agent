@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentConfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
 
@@ -116,8 +118,6 @@ func TestBuildQuery_MultipleEvents(t *testing.T) {
 }
 
 func TestCollector_CollectEvents(t *testing.T) {
-	ctx := t.Context()
-
 	// only run test with Windows API tester, needs event rendering
 	enabledAPIs := eventlog_test.GetEnabledAPITesters()
 	if !slices.Contains(enabledAPIs, "Windows") {
@@ -141,66 +141,25 @@ func TestCollector_CollectEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer ti.RemoveSource(channelPath, eventSource)
 
-	// Create output channel
+	// Create tmpdir to store bookmark. Necessary to isolate test runs from each other.
+	testDir := t.TempDir()
+	mockConfig := agentConfigmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
+	// === First collector instance ===
 	outChan := make(chan eventPayload)
+	collector := createTestCollector(t, ti, channelPath, eventSource, outChan)
 
-	// Create collector using constructor
-	collector, err := newCollector(outChan)
-	require.NoError(t, err)
-
-	// Customize for testing with test API and test channel
-	collector.api = ti.API()
-	collector.query = fmt.Sprintf(`<QueryList><Query Id="0"><Select Path="%s">*</Select></Query></QueryList>`, channelPath) // Collect all events from the test channel
-
-	// Add test event source to the lookup so test events can be processed
-	testEventDef := &eventDefinition{
-		Provider:  eventSource,
-		EventID:   1000,
-		EventType: "Test event",
-		Title:     "Test event title",
-		Message:   "Test event message",
-		Channel:   channelPath,
-	}
-	collector.eventLookup[eventKey{Provider: testEventDef.Provider, EventID: testEventDef.EventID}] = testEventDef
-
-	// Start collector
 	err = collector.start()
 	require.NoError(t, err)
-	defer collector.stop()
 
-	// Wait for subscription to be running
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	waitForSubscription(t, collector)
 
-	for {
-		if collector.sub.Running() {
-			break
-		}
-		select {
-		case <-ticker.C:
-			// Continue waiting
-		case <-ctx.Done():
-			t.Fatal("Context cancelled while waiting for subscription to start")
-		}
-	}
-
-	// Generate test events using helper
+	// Generate and collect 3 test events
 	err = ti.GenerateEvents(eventSource, 3)
 	require.NoError(t, err)
 
-	// Wait for events to be collected and sent to output channel
-	var receivedEvents []eventPayload
-
-	for i := 0; i < 3; i++ {
-		select {
-		case payload := <-outChan:
-			receivedEvents = append(receivedEvents, payload)
-		case <-ctx.Done():
-			t.Fatalf("Context cancelled while waiting for event %d. Received %d events so far", i+1, len(receivedEvents))
-		}
-	}
-
-	// Verify we received all expected events
+	receivedEvents := collectEvents(t, outChan, 3)
 	require.Len(t, receivedEvents, 3, "Should have received 3 events")
 
 	// Verify event payloads have correct metadata from test event definition
@@ -219,4 +178,102 @@ func TestCollector_CollectEvents(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		// Expected - no more events
 	}
+
+	// Stop first collector - this should save the bookmark
+	collector.stop()
+
+	// Verify bookmark was persisted to disk
+	bookmarkXML, err := persistentcache.Read(bookmarkPersistentCacheKey)
+	require.NoError(t, err)
+	assert.NotEmpty(t, bookmarkXML, "Bookmark should be persisted after processing events")
+
+	// === Test bookmark persistence across restart ===
+	// Generate events while collector is stopped (simulating downtime)
+	err = ti.GenerateEvents(eventSource, 2)
+	require.NoError(t, err)
+
+	// Create second collector instance (simulating restart)
+	outChan2 := make(chan eventPayload)
+	collector2 := createTestCollector(t, ti, channelPath, eventSource, outChan2)
+
+	err = collector2.start()
+	require.NoError(t, err)
+	defer collector2.stop()
+
+	waitForSubscription(t, collector2)
+
+	// Collect events - should only receive the 2 events generated during downtime
+	receivedEvents2 := collectEvents(t, outChan2, 2)
+	require.Len(t, receivedEvents2, 2, "Second collector should receive 2 events generated during downtime")
+
+	// Verify no duplicate events from the original 3
+	select {
+	case unexpected := <-outChan2:
+		t.Fatalf("Second collector received unexpected event (possible duplicate): %+v", unexpected)
+	case <-time.After(500 * time.Millisecond):
+		// Expected - no more events
+	}
+
+	// Verify bookmark was updated
+	bookmarkXML2, err := persistentcache.Read(bookmarkPersistentCacheKey)
+	require.NoError(t, err)
+	assert.NotEqual(t, bookmarkXML, bookmarkXML2, "Bookmark should be updated after processing new events")
+}
+
+// createTestCollector creates a collector configured for testing with the given parameters
+func createTestCollector(t *testing.T, ti eventlog_test.APITester, channelPath, eventSource string, outChan chan eventPayload) *collector {
+	c, err := newCollector(outChan)
+	require.NoError(t, err)
+
+	// Customize for testing with test API and test channel
+	c.api = ti.API()
+	c.query = fmt.Sprintf(`<QueryList><Query Id="0"><Select Path="%s">*</Select></Query></QueryList>`, channelPath)
+
+	// Add test event source to the lookup so test events can be processed
+	testEventDef := &eventDefinition{
+		Provider:  eventSource,
+		EventID:   1000,
+		EventType: "Test event",
+		Title:     "Test event title",
+		Message:   "Test event message",
+		Channel:   channelPath,
+	}
+	c.eventLookup[eventKey{Provider: testEventDef.Provider, EventID: testEventDef.EventID}] = testEventDef
+
+	return c
+}
+
+// waitForSubscription waits for the collector's subscription to be running
+func waitForSubscription(t *testing.T, c *collector) {
+	t.Helper()
+	ctx := t.Context()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if c.sub != nil && c.sub.Running() {
+			return
+		}
+		select {
+		case <-ticker.C:
+			// Continue waiting
+		case <-ctx.Done():
+			t.Fatal("Context cancelled while waiting for subscription to start")
+		}
+	}
+}
+
+// collectEvents collects n events from the channel
+func collectEvents(t *testing.T, outChan <-chan eventPayload, n int) []eventPayload {
+	t.Helper()
+	ctx := t.Context()
+	var events []eventPayload
+	for len(events) < n {
+		select {
+		case e := <-outChan:
+			events = append(events, e)
+		case <-ctx.Done():
+			t.Fatalf("Context cancelled while collecting events: expected %d, got %d", n, len(events))
+		}
+	}
+	return events
 }

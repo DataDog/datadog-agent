@@ -26,10 +26,10 @@ type K8sNodeConfig struct {
 		KubeScheduler         *K8sKubeSchedulerConfig         `json:"kubeScheduler,omitempty"`
 	} `json:"components"`
 	Manifests struct {
-		Etcd                 *K8sConfigFileMeta `json:"etcd,omitempty"`
-		KubeContollerManager *K8sConfigFileMeta `json:"kubeControllerManager,omitempty"`
-		KubeApiserver        *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
-		KubeScheduler        *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
+		Etcd                  *K8sConfigFileMeta `json:"etcd,omitempty"`
+		KubeControllerManager *K8sConfigFileMeta `json:"kubeControllerManager,omitempty"`
+		KubeApiserver         *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
+		KubeScheduler         *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
 	} `json:"manifests"`
 	Errors []string `json:"errors,omitempty"`
 }

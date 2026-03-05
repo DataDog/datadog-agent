@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	pollingInterval           = 30 * time.Second
-	localRecommenderID string = "lr"
+	pollingInterval                         = 30 * time.Second
+	localRecommenderID autoscaling.SenderID = "lr"
 )
 
 // Recommender is the interface used to generate local recommendations
@@ -105,7 +105,7 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 	recommendation := model.ScalingValues{}
 
 	if err != nil {
-		recommendation.HorizontalError = err
+		recommendation.HorizontalError = autoscaling.NewConditionError(autoscaling.ConditionReasonLocalRecommenderError, err)
 	}
 
 	if horizontalRecommendation != nil {

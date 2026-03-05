@@ -40,6 +40,7 @@ const (
 	pidIgnoredService = 555 // Ignored service; ignored pid
 	pidRecentService  = 999 // Recent service; new process, start time < 1 minute
 	pidInjectedOnly   = 111 // Process with injection but no service data
+	pidGPUOnly        = 222 // Process using GPU but not a service
 )
 
 var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
@@ -320,6 +321,60 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected, "container_injected"),
 			},
 		},
+		{
+			name: "gpu only process",
+			processesToCollect: map[int32]*procutil.Process{
+				pidGPUOnly: makeProcess(pidGPUOnly, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services: []model.Service{},
+				GPUPIDs:  []int{pidGPUOnly},
+			},
+			expectStored: func() []*workloadmeta.Process {
+				e := makeProcessEntity(pidGPUOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
+				e.UsesGPU = true
+				return []*workloadmeta.Process{e}
+			}(),
+		},
+		{
+			name: "service with gpu",
+			processesToCollect: map[int32]*procutil.Process{
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services: []model.Service{makeModelService(pidNewService, "gpu-service")},
+				GPUPIDs:  []int{int(pidNewService)},
+			},
+			expectStored: func() []*workloadmeta.Process {
+				e := makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
+				e.Service = makeProcessEntityService(pidNewService, "gpu-service", workloadmeta.InjectionNotInjected).Service
+				e.UsesGPU = true
+				return []*workloadmeta.Process{e}
+			}(),
+		},
+		{
+			name: "gpu status preserved across heartbeat",
+			existingProcesses: func() []*workloadmeta.Process {
+				e := makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), nil, "stale-gpu-service", workloadmeta.InjectionNotInjected, "")
+				e.UsesGPU = true
+				return []*workloadmeta.Process{e}
+			}(),
+			processesToCollect: map[int32]*procutil.Process{
+				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli(), nil),
+			},
+			pidHeartbeats: map[int32]time.Time{
+				pidStaleService: baseTime.Add(-20 * time.Minute),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services: []model.Service{makeModelService(pidStaleService, "stale-gpu-service")},
+			},
+			expectStored: func() []*workloadmeta.Process {
+				e := makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
+				e.Service = makeProcessEntityService(pidStaleService, "stale-gpu-service", workloadmeta.InjectionNotInjected).Service
+				e.UsesGPU = true
+				return []*workloadmeta.Process{e}
+			}(),
+		},
 	}
 
 	for _, tc := range tests {
@@ -352,8 +407,9 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 			}
 
@@ -569,8 +625,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 
 				// If this is a process whose injection status we've reported (but has no service), add to tracking
@@ -875,6 +932,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			entity, err := store.GetProcess(expectedProcess.Pid)
 			require.NoError(collectT, err)
 			require.NotNil(collectT, entity)
+			assert.Equal(collectT, expectedProcess.UsesGPU, entity.UsesGPU)
 			if expectedProcess.Service == nil {
 				assert.Nil(collectT, entity.Service)
 			} else {
@@ -954,6 +1012,7 @@ func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProces
 			assert.Equal(collectT, expectedProcess.Language, entity.Language)
 			assert.Equal(collectT, expectedProcess.Owner, entity.Owner)
 			assert.Equal(collectT, expectedProcess.InjectionState, entity.InjectionState)
+			assert.Equal(collectT, expectedProcess.UsesGPU, entity.UsesGPU)
 		}
 	}, 1*time.Second, 100*time.Millisecond)
 }
@@ -1027,6 +1086,79 @@ func TestConvertModelServiceToService_Normalization(t *testing.T) {
 			result := convertModelServiceToService(tt.inputService)
 			assert.Equal(t, tt.expectedGeneratedName, result.GeneratedName)
 			assert.Equal(t, tt.expectedAdditionalNames, result.AdditionalGeneratedNames)
+		})
+	}
+}
+
+func TestTracerAlreadyCollectsLogs(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputService     *model.Service
+		expectedLogFiles []string
+	}{
+		{
+			name: "logs not collected by tracer passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+				},
+			},
+			expectedLogFiles: []string{"/var/log/app.log", "/tmp/debug.log"},
+		},
+		{
+			name: "logs collected by tracer filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no tracer metadata passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+			},
+			expectedLogFiles: []string{"/var/log/app.log"},
+		},
+		{
+			name: "logs collected by one of multiple tracers filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+					{TracerLanguage: "java", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no log files with tracer collecting logs",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertModelServiceToService(tt.inputService)
+			assert.Equal(t, tt.expectedLogFiles, result.LogFiles)
 		})
 	}
 }

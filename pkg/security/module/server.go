@@ -10,7 +10,6 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -177,6 +176,7 @@ type APIServer struct {
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
+	wg       sync.WaitGroup
 
 	securityAgentAPIClient *SecurityAgentAPIClient
 }
@@ -410,7 +410,11 @@ func (a *APIServer) Start(ctx context.Context) {
 		})
 		go a.securityAgentAPIClient.SendActivityDumps(ctx, a.activityDumps)
 	}
-	go a.start(ctx)
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.start(ctx)
+	}()
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
@@ -568,7 +572,7 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 
 	selectorStr := "<unknown>"
 	if sel := dump.GetSelector(); sel != nil {
-		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+		selectorStr = sel.GetName() + ":" + sel.GetTag()
 	}
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
@@ -686,8 +690,12 @@ func (a *APIServer) GetSECLVariables() map[string]*api.SECLVariableState {
 	return a.cwsConsumer.ruleEngine.GetSECLVariables()
 }
 
-// Stop stops the API server
+// Stop stops the API server. The start goroutine must finish before the
+// stopper closes pipeline channels, otherwise sends to logChan will panic.
 func (a *APIServer) Stop() {
+	// Wait for the start goroutine to exit (triggered by context cancellation)
+	// before stopping pipeline providers which close the underlying channels.
+	a.wg.Wait()
 	a.stopper.Stop()
 }
 
@@ -712,47 +720,6 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
 	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-
-	var globals []*api.SECLVariableState
-	for _, global := range seclVariables {
-		if !strings.Contains(global.Name, ".") {
-			globals = append(globals, global)
-		}
-	}
-	apiStatus.GlobalVariables = globals
-
-	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-	for _, scoped := range seclVariables {
-		split := strings.SplitN(scoped.Name, ".", 3)
-		if len(split) < 3 {
-			continue
-		}
-		scope, name, key := split[0], split[1], split[2]
-		if scope != "" {
-			if _, found := scopedVariables[scope]; !found {
-				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-			}
-
-			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-				Name:  name,
-				Value: scoped.Value,
-			})
-		}
-	}
-	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
-	for scope, vars := range scopedVariables {
-		store := &api.ScopedVariableStore{
-			KeyValues: make(map[string]*api.SECLVariableStateList),
-		}
-		for key, values := range vars {
-			store.KeyValues[key] = &api.SECLVariableStateList{
-				Variables: values,
-			}
-		}
-		apiStatus.ScopedVariables[scope] = store
-	}
 
 	if err := a.fillStatusPlatform(&apiStatus); err != nil {
 		return nil, err
@@ -787,7 +754,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 	for _, env := range cfg.EnvAsTags {
 		value := os.Getenv(env)
 		if value != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+			tags = append(tags, env+":"+value)
 		}
 	}
 	return tags

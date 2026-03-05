@@ -29,13 +29,13 @@ import (
 
 // NewTerminatedPodCollectorVersions builds the group of collector versions.
 func NewTerminatedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
-	return collectors.NewCollectorVersions(
-		NewTerminatedPodCollector(cfg, store, tagger, metadataAsTags),
-	)
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods_improved.enabled") {
+		return collectors.NewCollectorVersions(NewImprovedTerminatedPodCollector(cfg, store, tagger, metadataAsTags))
+	}
+	return collectors.NewCollectorVersions(NewTerminatedPodCollector(cfg, store, tagger, metadataAsTags))
 }
 
-// TerminatedPodCollector is a collector for Kubernetes Pods that are not
-// assigned to a node yet.
+// TerminatedPodCollector is a collector for Kubernetes Pods that have been deleted.
 type TerminatedPodCollector struct {
 	informer  corev1Informers.PodInformer
 	lister    corev1Listers.PodLister
@@ -43,8 +43,7 @@ type TerminatedPodCollector struct {
 	processor *processors.Processor
 }
 
-// NewTerminatedPodCollector creates a new collector for the Kubernetes Pod
-// resource that is not assigned to any node.
+// NewTerminatedPodCollector creates a new collector for terminated pods.
 func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *TerminatedPodCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
