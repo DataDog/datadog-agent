@@ -1,0 +1,11 @@
+description: "Variables from Env option do not pollute unrelated variable names"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    DEFINED: "yes"
+  script: |
+    echo "defined=$DEFINED"
+    echo "other=$UNDEFINED_VAR"
+expect:
+  stdout: "defined=yes\nother=\n"
+  exit_code: 0

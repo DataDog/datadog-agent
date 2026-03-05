@@ -1,0 +1,14 @@
+description: "Piping cat output from a file in allowed path works"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/msg.txt"
+      content: "piped content\n"
+input:
+  script: |
+    cat data/msg.txt | cat
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "piped content\n"
+  exit_code: 0

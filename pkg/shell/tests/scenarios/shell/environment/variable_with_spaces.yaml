@@ -1,0 +1,9 @@
+description: "Variable values can contain spaces"
+test_against_local_shell: false
+input:
+  script: |
+    MSG="hello world foo"
+    echo "$MSG"
+expect:
+  stdout: "hello world foo\n"
+  exit_code: 0

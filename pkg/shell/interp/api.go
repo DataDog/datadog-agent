@@ -208,6 +208,16 @@ func stdinFile(r io.Reader) (*os.File, error) {
 	}
 }
 
+// Env sets the initial environment for the interpreter. Each pair must be in
+// "KEY=value" format. If this option is not used, the interpreter starts with
+// an empty environment (no host environment variables are inherited).
+func Env(pairs ...string) RunnerOption {
+	return func(r *Runner) error {
+		r.Env = expand.ListEnviron(pairs...)
+		return nil
+	}
+}
+
 // StdIO configures an interpreter's standard input, standard output, and
 // standard error. If out or err are nil, they default to a writer that discards
 // the output.

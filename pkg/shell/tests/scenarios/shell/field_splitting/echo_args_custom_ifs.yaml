@@ -1,0 +1,10 @@
+description: "Field splitting in echo args with custom IFS"
+test_against_local_shell: false
+input:
+  script: |
+    IFS=:
+    A="one:two:three"
+    echo $A
+expect:
+  stdout: "one two three\n"
+  exit_code: 0

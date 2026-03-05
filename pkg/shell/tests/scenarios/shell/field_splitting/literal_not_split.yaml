@@ -1,0 +1,9 @@
+description: "Literal text is not subject to field splitting regardless of IFS"
+test_against_local_shell: false
+input:
+  script: |
+    IFS=" 0"
+    echo -102- "-304 5-"
+expect:
+  stdout: "-102- -304 5-\n"
+  exit_code: 0

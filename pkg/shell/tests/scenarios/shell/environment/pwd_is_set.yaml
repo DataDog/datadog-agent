@@ -1,0 +1,9 @@
+description: "PWD is set to the working directory"
+test_against_local_shell: false
+input:
+  script: |
+    echo "$PWD"
+expect:
+  stdout_contains:
+    - "/"
+  exit_code: 0

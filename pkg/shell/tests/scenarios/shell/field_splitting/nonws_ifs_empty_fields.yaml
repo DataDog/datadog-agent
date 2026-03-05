@@ -1,0 +1,10 @@
+description: "Non-whitespace IFS characters split on each delimiter"
+test_against_local_shell: false
+input:
+  script: |
+    IFS=-
+    A="a-b-c"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[a]\n[b]\n[c]\n"
+  exit_code: 0

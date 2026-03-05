@@ -53,9 +53,12 @@ type input struct {
 	// Envs sets OS-level environment variables for the bash comparison test
 	// only. These are intentionally NOT passed to the restricted interpreter,
 	// which starts with an empty environment for security (no host env inheritance).
-	Envs         map[string]string `yaml:"envs"`
-	Script       string            `yaml:"script"`
-	AllowedPaths []string          `yaml:"allowed_paths"` // relative to test temp dir; "$DIR" resolves to temp dir itself
+	Envs map[string]string `yaml:"envs"`
+	// InterpreterEnv sets initial environment variables for the restricted
+	// interpreter via the Env RunnerOption. These are passed as "KEY=value" pairs.
+	InterpreterEnv map[string]string `yaml:"interpreter_env"`
+	Script         string            `yaml:"script"`
+	AllowedPaths   []string          `yaml:"allowed_paths"` // relative to test temp dir; "$DIR" resolves to temp dir itself
 }
 
 // expected holds the expected output for a scenario.
@@ -161,6 +164,13 @@ func runScenario(t *testing.T, sc scenario) {
 	var stdout, stderr bytes.Buffer
 	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
+	}
+	if len(sc.Input.InterpreterEnv) > 0 {
+		pairs := make([]string, 0, len(sc.Input.InterpreterEnv))
+		for k, v := range sc.Input.InterpreterEnv {
+			pairs = append(pairs, k+"="+v)
+		}
+		opts = append(opts, interp.Env(pairs...))
 	}
 	if sc.Input.AllowedPaths != nil {
 		resolved := make([]string, len(sc.Input.AllowedPaths))

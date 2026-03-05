@@ -1,0 +1,11 @@
+description: "Assigning the same variable twice uses the last value"
+test_against_local_shell: false
+input:
+  script: |
+    X=first
+    echo "$X"
+    X=second
+    echo "$X"
+expect:
+  stdout: "first\nsecond\n"
+  exit_code: 0

@@ -1,0 +1,17 @@
+description: "Path traversal from allowed dir to sibling dir is blocked"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "allowed/ok.txt"
+      content: "ok\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    cat allowed/../secret/hidden.txt
+  allowed_paths:
+    - "allowed"
+expect:
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

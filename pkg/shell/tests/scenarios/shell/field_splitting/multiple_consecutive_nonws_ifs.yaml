@@ -1,0 +1,10 @@
+description: "IFS with colon splits on each colon delimiter"
+test_against_local_shell: false
+input:
+  script: |
+    IFS=:
+    A="a:b:c:d"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[a]\n[b]\n[c]\n[d]\n"
+  exit_code: 0

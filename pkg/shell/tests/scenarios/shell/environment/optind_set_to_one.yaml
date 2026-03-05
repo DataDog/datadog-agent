@@ -1,0 +1,8 @@
+description: "OPTIND is set to 1 by default"
+test_against_local_shell: false
+input:
+  script: |
+    echo "$OPTIND"
+expect:
+  stdout: "1\n"
+  exit_code: 0

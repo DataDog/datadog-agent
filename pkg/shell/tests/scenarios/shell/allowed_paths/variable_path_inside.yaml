@@ -1,0 +1,16 @@
+description: "Variable-expanded file path inside allowed path is accessible"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/report.txt"
+      content: "report content\n"
+input:
+  script: |
+    DIR=data
+    FILE=report.txt
+    cat "$DIR/$FILE"
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "report content\n"
+  exit_code: 0
