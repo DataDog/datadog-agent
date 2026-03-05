@@ -16,6 +16,8 @@ import (
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/DataDog/datadog-agent/pkg/shell/interp/builtins"
 )
 
 func (r *Runner) fillExpandConfig(ctx context.Context) {
@@ -110,14 +112,6 @@ func (r *Runner) handlerCtx(ctx context.Context, pos syntax.Pos) context.Context
 		hc.Stdin = r.stdin
 	}
 	return context.WithValue(ctx, handlerCtxKey{}, hc)
-}
-
-func (r *Runner) out(s string) {
-	io.WriteString(r.stdout, s)
-}
-
-func (r *Runner) outf(format string, a ...any) {
-	fmt.Fprintf(r.stdout, format, a...)
 }
 
 func (r *Runner) errf(format string, a ...any) {
@@ -401,8 +395,22 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 		return
 	}
 	name := args[0]
-	if isBuiltin(name) {
-		r.exit = r.builtin(ctx, pos, name, args[1:])
+	if fn, ok := builtins.Lookup(name); ok {
+		call := &builtins.CallContext{
+			Stdout:       r.stdout,
+			Stderr:       r.stderr,
+			Stdin:        r.stdin,
+			InLoop:       r.inLoop,
+			LastExitCode: r.lastExit.code,
+			OpenFile: func(ctx context.Context, path string, flags int, mode os.FileMode) (io.ReadWriteCloser, error) {
+				return r.open(ctx, path, flags, mode, false)
+			},
+		}
+		result := fn(ctx, call, args[1:])
+		r.exit.code = result.Code
+		r.exit.exiting = result.Exiting
+		r.breakEnclosing = result.BreakN
+		r.contnEnclosing = result.ContinueN
 		return
 	}
 	r.exec(ctx, pos, args)
