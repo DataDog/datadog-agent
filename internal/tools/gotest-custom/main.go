@@ -197,19 +197,18 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		}
 	}
 
-	file, err := os.Open(binariesPath)
+	// Open and extract tar.zst file using zstd command
+	zstdCmd := exec.Command("zstd", "-dc", binariesPath)
+	zstdOut, err := zstdCmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
+		return nil, nil, fmt.Errorf("failed to create zstd pipe: %v", err)
 	}
-	defer file.Close()
-
-	zr, err := zstd.NewReader(file)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create zstd reader: %v", err)
+	if err := zstdCmd.Start(); err != nil {
+		return nil, nil, fmt.Errorf("failed to start zstd: %v", err)
 	}
-	defer zr.Close()
+	defer zstdCmd.Wait()
 
-	tr := tar.NewReader(zr)
+	tr := tar.NewReader(zstdOut)
 
 	// Extract only the targeted binaries
 	for {
