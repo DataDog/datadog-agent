@@ -215,9 +215,9 @@ tasks.
 Tasks are tracked with [taskmd](https://github.com/scottopell/taskmd) in `taskmd/`.
 
 ```bash
-taskmd validate taskmd   # check consistency
-taskmd fix taskmd        # auto-repair filenames/frontmatter
-taskmd next taskmd       # get next task number
+taskmd validate   # check consistency
+taskmd fix        # auto-repair filenames/frontmatter
+taskmd next       # get next task number
 ```
 
 ## Troubleshooting Development Issues
