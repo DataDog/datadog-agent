@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: When the first of multiple files fails, cat stops immediately without processing remaining files.
 target_os: [linux, darwin]
 setup:

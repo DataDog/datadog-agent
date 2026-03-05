@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: An invalid exit argument does not stop execution; subsequent commands still run.
 input:
   # language=bash

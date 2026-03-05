@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Break outside a loop produces an error message.
 input:
   # language=bash

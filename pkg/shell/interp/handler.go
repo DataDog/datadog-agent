@@ -65,12 +65,12 @@ type HandlerContext struct {
 type ExecHandlerFunc func(ctx context.Context, args []string) error
 
 // noExecHandler returns an [ExecHandlerFunc] that rejects all commands.
-// It prints "<cmd>: not found" to stderr and returns exit code 127,
+// It prints "<cmd>: command not found" to stderr and returns exit code 127,
 // without ever searching PATH or executing host binaries.
 func noExecHandler() ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		hc := HandlerCtx(ctx)
-		fmt.Fprintf(hc.Stderr, "%s: not found\n", args[0])
+		fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
 		return ExitStatus(127)
 	}
 }

@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Even common parent env vars like PATH are not propagated to the interpreter.
 input:
   envs:

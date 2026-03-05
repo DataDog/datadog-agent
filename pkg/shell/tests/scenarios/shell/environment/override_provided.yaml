@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Script can assign variables that exist as parent env vars without inheriting them.
 input:
   envs:

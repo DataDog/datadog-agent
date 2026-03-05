@@ -6,5 +6,5 @@ input:
 expect:
   stdout: ""
   stderr_contains:
-    - "not found"
+    - "command not found"
   exit_code: 0

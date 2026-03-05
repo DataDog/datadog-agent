@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Echo outputs special characters verbatim without interpreting escape sequences.
 input:
   # language=bash

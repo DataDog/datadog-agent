@@ -6,7 +6,5 @@ input:
 expect:
   stdout: |+
     reached
-  stderr: |+
-    foo: not found
-    bar: not found
+  stderr_contains: ["foo", "bar", "command not found"]
   exit_code: 0

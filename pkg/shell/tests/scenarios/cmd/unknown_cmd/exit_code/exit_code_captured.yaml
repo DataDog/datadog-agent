@@ -6,6 +6,5 @@ input:
 expect:
   stdout: |+
     127
-  stderr: |+
-    nonexistent: not found
+  stderr_contains: ["nonexistent", "command not found"]
   exit_code: 0

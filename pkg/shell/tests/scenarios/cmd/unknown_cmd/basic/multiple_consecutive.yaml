@@ -7,8 +7,5 @@ input:
     baz
 expect:
   stdout: ""
-  stderr: |+
-    foo: not found
-    bar: not found
-    baz: not found
+  stderr_contains: ["foo", "bar", "baz", "command not found"]
   exit_code: 127

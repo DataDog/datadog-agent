@@ -18,3 +18,4 @@ The shell is supported on Linux, Windows and macOS.
 ## Testing
 
 - In test scenarios, use `expect.stderr` when possible instead of `stderr_contains`.
+- `test_against_local_shell` should be enabled (the default) when the tested feature is bash/POSIX compliant. Only set `test_against_local_shell: false` for features that intentionally diverge from standard bash behavior (e.g. blocked commands, restricted redirects, readonly enforcement).

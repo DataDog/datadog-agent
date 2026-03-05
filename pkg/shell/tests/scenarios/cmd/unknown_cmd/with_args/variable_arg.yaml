@@ -1,4 +1,4 @@
-description: An unknown command with a variable-expanded argument still prints "not found".
+description: An unknown command with a variable-expanded argument still prints "command not found".
 input:
   # language=bash
   script: |+
@@ -6,6 +6,5 @@ input:
     foo $MY_VAR
 expect:
   stdout: ""
-  stderr: |+
-    foo: not found
+  stderr_contains: ["foo", "command not found"]
   exit_code: 127

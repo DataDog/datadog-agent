@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Exit with a floating-point argument is invalid.
 input:
   # language=bash

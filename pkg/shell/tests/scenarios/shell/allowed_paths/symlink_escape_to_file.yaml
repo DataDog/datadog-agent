@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Symlink inside allowed dir pointing to file outside is blocked by os.Root
 setup:
   files:

@@ -5,6 +5,5 @@ input:
     echo ok | foo
 expect:
   stdout: ""
-  stderr: |+
-    foo: not found
+  stderr_contains: ["foo", "command not found"]
   exit_code: 127

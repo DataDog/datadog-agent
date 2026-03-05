@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Break with argument exceeding nesting depth breaks all loops.
 input:
   # language=bash

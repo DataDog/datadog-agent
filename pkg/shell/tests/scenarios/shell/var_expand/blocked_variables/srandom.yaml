@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: The $SRANDOM variable has no special meaning and expands to empty.
 input:
   # language=bash

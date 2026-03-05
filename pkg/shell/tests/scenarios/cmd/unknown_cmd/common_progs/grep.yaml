@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: The grep command is not a builtin and is rejected as unknown.
 input:
   # language=bash
@@ -6,5 +7,5 @@ input:
 expect:
   stdout: ""
   stderr: |+
-    grep: not found
+    grep: command not found
   exit_code: 127

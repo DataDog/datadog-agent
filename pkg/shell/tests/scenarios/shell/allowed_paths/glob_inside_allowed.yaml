@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Glob expansion works inside allowed paths
 setup:
   files:

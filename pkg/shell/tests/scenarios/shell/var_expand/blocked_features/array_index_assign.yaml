@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Array index assignment arr[0]=value is not supported.
 input:
   # language=bash

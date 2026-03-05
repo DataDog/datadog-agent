@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
 target_os: [linux, darwin]
 input:

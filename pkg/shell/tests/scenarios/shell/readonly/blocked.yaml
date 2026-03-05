@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: The readonly keyword is not supported and is blocked at parse validation.
 input:
   # language=bash

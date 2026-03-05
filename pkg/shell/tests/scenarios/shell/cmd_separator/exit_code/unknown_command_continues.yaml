@@ -6,6 +6,5 @@ input:
 expect:
   stdout: |+
     after
-  stderr: |+
-    nonexistent_cmd: not found
+  stderr_contains: ["nonexistent_cmd", "command not found"]
   exit_code: 0

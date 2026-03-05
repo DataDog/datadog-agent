@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Prefix removal ${var#pattern} is not supported.
 input:
   # language=bash

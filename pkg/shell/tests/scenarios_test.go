@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -25,11 +26,12 @@ import (
 
 // scenario represents a single test scenario.
 type scenario struct {
-	Description string   `yaml:"description"`
-	TargetOS []string `yaml:"target_os"` // if set, only run on these OS (linux, darwin, windows); empty means all
-	Setup       setup    `yaml:"setup"`
-	Input       input    `yaml:"input"`
-	Expect      expected `yaml:"expect"`
+	Description           string   `yaml:"description"`
+	TargetOS              []string `yaml:"target_os"`                // if set, only run on these OS (linux, darwin, windows); empty means all
+	TestAgainstLocalShell *bool    `yaml:"test_against_local_shell"` // nil = true (default); false = skip bash comparison
+	Setup                 setup    `yaml:"setup"`
+	Input                 input    `yaml:"input"`
+	Expect                expected `yaml:"expect"`
 }
 
 // setup holds optional pre-test configuration such as files to create.
@@ -184,20 +186,102 @@ func runScenario(t *testing.T, sc scenario) {
 		}
 	}
 
+	assertExpectations(t, sc, stdout.String(), stderr.String(), exitCode)
+}
+
+// assertExpectations checks stdout, stderr, and exit code against the scenario expectations.
+func assertExpectations(t *testing.T, sc scenario, stdout, stderr string, exitCode int) {
+	t.Helper()
+
 	assert.Equal(t, sc.Expect.ExitCode, exitCode, "exit code mismatch")
 	if len(sc.Expect.StdoutContains) > 0 {
 		for _, substr := range sc.Expect.StdoutContains {
-			assert.Contains(t, stdout.String(), substr, "stdout should contain %q", substr)
+			assert.Contains(t, stdout, substr, "stdout should contain %q", substr)
 		}
 	} else {
-		assert.Equal(t, sc.Expect.Stdout, stdout.String(), "stdout mismatch")
+		assert.Equal(t, sc.Expect.Stdout, stdout, "stdout mismatch")
 	}
 	if len(sc.Expect.StderrContains) > 0 {
 		for _, substr := range sc.Expect.StderrContains {
-			assert.Contains(t, stderr.String(), substr, "stderr should contain %q", substr)
+			assert.Contains(t, stderr, substr, "stderr should contain %q", substr)
 		}
 	} else {
-		assert.Equal(t, sc.Expect.Stderr, stderr.String(), "stderr mismatch")
+		assert.Equal(t, sc.Expect.Stderr, stderr, "stderr mismatch")
+	}
+}
+
+// runScenarioAgainstBash executes a scenario against real /bin/bash and asserts expectations.
+func runScenarioAgainstBash(t *testing.T, sc scenario) {
+	t.Helper()
+
+	if len(sc.TargetOS) > 0 {
+		matched := false
+		for _, goos := range sc.TargetOS {
+			if goos == runtime.GOOS {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Skipf("skipping: scenario targets %v, current GOOS is %s", sc.TargetOS, runtime.GOOS)
+		}
+	}
+
+	dir := setupTestDir(t, sc)
+
+	env := os.Environ()
+	for k, v := range sc.Input.Envs {
+		env = append(env, k+"="+v)
+	}
+
+	cmd := exec.Command("/bin/bash", "-c", sc.Input.Script)
+	cmd.Dir = dir
+	cmd.Env = env
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			t.Fatalf("unexpected error running bash: %v", err)
+		}
+	}
+
+	assertExpectations(t, sc, stdout.String(), stderr.String(), exitCode)
+}
+
+func TestShellScenariosAgainstBash(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("bash comparison tests only run on linux and darwin")
+	}
+	if _, err := exec.LookPath("/bin/bash"); err != nil {
+		t.Skip("/bin/bash not found, skipping bash comparison tests")
+	}
+
+	scenariosDir := filepath.Join("scenarios")
+	groups := discoverScenarioFiles(t, scenariosDir)
+	require.NotEmpty(t, groups, "no scenario files found in %s", scenariosDir)
+
+	for group, paths := range groups {
+		t.Run(group, func(t *testing.T) {
+			for _, path := range paths {
+				sc := loadScenario(t, path)
+				if sc.TestAgainstLocalShell != nil && !*sc.TestAgainstLocalShell {
+					continue
+				}
+				name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+				t.Run(name, func(t *testing.T) {
+					runScenarioAgainstBash(t, sc)
+				})
+			}
+		})
 	}
 }
 

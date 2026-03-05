@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Backslash escape sequences in double-quoted echo are passed literally.
 input:
   # language=bash

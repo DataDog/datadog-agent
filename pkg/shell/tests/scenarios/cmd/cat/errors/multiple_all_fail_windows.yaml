@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: When all files are missing, cat stops at the first failure without attempting the rest (Windows).
 target_os: [windows]
 input:

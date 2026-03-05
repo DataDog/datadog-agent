@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Input redirect from a nonexistent file fails at the redirect level, not cat itself, so the error has no "cat:" prefix (Windows).
 target_os: [windows]
 input:

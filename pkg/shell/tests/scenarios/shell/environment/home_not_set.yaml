@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: $HOME is not automatically set by the interpreter.
 input:
   # language=bash

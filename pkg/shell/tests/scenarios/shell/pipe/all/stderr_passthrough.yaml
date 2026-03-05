@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Regular pipe only passes stdout; stderr goes directly to the parent stderr.
 input:
   # language=bash

@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Chained symlinks that escape allowed dir are blocked by os.Root
 setup:
   files:

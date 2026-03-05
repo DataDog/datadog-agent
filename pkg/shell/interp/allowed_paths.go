@@ -128,13 +128,13 @@ func wrapExecHandler(roots []*os.Root, allowedPaths []string, next ExecHandlerFu
 		hc := HandlerCtx(ctx)
 		path, err := LookPathDir(hc.Dir, hc.Env, args[0])
 		if err != nil {
-			fmt.Fprintf(hc.Stderr, "%s: not found\n", args[0])
+			fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
 			return ExitStatus(127)
 		}
 
 		_, _, ok := findMatchingRoot(path, roots, allowedPaths)
 		if !ok {
-			fmt.Fprintf(hc.Stderr, "%s: not found\n", args[0])
+			fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
 			return ExitStatus(127)
 		}
 

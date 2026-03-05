@@ -1,10 +1,9 @@
-description: A simple unknown command prints "not found" to stderr.
+description: A simple unknown command prints "command not found" to stderr.
 input:
   # language=bash
   script: |+
     foo
 expect:
   stdout: ""
-  stderr: |+
-    foo: not found
+  stderr_contains: ["foo", "command not found"]
   exit_code: 127

@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Parent environment variables set via input.envs are not visible in the interpreter.
 input:
   envs:

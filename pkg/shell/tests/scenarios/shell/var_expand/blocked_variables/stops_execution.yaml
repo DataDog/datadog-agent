@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Variables without special meaning expand to empty but execution continues.
 input:
   # language=bash

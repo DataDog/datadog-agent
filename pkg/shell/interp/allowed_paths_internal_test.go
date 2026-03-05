@@ -81,7 +81,7 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 		AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 127, exitCode)
-	assert.Contains(t, stderr, "not found")
+	assert.Contains(t, stderr, "command not found")
 }
 
 func TestAllowedPathsExecNonexistent(t *testing.T) {
@@ -91,7 +91,7 @@ func TestAllowedPathsExecNonexistent(t *testing.T) {
 		AllowedPaths([]string{dir, "/bin", "/usr"}),
 	)
 	assert.Equal(t, 127, exitCode)
-	assert.Contains(t, stderr, "not found")
+	assert.Contains(t, stderr, "command not found")
 }
 
 func TestAllowedPathsExecViaPathLookup(t *testing.T) {
@@ -101,7 +101,7 @@ func TestAllowedPathsExecViaPathLookup(t *testing.T) {
 		AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 127, exitCode)
-	assert.Contains(t, stderr, "not found")
+	assert.Contains(t, stderr, "command not found")
 }
 
 func TestAllowedPathsExecDefaultBlocksAll(t *testing.T) {
@@ -109,5 +109,5 @@ func TestAllowedPathsExecDefaultBlocksAll(t *testing.T) {
 	// No AllowedPaths option — default blocks all exec
 	_, stderr, exitCode := runScriptInternal(t, `/bin/echo hello`, dir)
 	assert.Equal(t, 127, exitCode)
-	assert.Contains(t, stderr, "not found")
+	assert.Contains(t, stderr, "command not found")
 }

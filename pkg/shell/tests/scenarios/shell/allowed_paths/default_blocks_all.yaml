@@ -1,3 +1,4 @@
+test_against_local_shell: false
 description: Default (no allowed_paths) blocks all file access
 setup:
   files:
