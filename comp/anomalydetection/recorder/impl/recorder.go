@@ -27,6 +27,12 @@ type Provides struct {
 	Comp recorderdef.Component
 }
 
+// NewReadOnlyRecorder creates a recorder that can only read parquet files.
+// No config needed — recording is disabled, only ReadAll* methods work.
+func NewReadOnlyRecorder() recorderdef.Component {
+	return &recorderImpl{recordingDisabled: true}
+}
+
 // NewComponent creates a new recorder component
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}

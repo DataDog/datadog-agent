@@ -116,7 +116,10 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
-		return tb.RunHeadless(params.Headless, params.Output, params.Verbose)
+		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if err := tb.Start(); err != nil {

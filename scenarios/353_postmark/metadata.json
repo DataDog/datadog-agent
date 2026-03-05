@@ -1,0 +1,34 @@
+{
+  "episode": "dns-upstream-outage",
+  "cycle": 1,
+  "scenario": {
+    "app_name": "postmark-email",
+    "description": "Upstream cloud provider DNS changes cause geographic misrouting of email traffic",
+    "long_description": "Upstream cloud provider implemented DNS infrastructure changes that caused the dns-resolver-service to receive incorrect geographic routing information. Instead of returning US-based endpoints for MX record lookups, DNS responses directed traffic to non-US region endpoints (simulated by pointing the DNS resolver at an unreachable upstream, causing genuine resolution timeouts). This introduced significant latency into the message-router service, which cascaded to both outbound-delivery-service (email delivery delays) and inbound-processing-service (processing delays). As DNS lookups timed out and delivery attempts slowed, the queue-manager experienced increasing message backlog (visible as elevated redis.net.commands rate). This backpressure eventually affected the smtp-gateway, causing customer-visible SMTP connection delays. Root cause: dns-resolver-service UPSTREAM_DNS_HOST pointed at unreachable endpoint due to upstream provider DNS infrastructure change. Recovery occurred when the upstream DNS configuration was restored, allowing the dns-resolver-service to resume normal resolution."
+  },
+  "environment": "gensim-353-postmark-upstream-cloud-provider-outage-ad0bba",
+  "execution_id": "gensim-353-postmark-upstream-cloud-provider-outage-ad0bba-1",
+  "success": true,
+  "start_time": "2026-03-03T12:39:39Z",
+  "end_time": "2026-03-03T13:33:22Z",
+  "baseline": {
+    "start": "2026-03-03T12:40:39Z",
+    "end": "2026-03-03T12:55:15Z"
+  },
+  "disruption": {
+    "start": "2026-03-03T12:55:15Z",
+    "end": "2026-03-03T13:12:31Z"
+  },
+  "cooldown": {
+    "start": "2026-03-03T13:12:31Z",
+    "end": "2026-03-03T13:33:21Z"
+  },
+  "alert": {
+    "monitor_id": 263075702,
+    "monitor_name": "smtp_gateway_latency_p95",
+    "timestamp": "2026-03-03T13:00:31Z"
+  },
+  "monitors": {
+    "smtp_gateway_latency_p95": 263075702
+  }
+}
