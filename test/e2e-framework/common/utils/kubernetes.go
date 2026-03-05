@@ -61,9 +61,11 @@ func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceO
 		return string(dockerConfigJSON), err
 	}).(pulumi.StringOutput)
 
+	// Pulumi resource name must be unique per namespace to avoid duplicate URNs.
+	pulumiName := fmt.Sprintf("%s-%s", imagePullSecretName, namespace)
 	return corev1.NewSecret(
 		e.Ctx(),
-		imagePullSecretName,
+		pulumiName,
 		&corev1.SecretArgs{
 			Metadata: metav1.ObjectMetaArgs{
 				Namespace: pulumi.StringPtr(namespace),

@@ -266,7 +266,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	host := is.Env().RemoteHost
 	client := common.NewDockerTestClient(host, containerName)
 
-	err := client.RunContainer("public.ecr.aws/ubuntu/ubuntu:22.04_stable")
+	err := client.RunContainer("669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/ubuntu:22.04")
 	require.NoError(is.T(), err)
 	defer client.Cleanup()
 

@@ -124,20 +124,39 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	if err = k8sDeploymentWithoutLibInjection(e, namespaceWithoutLibInjection, "mutated", saWithoutLibInjection, optsWithoutLibInjection...); err != nil {
+	var imagePullSecretsWithoutLib corev1.LocalObjectReferenceArray
+	var imagePullSecretsWithLib corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecretWithoutLib, err := utils.NewImagePullSecret(e, namespaceWithoutLibInjection, optsWithoutLibInjection...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecretsWithoutLib = append(imagePullSecretsWithoutLib, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecretWithoutLib.Metadata.Name(),
+		})
+		imgPullSecretWithLib, err := utils.NewImagePullSecret(e, namespaceWithLibInjection, optsWithLibInjection...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecretsWithLib = append(imagePullSecretsWithLib, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecretWithLib.Metadata.Name(),
+		})
+	}
+
+	if err = k8sDeploymentWithoutLibInjection(e, namespaceWithoutLibInjection, "mutated", saWithoutLibInjection, imagePullSecretsWithoutLib, optsWithoutLibInjection...); err != nil {
 		return nil, err
 	}
-	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-lib-annotation", true, saWithLibInjection, optsWithLibInjection...); err != nil {
+	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-lib-annotation", true, saWithLibInjection, imagePullSecretsWithLib, optsWithLibInjection...); err != nil {
 		return nil, err
 	}
-	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-auto-detected-language", false, saWithLibInjection, optsWithLibInjection...); err != nil {
+	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-auto-detected-language", false, saWithLibInjection, imagePullSecretsWithLib, optsWithLibInjection...); err != nil {
 		return nil, err
 	}
 
 	return k8sComponent, nil
 }
 
-func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name string, sa *corev1.ServiceAccount, opts ...pulumi.ResourceOption) error {
+func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name string, sa *corev1.ServiceAccount, imagePullSecrets corev1.LocalObjectReferenceArray, opts ...pulumi.ResourceOption) error {
 	_, err := appsv1.NewDeployment(e.Ctx(), name, &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(name),
@@ -164,6 +183,7 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name:  pulumi.String(name),
@@ -178,7 +198,7 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 	return err
 }
 
-func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, withLibAnnotation bool, sa *corev1.ServiceAccount, opts ...pulumi.ResourceOption) error {
+func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, withLibAnnotation bool, sa *corev1.ServiceAccount, imagePullSecrets corev1.LocalObjectReferenceArray, opts ...pulumi.ResourceOption) error {
 	annotations := pulumi.StringMap{
 		"openshift.io/required-scc": pulumi.String("hostaccess"),
 	}
@@ -210,11 +230,12 @@ func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, 
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name: pulumi.String(name),
 							// Python is one of the languages supported by APM lib injection
-							Image: pulumi.String("public.ecr.aws/docker/library/python:3.12-slim"), // TODO: Change to using private mirror
+							Image: pulumi.String("669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/python:3.12-slim-bullseye"),
 							Command: pulumi.ToStringArray([]string{
 								"python", "-c", "while True: import time; time.sleep(60)",
 							}),

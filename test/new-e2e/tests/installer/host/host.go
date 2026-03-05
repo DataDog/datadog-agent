@@ -7,6 +7,7 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -17,11 +18,14 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
@@ -77,6 +81,21 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// ensureDockerLogin logs the host into the ECR registry when E2E_IMAGE_PULL_* is set, so pulls work.
+// It must be called whenever Docker is available (already installed or just installed).
+func (h *Host) ensureDockerLogin() {
+	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
+	if err != nil {
+		var notFound parameters.ParameterNotFoundError
+		if errors.As(err, &notFound) {
+			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
+			return
+		}
+		h.t().Fatalf("failed to get image pull password: %v", err)
+	}
+	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
+}
+
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
@@ -100,6 +119,7 @@ func (h *Host) InstallDocker() {
 		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		h.ensureDockerLogin()
 		return
 	}
 
@@ -117,6 +137,8 @@ func (h *Host) InstallDocker() {
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
+
+	h.ensureDockerLogin()
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
@@ -514,7 +536,7 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 func (h *Host) SetupProxy() {
 	// Install Docker & the Squid Proxy
 	h.InstallDocker()
-	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/ubuntu/squid:4.10-20.04_beta")
 
 	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
 
