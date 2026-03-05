@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -80,6 +81,12 @@ type Provider struct {
 	memUsageBytes   map[string]*processCache
 	swapUsageBytes  map[string]*processCache
 	prometheus.Provider
+}
+
+// SetDataSource sets a shared data source on the embedded prometheus provider
+// to avoid duplicate HTTP calls to /metrics/cadvisor.
+func (p *Provider) SetDataSource(ds *kubeletmetrics.DataSource) {
+	p.Provider.DataSource = ds
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.

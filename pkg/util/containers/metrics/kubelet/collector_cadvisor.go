@@ -43,17 +43,32 @@ func (kc *kubeletCollector) refreshCadvisorCache(currentTime time.Time, cacheVal
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), kubeletCallTimeout)
-	data, statusCode, err := kc.kubeletClient.QueryKubelet(ctx, "/metrics/cadvisor")
-	cancel()
+	var metrics []prometheus.MetricFamily
+	var err error
 
-	if err != nil || statusCode != 200 {
-		log.Debugf("Unable to collect cadvisor metrics from kubelet: status=%d, err=%v", statusCode, err)
-		kc.statsCache.Store(currentTime, cadvisorRefreshKey, nil, err)
-		return
+	textFilter := []string{"pod_name=\"\"", "pod=\"\""}
+
+	if kc.dataSource != nil {
+		// Use shared data source (avoids duplicate HTTP call with cadvisor provider)
+		metrics, err = kc.dataSource.GetCadvisorMetrics(textFilter)
+	} else {
+		// Fallback: fetch directly
+		var data []byte
+		var statusCode int
+
+		ctx, cancel := context.WithTimeout(context.Background(), kubeletCallTimeout)
+		data, statusCode, err = kc.kubeletClient.QueryKubelet(ctx, "/metrics/cadvisor")
+		cancel()
+
+		if err != nil || statusCode != 200 {
+			log.Debugf("Unable to collect cadvisor metrics from kubelet: status=%d, err=%v", statusCode, err)
+			kc.statsCache.Store(currentTime, cadvisorRefreshKey, nil, err)
+			return
+		}
+
+		metrics, err = prometheus.ParseMetricsWithFilter(data, textFilter)
 	}
 
-	metrics, err := prometheus.ParseMetricsWithFilter(data, []string{"pod_name=\"\"", "pod=\"\""})
 	if err != nil {
 		log.Debugf("Unable to parse cadvisor metrics: %v", err)
 		kc.statsCache.Store(currentTime, cadvisorRefreshKey, nil, err)

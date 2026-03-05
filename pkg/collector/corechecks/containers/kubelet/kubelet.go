@@ -31,6 +31,7 @@ import (
 	// Note: pod provider is now integrated as a ProcessorExtension (see pod_extension.go)
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -57,6 +58,7 @@ type KubeletCheck struct {
 	filterStore workloadfilter.Component
 	store       workloadmeta.Component
 	tagger      tagger.Component
+	dataSource  *kubeletmetrics.DataSource
 }
 
 // NewKubeletCheck returns a new KubeletCheck
@@ -72,6 +74,8 @@ func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store 
 
 // initKubeletProviders returns providers for kubelet-specific endpoints.
 // The pod provider is now a ProcessorExtension on the generic processor.
+// The dataSource is shared with the generic processor's collector to avoid
+// duplicate HTTP calls to /stats/summary and /metrics/cadvisor.
 func initKubeletProviders(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component) []Provider {
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
@@ -98,7 +102,6 @@ func initKubeletProviders(filterStore workloadfilter.Component, config *common.K
 	if err != nil {
 		log.Warnf("Can't get cadvisor provider: %v", err)
 	}
-
 	return []Provider{
 		healthProvider,
 		nodeProvider,
@@ -164,6 +167,7 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	))
 
 	// Init kubelet-specific providers (cadvisor, kubelet /metrics, health, etc.)
+	// The shared DataSource is injected in Run() when the KubeUtil client is available.
 	k.providers = initKubeletProviders(k.filterStore, k.instance, k.podUtils, k.store, k.tagger)
 
 	return nil
@@ -178,6 +182,33 @@ func (k *KubeletCheck) Run() error {
 	defer sender.Commit()
 	defer k.podUtils.Reset()
 
+	// Get kubelet client (needed by both the data source and the providers)
+	kc, err := kubelet.GetKubeUtil()
+	if err != nil {
+		_ = k.Warnf("Error initialising check: %s", err)
+		return err
+	}
+
+	// Create or reset the shared data source. This ensures /stats/summary and
+	// /metrics/cadvisor are each fetched at most once per check run, shared
+	// between the generic processor's collector and the kubelet providers.
+	if k.dataSource == nil {
+		timeout := time.Duration(k.instance.Timeout) * time.Second
+		k.dataSource = kubeletmetrics.NewDataSource(kc, timeout)
+		// Inject into providers
+		for _, p := range k.providers {
+			if sp, ok := p.(*summary.Provider); ok {
+				sp.SetDataSource(k.dataSource)
+			}
+			if cp, ok := p.(*cadvisor.Provider); ok {
+				cp.SetDataSource(k.dataSource)
+			}
+		}
+		// Inject into the global kubelet collector
+		kubeletmetrics.SetGlobalDataSource(k.dataSource)
+	}
+	k.dataSource.Reset()
+
 	// Run the generic processor (emits renamed container.* → kubernetes.* metrics
 	// and runs the pod extension for pod/container status metrics)
 	if err := k.processor.Run(sender, cacheValidity); err != nil {
@@ -185,12 +216,6 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	// Run kubelet-specific providers (cadvisor, kubelet /metrics, health, etc.)
-	kc, err := kubelet.GetKubeUtil()
-	if err != nil {
-		_ = k.Warnf("Error initialising check: %s", err)
-		return err
-	}
-
 	for _, provider := range k.providers {
 		if provider != nil {
 			err = provider.Provide(kc, sender)

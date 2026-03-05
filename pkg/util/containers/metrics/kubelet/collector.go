@@ -51,11 +51,19 @@ func init() {
 	})
 }
 
+// globalCollector holds a reference to the kubelet collector singleton,
+// allowing the kubelet check to inject a shared DataSource.
+var (
+	globalCollector     *kubeletCollector
+	globalCollectorLock sync.Mutex
+)
+
 type kubeletCollector struct {
 	kubeletClient kutil.KubeUtilInterface
 	metadataStore workloadmeta.Component
 	statsCache    provider.Cache
 	refreshLock   sync.Mutex
+	dataSource    *DataSource
 }
 
 func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
@@ -75,6 +83,10 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
 		metadataStore: wmeta,
 	}
+
+	globalCollectorLock.Lock()
+	globalCollector = collector
+	globalCollectorLock.Unlock()
 
 	collectors := &provider.Collectors{
 		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
@@ -216,6 +228,11 @@ func (kc *kubeletCollector) refreshContainerCache(currentTime time.Time, cacheVa
 }
 
 func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
+	// Use shared data source if available (avoids duplicate HTTP calls)
+	if kc.dataSource != nil {
+		return kc.dataSource.GetStatsSummary()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), kubeletCallTimeout)
 	statsSummary, err := kc.kubeletClient.GetLocalStatsSummary(ctx)
 	cancel()
@@ -225,6 +242,18 @@ func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
 	}
 
 	return statsSummary, err
+}
+
+// SetGlobalDataSource sets a shared data source on the global kubelet collector.
+// When set, the collector uses the data source's cached data instead of making
+// its own HTTP calls, avoiding duplicate fetches when the kubelet check providers
+// also need the same data.
+func SetGlobalDataSource(ds *DataSource) {
+	globalCollectorLock.Lock()
+	defer globalCollectorLock.Unlock()
+	if globalCollector != nil {
+		globalCollector.dataSource = ds
+	}
 }
 
 func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSummary *v1alpha1.Summary) {

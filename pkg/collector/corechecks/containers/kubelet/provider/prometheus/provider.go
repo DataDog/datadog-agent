@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -63,6 +64,7 @@ type Provider struct {
 	wildcardRegex       *regexp.Regexp
 	ignoredMetrics      map[string]bool
 	ignoredMetricsRegex *regexp.Regexp
+	DataSource          *kubeletmetrics.DataSource
 }
 
 // ScraperConfig contains the configuration of the Prometheus scraper.
@@ -162,9 +164,20 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		log.Debugf("Skipping collecting metrics as provider is disabled")
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.Config.Timeout)*time.Second)
-	data, status, err := kc.QueryKubelet(ctx, p.ScraperConfig.Path)
-	cancel()
+
+	var data []byte
+	var status int
+	var err error
+
+	// Use shared data source for /metrics/cadvisor to avoid duplicate HTTP calls
+	if p.DataSource != nil && p.ScraperConfig.Path == "/metrics/cadvisor" {
+		data, status, err = p.DataSource.QueryCadvisor()
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.Config.Timeout)*time.Second)
+		data, status, err = kc.QueryKubelet(ctx, p.ScraperConfig.Path)
+		cancel()
+	}
+
 	if err != nil {
 		log.Debugf("Unable to collect query probes endpoint: %s", err)
 		return err

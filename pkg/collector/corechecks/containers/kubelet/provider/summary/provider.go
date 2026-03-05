@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"time"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,6 +42,7 @@ type Provider struct {
 	store                 workloadmeta.Component
 	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
+	dataSource            *kubeletmetrics.DataSource
 }
 
 // NewProvider is created by filter, config and workloadmeta
@@ -66,11 +67,22 @@ func NewProvider(
 	}
 }
 
+// SetDataSource sets a shared data source to avoid duplicate HTTP calls.
+func (p *Provider) SetDataSource(ds *kubeletmetrics.DataSource) {
+	p.dataSource = ds
+}
+
 // Provide processes metrics and reports
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
-	statsSummary, err := kc.GetLocalStatsSummary(ctx)
-	cancel()
+	var statsSummary *kubeletv1alpha1.Summary
+	var err error
+
+	if p.dataSource != nil {
+		statsSummary, err = p.dataSource.GetStatsSummary()
+	} else {
+		// Fallback: fetch directly (e.g., in tests without DataSource)
+		statsSummary, err = kc.GetLocalStatsSummary(context.Background())
+	}
 	if err != nil || statsSummary == nil {
 		return err
 	}
