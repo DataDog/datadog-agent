@@ -1,5 +1,5 @@
-description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
-target_os: [linux, darwin]
+description: Cat on a nonexistent file prints an error to stderr and exits with code 1 (Windows).
+target_os: [windows]
 input:
   allowed_paths: ["$DIR"]
   # language=bash
@@ -9,5 +9,5 @@ expect:
   stdout: ""
   stderr_contains:
     - "cat: nonexistent.txt:"
-    - "no such file or directory"
+    - "The system cannot find the file specified."
   exit_code: 1

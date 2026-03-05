@@ -1,5 +1,5 @@
-description: Symlink inside allowed dir pointing to directory outside is blocked by os.Root
-target_os: [linux, darwin]
+description: Symlink inside allowed dir pointing to directory outside is blocked by os.Root (Windows paths)
+target_os: [windows]
 setup:
   files:
     - path: secret/data.txt
@@ -13,5 +13,5 @@ input:
     cat allowed/escape_dir/data.txt
 expect:
   stdout: ""
-  stderr: "cat: allowed/escape_dir/data.txt: openat escape_dir/data.txt: path escapes from parent\n"
+  stderr: "cat: allowed/escape_dir/data.txt: openat escape_dir\\data.txt: path escapes from parent\n"
   exit_code: 1

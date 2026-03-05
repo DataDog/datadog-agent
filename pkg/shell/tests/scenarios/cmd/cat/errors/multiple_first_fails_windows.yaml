@@ -1,5 +1,5 @@
-description: When the first of multiple files fails, cat stops immediately without processing remaining files.
-target_os: [linux, darwin]
+description: When the first of multiple files fails, cat stops immediately without processing remaining files (Windows).
+target_os: [windows]
 setup:
   files:
     - path: existing.txt
@@ -15,5 +15,5 @@ expect:
   stdout: ""
   stderr_contains:
     - "cat: nonexistent.txt:"
-    - "no such file or directory"
+    - "The system cannot find the file specified."
   exit_code: 1

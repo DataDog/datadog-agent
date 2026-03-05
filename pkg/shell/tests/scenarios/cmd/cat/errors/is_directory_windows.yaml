@@ -1,5 +1,5 @@
-description: Cat on a directory fails with "is a directory" error and exits with code 1.
-target_os: [linux, darwin]
+description: Cat on a directory fails with "Incorrect function." error on Windows and exits with code 1.
+target_os: [windows]
 setup:
   files:
     - path: mydir/placeholder.txt
@@ -14,5 +14,5 @@ expect:
   stdout: ""
   stderr_contains:
     - "cat: mydir:"
-    - "is a directory"
+    - "Incorrect function."
   exit_code: 1

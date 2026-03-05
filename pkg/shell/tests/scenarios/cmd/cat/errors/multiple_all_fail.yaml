@@ -1,4 +1,5 @@
 description: When all files are missing, cat stops at the first failure without attempting the rest.
+target_os: [linux, darwin]
 input:
   allowed_paths: ["$DIR"]
   # language=bash

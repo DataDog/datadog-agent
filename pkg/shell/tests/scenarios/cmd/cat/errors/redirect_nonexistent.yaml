@@ -1,4 +1,5 @@
 description: Input redirect from a nonexistent file fails at the redirect level, not cat itself, so the error has no "cat:" prefix.
+target_os: [linux, darwin]
 input:
   allowed_paths: ["$DIR"]
   # language=bash

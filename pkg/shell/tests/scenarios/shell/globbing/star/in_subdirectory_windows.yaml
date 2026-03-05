@@ -1,5 +1,5 @@
-description: Star glob matches files in a subdirectory.
-target_os: [linux, darwin]
+description: Star glob matches files in a subdirectory (Windows paths).
+target_os: [windows]
 setup:
   files:
     - path: sub/x.txt
@@ -13,6 +13,6 @@ input:
     echo sub/*.txt
 expect:
   stdout: |+
-    sub/x.txt sub/y.txt
+    sub\x.txt sub\y.txt
   stderr: ""
   exit_code: 0
