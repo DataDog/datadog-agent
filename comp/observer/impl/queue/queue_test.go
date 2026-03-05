@@ -9,11 +9,9 @@ import (
 	"testing"
 )
 
-// Test the basic operations of the Queue type.
 func TestQueue_EnqueueDequeue(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue[float64]()
 
-	// Queue should be empty initially
 	if l := q.Len(); l != 0 {
 		t.Errorf("expected initial length to be 0, got %d", l)
 	}
@@ -23,7 +21,6 @@ func TestQueue_EnqueueDequeue(t *testing.T) {
 		t.Errorf("expected Dequeue from empty queue to return (0, false), got (%v, %v)", val, ok)
 	}
 
-	// Enqueue elements
 	q.Enqueue(1.5)
 	q.Enqueue(2.5)
 	q.Enqueue(3.5)
@@ -48,22 +45,20 @@ func TestQueue_EnqueueDequeue(t *testing.T) {
 			t.Errorf("dequeue %d: want %v, got %v", i, want, got)
 		}
 	}
-	// Now queue is empty
+
 	if l := q.Len(); l != 0 {
 		t.Errorf("expected length to be 0 after all dequeues, got %d", l)
 	}
-	// Peek should report empty
 	if val, ok := q.Peek(); ok || val != 0 {
 		t.Errorf("expected Peek on empty queue to return (0, false), got (%v, %v)", val, ok)
 	}
-	// Dequeue again should also be empty
 	if val, ok := q.Dequeue(); ok || val != 0 {
 		t.Errorf("expected Dequeue from empty queue to return (0, false), got (%v, %v)", val, ok)
 	}
 }
 
 func TestQueue_CompactAfterManyDequeues(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue[float64]()
 	total := 200
 	for i := 0; i < total; i++ {
 		q.Enqueue(float64(i))
@@ -76,7 +71,6 @@ func TestQueue_CompactAfterManyDequeues(t *testing.T) {
 		}
 	}
 
-	// The queue should have compacted at this point
 	// Remaining elements are from total/2 to total-1
 	for i := total / 2; i < total; i++ {
 		got, ok := q.Dequeue()
@@ -86,5 +80,44 @@ func TestQueue_CompactAfterManyDequeues(t *testing.T) {
 	}
 	if q.Len() != 0 {
 		t.Errorf("expected length to be 0 after all dequeues, got %d", q.Len())
+	}
+}
+
+func TestQueue_String(t *testing.T) {
+	q := NewQueue[string]()
+
+	if val, ok := q.Dequeue(); ok || val != "" {
+		t.Errorf("expected Dequeue from empty queue to return (\"\", false), got (%v, %v)", val, ok)
+	}
+
+	q.Enqueue("foo")
+	q.Enqueue("bar")
+	q.Enqueue("baz")
+
+	if l := q.Len(); l != 3 {
+		t.Errorf("expected length 3, got %d", l)
+	}
+	if val, ok := q.Peek(); !ok || val != "foo" {
+		t.Errorf("Peek: want (foo, true), got (%v, %v)", val, ok)
+	}
+
+	expected := []string{"foo", "bar", "baz"}
+	for i, want := range expected {
+		got, ok := q.Dequeue()
+		if !ok || got != want {
+			t.Errorf("dequeue %d: want %v, got %v (ok=%v)", i, want, got, ok)
+		}
+	}
+	if q.Len() != 0 {
+		t.Errorf("expected empty queue, got length %d", q.Len())
+	}
+}
+
+func TestFloat64Queue_Alias(t *testing.T) {
+	var q Float64Queue
+	q.Enqueue(3.14)
+	got, ok := q.Dequeue()
+	if !ok || got != 3.14 {
+		t.Errorf("Float64Queue: want (3.14, true), got (%v, %v)", got, ok)
 	}
 }
