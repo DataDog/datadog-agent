@@ -1438,9 +1438,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
@@ -1602,9 +1610,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
