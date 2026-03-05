@@ -3,7 +3,7 @@
 
 //go:build windows
 
-package interp_test
+package tail_test
 
 import (
 	"testing"

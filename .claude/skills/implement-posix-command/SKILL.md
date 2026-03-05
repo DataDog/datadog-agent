@@ -156,17 +156,28 @@ Write scenarios covering:
 
 **PARALLEL STEP**: This runs concurrently with Steps 3 and 5. No gate check needed — Step 2 being `completed` is sufficient.
 
-Go tests live alongside the other builtins in the `pkg/shell/interp/` package, **not** in a subdirectory:
+Files are organized as follows:
 
-- **Go tests** → `pkg/shell/interp/builtin_$ARGUMENTS_test.go` (`package interp`)
+- **Implementation** → `pkg/shell/interp/builtins/$ARGUMENTS.go` (`package builtins`)
+- **Go tests** → `pkg/shell/interp/builtins/tests/$ARGUMENTS/` (`package $ARGUMENTS_test`)
 - **Shell scripts** → `pkg/shell/interp/test/shell/$ARGUMENTS/` (already done in Step 3)
+
+The `builtins/tests/$ARGUMENTS/` directory contains **only** `_test.go` files. Go does not
+include test-only directories in the real import graph, so there is no import cycle even though
+the tests import `interp` (which imports `builtins`). The implementation stays flat in `builtins/`
+and is registered there; the subdirectory is purely for test organization.
+
+Do **not** put the implementation in `tests/` — that would require the sub-package to import
+`builtins` for `CallContext`/`Result`, while `builtins` imports the sub-package for registration,
+creating a cycle.
+
+All test files use `package $ARGUMENTS_test`. They import `interp` (not `builtins` directly) and
+exercise the command end-to-end through the shell runner.
 
 The shell scripts are run automatically by `go test ./pkg/shell/interp` via
 `pkg/shell/interp/shell_scripts_test.go`, which discovers every `test/shell/*/*.sh`
 and runs it with `sh` (skipping gracefully if `sh` or the agent binary is absent).
 No extra CI configuration is required.
-
-All test files use `package interp_test` (the external test package). Do **not** use `package interp`. Unexported helpers do not need to be tested directly — test them through their exported surface.
 
 ### Exit code behaviour in Go tests
 
@@ -183,10 +194,49 @@ assert.Equal(t, 1, code)
 assert.Contains(t, stderr, "tail:")
 ```
 
-### Command-specific test wrapper
+### Test helpers
 
-To avoid repeating `interp.AllowedPaths([]string{dir})` on every `runScript` call, define a
-command-specific wrapper at the top of `builtin_$ARGUMENTS_test.go`:
+Each test file requires a local `runScript` helper (since it is in `package $ARGUMENTS_test`, not
+`package interp_test`). Define it at the top of `tests/$ARGUMENTS/$ARGUMENTS_test.go` along with `runScriptCtx`
+for timeout-aware tests:
+
+```go
+func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
+    t.Helper()
+    return runScriptCtx(context.Background(), t, script, dir, opts...)
+}
+
+func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
+    t.Helper()
+    parser := syntax.NewParser()
+    prog, err := parser.Parse(strings.NewReader(script), "")
+    require.NoError(t, err)
+    var outBuf, errBuf bytes.Buffer
+    allOpts := append([]interp.RunnerOption{interp.StdIO(nil, &outBuf, &errBuf)}, opts...)
+    runner, err := interp.New(allOpts...)
+    require.NoError(t, err)
+    defer runner.Close()
+    if dir != "" {
+        runner.Dir = dir
+    }
+    err = runner.Run(ctx, prog)
+    exitCode := 0
+    if err != nil {
+        var es interp.ExitStatus
+        if errors.As(err, &es) {
+            exitCode = int(es)
+        } else if ctx.Err() == nil {
+            t.Fatalf("unexpected error: %v", err)
+        }
+    }
+    return outBuf.String(), errBuf.String(), exitCode
+}
+```
+
+### Command-specific run wrapper
+
+To avoid repeating `interp.AllowedPaths([]string{dir})` on every call, define a wrapper at the
+top of `$ARGUMENTS_test.go`:
 
 ```go
 func cmdRun(t *testing.T, script, dir string) (stdout, stderr string, exitCode int) {
@@ -210,6 +260,84 @@ Tests should be written to the following specifications:
 - Do **not** use `echo -n` — the `echo` builtin does not support the `-n` flag and will emit the literal string `-n ` instead of suppressing the newline. For empty or newline-free stdin, write an empty file via `setup.files` in a YAML scenario or create a temp file in the test setup.
 
 Verify the tests build and all fail (since we have no implementation yet).
+
+### GNU equivalence tests
+
+After the main test file is written, also write
+`pkg/shell/interp/builtin_$ARGUMENTS_gnu_compat_test.go` (`package interp_test`).
+
+These tests assert byte-for-byte output equivalence between our builtin and GNU coreutils for
+the cases most sensitive to formatting: line counts, trailing newlines, byte mode, headers,
+quiet/verbose flags.
+
+**Capturing reference output**
+
+Run the real GNU tool to collect expected outputs, then embed them as string literals in the
+test file. This means the tests run without any GNU tooling present on CI — it is captured
+once, reviewed by the author, and committed.
+
+How to get GNU $ARGUMENTS depends on what is available:
+
+- **macOS with Homebrew coreutils** (most common on a developer Mac):
+  ```bash
+  brew install coreutils          # one-time
+  g$ARGUMENTS --version           # verify it is GNU, not BSD
+  # then run: g$ARGUMENTS [flags] [file] | cat -A   to see exact bytes
+  ```
+- **Docker** (works everywhere, guaranteed to be Linux GNU coreutils):
+  ```bash
+  echo "alpha\nbeta\ngamma" > /tmp/testfile.txt
+  docker run --rm -v /tmp:/tmp alpine sh -c \
+    'apk add -q coreutils && $ARGUMENTS -n 3 /tmp/testfile.txt | cat -A'
+  ```
+
+Use `cat -A` (or `cat -v`) while capturing to make invisible characters (CR, trailing spaces)
+visible before you write them into the test file.
+
+**What to cover**
+
+At minimum, write one test per formatting-sensitive scenario:
+
+| Scenario | Why it matters |
+|----------|----------------|
+| Default output on a file longer than the default limit | verifies the off-by-one on the ring/count boundary |
+| `-n N` smaller than file length | basic count accuracy |
+| `-n 0` | degenerate case: no output |
+| `-n N` larger than file length | should not truncate |
+| `+N` offset mode (`-n +2`) | completely different code path |
+| Long-form flag (`--lines=N`) | pflag alias wiring |
+| No trailing newline preserved | should not add a `\n` |
+| Empty file | no output, no crash |
+| `-v` single file | header printed |
+| Two files, default | header + blank-line separator format |
+| `-q` / `--quiet` two files | no headers |
+| `--silent` two files | alias for `--quiet` |
+| `-c N` byte mode | different output path than line mode |
+| `-c +N` byte offset | byte version of offset mode |
+| Both `-c` and `-n` given | last flag wins (`-n` overrides `-c`) |
+| Rejected flag (e.g. `-f`) | exit 1 + non-empty stderr |
+
+**Test structure**
+
+Keep each test self-contained: create temp files with the exact content used for the GNU
+reference run, invoke the builtin, and `assert.Equal` the captured string:
+
+```go
+// TestGNUCompatCmdVerboseSingleFile — -v prints header even for a single file.
+//
+// GNU command: g$ARGUMENTS -v one.txt   (one.txt = "only one line\n")
+// Expected: "==> one.txt <==\nonly one line\n"
+func TestGNUCompatCmdVerboseSingleFile(t *testing.T) {
+    dir := setupCmdDir(t, map[string]string{"one.txt": "only one line\n"})
+    stdout, _, exitCode := cmdRun(t, "$ARGUMENTS -v one.txt", dir)
+    assert.Equal(t, 0, exitCode)
+    assert.Equal(t, "==> one.txt <==\nonly one line\n", stdout)
+}
+```
+
+Include a comment on each test identifying the exact GNU invocation and its raw output so a
+future maintainer can reproduce and update the reference without running the real tool from
+scratch.
 
 ## Step 5: Implement the $ARGUMENTS command
 

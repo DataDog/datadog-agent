@@ -1,9 +1,12 @@
 // Copyright (c) Datadog, Inc.
 // See LICENSE for licensing information
 
-package interp_test
+package tail_test
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,11 +14,53 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 )
 
-// setupTailDir creates a temp directory with files and returns its path.
+// ── Test helpers ──────────────────────────────────────────────────────────────
+
+// runScript parses and runs a shell script string, returning stdout, stderr, and exit code.
+func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	return runScriptCtx(context.Background(), t, script, dir, opts...)
+}
+
+// runScriptCtx is like runScript but accepts an explicit context (for timeout tests).
+func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	parser := syntax.NewParser()
+	prog, err := parser.Parse(strings.NewReader(script), "")
+	require.NoError(t, err)
+
+	var outBuf, errBuf bytes.Buffer
+	allOpts := append([]interp.RunnerOption{
+		interp.StdIO(nil, &outBuf, &errBuf),
+	}, opts...)
+
+	runner, err := interp.New(allOpts...)
+	require.NoError(t, err)
+	defer runner.Close()
+
+	if dir != "" {
+		runner.Dir = dir
+	}
+
+	err = runner.Run(ctx, prog)
+	exitCode = 0
+	if err != nil {
+		var es interp.ExitStatus
+		if errors.As(err, &es) {
+			exitCode = int(es)
+		} else if ctx.Err() == nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	return outBuf.String(), errBuf.String(), exitCode
+}
+
+// setupTailDir creates a temp directory with the given files and returns its path.
 func setupTailDir(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -32,6 +77,8 @@ func tailRun(t *testing.T, script, dir string) (stdout, stderr string, exitCode 
 	t.Helper()
 	return runScript(t, script, dir, interp.AllowedPaths([]string{dir}))
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 // TestTailDefaultLastTenLines verifies the default (last 10 lines) behaviour.
 func TestTailDefaultLastTenLines(t *testing.T) {
@@ -474,7 +521,7 @@ func TestTailCBytesGNUTestC2(t *testing.T) {
 	assert.Equal(t, "d\n", stdout)
 }
 
-// TestTailDevNull verifies reading from /dev/null produces no output (Unix only, see unix test file).
+// TestTailPipeWithEcho verifies tail can receive piped input.
 func TestTailPipeWithEcho(t *testing.T) {
 	dir := t.TempDir()
 
@@ -549,9 +596,6 @@ func TestTailCBytesRingBufferWraps(t *testing.T) {
 
 // TestTailCRLFAtChunkBoundaryLast verifies CRLF split across 4096-byte chunk boundaries
 // is handled correctly in last-N line mode.
-//
-// CR at byte 4096 (1-indexed, last byte of first chunk), LF at byte 4097 (first byte of
-// second chunk): exercises the prevCR carry-over path in tailLinesLast.
 func TestTailCRLFAtChunkBoundaryLast(t *testing.T) {
 	// Line 1: 4095 'a' bytes + CR = 4096 bytes (fills the first read chunk exactly).
 	// The LF that follows is the first byte of the second chunk → triggers prevCR path.
@@ -567,9 +611,6 @@ func TestTailCRLFAtChunkBoundaryLast(t *testing.T) {
 // TestTailLoneCRAtChunkBoundaryLast verifies a lone CR at a chunk boundary is treated
 // as a line ending (not merged with a subsequent non-LF byte).
 func TestTailLoneCRAtChunkBoundaryLast(t *testing.T) {
-	// Line 1: 4095 'a' bytes + CR = 4096 bytes (fills first chunk, CR at end).
-	// Next chunk starts with 'b' (not LF) → prevCR is committed as lone CR ending.
-	// Line 2: "b\n"
 	line1 := strings.Repeat("a", 4095) + "\r"
 	dir := setupTailDir(t, map[string]string{"f.txt": line1 + "b\n"})
 
