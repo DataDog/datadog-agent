@@ -82,8 +82,8 @@ func wrapOpenHandler(roots []*os.Root, allowedPaths []string) OpenHandlerFunc {
 	}
 }
 
-// wrapReadDirHandler returns a ReadDirHandlerFunc2 that restricts directory reads to allowed paths.
-func wrapReadDirHandler(roots []*os.Root, allowedPaths []string) ReadDirHandlerFunc2 {
+// wrapReadDirHandler returns a ReadDirHandlerFunc that restricts directory reads to allowed paths.
+func wrapReadDirHandler(roots []*os.Root, allowedPaths []string) ReadDirHandlerFunc {
 	return func(ctx context.Context, path string) ([]fs.DirEntry, error) {
 		absPath := path
 		if !filepath.IsAbs(absPath) {

@@ -54,7 +54,7 @@ type Runner struct {
 
 	// readDirHandler is a function responsible for reading directories during
 	// glob expansion. It must be non-nil.
-	readDirHandler ReadDirHandlerFunc2
+	readDirHandler ReadDirHandlerFunc
 
 	stdin  *os.File // e.g. the read end of a pipe
 	stdout io.Writer
@@ -167,7 +167,7 @@ func New(opts ...RunnerOption) (*Runner, error) {
 	r := &Runner{
 		usedNew:        true,
 		openHandler:    defaultOpenHandler(),
-		readDirHandler: defaultReadDirHandler2(),
+		readDirHandler: defaultReadDirHandler(),
 	}
 	for _, opt := range opts {
 		if err := opt(r); err != nil {

@@ -182,13 +182,13 @@ func defaultOpenHandler() OpenHandlerFunc {
 	}
 }
 
-// ReadDirHandlerFunc2 is a handler which reads directories. It is called during
+// ReadDirHandlerFunc is a handler which reads directories. It is called during
 // shell globbing, if enabled.
-type ReadDirHandlerFunc2 func(ctx context.Context, path string) ([]fs.DirEntry, error)
+type ReadDirHandlerFunc func(ctx context.Context, path string) ([]fs.DirEntry, error)
 
-// defaultReadDirHandler2 returns the [ReadDirHandlerFunc2] used by default.
+// defaultReadDirHandler returns the [ReadDirHandlerFunc] used by default.
 // It uses [os.ReadDir].
-func defaultReadDirHandler2() ReadDirHandlerFunc2 {
+func defaultReadDirHandler() ReadDirHandlerFunc {
 	return func(ctx context.Context, path string) ([]fs.DirEntry, error) {
 		return os.ReadDir(path)
 	}
