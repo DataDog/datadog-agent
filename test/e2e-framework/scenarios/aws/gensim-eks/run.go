@@ -15,14 +15,19 @@
 package gensimeks
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	eksscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
@@ -169,8 +174,10 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
     "Action": [
       "ecr:GetAuthorizationToken",
       "ecr:CreateRepository",
+      "ecr:DescribeImages",
       "ecr:BatchCheckLayerAvailability",
       "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
       "ecr:PutImage",
       "ecr:InitiateLayerUpload",
       "ecr:UploadLayerPart",
@@ -186,19 +193,19 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 		return nil, err
 	}
 
-	// Provision the build VM. The framework default OS (Ubuntu x86_64) matches the EKS nodes.
-	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder")
+	// Use the Amazon Linux ECS AMI — Docker is pre-installed and the daemon is
+	// already running, saving the 3-5 min apt-get install step on every fresh VM.
+	// AWS CLI is also pre-installed. Only docker-compose needs to be added.
+	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder", ec2.WithOS(osComp.AmazonLinuxECSDefault))
 	if err != nil {
 		return nil, err
 	}
 
-	// Install Docker, docker-compose, and the AWS CLI.
-	// All docker commands in the build script run under sudo — no group setup needed.
+	// Install docker-compose only — Docker and AWS CLI are pre-installed on the ECS AMI.
 	installToolsCmd, err := buildHost.OS.Runner().Command(
 		awsEnv.Namer.ResourceName("install-build-tools"),
 		&command.Args{
-			// Wrap in bash -c so sudo covers the entire chain, not just the first command.
-			Create: pulumi.String(`bash -c 'apt-get update -y && apt-get install -y docker.io docker-compose awscli'`),
+			Create: pulumi.String(`pip3 install docker-compose`),
 			Sudo:   true,
 		},
 	)
@@ -237,37 +244,85 @@ func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodeP
 		return nil, err
 	}
 
+	// Compute a hash of the local services directory so Pulumi can detect when
+	// source files change. Without this Trigger, DependsOn only controls ordering
+	// and the build command would never re-run after the initial create, even if
+	// app.py or a Dockerfile changed.
+	servicesHash, err := hashDir(filepath.Join(episodePath, "services"))
+	if err != nil {
+		return nil, fmt.Errorf("hashing services directory: %w", err)
+	}
+
 	// Build all images and push to ECR.
-	// Key points:
-	//   - `aws ecr get-login-password` authenticates via the instance IAM role — no local creds needed.
-	//   - Images are built natively on x86_64, matching the EKS node architecture.
-	//   - `ecr create-repository` is idempotent; `|| true` suppresses the already-exists error.
-	//   - Images are tagged as {ecrRegistry}/{originalName} to match the chart's imageRegistry prefix.
+	//
+	// Caching: images are also tagged with the first 12 chars of servicesHash
+	// (e.g. "abc123def456"). On re-runs — including fresh cluster recreations with
+	// unchanged source — we check ECR for this hash tag first. If all images are
+	// already present, we skip the docker-compose build entirely (saves 5-10 min).
+	//
+	// The :latest tag is always pushed so the Helm chart's imageRegistry prefix works
+	// without any changes to chart values.
 	buildAndPush, err := buildHost.OS.Runner().Command(
 		awsEnv.Namer.ResourceName("build-push-images"),
 		&command.Args{
+			// Triggers forces this command to re-run whenever the source files change.
+			// Pulumi replaces the resource when any trigger value differs from state.
+			Triggers: pulumi.Array{pulumi.String(servicesHash)},
 			Create: pulumi.Sprintf(
 				`set -euo pipefail
 
 cd /tmp/gensim-build
 
-# Authenticate Docker with ECR using the instance IAM role (no local credential setup needed).
-aws ecr get-login-password --region %s \
-  | sudo docker login --username AWS --password-stdin %s
+REGION="%s"
+ECR_REGISTRY="%s"
+CACHE_TAG="%s"  # first 12 chars of services hash — stable cache key
 
-# Build all images defined in docker-compose.yaml for linux/amd64 (matches EKS node arch).
-sudo docker-compose build
+# Authenticate Docker with ECR using the instance IAM role.
+aws ecr get-login-password --region "$REGION" \
+  | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-# Push each image to ECR, creating the repository first if it does not exist.
-for IMAGE in $(sudo docker-compose config --images); do
-  REPO="${IMAGE%%:*}"  # strip :tag to get the bare repository name
-  aws ecr create-repository --repository-name "$REPO" --region %s 2>/dev/null || true
-  sudo docker tag  "$IMAGE" "%s/$IMAGE"
-  sudo docker push "%s/$IMAGE"
-done`,
-				awsEnv.Region(), ecrRegistry,
+IMAGES=$(docker-compose config --images)
+
+# Check if all images are already cached in ECR under the hash tag.
+# On a fresh cluster with unchanged source code this saves the full build.
+ALL_CACHED=true
+for IMAGE in $IMAGES; do
+  REPO="${IMAGE%%:*}"
+  if ! aws ecr describe-images \
+      --repository-name "$REPO" \
+      --image-ids "imageTag=$CACHE_TAG" \
+      --region "$REGION" >/dev/null 2>&1; then
+    ALL_CACHED=false
+    break
+  fi
+done
+
+if [ "$ALL_CACHED" = "true" ]; then
+  echo "[cache hit] All images cached at $CACHE_TAG — pulling and retagging as :latest"
+  for IMAGE in $IMAGES; do
+    REPO="${IMAGE%%:*}"
+    docker pull "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+    docker tag  "$ECR_REGISTRY/$REPO:$CACHE_TAG" "$ECR_REGISTRY/$IMAGE"
+    docker push "$ECR_REGISTRY/$IMAGE"
+  done
+else
+  echo "[cache miss] Building images..."
+  docker-compose build
+
+  for IMAGE in $IMAGES; do
+    REPO="${IMAGE%%:*}"
+    aws ecr create-repository --repository-name "$REPO" --region "$REGION" 2>/dev/null || true
+    # :latest — consumed by the Helm chart via imageRegistry
+    docker tag  "$IMAGE" "$ECR_REGISTRY/$IMAGE"
+    docker push "$ECR_REGISTRY/$IMAGE"
+    # :hash — cache key for future runs
+    docker tag  "$IMAGE" "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+    docker push "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+  done
+fi`,
 				awsEnv.Region(),
-				ecrRegistry, ecrRegistry,
+				ecrRegistry,
+				servicesHash[:12],
 			),
 		},
 		utils.PulumiDependsOn(installToolsCmd, fixPermsCmd),
@@ -277,6 +332,42 @@ done`,
 	}
 
 	return utils.PulumiDependsOn(buildAndPush), nil
+}
+
+// hashDir computes a deterministic SHA256 hash of all files under a directory.
+// It walks the tree, sorts paths for determinism, and hashes each file's
+// contents. The result changes whenever any file is added, removed, or modified.
+func hashDir(root string) (string, error) {
+	var paths []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	sort.Strings(paths)
+
+	h := sha256.New()
+	for _, path := range paths {
+		// Include the relative path so renames/moves are detected.
+		rel, _ := filepath.Rel(root, path)
+		fmt.Fprintf(h, "%s\n", rel)
+
+		f, err := os.Open(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			return "", err
+		}
+		f.Close()
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // writePatchScript writes a shell post-renderer that rewrites
@@ -289,7 +380,10 @@ func writePatchScript() (string, error) {
 	}
 	defer f.Close()
 
-	script := "#!/bin/sh\nexec sed 's/imagePullPolicy: Never/imagePullPolicy: IfNotPresent/g'\n"
+	// Always pull from ECR on pod start. This ensures iterative redeploys
+	// (with a mutable :latest tag) pick up the newly pushed image rather than
+	// using a stale node-local cache. IfNotPresent would silently keep old code.
+	script := "#!/bin/sh\nexec sed 's/imagePullPolicy: Never/imagePullPolicy: Always/g'\n"
 	if _, err := f.WriteString(script); err != nil {
 		return "", fmt.Errorf("writing post-renderer script: %w", err)
 	}
