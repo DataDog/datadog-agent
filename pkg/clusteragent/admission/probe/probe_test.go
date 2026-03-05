@@ -9,7 +9,7 @@ package probe
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -121,7 +121,7 @@ func TestExecute_NamespaceNotFound(t *testing.T) {
 func TestExecute_Forbidden(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", fmt.Errorf("forbidden"))
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("forbidden"))
 	})
 
 	p := newTestProbe(client)
@@ -181,7 +181,7 @@ func TestRunProbe_StatsOnNamespaceNotFound(t *testing.T) {
 func TestRunProbe_StatsOnForbidden(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", fmt.Errorf("forbidden"))
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("forbidden"))
 	})
 
 	p := newTestProbe(client)
@@ -196,7 +196,7 @@ func TestRunProbe_StatsOnForbidden(t *testing.T) {
 func TestRunProbe_ConfigErrorClearedOnSuccess(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", fmt.Errorf("forbidden"))
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("forbidden"))
 	})
 
 	p := newTestProbe(client)
