@@ -166,12 +166,12 @@ func (p *Probe) runProbe(ctx context.Context) {
 	p.stats.mu.Lock()
 	p.stats.TotalExecutions++
 	p.stats.LastExecutionTime = now
+	p.stats.ConfigError = ""
 	if err == nil {
 		p.stats.SuccessCount++
 		p.stats.LastExecutionSuccess = true
 		p.stats.LastExecutionError = ""
 		p.stats.LastSuccessTime = now
-		p.stats.ConfigError = ""
 	} else {
 		p.stats.FailCount++
 		p.stats.LastExecutionSuccess = false
