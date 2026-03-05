@@ -240,9 +240,12 @@ def _delete_stub_agent(ctx: Context, kubeconfig_path: str, aws_wrapper: str, nam
     DaemonSet-based agent deployed in M3. Running both would produce duplicate metrics.
     This runs after `pulumi up` so the kubeconfig is available on disk.
     """
+    # Delete both Deployment and DaemonSet variants of the stub agent —
+    # the episode chart may create either depending on its template.
     ctx.run(
         f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl delete "
-        f"deployment/datadog-agent service/datadog-agent serviceaccount/datadog-agent "
+        f"deployment/datadog-agent daemonset/datadog-agent "
+        f"service/datadog-agent serviceaccount/datadog-agent "
         f"--ignore-not-found=true -n {namespace}",
         warn=True,
         hide="stderr",

@@ -445,6 +445,11 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 			},
 		},
 		"agents": pulumi.Map{
+			// enabled must be explicit: without it, Helm merges an `agents` map via
+			// Values (--set style) that omits the key, leaving chart defaults ambiguous
+			// and causing the node agent DaemonSet to be skipped. clusterAgent sets this
+			// explicitly; agents must do the same.
+			"enabled": pulumi.Bool(true),
 			"image": pulumi.Map{
 				"repository":    pulumi.String(agentImagePath),
 				"tag":           pulumi.String(agentImageTag),
