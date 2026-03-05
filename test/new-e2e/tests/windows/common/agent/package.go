@@ -28,6 +28,12 @@ const (
 	stableURL            = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
+// Function variables for I/O operations, enabling test mocking.
+var (
+	getPipelineMSIURLFn = GetPipelineMSIURL
+	getProductURLFn     = installers.GetProductURL
+)
+
 // Package contains identifying information about an Agent MSI package.
 type Package struct {
 	// --- Resolution fields (used by Resolve()) ---
@@ -348,17 +354,39 @@ func NewPackage(opts ...PackageOption) (*Package, error) {
 //  2. PipelineID set -- fetches MSI URL from S3 pipeline artifacts
 //  3. Version set -- infers channel if needed, fetches URL from installers_v2.json
 func (p *Package) Resolve() error {
+	// fill in default values
+	if p.Arch == "" {
+		p.Arch = defaultArch
+	}
+	if p.Flavor == "" {
+		p.Flavor = ""
+	}
+	if p.Product == "" {
+		product, err := GetFlavorProductName(p.Flavor)
+		if err != nil {
+			return err
+		}
+		p.Product = product
+	}
+	if p.Channel == "" {
+		// If the channel is not set, infer it from the version
+		if p.PipelineID != "" {
+			p.Channel = "dev"
+		} else {
+			p.Channel = stableChannel
+			if strings.Contains(strings.ToLower(p.Version), `-rc.`) {
+				p.Channel = betaChannel
+			}
+		}
+	}
+
 	if p.URL != "" {
 		return nil
 	}
 
 	// If the pipeline ID is set, fetch the MSI URL from the pipeline artifacts
 	if p.PipelineID != "" {
-		arch := p.Arch
-		if arch == "" {
-			arch = defaultArch
-		}
-		url, err := GetPipelineMSIURL(p.PipelineID, defaultMajorVersion, arch, p.Flavor, "")
+		url, err := getPipelineMSIURLFn(p.PipelineID, defaultMajorVersion, p.Arch, p.Flavor, "")
 		if err != nil {
 			return err
 		}
@@ -368,23 +396,12 @@ func (p *Package) Resolve() error {
 
 	// If the version is set, fetch the MSI URL from the installers JSON
 	if p.Version != "" {
-		if p.Channel == "" {
-			// If the channel is not set, infer it from the version
-			p.Channel = stableChannel
-			if strings.Contains(strings.ToLower(p.Version), `-rc.`) {
-				p.Channel = betaChannel
-			}
-		}
 		channelURL, err := GetChannelURL(p.Channel)
 		if err != nil {
 			return err
 		}
-		product := p.Product
-		if product == "" {
-			product = "datadog-agent"
-		}
 		// Fetch the MSI URL from the installers JSON
-		url, err := installers.GetProductURL(channelURL, product, p.Version, p.Arch)
+		url, err := getProductURLFn(channelURL, p.Product, p.Version, p.Arch)
 		if err != nil {
 			return err
 		}
