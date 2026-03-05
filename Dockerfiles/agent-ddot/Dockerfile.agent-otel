@@ -124,14 +124,15 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 #   Static username/password:
 #     docker build \
 #       --build-arg REGISTRY_AUTH=password \
-#       --build-arg REGISTRY_USERNAME=... \
-#       --build-arg REGISTRY_PASSWORD=... ...
+#       --secret id=registry_username,env=REGISTRY_USERNAME \
+#       --secret id=registry_password,env=REGISTRY_PASSWORD ...
+#     (with REGISTRY_AUTH=password, REGISTRY_USERNAME=..., REGISTRY_PASSWORD=... in the environment)
 ARG AGENT_OCI
 ARG OUTPUT_OCI
 ARG REGISTRY_AUTH=""
-ARG REGISTRY_USERNAME=""
-ARG REGISTRY_PASSWORD=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
+    --mount=type=secret,id=registry_username,env=REGISTRY_USERNAME,required=false \
+    --mount=type=secret,id=registry_password,env=REGISTRY_PASSWORD,required=false \
     <<'RUNSCRIPT'
 set -e
 ARCH=$(dpkg --print-architecture)
