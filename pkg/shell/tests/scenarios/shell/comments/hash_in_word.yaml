@@ -1,0 +1,11 @@
+description: A hash sign in the middle of a word is literal, not a comment.
+input:
+  # language=bash
+  script: |+
+    V=abc#def
+    echo 123#456 $V
+expect:
+  stdout: |+
+    123#456 abc#def
+  stderr: ""
+  exit_code: 0

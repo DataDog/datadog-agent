@@ -1,0 +1,11 @@
+description: A comment after a pipe operator is ignored and the pipeline continues.
+input:
+  # language=bash
+  script: |+
+    echo foo |# this is a comment
+    cat
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

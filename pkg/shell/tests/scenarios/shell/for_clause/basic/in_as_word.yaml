@@ -1,0 +1,10 @@
+description: The word "in" can be used as a for loop item.
+input:
+  # language=bash
+  script: |+
+    for i in in; do echo $i; done
+expect:
+  stdout: |+
+    in
+  stderr: ""
+  exit_code: 0

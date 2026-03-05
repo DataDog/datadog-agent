@@ -1,0 +1,15 @@
+description: Line continuation after && operator continues the and-list on the next line.
+input:
+  # language=bash
+  script: |+
+    echo 1 &&
+    echo 2 &&
+
+    echo 3
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

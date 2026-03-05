@@ -1,0 +1,11 @@
+description: Multiple variables can be assigned on a single line.
+input:
+  # language=bash
+  script: |+
+    a=foo b=bar
+    echo $a $b
+expect:
+  stdout: |+
+    foo bar
+  stderr: ""
+  exit_code: 0

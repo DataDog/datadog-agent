@@ -1,0 +1,11 @@
+description: Exit inside a brace group terminates execution.
+input:
+  # language=bash
+  script: |+
+    { echo hello; exit 0; echo not reached; }
+    echo also not reached
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

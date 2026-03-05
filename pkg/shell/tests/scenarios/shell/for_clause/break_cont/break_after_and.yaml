@@ -1,0 +1,14 @@
+description: Break after && exits the loop when the left side succeeds.
+input:
+  # language=bash
+  script: |+
+    for i in 1; do
+    true && break
+    echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

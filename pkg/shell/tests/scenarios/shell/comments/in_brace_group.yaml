@@ -1,0 +1,12 @@
+description: Comments can appear inside brace groups.
+input:
+  # language=bash
+  script: |+
+    { # comment after open brace
+    echo foo # comment after command
+    } # comment after close brace
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

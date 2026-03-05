@@ -1,0 +1,16 @@
+description: Comments can appear between for loop tokens.
+input:
+  # language=bash
+  script: |+
+    for v # comment after variable
+    in 1 2 3 # comment after items
+    do # comment after do
+    echo $v # comment after body
+    done
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

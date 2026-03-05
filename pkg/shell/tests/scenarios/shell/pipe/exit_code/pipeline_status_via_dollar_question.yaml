@@ -1,0 +1,14 @@
+description: Pipeline exit status is from the last command and can be checked via $?.
+input:
+  # language=bash
+  script: |+
+    echo foo | true
+    echo $?
+    echo bar | false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

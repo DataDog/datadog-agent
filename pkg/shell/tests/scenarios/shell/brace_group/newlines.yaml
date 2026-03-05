@@ -1,0 +1,14 @@
+description: Brace group works with multi-line formatting using newlines.
+input:
+  # language=bash
+  script: |+
+    {
+    echo hello
+    echo world
+    }
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

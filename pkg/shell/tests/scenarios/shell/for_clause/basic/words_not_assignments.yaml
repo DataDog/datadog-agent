@@ -1,0 +1,11 @@
+description: Words in for loop items are not treated as variable assignments.
+input:
+  # language=bash
+  script: |+
+    V=foo
+    for i in V=bar; do echo $i $V; done
+expect:
+  stdout: |+
+    V=bar foo
+  stderr: ""
+  exit_code: 0
