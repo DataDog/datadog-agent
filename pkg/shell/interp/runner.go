@@ -401,7 +401,7 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 		return
 	}
 	name := args[0]
-	if IsBuiltin(name) {
+	if isBuiltin(name) {
 		r.exit = r.builtin(ctx, pos, name, args[1:])
 		return
 	}

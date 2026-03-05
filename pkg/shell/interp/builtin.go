@@ -10,8 +10,8 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 )
 
-// IsBuiltin returns true if the given word is a shell builtin.
-func IsBuiltin(name string) bool {
+// isBuiltin returns true if the given word is a shell builtin.
+func isBuiltin(name string) bool {
 	switch name {
 	case "true", "false", "exit", "echo", "break", "continue", "cat":
 		return true
