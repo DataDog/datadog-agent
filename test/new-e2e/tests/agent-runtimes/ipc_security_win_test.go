@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
-	ipchelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/ipc"
 )
 
 type ipcSecurityWindowsSuite struct {
@@ -39,17 +38,17 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 
 	templateVars := map[string]interface{}{
 		"IPCCertFilePath": ipcCertFilePath,
-		"AgentCMDPort":    ipchelpers.CoreCMDPort,
-		"AgentIpcPort":    ipchelpers.CoreIPCPort,
-		"ApmCmdPort":      ipchelpers.ApmCmdPort,
-		"ProcessCmdPort":  ipchelpers.ProcessCmdPort,
-		"SecurityCmdPort": ipchelpers.SecurityCmdPort,
+		"AgentCMDPort":    coreCMDPort,
+		"AgentIpcPort":    coreIPCPort,
+		"ApmCmdPort":      apmCmdPort,
+		"ProcessCmdPort":  processCmdPort,
+		"SecurityCmdPort": securityCmdPort,
 	}
-	coreconfig := ipchelpers.FillTmplConfig(v.T(), ipchelpers.CoreConfigTmpl, templateVars)
+	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
 	agentOptions := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(coreconfig),
-		agentparams.WithSecurityAgentConfig(ipchelpers.SecurityAgentConfig),
+		agentparams.WithSecurityAgentConfig(securityAgentConfig),
 	}
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
@@ -57,8 +56,8 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			ec2.WithAgentOptions(agentOptions...),
 			ec2.WithAgentClientOptions(
-				agentclientparams.WithTraceAgentOnPort(ipchelpers.ApmReceiverPort),
-				agentclientparams.WithProcessAgentOnPort(ipchelpers.ProcessCmdPort),
+				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			),
 		),
 	))
@@ -74,6 +73,6 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 
 	// check that the Agent API server use the IPC cert
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		ipchelpers.AssertAgentUseCert(t, v.Env().RemoteHost, ipcCertContent)
-	}, 2*ipchelpers.ConfigRefreshIntervalSec*time.Second, 1*time.Second)
+		assertAgentUseCert(t, v.Env().RemoteHost, ipcCertContent)
+	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }

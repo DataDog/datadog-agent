@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/gui"
 )
 
 type guiLinuxSuite struct {
@@ -38,7 +37,7 @@ func (v *guiLinuxSuite) TestGUI() {
 
 	config := fmt.Sprintf(`auth_token_file_path: %v
 cmd_port: %d
-GUI_port: %d`, authTokenFilePath, gui.AgentAPIPort, gui.GUIPort)
+GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
@@ -60,12 +59,12 @@ GUI_port: %d`, authTokenFilePath, gui.AgentAPIPort, gui.GUIPort)
 	var guiClient *http.Client
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		guiClient = gui.GetGUIClient(t, v.Env().RemoteHost, authtoken)
+		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken)
 	}, 30*time.Second, 5*time.Second)
 
 	v.T().Log("Testing GUI static file server")
-	gui.CheckStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "/opt/datadog-agent")
+	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "/opt/datadog-agent")
 
 	v.T().Log("Testing GUI ping endpoint")
-	gui.CheckPingEndpoint(v.T(), guiClient)
+	checkPingEndpoint(v.T(), guiClient)
 }

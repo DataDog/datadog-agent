@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ipc
+package agentruntimes
 
 import (
 	"bytes"
@@ -23,28 +23,28 @@ import (
 )
 
 const (
-	CoreCMDPort              = 5001
-	CoreIPCPort              = 5004
-	SecurityCmdPort          = 5010
-	ApmCmdPort               = 5012
-	ApmReceiverPort          = 8126
-	ProcessCmdPort           = 6162
-	ConfigRefreshIntervalSec = 10
+	coreCMDPort              = 5001
+	coreIPCPort              = 5004
+	securityCmdPort          = 5010
+	apmCmdPort               = 5012
+	apmReceiverPort          = 8126
+	processCmdPort           = 6162
+	configRefreshIntervalSec = 10
 )
 
-//go:embed fixtures/config.yaml.tmpl
-var CoreConfigTmpl string
+//go:embed ipc/fixtures/config.yaml.tmpl
+var coreConfigTmpl string
 
-//go:embed fixtures/security-agent.yaml
-var SecurityAgentConfig string
+//go:embed ipc/fixtures/security-agent.yaml
+var securityAgentConfig string
 
-type Endpoint struct {
+type ipcEndpoint struct {
 	Name string
 	Port int
 }
 
-// AssertAgentUseCert checks that all agents IPC server use the IPC certificate.
-func AssertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCertFileContent []byte) {
+// assertAgentUseCert checks that all agents IPC server use the IPC certificate.
+func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCertFileContent []byte) {
 	// Reading and decoding cert and key from file
 	var block *pem.Block
 
@@ -75,18 +75,18 @@ func AssertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 	client.Transport = tr
 
 	//Assert that it's not working if the IPC cert is not set as RootCA
-	_, err = client.Get(fmt.Sprintf("https://127.0.0.1:%d", CoreCMDPort)) // nolint: bodyclose
+	_, err = client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort)) // nolint: bodyclose
 	require.Error(t, err)
 
 	// Setting IPC certificate as Root CA
 	tr.TLSClientConfig.RootCAs = CA
 
-	for _, endpoint := range []Endpoint{
-		{"coreCMD", CoreCMDPort},
-		{"coreIPC", CoreIPCPort},
-		{"securityAgent", SecurityCmdPort},
-		{"traceAgentDebug", ApmCmdPort},
-		{"processAgent", ProcessCmdPort},
+	for _, endpoint := range []ipcEndpoint{
+		{"coreCMD", coreCMDPort},
+		{"coreIPC", coreIPCPort},
+		{"securityAgent", securityCmdPort},
+		{"traceAgentDebug", apmCmdPort},
+		{"processAgent", processCmdPort},
 	} {
 		// Make a request to the server
 		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port))
@@ -98,8 +98,8 @@ func AssertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 	}
 }
 
-// FillTmplConfig fills the template with the given variables and returns the result.
-func FillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
+// fillTmplConfig fills the template with the given variables and returns the result.
+func fillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
 	t.Helper()
 
 	var buffer bytes.Buffer
