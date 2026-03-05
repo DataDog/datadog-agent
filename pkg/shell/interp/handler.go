@@ -161,11 +161,14 @@ type OpenHandlerFunc func(ctx context.Context, path string, flag int, perm os.Fi
 // defaultOpenHandler returns the [OpenHandlerFunc] used by default.
 // It uses [os.OpenFile] to open files.
 //
-// For the sake of portability, /dev/null opens NUL on Windows.
+// On Windows, /dev/null is transparently mapped to NUL (the Windows
+// equivalent) so that shell scripts using /dev/null work cross-platform.
 func defaultOpenHandler() OpenHandlerFunc {
 	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
 		mc := HandlerCtx(ctx)
 		if runtime.GOOS == "windows" && path == "/dev/null" {
+			// /dev/null is always safe to open: it returns EOF on read
+			// and discards writes. Map it to NUL, the Windows equivalent.
 			path = "NUL"
 			// Work around https://go.dev/issue/71752, where Go 1.24 started giving
 			// "Invalid handle" errors when opening "NUL" with O_TRUNC.
