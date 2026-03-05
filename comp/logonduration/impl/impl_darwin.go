@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	logondurationdef "github.com/DataDog/datadog-agent/comp/logonduration/def"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
@@ -32,9 +31,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// persistentCacheKey stores the last boot time to detect reboots across agent restarts.
-const persistentCacheKey = "logon_duration:last_boot_time"
 
 // Requires defines the dependencies for the logon duration component
 type Requires struct {
@@ -46,9 +42,43 @@ type Requires struct {
 	Hostname       hostname.Component
 }
 
-// Provides defines what this component provides
-type Provides struct {
-	Comp logondurationdef.Component
+// sysProbeClient is an interface for system probe used for dependency injection and testing.
+type sysProbeClient interface {
+	GetLoginTimestamps(ctx context.Context) (logonduration.LoginTimestamps, error)
+}
+
+// sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement sysProbeClient.
+type sysProbeClientWrapper struct {
+	socketPath string
+}
+
+// GetLoginTimestamps implements sysProbeClient.GetLoginTimestamps by delegating to the wrapped client.
+func (w *sysProbeClientWrapper) GetLoginTimestamps(ctx context.Context) (logonduration.LoginTimestamps, error) {
+	client := sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(w.socketPath),
+	)
+
+	for {
+		timestamps, err := sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfig.LogonDurationModule)
+		if err == nil {
+			return timestamps, nil
+		}
+
+		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			return logonduration.LoginTimestamps{}, fmt.Errorf("failed to get login timestamps from system-probe: %w", err)
+		}
+
+		log.Debugf("Logon duration: system-probe not ready yet, retrying in 10s: %v", err)
+
+		timer := time.NewTimer(10 * time.Second)
+		select {
+		case <-timer.C:
+			continue
+		case <-ctx.Done():
+			timer.Stop()
+			return logonduration.LoginTimestamps{}, ctx.Err()
+		}
+	}
 }
 
 type logonDurationComponent struct {
@@ -56,12 +86,20 @@ type logonDurationComponent struct {
 	sysprobeConfig         sysprobeconfig.Component
 	hostname               hostname.Component
 	eventPlatformForwarder eventplatform.Forwarder
+	sysProbeClient         sysProbeClient
 	wg                     sync.WaitGroup
 	ctxCancel              context.CancelFunc
 }
 
 // NewComponent creates a new logon duration component for macOS
 func NewComponent(reqs Requires) Provides {
+	return newWithClient(reqs, &sysProbeClientWrapper{
+		socketPath: reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+	})
+}
+
+// newWithClient creates a new logon duration component with a custom sysProbeClient for testing
+func newWithClient(reqs Requires, client sysProbeClient) Provides {
 	if !reqs.Config.GetBool("logon_duration.enabled") {
 		log.Debug("Logon duration component is disabled")
 		return Provides{
@@ -82,6 +120,7 @@ func NewComponent(reqs Requires) Provides {
 		sysprobeConfig:         reqs.SysprobeConfig,
 		hostname:               reqs.Hostname,
 		eventPlatformForwarder: forwarder,
+		sysProbeClient:         client,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -148,17 +187,17 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	// Get login timestamps from system-probe (requires root)
 	// This includes login window time, login time, and desktop ready time
 	start := time.Now()
-	loginTimestamps, err := c.getLoginTimestampsFromSystemProbe(ctx)
+	loginTimestamps, err := c.sysProbeClient.GetLoginTimestamps(ctx)
 	if err != nil {
 		log.Warnf("Logon duration: failed to get login timestamps from system-probe: %v (took %.2fs)", err, time.Since(start).Seconds())
-		// Continue anyway - we can still report partial data
-	} else {
-		log.Infof("Logon duration: got login timestamps from system-probe (took %.2fs)", time.Since(start).Seconds())
+		return
 	}
+	log.Infof("Logon duration: got login timestamps from system-probe (took %.2fs)", time.Since(start).Seconds())
 
 	// Build and submit the event
 	if err := c.submitEvent(bootTime, loginTimestamps); err != nil {
 		log.Errorf("Logon duration: failed to submit event: %v", err)
+		return
 	}
 
 	// Update persistent cache
@@ -191,166 +230,64 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// getLoginTimestampsFromSystemProbe retrieves login timestamps from system-probe
-func (c *logonDurationComponent) getLoginTimestampsFromSystemProbe(ctx context.Context) (*logonduration.LoginTimestamps, error) {
-	client := sysprobeclient.GetCheckClient(
-		sysprobeclient.WithSocketPath(c.sysprobeConfig.GetString("system_probe_config.sysprobe_socket")),
-	)
-
-	// Wait for system-probe to be ready with simple retry loop
-	for {
-		timestamps, err := sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfig.LogonDurationModule)
-		if err == nil {
-			return &timestamps, nil
-		}
-
-		// Only retry if system-probe hasn't started yet.
-		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
-		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
-			return nil, fmt.Errorf("failed to get login timestamps from system-probe: %w", err)
-		}
-
-		log.Debugf("Logon duration: system-probe not ready yet, retrying in 10s: %v", err)
-
-		// Use a timer that can be cancelled by context
-		timer := time.NewTimer(10 * time.Second)
-		select {
-		case <-timer.C:
-			continue
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		}
-	}
-}
-
-// Milestone represents a single event in the boot/logon timeline.
-type Milestone struct {
-	Name      string  `json:"name"`
-	OffsetS   float64 `json:"offset_s"`
-	Timestamp string  `json:"timestamp"`
-}
-
-func buildTimelineMilestones(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) []Milestone {
+func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamps) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
-	var milestones []Milestone
 
-	// Boot Start
-	milestones = append(milestones, Milestone{
-		Name:      "Boot Start",
-		OffsetS:   0,
-		Timestamp: bootTime.UTC().Format(tsFmt),
-	})
-
-	// Login Window Time (from system-probe)
-	if loginTimestamps != nil && loginTimestamps.LoginWindowTime != nil {
-		milestones = append(milestones, Milestone{
+	milestones := []Milestone{
+		{
+			Name:      "Boot Start",
+			OffsetS:   0,
+			DurationS: ts.LoginWindowTime.Sub(bootTime).Seconds(),
+			Timestamp: bootTime.UTC().Format(tsFmt),
+		},
+		{
 			Name:      "Login Window Ready",
-			OffsetS:   loginTimestamps.LoginWindowTime.Sub(bootTime).Seconds(),
-			Timestamp: loginTimestamps.LoginWindowTime.UTC().Format(tsFmt),
-		})
-	}
-
-	// Login Time (from system-probe)
-	if loginTimestamps != nil && loginTimestamps.LoginTime != nil {
-		milestones = append(milestones, Milestone{
+			OffsetS:   ts.LoginWindowTime.Sub(bootTime).Seconds(),
+			DurationS: ts.LoginTime.Sub(ts.LoginWindowTime).Seconds(),
+			Timestamp: ts.LoginWindowTime.UTC().Format(tsFmt),
+		},
+		{
 			Name:      "User Login",
-			OffsetS:   loginTimestamps.LoginTime.Sub(bootTime).Seconds(),
-			Timestamp: loginTimestamps.LoginTime.UTC().Format(tsFmt),
-		})
-	}
-
-	// Desktop Ready (from system-probe - Dock checkin with launchservicesd)
-	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
-		milestones = append(milestones, Milestone{
+			OffsetS:   ts.LoginTime.Sub(bootTime).Seconds(),
+			DurationS: ts.DesktopReadyTime.Sub(ts.LoginTime).Seconds(),
+			Timestamp: ts.LoginTime.UTC().Format(tsFmt),
+		},
+		{
 			Name:      "Desktop Ready",
-			OffsetS:   loginTimestamps.DesktopReadyTime.Sub(bootTime).Seconds(),
-			Timestamp: loginTimestamps.DesktopReadyTime.UTC().Format(tsFmt),
-		})
+			OffsetS:   ts.DesktopReadyTime.Sub(bootTime).Seconds(),
+			DurationS: 0,
+			Timestamp: ts.DesktopReadyTime.UTC().Format(tsFmt),
+		},
 	}
 
 	return milestones
 }
 
-func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) map[string]interface{} {
+func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(bootTime, loginTimestamps)
+	custom["boot_timeline"] = buildTimelineMilestones(bootTime, ts)
 
-	durations := make(map[string]interface{})
+	bootMs := ts.LoginWindowTime.Sub(bootTime).Milliseconds()
+	logonMs := ts.DesktopReadyTime.Sub(ts.LoginTime).Milliseconds()
 
-	var bootMs, logonMs int64
-	var haveBoot, haveLogon bool
-
-	// Boot Duration: bootTime -> loginWindowTime
-	if loginTimestamps != nil && loginTimestamps.LoginWindowTime != nil {
-		bootMs = loginTimestamps.LoginWindowTime.Sub(bootTime).Milliseconds()
-		durations["Boot Duration (ms)"] = bootMs
-		haveBoot = true
+	custom["durations"] = map[string]interface{}{
+		"Boot Duration (ms)":       bootMs,
+		"Logon Duration (ms)":      logonMs,
+		"Total Boot Duration (ms)": bootMs + logonMs,
 	}
 
-	// Logon Duration: loginTime -> desktopReadyTime
-	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
-		logonMs = loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Milliseconds()
-		durations["Logon Duration (ms)"] = logonMs
-		haveLogon = true
-	}
-
-	// Total Boot Duration: Boot Duration + Logon Duration
-	if haveBoot && haveLogon {
-		durations["Total Boot Duration (ms)"] = bootMs + logonMs
-	}
-
-	if len(durations) > 0 {
-		custom["durations"] = durations
-	}
-
-	// Add FileVault status
-	if loginTimestamps != nil && loginTimestamps.FileVaultEnabled != nil {
-		custom["filevault_enabled"] = *loginTimestamps.FileVaultEnabled
-	}
+	custom["filevault_enabled"] = ts.FileVaultEnabled
 
 	return custom
 }
 
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
-func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) error {
-	// Debug logging (to be removed later)
-	log.Info("Logon duration: ========== Boot/Logon Duration Data ==========")
-	log.Infof("Logon duration: boot_time=%s", bootTime.Format(time.RFC3339))
-	if loginTimestamps != nil {
-		if loginTimestamps.LoginWindowTime != nil {
-			log.Infof("Logon duration: login_window_time=%s", loginTimestamps.LoginWindowTime.Format(time.RFC3339))
-		}
-		if loginTimestamps.LoginTime != nil {
-			log.Infof("Logon duration: login_time=%s", loginTimestamps.LoginTime.Format(time.RFC3339))
-		}
-		if loginTimestamps.DesktopReadyTime != nil {
-			log.Infof("Logon duration: desktop_ready_time=%s", loginTimestamps.DesktopReadyTime.Format(time.RFC3339))
-		}
-		if loginTimestamps.FileVaultEnabled != nil {
-			log.Infof("Logon duration: filevault_enabled=%v", *loginTimestamps.FileVaultEnabled)
-		}
-	}
-	log.Info("Logon duration: ---------- Durations ----------")
-	if loginTimestamps != nil && loginTimestamps.LoginWindowTime != nil {
-		bootDuration := loginTimestamps.LoginWindowTime.Sub(bootTime).Seconds()
-		log.Infof("Logon duration: boot_duration=%.2fs (login_window - boot)", bootDuration)
-	}
-	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
-		logonDuration := loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Seconds()
-		log.Infof("Logon duration: logon_duration=%.2fs (desktop_ready - login)", logonDuration)
-	}
-	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
-		totalDuration := loginTimestamps.DesktopReadyTime.Sub(bootTime).Seconds()
-		log.Infof("Logon duration: total_duration=%.2fs (desktop_ready - boot)", totalDuration)
-	}
-	log.Info("Logon duration: ================================================")
-
+func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
 	// Build and submit the event
 	hostnameValue := c.hostname.GetSafe(context.TODO())
-	custom := buildCustomPayload(bootTime, loginTimestamps)
+	custom := buildCustomPayload(bootTime, ts)
 
 	timestamp := bootTime.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 

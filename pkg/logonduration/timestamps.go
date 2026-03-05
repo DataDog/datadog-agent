@@ -12,13 +12,14 @@ import "time"
 
 // LoginTimestamps contains the timestamps collected from system logs.
 // These timestamps require root privileges to access OSLogStore.
+// Zero time values indicate the timestamp could not be collected.
 type LoginTimestamps struct {
 	// LoginWindowTime is when the login window appeared (user can enter credentials)
-	LoginWindowTime *time.Time `json:"login_window_time,omitempty"`
+	LoginWindowTime time.Time `json:"login_window_time"`
 	// LoginTime is when the user entered credentials (sessionDidLogin)
-	LoginTime *time.Time `json:"login_time,omitempty"`
+	LoginTime time.Time `json:"login_time"`
 	// DesktopReadyTime is when the Dock checked in with launchservicesd (desktop ready)
-	DesktopReadyTime *time.Time `json:"desktop_ready_time,omitempty"`
+	DesktopReadyTime time.Time `json:"desktop_ready_time"`
 	// FileVaultEnabled indicates whether FileVault is enabled on the system
-	FileVaultEnabled *bool `json:"filevault_enabled,omitempty"`
+	FileVaultEnabled bool `json:"filevault_enabled"`
 }

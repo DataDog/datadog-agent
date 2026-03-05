@@ -80,15 +80,13 @@ func IsFileVaultEnabled() (bool, error) {
 
 // GetLoginTimestamps collects all login-related timestamps from the system.
 // This is the main entry point for the system-probe module.
-func GetLoginTimestamps() *LoginTimestamps {
-	result := &LoginTimestamps{}
+func GetLoginTimestamps() LoginTimestamps {
+	result := LoginTimestamps{}
 
 	// Check FileVault status first (needed for login window query)
 	start := time.Now()
-	fileVaultEnabled := false
 	if fv, err := IsFileVaultEnabled(); err == nil {
-		result.FileVaultEnabled = &fv
-		fileVaultEnabled = fv
+		result.FileVaultEnabled = fv
 		log.Infof("logonduration: FileVault enabled: %v (query took %.3fs)", fv, time.Since(start).Seconds())
 	} else {
 		log.Warnf("logonduration: failed to check FileVault status: %v (query took %.3fs)", err, time.Since(start).Seconds())
@@ -96,8 +94,8 @@ func GetLoginTimestamps() *LoginTimestamps {
 
 	// Get login window time via CGO to OSLogStore (query depends on FileVault status)
 	start = time.Now()
-	if lwt, err := GetLoginWindowTime(fileVaultEnabled); err == nil {
-		result.LoginWindowTime = &lwt
+	if lwt, err := GetLoginWindowTime(result.FileVaultEnabled); err == nil {
+		result.LoginWindowTime = lwt
 		log.Infof("logonduration: login window time: %v (query took %.3fs)", lwt, time.Since(start).Seconds())
 	} else {
 		log.Warnf("logonduration: failed to get login window time: %v (query took %.3fs)", err, time.Since(start).Seconds())
@@ -106,7 +104,7 @@ func GetLoginTimestamps() *LoginTimestamps {
 	// Get login time via CGO to OSLogStore
 	start = time.Now()
 	if lt, err := GetLoginTime(); err == nil {
-		result.LoginTime = &lt
+		result.LoginTime = lt
 		log.Infof("logonduration: login time: %v (query took %.3fs)", lt, time.Since(start).Seconds())
 	} else {
 		log.Warnf("logonduration: failed to get login time: %v (query took %.3fs)", err, time.Since(start).Seconds())
@@ -115,7 +113,7 @@ func GetLoginTimestamps() *LoginTimestamps {
 	// Get desktop ready time via CGO to OSLogStore (Dock checkin with launchservicesd)
 	start = time.Now()
 	if drt, err := GetDesktopReadyTime(); err == nil {
-		result.DesktopReadyTime = &drt
+		result.DesktopReadyTime = drt
 		log.Infof("logonduration: desktop ready time: %v (query took %.3fs)", drt, time.Since(start).Seconds())
 	} else {
 		log.Warnf("logonduration: failed to get desktop ready time: %v (query took %.3fs)", err, time.Since(start).Seconds())

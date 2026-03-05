@@ -26,10 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// persistentCacheKey stores the last boot time to detect reboots across agent restarts.
-// Stored at: run/logon_duration/last_boot_time
-const persistentCacheKey = "logon_duration:last_boot_time"
-
 // Requires defines the dependencies for the logon duration component
 type Requires struct {
 	Lc            compdef.Lifecycle
@@ -230,14 +226,6 @@ func durationBetween(start, end time.Time) time.Duration {
 		return 0
 	}
 	return end.Sub(start)
-}
-
-// Milestone represents a single event in the boot/logon timeline.
-type Milestone struct {
-	Name      string  `json:"name"`
-	OffsetS   float64 `json:"offset_s"`
-	DurationS float64 `json:"duration_s"`
-	Timestamp string  `json:"timestamp"`
 }
 
 // buildTimelineMilestones returns an ordered slice of boot milestones.

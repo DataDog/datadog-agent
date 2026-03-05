@@ -33,8 +33,6 @@ func IsFileVaultEnabled() (bool, error) {
 }
 
 // GetLoginTimestamps is not implemented on this platform
-func GetLoginTimestamps() *LoginTimestamps {
-	return &LoginTimestamps{
-		Error: "logonduration: not implemented on this platform",
-	}
+func GetLoginTimestamps() LoginTimestamps {
+	return LoginTimestamps{}
 }

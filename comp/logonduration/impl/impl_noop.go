@@ -28,11 +28,6 @@ type Requires struct {
 	Hostname       hostname.Component
 }
 
-// Provides defines what this component provides
-type Provides struct {
-	Comp logonduration.Component
-}
-
 type logonDurationComponent struct{}
 
 // NewComponent creates a noop logon duration component for unsupported platforms
