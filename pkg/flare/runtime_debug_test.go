@@ -23,7 +23,7 @@ func TestGetRuntimeDebugInfo(t *testing.T) {
 	assert.Contains(t, content, "=== Build Info ===")
 	assert.Contains(t, content, "=== GC Settings ===")
 	assert.Contains(t, content, "=== GC Stats ===")
-	assert.Contains(t, content, "GOGC (GC Target Percentage):")
+	assert.Contains(t, content, "GOGC:")
 	assert.Contains(t, content, "GOMEMLIMIT:")
 	assert.Contains(t, content, "Num GC:")
 	assert.Contains(t, content, "Pause Total:")

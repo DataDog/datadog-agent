@@ -8,10 +8,13 @@ package flare
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"runtime/debug"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
+
+const maxDepsInFlare = 50
 
 func provideRuntimeDebugInfo(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("runtime_debug_info.log", getRuntimeDebugInfo) //nolint:errcheck
@@ -51,12 +54,19 @@ func writeBuildInfo(buf *bytes.Buffer) {
 
 	if len(info.Deps) > 0 {
 		fmt.Fprintf(buf, "\nDependencies (%d total):\n", len(info.Deps))
-		for _, dep := range info.Deps {
+		limit := len(info.Deps)
+		if limit > maxDepsInFlare {
+			limit = maxDepsInFlare
+		}
+		for _, dep := range info.Deps[:limit] {
 			if dep.Replace != nil {
 				fmt.Fprintf(buf, "  %s@%s => %s@%s\n", dep.Path, dep.Version, dep.Replace.Path, dep.Replace.Version)
 			} else {
 				fmt.Fprintf(buf, "  %s@%s\n", dep.Path, dep.Version)
 			}
+		}
+		if len(info.Deps) > maxDepsInFlare {
+			fmt.Fprintf(buf, "  ... and %d more\n", len(info.Deps)-maxDepsInFlare)
 		}
 	}
 	fmt.Fprintf(buf, "\n")
@@ -65,17 +75,20 @@ func writeBuildInfo(buf *bytes.Buffer) {
 func writeGCSettings(buf *bytes.Buffer) {
 	fmt.Fprintf(buf, "=== GC Settings ===\n")
 
-	gcPercent := debug.SetGCPercent(-1)
-	debug.SetGCPercent(gcPercent)
-	fmt.Fprintf(buf, "GOGC (GC Target Percentage): %d\n", gcPercent)
-
-	memLimit := debug.SetMemoryLimit(-1)
-	debug.SetMemoryLimit(memLimit)
-	if memLimit == -1 {
-		fmt.Fprintf(buf, "GOMEMLIMIT: not set (unlimited)\n")
-	} else {
-		fmt.Fprintf(buf, "GOMEMLIMIT: %d bytes (%d MiB)\n", memLimit, memLimit/(1024*1024))
+	// Read GOGC and GOMEMLIMIT from environment variables rather than using
+	// debug.SetGCPercent/debug.SetMemoryLimit, which mutate global runtime
+	// state and could momentarily disable GC or remove memory limits.
+	gogc := os.Getenv("GOGC")
+	if gogc == "" {
+		gogc = "100 (default)"
 	}
+	fmt.Fprintf(buf, "GOGC: %s\n", gogc)
+
+	memlimit := os.Getenv("GOMEMLIMIT")
+	if memlimit == "" {
+		memlimit = "not set (unlimited)"
+	}
+	fmt.Fprintf(buf, "GOMEMLIMIT: %s\n", memlimit)
 	fmt.Fprintf(buf, "\n")
 }
 
