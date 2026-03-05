@@ -3,6 +3,9 @@
 This package will only continue to exist for the duration of the migration.
 It allows us to refer to binaries that are not yet built with bazel,
 and import them into a build graph so we can include them in packages.
+
+Most targets must be tagged manual to avoid ... expansion. The build
+file is invalid unti the agent is built.
 """
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -11,20 +14,22 @@ filegroup(
     name = "bin_files",
     srcs = glob(
         ["agent/**"],
-        allow_empty = True,
         exclude = [
             "agent/dist/datadog.yaml",
             "agent/dist/conf.d/**",
         ],
     ),
+    tags = ["manual"],
 )
 
 filegroup(
     name = "conf_d",
     srcs = glob(["agent/dist/conf.d/**"]),
+    tags = ["manual"],
 )
 
 filegroup(
     name = "datadog_yaml",
     srcs = ["agent/dist/datadog.yaml"],
+    tags = ["manual"],
 )

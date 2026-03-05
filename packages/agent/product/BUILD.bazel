@@ -51,7 +51,7 @@ pkg_filegroup(
         # TODO: secret-generic-connector
         # TODO:  cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
-        ":conf_dir_files",
+        ":conf_d",
     ],
 )
 

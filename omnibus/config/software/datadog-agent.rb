@@ -92,20 +92,19 @@ build do
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  # Put the config files in the right places
-  # See https://datadoghq.atlassian.net/browse/ABLD-402
-  command_on_repo_root "bazelisk run #{flavor_flag} --install_dir='#{install_dir}' -- //packages/agent/product:post_build_install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
-
   if osx_target?
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  # move around bin and config files
-  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  # Put the config files in the right places
+  # See https://datadoghq.atlassian.net/browse/ABLD-402
+  command_on_repo_root "bazelisk run #{flavor_flag} --install_dir='#{install_dir}' -- //packages/agent/product:post_build_install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
+  # We must do this to prevent a copy command below from picking it up again.
   delete 'bin/agent/dist/conf.d'
 
+  # move around bin files
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
   else
