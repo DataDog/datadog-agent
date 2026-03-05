@@ -1,0 +1,15 @@
+# Derived from GNU grep context-0 test: after-context prints N lines after each match.
+description: grep -A N prints N lines of trailing context after each match.
+setup:
+  files:
+    - path: f.txt
+      content: "needle\nline2\nline3\nother\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -A 2 needle f.txt
+expect:
+  stdout: "needle\nline2\nline3\n"
+  stderr: ""
+  exit_code: 0

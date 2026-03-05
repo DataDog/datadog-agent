@@ -1,0 +1,15 @@
+# When context windows overlap, no separator is printed between them.
+description: grep -C 2 does not print '--' when two matches are within 4 lines of each other.
+setup:
+  files:
+    - path: f.txt
+      content: "line1\nneedle\nline3\nneedle\nline5\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -C 2 needle f.txt
+expect:
+  stdout: "line1\nneedle\nline3\nneedle\nline5\n"
+  stderr: ""
+  exit_code: 0

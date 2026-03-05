@@ -1,0 +1,15 @@
+# -m N / --max-count=N: stop after N matches.
+description: grep -m 2 stops after the second matching line.
+setup:
+  files:
+    - path: f.txt
+      content: "match1\nmatch2\nmatch3\nmatch4\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -m 2 match f.txt
+expect:
+  stdout: "match1\nmatch2\n"
+  stderr: ""
+  exit_code: 0

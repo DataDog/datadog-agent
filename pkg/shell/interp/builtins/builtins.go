@@ -69,6 +69,7 @@ var registry = map[string]HandlerFunc{
 	"break":    builtinBreak,
 	"continue": builtinContinue,
 	"tail":     builtinTail,
+	"grep":     builtinGrep,
 }
 
 // Lookup returns the handler for a builtin command.

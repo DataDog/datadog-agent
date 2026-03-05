@@ -1,0 +1,21 @@
+# -l / --files-with-matches: print only filenames containing a match.
+description: grep -l prints only the names of files that have at least one match.
+setup:
+  files:
+    - path: a.txt
+      content: "match\nno\n"
+      chmod: 0644
+    - path: b.txt
+      content: "no\nno\n"
+      chmod: 0644
+    - path: c.txt
+      content: "also match\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -l match a.txt b.txt c.txt
+expect:
+  stdout: "a.txt\nc.txt\n"
+  stderr: ""
+  exit_code: 0

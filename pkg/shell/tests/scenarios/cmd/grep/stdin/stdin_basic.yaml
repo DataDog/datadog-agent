@@ -1,0 +1,15 @@
+# grep reads from stdin when no file is specified.
+description: grep with no file argument reads from standard input.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\ngamma\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep beta < f.txt
+expect:
+  stdout: "beta\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+# -x / --line-regexp: match only whole lines.
+description: grep -x matches only lines that consist entirely of the pattern.
+setup:
+  files:
+    - path: f.txt
+      content: "foo\nfoobar\nfoo bar\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -x foo f.txt
+expect:
+  stdout: "foo\n"
+  stderr: ""
+  exit_code: 0

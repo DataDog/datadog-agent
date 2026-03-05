@@ -1,0 +1,15 @@
+# A filename argument of '-' explicitly reads from stdin.
+description: grep treats '-' as a request to read from standard input.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\nworld\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep hello - < f.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

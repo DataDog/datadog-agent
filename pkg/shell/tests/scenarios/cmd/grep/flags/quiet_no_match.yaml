@@ -1,0 +1,15 @@
+# -q / --quiet with no match: no output, exit code 1.
+description: grep -q returns exit code 1 when no match is found (no output).
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\ngamma\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -q delta f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

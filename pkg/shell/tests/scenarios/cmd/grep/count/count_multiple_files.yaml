@@ -1,0 +1,18 @@
+# -c with multiple files: print filename:count for each file.
+description: grep -c with multiple files prints filename-prefixed counts.
+setup:
+  files:
+    - path: a.txt
+      content: "match\nno\nmatch\n"
+      chmod: 0644
+    - path: b.txt
+      content: "no\nmatch\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c match a.txt b.txt
+expect:
+  stdout: "a.txt:2\nb.txt:1\n"
+  stderr: ""
+  exit_code: 0

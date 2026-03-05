@@ -1,0 +1,15 @@
+# grep -B N prints N lines of leading context before each match.
+description: grep -B 2 prints 2 lines of leading context before each match.
+setup:
+  files:
+    - path: f.txt
+      content: "line1\nline2\nneedle\nline4\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -B 2 needle f.txt
+expect:
+  stdout: "line1\nline2\nneedle\n"
+  stderr: ""
+  exit_code: 0

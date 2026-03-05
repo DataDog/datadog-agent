@@ -1,0 +1,15 @@
+# -i / --ignore-case: case-insensitive matching.
+description: grep -i matches regardless of case.
+setup:
+  files:
+    - path: f.txt
+      content: "Hello World\nhello world\nHELLO WORLD\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -i hello f.txt
+expect:
+  stdout: "Hello World\nhello world\nHELLO WORLD\n"
+  stderr: ""
+  exit_code: 0

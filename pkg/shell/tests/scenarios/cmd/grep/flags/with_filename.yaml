@@ -1,0 +1,15 @@
+# -H / --with-filename: always print filename prefix even for a single file.
+description: grep -H prints the filename prefix even when only one file is given.
+setup:
+  files:
+    - path: f.txt
+      content: "match\nno\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -H match f.txt
+expect:
+  stdout: "f.txt:match\n"
+  stderr: ""
+  exit_code: 0

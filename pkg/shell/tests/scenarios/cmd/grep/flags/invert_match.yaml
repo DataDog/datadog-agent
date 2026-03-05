@@ -1,0 +1,15 @@
+# -v / --invert-match: print non-matching lines.
+description: grep -v prints lines that do NOT match the pattern.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\ngamma\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -v beta f.txt
+expect:
+  stdout: "alpha\ngamma\n"
+  stderr: ""
+  exit_code: 0

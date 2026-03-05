@@ -1,0 +1,15 @@
+# Derived from GNU grep context-0 test: -- separator appears between non-adjacent context groups.
+description: grep -C 0 prints '--' between non-adjacent matches.
+setup:
+  files:
+    - path: f.txt
+      content: "needle\n1st line of context\n2nd line of context\n3rd line of context\nanother needle\n5th line\n6th line\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -C 0 needle f.txt
+expect:
+  stdout: "needle\n--\nanother needle\n"
+  stderr: ""
+  exit_code: 0

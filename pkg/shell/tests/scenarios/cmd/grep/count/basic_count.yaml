@@ -1,0 +1,15 @@
+# -c / --count: print only the count of matching lines.
+description: grep -c prints the count of matching lines instead of the lines themselves.
+setup:
+  files:
+    - path: f.txt
+      content: "match\nno\nmatch\nmatch\nno\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c match f.txt
+expect:
+  stdout: "3\n"
+  stderr: ""
+  exit_code: 0

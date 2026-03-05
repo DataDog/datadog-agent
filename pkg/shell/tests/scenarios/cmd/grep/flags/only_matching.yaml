@@ -1,0 +1,15 @@
+# -o / --only-matching: print only the matched portion of each line.
+description: grep -o prints only the part of each line that matches the pattern.
+setup:
+  files:
+    - path: f.txt
+      content: "foo123bar\nno digits here\n456end\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -o '[0-9]+' f.txt
+expect:
+  stdout: "123\n456\n"
+  stderr: ""
+  exit_code: 0

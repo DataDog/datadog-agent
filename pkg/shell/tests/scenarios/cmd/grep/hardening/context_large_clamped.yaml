@@ -1,0 +1,15 @@
+# Context value larger than grepMaxContextLines (10000) is clamped, not rejected.
+description: grep -A with a very large value is clamped to grepMaxContextLines without error.
+setup:
+  files:
+    - path: f.txt
+      content: "match\nline2\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -A 99999999 match f.txt
+expect:
+  stdout: "match\nline2\n"
+  stderr: ""
+  exit_code: 0

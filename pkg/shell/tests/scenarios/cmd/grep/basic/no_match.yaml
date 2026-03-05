@@ -1,0 +1,15 @@
+# No match returns exit code 1 with no output.
+description: grep returns exit code 1 when no lines match.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\ngamma\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep delta f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

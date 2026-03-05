@@ -1,0 +1,15 @@
+# -q / --quiet: no output, just set exit code.
+description: grep -q produces no output but returns 0 when a match is found.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\ngamma\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -q beta f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0
