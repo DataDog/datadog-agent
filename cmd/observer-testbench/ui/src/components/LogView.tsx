@@ -122,8 +122,17 @@ function LogRateChart({
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   const buckets = useMemo(() => {
-    const displayStart = timeRange?.start ?? scenarioStart;
-    const displayEnd = timeRange?.end ?? scenarioEnd;
+    let displayStart = timeRange?.start ?? scenarioStart;
+    let displayEnd = timeRange?.end ?? scenarioEnd;
+    // Fall back to log timestamp bounds when no other bounds are available
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) {
+      for (const l of logs) {
+        const ts = l.timestampMs / 1000;
+        if (!ts) continue;
+        if (!displayStart || ts < displayStart) displayStart = ts;
+        if (!displayEnd || ts > displayEnd) displayEnd = ts;
+      }
+    }
     if (!displayStart || !displayEnd || displayEnd <= displayStart) return [];
     const bucketSize = Math.max(LOG_CHART_MIN_BUCKET_SIZE_S, (displayEnd - displayStart) / LOG_CHART_TARGET_BUCKETS);
     const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
@@ -156,7 +165,7 @@ function LogRateChart({
   // D3 chart drawing
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
-    if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart || buckets.length === 0) return;
+    if (buckets.length === 0) return;
     if (isBrushingRef.current) return;
 
     const m = LOG_CHART_MARGIN;
@@ -399,7 +408,10 @@ function LogRateChart({
     };
   }, [timeRange]);
 
-  if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) return null;
+  const hasBounds = (scenarioStart && scenarioEnd && scenarioEnd > scenarioStart)
+    || (timeRange && timeRange.end > timeRange.start)
+    || buckets.length > 0;
+  if (!hasBounds) return null;
 
   return (
     <div className="bg-slate-800/60 rounded p-3 mb-4">
