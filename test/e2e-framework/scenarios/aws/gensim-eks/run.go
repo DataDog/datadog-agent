@@ -183,15 +183,20 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(episodeRelease)),
 		}
 
-		// Load datadog-values.yaml from the gensim-episodes postmortems root.
-		// This sets clusterName and kubelet.tlsVerify: false (required on EKS —
-		// kubelet uses a self-signed cert not trusted by the agent's default CA).
-		// Uses WithHelmValuesFile (file asset) rather than WithHelmValues (string asset)
-		// to avoid a local-backend serialisation bug in the pulumi-kubernetes Helm provider.
-		datadogValuesPath := cfg.Get("datadogValuesPath")
-		if datadogValuesPath != "" {
-			agentOpts = append(agentOpts, kubernetesagentparams.WithHelmValuesFile(datadogValuesPath))
-		}
+		// Pass gensim-specific agent config via WithExtraHelmValues (pulumi.Map) rather
+		// than WithHelmValues/WithHelmValuesFile (AssetOrArchiveArray). Map values flow
+		// through the computed ToYAMLPulumiAssetOutput() path and survive local-backend
+		// state round-trips correctly; asset values corrupt to []interface{} on update.
+		agentOpts = append(agentOpts, kubernetesagentparams.WithExtraHelmValues(pulumi.Map{
+			"datadog": pulumi.Map{
+				// Required on EKS: kubelet uses a self-signed cert not trusted by the
+				// agent's default CA bundle.
+				"kubelet": pulumi.Map{
+					"tlsVerify": pulumi.Bool(false),
+				},
+				"clusterName": pulumi.String("gensim"),
+			},
+		}))
 
 		if awsEnv.AgentFullImagePath() != "" {
 			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(awsEnv.AgentFullImagePath()))

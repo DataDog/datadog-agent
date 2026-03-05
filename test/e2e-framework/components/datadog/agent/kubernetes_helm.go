@@ -43,6 +43,12 @@ type HelmInstallationArgs struct {
 	RepoURL string
 	// ValuesYAML is used to provide installation-specific values
 	ValuesYAML pulumi.AssetOrArchiveArray
+	// ExtraValues are merged into the main Helm values map before YAML serialisation.
+	// Prefer this over ValuesYAML when using a local Pulumi backend: AssetOrArchiveArray
+	// values deserialise as []interface{} in local state, causing the Helm provider to
+	// fail on update with "unsupported type for 'valueYamlFiles' arg: []interface{}".
+	// ExtraValues flow through the computed ToYAMLPulumiAssetOutput() path instead.
+	ExtraValues pulumi.Map
 	// Fakeintake is used to configure the agent to send data to a fake intake
 	Fakeintake *fakeintake.Fakeintake
 	// DeployWindows is used to deploy the Windows agent
@@ -185,6 +191,11 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 	values.configureImagePullSecret(imgPullSecret)
 	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
+
+	// Merge caller-provided extra values last so they override framework defaults.
+	for k, v := range args.ExtraValues {
+		values[k] = v
+	}
 
 	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 

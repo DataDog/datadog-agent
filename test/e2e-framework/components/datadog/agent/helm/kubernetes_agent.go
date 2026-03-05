@@ -35,6 +35,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			ChartPath:                      params.HelmChartPath,
 			RepoURL:                        params.HelmRepoURL,
 			ValuesYAML:                     params.HelmValues,
+			ExtraValues:                    params.ExtraHelmValues,
 			Fakeintake:                     params.FakeIntake,
 			AgentFullImagePath:             params.AgentFullImagePath,
 			ClusterAgentFullImagePath:      params.ClusterAgentFullImagePath,

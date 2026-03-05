@@ -57,6 +57,11 @@ type Params struct {
 	HelmChartPath string
 	// HelmValues is the Helm values to use for the agent installation.
 	HelmValues pulumi.AssetOrArchiveArray
+	// ExtraHelmValues are merged into the main Helm values map before YAML serialisation,
+	// bypassing the ValuesYAML/AssetOrArchiveArray path. Prefer this over HelmValues
+	// (WithHelmValues/WithHelmValuesFile) when using a local Pulumi backend to avoid
+	// the "unsupported type for 'valueYamlFiles'" serialisation bug on update.
+	ExtraHelmValues pulumi.Map
 	// PulumiDependsOn is a list of resources to depend on.
 	PulumiResourceOptions []pulumi.ResourceOption
 	// FakeIntake is the fake intake to use for the agent installation.
@@ -191,6 +196,25 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		return nil
+	}
+}
+
+// WithExtraHelmValues merges the given map into the agent's Helm values before YAML
+// serialisation. Unlike WithHelmValues/WithHelmValuesFile (which use AssetOrArchiveArray),
+// map values flow through the computed ToYAMLPulumiAssetOutput() path and serialise
+// correctly with the local Pulumi backend on both create and update.
+//
+// Top-level keys must match Helm chart value names (e.g. "datadog", "clusterAgent").
+// Nested maps should use pulumi.Map; scalar values should use typed pulumi.Input.
+func WithExtraHelmValues(values pulumi.Map) func(*Params) error {
+	return func(p *Params) error {
+		if p.ExtraHelmValues == nil {
+			p.ExtraHelmValues = pulumi.Map{}
+		}
+		for k, v := range values {
+			p.ExtraHelmValues[k] = v
+		}
 		return nil
 	}
 }
