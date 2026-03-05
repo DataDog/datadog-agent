@@ -3,24 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::ProcessManager;
 use crate::grpc::proto;
 use crate::process::ManagedProcess;
 use crate::state::ProcessState;
-use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 
 pub struct ProcessManagerService {
-    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    mgr: ProcessManager,
     started_at: Instant,
     config_path: String,
 }
 
 impl ProcessManagerService {
-    pub fn new(processes: Arc<RwLock<Vec<ManagedProcess>>>, config_path: String) -> Self {
+    pub fn new(mgr: ProcessManager, config_path: String) -> Self {
         Self {
-            processes,
+            mgr,
             started_at: Instant::now(),
             config_path,
         }
@@ -33,7 +32,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::ListRequest>,
     ) -> Result<Response<proto::ListResponse>, Status> {
-        let procs = self.processes.read().await;
+        let procs = self.mgr.read().await;
         let processes = procs.iter().map(process_to_proto).collect();
         Ok(Response::new(proto::ListResponse { processes }))
     }
@@ -43,7 +42,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name = request.into_inner().name;
-        let procs = self.processes.read().await;
+        let procs = self.mgr.read().await;
         let proc = procs
             .iter()
             .find(|p| p.name == name)
@@ -58,7 +57,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::GetStatusRequest>,
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
-        let procs = self.processes.read().await;
+        let procs = self.mgr.read().await;
         let total = procs.len() as u32;
         let running = procs.iter().filter(|p| p.is_running()).count() as u32;
         let stopped = procs

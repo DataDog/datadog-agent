@@ -24,6 +24,62 @@ struct ExitEvent {
     status: std::process::ExitStatus,
 }
 
+#[derive(Clone)]
+pub struct ProcessManager {
+    processes: Arc<RwLock<Vec<ManagedProcess>>>,
+}
+
+impl ProcessManager {
+    pub(crate) fn new(processes: Vec<ManagedProcess>) -> Self {
+        Self {
+            processes: Arc::new(RwLock::new(processes)),
+        }
+    }
+
+    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
+        self.processes.read().await
+    }
+
+    async fn wire_watchers(&self, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
+        let mut procs = self.processes.write().await;
+        for (i, proc) in procs.iter_mut().enumerate() {
+            if proc.is_running() {
+                spawn_watcher(i, proc, exit_tx.clone());
+            }
+        }
+    }
+
+    async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::UnboundedSender<usize>) {
+        let mut procs = self.processes.write().await;
+        let proc = &mut procs[event.index];
+        info!("[{}] exited with {}", proc.name, event.status);
+        proc.set_last_status(event.status);
+        if let Some(delay) = proc.handle_restart() {
+            let tx = restart_tx.clone();
+            let idx = event.index;
+            tokio::spawn(async move {
+                tokio::time::sleep(delay).await;
+                let _ = tx.send(idx);
+            });
+        }
+    }
+
+    async fn complete_restart(&self, index: usize, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
+        let mut procs = self.processes.write().await;
+        let proc = &mut procs[index];
+        match proc.spawn() {
+            Ok(()) => spawn_watcher(index, proc, exit_tx.clone()),
+            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name),
+        }
+    }
+
+    async fn shutdown(&self, startup_order: &[usize]) {
+        let mut procs = self.processes.write().await;
+        let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+        shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     simple_logger::init_with_level(log::Level::Info)?;
@@ -35,26 +91,19 @@ async fn main() -> Result<()> {
     let configs = load_configs();
     let startup_order = resolve_startup_order(&configs);
     let processes = start_processes(configs, &startup_order);
-
-    let processes = Arc::new(RwLock::new(processes));
+    let mgr = ProcessManager::new(processes);
 
     let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
     let config_path = config::config_dir().display().to_string();
     let grpc_handle = tokio::spawn(grpc::server::run(
-        Arc::clone(&processes),
+        mgr.clone(),
         config_path,
         grpc_shutdown_rx,
     ));
 
     let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-    {
-        let mut procs = processes.write().await;
-        for (i, proc) in procs.iter_mut().enumerate() {
-            if proc.is_running() {
-                spawn_watcher(i, proc, exit_tx.clone());
-            }
-        }
-    }
+    let (restart_tx, mut restart_rx) = mpsc::unbounded_channel::<usize>();
+    mgr.wire_watchers(&exit_tx).await;
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
@@ -70,13 +119,10 @@ async fn main() -> Result<()> {
                 break;
             }
             Some(event) = exit_rx.recv() => {
-                let mut procs = processes.write().await;
-                let proc = &mut procs[event.index];
-                info!("[{}] exited with {}", proc.name, event.status);
-                proc.set_last_status(event.status);
-                if proc.handle_restart().await {
-                    spawn_watcher(event.index, proc, exit_tx.clone());
-                }
+                mgr.handle_exit(event, &restart_tx).await;
+            }
+            Some(index) = restart_rx.recv() => {
+                mgr.complete_restart(index, &exit_tx).await;
             }
         }
     }
@@ -84,13 +130,13 @@ async fn main() -> Result<()> {
     info!("dd-procmgrd shutting down");
 
     let _ = grpc_shutdown_tx.send(());
-    if let Err(e) = grpc_handle.await {
-        warn!("gRPC server task error: {e}");
+    match grpc_handle.await {
+        Ok(Err(e)) => warn!("gRPC server error: {e}"),
+        Err(e) => warn!("gRPC server task panicked: {e}"),
+        Ok(Ok(())) => {}
     }
 
-    let mut procs = processes.write().await;
-    let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
-    shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
+    mgr.shutdown(&startup_order).await;
     info!("dd-procmgrd stopped");
     Ok(())
 }
