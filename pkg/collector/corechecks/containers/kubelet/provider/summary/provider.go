@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"time"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,10 +39,10 @@ const (
 type Provider struct {
 	config                *common.KubeletConfig
 	podFilter             workloadfilter.FilterBundle
-	containerFilter       workloadfilter.FilterBundle
 	store                 workloadmeta.Component
 	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
+	dataSource            *kubeletmetrics.DataSource
 }
 
 // NewProvider is created by filter, config and workloadmeta
@@ -61,18 +61,28 @@ func NewProvider(
 	return &Provider{
 		config:                config,
 		podFilter:             filterStore.GetPodSharedMetricFilters(),
-		containerFilter:       filterStore.GetContainerSharedMetricFilters(),
 		store:                 store,
 		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
 	}
 }
 
+// SetDataSource sets a shared data source to avoid duplicate HTTP calls.
+func (p *Provider) SetDataSource(ds *kubeletmetrics.DataSource) {
+	p.dataSource = ds
+}
+
 // Provide processes metrics and reports
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
-	statsSummary, err := kc.GetLocalStatsSummary(ctx)
-	cancel()
+	var statsSummary *kubeletv1alpha1.Summary
+	var err error
+
+	if p.dataSource != nil {
+		statsSummary, err = p.dataSource.GetStatsSummary()
+	} else {
+		// Fallback: fetch directly (e.g., in tests without DataSource)
+		statsSummary, err = kc.GetLocalStatsSummary(context.Background())
+	}
 	if err != nil || statsSummary == nil {
 		return err
 	}
@@ -147,7 +157,8 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		if podData.Phase == "Running" || podData.Phase == "Pending" {
 			p.processPodStats(sender, podStats, podUID, useStatsAsSource, rateFilterList)
 		}
-		p.processContainerStats(sender, podStats, podData, useStatsAsSource)
+		// Container-level stats (CPU, memory, filesystem) are now handled by the
+		// generic processor via the kubelet metrics.Collector.
 	}
 	return nil
 }
@@ -219,60 +230,6 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		if rxBytes != nil && r.MatchString(rxBytesMetricName) {
 			reportMetric(sender.Rate, rxBytesMetricName, rxBytes, podTags)
 		}
-	}
-}
-
-func (p *Provider) processContainerStats(sender sender.Sender,
-	podStats *kubeletv1alpha1.PodStats,
-	podData *workloadmeta.KubernetesPod,
-	useStatsAsSource bool) {
-	if podStats == nil ||
-		len(podStats.Containers) == 0 ||
-		podData == nil ||
-		!useStatsAsSource {
-		return
-	}
-	containerData := make(map[string]*workloadmeta.OrchestratorContainer)
-	for i := range podData.Containers {
-		containerData[podData.Containers[i].Name] = &podData.Containers[i]
-	}
-	for idx := range podStats.Containers {
-		containerStats := &podStats.Containers[idx]
-		containerName := containerStats.Name
-		if len(containerName) == 0 {
-			log.Warnf("Kubelet reported stats without container name for pod: %s/%s",
-				podStats.PodRef.Namespace, podStats.PodRef.Name)
-			continue
-		}
-		ctr, found := containerData[containerName]
-		if !found || ctr == nil && ctr.ID == "" {
-			log.Debugf(
-				"Container id not found from /pods for container: %s/%s/%s - no metrics will be sent",
-				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName)
-			continue
-		}
-		ctr.Name = containerName
-
-		filterableContainer := workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData))
-		if p.containerFilter.IsExcluded(filterableContainer) {
-			continue
-		}
-		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)
-		if err != nil || len(tags) == 0 {
-			log.Debugf("Tags not found for container: %s/%s/%s:%s - no metrics will be sent",
-				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName, ctr.ID)
-			continue
-		}
-		tags = utils.ConcatenateTags(tags, p.config.Tags)
-		//collecting metric
-		if containerStats.CPU != nil {
-			reportMetric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
-		}
-		if containerStats.Memory != nil {
-			reportMetric(sender.Gauge, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
-			reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
-		}
-		reportFsMetric(sender, containerStats.Rootfs, "", tags)
 	}
 }
 

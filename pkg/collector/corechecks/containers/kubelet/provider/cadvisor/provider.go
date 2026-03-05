@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
+	kubeletmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -80,6 +81,12 @@ type Provider struct {
 	memUsageBytes   map[string]*processCache
 	swapUsageBytes  map[string]*processCache
 	prometheus.Provider
+}
+
+// SetDataSource sets a shared data source on the embedded prometheus provider
+// to avoid duplicate HTTP calls to /metrics/cadvisor.
+func (p *Provider) SetDataSource(ds *kubeletmetrics.DataSource) {
+	p.Provider.DataSource = ds
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
@@ -423,7 +430,28 @@ func (p *Provider) getKubeContainerNameTag(labels prom.Metric) string {
 	return ""
 }
 
+// filterToStaticPendingSamples filters metric samples to only retain those
+// from static pending pods. This is used for metrics that are now handled by
+// the generic processor for normal containers, but still need cadvisor's
+// special static pending pod handling (pod-level tag fallback).
+func (p *Provider) filterToStaticPendingSamples(metricFam *prom.MetricFamily) bool {
+	filtered := make([]prom.Sample, 0)
+	for i := range metricFam.Samples {
+		sample := &metricFam.Samples[i]
+		pod := p.getPodByMetricLabel(sample.Metric)
+		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
+			filtered = append(filtered, *sample)
+		}
+	}
+	metricFam.Samples = filtered
+	return len(filtered) > 0
+}
+
 func (p *Provider) containerCPUUsageSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.usage.total"
 	for i := range metricFam.Samples {
 		// Replace sample value to convert cores to nano cores
@@ -438,49 +466,91 @@ func (p *Provider) containerCPULoadAverage10s(metricFam *prom.MetricFamily, send
 }
 
 func (p *Provider) containerCPUSystemSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup cpu.stat system_usec);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.system.total"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerCPUUserSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup cpu.stat user_usec);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.user.total"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerCPUCfsPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// cpu.cfs.periods (ElapsedPeriods) is NOT populated by the containerd/system collectors,
+	// so no generic processor equivalent exists. Keep processing all containers.
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.periods"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerCPUCfsThrottledPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup cpu.stat nr_throttled);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.throttled.periods"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerCPUCfsThrottledSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup cpu.stat throttled_usec);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.throttled.seconds"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerFsReadsBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup blkio read bytes);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "io.read_bytes"
 	labels := []string{"device"}
 	p.processContainerMetric("rate", metricName, metricFam, labels, sender)
 }
 
 func (p *Provider) containerFsWritesBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup blkio write bytes);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "io.write_bytes"
 	labels := []string{"device"}
 	p.processContainerMetric("rate", metricName, metricFam, labels, sender)
 }
 
 func (p *Provider) containerNetworkReceiveBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal pods are handled by the generic processor's network extension;
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "network.rx_bytes"
 	labels := []string{"interface"}
 	p.processPodRate(metricName, metricFam, labels, sender)
 }
 
 func (p *Provider) containerNetworkTransmitBytesTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal pods are handled by the generic processor's network extension;
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "network.tx_bytes"
 	labels := []string{"interface"}
 	p.processPodRate(metricName, metricFam, labels, sender)
@@ -534,22 +604,35 @@ func (p *Provider) containerMemoryUsageBytes(metricFam *prom.MetricFamily, sende
 		log.Errorf("Metric type %s unsupported for metric %s", metricFam.Type, metricFam.Name)
 		return
 	}
+	// processUsageMetric populates memUsageBytes cache (needed for memory.usage_pct
+	// computation in containerSpecMemoryLimitBytes) AND emits the metric.
+	// This causes duplication with the generic processor for memory.usage on
+	// non-static-pending containers, which is acceptable to preserve the
+	// memory.usage_pct computation dependency.
 	metricName := common.KubeletMetricsPrefix + "memory.usage"
 	p.processUsageMetric(metricName, metricFam, p.memUsageBytes, nil, sender)
 }
 
 func (p *Provider) containerMemoryWorkingSetBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "memory.working_set"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerMemoryCache(metricFam *prom.MetricFamily, sender sender.Sender) {
+	// Normal containers are handled by the generic processor (cgroup memory.stat cache/file);
+	// only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
 	metricName := common.KubeletMetricsPrefix + "memory.cache"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
 
 func (p *Provider) containerMemoryRss(metricFam *prom.MetricFamily, sender sender.Sender) {
-	metricName := common.KubeletMetricsPrefix + "memory.rss"
 	// Filter out aberrant values
 	filteredSamples := []prom.Sample{}
 	for i := range metricFam.Samples {
@@ -558,6 +641,11 @@ func (p *Provider) containerMemoryRss(metricFam *prom.MetricFamily, sender sende
 		}
 	}
 	metricFam.Samples = filteredSamples
+	// Normal containers are handled by the generic processor; only process static pending pods here
+	if !p.filterToStaticPendingSamples(metricFam) {
+		return
+	}
+	metricName := common.KubeletMetricsPrefix + "memory.rss"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
 
@@ -566,6 +654,11 @@ func (p *Provider) containerMemorySwap(metricFam *prom.MetricFamily, sender send
 		log.Errorf("Metric type %s unsupported for metric %s", metricFam.Type, metricFam.Name)
 		return
 	}
+	// processUsageMetric populates swapUsageBytes cache (needed for memory.sw_in_use
+	// computation in containerSpecMemorySwapLimitBytes) AND emits the metric.
+	// This causes duplication with the generic processor for memory.swap on
+	// non-static-pending containers, which is acceptable to preserve the
+	// memory.sw_in_use computation dependency.
 	metricName := common.KubeletMetricsPrefix + "memory.swap"
 	p.processUsageMetric(metricName, metricFam, p.swapUsageBytes, nil, sender)
 }
@@ -575,9 +668,24 @@ func (p *Provider) containerSpecMemoryLimitBytes(metricFam *prom.MetricFamily, s
 		log.Errorf("Metric type %s unsupported for metric %s", metricFam.Type, metricFam.Name)
 		return
 	}
-	metricName := common.KubeletMetricsPrefix + "memory.limits"
+	// The generic processor now emits kubernetes.memory.limits (from cgroup memory.limit).
+	// Cadvisor still needs to compute memory.usage_pct (unique to cadvisor).
+	// Pass "" for metricName to suppress limit emission, keep pctName for computation.
+	// For static pending pods (which the generic processor skips), we still need to
+	// emit the limit metric, so we pass the metric name for those.
 	pctName := common.KubeletMetricsPrefix + "memory.usage_pct"
-	p.processLimitMetric(metricName, metricFam, p.memUsageBytes, pctName, sender)
+
+	// First pass: compute memory.usage_pct for all containers (suppressing memory.limits emission)
+	p.processLimitMetric("", metricFam, p.memUsageBytes, pctName, sender)
+
+	// Second pass: emit memory.limits only for static pending pods
+	staticFam := *metricFam
+	staticFam.Samples = make([]prom.Sample, len(metricFam.Samples))
+	copy(staticFam.Samples, metricFam.Samples)
+	if p.filterToStaticPendingSamples(&staticFam) {
+		metricName := common.KubeletMetricsPrefix + "memory.limits"
+		p.processLimitMetric(metricName, &staticFam, p.memUsageBytes, "", sender)
+	}
 }
 
 func (p *Provider) containerSpecMemorySwapLimitBytes(metricFam *prom.MetricFamily, sender sender.Sender) {

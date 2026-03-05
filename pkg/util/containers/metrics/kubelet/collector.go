@@ -51,11 +51,19 @@ func init() {
 	})
 }
 
+// globalCollector holds a reference to the kubelet collector singleton,
+// allowing the kubelet check to inject a shared DataSource.
+var (
+	globalCollector     *kubeletCollector
+	globalCollectorLock sync.Mutex
+)
+
 type kubeletCollector struct {
 	kubeletClient kutil.KubeUtilInterface
 	metadataStore workloadmeta.Component
 	statsCache    provider.Cache
 	refreshLock   sync.Mutex
+	dataSource    *DataSource
 }
 
 func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
@@ -75,6 +83,10 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
 		metadataStore: wmeta,
 	}
+
+	globalCollectorLock.Lock()
+	globalCollector = collector
+	globalCollectorLock.Unlock()
 
 	collectors := &provider.Collectors{
 		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
@@ -122,13 +134,20 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 }
 
 // GetContainerStats returns stats by container ID.
+// The returned stats are a merge of /stats/summary data and /metrics/cadvisor data,
+// with stats/summary fields taking precedence where both sources provide the same field.
 func (kc *kubeletCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
 	if found {
 		if containerStats != nil {
-			return containerStats.(*provider.ContainerStats), err
+			stats := containerStats.(*provider.ContainerStats)
+			// Merge cadvisor data for fields not available from stats/summary
+			if cadvisorStats := kc.getCadvisorContainerStats(containerID, currentTime, cacheValidity); cadvisorStats != nil {
+				mergeContainerStats(stats, cadvisorStats)
+			}
+			return stats, err
 		}
 		return nil, err
 	}
@@ -141,7 +160,11 @@ func (kc *kubeletCollector) GetContainerStats(_, containerID string, cacheValidi
 	containerStats, found, err = kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
 	if found {
 		if containerStats != nil {
-			return containerStats.(*provider.ContainerStats), err
+			stats := containerStats.(*provider.ContainerStats)
+			if cadvisorStats := kc.getCadvisorContainerStats(containerID, currentTime, cacheValidity); cadvisorStats != nil {
+				mergeContainerStats(stats, cadvisorStats)
+			}
+			return stats, err
 		}
 		return nil, err
 	}
@@ -194,11 +217,22 @@ func (kc *kubeletCollector) refreshContainerCache(currentTime time.Time, cacheVa
 		log.Debugf("Unable to get stats from Kubelet, err: %v", err)
 	}
 
+	// Also scrape /metrics/cadvisor to enrich container stats with data not
+	// available from /stats/summary (CPU user/system, throttling, memory
+	// cache/limit, IO). This is especially important in environments without
+	// access to the host system or container runtime (e.g., EKS Fargate).
+	kc.refreshCadvisorCache(currentTime, cacheValidity)
+
 	kc.statsCache.Store(currentTime, refreshCacheKey, nil, err)
 	return err
 }
 
 func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
+	// Use shared data source if available (avoids duplicate HTTP calls)
+	if kc.dataSource != nil {
+		return kc.dataSource.GetStatsSummary()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), kubeletCallTimeout)
 	statsSummary, err := kc.kubeletClient.GetLocalStatsSummary(ctx)
 	cancel()
@@ -208,6 +242,18 @@ func (kc *kubeletCollector) getStatsSummary() (*v1alpha1.Summary, error) {
 	}
 
 	return statsSummary, err
+}
+
+// SetGlobalDataSource sets a shared data source on the global kubelet collector.
+// When set, the collector uses the data source's cached data instead of making
+// its own HTTP calls, avoiding duplicate fetches when the kubelet check providers
+// also need the same data.
+func SetGlobalDataSource(ds *DataSource) {
+	globalCollectorLock.Lock()
+	defer globalCollectorLock.Unlock()
+	if globalCollector != nil {
+		globalCollector.dataSource = ds
+	}
 }
 
 func (kc *kubeletCollector) processStatsSummary(currentTime time.Time, statsSummary *v1alpha1.Summary) {
@@ -287,6 +333,13 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 		} else {
 			outContainerStats.Memory.WorkingSet = pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.WorkingSetBytes)
 		}
+	}
+
+	if kubeContainerStats.Swap != nil {
+		if outContainerStats.Memory == nil {
+			outContainerStats.Memory = &provider.ContainerMemStats{}
+		}
+		outContainerStats.Memory.Swap = pointer.UIntPtrToFloatPtr(kubeContainerStats.Swap.SwapUsageBytes)
 	}
 }
 
