@@ -61,6 +61,11 @@ func (q *Queue[T]) Peek() (T, bool) {
 	return q.data[q.head], true
 }
 
+func (q *Queue[T]) Flush() {
+	q.head = 0
+	q.data = q.data[:q.head]
+}
+
 // Slice returns the elements of the queue as a slice.
 func (q *Queue[T]) Slice() []T {
 	return q.data[q.head:]

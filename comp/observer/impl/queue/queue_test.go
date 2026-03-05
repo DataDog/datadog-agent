@@ -121,3 +121,21 @@ func TestFloat64Queue_Alias(t *testing.T) {
 		t.Errorf("Float64Queue: want (3.14, true), got (%v, %v)", got, ok)
 	}
 }
+
+func TestQueue_Flush(t *testing.T) {
+	q := NewQueue[int]()
+	q.Enqueue(10)
+	q.Enqueue(20)
+	q.Enqueue(30)
+	if q.Len() != 3 {
+		t.Fatalf("expected queue length 3 before flush, got %d", q.Len())
+	}
+
+	q.Flush()
+	if q.Len() != 0 {
+		t.Fatalf("expected queue length 0 after flush, got %d", q.Len())
+	}
+	if val, ok := q.Dequeue(); ok {
+		t.Errorf("expected Dequeue from flushed queue to return (zero, false), got (%v, %v)", val, ok)
+	}
+}
