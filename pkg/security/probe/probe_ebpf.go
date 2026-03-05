@@ -933,7 +933,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
-		if event.IsActivityDumpSample() {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
 			} else if event.GetEventType() == model.FileOpenEventType {

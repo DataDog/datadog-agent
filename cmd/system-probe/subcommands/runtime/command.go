@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
@@ -209,31 +210,30 @@ type dumpLoadedPoliciesCliParams struct {
 }
 
 func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	/*
-	   	cliParams := &dumpLoadedPoliciesCliParams{
-	   		GlobalParams: globalParams,
-	   	}
 
-	   	dumpLoadedPoliciesCmd := &cobra.Command{
-	   		Use:   "dump",
-	   		Short: "Dump the currently loaded policies as JSON",
-	   		RunE: func(_ *cobra.Command, _ []string) error {
-	   			return fxutil.OneShot(dumpLoadedPolicies,
-	   				fx.Supply(cliParams),
-	   				fx.Supply(core.BundleParams{
-	   					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
-	   					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-	   				core.Bundle(),
-	   				secretsnoopfx.Module(),
-	   			)
-	   		},
-	   	}
+	cliParams := &dumpLoadedPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
 
-	   dumpLoadedPoliciesCmd.Flags().StringVar(&cliParams.outputPath, "output", "", "Path to write JSON output (default: stdout)")
-	   dumpLoadedPoliciesCmd.Flags().BoolVar(&cliParams.includeBundled, "include-bundled", false, "Include bundled policies in the output")
-	*/
-	return []*cobra.Command{}
-	// return []*cobra.Command{dumpLoadedPoliciesCmd}
+	dumpLoadedPoliciesCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "Dump the currently loaded policies as JSON",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(dumpLoadedPolicies,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
+				secretsnoopfx.Module(),
+			)
+		},
+	}
+
+	dumpLoadedPoliciesCmd.Flags().StringVar(&cliParams.outputPath, "output", "", "Path to write JSON output (default: stdout)")
+	dumpLoadedPoliciesCmd.Flags().BoolVar(&cliParams.includeBundled, "include-bundled", false, "Include bundled policies in the output")
+
+	return []*cobra.Command{dumpLoadedPoliciesCmd}
 }
 
 func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component, cliParams *dumpLoadedPoliciesCliParams) error {
