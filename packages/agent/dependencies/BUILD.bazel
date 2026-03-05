@@ -13,8 +13,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         # dependency cacerts
-        # External agents
-        # dependency 'jmxfetch'
+        "//deps/jmxfetch:all_files",
         # Used for memory profiling with the `status py` agent subcommand
         # dependency 'pympler'
         "//deps/snmp_traps:all_files",

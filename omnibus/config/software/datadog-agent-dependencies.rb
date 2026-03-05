@@ -18,11 +18,6 @@ dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 
-# External agents
-build do
-    command_on_repo_root "bazelisk run -- //deps/jmxfetch:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
-end
-
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
