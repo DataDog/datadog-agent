@@ -692,7 +692,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
     <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
-        className="bg-slate-800 border-r border-slate-700 flex flex-col"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector

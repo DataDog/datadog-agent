@@ -336,7 +336,7 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
         <div className="flex justify-between items-center">
@@ -478,7 +478,7 @@ function App() {
       {/* Episode info panel (shown when episode.json is present) */}
       {episodeInfo && <EpisodeInfoPanel info={episodeInfo} />}
 
-      <div className="flex-1 flex relative">
+      <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}
         <div
           className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-purple-500/50 active:bg-purple-500 z-10"

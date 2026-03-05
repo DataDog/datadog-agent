@@ -103,12 +103,10 @@ export function MetricsView({
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allSeries]);
 
-  const filteredSeries = useMemo(() => {
-    const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
-    const filter = parseTagFilter(tagFilterInput);
-    if (filter.include.size === 0 && filter.exclude.size === 0) return byAggType;
-    return byAggType.filter((s) => matchesTagFilter(s.tags ?? [], filter));
-  }, [allSeries, aggregationType, tagFilterInput]);
+  const filteredSeries = useMemo(
+    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    [allSeries, aggregationType]
+  );
 
   const metricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
@@ -173,6 +171,8 @@ export function MetricsView({
     () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
     [visibleGroups]
   );
+
+  const tagFilter = useMemo(() => parseTagFilter(tagFilterInput), [tagFilterInput]);
 
   const initializedScenarioRef = useRef<string | null>(null);
   useEffect(() => {
@@ -267,7 +267,7 @@ export function MetricsView({
   return (
     <div className="flex-1 flex">
       <aside
-        className="bg-slate-800 border-r border-slate-700 flex flex-col"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector
@@ -356,7 +356,7 @@ export function MetricsView({
           </label>
         </div>
 
-        <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+        <div className="p-4 border-b border-slate-700">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Metric Groups ({displayGroups.length})
@@ -521,9 +521,12 @@ export function MetricsView({
                     .map((groupKey) => {
                       const dataList = groupSeriesData.get(groupKey) ?? [];
                       if (dataList.length === 0) return null;
-                      const chartSeries = showAnomalyOnlySeriesLines
-                        ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                      const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
+                        ? dataList.filter((d) => matchesTagFilter(d.tags ?? [], tagFilter))
                         : dataList;
+                      const chartSeries = showAnomalyOnlySeriesLines
+                        ? tagFiltered.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                        : tagFiltered;
                       if (chartSeries.length === 0) return null;
                       const seriesIDs = new Set(chartSeries.map((d) => d.id));
                       const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
