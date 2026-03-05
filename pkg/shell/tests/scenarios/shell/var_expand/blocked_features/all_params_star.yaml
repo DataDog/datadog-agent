@@ -1,4 +1,4 @@
-description: All positional parameters $* is not supported in safe-shell.
+description: All positional parameters $* is not supported.
 input:
   # language=bash
   script: |+
