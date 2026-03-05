@@ -20,7 +20,6 @@ func TestVerify_AllowedScripts(t *testing.T) {
 		// Basic commands
 		{name: "echo", script: `echo hello world`},
 		{name: "echo with flag", script: `echo -n hello`},
-		{name: "pwd", script: `pwd`},
 		{name: "ls -la", script: `ls -la /tmp`},
 		{name: "ls combined flags", script: `ls -lah /var`},
 		{name: "cat", script: `cat /var/log/syslog`},
@@ -51,13 +50,6 @@ func TestVerify_AllowedScripts(t *testing.T) {
 		{name: "variable assignment", script: `reqid="abc"; grep "$reqid" /var/log/app.log`},
 		{name: "variable with arithmetic", script: `x=1; x=$((x+1)); echo $x`},
 
-		// Sed
-		{name: "sed basic", script: `echo "hello" | sed 's/hello/world/'`},
-		{name: "sed with -n", script: `echo "hello" | sed -n 's/hello/world/p'`},
-		{name: "sed with -e", script: `echo "hello" | sed -e 's/hello/world/' -e 's/world/earth/'`},
-		{name: "sed delete lines", script: `sed '/^$/d'`},
-		{name: "sed print lines", script: `sed -n '1,10p'`},
-
 		// Logical operators
 		{name: "and operator", script: `true && echo success`},
 		{name: "or operator", script: `false || echo fallback`},
@@ -67,14 +59,7 @@ func TestVerify_AllowedScripts(t *testing.T) {
 		{name: "double bracket", script: `[[ -f /tmp/test ]]`},
 
 		// Shell builtins
-		{name: "export", script: `export FOO=bar`},
-		{name: "local", script: `local x=1`},
-		{name: "readonly", script: `readonly y=2`},
-		{name: "declare", script: `declare -i count=0`},
-		{name: "set", script: `set -e`},
 		{name: "exit", script: `exit 0`},
-		{name: "colon", script: `:`},
-		{name: "read", script: `read -r line`},
 
 		// Double dash end-of-flags
 		{name: "double dash", script: `grep -- "-pattern" /tmp/file`},
@@ -134,11 +119,6 @@ func TestVerify_BlockedScripts(t *testing.T) {
 		{
 			name:       "sort -o",
 			script:     `sort -o /tmp/out input.txt`,
-			wantSubstr: "not allowed",
-		},
-		{
-			name:       "sed -i",
-			script:     `sed -i 's/a/b/' file.txt`,
 			wantSubstr: "not allowed",
 		},
 		{
@@ -238,6 +218,53 @@ func TestVerify_BlockedScripts(t *testing.T) {
 			wantSubstr: "not allowed",
 		},
 
+		// Removed commands
+		{
+			name:       "pwd",
+			script:     `pwd`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "cd",
+			script:     `cd /tmp`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "sed",
+			script:     `sed 's/a/b/'`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "set",
+			script:     `set -e`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "read",
+			script:     `read -r line`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "declare",
+			script:     `declare -i x=1`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "local",
+			script:     `local x=1`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "export",
+			script:     `export FOO=bar`,
+			wantSubstr: "not allowed",
+		},
+		{
+			name:       "readonly",
+			script:     `readonly x=1`,
+			wantSubstr: "not allowed",
+		},
+
 		// Dynamic command names
 		{
 			name:       "dynamic command name",
@@ -265,33 +292,6 @@ func TestVerify_BlockedScripts(t *testing.T) {
 			name:       "process substitution",
 			script:     `diff <(ls /a) <(ls /b)`,
 			wantSubstr: "not allowed",
-		},
-
-		// Dangerous sed commands
-		{
-			name:       "sed e command",
-			script:     `sed 'e'`,
-			wantSubstr: "sed",
-		},
-		{
-			name:       "sed s///e flag",
-			script:     `echo test | sed 's/a/b/e'`,
-			wantSubstr: "sed",
-		},
-		{
-			name:       "sed w command",
-			script:     `sed 'w /tmp/output'`,
-			wantSubstr: "sed",
-		},
-		{
-			name:       "sed s///w flag",
-			script:     `echo test | sed 's/a/b/w /tmp/out'`,
-			wantSubstr: "sed",
-		},
-		{
-			name:       "sed r command",
-			script:     `sed 'r /etc/passwd'`,
-			wantSubstr: "sed",
 		},
 
 		// PipeAll
@@ -341,20 +341,11 @@ func TestVerify_ParseError(t *testing.T) {
 	assert.Contains(t, err.Error(), "parse")
 }
 
-func TestVerify_SedScriptWithVariableExpansion(t *testing.T) {
-	// sed script that includes variable expansion cannot be verified
-	err := Verify(`sed "s/$FOO/bar/"`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "variable expansion")
-}
-
 func TestVerify_NestedControlFlow(t *testing.T) {
 	script := `
 for f in /var/log/*.log; do
     if [ -f "$f" ]; then
-        grep ERROR "$f" | while read -r line; do
-            echo "$line" | sort | uniq -c
-        done
+        grep ERROR "$f" | sort | uniq -c
     fi
 done
 `
@@ -437,13 +428,6 @@ func TestVerify_TypesetRejected(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestVerify_SedCombinedEFlag(t *testing.T) {
-	// sed -es/a/b/e — the -e flag combined with script containing execute flag
-	err := Verify(`echo test | sed -es/a/b/e`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sed")
-}
-
 func TestVerify_CombinedFlagsBypass(t *testing.T) {
 	// -n10f should catch the -f flag even though it follows digits
 	err := Verify(`tail -n10f /var/log/syslog`)
@@ -471,58 +455,11 @@ func TestVerify_CoprocCommand(t *testing.T) {
 
 // --- Round 2 security regression tests ---
 
-func TestVerify_DeclareNamerefFlagBlocked(t *testing.T) {
-	// declare -n creates a nameref — must be blocked even though "declare" variant is allowed
-	err := Verify(`declare -n ref=PATH`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not allowed")
-}
-
-func TestVerify_LocalNamerefFlagBlocked(t *testing.T) {
-	err := Verify(`local -n ref=PATH`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not allowed")
-}
-
 func TestVerify_GrepFBlocked(t *testing.T) {
 	// grep -f reads patterns from files — could exfiltrate file contents
 	err := Verify(`grep -f /etc/shadow /dev/null`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
-}
-
-func TestVerify_ExportFBlocked(t *testing.T) {
-	// export -f exports functions — ShellShock risk
-	err := Verify(`export -f myfunc`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not allowed")
-}
-
-func TestVerify_SedYCommandBypass(t *testing.T) {
-	// sed 'y/a/b/e' — the y command must not cause the scanner to miss the trailing 'e'
-	err := Verify(`sed 'y/a/b/;e'`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sed")
-}
-
-func TestVerify_SedEFlagWithExtendedRegex(t *testing.T) {
-	// sed -E with dangerous script — -E is extended regex, not -e
-	err := Verify(`sed -E 'e'`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sed")
-}
-
-func TestVerify_SedBranchLabel(t *testing.T) {
-	// sed with branch and label — should not false-positive on label characters
-	err := Verify(`sed ':loop; b loop'`)
-	assert.NoError(t, err, "sed branch with label should be allowed")
-}
-
-func TestVerify_SedBranchDangerousAfter(t *testing.T) {
-	// sed branch followed by dangerous command
-	err := Verify(`sed ':loop; b loop; e'`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sed")
 }
 
 func TestVerify_PrefixAssignPATH(t *testing.T) {
@@ -539,7 +476,7 @@ func TestVerify_PrefixAssignLDPreload(t *testing.T) {
 }
 
 func TestVerify_PrefixAssignIFS(t *testing.T) {
-	err := Verify(`IFS=: read -r a b c`)
+	err := Verify(`IFS=: echo hello`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "IFS")
 }
@@ -550,38 +487,9 @@ func TestVerify_SafePrefixAssign(t *testing.T) {
 	assert.NoError(t, err, "safe prefix assignment should be allowed")
 }
 
-func TestVerify_SetPlusFlags(t *testing.T) {
-	// set +e should be validated against the allowlist
-	err := Verify(`set +e`)
-	assert.NoError(t, err, "set +e should be allowed")
-}
-
-func TestVerify_SetPlusInvalidFlag(t *testing.T) {
-	// set with invalid + flag
-	err := Verify(`set +Z`)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not allowed")
-}
-
-func TestVerify_DeclareWithFlags(t *testing.T) {
-	// declare -i should be allowed
-	err := Verify(`declare -i count=0`)
-	assert.NoError(t, err, "declare -i should be allowed")
-}
-
-func TestVerify_ShiftCommand(t *testing.T) {
-	err := Verify(`shift`)
-	assert.NoError(t, err, "shift should be allowed")
-}
-
 func TestVerify_ReturnCommand(t *testing.T) {
 	err := Verify(`return 0`)
 	assert.NoError(t, err, "return should be allowed")
-}
-
-func TestVerify_UnsetCommand(t *testing.T) {
-	err := Verify(`unset FOO`)
-	assert.NoError(t, err, "unset should be allowed")
 }
 
 func TestVerify_BraceExpansion(t *testing.T) {

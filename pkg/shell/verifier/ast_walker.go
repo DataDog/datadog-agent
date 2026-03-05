@@ -87,8 +87,8 @@ func (v *verifier) verifyCommand(cmd syntax.Command) {
 		v.verifyTestExpr(c.X)
 
 	case *syntax.DeclClause:
-		// declare, local, export, readonly — verify the arguments
-		v.verifyDeclClause(c)
+		v.addViolation(c.Pos(), "command",
+			fmt.Sprintf("declaration command %q is not allowed", c.Variant.Value))
 
 	case *syntax.LetClause:
 		v.addViolation(c.Pos(), "shell_feature", "let command is not allowed")
@@ -177,10 +177,6 @@ func (v *verifier) verifyCallExpr(c *syntax.CallExpr) {
 
 	v.verifyFlags(cmdWord.Pos(), cmdName, c.Args[1:], allowedFlags)
 
-	// Special handling: sed scripts need content analysis.
-	if cmdName == "sed" {
-		v.verifySedArgs(c.Args[1:])
-	}
 }
 
 // verifyFlags checks that all flags used in a command are in the allowlist.
@@ -375,51 +371,3 @@ func (v *verifier) verifyTestExpr(expr syntax.TestExpr) {
 	}
 }
 
-// verifyDeclClause verifies declare/local/export/readonly commands.
-func (v *verifier) verifyDeclClause(c *syntax.DeclClause) {
-	if c == nil {
-		return
-	}
-
-	// Validate the variant is one we explicitly allow.
-	// typeset and nameref are dangerous: nameref enables indirect variable
-	// manipulation that could be used for exploitation.
-	switch c.Variant.Value {
-	case "declare", "local", "export", "readonly":
-		// allowed
-	default:
-		v.addViolation(c.Pos(), "command",
-			fmt.Sprintf("declaration command %q is not allowed", c.Variant.Value))
-		return
-	}
-
-	// Validate flags. In DeclClause, flags appear as Assign entries with Naked=true.
-	cmdName := c.Variant.Value
-	allowedFlags := allowedCommands[cmdName]
-	for _, assign := range c.Args {
-		if assign.Naked && assign.Value != nil {
-			flagVal, ok := literalWordValue(assign.Value)
-			if ok && strings.HasPrefix(flagVal, "-") {
-				if !allowedFlags[flagVal] {
-					v.addViolation(assign.Pos(), "flag",
-						fmt.Sprintf("flag %q is not allowed for command %q", flagVal, cmdName))
-				}
-			}
-		}
-		// Walk Index, Value, and Array elements for command substitutions.
-		if assign.Index != nil {
-			v.verifyArithmExpr(assign.Index)
-		}
-		if assign.Value != nil {
-			v.verifyWord(assign.Value)
-		}
-		if assign.Array != nil {
-			for _, elem := range assign.Array.Elems {
-				if elem.Index != nil {
-					v.verifyArithmExpr(elem.Index)
-				}
-				v.verifyWord(elem.Value)
-			}
-		}
-	}
-}
