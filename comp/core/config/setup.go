@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -85,6 +86,19 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 	for k, v := range p.cliOverride {
 		config.Set(k, v, pkgconfigmodel.SourceCLI)
+	}
+
+	// If -c points to a directory (not a specific .yaml file), and the user has not explicitly
+	// set confd_path or additional_checksd, derive them from that directory. This ensures that
+	// an agent started with -c /etc/datadog-agent-exp reads integrations from
+	// /etc/datadog-agent-exp/conf.d instead of the hardcoded /etc/datadog-agent/conf.d default.
+	if confFilePath != "" && !strings.HasSuffix(confFilePath, ".yaml") && !strings.HasSuffix(confFilePath, ".yml") {
+		if config.GetSource("confd_path") == pkgconfigmodel.SourceDefault {
+			config.Set("confd_path", filepath.Join(confFilePath, "conf.d"), pkgconfigmodel.SourceCLI)
+		}
+		if config.GetSource("additional_checksd") == pkgconfigmodel.SourceDefault {
+			config.Set("additional_checksd", filepath.Join(confFilePath, "checks.d"), pkgconfigmodel.SourceCLI)
+		}
 	}
 
 	return nil

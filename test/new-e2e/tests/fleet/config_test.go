@@ -296,6 +296,25 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
 }
 
+// TestExperimentConfdPath verifies that when the agent runs in experiment mode
+// (-c /etc/datadog-agent-exp), confd_path and additional_checksd are derived
+// from the experiment config directory instead of the hardcoded defaults.
+func (s *configSuite) TestExperimentConfdPath() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID:   "confd-path-test",
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{}`)}},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	status, err := s.Agent.Status()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "/etc/datadog-agent-exp/conf.d", status.Config.ConfdPath)
+	require.Equal(s.T(), "/etc/datadog-agent-exp/checks.d", status.Config.AdditionalChecksd)
+}
+
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
 // correctly preserves the stable_config_version and does not overwrite it
 // with the experiment deployment ID.
