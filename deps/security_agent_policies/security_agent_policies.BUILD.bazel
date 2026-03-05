@@ -6,20 +6,21 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load(":version.bzl", "DOWNLOAD_URL", "VERSION")
 
 package(default_package_metadata = [":package_metadata"])
 
-_VERSION = "0.77.0"
-
 package_metadata(
     name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
+    # Not depending on license is intentional. We don't want to pick up the license file automatically.
+    # This is DD authored code, covered as part of the top level product LICENSE. It only happens to
+    # be in a separate repository for convenience. It is really part of the product.
+    # We do, however, want to collect the purl for SBOM creation, so we keep the block.
+    attributes = [],
     purl = purl_for_generic(
         package = "security-agent-policies",
-        version = _VERSION,
-        download_url = "https://github.com/DataDog/security-agent-policies/archive/refs/tags/v{version}.tar.gz",
+        version = VERSION,
+        download_url = DOWNLOAD_URL,
     ),
 )
 
