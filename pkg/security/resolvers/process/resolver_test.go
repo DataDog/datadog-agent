@@ -1142,3 +1142,121 @@ func TestSubreaperReparenting(t *testing.T) {
 	assert.Zero(t, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
 }
+
+func TestTryReparentFromKernelPPid(t *testing.T) {
+	t.Run("same-ppid-noop", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		parent := newFakeForkEvent(1, 5000001, 100, resolver)
+		child := newFakeForkEvent(5000001, 5000002, 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+
+		assert.Equal(t, uint32(5000001), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000001)
+
+		assert.Equal(t, uint32(5000001), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Load())
+		assert.Equal(t, int64(0), resolver.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("different-ppid-parent-in-cache", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		// Use high PIDs to avoid collisions with real system processes
+		// init(1) -> grandparent(5000010) -> parent(5000011) -> child(5000012)
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		grandparent := newFakeForkEvent(1, 5000010, 100, resolver)
+		parent := newFakeForkEvent(5000010, 5000011, 100, resolver)
+		child := newFakeForkEvent(5000011, 5000012, 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(grandparent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+
+		assert.Equal(t, uint32(5000011), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+
+		// Kernel reports ppid=5000010 (grandparent) — subreaper reparenting
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000010)
+
+		assert.Equal(t, uint32(5000010), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, grandparent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("different-ppid-parent-not-in-cache", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		parent := newFakeForkEvent(1, 5000020, 100, resolver)
+		child := newFakeForkEvent(5000020, 5000021, 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+
+		// Kernel reports ppid=99997 which is not in cache and unresolvable
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 99997)
+
+		assert.Equal(t, uint32(5000020), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("kernel-ppid-zero-skip", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		parent := newFakeForkEvent(1, 5000030, 100, resolver)
+		child := newFakeForkEvent(5000030, 5000031, 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
+
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 0)
+
+		assert.Equal(t, uint32(5000030), child.ProcessCacheEntry.PPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Load())
+		assert.Equal(t, int64(0), resolver.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Load())
+	})
+
+	t.Run("pid1-skip", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+
+		resolver.TryReparentFromKernelPPid(init1.ProcessCacheEntry, 999)
+
+		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Load())
+		assert.Equal(t, int64(0), resolver.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Load())
+	})
+}
