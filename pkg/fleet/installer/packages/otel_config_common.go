@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v2"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -32,6 +34,15 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 	}
 	existing["otelcollector"] = map[string]any{"enabled": true}
 	existing["agent_ipc"] = map[string]any{"port": 5009, "config_refresh_interval": 60}
+
+	_, ok := existing["installer"]
+	registryURL := env.FromEnv().RegistryOverride
+	if !ok && registryURL != "" {
+		existing["installer"] = map[string]any{
+			"registry": map[string]any{"url": registryURL},
+		}
+	}
+
 	updated, err := yaml.Marshal(existing)
 	if err != nil {
 		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
