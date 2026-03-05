@@ -861,7 +861,7 @@ new-e2e-ndm-snmp:
     - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/snmp
-    TEAM: ndm-core
+    TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ha-agent:
@@ -871,7 +871,7 @@ new-e2e-ha-agent:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ha-agent
-    TEAM: ndm-core
+    TEAM: network-device-monitoring-core
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
@@ -883,7 +883,7 @@ new-e2e-ha-agent-failover:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ha-agent
-    TEAM: ndm-core
+    TEAM: network-device-monitoring-core
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
