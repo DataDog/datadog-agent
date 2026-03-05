@@ -680,18 +680,25 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
+				return nil, fmt.Errorf(
+					"mismatch between loclist pieces and type memory layout for %s: %s",
+					op.Variable.Name, op.Variable.Type.GetName(),
+				)
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
+			for nextLayoutIdx < len(layoutPieces) &&
+				layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				switch p := piece.Op.(type) {
-				case ir.Register:
+			switch p := piece.Op.(type) {
+			case ir.Register:
+				// Register pieces are small and map to individual layout
+				// pieces. Check whether this piece's padded position falls
+				// within the requested range.
+				if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
 					if piece.Size > 8 {
 						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
 					}
@@ -700,15 +707,26 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						Size:         uint8(piece.Size),
 						OutputOffset: paddedOffset - op.Offset,
 					})
-				case ir.Cfa:
-					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       p.CfaOffset,
-						Len:          piece.Size,
-						OutputOffset: paddedOffset - op.Offset,
-					})
-				case ir.Addr:
-					return nil, errUnsupportedAddrLocationOp
 				}
+			case ir.Cfa:
+				// CFA pieces represent contiguous memory on the stack that
+				// already has correct padding. Compute the overlap between
+				// this piece's range and the requested range, then read just
+				// that portion.
+				pieceEnd := paddedOffset + piece.Size
+				reqEnd := op.Offset + op.ByteSize
+				overlapStart := max(op.Offset, paddedOffset)
+				overlapEnd := min(reqEnd, pieceEnd)
+				if overlapStart < overlapEnd {
+					cfaOff := p.CfaOffset + int32(overlapStart-paddedOffset)
+					ops = append(ops, ExprDereferenceCfaOp{
+						Offset:       cfaOff,
+						Len:          overlapEnd - overlapStart,
+						OutputOffset: overlapStart - op.Offset,
+					})
+				}
+			case ir.Addr:
+				return nil, errUnsupportedAddrLocationOp
 			}
 		}
 		return ops, nil
