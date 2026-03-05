@@ -2,6 +2,35 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.2:
+
+7.76.2
+======
+
+.. _Release Notes_7.76.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-23
+
+- Please refer to the `7.76.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7760>`_ for the list of changes on the Core Checks
+
+
+Released on: 2026-02-26
+
+- Refer to the `7.76.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7761>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The ``infra_mode`` tag is now correctly added to ``system.cpu.user`` on Windows when
+  ``infrastructure_mode`` is not set to ``"full"``, matching the behavior of the Linux cpu check.
+
+
 .. _Release Notes_7.76.1:
 
 7.76.1
