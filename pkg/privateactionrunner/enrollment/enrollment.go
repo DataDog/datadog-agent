@@ -34,7 +34,7 @@ type PersistedIdentity struct {
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey, agentHostname, orchClusterID, agentFlavor string) (*Result, error) {
 	now := time.Now().UTC()
 	formattedTime := now.Format("20060102150405")
 	runnerName := runnerNamePrefix + "-" + formattedTime
@@ -56,6 +56,9 @@ func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, a
 		runnerName,
 		runnerModes,
 		publicJwk,
+		agentHostname,
+		orchClusterID,
+		agentFlavor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
