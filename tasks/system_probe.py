@@ -840,7 +840,7 @@ def build_sysprobe_binary(
             else:
                 env[k] = v
 
-    if not is_windows and not is_macos:
+    if not is_windows and not is_macos and not static:
         build_rust_cgo_libs(ctx, arch=arch_obj)
         build_tags.append("dd_discovery_cgo")
 
