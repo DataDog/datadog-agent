@@ -3,6 +3,8 @@ import { useObserver } from './hooks/useObserver';
 import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
+import type { EpisodeInfo } from './api/client';
+import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs';
 
@@ -98,6 +100,88 @@ function EditableTimestamp({ value, onChange }: { value: number; onChange: (ts: 
   );
 }
 
+const PHASE_STYLES: Record<string, { bg: string; border: string; label: string }> = {
+  warmup:     { bg: 'bg-blue-900/40',   border: 'border-blue-500/50',   label: 'Warmup' },
+  baseline:   { bg: 'bg-green-900/40',  border: 'border-green-500/50',  label: 'Baseline' },
+  disruption: { bg: 'bg-red-900/40',    border: 'border-red-500/50',    label: 'Disruption' },
+  cooldown:   { bg: 'bg-yellow-900/40', border: 'border-yellow-500/50', label: 'Cooldown' },
+};
+
+function formatTime(isoString: string): string {
+  const d = new Date(isoString);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const phases: { key: string; phase: typeof info.baseline }[] = [
+    { key: 'warmup', phase: info.warmup },
+    { key: 'baseline', phase: info.baseline },
+    { key: 'disruption', phase: info.disruption },
+    { key: 'cooldown', phase: info.cooldown },
+  ].filter(p => p.phase != null);
+
+  return (
+    <div className="bg-slate-800/60 border-b border-slate-700 px-4 py-2">
+      <div className="flex items-start gap-4 flex-wrap">
+        {/* Episode identity */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs font-mono text-slate-400">Episode</span>
+          <span className="text-sm font-semibold text-white">{info.episode}</span>
+          <span className="text-xs text-slate-500">#{info.cycle}</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${info.success ? 'bg-green-900/60 text-green-400' : 'bg-red-900/60 text-red-400'}`}>
+            {info.success ? '✓' : '✗'}
+          </span>
+        </div>
+
+        {/* App name */}
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-xs text-slate-400">App</span>
+          <span className="text-sm text-slate-200">{info.scenario.app_name}</span>
+        </div>
+
+        {/* Description (truncated, expandable) */}
+        <div className="flex-1 min-w-0">
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="text-left w-full group"
+          >
+            {expanded ? (
+              <span className="text-xs text-slate-300 leading-relaxed">{info.scenario.long_description || info.scenario.description}</span>
+            ) : (
+              <span className="text-xs text-slate-400 truncate block group-hover:text-slate-300 transition-colors">
+                {info.scenario.description}
+                <span className="ml-1 text-slate-500">[+]</span>
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Phase timeline */}
+        {phases.length > 0 && (
+          <div className="flex items-center gap-1 shrink-0">
+            {phases.map(({ key, phase }) => {
+              if (!phase) return null;
+              const style = PHASE_STYLES[key] ?? { bg: 'bg-slate-700', border: 'border-slate-500', label: key };
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded border text-xs ${style.bg} ${style.border}`}
+                >
+                  <span className="text-slate-300 font-medium">{style.label}</span>
+                  <span className="font-mono text-slate-400">{formatTime(phase.start)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
@@ -167,6 +251,56 @@ function App() {
     if (start == null || end == null || end <= start) return null;
     return { start, end };
   }, [state.status?.scenarioStart, state.status?.scenarioEnd]);
+
+  // Episode info from JSON (optional)
+  const episodeInfo = state.status?.episodeInfo ?? null;
+  const episodeTimeRange = useMemo<TimeRange | null>(() => {
+    if (!episodeInfo?.start_time || !episodeInfo?.end_time) return null;
+    const start = new Date(episodeInfo.start_time).getTime() / 1000;
+    const end = new Date(episodeInfo.end_time).getTime() / 1000;
+    if (isNaN(start) || isNaN(end) || end <= start) return null;
+    return { start, end };
+  }, [episodeInfo?.start_time, episodeInfo?.end_time]);
+
+  // Phase markers derived from episode info — dotted lines on all charts
+  const phaseMarkers = useMemo<PhaseMarker[]>(() => {
+    if (!episodeInfo) return [];
+    const defs = [
+      { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
+      { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
+      { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
+      { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
+    ];
+    const markers: PhaseMarker[] = [];
+    for (const { key, label, phase, color } of defs) {
+      if (!phase?.start) continue;
+      const ts = new Date(phase.start).getTime() / 1000;
+      if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
+    }
+    return markers;
+  }, [episodeInfo]);
+
+  // When the active scenario changes, reset zoom (episode range effect will re-apply it)
+  const prevScenarioRef = useRef<string | null | undefined>(undefined);
+  const appliedEpisodeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.activeScenario === prevScenarioRef.current) return;
+    prevScenarioRef.current = state.activeScenario;
+    appliedEpisodeRef.current = null; // Allow episode range to be re-applied
+    setTimeRangeLive(null);
+    setNav({ history: [null], index: 0 });
+  }, [state.activeScenario]);
+
+  // Once episode info arrives for a freshly loaded scenario, apply its time range as default
+  useEffect(() => {
+    if (!episodeTimeRange || !episodeInfo) return;
+    const id = episodeInfo.execution_id || episodeInfo.episode;
+    if (appliedEpisodeRef.current === id) return;
+    appliedEpisodeRef.current = id;
+    commitTimeRange(episodeTimeRange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episodeTimeRange, episodeInfo]);
+
   const activeTimeRange = timeRange ?? scenarioTimeRange;
 
   // Sidebar resize handlers
@@ -202,7 +336,7 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
         <div className="flex justify-between items-center">
@@ -288,15 +422,23 @@ function App() {
                 <span className="text-xs text-slate-500 ml-1">
                   (middle-drag or cmd+drag to pan)
                 </span>
-                {timeRange && (
+                {/* Two reset buttons: scenario range vs all data */}
+                {episodeTimeRange && (
                   <button
-                    onClick={() => commitTimeRange(null)}
-                    className="ml-2 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
-                    title="Reset time span"
+                    onClick={() => commitTimeRange(episodeTimeRange)}
+                    className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-purple-700 rounded text-slate-300"
+                    title="Reset to scenario time range (from episode.json)"
                   >
-                    Reset
+                    Scenario
                   </button>
                 )}
+                <button
+                  onClick={() => commitTimeRange(null)}
+                  className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
+                  title="Reset to full metrics/logs time range"
+                >
+                  All Data
+                </button>
               </div>
             )}
             {!activeTimeRange && state.connectionState === 'ready' && (
@@ -333,7 +475,10 @@ function App() {
         </div>
       </header>
 
-      <div className="flex-1 flex relative">
+      {/* Episode info panel (shown when episode.json is present) */}
+      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} />}
+
+      <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}
         <div
           className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-purple-500/50 active:bg-purple-500 z-10"
@@ -350,6 +495,7 @@ function App() {
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
+            phaseMarkers={phaseMarkers}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
@@ -358,6 +504,7 @@ function App() {
             actions={actions}
             sidebarWidth={sidebarWidth}
             timeRange={activeTimeRange}
+            phaseMarkers={phaseMarkers}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'logs' ? 'hidden' : ''}`}>
@@ -367,6 +514,7 @@ function App() {
             sidebarWidth={sidebarWidth}
             timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
+            phaseMarkers={phaseMarkers}
           />
         </div>
       </div>

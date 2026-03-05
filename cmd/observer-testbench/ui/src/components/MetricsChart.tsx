@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import type { Point, AnomalyMarker, SeriesID } from '../api/client';
-import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
+import type { CorrelationRange, TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 
 // Detector color palette - colors are assigned by stable index
 const DETECTOR_PALETTE: { fill: string; stroke: string }[] = [
@@ -87,6 +87,7 @@ interface MetricsChartProps {
   onMarkerHover?: (markerId: string | null) => void;
   onMarkerClick?: (markerId: string) => void;
   isTelemetry?: boolean;
+  phaseMarkers?: PhaseMarker[];
 }
 
 export function MetricsChart({
@@ -107,6 +108,7 @@ export function MetricsChart({
   onMarkerHover,
   onMarkerClick,
   isTelemetry = false,
+  phaseMarkers = [],
 }: MetricsChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
@@ -421,6 +423,29 @@ export function MetricsChart({
       .attr('opacity', 0.1)
       .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ''));
 
+    // Phase marker lines (dotted vertical lines for episode phases)
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp * 1000);
+      if (x < -20 || x > innerWidth + 20) return;
+      g.append('line')
+        .attr('x1', x).attr('x2', x)
+        .attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', marker.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3')
+        .attr('opacity', 0.75)
+        .attr('pointer-events', 'none');
+      g.append('text')
+        .attr('x', x + 3)
+        .attr('y', 10)
+        .attr('fill', marker.color)
+        .attr('font-size', '9px')
+        .attr('font-family', 'monospace')
+        .attr('opacity', 0.9)
+        .attr('pointer-events', 'none')
+        .text(marker.label);
+    });
+
     // Add brush for time range selection
     const brush = d3
       .brushX<unknown>()
@@ -481,6 +506,7 @@ export function MetricsChart({
     activeHighlightedSeriesId,
     onMarkerHover,
     onMarkerClick,
+    phaseMarkers,
   ]);
 
   // Handle resize

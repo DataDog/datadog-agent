@@ -276,8 +276,8 @@ export function SeriesTree({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex gap-1 mb-2 flex-wrap flex-shrink-0">
+    <div className="flex flex-col">
+      <div className="flex gap-1 mb-2 flex-wrap">
         <button
           onClick={expandAll}
           className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
@@ -301,7 +301,7 @@ export function SeriesTree({
         </button>
       </div>
 
-      <div className="overflow-y-auto flex-1 min-h-0 pr-1">
+      <div className="pr-1">
         {Array.from(tree.children.values()).map((child) => (
           <TreeNodeComponent
             key={child.fullPath}
