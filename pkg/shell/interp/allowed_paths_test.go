@@ -166,6 +166,17 @@ func TestAllowedPathsTraversalBlocked(t *testing.T) {
 	assert.Contains(t, stderr, "permission denied")
 }
 
+func TestAllowedPathsDoubleDotFilename(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "..hidden"), []byte("dotdot content\n"), 0644))
+
+	stdout, _, exitCode := runScript(t, `cat ..hidden`, dir,
+		interp.AllowedPaths([]string{dir}),
+	)
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, "dotdot content\n", stdout)
+}
+
 func TestAllowedPathsEmptyBlocksAll(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.txt"), []byte("test"), 0644))

@@ -55,7 +55,9 @@ func findMatchingRoot(absPath string, roots []*os.Root, allowedPaths []string) (
 		if err != nil {
 			continue
 		}
-		if strings.HasPrefix(rel, "..") {
+		// Check for exact ".." or "..<sep>..." to detect escapes, but not
+		// filenames that happen to start with two dots (e.g. "..hidden").
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue
 		}
 		return roots[i], rel, true
