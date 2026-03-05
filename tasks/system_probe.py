@@ -2110,6 +2110,21 @@ def save_build_outputs(ctx, destfile):
                 outfiles.append(outputitem['output'])
                 count += 1
 
+        # Include Bazel-produced eBPF .o files (prebuilt + CO-RE) which are
+        # no longer tracked by the ninja compile database.
+        arch = Arch.local()
+        build_dir = get_ebpf_build_dir(arch)
+        for subdir in ["", "co-re"]:
+            src_dir = os.path.join(str(build_dir), subdir) if subdir else str(build_dir)
+            for obj in glob.glob(os.path.join(src_dir, "*.o")):
+                relpath = os.path.relpath(obj)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(obj, outdir)
+                outfiles.append(relpath)
+                count += 1
+
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
