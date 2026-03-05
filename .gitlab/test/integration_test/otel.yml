@@ -167,11 +167,10 @@ ddot_byoc_package_build_test_deb:
     - when: on_success
 
 ddot_byoc_package_build_test_linux_oci:
-  stage: e2e
+  stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs:
     - "integration_tests_otel"
-    - "agent_oci"
   tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [docker_image_build_otel, before_script]
@@ -185,6 +184,7 @@ ddot_byoc_package_build_test_linux_oci:
     # Start a local OCI registry to receive both the source agent OCI and the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
     - OUTPUT_OCI="localhost:5000/ddot-byoc:${AGENT_VERSION}"
+    # TODO: use pinned pipeline for AGENT_OCI until DDOT extension is released in 7.78.0
     - |
       docker build \
       --target builder \
@@ -194,7 +194,7 @@ ddot_byoc_package_build_test_linux_oci:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
       --build-arg PACKAGE_TYPE=linux \
-      --build-arg AGENT_OCI=installtesting.datad0g.com/agent-package:pipeline-$CI_PIPELINE_ID \
+      --build-arg AGENT_OCI=installtesting.datad0g.com/agent-package:pipeline-99967119 \
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
