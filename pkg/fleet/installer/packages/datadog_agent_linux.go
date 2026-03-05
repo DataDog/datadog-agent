@@ -854,13 +854,17 @@ func saveODBCConfig(packagePath string) error {
 func restoreODBCConfig(packagePath string) error {
 	for _, filename := range odbcConfigFiles {
 		src := filepath.Join(paths.RootTmpDir, filename)
-		dst := filepath.Join(packagePath, "embedded", "etc", filename)
+		dstDir := filepath.Join(packagePath, "embedded", "etc")
+		dst := filepath.Join(dstDir, filename)
 		data, err := os.ReadFile(src)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
 			return fmt.Errorf("failed to read %s: %w", src, err)
+		}
+		if err := os.MkdirAll(dstDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dstDir, err)
 		}
 		if err := os.WriteFile(dst, data, 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", dst, err)

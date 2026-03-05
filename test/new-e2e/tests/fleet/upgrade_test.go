@@ -125,10 +125,11 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 
-	odbcIni, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-agent/embedded/etc/odbc.ini")
+	// After DEB→OCI promote, the agent runs from /opt/datadog-packages/datadog-agent/stable/
+	odbcIni, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/stable/embedded/etc/odbc.ini")
 	s.Require().NoError(err)
 	s.Require().Contains(odbcIni, "[ODBC]")
-	odbcInst, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-agent/embedded/etc/odbcinst.ini")
+	odbcInst, err := s.Env().RemoteHost.Execute("sudo cat /opt/datadog-packages/datadog-agent/stable/embedded/etc/odbcinst.ini")
 	s.Require().NoError(err)
 	s.Require().Contains(odbcInst, "[ODBC Driver 18 for SQL Server]")
 }
