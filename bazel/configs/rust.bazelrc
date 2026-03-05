@@ -2,4 +2,5 @@ build:rust-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
 build:rust-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
 build:rust-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
 build:rust-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
+# It was discussed in the Bazel/Rust round if we should drop this flag. Therefore, commenting it out for now.
 # build:rust-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding

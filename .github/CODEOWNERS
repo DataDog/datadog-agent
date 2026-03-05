@@ -26,8 +26,7 @@
 /.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
-/bazel/configs/sdagent.bazelrc               @DataDog/agent-discovery
-/bazel/configs/procmgrd.bazelrc              @DataDog/agent-runtimes
+/bazel/configs/rust.bazelrc               @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
 /deps/                                  @DataDog/agent-build
 
