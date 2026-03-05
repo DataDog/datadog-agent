@@ -210,6 +210,16 @@ tasks.
 4. **Update documentation**: Keep docs in sync with code changes
 6. **Check for security implications**: Review security-sensitive changes carefully
 
+## Task Tracking
+
+Tasks are tracked with [taskmd](https://github.com/scottopell/taskmd) in `taskmd/`.
+
+```bash
+taskmd validate taskmd   # check consistency
+taskmd fix taskmd        # auto-repair filenames/frontmatter
+taskmd next taskmd       # get next task number
+```
+
 ## Troubleshooting Development Issues
 
 ### Common Build Issues
