@@ -166,6 +166,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 
 	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
 	log.Infof("Flare zipfile successfully created: %s\n%s", filePath, res)
+	if err := os.Remove(filePath); err != nil {
+		log.Warnf("Could not remove local flare archive %s: %v", filePath, err)
+	}
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function

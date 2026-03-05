@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"sync"
@@ -212,6 +213,9 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	s.log.Debug(response)
 	if e != nil {
 		return
+	}
+	if err := os.Remove(filePath); err != nil {
+		s.log.Warnf("Could not remove local flare archive %s: %v", filePath, err)
 	}
 	return response, nil
 }

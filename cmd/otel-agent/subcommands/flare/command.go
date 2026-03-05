@@ -151,6 +151,9 @@ func makeFlare(
 	if e != nil {
 		return e
 	}
+	if err := os.Remove(filePath); err != nil {
+		fmt.Fprintf(color.Output, "Note: could not remove local flare archive %s: %v\n", filePath, err)
+	}
 	return nil
 }
 

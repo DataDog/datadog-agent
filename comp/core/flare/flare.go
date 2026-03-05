@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -138,6 +139,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
 	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	if err == nil {
+		if removeErr := os.Remove(filePath); removeErr != nil {
+			f.log.Warnf("Could not remove local flare archive %s: %v", filePath, removeErr)
+		}
+	}
 	return true, err
 }
 
