@@ -6,11 +6,17 @@
 pub mod server;
 pub mod service;
 
+#[cfg(not(bazel))]
 pub mod proto {
     tonic::include_proto!("datadog.procmgr");
 
     pub const FILE_DESCRIPTOR_SET: &[u8] =
         tonic::include_file_descriptor_set!("process_manager_descriptor");
+}
+
+#[cfg(bazel)]
+pub mod proto {
+    pub use process_manager_rust_proto::datadog::procmgr::*;
 }
 
 #[cfg(test)]
@@ -41,19 +47,28 @@ mod tests {
         let mgr = ProcessManager::new(processes);
         let svc = ProcessManagerService::new(mgr, "/test/config/path".to_string());
 
-        let reflection = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
-            .build_v1()
-            .unwrap();
-
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
         tokio::spawn(async move {
-            tonic::transport::Server::builder()
-                .add_service(reflection)
-                .add_service(proto::process_manager_server::ProcessManagerServer::new(
-                    svc,
-                ))
+            let pm_service =
+                proto::process_manager_server::ProcessManagerServer::new(svc);
+
+            #[cfg(not(bazel))]
+            let router = {
+                let reflection = tonic_reflection::server::Builder::configure()
+                    .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
+                    .build_v1()
+                    .unwrap();
+                tonic::transport::Server::builder()
+                    .add_service(reflection)
+                    .add_service(pm_service)
+            };
+
+            #[cfg(bazel)]
+            let router =
+                tonic::transport::Server::builder().add_service(pm_service);
+
+            router
                 .serve_with_incoming_shutdown(uds_stream, async {
                     let _ = shutdown_rx.await;
                 })

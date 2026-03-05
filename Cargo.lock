@@ -393,6 +393,9 @@ dependencies = [
  "log",
  "nix",
  "prost",
+ "prost-types",
+ "protoc-gen-prost",
+ "protoc-gen-tonic",
  "serde",
  "serde_yaml",
  "simple_logger",
@@ -1210,6 +1213,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
 dependencies = [
  "prost",
+]
+
+[[package]]
+name = "protoc-gen-prost"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77eb17a7657a703f30cb9b7ba4d981e4037b8af2d819ab0077514b0bef537406"
+dependencies = [
+ "once_cell",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "regex",
+]
+
+[[package]]
+name = "protoc-gen-tonic"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ab6a0d73a0914752ed8fd7cc51afe169e28da87be3efef292de5676cc527634"
+dependencies = [
+ "heck",
+ "prettyplease",
+ "proc-macro2",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "protoc-gen-prost",
+ "quote",
+ "regex",
+ "syn",
+ "tonic-build",
 ]
 
 [[package]]

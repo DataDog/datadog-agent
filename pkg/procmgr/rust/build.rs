@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo::rustc-check-cfg=cfg(bazel)");
+
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("process_manager_descriptor.bin"))
