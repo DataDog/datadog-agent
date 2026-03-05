@@ -17,6 +17,9 @@ retract (
 
 // Internal deps fix version
 replace (
+
+	// Local agent-payload with TCP congestion signal proto fields
+	github.com/DataDog/agent-payload/v5 => /Users/jim.wilson/dd/agent-payload
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
