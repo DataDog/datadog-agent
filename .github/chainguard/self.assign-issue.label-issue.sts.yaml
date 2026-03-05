@@ -6,7 +6,6 @@ subject: repo:DataDog/datadog-agent:environment:main
 claim_pattern:
   event_name: (issues|workflow_dispatch|workflow_run)
   ref: refs/heads/main
-  ref_protected: "true"
   job_workflow_ref: DataDog/datadog-agent/\.github/workflows/assign_issue_triage\.yml@refs/heads/main
 
 permissions:
