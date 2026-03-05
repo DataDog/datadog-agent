@@ -7,4 +7,4 @@ expect:
   stdout: ""
   stderr: |+
     invalid exit status code: "abc"
-  exit_code: 2
+  exit_code: 255

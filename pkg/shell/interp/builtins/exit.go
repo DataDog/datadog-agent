@@ -20,8 +20,7 @@ func builtinExit(_ context.Context, callCtx *CallContext, args []string) Result 
 		n, err := strconv.Atoi(args[0])
 		if err != nil {
 			callCtx.Errf("invalid exit status code: %q\n", args[0])
-			r.Code = 2
-			// In bash, exit with invalid args still terminates the shell.
+			r.Code = 255
 			r.Exiting = true
 			return r
 		}
@@ -29,8 +28,6 @@ func builtinExit(_ context.Context, callCtx *CallContext, args []string) Result 
 	default:
 		callCtx.Errf("exit cannot take multiple arguments\n")
 		r.Code = 1
-		// In bash, exit with too many args still terminates the shell.
-		r.Exiting = true
 		return r
 	}
 	r.Exiting = true

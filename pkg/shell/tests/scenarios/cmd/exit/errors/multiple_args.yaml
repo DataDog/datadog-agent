@@ -1,5 +1,5 @@
 test_against_local_shell: false
-description: Exit with multiple arguments produces an error and exits.
+description: Exit with multiple arguments produces an error but does not exit the shell.
 input:
   script: |+
     exit 1 2

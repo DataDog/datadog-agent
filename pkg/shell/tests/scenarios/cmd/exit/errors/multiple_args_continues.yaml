@@ -1,10 +1,11 @@
 test_against_local_shell: false
-description: Exit with multiple arguments exits the shell; subsequent commands do not run.
+description: Exit with multiple arguments does not exit the shell; subsequent commands still run.
 input:
   script: |+
     exit 1 2; echo still running
 expect:
-  stdout: ""
+  stdout: |+
+    still running
   stderr: |+
     exit cannot take multiple arguments
-  exit_code: 1
+  exit_code: 0
