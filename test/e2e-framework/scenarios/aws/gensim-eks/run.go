@@ -196,6 +196,12 @@ func Run(ctx *pulumi.Context) error {
 				},
 				"clusterName": pulumi.String("gensim"),
 			},
+			// Cluster-checks runners are not needed for a single-node test cluster.
+			// Disabling them removes the 2 extra pods whose readiness probe blocks
+			// the Helm timeout when the forwarder hasn't fully initialised yet.
+			"clusterChecksRunner": pulumi.Map{
+				"enabled": pulumi.Bool(false),
+			},
 		}))
 
 		if awsEnv.AgentFullImagePath() != "" {
