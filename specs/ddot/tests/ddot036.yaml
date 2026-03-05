@@ -1,0 +1,68 @@
+kind: tests
+category: functional
+tests:
+- id: T001
+  ref: [DDOT036, DDOT025, OTELCOL012]
+  short: Start the otel-agent with a basic working configuration
+  long: |
+    Start the otel-agent in standalone mode (without a running Datadog Agent) with
+    a minimal configuration that includes the `datadog` exporter (declared but not
+    necessarily wired into a pipeline), which is required to activate
+    Datadog-specific initialization.
+    This test establishes the baseline running collector used as a prerequisite by
+    subsequent tests.
+  initial: |
+    The `otel-agent` binary is built:
+      dda inv otel-agent.build
+  steps:
+    - action: |
+        Create a minimal configuration file: the `datadog` exporter is declared to
+        activate Datadog-specific initialization; all three pipelines route to the
+        `debug` exporter for observability:
+      run: cat config.yaml
+      sample_lang: yaml
+      sample: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+              http:
+        exporters:
+          debug:
+            verbosity: detailed
+          datadog:
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+            metrics:
+              receivers: [otlp]
+              exporters: [debug]
+            logs:
+              receivers: [otlp]
+              exporters: [debug]
+    - action: Start the otel-agent with IPC disabled and an explicit hostname
+      run: |
+        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
+          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
+          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=foobar \
+          DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
+          ./otel-agent --config config.yaml
+      expected: |
+        [...]
+        [...] | OTELCOL | WARN | (...) | Could not resolve hostname from core-agent: IPC port is disabled (0), skipping core-agent hostname lookup
+        [...] | OTELCOL | INFO | (...) | Hostname is: foobar
+        [...] | OTELCOL | INFO | (...) | Using  hostname foobar
+        [...]
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4317 | Starting GRPC server
+        [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4318 | Starting HTTP server
+        [...] | OTELCOL | INFO | (...) | [...] | Everything is ready. Begin running and processing data.
+        [...]
+    - action: Wait ~1 second for the Collector to reach a stable state, then verify
+        that the gRPC port is open
+      run: nc -z localhost 4317 && echo "gRPC open"
+      expected: gRPC open
+    - action: Same with the HTTP port
+      run: nc -z localhost 4318 && echo "HTTP open"
+      expected: HTTP open

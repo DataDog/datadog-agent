@@ -3,129 +3,119 @@ category: functional
 tests:
 - id: T004
   ref: [OTELCOL011]
-  short: Receive OTLP traces over HTTP on the default port
+  short: Receive traces, metrics, and logs over HTTP on the default port
   long: |
-    Verify that the Collector accepts OTLP trace data sent over HTTP (protobuf encoding)
-    on the default port 4318 at the `/v1/traces` path and routes it through the configured
-    pipeline to the exporter.
+    Using the agent started in T001 (which exposes HTTP on port 4318), verify that the
+    OTLP HTTP receiver accepts all three signal types at their respective paths
+    (`/v1/traces`, `/v1/metrics`, `/v1/logs`), routing each through its own pipeline.
+    Each signal is sent and verified independently in sequence.
+  prereq: [T001]
   initial: |
     The `telemetrygen` tool is available:
       go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
   steps:
-    - action: |
-        Create a minimal Collector configuration with the OTLP HTTP receiver enabled
-        and a debug exporter:
-      sample_lang: yaml
-      sample: |
-        receivers:
-          otlp:
-            protocols:
-              http:
-        exporters:
-          debug:
-            verbosity: detailed
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
-    - action: Send a single test trace to the default HTTP port
+    - action: Send one trace (two spans) to the HTTP port
       run: telemetrygen traces --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --traces 1
-    - action: |
-        Verify that the Collector output contains the received span, including
-        `TraceId`, `SpanId`, and at least one resource attribute.
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the debug exporter output in the Collector logs contains both spans
+      sample: |
+        ResourceSpans #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeSpans #0
+        ScopeSpans SchemaURL:
+        InstrumentationScope telemetrygen
+        Span #0
+            Trace ID       : ...
+            Name           : okey-dokey-0
+            Kind           : Server
+        Span #1
+            Name           : lets-go
+            Kind           : Client
+    - action: Send one metric
+      run: telemetrygen metrics --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --metrics 1
+      expected: |
+        ... INFO	metrics/worker.go:243	metrics generated	{"worker": 0, "metrics": 1}
+    - action: Verify the debug exporter output contains the metric data point
+      sample: |
+        ResourceMetrics #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeMetrics #0
+        ScopeMetrics SchemaURL:
+        InstrumentationScope
+        Metric #0
+        Descriptor:
+             -> Name: gen
+             -> DataType: Gauge
+        NumberDataPoints #0
+        StartTimestamp: 1970-01-01 00:00:00 +0000 UTC
+        Timestamp: ...
+        Value: 0
+    - action: Send one log record
+      run: telemetrygen logs --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --logs 1
+      expected: |
+        ... INFO	logs/worker.go:120	logs generated	{"worker": 0, "logs": 1}
+    - action: Verify the debug exporter output contains the log record
+      sample: |
+        ResourceLog #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeLogs #0
+        ScopeLogs SchemaURL:
+        InstrumentationScope
+        LogRecord #0
+        ObservedTimestamp: 1970-01-01 00:00:00 +0000 UTC
+        Timestamp: ...
+        SeverityText: Info
+        SeverityNumber: Info(9)
+        Body: Str(the message)
+        Attributes:
+             -> app: Str(server)
+        Trace ID:
+        Span ID:
+        Flags: 0
 
 - id: T005
   ref: [OTELCOL011]
-  short: Receive all three signal types over HTTP via their respective paths
-  long: |
-    Verify that the OTLP HTTP receiver accepts traces, metrics, and logs at their
-    respective paths (`/v1/traces`, `/v1/metrics`, `/v1/logs`) and routes each signal
-    through its own pipeline.
-  initial: |
-    The `telemetrygen` tool is available:
-      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
-  steps:
-    - action: |
-        Create a Collector configuration with three pipelines sharing the OTLP HTTP receiver:
-      sample_lang: yaml
-      sample: |
-        receivers:
-          otlp:
-            protocols:
-              http:
-        exporters:
-          debug:
-            verbosity: detailed
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              exporters: [debug]
-            metrics:
-              receivers: [otlp]
-              exporters: [debug]
-            logs:
-              receivers: [otlp]
-              exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
-    - action: Send one test trace, one metric, and one log record over HTTP
-      run: |
-        telemetrygen traces  --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --traces 1
-        telemetrygen metrics --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --metrics 1
-        telemetrygen logs    --otlp-insecure --otlp-http --otlp-endpoint localhost:4318 --logs 1
-    - action: |
-        Verify the Collector output contains one span, one metric data point, and one log record.
-
-- id: T006
-  ref: [OTELCOL011]
   short: Receive OTLP traces over HTTP with JSON encoding
   long: |
-    Verify that the OTLP HTTP receiver accepts JSON-encoded payloads in addition to
-    the default protobuf encoding.
+    Using the agent started in T001, verify that the OTLP HTTP receiver accepts
+    JSON-encoded payloads when the request carries `Content-Type: application/json`.
+  prereq: [T001]
   steps:
-    - action: |
-        Create a minimal Collector configuration with the OTLP HTTP receiver enabled:
-      sample_lang: yaml
-      sample: |
-        receivers:
-          otlp:
-            protocols:
-              http:
-        exporters:
-          debug:
-            verbosity: detailed
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
-    - action: |
-        Send an OTLP JSON trace payload to `/v1/traces` with `Content-Type: application/json`:
+    - action: Send an OTLP JSON trace payload to `/v1/traces`
       run: |
         curl -s -X POST http://localhost:4318/v1/traces \
           -H "Content-Type: application/json" \
           -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"test-service"}}]},"scopeSpans":[{"spans":[{"traceId":"0af7651916cd43dd8448eb211c80319c","spanId":"b7ad6b7169203331","name":"test-span","kind":2,"startTimeUnixNano":"1000000","endTimeUnixNano":"2000000","status":{}}]}]}]}'
       expected: '{}'
-    - action: Verify the Collector output contains the `test-span` span with `service.name = test-service`.
+    - action: Verify the debug exporter output contains the span with the correct service name
+      sample: |
+        Resource attributes:
+             -> service.name: Str(test-service)
+        ...
+        Span #0
+            Name           : test-span
+            Kind           : Server
 
-- id: T007
+- id: T006
   ref: [OTELCOL011]
   short: Receive OTLP traces over HTTP on a custom port
   long: |
-    Verify that the OTLP HTTP receiver can be configured to listen on a port other
-    than the default 4318.
+    Verify that the OTLP HTTP receiver can be configured to listen on a non-default port,
+    and that the default port 4318 is not opened in that case.
+  prereq: [T001]
   initial: |
     The `telemetrygen` tool is available:
       go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
   steps:
-    - action: |
-        Create a Collector configuration overriding the HTTP endpoint to port 14318:
+    - action: Prepare a configuration with the HTTP endpoint overridden to port 14318
+      run: cat config.yaml
       sample_lang: yaml
       sample: |
         receivers:
@@ -136,16 +126,30 @@ tests:
         exporters:
           debug:
             verbosity: detailed
+          datadog:
         service:
           pipelines:
             traces:
               receivers: [otlp]
               exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
+    - action: Restart the otel-agent with this configuration and verify startup
+      sample: |
+        [...]
+        ... | OTELCOL | INFO | (...) | [...]endpoint:0.0.0.0:14318 | Starting HTTP server
+        ... | OTELCOL | INFO | (...) | ... | Everything is ready. Begin running and processing data.
+        [...]
     - action: Confirm the default port 4318 is not open
       run: nc -z localhost 4318
       expected: Connection refused
-    - action: Send a test trace to the custom port
+    - action: Send a test trace to port 14318
       run: telemetrygen traces --otlp-insecure --otlp-http --otlp-endpoint localhost:14318 --traces 1
-    - action: Verify the span appears in the Collector output.
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the spans appear in the debug exporter output
+      sample: |
+        Span #0
+            Name           : okey-dokey-0
+            Kind           : Server
+        Span #1
+            Name           : lets-go
+            Kind           : Client

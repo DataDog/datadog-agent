@@ -51,6 +51,19 @@ requirements:
     tags: [distribution]
     ref: [DDOT001]
 
+  - id: DDOT036
+    short: Datadog exporter required to activate Datadog-specific pipeline features
+    long: |
+      Datadog-specific initialization — including hostname resolution, environment
+      feature detection, APM stats computation, and infrastructure tag enrichment —
+      is only triggered when the `datadog` exporter is present in at least one
+      pipeline.
+      Without the `datadog` exporter, DDOT starts as a generic OTel Collector:
+      Datadog-specific components are not activated and Datadog intake endpoints are
+      not contacted.
+    tags: [integration]
+    ref: [DDOT001, DDOT002, DDOT003, DDOT004, DDOT005, DDOT014]
+
   - id: DDOT028
     short: Cross-platform support for Linux, Windows, and macOS
     long: |

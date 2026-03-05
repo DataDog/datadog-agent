@@ -1,63 +1,30 @@
 kind: tests
 category: functional
 tests:
-- id: T001
+- id: T002
   ref: [OTELCOL010]
-  short: Receive OTLP traces over gRPC on the default port
+  short: Receive traces, metrics, and logs over gRPC on the default port
   long: |
-    Verify that the Collector accepts OTLP trace data sent over gRPC on the default
-    port 4317 and routes it through the configured pipeline to the exporter.
+    Using the agent started in T001 (which exposes gRPC on port 4317), verify that the
+    OTLP gRPC receiver accepts all three signal types, routing each through its own
+    pipeline. Each signal is sent and verified independently in sequence.
+  prereq: [T001]
   initial: |
     The `telemetrygen` tool is available:
       go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
   steps:
-    - action: |
-        Create a minimal Collector configuration with the OTLP gRPC receiver, a debug
-        exporter, and a Datadog exporter (required to activate Datadog-specific
-        initialization, see DDOT036):
-      sample_lang: yaml
-      sample: |
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-        exporters:
-          debug:
-            verbosity: detailed
-          datadog:
-            api:
-              key: ${env:DD_API_KEY}
-              site: ${env:DD_SITE}
-        connectors:
-          datadog/connector:
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              exporters: [debug, datadog, datadog/connector]
-            metrics:
-              receivers: [otlp, datadog/connector]
-              exporters: [datadog]
-    - action: Start the Collector with this configuration
-      run: |
-        DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
-          DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
-          DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
-          ./otel-agent --config config.yaml
-    - action: |
-        Wait ~15 seconds for the Collector to reach a stable state, then in a
-        separate terminal send a single test trace to the default gRPC port:
+    - action: Send one trace (two spans) to the gRPC port
       run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
-    - action: |
-        Verify that the debug exporter output contains the received spans, including
-        `Trace ID`, `Span ID`, `Name`, and at least one resource attribute
-        (`service.name`):
       expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify the debug exporter output in the Collector logs contains both spans
+      sample: |
         ResourceSpans #0
         Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
         Resource attributes:
              -> service.name: Str(telemetrygen)
         ScopeSpans #0
+        ScopeSpans SchemaURL:
         InstrumentationScope telemetrygen
         Span #0
             Trace ID       : ...
@@ -68,6 +35,7 @@ tests:
             Start time     : ...
             End time       : ...
             Status code    : Unset
+            Status message :
         Attributes:
              -> network.peer.address: Str(1.2.3.4)
              -> peer.service: Str(telemetrygen-client)
@@ -77,63 +45,70 @@ tests:
             ID             : ...
             Name           : lets-go
             Kind           : Client
-
-- id: T002
-  ref: [OTELCOL010]
-  short: Receive all three signal types over gRPC
-  long: |
-    Verify that the OTLP gRPC receiver accepts traces, metrics, and logs independently,
-    each routed through its own pipeline, via a single shared receiver instance.
-  initial: |
-    The `telemetrygen` tool is available:
-      go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
-  steps:
-    - action: |
-        Create a Collector configuration with three pipelines (traces, metrics, logs)
-        all reading from the same OTLP gRPC receiver:
-      sample_lang: yaml
+        Attributes:
+             -> network.peer.address: Str(1.2.3.4)
+             -> peer.service: Str(telemetrygen-server)
+    - action: Send one metric
+      run: telemetrygen metrics --otlp-insecure --otlp-endpoint localhost:4317 --metrics 1
+      expected: |
+        ... INFO	metrics/worker.go:243	metrics generated	{"worker": 0, "metrics": 1}
+    - action: Verify the debug exporter output contains the metric data point
       sample: |
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-        exporters:
-          debug:
-            verbosity: detailed
-        service:
-          pipelines:
-            traces:
-              receivers: [otlp]
-              exporters: [debug]
-            metrics:
-              receivers: [otlp]
-              exporters: [debug]
-            logs:
-              receivers: [otlp]
-              exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
-    - action: Send one test trace, one metric, and one log record
-      run: |
-        telemetrygen traces  --otlp-insecure --otlp-endpoint localhost:4317 --traces 1
-        telemetrygen metrics --otlp-insecure --otlp-endpoint localhost:4317 --metrics 1
-        telemetrygen logs    --otlp-insecure --otlp-endpoint localhost:4317 --logs 1
-    - action: |
-        Verify the Collector output contains one span, one metric data point,
-        and one log record.
+        ResourceMetrics #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeMetrics #0
+        ScopeMetrics SchemaURL:
+        InstrumentationScope
+        Metric #0
+        Descriptor:
+             -> Name: gen
+             -> Description:
+             -> Unit:
+             -> DataType: Gauge
+        NumberDataPoints #0
+        StartTimestamp: 1970-01-01 00:00:00 +0000 UTC
+        Timestamp: ...
+        Value: 0
+    - action: Send one log record
+      run: telemetrygen logs --otlp-insecure --otlp-endpoint localhost:4317 --logs 1
+      expected: |
+        ... INFO	logs/worker.go:120	logs generated	{"worker": 0, "logs": 1}
+    - action: Verify the debug exporter output contains the log record
+      sample: |
+        ResourceLog #0
+        Resource SchemaURL: https://opentelemetry.io/schemas/1.38.0
+        Resource attributes:
+             -> service.name: Str(telemetrygen)
+        ScopeLogs #0
+        ScopeLogs SchemaURL:
+        InstrumentationScope
+        LogRecord #0
+        ObservedTimestamp: 1970-01-01 00:00:00 +0000 UTC
+        Timestamp: ...
+        SeverityText: Info
+        SeverityNumber: Info(9)
+        Body: Str(the message)
+        Attributes:
+             -> app: Str(server)
+        Trace ID:
+        Span ID:
+        Flags: 0
 
 - id: T003
   ref: [OTELCOL010]
   short: Receive OTLP traces over gRPC on a custom port
   long: |
-    Verify that the OTLP gRPC receiver can be configured to listen on a port other
-    than the default 4317.
+    Verify that the OTLP gRPC receiver can be configured to listen on a non-default port,
+    and that the default port 4317 is not opened in that case.
+  prereq: [T001]
   initial: |
     The `telemetrygen` tool is available:
       go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
   steps:
-    - action: |
-        Create a Collector configuration overriding the gRPC endpoint to port 14317:
+    - action: Prepare a configuration with the gRPC endpoint overridden to port 14317
+      run: cat config.yaml
       sample_lang: yaml
       sample: |
         receivers:
@@ -144,16 +119,30 @@ tests:
         exporters:
           debug:
             verbosity: detailed
+          datadog:
         service:
           pipelines:
             traces:
               receivers: [otlp]
               exporters: [debug]
-    - action: Start the Collector with this configuration
-      run: ./ddot --config config.yaml
+    - action: Restart the otel-agent with this configuration and verify startup
+      sample: |
+        [...]
+        ... | OTELCOL | INFO | (...) | [...]endpoint:0.0.0.0:14317 | Starting GRPC server
+        ... | OTELCOL | INFO | (...) | ... | Everything is ready. Begin running and processing data.
+        [...]
     - action: Confirm the default port 4317 is not open
       run: nc -z localhost 4317
       expected: Connection refused
-    - action: Send a test trace to the custom port
+    - action: Send a test trace to port 14317
       run: telemetrygen traces --otlp-insecure --otlp-endpoint localhost:14317 --traces 1
-    - action: Verify the span appears in the Collector output.
+      expected: |
+        ... INFO	traces/worker.go:180	traces generated	{"worker": 0, "traces": 1}
+    - action: Verify both spans appear in the debug exporter output
+      sample: |
+        Span #0
+            Name           : okey-dokey-0
+            Kind           : Server
+        Span #1
+            Name           : lets-go
+            Kind           : Client
