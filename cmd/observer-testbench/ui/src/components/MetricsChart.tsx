@@ -397,6 +397,7 @@ export function MetricsChart({
           .attr('stroke', color)
           .attr('stroke-width', isHighlighted ? 1.9 : 1.2)
           .attr('opacity', isHighlighted ? 1 : 0.2)
+          .attr('data-series-key', series.seriesId ?? series.label)
           .attr('d', line);
       });
 
@@ -522,7 +523,17 @@ export function MetricsChart({
       .attr('pointer-events', 'none')
       .style('display', 'none');
 
-    type SeriesEntry = { points: Point[]; label: string; color: string };
+    type SeriesEntry = { points: Point[]; label: string; color: string; seriesKey: string };
+
+    const restoreSeriesOpacity = () => {
+      g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+        const key = d3.select(this).attr('data-series-key');
+        const isHighlighted = !activeHighlightedSeriesId || key === activeHighlightedSeriesId;
+        d3.select(this)
+          .attr('opacity', isHighlighted ? 1 : 0.2)
+          .attr('stroke-width', isHighlighted ? 1.9 : 1.2);
+      });
+    };
 
     // Add mouse handlers on the brush overlay rect so they fire regardless of brush state
     g.select<SVGRectElement>('.brush rect.overlay')
@@ -530,6 +541,7 @@ export function MetricsChart({
         if (isPanningRef.current || isBrushingRef.current) {
           hoverDot.style('display', 'none');
           hoverLine.style('display', 'none');
+          restoreSeriesOpacity();
           setHoveredMetricRef.current(null);
           return;
         }
@@ -538,6 +550,7 @@ export function MetricsChart({
         if (mouseX < 0 || mouseX > innerWidth || mouseY < 0 || mouseY > innerHeight) {
           hoverDot.style('display', 'none');
           hoverLine.style('display', 'none');
+          restoreSeriesOpacity();
           setHoveredMetricRef.current(null);
           return;
         }
@@ -549,9 +562,14 @@ export function MetricsChart({
               const colorIdx = orderedSeriesVariants?.findIndex(
                 (os) => os.seriesId === s.seriesId && os.label === s.label
               ) ?? idx;
-              return { points: s.points, label: s.label, color: getSeriesVariantColor(Math.max(colorIdx, 0)) };
+              return {
+                points: s.points,
+                label: s.label,
+                color: getSeriesVariantColor(Math.max(colorIdx, 0)),
+                seriesKey: s.seriesId ?? s.label,
+              };
             })
-          : [{ points: pointsToRender, label: name, color: '#8b5cf6' }];
+          : [{ points: pointsToRender, label: name, color: '#8b5cf6', seriesKey: '' }];
 
         // Pass 1: find nearest timestamp across all visible series
         let nearestTs: number | null = null;
@@ -568,8 +586,9 @@ export function MetricsChart({
         let nearestPoint: Point | null = null;
         let nearestLabel = '';
         let nearestColor = '#8b5cf6';
+        let nearestSeriesKey = '';
         let minYDist = Infinity;
-        for (const { points: pts, label, color } of seriesEntries) {
+        for (const { points: pts, label, color, seriesKey } of seriesEntries) {
           const p = pts.reduce<Point | null>((best, curr) => {
             const dCurr = Math.abs(curr.timestamp - nearestTs!);
             const dBest = best ? Math.abs(best.timestamp - nearestTs!) : Infinity;
@@ -582,6 +601,7 @@ export function MetricsChart({
             nearestPoint = p;
             nearestLabel = label;
             nearestColor = color;
+            nearestSeriesKey = seriesKey;
           }
         }
         if (!nearestPoint) return;
@@ -599,6 +619,17 @@ export function MetricsChart({
           .attr('x2', dotX)
           .style('display', null);
 
+        // Dim all series except the hovered one
+        if (useVariantData && nearestSeriesKey) {
+          g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+            const key = d3.select(this).attr('data-series-key');
+            const active = key === nearestSeriesKey;
+            d3.select(this)
+              .attr('opacity', active ? 1 : 0.1)
+              .attr('stroke-width', active ? 2.2 : 1.0);
+          });
+        }
+
         const containerRect = containerRef.current?.getBoundingClientRect();
         setHoveredMetricRef.current({
           timestamp: nearestPoint.timestamp,
@@ -613,6 +644,7 @@ export function MetricsChart({
       .on('mouseleave.hover', () => {
         hoverDot.style('display', 'none');
         hoverLine.style('display', 'none');
+        restoreSeriesOpacity();
         setHoveredMetricRef.current(null);
       });
 
