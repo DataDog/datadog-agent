@@ -158,15 +158,38 @@ func checkStat(dir, file string, checkExec bool) (string, error) {
 	if m.IsDir() {
 		return "", fmt.Errorf("is a directory")
 	}
-	if checkExec && m&0o111 == 0 {
+	if checkExec && runtime.GOOS != "windows" && m&0o111 == 0 {
 		return "", fmt.Errorf("permission denied")
 	}
 	return file, nil
 }
 
+func winHasExt(file string) bool {
+	i := strings.LastIndex(file, ".")
+	if i < 0 {
+		return false
+	}
+	return strings.LastIndexAny(file, `:\/`) < i
+}
+
 // findExecutable returns the path to an existing executable file.
-func findExecutable(dir, file string) (string, error) {
-	return checkStat(dir, file, true)
+func findExecutable(dir, file string, exts []string) (string, error) {
+	if len(exts) == 0 {
+		// non-windows
+		return checkStat(dir, file, true)
+	}
+	if winHasExt(file) {
+		if file, err := checkStat(dir, file, true); err == nil {
+			return file, nil
+		}
+	}
+	for _, e := range exts {
+		f := file + e
+		if f, err := checkStat(dir, f, true); err == nil {
+			return f, nil
+		}
+	}
+	return "", fmt.Errorf("not found")
 }
 
 // LookPathDir is similar to [os/exec.LookPath], with the difference that it uses the
@@ -179,7 +202,7 @@ func LookPathDir(cwd string, env expand.Environ, file string) (string, error) {
 }
 
 // findAny defines a function to pass to [lookPathDir].
-type findAny = func(dir string, file string) (string, error)
+type findAny = func(dir string, file string, exts []string) (string, error)
 
 func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (string, error) {
 	if find == nil {
@@ -190,8 +213,13 @@ func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (str
 	if len(pathList) == 0 {
 		pathList = []string{""}
 	}
-	if strings.ContainsAny(file, `/`) {
-		return find(cwd, file)
+	chars := `/`
+	if runtime.GOOS == "windows" {
+		chars = `:\/`
+	}
+	exts := pathExts(env)
+	if strings.ContainsAny(file, chars) {
+		return find(cwd, file, exts)
 	}
 	for _, elem := range pathList {
 		var path string
@@ -202,11 +230,32 @@ func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (str
 		default:
 			path = filepath.Join(elem, file)
 		}
-		if f, err := find(cwd, path); err == nil {
+		if f, err := find(cwd, path, exts); err == nil {
 			return f, nil
 		}
 	}
 	return "", fmt.Errorf("%q: executable file not found in $PATH", file)
+}
+
+func pathExts(env expand.Environ) []string {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	pathext := env.Get("PATHEXT").String()
+	if pathext == "" {
+		return []string{".com", ".exe", ".bat", ".cmd"}
+	}
+	var exts []string
+	for _, e := range strings.Split(strings.ToLower(pathext), `;`) {
+		if e == "" {
+			continue
+		}
+		if e[0] != '.' {
+			e = "." + e
+		}
+		exts = append(exts, e)
+	}
+	return exts
 }
 
 // OpenHandlerFunc is a handler which opens files.
