@@ -220,7 +220,7 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 			if r.exit.ok() == (cm.Op == syntax.AndStmt) {
 				r.stmt(ctx, cm.Y)
 			}
-		case syntax.Pipe, syntax.PipeAll:
+		case syntax.Pipe:
 			pr, pw, err := os.Pipe()
 			if err != nil {
 				r.exit.fatal(err) // not being able to create a pipe is rare but critical
@@ -228,11 +228,7 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 			}
 			r2 := r.subshell(true)
 			r2.stdout = pw
-			if cm.Op == syntax.PipeAll {
-				r2.stderr = pw
-			} else {
-				r2.stderr = r.stderr
-			}
+			r2.stderr = r.stderr
 			r.stdin = pr
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -341,20 +337,6 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 
 	arg := r.literal(rd.Word)
 	switch rd.Op {
-	case syntax.WordHdoc:
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			return nil, err
-		}
-		r.stdin = pr
-		// We write to the pipe in a new goroutine,
-		// as pipe writes may block once the buffer gets full.
-		go func() {
-			pw.WriteString(arg)
-			pw.WriteString("\n")
-			pw.Close()
-		}()
-		return pr, nil
 	case syntax.RdrIn:
 		// done further below
 	default:

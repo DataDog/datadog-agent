@@ -46,11 +46,11 @@ Blocked features are rejected before execution with exit code 2.
 ## Pipes and Redirections
 
 - ✅ `|` — pipe stdout
-- ✅ `|&` — pipe stdout and stderr
 - ✅ `<` — input redirection (read-only, within AllowedPaths)
 - ✅ `<<DELIM` — heredoc
 - ✅ `<<-DELIM` — heredoc with tab stripping
-- ✅ `<<<` — herestring
+- ❌ `|&` — pipe stdout and stderr (bash extension)
+- ❌ `<<<` — herestring (bash extension)
 - ❌ `>` — write/truncate
 - ❌ `>>` — append
 - ❌ `&>` — redirect all
@@ -87,3 +87,7 @@ Blocked features are rejected before execution with exit code 2.
 - ✅ `IFS` is set to space/tab/newline by default
 - ❌ No automatic inheritance from the host process
 - ❌ `export`, `readonly` are blocked
+
+## Appendix
+
+Formating: In each category, supported features should be listed first, and the most useful ones first.

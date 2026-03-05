@@ -97,6 +97,13 @@ func validateNode(node syntax.Node) error {
 				return false
 			}
 
+		// Blocked pipe operators.
+		case *syntax.BinaryCmd:
+			if n.Op == syntax.PipeAll {
+				err = fmt.Errorf("|& is not supported")
+				return false
+			}
+
 		// Blocked redirections.
 		case *syntax.Redirect:
 			err = validateRedirect(n)
@@ -168,6 +175,8 @@ func validateAssign(as *syntax.Assign) error {
 
 func validateRedirect(rd *syntax.Redirect) error {
 	switch rd.Op {
+	case syntax.WordHdoc:
+		return fmt.Errorf("<<< (herestring) is not supported")
 	case syntax.RdrOut, syntax.ClbOut:
 		return fmt.Errorf("> file redirection is not supported")
 	case syntax.AppOut:

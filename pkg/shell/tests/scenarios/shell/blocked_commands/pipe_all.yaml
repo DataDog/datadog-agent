@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Pipe all (|&) is not supported (bash extension).
+input:
+  # language=bash
+  script: |+
+    echo hello |& cat
+expect:
+  stdout: ""
+  stderr: |+
+    |& is not supported
+  exit_code: 2
