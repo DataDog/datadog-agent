@@ -215,7 +215,7 @@ func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (str
 
 // OpenHandlerFunc is a handler which opens files.
 // It is called for all files that are opened directly by the shell,
-// such as in redirects, except for named pipes created by process substitutions.
+// such as in redirects.
 // Files opened by executed programs are not included.
 //
 // The path parameter may be relative to the current directory,

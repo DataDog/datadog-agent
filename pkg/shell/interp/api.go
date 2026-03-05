@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
@@ -33,11 +32,6 @@ import (
 type Runner struct {
 	// Env specifies the initial environment for the interpreter, which must
 	// not be nil. It can only be set via [Env].
-	//
-	// If it includes a TMPDIR variable describing an absolute directory,
-	// it is used as the directory in which to create temporary files needed
-	// for the interpreter's use, such as named pipes for process substitutions.
-	// Otherwise, [os.TempDir] is used.
 	Env expand.Environ
 
 	// writeEnv overlays [Runner.Env] so that we can write environment variables
@@ -47,9 +41,6 @@ type Runner struct {
 	// Dir specifies the working directory of the command, which must be an
 	// absolute path.
 	Dir string
-
-	// tempDir is either $TMPDIR from [Runner.Env], or [os.TempDir].
-	tempDir string
 
 	// Params are the current shell parameters, e.g. from running a shell
 	// file. Accessible via the $@/$* family of vars.
@@ -282,15 +273,6 @@ func (r *Runner) Reset() {
 		if r.execHandler == nil {
 			r.execHandler = NoExecHandler()
 		}
-		// Fill tempDir; only need to do this once given that Env will not change.
-		if dir := r.Env.Get("TMPDIR").String(); filepath.IsAbs(dir) {
-			r.tempDir = dir
-		} else {
-			r.tempDir = os.TempDir()
-		}
-		// Clean it as we will later do a string prefix match.
-		r.tempDir = filepath.Clean(r.tempDir)
-
 		// Open os.Root handles and wrap handlers for path restriction.
 		// Default: block all file access (empty allowedPaths).
 		if r.roots == nil {
@@ -314,7 +296,6 @@ func (r *Runner) Reset() {
 	// reset the internal state
 	*r = Runner{
 		Env:             r.Env,
-		tempDir:         r.tempDir,
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
@@ -415,7 +396,6 @@ func (r *Runner) subshell(background bool) *Runner {
 	// sensitive ones like [errgroup.Group], and to do deep copies of slices.
 	r2 := &Runner{
 		Dir:             r.Dir,
-		tempDir:         r.tempDir,
 		Params:          r.Params,
 		execHandler:     r.execHandler,
 		openHandler:     r.openHandler,
