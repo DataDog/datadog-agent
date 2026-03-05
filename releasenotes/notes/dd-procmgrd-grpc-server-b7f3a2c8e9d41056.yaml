@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    dd-procmgrd: Add gRPC server over Unix socket with read-only RPCs (List, Describe, GetStatus) for querying managed process state.
