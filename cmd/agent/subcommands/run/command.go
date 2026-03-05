@@ -34,6 +34,7 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
@@ -51,7 +52,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
@@ -560,6 +561,7 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
 	)

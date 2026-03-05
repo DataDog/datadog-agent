@@ -206,19 +206,6 @@ updates:
       interval: weekly
       day: saturday
     open-pull-requests-limit: 100
-  - package-ecosystem: github-actions
-    directory: /
-    labels:
-      - dependencies
-      - dependencies-github-actions
-      - team/agent-devx
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/tooling
-    schedule:
-      interval: weekly
-      day: saturday
-    open-pull-requests-limit: 100
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:

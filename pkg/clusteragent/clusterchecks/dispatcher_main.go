@@ -45,7 +45,6 @@ type dispatcher struct {
 	ksmSharding                      *ksmShardingManager
 	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
 	ksmShardedConfigs                map[string][]string // Maps original config digest -> shard digests, protected by ksmShardingMutex
-	tracingEnabled                   bool
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -108,7 +107,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		}
 	}
 
-	d.tracingEnabled = pkgconfigsetup.Datadog().GetBool("cluster_agent.tracing.enabled")
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
@@ -152,25 +150,23 @@ func (d *dispatcher) Stop() {
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	var failedConfigs, excludedConfigs int
-	if d.tracingEnabled {
-		span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
-			tracer.ResourceName("schedule_configs"),
-			tracer.SpanType("worker"))
-		span.SetTag("config_count", len(configs))
-		checkNames := make([]string, 0, len(configs))
-		for _, c := range configs {
-			checkNames = append(checkNames, c.Name)
-		}
-		span.SetTag("check_names", strings.Join(checkNames, ","))
-		defer func() {
-			span.SetTag("excluded_configs", excludedConfigs)
-			span.SetTag("failed_configs", failedConfigs)
-			if failedConfigs > 0 {
-				span.SetTag("error", true)
-			}
-			span.Finish()
-		}()
+	span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
+		tracer.ResourceName("schedule_configs"),
+		tracer.SpanType("worker"))
+	span.SetTag("config_count", len(configs))
+	checkNames := make([]string, 0, len(configs))
+	for _, c := range configs {
+		checkNames = append(checkNames, c.Name)
 	}
+	span.SetTag("check_names", strings.Join(checkNames, ","))
+	defer func() {
+		span.SetTag("excluded_configs", excludedConfigs)
+		span.SetTag("failed_configs", failedConfigs)
+		if failedConfigs > 0 {
+			span.SetTag("error", true)
+		}
+		span.Finish()
+	}()
 
 	for _, c := range configs {
 		if _, found := d.excludedChecks[c.Name]; found {
@@ -219,19 +215,17 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 // Unschedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Unschedule(configs []integration.Config) {
 	var failedConfigs int
-	if d.tracingEnabled {
-		span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
-			tracer.ResourceName("unschedule_configs"),
-			tracer.SpanType("worker"))
-		span.SetTag("config_count", len(configs))
-		defer func() {
-			span.SetTag("failed_configs", failedConfigs)
-			if failedConfigs > 0 {
-				span.SetTag("error", true)
-			}
-			span.Finish()
-		}()
-	}
+	span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
+		tracer.ResourceName("unschedule_configs"),
+		tracer.SpanType("worker"))
+	span.SetTag("config_count", len(configs))
+	defer func() {
+		span.SetTag("failed_configs", failedConfigs)
+		if failedConfigs > 0 {
+			span.SetTag("error", true)
+		}
+		span.Finish()
+	}()
 
 	for _, c := range configs {
 		if !c.ClusterCheck {

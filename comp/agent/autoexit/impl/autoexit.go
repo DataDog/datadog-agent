@@ -7,33 +7,26 @@
 package autoexitimpl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAutoExit),
-	)
-}
-
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the autoexit component.
+type Requires struct {
 	Config config.Component
 	Log    log.Component
 }
 
-func newAutoExit(deps dependencies) (autoexit.Component, error) {
+// Provides defines the output of the autoexit component.
+type Provides struct {
+	Comp autoexit.Component
+}
 
+// NewComponent creates a new autoexit component.
+func NewComponent(reqs Requires) (Provides, error) {
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-	err := configureAutoExit(ctx, deps.Config, deps.Log)
-
-	return struct{}{}, err
+	err := configureAutoExit(ctx, reqs.Config, reqs.Log)
+	return Provides{Comp: struct{}{}}, err
 }

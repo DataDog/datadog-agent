@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
@@ -148,7 +148,7 @@ func getSharedFxOption() fx.Option {
 		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix

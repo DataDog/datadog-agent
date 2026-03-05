@@ -9,5 +9,4 @@ package autoexit
 // team: agent-runtimes
 
 // Component is the component type.
-type Component interface {
-}
+type Component interface{}

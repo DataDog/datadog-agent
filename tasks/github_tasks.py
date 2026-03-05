@@ -469,10 +469,12 @@ tags: {tags}''')
     print(f"Event sent to Datadog for PR #{pr.number}")
 
 
-def extract_test_qa_description(pr_body: str) -> str:
+def extract_test_qa_description(pr_body: str | None) -> str:
     """
     Extract the test/QA description section from the PR body
     """
+    if not pr_body:
+        return ''
     # Extract the test/QA description section from the PR body
     # Based on PULL_REQUEST_TEMPLATE.md
     pr_body_lines = pr_body.splitlines()
