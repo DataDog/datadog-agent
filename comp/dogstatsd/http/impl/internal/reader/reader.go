@@ -194,6 +194,9 @@ func (r *MetricDataReader) unpackResourcesDict() ([][]*resource, error) {
 		if size < 0 {
 			return nil, errUnexpectedEOF
 		}
+		if size > math.MaxInt64 - start {
+			return nil, errOverflow
+		}
 		end := start + size
 		if end > int64(len(packedType)) || end > int64(len(packedName)) {
 			return nil, errBadReference
