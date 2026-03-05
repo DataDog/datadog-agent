@@ -2158,7 +2158,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_adaptive_sampler_EXPERIMENTAL.burst_size", 1000.0)
 	// match_threshold: fraction of tokens [0, 1] that must match for two logs to be
 	// considered the same pattern. Lower values are more aggressive at grouping logs.
-	config.BindEnvAndSetDefault("logs_adaptive_sampler_EXPERIMENTAL.match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_adaptive_sampler_EXPERIMENTAL.match_threshold", 0.9)
 	// tokenizer_max_input_bytes: number of bytes of each log line inspected by the tokenizer
 	// when the adaptive sampler is active. The sampler needs more context than the auto-multiline
 	// labeler (which defaults to 60) to reliably distinguish patterns. When the sampler is enabled,

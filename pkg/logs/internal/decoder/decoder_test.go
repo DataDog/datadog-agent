@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -328,4 +330,72 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
+}
+
+func TestResolveTokenizerAndLabelerMaxInputBytes(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_adaptive_sampler_EXPERIMENTAL.tokenizer_max_input_bytes", 256, pkgconfigmodel.SourceAgentRuntime)
+
+	sourceOverride20 := 20
+	sourceOverride500 := 500
+
+	tests := []struct {
+		name             string
+		samplerEnabled   bool
+		sourceSettings   *config.SourceAutoMultiLineOptions
+		wantTokenizerMax int
+		wantLabelerMax   int
+	}{
+		{
+			name:             "global defaults no sampler",
+			samplerEnabled:   false,
+			sourceSettings:   nil,
+			wantTokenizerMax: 60,
+			wantLabelerMax:   60,
+		},
+		{
+			name:           "source override no sampler",
+			samplerEnabled: false,
+			sourceSettings: &config.SourceAutoMultiLineOptions{
+				TokenizerMaxInputBytes: &sourceOverride20,
+			},
+			wantTokenizerMax: 20,
+			wantLabelerMax:   20,
+		},
+		{
+			name:             "sampler widens tokenizer from global",
+			samplerEnabled:   true,
+			sourceSettings:   nil,
+			wantTokenizerMax: 256,
+			wantLabelerMax:   60,
+		},
+		{
+			name:           "sampler widens tokenizer while keeping source labeler limit",
+			samplerEnabled: true,
+			sourceSettings: &config.SourceAutoMultiLineOptions{
+				TokenizerMaxInputBytes: &sourceOverride20,
+			},
+			wantTokenizerMax: 256,
+			wantLabelerMax:   20,
+		},
+		{
+			name:           "source override larger than sampler minimum",
+			samplerEnabled: true,
+			sourceSettings: &config.SourceAutoMultiLineOptions{
+				TokenizerMaxInputBytes: &sourceOverride500,
+			},
+			wantTokenizerMax: 500,
+			wantLabelerMax:   500,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("logs_adaptive_sampler_EXPERIMENTAL.enabled", tt.samplerEnabled, pkgconfigmodel.SourceAgentRuntime)
+			gotTokenizerMax, gotLabelerMax := resolveTokenizerAndLabelerMaxInputBytes(tt.sourceSettings)
+			assert.Equal(t, tt.wantTokenizerMax, gotTokenizerMax)
+			assert.Equal(t, tt.wantLabelerMax, gotLabelerMax)
+		})
+	}
 }
