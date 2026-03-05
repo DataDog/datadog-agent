@@ -688,19 +688,19 @@ def ninja_generate(
             if not skip_ebpf:
                 # eBPF compilation via ninja (legacy path, replaced by Bazel)
                 ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-                ninja_define_binary_compiler(nw)
                 ninja_define_co_re_compiler(nw, arch=arch)
                 ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
                 ninja_test_ebpf_programs(nw, co_re_build_dir)
                 ninja_kernel_bugs_ebpf_programs(nw)
-                ninja_kernel_bug_binaries(nw, arch)
                 ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
                 ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
                 ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
                 ninja_gpu_ebpf_programs(nw, co_re_build_dir)
                 ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
-            # These always run (godefs + runtime compilation bundles)
+            # Native C binaries and runtime bundles always run
+            ninja_define_binary_compiler(nw)
+            ninja_kernel_bug_binaries(nw, arch)
             ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw)
