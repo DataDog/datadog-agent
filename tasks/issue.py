@@ -108,7 +108,7 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
 
     if len(requested_reviewers) > 0:
         print(
-            f"This PR already has already requested review to {', '.join([rr.name for rr in requested_reviewers])}, this action should not be run on it."
+            f"This PR already has already requested review to {requested_reviewers}, this action should not be run on it."
         )
         return
 

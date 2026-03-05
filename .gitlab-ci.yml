@@ -378,6 +378,9 @@ variables:
   changes:
     paths:
       - omnibus/**/*
+      - pkg/config/config_template.yaml
+      - pkg/config/security-agent_template.yaml
+      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -1191,6 +1194,20 @@ workflow:
       paths:
         - comp/healthplatform/**/*
         - test/new-e2e/tests/agent-health/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_privateactionrunner_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/privateactionrunner/**/*
+        - comp/privateactionrunner/**/*
+        - pkg/privateactionrunner/**/*
+        - pkg/config/setup/privateactionrunner.go
+        - pkg/proto/datadog/privateactionrunner/**/*
+        - pkg/proto/pbgo/privateactionrunner/**/*
+        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
