@@ -311,7 +311,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
+	procsByCtr, skipped := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -356,6 +356,12 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	agentNameTag := "agent:" + flavor.GetFlavor()
 	_ = p.statsd.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1)
 	_ = p.statsd.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)
+	_ = p.statsd.Gauge("datadog.process.processes.skipped", float64(skipped.shortLived), []string{agentNameTag, "reason:short_lived"}, 1)
+	_ = p.statsd.Gauge("datadog.process.processes.skipped", float64(skipped.disallowListed), []string{agentNameTag, "reason:disallow_listed"}, 1)
+	_ = p.statsd.Gauge("datadog.process.processes.skipped", float64(skipped.zombie), []string{agentNameTag, "reason:zombie"}, 1)
+	if skipped.shortLived > 0 {
+		log.Debugf("Skipped %d short-lived processes not seen in previous collection cycle", skipped.shortLived)
+	}
 	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
@@ -471,6 +477,13 @@ func chunkProcessesAndContainers(
 
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
+// processSkipCounts tracks the number of processes skipped per reason during a collection cycle.
+type processSkipCounts struct {
+	disallowListed int
+	shortLived     int
+	zombie         int
+}
+
 func fmtProcesses(
 	scrubber *procutil.DataScrubber,
 	disallowList []*regexp.Regexp,
@@ -485,11 +498,20 @@ func fmtProcesses(
 	pidToGPUTags map[int32][]string,
 	tagger taggerdef.Component,
 	now time.Time,
-) map[string][]*model.Process {
+) (map[string][]*model.Process, processSkipCounts) {
 	procsByCtr := make(map[string][]*model.Process)
+	var skipped processSkipCounts
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
+		switch reason := skipProcess(disallowList, fp, lastProcs, zombiesIgnored); reason {
+		case skipDisallowListed:
+			skipped.disallowListed++
+			continue
+		case skipShortLived:
+			skipped.shortLived++
+			continue
+		case skipZombie:
+			skipped.zombie++
 			continue
 		}
 
@@ -538,7 +560,7 @@ func fmtProcesses(
 
 	scrubber.IncrementCacheAge()
 
-	return procsByCtr
+	return procsByCtr, skipped
 }
 
 func formatCommand(fp *procutil.Process) *model.Command {
@@ -641,34 +663,50 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
 }
 
-// skipProcess will skip a given process if it's disallow-listed or hasn't existed
-// for multiple collections.
+// skipReason represents why a process was skipped during collection.
+type skipReason int
+
+const (
+	notSkipped         skipReason = iota
+	skipDisallowListed            // Process matched a disallow list pattern
+	skipShortLived                // Process was not seen in the previous collection cycle
+	skipZombie                    // Process is a zombie and zombie filtering is enabled
+)
+
+// skipProcess will skip a given process if it's disallow-listed, hasn't existed
+// for multiple collections, or is a zombie process (when configured).
+//
+// By design, a process must be observed in two consecutive collection cycles to be
+// reported. Since the default collection interval is 10 seconds, processes that
+// live for less than ~20 seconds may not be captured. This is intentional to reduce
+// noise from very short-lived processes, but means that some transient processes
+// (e.g., short scripts, one-shot commands) will not appear in process monitoring.
 func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
 	zombiesIgnored bool,
-) bool {
+) skipReason {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
 		cl = []string{fp.Exe}
 		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
 	if isDisallowListed(cl, disallowList) {
-		return true
+		return skipDisallowListed
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
 		// The check runs every 10 seconds by default, so this means
-		// processes that live less than 20 seconds may not be captured.
-		return true
+		// processes that live less than ~20 seconds may not be captured.
+		return skipShortLived
 	}
 	// Skipping zombie processes (defined in docs as Status = "Z") if the config
 	// for skipping zombie processes is on.
 	if zombiesIgnored && fp.Stats != nil && fp.Stats.Status == "Z" {
-		return true
+		return skipZombie
 	}
-	return false
+	return notSkipped
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
