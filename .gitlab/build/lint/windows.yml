@@ -21,6 +21,7 @@
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e GOMODCACHE="c:\modcache"
       -e RUST_LOG="uv=trace"
       ${WINBUILDIMAGE}
