@@ -39,6 +39,7 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
+	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/do/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
@@ -552,6 +553,7 @@ func getSharedFxOption() fx.Option {
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		doqueryactionsfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
