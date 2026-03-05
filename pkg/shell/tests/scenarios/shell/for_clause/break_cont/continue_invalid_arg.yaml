@@ -1,4 +1,4 @@
-description: Continue with non-numeric argument produces a usage error on each iteration.
+description: Continue with non-numeric argument produces an error on each iteration.
 input:
   # language=bash
   script: |+
@@ -8,7 +8,7 @@ input:
 expect:
   stdout: ""
   stderr: |+
-    usage: continue [n]
-    usage: continue [n]
-    usage: continue [n]
+    continue: abc: numeric argument required
+    continue: abc: numeric argument required
+    continue: abc: numeric argument required
   exit_code: 2

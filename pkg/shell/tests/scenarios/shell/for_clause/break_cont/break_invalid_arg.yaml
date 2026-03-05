@@ -1,4 +1,4 @@
-description: Break with non-numeric argument produces a usage error on each iteration.
+description: Break with non-numeric argument produces an error on each iteration.
 input:
   # language=bash
   script: |+
@@ -8,7 +8,7 @@ input:
 expect:
   stdout: ""
   stderr: |+
-    usage: break [n]
-    usage: break [n]
-    usage: break [n]
+    break: abc: numeric argument required
+    break: abc: numeric argument required
+    break: abc: numeric argument required
   exit_code: 2

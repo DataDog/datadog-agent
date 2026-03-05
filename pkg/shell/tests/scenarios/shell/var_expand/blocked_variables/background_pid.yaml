@@ -1,10 +1,10 @@
-description: The $! variable has no special meaning and expands to empty.
+description: The $! variable is blocked.
 input:
   # language=bash
   script: |+
     echo "[$!]"
 expect:
-  stdout: |+
-    []
-  stderr: ""
-  exit_code: 0
+  stdout: ""
+  stderr: |+
+    $! is not supported
+  exit_code: 2
