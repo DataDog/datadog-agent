@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 )
 
+const (
+	pollingFrequency = 2 * time.Second
+	httpRequestTimeout = 10 * time.Second
+)
+
 type onDemandTestResponse struct {
 	Tests []common.SyntheticsTestConfig `json:"tests"`
 }
@@ -35,7 +40,7 @@ type onDemandPoller struct {
 
 func newOnDemandPoller(config *onDemandPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *onDemandPoller {
 	return &onDemandPoller{
-		httpClient:      &http.Client{Transport: config.httpTransport, Timeout: 10 * time.Second},
+		httpClient:      &http.Client{Transport: config.httpTransport, Timeout: httpRequestTimeout},
 		endpoint:        "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
 		apiKey:          config.apiKey,
 		hostNameService: hostNameService,
@@ -57,7 +62,7 @@ func (p *onDemandPoller) stop() {
 func (p *onDemandPoller) pollLoop(ctx context.Context) {
 	defer close(p.done)
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(pollingFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -90,13 +95,11 @@ func (p *onDemandPoller) fetchTests(ctx context.Context) ([]common.SyntheticsTes
 		return nil, fmt.Errorf("error getting hostname: %w", err)
 	}
 
-	u, err := url.Parse(p.endpoint)
+	rawURL := p.endpoint + "?agent_hostname=" + url.QueryEscape(hostname)
+	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid endpoint URL: %w", err)
 	}
-	q := u.Query()
-	q.Set("agent_hostname", hostname)
-	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
