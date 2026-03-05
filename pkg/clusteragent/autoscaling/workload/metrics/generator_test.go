@@ -517,8 +517,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 	}
 }
 
-func TestGeneratePodAutoscalerMetrics_InvalidObject(t *testing.T) {
-	// Pass wrong type
-	metrics := GeneratePodAutoscalerMetrics("invalid object")
+func TestGeneratePodAutoscalerMetrics_NilObject(t *testing.T) {
+	metrics := GeneratePodAutoscalerMetrics(nil)
 	assert.Nil(t, metrics)
 }

@@ -138,8 +138,8 @@ func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling
 }
 
 func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *karpenterv1.NodePool) autoscaling.ProcessResult {
-	npi, foundInStore := c.store.LockRead(name, true)
-	defer c.store.Unlock(name)
+	npi, foundInStore, unlock := c.store.LockRead(name, true)
+	defer unlock()
 
 	if foundInStore {
 		// Get Target NodePool from Lister if needed

@@ -16,21 +16,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type MockDCAClient struct {
@@ -42,30 +41,37 @@ func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.Pa
 	return nil
 }
 
-func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
+func newTestClient(t *testing.T) (*languageDetectionClientImpl, chan *pbgo.ParentLanguageAnnotationRequest) {
 	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{
-				"language_detection.reporting.enabled":       "true",
-				"language_detection.enabled":                 "true",
-				"cluster_agent.enabled":                      "true",
-				"language_detection.reporting.buffer_period": "50ms",
-			})
-		}),
-		telemetryimpl.MockModule(),
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"language_detection.reporting.enabled":       "true",
+		"language_detection.enabled":                 "true",
+		"cluster_agent.enabled":                      "true",
+		"language_detection.reporting.buffer_period": "50ms",
+	})
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() config.Component { return cfg }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+	)
 
-	optComponent := newClient(deps).(option.Option[clientComp.Component])
+	reqs := Requires{
+		Lifecycle:    compdef.NewTestLifecycle(t),
+		Config:       cfg,
+		Log:          logmock.New(t),
+		Telemetry:    tel,
+		Workloadmeta: wm,
+	}
+
+	provides, _ := NewComponent(reqs)
+	optComponent := provides.Comp
 	comp, _ := optComponent.Get()
-	client := comp.(*client)
-	client.langDetectionCl = mockDCAClient
+	cl := comp.(*languageDetectionClientImpl)
+	cl.langDetectionCl = mockDCAClient
 
-	return client, respCh
+	return cl, respCh
 }
 
 func TestClientEnabled(t *testing.T) {
@@ -85,6 +91,12 @@ func TestClientEnabled(t *testing.T) {
 		{"false", "false", "false", false},
 	}
 
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+	)
+
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf(
 			"language_enabled=%s, language_detection_reporting_enabled=%s, cluster_agent_enabled=%s",
@@ -92,21 +104,20 @@ func TestClientEnabled(t *testing.T) {
 			testCase.languageDetectionReportingEnabled,
 			testCase.clusterAgentEnabled),
 			func(t *testing.T) {
-				deps := fxutil.Test[dependencies](t, fx.Options(
-					fx.Provide(func() config.Component {
-						return config.NewMockWithOverrides(t, map[string]interface{}{
-							"language_detection.enabled":           testCase.languageDetectionEnabled,
-							"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
-							"cluster_agent.enabled":                testCase.clusterAgentEnabled,
-						})
-					}),
-					fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-					telemetryimpl.MockModule(),
-					fx.Provide(func() log.Component { return logmock.New(t) }),
-					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				))
-
-				optionalCl := newClient(deps).(option.Option[clientComp.Component])
+				cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+					"language_detection.enabled":           testCase.languageDetectionEnabled,
+					"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
+					"cluster_agent.enabled":                testCase.clusterAgentEnabled,
+				})
+				reqs := Requires{
+					Lifecycle:    compdef.NewTestLifecycle(t),
+					Config:       cfg,
+					Log:          logmock.New(t),
+					Telemetry:    tel,
+					Workloadmeta: wm,
+				}
+				provides, _ := NewComponent(reqs)
+				optionalCl := provides.Comp
 				_, ok := optionalCl.Get()
 				assert.Equal(t, testCase.isSet, ok)
 			})

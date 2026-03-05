@@ -105,8 +105,8 @@ func NewHashHeap[T any](maxSize int, store *Store[T], creationTimestamp func(*T)
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-// Used as an ObserverFunc; accept sender and obj as parameters to match ObserverFunc signature
-func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID, _ interface{}) {
+// Used as an ObserverFunc; retrieves the object from the store directly via store.Get.
+func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID) {
 	obj, found := h.store.Get(key)
 	if !found {
 		return
@@ -145,8 +145,8 @@ func (h *HashHeap[T]) InsertIntoHeap(key string, _ SenderID, _ interface{}) {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-// Used as an ObserverFunc; accept sender and obj as parameters to match ObserverFunc signature
-func (h *HashHeap[T]) DeleteFromHeap(key string, _ SenderID, _ interface{}) {
+// Used as an ObserverFunc.
+func (h *HashHeap[T]) DeleteFromHeap(key string, _ SenderID) {
 	// Key did not exist in heap, return early
 	if !h.Exists(key) {
 		return

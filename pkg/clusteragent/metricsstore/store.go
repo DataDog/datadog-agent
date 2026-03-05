@@ -18,9 +18,9 @@ import (
 
 // MetricsStore stores structured metrics for any cluster-agent resource
 // and sends them periodically via a Datadog Sender
-type MetricsStore struct {
+type MetricsStore[T any] struct {
 	metrics             sync.Map // map[string]StructuredMetrics
-	generateMetricsFunc func(interface{}) StructuredMetrics
+	generateMetricsFunc func(T) StructuredMetrics
 	sender              sender.Sender
 	isLeader            func() bool
 	globalTagsFunc      func() []string
@@ -29,8 +29,8 @@ type MetricsStore struct {
 // NewMetricsStore creates a new metrics store.
 // globalTagsFunc, if non-nil, is called on every WriteAll to retrieve tags that
 // are appended to every metric (e.g. orch_cluster_id from the tagger).
-func NewMetricsStore(generateFunc func(interface{}) StructuredMetrics, senderInstance sender.Sender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore {
-	return &MetricsStore{
+func NewMetricsStore[T any](generateFunc func(T) StructuredMetrics, senderInstance sender.Sender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore[T] {
+	return &MetricsStore[T]{
 		generateMetricsFunc: generateFunc,
 		sender:              senderInstance,
 		isLeader:            isLeaderFunc,
@@ -39,19 +39,19 @@ func NewMetricsStore(generateFunc func(interface{}) StructuredMetrics, senderIns
 }
 
 // Add adds or updates metrics for an object.
-func (m *MetricsStore) Add(key string, obj interface{}) {
+func (m *MetricsStore[T]) Add(key string, obj T) {
 	log.Tracef("Adding/updating metrics for key: %s", key)
 	m.metrics.Store(key, m.generateMetricsFunc(obj))
 }
 
 // Delete removes metrics for an object.
-func (m *MetricsStore) Delete(key string) {
+func (m *MetricsStore[T]) Delete(key string) {
 	log.Tracef("Deleting metrics for key: %s", key)
 	m.metrics.Delete(key)
 }
 
 // WriteAll sends all metrics in the store via Sender
-func (m *MetricsStore) WriteAll() error {
+func (m *MetricsStore[T]) WriteAll() error {
 	if !m.isLeader() {
 		return nil
 	}
@@ -94,7 +94,7 @@ func (m *MetricsStore) WriteAll() error {
 }
 
 // WriteAllPeriodically runs WriteAll on a ticker at the specified interval
-func (m *MetricsStore) WriteAllPeriodically(ctx context.Context, interval time.Duration) {
+func (m *MetricsStore[T]) WriteAllPeriodically(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	log.Debugf("Starting periodic metrics writer (interval: %s)", interval)
