@@ -156,6 +156,8 @@ the archive for the current version (compute with `sha256sum /tmp/<name>-<versio
 
 **b) Create `deps/<name>/module_utils.bzl`**
 
+This is an approximate template that works for tar format downloads. Sometimes we download a single file, and would use rctx.download() to download that instead.
+
 ```python
 """MODULE wrapper to download <name> using variables from release.json."""
 
