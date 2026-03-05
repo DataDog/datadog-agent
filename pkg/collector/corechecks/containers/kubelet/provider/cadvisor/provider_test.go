@@ -63,30 +63,28 @@ var (
 	expectedMetricsPrometheus = []string{
 		// Still emitted for all containers (no generic equivalent)
 		common.KubeletMetricsPrefix + "cpu.load.10s.avg",
-		common.KubeletMetricsPrefix + "cpu.system.total",
-		common.KubeletMetricsPrefix + "cpu.user.total",
-		common.KubeletMetricsPrefix + "cpu.cfs.periods",
-		common.KubeletMetricsPrefix + "cpu.cfs.throttled.periods",
-		common.KubeletMetricsPrefix + "cpu.cfs.throttled.seconds",
+		common.KubeletMetricsPrefix + "cpu.cfs.periods", // ElapsedPeriods not populated by containerd/system collectors
 		common.KubeletMetricsPrefix + "network.rx_dropped",
 		common.KubeletMetricsPrefix + "network.rx_errors",
 		common.KubeletMetricsPrefix + "network.tx_dropped",
 		common.KubeletMetricsPrefix + "network.tx_errors",
-		common.KubeletMetricsPrefix + "io.write_bytes",
-		common.KubeletMetricsPrefix + "io.read_bytes",
 		common.KubeletMetricsPrefix + "filesystem.usage",
 		common.KubeletMetricsPrefix + "filesystem.usage_pct",
-		common.KubeletMetricsPrefix + "memory.limits",
 		common.KubeletMetricsPrefix + "memory.usage_pct",
 		common.KubeletMetricsPrefix + "memory.sw_limit",
 		common.KubeletMetricsPrefix + "memory.sw_in_use",
-		common.KubeletMetricsPrefix + "memory.usage", // Also emitted by generic processor; kept here for usage_pct cache dependency
-		common.KubeletMetricsPrefix + "memory.cache",
-		common.KubeletMetricsPrefix + "memory.swap",
-		// Emitted only for static pending pods
+		// Kept for all containers due to cache dependencies for pct computations
+		common.KubeletMetricsPrefix + "memory.usage", // Needed for memory.usage_pct cache
+		common.KubeletMetricsPrefix + "memory.swap",  // Needed for memory.sw_in_use cache
+		// Emitted only for static pending pods (test data has kube-proxy as static pending)
 		common.KubeletMetricsPrefix + "cpu.usage.total",
+		common.KubeletMetricsPrefix + "cpu.system.total",
+		common.KubeletMetricsPrefix + "cpu.user.total",
+		common.KubeletMetricsPrefix + "io.read_bytes",
+		common.KubeletMetricsPrefix + "io.write_bytes",
 		common.KubeletMetricsPrefix + "memory.rss",
 		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "memory.cache",
 		common.KubeletMetricsPrefix + "network.rx_bytes",
 		common.KubeletMetricsPrefix + "network.tx_bytes",
 	}
