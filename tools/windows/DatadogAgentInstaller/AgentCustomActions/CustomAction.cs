@@ -237,6 +237,9 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RunPostInstallHook(Session session)
         {
             return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
+        }
+
+        [CustomAction]
         public static ActionResult ConfigureAutoLogger(Session session)
         {
             return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLogger(session);
