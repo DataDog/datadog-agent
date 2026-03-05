@@ -15,7 +15,6 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -40,7 +39,6 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -278,13 +276,15 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector.exe",
+			)
 		} else {
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "secret-generic-connector")
-			} else {
-				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
-			}
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
