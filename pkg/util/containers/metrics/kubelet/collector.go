@@ -122,13 +122,20 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 }
 
 // GetContainerStats returns stats by container ID.
+// The returned stats are a merge of /stats/summary data and /metrics/cadvisor data,
+// with stats/summary fields taking precedence where both sources provide the same field.
 func (kc *kubeletCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
 	if found {
 		if containerStats != nil {
-			return containerStats.(*provider.ContainerStats), err
+			stats := containerStats.(*provider.ContainerStats)
+			// Merge cadvisor data for fields not available from stats/summary
+			if cadvisorStats := kc.getCadvisorContainerStats(containerID, currentTime, cacheValidity); cadvisorStats != nil {
+				mergeContainerStats(stats, cadvisorStats)
+			}
+			return stats, err
 		}
 		return nil, err
 	}
@@ -141,7 +148,11 @@ func (kc *kubeletCollector) GetContainerStats(_, containerID string, cacheValidi
 	containerStats, found, err = kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
 	if found {
 		if containerStats != nil {
-			return containerStats.(*provider.ContainerStats), err
+			stats := containerStats.(*provider.ContainerStats)
+			if cadvisorStats := kc.getCadvisorContainerStats(containerID, currentTime, cacheValidity); cadvisorStats != nil {
+				mergeContainerStats(stats, cadvisorStats)
+			}
+			return stats, err
 		}
 		return nil, err
 	}
@@ -193,6 +204,12 @@ func (kc *kubeletCollector) refreshContainerCache(currentTime time.Time, cacheVa
 	} else {
 		log.Debugf("Unable to get stats from Kubelet, err: %v", err)
 	}
+
+	// Also scrape /metrics/cadvisor to enrich container stats with data not
+	// available from /stats/summary (CPU user/system, throttling, memory
+	// cache/limit, IO). This is especially important in environments without
+	// access to the host system or container runtime (e.g., EKS Fargate).
+	kc.refreshCadvisorCache(currentTime, cacheValidity)
 
 	kc.statsCache.Store(currentTime, refreshCacheKey, nil, err)
 	return err
@@ -287,6 +304,13 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 		} else {
 			outContainerStats.Memory.WorkingSet = pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.WorkingSetBytes)
 		}
+	}
+
+	if kubeContainerStats.Swap != nil {
+		if outContainerStats.Memory == nil {
+			outContainerStats.Memory = &provider.ContainerMemStats{}
+		}
+		outContainerStats.Memory.Swap = pointer.UIntPtrToFloatPtr(kubeContainerStats.Swap.SwapUsageBytes)
 	}
 }
 
