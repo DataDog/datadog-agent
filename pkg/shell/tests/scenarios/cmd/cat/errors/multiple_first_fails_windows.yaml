@@ -1,5 +1,5 @@
 test_against_local_shell: false
-description: When the first of multiple files fails, cat stops immediately without processing remaining files (Windows).
+description: When the first of multiple files fails, cat continues and processes remaining files (Windows).
 target_os: [windows]
 setup:
   files:
@@ -13,7 +13,8 @@ input:
   script: |+
     cat nonexistent.txt existing.txt
 expect:
-  stdout: ""
+  stdout: |+
+    hello world
   stderr_contains:
     - "cat: nonexistent.txt:"
     - "The system cannot find the file specified."
