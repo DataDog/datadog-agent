@@ -90,6 +90,16 @@ interface MetricsChartProps {
   phaseMarkers?: PhaseMarker[];
 }
 
+interface HoveredMetric {
+  timestamp: number;
+  value: number;
+  seriesLabel: string;
+  seriesColor: string;
+  tooltipX: number;
+  tooltipY: number;
+  isVariant: boolean;
+}
+
 export function MetricsChart({
   name,
   points,
@@ -113,6 +123,9 @@ export function MetricsChart({
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
   const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<SeriesID | null>(null);
+  const [hoveredMetric, setHoveredMetric] = useState<HoveredMetric | null>(null);
+  const setHoveredMetricRef = useRef(setHoveredMetric);
+  setHoveredMetricRef.current = setHoveredMetric;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isBrushingRef = useRef(false);
@@ -384,6 +397,7 @@ export function MetricsChart({
           .attr('stroke', color)
           .attr('stroke-width', isHighlighted ? 1.9 : 1.2)
           .attr('opacity', isHighlighted ? 1 : 0.2)
+          .attr('data-series-key', series.seriesId ?? series.label)
           .attr('d', line);
       });
 
@@ -491,6 +505,148 @@ export function MetricsChart({
       .attr('fill', 'rgba(139, 92, 246, 0.3)')
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
+
+    // --- Hover: vertical guideline + snap dot ---
+    const hoverLine = g.append('line')
+      .attr('y1', 0)
+      .attr('y2', innerHeight)
+      .attr('stroke', '#94a3b8')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3,2')
+      .attr('pointer-events', 'none')
+      .style('display', 'none');
+
+    const hoverDot = g.append('circle')
+      .attr('r', 5)
+      .attr('stroke', '#f8fafc')
+      .attr('stroke-width', 2)
+      .attr('pointer-events', 'none')
+      .style('display', 'none');
+
+    type SeriesEntry = { points: Point[]; label: string; color: string; seriesKey: string };
+
+    const restoreSeriesOpacity = () => {
+      g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+        const key = d3.select(this).attr('data-series-key');
+        const isHighlighted = !activeHighlightedSeriesId || key === activeHighlightedSeriesId;
+        d3.select(this)
+          .attr('opacity', isHighlighted ? 1 : 0.2)
+          .attr('stroke-width', isHighlighted ? 1.9 : 1.2);
+      });
+    };
+
+    // Add mouse handlers on the brush overlay rect so they fire regardless of brush state
+    g.select<SVGRectElement>('.brush rect.overlay')
+      .on('mousemove.hover', (event: MouseEvent) => {
+        if (isPanningRef.current || isBrushingRef.current) {
+          hoverDot.style('display', 'none');
+          hoverLine.style('display', 'none');
+          restoreSeriesOpacity();
+          setHoveredMetricRef.current(null);
+          return;
+        }
+
+        const [mouseX, mouseY] = d3.pointer(event);
+        if (mouseX < 0 || mouseX > innerWidth || mouseY < 0 || mouseY > innerHeight) {
+          hoverDot.style('display', 'none');
+          hoverLine.style('display', 'none');
+          restoreSeriesOpacity();
+          setHoveredMetricRef.current(null);
+          return;
+        }
+
+        const mouseTimestamp = xScale.invert(mouseX).getTime() / 1000;
+
+        const seriesEntries: SeriesEntry[] = useVariantData && visibleOrderedSeriesVariants
+          ? visibleOrderedSeriesVariants.map((s, idx) => {
+              const colorIdx = orderedSeriesVariants?.findIndex(
+                (os) => os.seriesId === s.seriesId && os.label === s.label
+              ) ?? idx;
+              return {
+                points: s.points,
+                label: s.label,
+                color: getSeriesVariantColor(Math.max(colorIdx, 0)),
+                seriesKey: s.seriesId ?? s.label,
+              };
+            })
+          : [{ points: pointsToRender, label: name, color: '#8b5cf6', seriesKey: '' }];
+
+        // Pass 1: find nearest timestamp across all visible series
+        let nearestTs: number | null = null;
+        let minTimeDist = Infinity;
+        for (const { points: pts } of seriesEntries) {
+          for (const p of pts) {
+            const d = Math.abs(p.timestamp - mouseTimestamp);
+            if (d < minTimeDist) { minTimeDist = d; nearestTs = p.timestamp; }
+          }
+        }
+        if (nearestTs === null) return;
+
+        // Pass 2: at that timestamp, pick the series whose y-value is closest to the cursor
+        let nearestPoint: Point | null = null;
+        let nearestLabel = '';
+        let nearestColor = '#8b5cf6';
+        let nearestSeriesKey = '';
+        let minYDist = Infinity;
+        for (const { points: pts, label, color, seriesKey } of seriesEntries) {
+          const p = pts.reduce<Point | null>((best, curr) => {
+            const dCurr = Math.abs(curr.timestamp - nearestTs!);
+            const dBest = best ? Math.abs(best.timestamp - nearestTs!) : Infinity;
+            return dCurr < dBest ? curr : best;
+          }, null);
+          if (!p) continue;
+          const yDist = Math.abs(yScale(p.value) - mouseY);
+          if (yDist < minYDist) {
+            minYDist = yDist;
+            nearestPoint = p;
+            nearestLabel = label;
+            nearestColor = color;
+            nearestSeriesKey = seriesKey;
+          }
+        }
+        if (!nearestPoint) return;
+
+        const dotX = xScale(nearestPoint.timestamp * 1000);
+        const dotY = yScale(nearestPoint.value);
+
+        hoverDot
+          .attr('cx', dotX)
+          .attr('cy', dotY)
+          .attr('fill', nearestColor)
+          .style('display', null);
+        hoverLine
+          .attr('x1', dotX)
+          .attr('x2', dotX)
+          .style('display', null);
+
+        // Dim all series except the hovered one
+        if (useVariantData && nearestSeriesKey) {
+          g.selectAll<SVGPathElement, unknown>('path[data-series-key]').each(function() {
+            const key = d3.select(this).attr('data-series-key');
+            const active = key === nearestSeriesKey;
+            d3.select(this)
+              .attr('opacity', active ? 1 : 0.1)
+              .attr('stroke-width', active ? 2.2 : 1.0);
+          });
+        }
+
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        setHoveredMetricRef.current({
+          timestamp: nearestPoint.timestamp,
+          value: nearestPoint.value,
+          seriesLabel: nearestLabel,
+          seriesColor: nearestColor,
+          tooltipX: event.clientX - (containerRect?.left ?? 0),
+          tooltipY: event.clientY - (containerRect?.top ?? 0),
+          isVariant: useVariantData,
+        });
+      })
+      .on('mouseleave.hover', () => {
+        hoverDot.style('display', 'none');
+        hoverLine.style('display', 'none');
+        restoreSeriesOpacity();
+        setHoveredMetricRef.current(null);
+      });
 
   }, [
     points,
@@ -683,8 +839,45 @@ export function MetricsChart({
           })}
         </div>
       )}
-      <div ref={containerRef} className="w-full">
+      <div ref={containerRef} className="w-full relative">
         <svg ref={svgRef} />
+        {hoveredMetric && (
+          <div
+            className="absolute z-50 pointer-events-none bg-slate-900/95 border border-slate-600/70 rounded-lg shadow-xl px-3 py-2 text-xs font-mono"
+            style={{
+              left: hoveredMetric.tooltipX > (containerRef.current?.clientWidth ?? 300) * 0.65
+                ? hoveredMetric.tooltipX - 14
+                : hoveredMetric.tooltipX + 14,
+              top: Math.max(hoveredMetric.tooltipY - 62, 4),
+              transform: hoveredMetric.tooltipX > (containerRef.current?.clientWidth ?? 300) * 0.65
+                ? 'translateX(-100%)'
+                : 'none',
+              minWidth: 148,
+            }}
+          >
+            <div className="text-slate-400 mb-0.5">
+              {new Date(hoveredMetric.timestamp * 1000).toLocaleTimeString('en-US', { hour12: false })}
+            </div>
+            <div className="text-white font-bold text-sm">
+              {Number.isInteger(hoveredMetric.value)
+                ? hoveredMetric.value.toLocaleString()
+                : hoveredMetric.value.toPrecision(5)}
+            </div>
+            {hoveredMetric.isVariant && hoveredMetric.seriesLabel && hoveredMetric.seriesLabel !== 'untagged' && (
+              <div className="flex flex-wrap gap-0.5 mt-1.5">
+                {hoveredMetric.seriesLabel.split(', ').map((tag, i) => (
+                  <span
+                    key={i}
+                    className="px-1 py-0.5 rounded text-[10px]"
+                    style={{ backgroundColor: `${hoveredMetric.seriesColor}22`, color: hoveredMetric.seriesColor, border: `1px solid ${hoveredMetric.seriesColor}55` }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
         <div className="mt-2 flex items-center gap-1">
