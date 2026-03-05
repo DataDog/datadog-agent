@@ -35,18 +35,114 @@ struct WiFiData: Codable {
     }
 }
 
-/// WiFiDataProvider handles CoreLocation permissions and WiFi data collection
+/// WiFiDataProvider handles CoreLocation permissions and WiFi data collection.
+/// The permission prompt (open System Settings + dialog) is gated by request_location_permission
+/// from the WLAN check config (agent configcheck wlan; agent must be running).
 class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // Note: LaunchAgent-launched apps cannot trigger location permission prompts
     // on macOS (prompts are auto-denied by the system). Permission must be granted
     // manually via System Settings -> Privacy & Security -> Location Services.
-    // During the launch time of thhis GUI app, we will attempt to prompt for permission
+    // During the launch time of this GUI app, we will attempt to prompt for permission
     // based on the availability of the GUI environment.
     private static let userDefaultsPromptCountKey = "locationPermissionPromptAttemptCount"
     private let locationManager: CLLocationManager
     private var permissionPromptProcess: Process? = nil
     private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2), persisted per-user
     private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
+
+    /// Cached value of request_location_permission from WLAN check (nil = not yet fetched).
+    private static var cachedRequestLocationPermissionEnabled: Bool? = nil
+
+    /// Tracks whether we already failed once when fetching the flag (allows one retry before caching the default).
+    private static var requestLocationPermissionFetchFailedOnce: Bool = false
+
+    /// Default value when request_location_permission cannot be obtained (agent not running, configcheck fails, or parse fails). Used to keep behavior flexible.
+    private static let defaultRequestLocationPermissionEnabled = false
+
+    /// Returns the path to the agent binary (uses DD_INSTALL_PATH from LaunchAgent plist or default).
+    private static func agentBinaryPath() -> String {
+        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
+        return "\(installPath)/bin/agent/agent"
+    }
+
+    /// Runs the agent binary with arguments ["configcheck", "wlan", "-j"] and returns stdout on success (exit 0), nil on failure.
+    private static func runAgentConfig() -> String? {
+        let path = agentBinaryPath()
+        let task = Process()
+        task.launchPath = path
+        task.arguments = ["configcheck", "wlan", "-j"]
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        task.standardOutput = outPipe
+        task.standardError = errPipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            guard task.terminationStatus == 0 else {
+                Logger.debug("agent configcheck wlan exited with \(task.terminationStatus)", context: "WiFiDataProvider")
+                return nil
+            }
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            Logger.debug("Failed to run agent configcheck wlan: \(error)", context: "WiFiDataProvider")
+            return nil
+        }
+    }
+
+    /// Configcheck JSON item: init_config is the WLAN check init_config (YAML string).
+    private struct ConfigCheckItem: Codable {
+        let init_config: String?
+    }
+
+    /// Parses request_location_permission from WLAN check init_config (from configcheck wlan JSON). Returns true only if key is present and true; false otherwise.
+    private static func parseRequestLocationPermission(from jsonOutput: String) -> Bool {
+        guard let data = jsonOutput.data(using: .utf8) else { return false }
+        let decoder = JSONDecoder()
+        guard let items = try? decoder.decode([ConfigCheckItem].self, from: data),
+              let first = items.first,
+              let initConfig = first.init_config, !initConfig.isEmpty else {
+            return false
+        }
+        let pattern = #"^\s*request_location_permission\s*:\s*(true|false)\s*($|#)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines, .caseInsensitive]) else {
+            return false
+        }
+        let range = NSRange(initConfig.startIndex..., in: initConfig)
+        guard let match = regex.firstMatch(in: initConfig, options: [], range: range),
+              let valueRange = Range(match.range(at: 1), in: initConfig) else {
+            return false
+        }
+        return initConfig[valueRange].lowercased() == "true"
+    }
+
+    /// Returns true if the location permission prompt is allowed (request_location_permission from WLAN check via agent configcheck wlan). Cached for process lifetime with one retry on failure.
+    /// When the flag cannot be obtained, returns defaultRequestLocationPermissionEnabled.
+    private func requestLocationPermissionEnabled() -> Bool {
+        if let cached = Self.cachedRequestLocationPermissionEnabled {
+            Logger.debug("request_location_permission: \(cached) (cached)", context: "WiFiDataProvider")
+            return cached
+        }
+        guard let output = Self.runAgentConfig() else {
+            if Self.requestLocationPermissionFetchFailedOnce {
+                Self.cachedRequestLocationPermissionEnabled = Self.defaultRequestLocationPermissionEnabled
+                Logger.debug("agent configcheck wlan failed again, caching default (\(Self.defaultRequestLocationPermissionEnabled))", context: "WiFiDataProvider")
+                Logger.info("request_location_permission: \(Self.defaultRequestLocationPermissionEnabled) (default, unable to get value)", context: "WiFiDataProvider")
+            } else {
+                Self.requestLocationPermissionFetchFailedOnce = true
+                Logger.debug("agent configcheck wlan failed (will retry once on next check)", context: "WiFiDataProvider")
+                Logger.debug("request_location_permission: \(Self.defaultRequestLocationPermissionEnabled) (default, fetch failed)", context: "WiFiDataProvider")
+            }
+            return Self.defaultRequestLocationPermissionEnabled
+        }
+        Self.requestLocationPermissionFetchFailedOnce = false
+        let result = Self.parseRequestLocationPermission(from: output)
+        Self.cachedRequestLocationPermissionEnabled = result
+        Logger.info("request_location_permission: \(result) (from WLAN config)", context: "WiFiDataProvider")
+        return result
+    }
 
     override init() {
         self.locationManager = CLLocationManager()
@@ -176,9 +272,11 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         // Allow up to 2 attempts to give users a second chance if they make a wrong choice
         let timeSinceInit = Date().timeIntervalSince(initializationTime)
         if !isAuthorized && permissionAttemptCount < 2 && timeSinceInit >= 10.0 {
-            if isGUIAvailable() {
+            if requestLocationPermissionEnabled() && isGUIAvailable() {
                 Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
                 attemptPermissionPrompt(authStatus: authStatus)
+            } else if !requestLocationPermissionEnabled() {
+                Logger.info("Location permission prompt disabled by agent config (request_location_permission: false) - skipping prompt", context: "WiFiDataProvider")
             } else {
                 Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
