@@ -21,7 +21,7 @@ import (
 // Component is the component type.
 type Component interface {
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
-	RunSnmpWalkAll(snmpConnection *gosnmp.GoSNMP, firstOid string)
+	RunSnmpWalkAll(snmpConnection *gosnmp.GoSNMP, firstOid string) ([]gosnmp.SnmpPDU, error)
 	ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
 }
 
