@@ -1,6 +1,6 @@
 description: Exit code after break is 0.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b c; do
       break

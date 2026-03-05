@@ -1,6 +1,6 @@
 description: Brace group output can be piped to another command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     { echo hello; echo world; } | cat
 expect:

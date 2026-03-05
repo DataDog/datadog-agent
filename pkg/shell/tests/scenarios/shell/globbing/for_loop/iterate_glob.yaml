@@ -9,7 +9,7 @@ setup:
       content: ""
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
+  # language=sh
   script: |+
     for f in *.txt; do echo "file:$f"; done
 expect:

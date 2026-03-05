@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Break exits the for loop early.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b c d; do
       echo $i

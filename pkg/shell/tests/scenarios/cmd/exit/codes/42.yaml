@@ -1,6 +1,6 @@
 description: Exit with code 42 returns that specific code.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit 42
 expect:

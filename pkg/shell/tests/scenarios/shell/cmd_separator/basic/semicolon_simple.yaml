@@ -1,6 +1,6 @@
 description: Two commands separated by a semicolon execute sequentially.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo first; echo second
 expect:

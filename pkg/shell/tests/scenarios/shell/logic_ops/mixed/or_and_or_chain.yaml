@@ -1,6 +1,6 @@
 description: Alternating || and && operators evaluate left to right.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false || true && echo yes || echo no
 expect:

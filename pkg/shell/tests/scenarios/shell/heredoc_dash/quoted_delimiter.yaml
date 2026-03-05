@@ -2,7 +2,7 @@ description: Dash heredoc with quoted delimiter suppresses variable expansion.
 input:
   envs:
     NAME: world
-  # language=bash
+  # language=sh
   script: "cat <<-'EOF'\n\thello $NAME\nEOF\n"
 expect:
   stdout: |+

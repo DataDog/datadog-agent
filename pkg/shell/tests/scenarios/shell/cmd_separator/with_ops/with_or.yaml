@@ -1,6 +1,6 @@
 description: Semicolon separates independent statements; || chains within a statement.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo first; false || echo fallback
 expect:

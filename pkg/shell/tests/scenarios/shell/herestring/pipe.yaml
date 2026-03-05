@@ -1,6 +1,6 @@
 description: Herestring output can be piped to another command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<< "piped" | cat
 expect:

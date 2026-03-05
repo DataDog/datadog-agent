@@ -1,6 +1,6 @@
 description: For loop with successful body exits with code 0.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b; do echo $i; done
 expect:

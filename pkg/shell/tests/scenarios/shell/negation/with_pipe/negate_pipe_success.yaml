@@ -1,6 +1,6 @@
 description: Negating a successful pipeline produces exit code 1.
 input:
-  # language=bash
+  # language=sh
   script: |+
     ! echo hello | cat
 expect:

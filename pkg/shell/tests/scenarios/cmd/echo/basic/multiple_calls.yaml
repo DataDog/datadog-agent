@@ -1,6 +1,6 @@
 description: Multiple echo calls each produce their own line.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo first
     echo second

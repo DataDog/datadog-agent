@@ -1,6 +1,6 @@
 description: Heredoc expands variables when delimiter is unquoted.
 input:
-  # language=bash
+  # language=sh
   script: |+
     GREETING=hello
     cat <<EOF

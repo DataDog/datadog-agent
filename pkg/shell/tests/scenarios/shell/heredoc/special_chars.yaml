@@ -1,6 +1,6 @@
 description: Heredoc preserves special characters in content.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<EOF
     tab	here

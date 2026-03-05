@@ -1,6 +1,6 @@
 description: An unknown command after a successful echo still fails.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo hello
     foo

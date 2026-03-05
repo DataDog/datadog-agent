@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Empty IFS disables word splitting.
 input:
-  # language=bash
+  # language=sh
   script: |+
     IFS=
     A="hello world"

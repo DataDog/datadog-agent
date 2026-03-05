@@ -1,6 +1,6 @@
 description: Here-documents are still allowed.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<EOF
     hello heredoc

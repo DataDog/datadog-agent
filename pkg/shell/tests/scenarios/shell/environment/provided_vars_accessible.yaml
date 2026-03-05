@@ -4,7 +4,7 @@ input:
   envs:
     PATH: /usr/bin:/bin
     USER: testuser
-  # language=bash
+  # language=sh
   script: |+
     echo "path=$PATH"
     echo "user=$USER"

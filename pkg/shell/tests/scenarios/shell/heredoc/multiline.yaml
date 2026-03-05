@@ -1,6 +1,6 @@
 description: Heredoc preserves multiple lines including blank lines.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<EOF
     line1

@@ -4,7 +4,7 @@ setup:
     - path: a.txt
       content: ""
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo '*.txt'
 expect:

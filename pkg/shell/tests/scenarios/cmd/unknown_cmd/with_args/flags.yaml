@@ -1,6 +1,6 @@
 description: An unknown command with flag-like arguments still prints "command not found".
 input:
-  # language=bash
+  # language=sh
   script: |+
     foo --verbose -n 5
 expect:

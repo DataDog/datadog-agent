@@ -8,7 +8,7 @@ setup:
       symlink: real.txt
 input:
   allowed_paths: ["allowed"]
-  # language=bash
+  # language=sh
   script: |+
     cat allowed/link.txt
 expect:

@@ -6,7 +6,7 @@ setup:
       content: "ok"
 input:
   allowed_paths: ["allowed"]
-  # language=bash
+  # language=sh
   script: |+
     cat ../../etc/passwd
 expect:

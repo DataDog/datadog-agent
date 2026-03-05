@@ -1,6 +1,6 @@
 description: Inline variable assignment restores the previous value after the command completes.
 input:
-  # language=bash
+  # language=sh
   script: |+
     VAR=original
     VAR=temporary echo anything

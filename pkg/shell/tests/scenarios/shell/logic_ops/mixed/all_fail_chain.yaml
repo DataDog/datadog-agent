@@ -1,6 +1,6 @@
 description: Mixed chain where every path fails.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false && echo no || false && echo no
 expect:

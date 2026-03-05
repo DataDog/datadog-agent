@@ -1,6 +1,6 @@
 description: Basic herestring passes a string to stdin.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<< "hello herestring"
 expect:

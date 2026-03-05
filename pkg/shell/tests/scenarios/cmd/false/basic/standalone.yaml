@@ -1,6 +1,6 @@
 description: The false builtin exits with code 1 and no output.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false
 expect:

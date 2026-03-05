@@ -1,6 +1,6 @@
 description: Successful || left side followed by && continues.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo ok || echo fallback && echo continued
 expect:

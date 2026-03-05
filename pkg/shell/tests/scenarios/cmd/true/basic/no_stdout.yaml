@@ -1,6 +1,6 @@
 description: The true builtin produces no stdout output.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true
     echo done

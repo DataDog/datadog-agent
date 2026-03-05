@@ -1,6 +1,6 @@
 description: The exit status is 0 when true is the last command in a chain.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo first; true
 expect:

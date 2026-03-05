@@ -1,6 +1,6 @@
 description: Basic heredoc with EOF delimiter.
 input:
-  # language=bash
+  # language=sh
   script: |+
     cat <<EOF
     hello

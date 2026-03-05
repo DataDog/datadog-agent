@@ -1,6 +1,6 @@
 description: For loop output can be piped to another command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     for i in a b c; do echo $i; done | cat
 expect:

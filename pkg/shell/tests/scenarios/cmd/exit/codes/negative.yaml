@@ -1,6 +1,6 @@
 description: Exit with negative number wraps via uint8 conversion.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit -1
 expect:

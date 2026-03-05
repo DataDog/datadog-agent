@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: PipeAll (|&) passes both stdout and stderr to the right side stdin.
 input:
-  # language=bash
+  # language=sh
   script: |+
     { echo hello; break; } |& cat
 expect:

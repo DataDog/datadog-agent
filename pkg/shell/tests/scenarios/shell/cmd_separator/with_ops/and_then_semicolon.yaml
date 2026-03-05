@@ -1,6 +1,6 @@
 description: A && chain followed by a semicolon and another command.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo one && echo two; echo three
 expect:

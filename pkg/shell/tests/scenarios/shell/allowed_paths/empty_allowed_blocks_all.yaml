@@ -6,7 +6,7 @@ setup:
       content: "test"
 input:
   allowed_paths: []
-  # language=bash
+  # language=sh
   script: |+
     cat test.txt
 expect:

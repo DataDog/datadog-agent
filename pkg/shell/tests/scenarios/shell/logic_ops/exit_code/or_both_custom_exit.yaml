@@ -1,6 +1,6 @@
 description: The exit builtin terminates the script immediately so || right side never runs.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit 2 || exit 5
 expect:

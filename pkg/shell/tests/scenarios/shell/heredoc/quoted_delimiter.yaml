@@ -2,7 +2,7 @@ description: Heredoc with quoted delimiter suppresses variable expansion.
 input:
   envs:
     GREETING: hello
-  # language=bash
+  # language=sh
   script: |+
     cat <<'EOF'
     say $GREETING

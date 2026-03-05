@@ -1,6 +1,6 @@
 description: Exit 0 explicitly terminates with success.
 input:
-  # language=bash
+  # language=sh
   script: |+
     exit 0
 expect:

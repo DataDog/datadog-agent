@@ -1,6 +1,6 @@
 description: Failed || fallback result feeds into &&.
 input:
-  # language=bash
+  # language=sh
   script: |+
     false || echo recovered && echo continued
 expect:

@@ -1,6 +1,6 @@
 description: An unknown command does not prevent subsequent commands from running.
 input:
-  # language=bash
+  # language=sh
   script: |+
     nonexistent_cmd; echo after
 expect:

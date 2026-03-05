@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Arithmetic commands are not supported.
 input:
-  # language=bash
+  # language=sh
   script: |+
     (( 1 + 2 ))
 expect:

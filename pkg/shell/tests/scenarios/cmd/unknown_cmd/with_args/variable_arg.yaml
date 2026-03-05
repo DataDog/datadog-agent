@@ -1,6 +1,6 @@
 description: An unknown command with a variable-expanded argument still prints "command not found".
 input:
-  # language=bash
+  # language=sh
   script: |+
     MY_VAR=hello
     foo $MY_VAR

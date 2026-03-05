@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: The $- variable (shell options) expands to empty.
 input:
-  # language=bash
+  # language=sh
   script: |+
     echo "[$-]"
 expect:

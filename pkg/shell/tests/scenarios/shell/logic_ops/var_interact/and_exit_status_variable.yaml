@@ -1,6 +1,6 @@
 description: The $? variable reflects exit status within && chains.
 input:
-  # language=bash
+  # language=sh
   script: |+
     true && echo $?
 expect:
