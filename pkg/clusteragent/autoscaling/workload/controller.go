@@ -83,7 +83,7 @@ type Controller struct {
 
 	isFallbackEnabled bool
 
-	metricsStore *metricsstore.MetricsStore
+	metricsStore *metricsstore.MetricsStore[*model.PodAutoscalerInternal]
 }
 
 // NewController returns a new workload autoscaling controller
