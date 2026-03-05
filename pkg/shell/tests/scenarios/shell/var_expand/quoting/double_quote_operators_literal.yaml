@@ -1,0 +1,15 @@
+description: Semicolons and pipe characters inside double quotes are literal, not syntax.
+input:
+  script: |+
+    echo "a;b"
+    echo "a|b"
+    echo "a&&b"
+    echo "a||b"
+expect:
+  stdout: |+
+    a;b
+    a|b
+    a&&b
+    a||b
+  stderr: ""
+  exit_code: 0
