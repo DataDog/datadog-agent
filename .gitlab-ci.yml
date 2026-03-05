@@ -6,6 +6,13 @@ include:
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
   - local: .gitlab/.post/**.yml
+  # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
+  - local: .gitlab/windows/**.yml
+    rules:
+      # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
+      - if: $SKIP_WINDOWS == "true"
+        when: never
+      - when: always
 
 default:
   retry:
@@ -81,6 +88,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SECRET_GENERIC_CONNECTOR_BINARIES_DIR: bin/secret-generic-connector
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
@@ -177,6 +185,7 @@ variables:
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
+  CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
   DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
@@ -232,9 +241,12 @@ variables:
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
+  FF_USE_WINDOWS_JOB_OBJECT: true # Prevent orphaned processes from holding file handles, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4525
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
+
+  SKIP_WINDOWS: "false"
 
 #
 # Condition mixins for simplification of rules
@@ -477,6 +489,10 @@ workflow:
   - <<: *if_deploy
     when: never
 
+.except_skip_windows:
+  - if: $SKIP_WINDOWS == "true"
+    when: never
+
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: manual
@@ -521,6 +537,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
+
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -644,8 +661,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -665,7 +680,7 @@ workflow:
   changes:
     paths:
       - tools/windows/DatadogAgentInstaller/**/*
-      - .gitlab/test/e2e_install_packages/windows.yml
+      - .gitlab/windows/test/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
       - tasks/msi.py
@@ -700,8 +715,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -1058,6 +1071,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_otel_components_changes:
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
+  - changes:
+      paths:
+        - cmd/otel-agent/**/*
+        - comp/otelcol/**/*
+        - test/otel/testdata/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ssi_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1097,6 +1121,16 @@ workflow:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
         - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *on_build_changes
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

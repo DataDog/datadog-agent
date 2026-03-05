@@ -103,7 +103,7 @@ func BenchmarkConnectionReset(b *testing.B) {
 }
 
 func BenchmarkFormatTags(b *testing.B) {
-	tagSet := indexedset.New[string]()
+	tagSet := indexedset.New[string](0)
 	var c network.ConnectionStats
 	c.Tags = []*intern.Value{
 		intern.GetByString("env:env"),

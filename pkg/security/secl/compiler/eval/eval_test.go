@@ -943,6 +943,12 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[A].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: true},
 		{Expr: `process.list[A].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: true},
 
+		// StringArrayEvaluator in/not in StringArrayEvaluator — previously unhandled, would fail at compile time
+		{Expr: `process.list.value in process.array.value`, Expected: false}, // ["AAA","BBB","CCC"] ∩ ["EEEE","DDDD"] = ∅
+		{Expr: `process.list.value not in process.array.value`, Expected: true},
+		{Expr: `process.array.value in process.list.value`, Expected: false},
+		{Expr: `process.array.value not in process.list.value`, Expected: true},
+
 		{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA"`, Expected: true},
 		{Expr: `process.list[A].key == 9999 && process.list[A].value == "AAA"`, Expected: false},
 		{Expr: `process.list[A].key == 100 && process.list[A].value == "BBB"`, Expected: true},

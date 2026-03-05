@@ -75,11 +75,13 @@ ENV \
 COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
 # CWS Instrumentation
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
+# secret-generic-connector for secret_backend_type / secret_backend_command
+COPY --from=artifacts secret-generic-connector /opt/datadog-agent/bin/secret-generic-connector
 
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
-    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
     && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent
@@ -99,7 +101,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && touch /tmp/.placeholder \
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
-    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
+    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/ \
+    && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so

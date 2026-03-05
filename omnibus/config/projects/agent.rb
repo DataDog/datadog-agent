@@ -89,10 +89,8 @@ else
   end
 
   if osx_target?
-    unless ENV['SKIP_SIGN_MAC'] == 'true'
+    if ENV['SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
-    end
-    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
   else
@@ -184,7 +182,7 @@ package :pkg do
   identifier 'com.datadoghq.agent'
   # This defines where the package will be installed in the target system
   install_location "/opt/datadog-agent"
-  unless ENV['SKIP_SIGN_MAC'] == 'true'
+  if ENV['SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
 end
@@ -232,10 +230,6 @@ if do_build
   # This depends on the agent and must be added after it
   unless heroku_target? || osx_target?
     dependency 'datadog-security-agent-policies'
-  end
-
-  if osx_target?
-    dependency 'datadog-agent-mac-app'
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
