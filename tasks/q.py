@@ -27,7 +27,7 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval(ctx, scenario: str = "", scenarios_dir: str = "./scenarios", sigma: float = 30.0):
+def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
     """
     Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
 
@@ -83,6 +83,7 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./scenarios", sigma: flo
             baseline_fps = _count_baseline_fps(
                 f"/tmp/observer-eval-{r['name']}.json",
                 os.path.join(scenarios_dir, r['name'], 'metadata.json'),
+                sigma,
             )
 
             print(
@@ -93,7 +94,7 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./scenarios", sigma: flo
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
 
-def _count_baseline_fps(output_path, metadata_path):
+def _count_baseline_fps(output_path, metadata_path, sigma):
     """Count scored predictions that fired before ground truth onset."""
     try:
         with open(output_path) as f:
@@ -114,7 +115,7 @@ def _count_baseline_fps(output_path, metadata_path):
     bl_ts = int(datetime.fromisoformat(bl_str.replace("Z", "+00:00")).timestamp()) if bl_str else 0
 
     count = 0
-    cutoff = gt_ts + 60  # 2 * default sigma
+    cutoff = gt_ts + 2 * sigma
     for p in output.get("anomaly_periods", []):
         ts = p["period_start"]
         if bl_ts and ts < bl_ts:
@@ -127,7 +128,7 @@ def _count_baseline_fps(output_path, metadata_path):
 
 
 @task
-def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/anomaly_datasets_converted", build: bool = False):
+def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/scenarios", build: bool = False):
     """
     Will launch both the observer-testbench backend and UI.
 

@@ -19,7 +19,7 @@ import (
 
 func main() {
 	outputPath := flag.String("output", "", "Path to headless output JSON to score (required)")
-	scenariosDir := flag.String("scenarios-dir", "./scenarios", "Directory containing scenario subdirectories (for metadata.json lookup)")
+	scenariosDir := flag.String("scenarios-dir", "./comp/observer/scenarios", "Directory containing scenario subdirectories (for metadata.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides metadata.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
