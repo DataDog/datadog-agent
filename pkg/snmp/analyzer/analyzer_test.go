@@ -90,10 +90,10 @@ func TestAnalyze(t *testing.T) {
 
 	sysOID := "1.3.6.1.4.1.674.1"
 
-	found, err := Analyze(pdus, sysOID)
+	found, notFound, profileName, _, err := Analyze(pdus, sysOID)
 	if err != nil {
 		t.Skipf("profile lookup not available (analyzer returned 0 metrics): %v", err)
 	}
-	t.Logf("Analyze returned %d metrics ", len(found))
+	t.Logf("Analyze returned %d matched, %d not found, profile=%s", len(found), len(notFound), profileName)
 
 }

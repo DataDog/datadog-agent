@@ -12,9 +12,10 @@ import (
 const _cached_sys_obj_id = ".1.3.6.1.2.1.1.2"
 
 type MetricProfile struct {
-	value   interface{}
-	oid     string
-	profile string
+	Value       interface{} // SNMP value (e.g. string, uint32)
+	OID         string      // full OID from the walk
+	Profile     string      // profile name that defines this OID
+	InterfaceID string      // e.g. "1" or "1.2" for table rows; empty for scalars/tags
 }
 
 // SysObjectOID returns the OID to walk to fetch sysObjectID (e.g. for a fallback walk).
@@ -46,7 +47,7 @@ func profileDefinitions(profileNames []string) []profiledefinition.ProfileDefini
 	for _, name := range profileNames {
 		profileDef, err := snmp.GetProfileDefinition(name)
 		if err != nil {
-			fmt.Printf("Unable to parse profile %v", name)
+			continue
 		}
 		defs = append(defs, profileDef)
 	}
@@ -96,38 +97,71 @@ func oidMap(profileDefs []profiledefinition.ProfileDefinition) map[string]string
 	return oidToProfile
 }
 
-// Analyze runs analysis on the first walk (pdus) using the given sysObjectID to resolve profile.
-func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) ([]MetricProfile, error) {
-	//ToDO: correct return types to state what they are, Will also have a device profile type
+// Analyze runs analysis on the walk results (pdus) using the given sysObjectID to resolve the device profile.
+// It returns matched metrics, unmatched metrics (OIDs not in any profile), the resolved profile name, extended profile names, and an error if profile lookup fails.
+func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
+	found []MetricProfile,
+	notFound []MetricProfile,
+	profileName string,
+	extendedProfiles []string,
+	err error,
+) {
+	// Resolve the profile definition for this device from sysObjectID.
 	profileDef, err := FindProfile(sysOID)
 	if err != nil {
-		fmt.Printf("profile lookup: %v\n", err)
-		return []MetricProfile{}, err
+		return nil, nil, "", nil, err
 	}
+	profileName = profileDef.Name
 
-	var profileList []profiledefinition.ProfileDefinition
+	// Build list of profile definitions: root profile first, then extended profiles (e.g. _base, _generic-if).
+	extendedProfiles = profileDef.Extends
+	extendedProfileDefs := profileDefinitions(profileDef.Extends)
+	var allProfileDefs []profiledefinition.ProfileDefinition
+	allProfileDefs = append(allProfileDefs, profileDef)
+	allProfileDefs = append(allProfileDefs, extendedProfileDefs...)
 
-	extendedProfiles := profileDef.Extends
-	extendedProfileDefs := profileDefinitions(extendedProfiles)
-
-	profileList = append(profileList, profileDef)
-	profileList = append(profileList, extendedProfileDefs...)
-
-	oids := pdus
+	// Map each known OID to the profile name that defines it (so we can match walk PDUs to the right profile).
+	oidToProfile := oidMap(allProfileDefs)
 
 	var foundMetrics []MetricProfile
-
-	metricMap := oidMap(profileList)
-
-	for _, oid := range oids {
-		if profileName, found := metricMap[normalizeOID(oid.Name)]; found {
-			foundMetrics = append(foundMetrics, MetricProfile{
-				value:   oid.Value,
-				oid:     oid.Name,
-				profile: profileName,
-			})
+	var notFoundMetrics []MetricProfile
+	// Match each walk PDU's OID against the profile OID map (exact match, or prefix match for table columns).
+	for _, pdu := range pdus {
+		normalizedOID := normalizeOID(pdu.Name)
+		var matchedProfile string
+		var interfaceID string
+		if p, ok := oidToProfile[normalizedOID]; ok {
+			matchedProfile = p
+		} else {
+			// Table column instance: PDU OID is column base + index (e.g. 1.3.6.1.2.1.2.2.1.2.1). Find which column base it belongs to; keep the longest match so we get the most specific column.
+			longestMatchLen := 0
+			var longestMatchingBaseOID string
+			for baseOID, p := range oidToProfile {
+				if strings.HasPrefix(normalizedOID, baseOID+".") && len(baseOID) > longestMatchLen {
+					longestMatchLen = len(baseOID)
+					longestMatchingBaseOID = baseOID
+					matchedProfile = p
+				}
+			}
+			if longestMatchingBaseOID != "" {
+				interfaceID = normalizedOID[len(longestMatchingBaseOID)+1:] // suffix after "baseOID."
+			} else if idx := strings.LastIndex(normalizedOID, "."); idx >= 0 {
+				// Unmatched OID: use last component as interface/index (e.g. "1" from "1.3.6.1.2.1.2.2.1.2.1").
+				interfaceID = normalizedOID[idx+1:]
+			}
+		}
+		m := MetricProfile{
+			Value:       pdu.Value,
+			OID:         pdu.Name,
+			Profile:     matchedProfile,
+			InterfaceID: interfaceID,
+		}
+		if matchedProfile != "" {
+			foundMetrics = append(foundMetrics, m)
+		} else {
+			notFoundMetrics = append(notFoundMetrics, m)
 		}
 	}
 
-	return foundMetrics, nil
+	return foundMetrics, notFoundMetrics, profileName, extendedProfiles, nil
 }
