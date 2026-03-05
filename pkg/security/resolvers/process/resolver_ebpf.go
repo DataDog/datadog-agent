@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -82,6 +83,7 @@ type EBPFResolver struct {
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
 	pidCacheMap  ebpf.Map
+	pathIDMap    ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -99,9 +101,8 @@ type EBPFResolver struct {
 	brokenLineage             *atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
-	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
-	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -1268,6 +1269,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.pathIDMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1302,11 +1307,6 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 			return
 		}
 	}
-}
-
-// SyncBoundSockets sets the bound sockets discovered during the snapshot
-func (p *EBPFResolver) SyncBoundSockets(pid uint32, boundSockets []model.SnapshottedBoundSocket) {
-	p.SnapshottedBoundSockets[pid] = boundSockets
 }
 
 // SyncCache snapshots /proc for the provided pid.
@@ -1349,6 +1349,15 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
 		}
 	}
+
+	if !entry.FileEvent.PathKey.IsNull() {
+		buffer, err := entry.FileEvent.PathKey.MarshalBinary()
+		if err != nil {
+			seclog.Errorf("couldn't marshal path key: %s", err)
+		} else if err = p.pathIDMap.Put(entry.PIDContext.Pid, buffer); err != nil {
+			seclog.Errorf("couldn't push path_id entry to kernel space: %s", err)
+		}
+	}
 }
 
 // newEntryFromProcfs creates a new process cache entry by snapshotting /proc for the provided pid
@@ -1361,6 +1370,17 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
 		seclog.Trace(err)
 		return nil
+	}
+
+	var err error
+	entry.SnapshottedMmapedFiles, err = procfs.GetMmapedFiles(proc)
+	if err != nil {
+		seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", proc.Pid, err)
+	}
+
+	entry.SnapshottedBoundSockets, err = procfs.NewBoundSocketSnapshotter().GetBoundSockets(proc)
+	if err != nil {
+		seclog.Debugf("error while listing sockets (pid: %v): %s", proc.Pid, err)
 	}
 
 	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode
@@ -1587,7 +1607,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
