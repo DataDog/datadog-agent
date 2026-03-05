@@ -35,12 +35,12 @@
 //	-A N, --after-context=N      Print N lines of trailing context after each match.
 //	-B N, --before-context=N     Print N lines of leading context before each match.
 //	-C N, --context=N            Print N lines of output context (sets both -A and -B).
+//	-r, --recursive              Recursively search directories (does not follow symlinks).
+//	-R, --dereference-recursive  Recursively search directories, following symlinks (cycle-safe).
 //	-h, --help                   Print this help message and exit.
 //
 // Explicitly unsupported flags (rejected with exit code 2):
 //
-//	-r, --recursive              Recursive directory search — unbounded resource use; not permitted.
-//	-R, --dereference-recursive  Like -r but follows symlinks — same reason.
 //	-P, --perl-regexp            PCRE regex engine — ReDoS risk from backtracking; not permitted.
 //	-f, --file=FILE              Read patterns from FILE — not implemented.
 //	--color, --colour            Color output — no terminal in the safe shell.
@@ -54,8 +54,9 @@
 //
 // Resource limits (prevents DoS against infinite/huge sources):
 //
-//	grepMaxLineBytes    = 256 KiB   maximum bytes stored per input line (excess silently dropped)
-//	grepMaxContextLines = 10_000    maximum value of -A/-B/-C (larger values are clamped)
+//	grepMaxLineBytes      = 256 KiB   maximum bytes stored per input line (excess silently dropped)
+//	grepMaxContextLines   = 10_000    maximum value of -A/-B/-C (larger values are clamped)
+//	grepMaxRecursiveFiles = 10_000    maximum number of files visited by -r/-R
 
 package builtins
 
@@ -66,6 +67,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -75,9 +77,10 @@ import (
 
 // Resource limits — prevent DoS via huge context requests or infinite sources.
 const (
-	grepMaxLineBytes    = 256 * 1024 // max bytes stored per input line (excess silently dropped)
-	grepMaxContextLines = 10_000     // max -A/-B/-C value (larger values are clamped)
-	grepUnlimited       = -1         // sentinel for maxCount: no match limit
+	grepMaxLineBytes      = 256 * 1024 // max bytes stored per input line (excess silently dropped)
+	grepMaxContextLines   = 10_000     // max -A/-B/-C value (larger values are clamped)
+	grepMaxRecursiveFiles = 10_000     // max files visited by -r/-R
+	grepUnlimited         = -1         // sentinel for maxCount: no match limit
 )
 
 // errGrepStopFile is a sentinel that stops processing the current file early (e.g. -l or -m).
@@ -197,6 +200,8 @@ func builtinGrep(ctx context.Context, callCtx *CallContext, args []string) Resul
 	afterStr := fs.StringP("after-context", "A", "", "print N lines of trailing context")
 	beforeStr := fs.StringP("before-context", "B", "", "print N lines of leading context")
 	contextStr := fs.StringP("context", "C", "", "print N lines of output context (sets -A and -B)")
+	recursive := fs.BoolP("recursive", "r", false, "recursively search directories (no symlink follow)")
+	derefRecursive := fs.BoolP("dereference-recursive", "R", false, "recursively search, following symlinks")
 	help := fs.BoolP("help", "h", false, "print usage and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -284,13 +289,60 @@ func builtinGrep(ctx context.Context, callCtx *CallContext, args []string) Resul
 		return Result{Code: 2}
 	}
 
-	files := posArgs
-	if len(files) == 0 {
-		files = []string{"-"}
+	isRecursive := *recursive || *derefRecursive
+	followSymlinks := *derefRecursive
+
+	inputs := posArgs
+	if len(inputs) == 0 {
+		inputs = []string{"-"}
+	}
+
+	// Expand directories when -r/-R is set; leave plain files and stdin as-is.
+	// A plain file argument that is a directory without -r/-R gets an error (GNU behaviour).
+	//
+	// All OS calls (os.Lstat, os.ReadDir) require absolute paths because the
+	// interpreter's working directory (callCtx.Dir) is not the OS process CWD.
+	// We resolve each input to absolute before stat/walk, but preserve the
+	// original path for display so that output looks like GNU grep (e.g. "./sub/f").
+	var files []string
+	var fileCount int // tracks total files visited under recursive expansion
+	anyError := false
+	for _, input := range inputs {
+		if input == "-" {
+			files = append(files, input)
+			continue
+		}
+		absInput := input
+		if !filepath.IsAbs(absInput) {
+			absInput = filepath.Join(callCtx.Dir, absInput)
+		}
+		info, statErr := os.Lstat(absInput)
+		if statErr != nil {
+			// Let the open attempt below produce the error message.
+			files = append(files, input)
+			continue
+		}
+		if info.IsDir() {
+			if !isRecursive {
+				callCtx.Errf("grep: %s: Is a directory\n", input)
+				anyError = true
+				continue
+			}
+			expanded, walkErr := grepWalkDir(ctx, callCtx, absInput, input, followSymlinks, &fileCount)
+			if walkErr != nil {
+				anyError = true
+				if !*noMessages {
+					callCtx.Errf("grep: %s: %v\n", input, walkErr)
+				}
+			}
+			files = append(files, expanded...)
+		} else {
+			files = append(files, input)
+		}
 	}
 
 	// Determine default filename printing: on by default when >1 file.
-	printFilename := len(files) > 1
+	printFilename := len(files) > 1 || isRecursive
 	if *withFilename {
 		printFilename = true
 	}
@@ -298,9 +350,8 @@ func builtinGrep(ctx context.Context, callCtx *CallContext, args []string) Resul
 		printFilename = false
 	}
 
-	anyMatch := false     // true if any matching line was found (normal / -l / -c mode)
-	anyLPrinted := false  // true if any file was printed in -L mode
-	anyError := false
+	anyMatch := false    // true if any matching line was found (normal / -l / -c mode)
+	anyLPrinted := false // true if any file was printed in -L mode
 
 	for _, name := range files {
 		matched, fileErr := func() (matched bool, fileErr error) {
@@ -378,6 +429,132 @@ func builtinGrep(ctx context.Context, callCtx *CallContext, args []string) Resul
 		return Result{}
 	}
 	return Result{Code: 1}
+}
+
+// grepWalkDir recursively collects regular files under root.
+//
+// absRoot is the absolute filesystem path used for all OS operations.
+// displayRoot is the original path as supplied by the user (may be relative);
+// it is used as the prefix for display paths in grep output so that output
+// matches GNU grep (e.g. "./sub/file.txt" when the user passed ".").
+//
+// When followSymlinks is false (-r), symlinks are skipped entirely.
+// When followSymlinks is true (-R), symlinks to directories are followed but
+// cycle detection prevents infinite loops: each directory is resolved to its
+// real path via filepath.EvalSymlinks; a directory whose real path has already
+// been visited is silently skipped.
+//
+// fileCount is a shared counter across all grepWalkDir calls for one invocation;
+// when it reaches grepMaxRecursiveFiles the walk stops and an error is returned.
+func grepWalkDir(ctx context.Context, callCtx *CallContext, absRoot, displayRoot string, followSymlinks bool, fileCount *int) ([]string, error) {
+	visited := make(map[string]bool)
+	var results []string
+	err := grepWalk(ctx, callCtx, absRoot, displayRoot, followSymlinks, fileCount, visited, &results)
+	return results, err
+}
+
+// grepWalk is the recursive inner loop for grepWalkDir.
+// absDir and displayDir track the absolute path (for OS calls) and
+// the display path (for grep output) separately.
+//
+// Display paths are built by string concatenation (not filepath.Join) to
+// preserve leading "./" when the user-supplied root is ".".
+func grepWalk(ctx context.Context, callCtx *CallContext, absDir, displayDir string, followSymlinks bool, fileCount *int, visited map[string]bool, results *[]string) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	// Resolve the real path of this directory for cycle detection.
+	realDir, err := filepath.EvalSymlinks(absDir)
+	if err != nil {
+		// If we can't resolve the symlink (dangling), skip silently.
+		return nil
+	}
+	if visited[realDir] {
+		return nil
+	}
+	visited[realDir] = true
+
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return err
+	}
+
+	// Build the display prefix with a separator, preserving any leading "./"
+	// that filepath.Join would otherwise strip.
+	sep := string(filepath.Separator)
+	displayPrefix := displayDir
+	if !strings.HasSuffix(displayPrefix, sep) {
+		displayPrefix += sep
+	}
+
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		absEntry := filepath.Join(absDir, entry.Name())
+		displayEntry := displayPrefix + entry.Name()
+		typ := entry.Type()
+
+		if typ.IsDir() {
+			if err := grepWalk(ctx, callCtx, absEntry, displayEntry, followSymlinks, fileCount, visited, results); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if typ&os.ModeSymlink != 0 {
+			if !followSymlinks {
+				continue
+			}
+			// Resolve the symlink to determine what it points to.
+			// os.Root cannot follow absolute-path symlinks, so we resolve the
+			// real target and use a path relative to callCtx.Dir for opening.
+			realTarget, evalErr := filepath.EvalSymlinks(absEntry)
+			if evalErr != nil {
+				// Dangling symlink — skip.
+				continue
+			}
+			targetInfo, statErr := os.Stat(realTarget)
+			if statErr != nil {
+				continue
+			}
+			if targetInfo.IsDir() {
+				if err := grepWalk(ctx, callCtx, realTarget, displayEntry, followSymlinks, fileCount, visited, results); err != nil {
+					return err
+				}
+				continue
+			}
+			// Symlink to a regular file: open via a path relative to the
+			// interpreter's working directory so callCtx.OpenFile (os.Root)
+			// doesn't need to follow absolute-path symlinks.
+			relPath, relErr := filepath.Rel(callCtx.Dir, realTarget)
+			if relErr != nil || strings.HasPrefix(relPath, "..") {
+				// Target is outside the interpreter's working tree — skip.
+				continue
+			}
+			*fileCount++
+			if *fileCount > grepMaxRecursiveFiles {
+				return fmt.Errorf("too many files (limit %d); use more specific paths", grepMaxRecursiveFiles)
+			}
+			*results = append(*results, relPath)
+			continue
+		}
+
+		// Only process regular files (skip devices, sockets, pipes, etc.).
+		if !typ.IsRegular() {
+			continue
+		}
+
+		*fileCount++
+		if *fileCount > grepMaxRecursiveFiles {
+			return fmt.Errorf("too many files (limit %d); use more specific paths", grepMaxRecursiveFiles)
+		}
+		// Add the display path (preserving the original user-supplied prefix).
+		*results = append(*results, displayEntry)
+	}
+	return nil
 }
 
 // grepFile processes a single reader, writing matches to w.

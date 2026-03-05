@@ -402,6 +402,7 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 			Stdin:        r.stdin,
 			InLoop:       r.inLoop,
 			LastExitCode: r.lastExit.code,
+			Dir:          r.Dir,
 			OpenFile: func(ctx context.Context, path string, flags int, mode os.FileMode) (io.ReadWriteCloser, error) {
 				return r.open(ctx, path, flags, mode, false)
 			},

@@ -1,14 +1,14 @@
-# -r (recursive search) is not implemented; rejected with exit code 2.
-description: grep rejects the -r flag as unsupported.
+# Directory argument without -r is rejected with an error message.
+description: grep rejects a directory argument without -r flag.
 setup:
   files:
-    - path: f.txt
+    - path: subdir/f.txt
       content: "hello\n"
       chmod: 0644
 input:
   allowed_paths: ["$DIR"]
   script: |+
-    grep -r pattern f.txt
+    grep pattern subdir
 expect:
   stdout: ""
   stderr_contains: ["grep:"]

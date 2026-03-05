@@ -395,15 +395,29 @@ func TestGNUCompatGrepMaxCount(t *testing.T) {
 	assert.Equal(t, "foo\n", stdout)
 }
 
-// ── Rejected flag ─────────────────────────────────────────────────────────────
+// ── Recursive search ──────────────────────────────────────────────────────────
 
-// TestGNUCompatGrepRejectedRecursive — -r is rejected with exit 2 and a stderr message.
+// TestGNUCompatGrepRecursiveBasic — -r recurses into subdirectories, printing filename:line.
 //
-// GNU command: our builtin rejects -r; GNU grep would recurse.
-// Expected:    exit 2, non-empty stderr
-func TestGNUCompatGrepRejectedRecursive(t *testing.T) {
-	dir := setupGrepDir(t, map[string]string{"f.txt": "hello\n"})
-	_, stderr, exitCode := grepRun(t, "grep -r pattern .", dir)
-	assert.Equal(t, 2, exitCode)
-	assert.Contains(t, stderr, "grep:")
+// GNU command: ggrep -r alpha .   (subdir/a.txt = "alpha\n", b.txt = "beta\n")
+// Expected:    "./subdir/a.txt:alpha\n"  (only the matching file)
+func TestGNUCompatGrepRecursiveBasic(t *testing.T) {
+	dir := setupGrepDir(t, map[string]string{
+		"subdir/a.txt": "alpha\n",
+		"b.txt":        "beta\n",
+	})
+	stdout, _, exitCode := grepRun(t, "grep -r alpha .", dir)
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, "./subdir/a.txt:alpha\n", stdout)
+}
+
+// TestGNUCompatGrepRecursiveNoMatch — -r exits 1 when no lines match.
+//
+// GNU command: ggrep -r zzz .   (a.txt = "alpha\n")
+// Expected:    exit 1, empty stdout
+func TestGNUCompatGrepRecursiveNoMatch(t *testing.T) {
+	dir := setupGrepDir(t, map[string]string{"a.txt": "alpha\n"})
+	stdout, _, exitCode := grepRun(t, "grep -r zzz .", dir)
+	assert.Equal(t, 1, exitCode)
+	assert.Equal(t, "", stdout)
 }

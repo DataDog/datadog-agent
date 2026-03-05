@@ -26,6 +26,11 @@ type CallContext struct {
 	// LastExitCode is the exit code from the previous command.
 	LastExitCode uint8
 
+	// Dir is the interpreter's current working directory (absolute path).
+	// Builtins must use this to resolve relative paths for any OS calls that
+	// do not go through OpenFile (e.g. os.Lstat, os.ReadDir).
+	Dir string
+
 	// OpenFile opens a file within the shell's path restrictions.
 	OpenFile func(ctx context.Context, path string, flags int, mode os.FileMode) (io.ReadWriteCloser, error)
 }

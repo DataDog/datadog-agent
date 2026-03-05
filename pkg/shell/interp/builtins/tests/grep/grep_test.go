@@ -497,11 +497,57 @@ func TestGrepUnknownFlag(t *testing.T) {
 	assert.Contains(t, stderr, "grep:")
 }
 
-func TestGrepRecursiveRejected(t *testing.T) {
-	dir := setupGrepDir(t, map[string]string{"f.txt": "hello\n"})
-	_, stderr, code := grepRun(t, "grep -r pattern f.txt", dir)
+// ── Recursive search (-r / -R) ────────────────────────────────────────────────
+
+func TestGrepRecursiveBasic(t *testing.T) {
+	dir := setupGrepDir(t, map[string]string{
+		"a.txt":     "match\n",
+		"sub/b.txt": "match\n",
+		"sub/c.txt": "no\n",
+	})
+	stdout, _, code := grepRun(t, "grep -r match .", dir)
+	assert.Equal(t, 0, code)
+	// Both matching files appear; order not guaranteed.
+	assert.Contains(t, stdout, "a.txt:match\n")
+	assert.Contains(t, stdout, "sub/b.txt:match\n")
+	assert.NotContains(t, stdout, "c.txt")
+}
+
+func TestGrepRecursiveLongForm(t *testing.T) {
+	dir := setupGrepDir(t, map[string]string{"a.txt": "hello\n"})
+	stdout, _, code := grepRun(t, "grep --recursive hello .", dir)
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout, "hello\n")
+}
+
+func TestGrepRecursiveNoMatch(t *testing.T) {
+	dir := setupGrepDir(t, map[string]string{"a.txt": "no\n"})
+	_, _, code := grepRun(t, "grep -r ZZNOTFOUND .", dir)
+	assert.Equal(t, 1, code)
+}
+
+func TestGrepRecursiveDirectory(t *testing.T) {
+	// Passing a directory without -r/-R should print "Is a directory" and exit 2.
+	dir := setupGrepDir(t, map[string]string{"sub/f.txt": "hello\n"})
+	_, stderr, code := grepRun(t, "grep hello sub", dir)
 	assert.Equal(t, 2, code)
-	assert.Contains(t, stderr, "grep:")
+	assert.Contains(t, stderr, "Is a directory")
+}
+
+func TestGrepDerefRecursive(t *testing.T) {
+	// -R follows symlinks to regular files.
+	if _, err := os.Lstat(filepath.Join(t.TempDir(), "nonexistent")); err == nil {
+		t.Skip("unexpected file")
+	}
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "f.txt"), []byte("match\n"), 0644))
+	// Create a symlink to the file in the root dir.
+	require.NoError(t, os.Symlink(filepath.Join(subDir, "f.txt"), filepath.Join(dir, "link.txt")))
+	stdout, _, code := runScript(t, "grep -R match .", dir, interp.AllowedPaths([]string{dir}))
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout, "match\n")
 }
 
 func TestGrepSandboxAccessDenied(t *testing.T) {
