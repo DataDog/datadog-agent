@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: $HOME is not automatically set by the interpreter.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo "home=$HOME"
 expect:

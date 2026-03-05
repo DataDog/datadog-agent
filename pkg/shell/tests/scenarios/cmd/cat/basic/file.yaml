@@ -11,7 +11,7 @@ setup:
       chmod: 0777
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     cat mydir/myfile1.txt
     cat mydir/myfile2.txt

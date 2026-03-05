@@ -1,6 +1,6 @@
 description: Multiple true commands all succeed.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true
     true

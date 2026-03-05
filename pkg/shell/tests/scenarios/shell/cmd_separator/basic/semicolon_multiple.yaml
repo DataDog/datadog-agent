@@ -1,6 +1,6 @@
 description: Multiple commands separated by semicolons all execute in order.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo one; echo two; echo three; echo four
 expect:

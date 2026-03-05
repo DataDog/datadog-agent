@@ -5,7 +5,7 @@ setup:
     - path: test.txt
       content: "test"
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat test.txt
 expect:

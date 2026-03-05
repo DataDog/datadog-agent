@@ -1,6 +1,6 @@
 description: A brace group followed by a semicolon and another command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     { echo inside; }; echo outside
 expect:

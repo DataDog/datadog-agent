@@ -6,7 +6,7 @@ setup:
       content: "hello\n"
 input:
   allowed_paths: ["allowed"]
-  # language=sh
+  # language=bash
   script: |+
     cat allowed/data.txt
 expect:

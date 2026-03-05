@@ -1,6 +1,6 @@
 description: Break 2 in inner loop breaks both inner and outer loops.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in a b c; do
       for j in 1 2 3; do

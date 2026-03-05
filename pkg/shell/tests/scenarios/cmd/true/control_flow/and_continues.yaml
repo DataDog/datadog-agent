@@ -1,6 +1,6 @@
 description: The true builtin succeeds so && executes the next command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true && echo reached
 expect:

@@ -1,6 +1,6 @@
 description: Brace group executes contained commands sequentially.
 input:
-  # language=sh
+  # language=bash
   script: |+
     { echo hello; echo world; }
 expect:

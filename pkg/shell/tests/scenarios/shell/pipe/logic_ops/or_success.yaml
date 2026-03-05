@@ -1,6 +1,6 @@
 description: Successful pipe followed by || skips the fallback command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo abc | cat || echo fallback
 expect:

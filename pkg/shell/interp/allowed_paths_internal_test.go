@@ -9,7 +9,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -98,6 +101,25 @@ func TestAllowedPathsExecViaPathLookup(t *testing.T) {
 	dir := t.TempDir()
 	// "ls" is resolved via PATH (not absolute), but /bin and /usr are not allowed
 	_, stderr, exitCode := runScriptInternal(t, `ls`, dir,
+		AllowedPaths([]string{dir}),
+	)
+	assert.Equal(t, 127, exitCode)
+	assert.Contains(t, stderr, "command not found")
+}
+
+func TestAllowedPathsExecSymlinkEscape(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink test not applicable on Windows")
+	}
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0755))
+
+	// Create a symlink inside the allowed dir pointing to /bin/echo outside it.
+	require.NoError(t, os.Symlink("/bin/echo", filepath.Join(binDir, "escape_echo")))
+
+	// Only allow the temp dir — the symlink target (/bin/echo) is outside.
+	_, stderr, exitCode := runScriptInternal(t, filepath.Join(binDir, "escape_echo")+" hello", dir,
 		AllowedPaths([]string{dir}),
 	)
 	assert.Equal(t, 127, exitCode)

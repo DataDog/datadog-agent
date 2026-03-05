@@ -1,6 +1,6 @@
 description: Execution continues after a failing command in a semicolon list.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false; echo still running; echo done
 expect:

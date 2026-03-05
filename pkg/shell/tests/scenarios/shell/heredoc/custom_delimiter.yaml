@@ -1,6 +1,6 @@
 description: Heredoc works with a custom delimiter.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <<MYDELIM
     custom delimiter

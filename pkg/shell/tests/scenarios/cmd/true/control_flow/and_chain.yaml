@@ -1,6 +1,6 @@
 description: Chained && with true allows all commands to execute.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true && true && echo end
 expect:

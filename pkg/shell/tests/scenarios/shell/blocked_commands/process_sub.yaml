@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Process substitution is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <(echo hello)
 expect:

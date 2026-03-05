@@ -3,7 +3,7 @@ description: Input redirect from a nonexistent file fails at the redirect level,
 target_os: [linux, darwin]
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     cat < nonexistent.txt
 expect:

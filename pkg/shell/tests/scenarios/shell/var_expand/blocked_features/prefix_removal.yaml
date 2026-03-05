@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Prefix removal ${var#pattern} is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     X=/a/b/c
     echo ${X#*/}

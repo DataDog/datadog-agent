@@ -1,6 +1,6 @@
 description: Exit with code 127 returns the conventional "command not found" code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     exit 127
 expect:

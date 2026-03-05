@@ -1,6 +1,6 @@
 description: Continue 2 in inner loop continues the outer loop.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2 3; do

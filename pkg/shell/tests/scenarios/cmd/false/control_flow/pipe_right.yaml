@@ -1,6 +1,6 @@
 description: The false builtin on the right side of a pipe results in exit code 1.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo hello | false
 expect:

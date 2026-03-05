@@ -1,6 +1,6 @@
 description: The false builtin fails so && skips the next command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false && echo skipped
 expect:

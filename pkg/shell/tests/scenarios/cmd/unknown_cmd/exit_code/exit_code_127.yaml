@@ -1,6 +1,6 @@
 description: An unknown command sets exit code 127.
 input:
-  # language=sh
+  # language=bash
   script: |+
     nonexistent
 expect:

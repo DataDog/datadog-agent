@@ -1,6 +1,6 @@
 description: For loop with a single item iterates once.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for x in hello; do echo $x; done
 expect:

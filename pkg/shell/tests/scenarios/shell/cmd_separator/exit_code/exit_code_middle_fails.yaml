@@ -1,6 +1,6 @@
 description: Middle command failure does not affect other commands or final exit code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo first; false; echo third
 expect:

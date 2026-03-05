@@ -1,6 +1,6 @@
 description: An unknown command before echo on the next line does not stop execution.
 input:
-  # language=sh
+  # language=bash
   script: |+
     foo
     echo hello

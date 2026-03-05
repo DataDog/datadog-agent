@@ -1,6 +1,6 @@
 description: For loop with empty list executes zero iterations.
 input:
-  # language=sh
+  # language=bash
   script: |+
     for i in; do echo $i; done
     echo done

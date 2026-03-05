@@ -1,6 +1,6 @@
 description: Heredoc output can be piped to another command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     cat <<EOF | cat
     piped

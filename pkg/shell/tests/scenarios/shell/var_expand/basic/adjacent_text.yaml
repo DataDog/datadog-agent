@@ -1,6 +1,6 @@
 description: Braces disambiguate variable names adjacent to other text.
 input:
-  # language=sh
+  # language=bash
   script: |+
     FRUIT=apple
     echo "${FRUIT}sauce"

@@ -9,7 +9,7 @@ setup:
       content: ""
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     echo ?*.txt
 expect:

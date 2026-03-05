@@ -1,6 +1,6 @@
 description: The && operator preserves the failing left exit code.
 input:
-  # language=sh
+  # language=bash
   script: |+
     exit 42 && echo skipped
 expect:

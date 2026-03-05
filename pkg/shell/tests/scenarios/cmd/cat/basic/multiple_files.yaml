@@ -9,7 +9,7 @@ setup:
         line two
 input:
   allowed_paths: ["$DIR"]
-  # language=sh
+  # language=bash
   script: |+
     cat first.txt second.txt
 expect:

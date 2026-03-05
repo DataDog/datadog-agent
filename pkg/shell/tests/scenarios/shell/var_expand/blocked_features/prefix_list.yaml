@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: Prefix variable listing ${!prefix*} is not supported (caught by indirect expansion check).
 input:
-  # language=sh
+  # language=bash
   script: |+
     MY_A=1
     MY_B=2

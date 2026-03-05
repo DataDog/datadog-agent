@@ -1,7 +1,7 @@
 test_against_local_shell: false
 description: export is not supported.
 input:
-  # language=sh
+  # language=bash
   script: |+
     export MY_VAR=hello
 expect:

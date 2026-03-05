@@ -1,6 +1,6 @@
 description: Echo outputs its arguments to stdout.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo abc
 expect:

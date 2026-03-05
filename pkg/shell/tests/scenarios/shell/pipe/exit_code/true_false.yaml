@@ -1,6 +1,6 @@
 description: Pipe of two builtins returns exit code from right side.
 input:
-  # language=sh
+  # language=bash
   script: |+
     true | false
 expect:

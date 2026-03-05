@@ -1,6 +1,6 @@
 description: Shell comment lines are ignored and do not affect execution.
 input:
-  # language=sh
+  # language=bash
   script: |+
     # this is a comment
     echo hello

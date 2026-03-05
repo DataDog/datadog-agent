@@ -4,7 +4,7 @@ input:
   envs:
     MY_SECRET_KEY: supersecret
     MY_API_TOKEN: abc123
-  # language=sh
+  # language=bash
   script: |+
     echo "key=$MY_SECRET_KEY"
     echo "token=$MY_API_TOKEN"

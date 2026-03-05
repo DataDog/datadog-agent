@@ -1,6 +1,6 @@
 description: When left side of && fails, right side is skipped.
 input:
-  # language=sh
+  # language=bash
   script: |+
     false && echo skipped
 expect:

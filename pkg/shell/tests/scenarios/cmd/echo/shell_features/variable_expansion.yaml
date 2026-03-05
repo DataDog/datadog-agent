@@ -1,6 +1,6 @@
 description: Echo outputs the value of expanded shell variables.
 input:
-  # language=sh
+  # language=bash
   script: |+
     MY_VAR=hello
     echo $MY_VAR world

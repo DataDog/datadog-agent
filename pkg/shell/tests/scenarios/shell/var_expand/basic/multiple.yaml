@@ -1,6 +1,6 @@
 description: Multiple variables can be expanded in the same command.
 input:
-  # language=sh
+  # language=bash
   script: |+
     A=hello
     B=world

@@ -4,6 +4,8 @@ A restricted shell interpreter designed for AI agents performing SRE investigati
 Safety is the primary design goal: the shell defaults to denying all external command execution
 and all filesystem access, requiring explicit opt-in via configuration.
 
+For the complete list of supported and blocked shell features, see [SHELL_FEATURES.md](SHELL_FEATURES.md).
+
 ## Execution Model
 
 Scripts are processed in two phases:

@@ -1,6 +1,6 @@
 description: Two commands separated by a newline execute sequentially.
 input:
-  # language=sh
+  # language=bash
   script: |+
     echo first
     echo second
