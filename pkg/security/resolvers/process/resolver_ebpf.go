@@ -112,10 +112,29 @@ type EBPFResolver struct {
 	exitedQueue []uint32
 }
 
+// reparentTo looks up newPPid in the cache (falling back to procfs) and
+// reparents entry to the resolved parent. Metrics are tracked via callpathTag.
+// Must be called with the lock held.
+func (p *EBPFResolver) reparentTo(entry *model.ProcessCacheEntry, newPPid uint32, callpathTag string) *model.ProcessCacheEntry {
+	newParent := p.entryCache[newPPid]
+	if newParent == nil {
+		newParent = p.resolveFromProcfs(newPPid, 0, procResolveMaxDepth, nil)
+	}
+	if newParent != nil {
+		entry.Reparent(newParent)
+		p.reparentSuccessStats[callpathTag].Inc()
+	} else {
+		p.reparentFailedStats[callpathTag].Inc()
+	}
+	return newParent
+}
+
 // resolveParentFromProcfs resolves the PPid of the given entry from procfs and links
-// it to its parent in the cache if available. This handles cases where the PPid is
-// missing (e.g. subreaper reparenting).
-func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
+// it to its parent in the cache if available. Unlike reparentTo, this only checks
+// the local cache and does NOT fall back to resolveFromProcfs for the parent, since
+// it is called during insertEntry where deep procfs resolution is not desirable.
+// Must be called with the lock held.
+func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string) {
 	proc, err := process.NewProcess(int32(entry.Pid))
 	if err != nil {
 		seclog.Debugf("unable to create process for pid %d during ppid resolution: %v", entry.Pid, err)
@@ -135,6 +154,9 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
 
 	if newParent := p.entryCache[newPPidU32]; newParent != nil {
 		entry.Reparent(newParent)
+		p.reparentSuccessStats[callpathTag].Inc()
+	} else {
+		p.reparentFailedStats[callpathTag].Inc()
 	}
 }
 
@@ -175,6 +197,26 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, cal
 	}
 }
 
+// TryReparentFromKernelPPid compares the live ppid reported by the kernel in
+// the event with the ppid stored in the cache entry. When they differ the
+// kernel has reparented the process (e.g. subreaper) and we update the cache
+// to reflect the new parent. The new parent is resolved from the cache or, as
+// a fallback, from procfs.
+func (p *EBPFResolver) TryReparentFromKernelPPid(entry *model.ProcessCacheEntry, kernelPPid uint32) {
+	if kernelPPid == 0 || entry.Pid <= 1 {
+		return
+	}
+
+	if kernelPPid == entry.PPid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	p.reparentTo(entry, kernelPPid, metrics.ReparentCallpathKernelPPid)
+}
+
 // tryResolveMissingAncestor attempts to fill a broken ancestor link by
 // resolving the parent from the cache or procfs. Returns the resolved parent
 // or nil if resolution failed.
@@ -195,17 +237,7 @@ func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry, ca
 		ppid = uint32(newPPid)
 	}
 
-	parent := p.entryCache[ppid]
-	if parent == nil {
-		parent = p.resolveFromProcfs(ppid, 0, procResolveMaxDepth, nil)
-	}
-	if parent != nil {
-		pc.Reparent(parent)
-		p.reparentSuccessStats[callpathTag].Inc()
-	} else {
-		p.reparentFailedStats[callpathTag].Inc()
-	}
-	return parent
+	return p.reparentTo(pc, ppid, callpathTag)
 }
 
 // tryReparentChildrenFromProcfs iterates over the children of an exited process
@@ -243,17 +275,7 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 		return
 	}
 
-	newParent := p.entryCache[newPPidU32]
-	if newParent == nil {
-		newParent = p.resolveFromProcfs(newPPidU32, 0, procResolveMaxDepth, nil)
-	}
-
-	if newParent != nil {
-		child.Reparent(newParent)
-		p.reparentSuccessStats[callpathTag].Inc()
-	} else {
-		p.reparentFailedStats[callpathTag].Inc()
-	}
+	p.reparentTo(child, newPPidU32, callpathTag)
 }
 
 // DequeueExited dequeue exited process
@@ -747,7 +769,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 
 	// resolve missing PPid from procfs
 	if entry.PPid == 0 && entry.Pid != 1 {
-		p.resolveParentFromProcfs(entry)
+		p.resolveParentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext)
 	}
 
 	// handle cgroup & container context
@@ -1516,7 +1538,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 88)
+	pidCacheEntryB := make([]byte, 80)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)

@@ -576,8 +576,10 @@ var (
 	ReparentCallpathSetProcessContext = "callpath:set_process_context"
 	// ReparentCallpathDoExit tags a reparent from the ApplyExitEntry path (do_exit)
 	ReparentCallpathDoExit = "callpath:do_exit"
+	// ReparentCallpathKernelPPid tags a reparent triggered by a kernel ppid mismatch
+	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
 	// AllReparentCallpathTags is the list of all reparent callpath tags
-	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit}
+	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid}
 )
 
 func newRuntimeMetric(name string) string {
