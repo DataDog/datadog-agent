@@ -47,16 +47,18 @@ The interpreter is configured through `RunnerOption` functions passed to `New()`
 
 ## Testing
 
-Tests use a YAML scenario-driven framework located in `tests/scenarios/`. Each `.yaml` file defines
-a self-contained test with `input.script`, optional `setup.files`, and `expect` (stdout, stderr, exit_code).
+Tests use a YAML scenario-driven framework located in `tests/scenarios/`.
 
 Scenarios are organized by feature area:
 
 ```
 tests/scenarios/
-├── cmd/          # builtin command tests (echo, cat, exit, true, false)
+├── cmd/          # builtin command tests (echo, cat, exit, true, ...)
 └── shell/        # shell feature tests (pipes, variables, control flow, globbing, ...)
 ```
+
+Good sources of POSIX shell test scenarios:
+- [yash POSIX shell test suite](https://github.com/magicant/yash/tree/trunk/tests)
 
 ## Platform Support
 
