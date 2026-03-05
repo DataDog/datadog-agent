@@ -19,7 +19,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,28 +94,18 @@ func testCases(t testing.TB) iter.Seq[testCase] {
 			filename := filepath.Base(entry)
 			name := strings.TrimSuffix(filename, ".txt")
 			expected, ok := expectedValues[name]
-			if !assert.True(t, ok,
-				"test file %s found but no expected values defined", name,
-			) {
-				return
-			}
+			require.True(t, ok,
+				"test file %s found but no expected values defined", name)
 			delete(expectedValues, name)
 			data, err := testdataFS.ReadFile(entry)
-			if !assert.NoError(t, err, "failed to read test data") {
-				return
-			}
+			require.NoError(t, err, "failed to read test data")
 			procRoot := filepath.Join(tempDir, name, "proc")
 			pidDir := filepath.Join(procRoot, strconv.FormatInt(int64(expected.pid), 10))
-			if !assert.NoError(t, os.MkdirAll(pidDir, 0o755)) {
-				return
-			}
+			require.NoError(t, os.MkdirAll(pidDir, 0o755))
 			statPath := filepath.Join(pidDir, "stat")
-			if !assert.NoError(
+			require.NoError(
 				t,
-				os.WriteFile(statPath, data, 0o644),
-			) {
-				return
-			}
+				os.WriteFile(statPath, data, 0o644))
 			if !yield(testCase{
 				name:     name,
 				expected: expected,

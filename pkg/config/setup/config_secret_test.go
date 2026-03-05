@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -159,7 +160,7 @@ func TestProxyWithSecret(t *testing.T) {
 				c.setup(t, config, configPath, resolver)
 			}
 
-			err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -182,7 +183,7 @@ func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolut
 		"api_key_3": "resolved_api_key_3",
 	})
 
-	require.NoError(t, LoadDatadog(config, resolver, nil))
+	require.NoError(t, LoadDatadog(config, resolver, delegatedauthmock.New(t), nil))
 
 	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
 
