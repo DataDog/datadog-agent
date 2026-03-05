@@ -1,0 +1,14 @@
+description: tail -n 1 on piped stdin returns only the last line.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat input.txt | tail -n 1
+expect:
+  stdout: "c\n"
+  stderr: ""
+  exit_code: 0

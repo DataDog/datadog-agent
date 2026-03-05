@@ -1,0 +1,16 @@
+description: tail with two file arguments prints headers before each file's output.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa\n"
+    - path: b.txt
+      content: "bbb\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\naaa\n\n==> b.txt <==\nbbb\n"
+  stderr: ""
+  exit_code: 0

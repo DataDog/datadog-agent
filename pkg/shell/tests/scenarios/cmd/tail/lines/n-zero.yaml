@@ -1,0 +1,15 @@
+# Derived from GNU coreutils tail.pl test n-5b.
+description: tail -n 0 produces no output.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 0 input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

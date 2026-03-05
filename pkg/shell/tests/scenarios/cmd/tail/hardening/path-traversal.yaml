@@ -1,0 +1,11 @@
+description: tail rejects a path that escapes the allowed directory via ../ traversal.
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail ../etc/passwd
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail:"
+  exit_code: 1

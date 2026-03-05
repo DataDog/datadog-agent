@@ -1,0 +1,10 @@
+description: tail -f is rejected as an unsupported flag (follow mode is not implemented).
+input:
+  # language=bash
+  script: |+
+    tail -f somefile
+expect:
+  stdout: ""
+  stderr_contains:
+    - "unknown"
+  exit_code: 1

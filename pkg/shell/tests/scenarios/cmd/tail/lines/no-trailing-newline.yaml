@@ -1,0 +1,15 @@
+# Derived from GNU coreutils tail.pl test obs-3.
+description: tail -n 1 on a file whose last line has no trailing newline outputs that line without adding one.
+setup:
+  files:
+    - path: input.txt
+      content: "x\ny"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 1 input.txt
+expect:
+  stdout: "y"
+  stderr: ""
+  exit_code: 0

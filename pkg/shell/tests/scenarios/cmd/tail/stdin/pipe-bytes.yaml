@@ -1,0 +1,15 @@
+# Derived from GNU coreutils tail-c.sh: tail -c on a pipe.
+description: tail -c 3 on piped stdin returns the last 3 bytes.
+setup:
+  files:
+    - path: input.txt
+      content: "123456"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat input.txt | tail -c 3
+expect:
+  stdout: "456"
+  stderr: ""
+  exit_code: 0

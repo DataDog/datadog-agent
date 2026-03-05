@@ -1,0 +1,16 @@
+description: tail -q suppresses headers even when multiple files are given.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa\n"
+    - path: b.txt
+      content: "bbb\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -q a.txt b.txt
+expect:
+  stdout: "aaa\nbbb\n"
+  stderr: ""
+  exit_code: 0

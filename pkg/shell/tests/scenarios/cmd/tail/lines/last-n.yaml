@@ -1,0 +1,14 @@
+description: tail -n 3 returns the last 3 lines of a file.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\nc\nd\ne\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 3 input.txt
+expect:
+  stdout: "c\nd\ne\n"
+  stderr: ""
+  exit_code: 0
