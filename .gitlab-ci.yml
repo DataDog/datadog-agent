@@ -36,21 +36,17 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
-  # cmd/ - run subcommands and Windows-specific directories
-  # Excludes serverless-init and cluster-agent (not built on Windows)
-  - cmd/agent/subcommands/run/**/*
-  - cmd/agent/subcommands/controlsvc/**/*
-  - cmd/agent/windows/**/*
-  - cmd/agent/windows_resources/**/*
-  - cmd/agent/dist/conf.d/win32_event_log.d/**/*
-  - cmd/agent/dist/conf.d/windows_certificate.d/**/*
-  - cmd/system-probe/subcommands/run/**/*
-  - cmd/system-probe/windows/**/*
-  - cmd/system-probe/windows_resources/**/*
-  - cmd/trace-agent/subcommands/run/**/*
+  # cmd/ 
+  - cmd/agent/**/*
+  - cmd/process-agent/**/*
+  - cmd/security-agent/**/*
+  - cmd/otel-agent/**/*
+  - cmd/privateactionrunner/**/*
+  - cmd/system-probe/**/*
+  - cmd/trace-agent/**/*
   - cmd/installer/**/*
   - cmd/systray/**/*
-  - cmd/otel-agent/subcommands/run/**/*
+  - cmd/otel-agent/**/*
 
 # Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
 .windows_path_2: &windows_path_2
