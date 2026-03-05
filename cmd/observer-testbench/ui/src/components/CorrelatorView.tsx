@@ -4,7 +4,7 @@ import { AnomalySwimlane } from './AnomalySwimlane';
 import { CompressedGroupCard } from './CompressedGroupCard';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScenarioInfo, Correlation } from '../api/client';
-import type { TimeRange } from './ChartWithAnomalyDetails';
+import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
@@ -14,9 +14,10 @@ interface CorrelatorViewProps {
   actions: ObserverActions;
   sidebarWidth: number;
   timeRange: TimeRange | null;
+  phaseMarkers?: PhaseMarker[];
 }
 
-export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: CorrelatorViewProps) {
+export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseMarkers }: CorrelatorViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const allCorrelations = state.correlations ?? [];
@@ -149,6 +150,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
               compressedGroups={compressedGroups}
               correlations={correlations}
               timeRange={timeRange}
+              phaseMarkers={phaseMarkers}
             />
 
             {/* 2. Compressed Groups */}

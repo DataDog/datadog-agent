@@ -16,6 +16,13 @@ export interface TimeRange {
   end: number;
 }
 
+export interface PhaseMarker {
+  key: string;      // phase name e.g. "baseline"
+  label: string;    // display label
+  timestamp: number; // Unix seconds (start of phase)
+  color: string;
+}
+
 interface ChartWithAnomalyDetailsProps {
   name: string;
   points: Point[];
@@ -28,6 +35,7 @@ interface ChartWithAnomalyDetailsProps {
   smoothLines?: boolean;
   seriesVariants?: SeriesVariant[];
   isTelemetry?: boolean;
+  phaseMarkers?: PhaseMarker[];
 }
 
 function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
@@ -83,6 +91,7 @@ export function ChartWithAnomalyDetails({
   smoothLines = true,
   seriesVariants,
   isTelemetry = false,
+  phaseMarkers,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
@@ -200,6 +209,7 @@ export function ChartWithAnomalyDetails({
         onMarkerHover={setHoveredAnomalyId}
         onMarkerClick={handleMarkerClick}
         isTelemetry={isTelemetry}
+        phaseMarkers={phaseMarkers}
       />
 
       {/* Anomaly details - compact list below chart */}

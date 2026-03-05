@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
@@ -17,6 +18,7 @@ interface LogViewProps {
   sidebarWidth: number;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  phaseMarkers?: PhaseMarker[];
 }
 
 const LOG_CHART_HEIGHT = 80;
@@ -96,6 +98,7 @@ function LogRateChart({
   hoveredAnomalyIndex,
   timeRange,
   onTimeRangeChange,
+  phaseMarkers = [],
 }: {
   logs: LogEntry[];
   anomalies: LogAnomaly[];
@@ -105,6 +108,7 @@ function LogRateChart({
   hoveredAnomalyIndex?: number | null;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  phaseMarkers?: PhaseMarker[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -262,6 +266,29 @@ function LogRateChart({
       }
     }
 
+    // Phase marker lines (dotted vertical lines for episode phases)
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp * 1000);
+      if (x < -20 || x > innerWidth + 20) return;
+      barsG.append('line')
+        .attr('x1', x).attr('x2', x)
+        .attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', marker.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3')
+        .attr('opacity', 0.8)
+        .attr('pointer-events', 'none');
+      barsG.append('text')
+        .attr('x', x + 3)
+        .attr('y', 10)
+        .attr('fill', marker.color)
+        .attr('font-size', '9px')
+        .attr('font-family', 'monospace')
+        .attr('opacity', 0.9)
+        .attr('pointer-events', 'none')
+        .text(marker.label);
+    });
+
     // X axis
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
@@ -301,7 +328,7 @@ function LogRateChart({
       .attr('fill', 'rgba(45, 212, 191, 0.2)')
       .attr('stroke', '#2dd4bf')
       .attr('stroke-width', 1);
-  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex]);
+  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex, phaseMarkers]);
 
   // Panning (middle-click or cmd+left-drag)
   useEffect(() => {
@@ -567,7 +594,7 @@ function getEffectiveTags(tags: string[], status: string): string[] {
   return tags.includes(statusTag) ? tags : [statusTag, ...tags];
 }
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
@@ -761,6 +788,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               hoveredAnomalyIndex={hoveredAnomalyIndex}
               timeRange={timeRange}
               onTimeRangeChange={onTimeRangeChange}
+              phaseMarkers={phaseMarkers}
             />
 
             {/* Detected Anomalies collapsible section */}

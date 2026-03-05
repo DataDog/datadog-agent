@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
 import type { SeriesVariant } from './MetricsChart';
 import { getDetectorColorStable } from './MetricsChart';
-import type { TimeRange } from './ChartWithAnomalyDetails';
+import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
@@ -48,6 +48,7 @@ interface MetricsViewProps {
   timeRange: TimeRange | null;
   onTimeRangeChange: (range: TimeRange | null) => void;
   smoothLines: boolean;
+  phaseMarkers?: PhaseMarker[];
 }
 
 export function MetricsView({
@@ -57,6 +58,7 @@ export function MetricsView({
   timeRange,
   onTimeRangeChange,
   smoothLines,
+  phaseMarkers,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [enabledDetectors, setEnabledDetectors] = useState<Set<string>>(new Set());
@@ -189,15 +191,23 @@ export function MetricsView({
     const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
     const virtKeys = visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')).map((g) => g.key);
 
-    const ranked = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'))
-      .sort((a, b) => {
-        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-        if (countDiff !== 0) return countDiff;
-        return a.baseName.localeCompare(b.baseName);
-      });
+    const mainGroups = [...visibleGroups]
+      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
 
-    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys, ...virtKeys]));
+    const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
+    const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
+    const defaultKeys = defaultGroup
+      ? [defaultGroup.key]
+      : mainGroups
+          .sort((a, b) => {
+            const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+            if (countDiff !== 0) return countDiff;
+            return a.baseName.localeCompare(b.baseName);
+          })
+          .slice(0, 6)
+          .map((g) => g.key);
+
+    setSelectedGroups(new Set(defaultKeys));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
@@ -537,6 +547,7 @@ export function MetricsView({
                           onTimeRangeChange={onTimeRangeChange}
                           smoothLines={smoothLines}
                           seriesVariants={seriesVariants}
+                          phaseMarkers={phaseMarkers}
                         />
                       );
                     })
@@ -592,6 +603,7 @@ export function MetricsView({
                               onTimeRangeChange={onTimeRangeChange}
                               smoothLines={smoothLines}
                               seriesVariants={seriesVariants}
+                              phaseMarkers={phaseMarkers}
                             />
                           );
                         })}
@@ -646,6 +658,7 @@ export function MetricsView({
                               smoothLines={smoothLines}
                               seriesVariants={seriesVariants}
                               isTelemetry
+                              phaseMarkers={phaseMarkers}
                             />
                           );
                         })}

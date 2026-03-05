@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import type { Anomaly, CompressedGroup, Correlation, SeriesID } from '../api/client';
-import type { TimeRange } from './ChartWithAnomalyDetails';
+import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 
 // Reuse the detector palette from MetricsChart
 const DETECTOR_PALETTE = [
@@ -44,6 +44,7 @@ interface AnomalySwimlaneProps {
   compressedGroups: CompressedGroup[];
   correlations?: Correlation[];
   timeRange?: TimeRange | null;
+  phaseMarkers?: PhaseMarker[];
 }
 
 // Assign groups to stacked lanes so overlapping time ranges don't collide.
@@ -71,6 +72,7 @@ export function AnomalySwimlane({
   compressedGroups,
   correlations = [],
   timeRange = null,
+  phaseMarkers = [],
 }: AnomalySwimlaneProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -319,7 +321,30 @@ export function AnomalySwimlane({
       .attr('fill', '#94a3b8')
       .attr('font-size', '9px');
 
-  }, [anomalies, compressedGroups, correlations, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom, timeRange]);
+    // Phase marker lines (dotted vertical lines)
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp * 1000);
+      if (x < -20 || x > innerWidth + 20) return;
+      g.append('line')
+        .attr('x1', x).attr('x2', x)
+        .attr('y1', 0).attr('y2', totalInnerHeight)
+        .attr('stroke', marker.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3')
+        .attr('opacity', 0.75)
+        .attr('pointer-events', 'none');
+      g.append('text')
+        .attr('x', x + 3)
+        .attr('y', 10)
+        .attr('fill', marker.color)
+        .attr('font-size', '9px')
+        .attr('font-family', 'monospace')
+        .attr('opacity', 0.9)
+        .attr('pointer-events', 'none')
+        .text(marker.label);
+    });
+
+  }, [anomalies, compressedGroups, correlations, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom, timeRange, phaseMarkers]);
 
   // Track container width so the drawing effect re-runs on resize/tab switch
   useEffect(() => {

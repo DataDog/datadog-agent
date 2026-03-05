@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,6 +47,36 @@ func (v *logDataView) GetTimestampMs() int64 {
 	return v.data.TimestampMs
 }
 
+// EpisodePhase represents a time phase within an episode (baseline, disruption, cooldown, warmup).
+type EpisodePhase struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+// EpisodeScenario describes the scenario context within an episode.
+type EpisodeScenario struct {
+	AppName         string `json:"app_name"`
+	Description     string `json:"description"`
+	LongDescription string `json:"long_description"`
+}
+
+// EpisodeInfo holds the parsed episode.json metadata for a scenario run.
+// The file is optional; if absent, EpisodeInfo will be nil.
+type EpisodeInfo struct {
+	Episode     string          `json:"episode,omitempty"`
+	Cycle       int             `json:"cycle,omitempty"`
+	Scenario    EpisodeScenario `json:"scenario,omitempty"`
+	Environment string          `json:"environment,omitempty"`
+	ExecutionID string          `json:"execution_id,omitempty"`
+	Success     bool            `json:"success,omitempty"`
+	StartTime   string          `json:"start_time,omitempty"`
+	EndTime     string          `json:"end_time,omitempty"`
+	Warmup      *EpisodePhase   `json:"warmup,omitempty"`
+	Baseline    *EpisodePhase   `json:"baseline,omitempty"`
+	Disruption  *EpisodePhase   `json:"disruption,omitempty"`
+	Cooldown    *EpisodePhase   `json:"cooldown,omitempty"`
+}
+
 // TestBenchConfig configures the test bench.
 type TestBenchConfig struct {
 	ScenariosDir string
@@ -57,7 +88,6 @@ type TestBenchConfig struct {
 	// If a name is present, its value overrides the registry DefaultEnabled.
 	// Components not listed use their registry default.
 	EnableOverrides map[string]bool
-
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -69,6 +99,7 @@ type TestBench struct {
 	storage        *timeSeriesStorage
 	loadedScenario string
 	ready          bool
+	episodeInfo    *EpisodeInfo
 
 	// Components (log detectors are not registry-managed)
 	logDetectors []observerdef.LogDetector
@@ -126,6 +157,7 @@ type StatusResponse struct {
 	CorrelatorsProcessing bool         `json:"correlatorsProcessing"`
 	ScenarioStart         *int64       `json:"scenarioStart,omitempty"`
 	ScenarioEnd           *int64       `json:"scenarioEnd,omitempty"`
+	EpisodeInfo           *EpisodeInfo `json:"episodeInfo,omitempty"`
 	ServerConfig          ServerConfig `json:"serverConfig"`
 }
 
@@ -277,6 +309,15 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = name
+
+	// Try to read optional episode.json metadata
+	tb.episodeInfo = nil
+	if data, err := os.ReadFile(filepath.Join(scenarioPath, "episode.json")); err == nil {
+		var info EpisodeInfo
+		if jsonErr := json.Unmarshal(data, &info); jsonErr == nil {
+			tb.episodeInfo = &info
+		}
+	}
 
 	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
@@ -550,6 +591,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		CorrelatorsProcessing: tb.correlatorsProcessing,
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
+		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
 			Components: compMap,
 		},
