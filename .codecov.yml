@@ -33,6 +33,6 @@ ignore:
   - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.
   - "**/*.pb.go"
   - "**/*.gen.go"
-  - "*_easyjson.go"
+  - "**/*_easyjson.go"
   - test/e2e-framework
   - test/new-e2e
