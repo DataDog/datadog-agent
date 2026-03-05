@@ -66,3 +66,14 @@ Notes:
 - create as many new scenarios as possible (no limit), of course they must be valuable
 - if some tests fail, keep in mind it's possible that pkg/shell implementation is wrong, and it's fine to fix the implementation
 ```
+
+Avoid disabling test_against_local_shell when possible
+```
+In pkg/shell/tests, for each scenarios with test_against_local_shell is disabled,
+examine why test_against_local_shell is disabled.
+
+test_against_local_shell is usually disabled because the restricted shell doesn't behave as bash
+
+BUT if it's disabled because of a bug in restricted shell (making it behave differently than bash),
+then the restricted shell implementation must be fixed
+```
