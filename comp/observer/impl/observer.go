@@ -198,6 +198,7 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			&LogClusteringDetector{},
 		},
 		metricsDetectors: []observerdef.MetricsDetector{
 			NewCUSUMDetector(),
