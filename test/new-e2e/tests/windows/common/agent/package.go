@@ -228,9 +228,10 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // have no effect on the returned URL. They are returned anyway so they can be used for
 // other purposes, such as logging, stack name, instance options, test assertions, etc.
 //
-// Package fields are configured via CURRENT_AGENT_* environment variables.
-// See [WithArtifactOverrides] for the full list. Set CURRENT_AGENT_PIPELINE or
-// CURRENT_AGENT_SOURCE_VERSION to select the package source.
+// Resolution priority (first match wins):
+//  1. CURRENT_AGENT_MSI_URL — direct URL override
+//  2. CURRENT_AGENT_PIPELINE or CURRENT_AGENT_SOURCE_VERSION — explicit package source
+//  3. E2E_PIPELINE_ID — implicit fallback set by [.new_e2e_template] for all CI jobs
 //
 // Optional [PackageOption] arguments are applied as defaults before the
 // CURRENT_AGENT_* overrides, so environment variables always take priority.
@@ -238,6 +239,9 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // If none of the above resolve to a URL, an error is returned.
 func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 	var opts []PackageOption
+	// .new_e2e_template sets E2E_PIPELINE_ID for all CI jobs
+	// Use it as a catch-all, in the future we may want to remove it in favor of explicit CURRENT_AGENT_PIPELINE
+	opts = append(opts, WithPipelineID(os.Getenv("E2E_PIPELINE_ID")))
 	opts = append(opts, defaults...)
 	opts = append(opts, WithArtifactOverrides("CURRENT_AGENT"))
 	pkg, err := NewPackage(opts...)
