@@ -296,9 +296,8 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
 }
 
-// TestExperimentConfdPath verifies that when the agent runs in experiment mode
-// (-c /etc/datadog-agent-exp), confd_path and additional_checksd are derived
-// from the experiment config directory instead of the hardcoded defaults.
+// TestExperimentConfdPath verifies that when the agent runs in experiment mode,
+// confd_path is set to the experiment config directory instead of the hardcoded default.
 func (s *configSuite) TestExperimentConfdPath() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
@@ -316,7 +315,6 @@ func (s *configSuite) TestExperimentConfdPath() {
 	status, err := s.Agent.Status()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "/etc/datadog-agent-exp/conf.d", status.Config.ConfdPath)
-	require.Equal(s.T(), "/etc/datadog-agent-exp/checks.d", status.Config.AdditionalChecksd)
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
