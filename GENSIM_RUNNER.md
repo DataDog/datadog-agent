@@ -23,8 +23,10 @@ Replace Kind with a real EKS cluster. Key strategic differences:
   with native kubectl access via ServiceAccount RBAC
 - **No `gensim_runner.sh`** — the Kind-specific glue script is eliminated entirely;
   `play-episode.sh` is the sole coordinator
-- **ECR for images** — custom service images are built locally and pushed to ECR;
-  the episode Helm chart's `imageRegistry` value handles the rest
+- **ECR for images** — custom service images are built on an EC2 build VM (Amazon Linux ECS
+  AMI, Docker pre-installed) and pushed to ECR via instance IAM role; the episode Helm chart's
+  `imageRegistry` value handles the rest. Images are cached in ECR by content hash to skip
+  rebuilds when source is unchanged.
 - **Production-grade cluster** — multi-node, real cloud LBs, proper kubelet, no Kind quirks
 
 ### Key implementation detail: `imagePullPolicy: Never`
@@ -67,19 +69,28 @@ Provision an EKS cluster and export the kubeconfig. No workloads.
 
 ---
 
-### M2 — ECR image build/push + episode chart 🔄 (in progress)
-Build custom service images locally, push to ECR, deploy the episode Helm chart to the cluster.
+### M2 — ECR image build/push + episode chart ✅
+Build custom service images on an EC2 build VM, push to ECR, deploy the episode Helm chart.
 
-**Goal:** confirm all episode service pods reach `Running` state on EKS.
+**Goal:** confirm all episode service pods reach `Running` state on EKS with a healthy baseline.
 
 **What happens:**
-1. `docker-compose build` in the episode directory
-2. ECR repos created (idempotent), images tagged and pushed
-3. Pulumi deploys the episode Helm chart with `imageRegistry=<ecr-url>`
-4. `imagePullPolicy: Never` patched to `IfNotPresent` via Helm post-renderer
+1. EC2 build VM (Amazon Linux ECS AMI) provisioned alongside the EKS cluster
+2. `docker buildx bake` builds all episode service images natively on x86_64
+3. Images pushed to ECR (with content-hash cache tag to skip rebuilds on unchanged source)
+4. Episode Helm chart deployed with `imageRegistry=<ecr-url>`
+5. `imagePullPolicy: Never` patched to `Always` via Helm post-renderer
 
-**Success:** `kubectl get pods -A` shows all episode services `Running`.
-`load-generator-surge` at `0/0` replicas is correct (scaled up during disruption).
+**Key learnings during implementation:**
+- EKS framework always creates Fargate nodes by default (for CoreDNS speed + sidecar injection testing). Added `WithoutFargate()` option — gensim uses it so DaemonSets schedule cleanly.
+- `DependsOn` in Pulumi is ordering-only; used `Triggers` (content hash of services/) to force rebuild command re-run when source changes.
+- `docker-compose` not available on ECS AMI; replaced with `docker buildx bake` which understands `docker-compose.yaml` natively and is pre-installed with Docker 25.
+
+**Validated:**
+```
+dispatch_rps=6.0  actual_rps=6.0  success=100.0%  avg_resp=0.33-0.53s
+```
+Pool at ~60% utilization at baseline. PgBouncer `wait=0us`. svc-login all successful.
 
 ---
 

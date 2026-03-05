@@ -11,7 +11,7 @@ from invoke.tasks import task
 from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws.common import get_aws_wrapper
 from tasks.e2e_framework.aws.deploy import deploy
-from tasks.e2e_framework.config import get_api_key, get_app_key
+from tasks.e2e_framework.config import get_app_key
 from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/gensim-eks"
@@ -83,12 +83,24 @@ def create_gensim_eks(
         config_path=config_path,
         debug=debug,
         stack_name=stack_name,
-        install_agent=False,
+        # install_agent=True sets ddagent:deploy=True and injects ddagent:apiKey,
+        # which gates the M3 DD agent deployment in run.go via awsEnv.AgentDeploy().
+        install_agent=episode is not None,
         install_workload=False,
         extra_flags=extra_flags,
     )
 
     _show_connection_message(ctx, full_stack_name, config_path)
+
+    # M3: remove the episode chart's stub agent now that the real DaemonSet is deployed.
+    if episode is not None:
+        kubeconfig_path = f"{full_stack_name}-kubeconfig.yaml"
+        try:
+            local_config = config.get_local_config(config_path)
+            aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
+        except Exception:
+            aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+        _delete_stub_agent(ctx, kubeconfig_path, aws_wrapper, namespace)
 
 
 @task(help={"stack_name": doc.stack_name})
@@ -166,17 +178,25 @@ def _episode_flags(ctx: Context, cfg, episode: str, namespace: str) -> dict:
         ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
         tool.info(f"ECR registry: {ecr_registry}")
 
-    return {
+    # Pass datadog-values.yaml path if it exists at the postmortems root.
+    # Sets clusterName and kubelet.tlsVerify: false (required on EKS).
+    datadog_values_path = gensim_path / "datadog-values.yaml"
+
+    flags = {
         "gensim:episodeName": episode,
         "gensim:chartPath": str(chart_dir),
         "gensim:episodePath": str(episode_dir),
         "gensim:imageRegistry": ecr_registry,
         "gensim:namespace": namespace,
-        # ddagent:apiKey/appKey are not injected by deploy() when install_agent=False.
-        # Pass them explicitly so run.go can forward them to the episode Helm chart.
-        "ddagent:apiKey": get_api_key(cfg),
+        # ddagent:appKey is not injected by deploy() without app_key_required=True.
+        # apiKey is now injected by install_agent=True in the caller.
         "ddagent:appKey": get_app_key(cfg),
     }
+
+    if datadog_values_path.exists():
+        flags["gensim:datadogValuesPath"] = str(datadog_values_path)
+
+    return flags
 
 
 def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
@@ -190,6 +210,23 @@ def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
     account_id = account_buf.getvalue().strip()
     region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
     return f"{account_id}.dkr.ecr.{region}.amazonaws.com", region
+
+
+def _delete_stub_agent(ctx: Context, kubeconfig_path: str, aws_wrapper: str, namespace: str) -> None:
+    """Delete the episode chart's built-in stub datadog-agent after the real DaemonSet is deployed.
+
+    The episode chart ships a basic Deployment-based agent that conflicts with the full
+    DaemonSet-based agent deployed in M3. Running both would produce duplicate metrics.
+    This runs after `pulumi up` so the kubeconfig is available on disk.
+    """
+    ctx.run(
+        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl delete "
+        f"deployment/datadog-agent service/datadog-agent serviceaccount/datadog-agent "
+        f"--ignore-not-found=true -n {namespace}",
+        warn=True,
+        hide="stderr",
+    )
+    tool.info("Stub datadog-agent removed (replaced by full DaemonSet-based agent).")
 
 
 def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None) -> None:

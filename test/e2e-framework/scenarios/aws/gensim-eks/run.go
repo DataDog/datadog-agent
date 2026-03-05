@@ -27,6 +27,8 @@ import (
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -131,7 +133,7 @@ func Run(ctx *pulumi.Context) error {
 		opts = append(opts, dependsOnImages)
 	}
 
-	_, err = helmv3.NewRelease(ctx, awsEnv.Namer.ResourceName("episode"),
+	episodeRelease, err := helmv3.NewRelease(ctx, awsEnv.Namer.ResourceName("episode"),
 		&helmv3.ReleaseArgs{
 			Name:            pulumi.StringPtr(releaseName),
 			Chart:           pulumi.String(chartPath),
@@ -165,6 +167,40 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	ctx.Export("episode-release", pulumi.String(releaseName))
+
+	// ── Datadog Agent (M3) ────────────────────────────────────────────────────
+	// gated on ddagent:deploy=true, which is set by the invoke task when
+	// install_agent=True (i.e. when --episode is passed).
+	if awsEnv.AgentDeploy() {
+		agentOpts := []kubernetesagentparams.Option{
+			kubernetesagentparams.WithNamespace(namespace),
+			// Wait for the episode chart to be deployed before the agent starts,
+			// so the agent immediately sees the episode's pods and services.
+			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(episodeRelease)),
+		}
+
+		// Load datadog-values.yaml from the gensim-episodes postmortems root.
+		// This sets clusterName and kubelet.tlsVerify: false (required on EKS —
+		// kubelet uses a self-signed cert not trusted by the agent's default CA).
+		datadogValuesPath := cfg.Get("datadogValuesPath")
+		if datadogValuesPath != "" {
+			valuesContent, err := os.ReadFile(datadogValuesPath)
+			if err != nil {
+				return fmt.Errorf("reading datadogValuesPath %q: %w", datadogValuesPath, err)
+			}
+			agentOpts = append(agentOpts, kubernetesagentparams.WithHelmValues(string(valuesContent)))
+		}
+
+		if awsEnv.AgentFullImagePath() != "" {
+			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(awsEnv.AgentFullImagePath()))
+		}
+
+		_, err = helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent"), kubeProvider, agentOpts...)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
