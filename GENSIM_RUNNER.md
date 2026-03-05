@@ -115,7 +115,7 @@ Added `WithHelmValuesFile` (file asset) to `kubernetesagentparams` as the fix.
 
 ---
 
-### M4 — Kubernetes Job runs play-episode.sh autonomously ⬜
+### M4 — Kubernetes Job runs play-episode.sh autonomously ✅
 Create RBAC, mount `play-episode.sh` + episode YAMLs via ConfigMap, launch a Job.
 
 **Goal:** all four phases complete without intervention. DD monitors transition Alert→OK
@@ -128,8 +128,16 @@ during disruption.
 - Job runs `alpine/k8s` image, mounts ConfigMap at `/episode/`, executes `play-episode.sh`
 - `dda inv aws.eks.gensim.create` returns as soon as Job is confirmed running
 
-**Success:** `kubectl logs -f job/gensim-runner` shows warmup → baseline → disruption → cooldown.
-Result JSON written.
+**Key learnings during implementation:**
+- `kubectl scale` uses `patch` not `update` on `deployments/scale`. ClusterRole needs both verbs; missing `patch` fails silently due to `|| true` in play-episode.sh.
+- Jobs are immutable in Kubernetes — template spec changes require delete + recreate, not in-place update.
+- ConfigMap volumes are read-only; play-episode.sh hardcodes `RESULTS_DIR="${SCRIPT_DIR}/results"` so an `emptyDir` volume must be mounted at `/episode/results`.
+
+**Validated end-to-end (2026-03-05):**
+- Warmup 3m → baseline OK → disruption: surge×5 scaled up → pgbouncer monitor Alert at 510s → cooldown → monitor OK at 540s → result JSON written
+- Total runtime: ~33 minutes, pod status: `Succeeded`
+
+**Gap exposed → M5:** result JSON written to emptyDir is lost when pod completes. S3 upload required before exit.
 
 ---
 
