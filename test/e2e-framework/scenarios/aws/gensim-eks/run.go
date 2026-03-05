@@ -50,7 +50,15 @@ func Run(ctx *pulumi.Context) error {
 	// ── Cluster ───────────────────────────────────────────────────────────────
 	// WithLinuxNodeGroup is required: without it the cluster has only Fargate nodes
 	// (used for system pods like CoreDNS) and episode workloads cannot be scheduled.
-	cluster, err := eksscenario.NewCluster(awsEnv, "gensim", eksscenario.WithLinuxNodeGroup())
+	// WithoutFargate: no Fargate nodes in this cluster. Fargate is used by default
+	// for CoreDNS (provisioning speed), but the NoSchedule taint on Fargate nodes
+	// causes DaemonSets (including the Datadog agent) to accumulate stuck-Pending
+	// pods, blocking Helm readiness checks and adding operational complexity.
+	// CoreDNS simply schedules on the EC2 node group once nodes join instead.
+	cluster, err := eksscenario.NewCluster(awsEnv, "gensim",
+		eksscenario.WithLinuxNodeGroup(),
+		eksscenario.WithoutFargate(),
+	)
 	if err != nil {
 		return err
 	}
@@ -130,8 +138,12 @@ func Run(ctx *pulumi.Context) error {
 			Namespace:       pulumi.StringPtr(namespace),
 			CreateNamespace: pulumi.BoolPtr(true),
 			Postrender:      pulumi.StringPtr(patchScriptPath),
-			// 15 minutes: allow time for first-time ECR image pulls across all nodes.
-			Timeout: pulumi.IntPtr(900),
+			// Don't wait for all pods to become Ready. The episode chart includes a
+			// built-in datadog-agent DaemonSet that tries to schedule on Fargate nodes
+			// (which have NoSchedule taints) and will never become Ready. The episode
+			// services we care about (svc-login, pgbouncer, etc.) start successfully.
+			// M3 will delete this stub agent and deploy the proper DaemonSet-based one.
+			SkipAwait: pulumi.BoolPtr(true),
 			Values: pulumi.Map{
 				// imageRegistry is prepended to all custom service images by the chart's _helpers.tpl.
 				"imageRegistry": pulumi.String(imageRegistry),

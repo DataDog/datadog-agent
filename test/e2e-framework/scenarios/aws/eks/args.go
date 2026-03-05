@@ -17,6 +17,7 @@ type Params struct {
 	WindowsNodeGroup      bool
 	GPUNodeGroup          bool
 	GPUInstanceType       string
+	DisableFargate        bool
 }
 
 type Option = func(*Params) error
@@ -64,6 +65,23 @@ func WithGPUNodeGroup(instanceType string) Option {
 			instanceType = "g4dn.xlarge" // Default: 1x T4 GPU, ~$0.526/hr on-demand
 		}
 		p.GPUInstanceType = instanceType
+		return nil
+	}
+}
+
+// WithoutFargate disables the Fargate profile entirely. By default, EKS clusters
+// create a Fargate profile for kube-system so CoreDNS can start before EC2 nodes
+// join (a provisioning optimisation). Disabling Fargate eliminates all Fargate
+// nodes from the cluster, which prevents DaemonSets (e.g. the Datadog agent)
+// from getting stuck-Pending pods on nodes they cannot schedule on due to the
+// eks.amazonaws.com/compute-type=fargate:NoSchedule taint.
+//
+// Without Fargate, CoreDNS schedules on the EC2 node group once nodes join.
+// For long-running scenarios where provisioning time is not critical, this is
+// the recommended option.
+func WithoutFargate() Option {
+	return func(p *Params) error {
+		p.DisableFargate = true
 		return nil
 	}
 }
