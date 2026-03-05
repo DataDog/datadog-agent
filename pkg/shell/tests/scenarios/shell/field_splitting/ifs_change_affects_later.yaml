@@ -1,5 +1,4 @@
 description: "IFS change affects splitting of subsequent expansions in the same script"
-test_against_local_shell: false
 input:
   script: |
     A="a:b:c"

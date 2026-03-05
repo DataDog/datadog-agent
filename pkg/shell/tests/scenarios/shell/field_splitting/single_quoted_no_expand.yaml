@@ -1,5 +1,4 @@
 description: "Single-quoted strings prevent variable expansion, keeping literal dollar sign"
-test_against_local_shell: false
 input:
   script: |
     A="hello world"

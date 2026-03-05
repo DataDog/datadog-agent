@@ -1,5 +1,4 @@
 description: "Non-whitespace IFS characters split on each delimiter"
-test_against_local_shell: false
 input:
   script: |
     IFS=-

@@ -1,5 +1,4 @@
 description: "Whitespace IFS characters coalesce, non-whitespace splits"
-test_against_local_shell: false
 input:
   script: |
     IFS=" -"

@@ -1,5 +1,4 @@
 description: "Field splitting in echo args with custom IFS"
-test_against_local_shell: false
 input:
   script: |
     IFS=:

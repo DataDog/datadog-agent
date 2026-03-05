@@ -1,5 +1,4 @@
 description: Custom IFS splits variable expansion on the specified delimiter.
-test_against_local_shell: false
 input:
   script: |+
     IFS=:

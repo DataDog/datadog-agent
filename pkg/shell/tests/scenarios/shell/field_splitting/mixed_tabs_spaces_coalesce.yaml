@@ -1,5 +1,4 @@
 description: "Tabs and spaces mixed in value are coalesced by default IFS"
-test_against_local_shell: false
 input:
   script: "A=\"one \t two \t three\"\nfor w in $A; do echo \"[$w]\"; done\n"
 expect:

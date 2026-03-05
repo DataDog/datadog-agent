@@ -1,5 +1,4 @@
 description: "Quoted double expansion preserves empty fields in for loop"
-test_against_local_shell: false
 input:
   script: |
     A=""

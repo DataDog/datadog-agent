@@ -1,5 +1,4 @@
 description: "Empty IFS means no splitting happens on any character"
-test_against_local_shell: false
 input:
   script: |
     IFS=

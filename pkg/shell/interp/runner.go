@@ -151,7 +151,7 @@ func (r *Runner) stmtSync(ctx context.Context, st *syntax.Stmt) {
 	if r.exit.ok() && st.Cmd != nil {
 		r.cmd(ctx, st.Cmd)
 	}
-	if st.Negated {
+	if st.Negated && !r.exit.exiting {
 		wasOk := r.exit.ok()
 		r.exit = exitStatus{}
 		r.exit.oneIf(wasOk)

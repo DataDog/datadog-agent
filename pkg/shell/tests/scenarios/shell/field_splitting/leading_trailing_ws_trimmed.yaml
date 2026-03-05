@@ -1,5 +1,4 @@
 description: "Leading whitespace in IFS is trimmed during splitting"
-test_against_local_shell: false
 input:
   script: |
     A="  hello  world  "

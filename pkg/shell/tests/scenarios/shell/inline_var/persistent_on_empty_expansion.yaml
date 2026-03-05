@@ -1,7 +1,6 @@
 description: >-
   When the command word expands to nothing (unquoted unset variable),
   the assignment becomes persistent (inspired by yash simple-p.tst).
-test_against_local_shell: false
 input:
   script: |+
     A=hello $___NONEXISTENT_VAR___

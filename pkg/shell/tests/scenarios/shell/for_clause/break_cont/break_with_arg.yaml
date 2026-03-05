@@ -1,4 +1,3 @@
-test_against_local_shell: false
 description: Break with argument 1 breaks one level (same as simple break).
 input:
   script: |+

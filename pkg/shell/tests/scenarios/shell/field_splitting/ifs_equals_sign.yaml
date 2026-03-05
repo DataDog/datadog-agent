@@ -1,5 +1,4 @@
 description: "IFS with equals sign splits correctly"
-test_against_local_shell: false
 input:
   script: |
     IFS==

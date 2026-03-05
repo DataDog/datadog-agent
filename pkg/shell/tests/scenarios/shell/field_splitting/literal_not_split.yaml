@@ -1,5 +1,4 @@
 description: "Literal text is not subject to field splitting regardless of IFS"
-test_against_local_shell: false
 input:
   script: |
     IFS=" 0"

@@ -1,5 +1,4 @@
 description: Double-quoted variable expansion prevents field splitting.
-test_against_local_shell: false
 input:
   script: |+
     A="hello world foo"

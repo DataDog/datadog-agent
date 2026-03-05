@@ -1,5 +1,4 @@
 description: Consecutive whitespace characters in IFS are coalesced into a single delimiter.
-test_against_local_shell: false
 input:
   script: |+
     A="hello   world"

@@ -1,5 +1,4 @@
 description: "IFS with pipe character splits correctly"
-test_against_local_shell: false
 input:
   script: |
     IFS="|"

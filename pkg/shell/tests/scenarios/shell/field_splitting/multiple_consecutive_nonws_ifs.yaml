@@ -1,5 +1,4 @@
 description: "IFS with colon splits on each colon delimiter"
-test_against_local_shell: false
 input:
   script: |
     IFS=:

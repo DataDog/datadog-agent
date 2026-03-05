@@ -1,5 +1,4 @@
 description: Variable expansion in for loop word list respects field splitting.
-test_against_local_shell: false
 input:
   script: |+
     ITEMS="a b c"

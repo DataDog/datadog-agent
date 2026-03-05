@@ -1,5 +1,4 @@
 description: Empty unquoted variable expansion produces no fields and is removed.
-test_against_local_shell: false
 input:
   script: |+
     A=""

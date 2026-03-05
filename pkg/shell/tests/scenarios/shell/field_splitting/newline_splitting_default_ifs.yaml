@@ -1,5 +1,4 @@
 description: "Newlines in variable value are split by default IFS"
-test_against_local_shell: false
 input:
   script: "A=\"line1\nline2\nline3\"\nfor w in $A; do echo \"[$w]\"; done\n"
 expect:
