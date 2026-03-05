@@ -1,0 +1,13 @@
+description: Inline assignment of one variable does not affect other existing variables.
+input:
+  script: |+
+    X=keep_me
+    Y=also_keep
+    Z=temp echo test
+    echo "$X $Y [$Z]"
+expect:
+  stdout: |+
+    test
+    keep_me also_keep []
+  stderr: ""
+  exit_code: 0
