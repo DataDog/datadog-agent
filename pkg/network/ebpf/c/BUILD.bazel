@@ -1,4 +1,5 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog", "ebpf_program_suite")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
 
 exports_files(["tracer.c"])
 

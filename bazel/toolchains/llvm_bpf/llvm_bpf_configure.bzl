@@ -45,18 +45,38 @@ def _download_llvm_bpf_impl(rctx):
                 fail("Failed to download {} from {}".format(binary, url))
             downloaded[binary] = output
 
-    rctx.template(
-        "BUILD.bazel",
-        Label("@@//bazel/toolchains/llvm_bpf:BUILD.tpl"),
-        substitutions = {
-            "{GENERATOR}": "@@//bazel/toolchains/llvm_bpf/llvm_bpf_configure.bzl%llvm_bpf_extension",
-            "{CLANG_VERSION}": CLANG_VERSION,
-            "{CLANG_BPF_PATH}": downloaded.get("clang-bpf", ""),
-            "{LLC_BPF_PATH}": downloaded.get("llc-bpf", ""),
-            "{LLVM_STRIP_PATH}": downloaded.get("llvm-strip", ""),
-        },
-        executable = False,
-    )
+    # Build the binary attributes only when we actually downloaded them;
+    # omitting the attrs lets the label default to None on non-Linux.
+    binary_attrs = ""
+    if downloaded:
+        binary_attrs = """    clang_bpf = "{clang}",
+    llc_bpf = "{llc}",
+    llvm_strip = "{strip}",""".format(
+            clang = downloaded["clang-bpf"],
+            llc = downloaded["llc-bpf"],
+            strip = downloaded["llvm-strip"],
+        )
+
+    rctx.file("BUILD.bazel", content = """\
+load("@@//bazel/toolchains/llvm_bpf:llvm_bpf.bzl", "llvm_bpf_toolchain")
+
+exports_files(glob(["bin/*"], allow_empty = True))
+
+llvm_bpf_toolchain(
+    name = "llvm_bpf_impl",
+{binary_attrs}
+    version = "{version}",
+    visibility = ["//visibility:public"],
+)
+
+toolchain(
+    name = "llvm_bpf_toolchain",
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":llvm_bpf_impl",
+    toolchain_type = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+""".format(binary_attrs = binary_attrs, version = CLANG_VERSION))
 
 download_llvm_bpf = repository_rule(
     implementation = _download_llvm_bpf_impl,
