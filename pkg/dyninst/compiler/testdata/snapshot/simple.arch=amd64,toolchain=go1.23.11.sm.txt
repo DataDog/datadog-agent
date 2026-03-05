@@ -3,109 +3,109 @@
 // 0x1: ChasePointers
 	ChasePointers 
 	Return 
-// 0x3: ProcessExpression[Probe[main.PointerChainArg]@0x4a6046.expr[0]]
+// 0x3: ProcessExpression[Probe[main.PointerChainArg]@0x4a6126.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Call b8 03 00 00 // ProcessType[*****int]
 	Return 
-// 0x1e: ProcessExpression[Probe[main.PointerChainArg]@0x4a6046.expr[1]]
+// 0x1e: ProcessExpression[Probe[main.PointerChainArg]@0x4a6126.expr[1]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 09 00 00 00 08 00 00 00 01 00 00 00 
 	Call b8 03 00 00 // ProcessType[*****int]
 	Return 
-// 0x39: ProcessEvent[Probe[main.PointerChainArg]@4a6046]
-	PrepareEventRoot bc 00 00 00 11 00 00 00 
-	Call 03 00 00 00 // ProcessExpression[Probe[main.PointerChainArg]@0x4a6046.expr[0]]
-	Call 1e 00 00 00 // ProcessExpression[Probe[main.PointerChainArg]@0x4a6046.expr[1]]
+// 0x39: ProcessEvent[Probe[main.PointerChainArg]@4a6126]
+	PrepareEventRoot bd 00 00 00 11 00 00 00 
+	Call 03 00 00 00 // ProcessExpression[Probe[main.PointerChainArg]@0x4a6126.expr[0]]
+	Call 1e 00 00 00 // ProcessExpression[Probe[main.PointerChainArg]@0x4a6126.expr[1]]
 	Return 
-// 0x4d: ProcessExpression[Probe[main.PointerSmallChainArg]@0x4a6090.expr[0]]
+// 0x4d: ProcessExpression[Probe[main.PointerSmallChainArg]@0x4a6170.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 01 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Call ca 03 00 00 // ProcessType[**int]
 	Return 
-// 0x68: ProcessEvent[Probe[main.PointerSmallChainArg]@4a6090]
-	PrepareEventRoot bd 00 00 00 09 00 00 00 
-	Call 4d 00 00 00 // ProcessExpression[Probe[main.PointerSmallChainArg]@0x4a6090.expr[0]]
+// 0x68: ProcessEvent[Probe[main.PointerSmallChainArg]@4a6170]
+	PrepareEventRoot be 00 00 00 09 00 00 00 
+	Call 4d 00 00 00 // ProcessExpression[Probe[main.PointerSmallChainArg]@0x4a6170.expr[0]]
 	Return 
-// 0x77: ProcessExpression[Probe[main.bigMapArg]@0x4a6553.expr[0]]
+// 0x77: ProcessExpression[Probe[main.bigMapArg]@0x4a6bf3.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Call f8 05 00 00 // ProcessType[map[string]main.bigStruct]
 	Return 
-// 0x92: ProcessExpression[Probe[main.bigMapArg]@0x4a6553.expr[1]]
+// 0x92: ProcessExpression[Probe[main.bigMapArg]@0x4a6bf3.expr[1]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 09 00 00 00 08 00 00 00 01 00 00 00 
 	Call f8 05 00 00 // ProcessType[map[string]main.bigStruct]
 	Return 
-// 0xad: ProcessEvent[Probe[main.bigMapArg]@4a6553]
-	PrepareEventRoot b4 00 00 00 11 00 00 00 
-	Call 77 00 00 00 // ProcessExpression[Probe[main.bigMapArg]@0x4a6553.expr[0]]
-	Call 92 00 00 00 // ProcessExpression[Probe[main.bigMapArg]@0x4a6553.expr[1]]
+// 0xad: ProcessEvent[Probe[main.bigMapArg]@4a6bf3]
+	PrepareEventRoot b5 00 00 00 11 00 00 00 
+	Call 77 00 00 00 // ProcessExpression[Probe[main.bigMapArg]@0x4a6bf3.expr[0]]
+	Call 92 00 00 00 // ProcessExpression[Probe[main.bigMapArg]@0x4a6bf3.expr[1]]
 	Return 
-// 0xc1: ProcessEvent[Probe[main.bigMapArg]Return@4a65de]
-	PrepareEventRoot b5 00 00 00 00 00 00 00 
+// 0xc1: ProcessEvent[Probe[main.bigMapArg]Return@4a6c7e]
+	PrepareEventRoot b6 00 00 00 00 00 00 00 
 	Return 
-// 0xcb: ProcessExpression[Probe[main.inlined]@0x4a5e0e.expr[0]]
+// 0xcb: ProcessExpression[Probe[main.inlined]@0x4a5eee.expr[0]]
 	ExprPrepare 
 	Return 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Return 
-// 0xdb: ProcessEvent[Probe[main.inlined]@4a5e0e]
-	PrepareEventRoot ba 00 00 00 09 00 00 00 
-	Call cb 00 00 00 // ProcessExpression[Probe[main.inlined]@0x4a5e0e.expr[0]]
+// 0xdb: ProcessEvent[Probe[main.inlined]@4a5eee]
+	PrepareEventRoot bb 00 00 00 09 00 00 00 
+	Call cb 00 00 00 // ProcessExpression[Probe[main.inlined]@0x4a5eee.expr[0]]
 	Return 
-// 0xea: ProcessExpression[Probe[main.inlined]@0x4a642a.expr[0]]
-	ExprPrepare 
-	ExprReadRegister 00 08 00 00 00 00 
-	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
-	Return 
-// 0x100: ProcessEvent[Probe[main.inlined]@4a642a]
-	PrepareEventRoot ba 00 00 00 09 00 00 00 
-	Call ea 00 00 00 // ProcessExpression[Probe[main.inlined]@0x4a642a.expr[0]]
-	Return 
-// 0x10f: ProcessEvent[Probe[main.inlined]Return@4a646a]
-	PrepareEventRoot bb 00 00 00 00 00 00 00 
-	Return 
-// 0x119: ProcessExpression[Probe[main.intArg]@0x4a610a.expr[0]]
+// 0xea: ProcessExpression[Probe[main.inlined]@0x4a6aca.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Return 
-// 0x12f: ProcessEvent[Probe[main.intArg]@4a610a]
-	PrepareEventRoot a1 00 00 00 09 00 00 00 
-	Call 19 01 00 00 // ProcessExpression[Probe[main.intArg]@0x4a610a.expr[0]]
+// 0x100: ProcessEvent[Probe[main.inlined]@4a6aca]
+	PrepareEventRoot bb 00 00 00 09 00 00 00 
+	Call ea 00 00 00 // ProcessExpression[Probe[main.inlined]@0x4a6aca.expr[0]]
 	Return 
-// 0x13e: ProcessEvent[Probe[main.intArg]Return@4a614a]
-	PrepareEventRoot a2 00 00 00 00 00 00 00 
+// 0x10f: ProcessEvent[Probe[main.inlined]Return@4a6b0a]
+	PrepareEventRoot bc 00 00 00 00 00 00 00 
 	Return 
-// 0x148: ProcessExpression[Probe[main.intArrayArg]@0x4a628a.expr[0]]
+// 0x119: ProcessExpression[Probe[main.intArg]@0x4a67aa.expr[0]]
+	ExprPrepare 
+	ExprReadRegister 00 08 00 00 00 00 
+	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
+	Return 
+// 0x12f: ProcessEvent[Probe[main.intArg]@4a67aa]
+	PrepareEventRoot a2 00 00 00 09 00 00 00 
+	Call 19 01 00 00 // ProcessExpression[Probe[main.intArg]@0x4a67aa.expr[0]]
+	Return 
+// 0x13e: ProcessEvent[Probe[main.intArg]Return@4a67ea]
+	PrepareEventRoot a3 00 00 00 00 00 00 00 
+	Return 
+// 0x148: ProcessExpression[Probe[main.intArrayArg]@0x4a692a.expr[0]]
 	ExprPrepare 
 	ExprDereferenceCfa 00 00 00 00 18 00 00 00 00 00 00 00 
 	ExprSave 01 00 00 00 18 00 00 00 00 00 00 00 
 	Return 
-// 0x164: ProcessEvent[Probe[main.intArrayArg]@4a628a]
-	PrepareEventRoot ab 00 00 00 19 00 00 00 
-	Call 48 01 00 00 // ProcessExpression[Probe[main.intArrayArg]@0x4a628a.expr[0]]
+// 0x164: ProcessEvent[Probe[main.intArrayArg]@4a692a]
+	PrepareEventRoot ac 00 00 00 19 00 00 00 
+	Call 48 01 00 00 // ProcessExpression[Probe[main.intArrayArg]@0x4a692a.expr[0]]
 	Return 
-// 0x173: ProcessEvent[Probe[main.intArrayArg]Return@4a62d6]
-	PrepareEventRoot ac 00 00 00 00 00 00 00 
+// 0x173: ProcessEvent[Probe[main.intArrayArg]Return@4a6976]
+	PrepareEventRoot ad 00 00 00 00 00 00 00 
 	Return 
-// 0x17d: ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a6400.expr[0]]
+// 0x17d: ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a6aa0.expr[0]]
 	ExprPrepare 
 	ExprDereferenceCfa 00 00 00 00 30 00 00 00 00 00 00 00 
 	ExprSave 01 00 00 00 30 00 00 00 00 00 00 00 
 	Call 9a 04 00 00 // ProcessType[[3]string]
 	Return 
-// 0x19e: ProcessEvent[Probe[main.stringArrayArgFrameless]@4a6400]
-	PrepareEventRoot b1 00 00 00 31 00 00 00 
-	Call 7d 01 00 00 // ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a6400.expr[0]]
+// 0x19e: ProcessEvent[Probe[main.stringArrayArgFrameless]@4a6aa0]
+	PrepareEventRoot b2 00 00 00 31 00 00 00 
+	Call 7d 01 00 00 // ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a6aa0.expr[0]]
 	Return 
-// 0x1ad: ProcessExpression[Probe[main.intSliceArg]@0x4a620a.expr[0]]
+// 0x1ad: ProcessExpression[Probe[main.intSliceArg]@0x4a68aa.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprReadRegister 03 08 08 00 00 00 
@@ -113,95 +113,95 @@
 	ExprSave 01 00 00 00 18 00 00 00 00 00 00 00 
 	Call e6 04 00 00 // ProcessType[[]int]
 	Return 
-// 0x1d6: ProcessEvent[Probe[main.intSliceArg]@4a620a]
-	PrepareEventRoot a9 00 00 00 19 00 00 00 
-	Call ad 01 00 00 // ProcessExpression[Probe[main.intSliceArg]@0x4a620a.expr[0]]
+// 0x1d6: ProcessEvent[Probe[main.intSliceArg]@4a68aa]
+	PrepareEventRoot aa 00 00 00 19 00 00 00 
+	Call ad 01 00 00 // ProcessExpression[Probe[main.intSliceArg]@0x4a68aa.expr[0]]
 	Return 
-// 0x1e5: ProcessEvent[Probe[main.intSliceArg]Return@4a624f]
-	PrepareEventRoot aa 00 00 00 00 00 00 00 
+// 0x1e5: ProcessEvent[Probe[main.intSliceArg]Return@4a68ef]
+	PrepareEventRoot ab 00 00 00 00 00 00 00 
 	Return 
-// 0x1ef: ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[0]]
+// 0x1ef: ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprReadRegister 03 08 08 00 00 00 
 	ExprSave 01 00 00 00 10 00 00 00 00 00 00 00 
 	Call e0 06 00 00 // ProcessType[string]
 	Return 
-// 0x211: ProcessEvent[Probe[main.stringArg]@4a618a]
-	PrepareEventRoot a3 00 00 00 11 00 00 00 
-	Call ef 01 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[0]]
+// 0x211: ProcessEvent[Probe[main.stringArg]@4a682a]
+	PrepareEventRoot a4 00 00 00 11 00 00 00 
+	Call ef 01 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[0]]
 	Return 
-// 0x220: ProcessEvent[Probe[main.stringArg]Return@4a61cf]
-	PrepareEventRoot a4 00 00 00 00 00 00 00 
-	Return 
-// 0x22a: ProcessEvent[Probe[main.stringArg]@4a618a]
+// 0x220: ProcessEvent[Probe[main.stringArg]Return@4a686f]
 	PrepareEventRoot a5 00 00 00 00 00 00 00 
 	Return 
-// 0x234: ProcessEvent[Probe[main.stringArg]Return@4a61cf]
+// 0x22a: ProcessEvent[Probe[main.stringArg]@4a682a]
 	PrepareEventRoot a6 00 00 00 00 00 00 00 
 	Return 
-// 0x23e: ProcessExpression[Probe[main.mapArg]@0x4a64ea.expr[0]]
+// 0x234: ProcessEvent[Probe[main.stringArg]Return@4a686f]
+	PrepareEventRoot a7 00 00 00 00 00 00 00 
+	Return 
+// 0x23e: ProcessExpression[Probe[main.mapArg]@0x4a6b8a.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Call f2 05 00 00 // ProcessType[map[string]int]
 	Return 
-// 0x259: ProcessExpression[Probe[main.mapArg]@0x4a64ea.expr[1]]
+// 0x259: ProcessExpression[Probe[main.mapArg]@0x4a6b8a.expr[1]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 09 00 00 00 08 00 00 00 01 00 00 00 
 	Call f2 05 00 00 // ProcessType[map[string]int]
 	Return 
-// 0x274: ProcessEvent[Probe[main.mapArg]@4a64ea]
-	PrepareEventRoot b2 00 00 00 11 00 00 00 
-	Call 3e 02 00 00 // ProcessExpression[Probe[main.mapArg]@0x4a64ea.expr[0]]
-	Call 59 02 00 00 // ProcessExpression[Probe[main.mapArg]@0x4a64ea.expr[1]]
+// 0x274: ProcessEvent[Probe[main.mapArg]@4a6b8a]
+	PrepareEventRoot b3 00 00 00 11 00 00 00 
+	Call 3e 02 00 00 // ProcessExpression[Probe[main.mapArg]@0x4a6b8a.expr[0]]
+	Call 59 02 00 00 // ProcessExpression[Probe[main.mapArg]@0x4a6b8a.expr[1]]
 	Return 
-// 0x288: ProcessEvent[Probe[main.mapArg]Return@4a651f]
-	PrepareEventRoot b3 00 00 00 00 00 00 00 
+// 0x288: ProcessEvent[Probe[main.mapArg]Return@4a6bbf]
+	PrepareEventRoot b4 00 00 00 00 00 00 00 
 	Return 
-// 0x292: ProcessEvent[Probe[main.noArgs]@4a660a]
-	PrepareEventRoot b6 00 00 00 00 00 00 00 
-	Return 
-// 0x29c: ProcessEvent[Probe[main.noArgs]Return@4a6646]
+// 0x292: ProcessEvent[Probe[main.noArgs]@4a6caa]
 	PrepareEventRoot b7 00 00 00 00 00 00 00 
 	Return 
-// 0x2a6: ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[0]]
+// 0x29c: ProcessEvent[Probe[main.noArgs]Return@4a6ce6]
+	PrepareEventRoot b8 00 00 00 00 00 00 00 
+	Return 
+// 0x2a6: ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprReadRegister 03 08 08 00 00 00 
 	ExprSave 01 00 00 00 10 00 00 00 00 00 00 00 
 	Call e0 06 00 00 // ProcessType[string]
 	Return 
-// 0x2c8: ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[1]]
+// 0x2c8: ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[1]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprReadRegister 03 08 08 00 00 00 
 	ExprSave 11 00 00 00 10 00 00 00 01 00 00 00 
 	Call e0 06 00 00 // ProcessType[string]
 	Return 
-// 0x2ea: ProcessEvent[Probe[main.stringArg]@4a618a]
-	PrepareEventRoot a7 00 00 00 21 00 00 00 
-	Call a6 02 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[0]]
-	Call c8 02 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a618a.expr[1]]
+// 0x2ea: ProcessEvent[Probe[main.stringArg]@4a682a]
+	PrepareEventRoot a8 00 00 00 21 00 00 00 
+	Call a6 02 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[0]]
+	Call c8 02 00 00 // ProcessExpression[Probe[main.stringArg]@0x4a682a.expr[1]]
 	Return 
-// 0x2fe: ProcessEvent[Probe[main.stringArg]Return@4a61cf]
-	PrepareEventRoot a8 00 00 00 00 00 00 00 
+// 0x2fe: ProcessEvent[Probe[main.stringArg]Return@4a686f]
+	PrepareEventRoot a9 00 00 00 00 00 00 00 
 	Return 
-// 0x308: ProcessExpression[Probe[main.stringArrayArg]@0x4a638a.expr[0]]
+// 0x308: ProcessExpression[Probe[main.stringArrayArg]@0x4a6a2a.expr[0]]
 	ExprPrepare 
 	ExprDereferenceCfa 00 00 00 00 30 00 00 00 00 00 00 00 
 	ExprSave 01 00 00 00 30 00 00 00 00 00 00 00 
 	Call 9a 04 00 00 // ProcessType[[3]string]
 	Return 
-// 0x329: ProcessEvent[Probe[main.stringArrayArg]@4a638a]
-	PrepareEventRoot af 00 00 00 31 00 00 00 
-	Call 08 03 00 00 // ProcessExpression[Probe[main.stringArrayArg]@0x4a638a.expr[0]]
+// 0x329: ProcessEvent[Probe[main.stringArrayArg]@4a6a2a]
+	PrepareEventRoot b0 00 00 00 31 00 00 00 
+	Call 08 03 00 00 // ProcessExpression[Probe[main.stringArrayArg]@0x4a6a2a.expr[0]]
 	Return 
-// 0x338: ProcessEvent[Probe[main.stringArrayArg]Return@4a63d6]
-	PrepareEventRoot b0 00 00 00 00 00 00 00 
+// 0x338: ProcessEvent[Probe[main.stringArrayArg]Return@4a6a76]
+	PrepareEventRoot b1 00 00 00 00 00 00 00 
 	Return 
-// 0x342: ProcessExpression[Probe[main.stringSliceArg]@0x4a630a.expr[0]]
+// 0x342: ProcessExpression[Probe[main.stringSliceArg]@0x4a69aa.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprReadRegister 03 08 08 00 00 00 
@@ -209,34 +209,34 @@
 	ExprSave 01 00 00 00 18 00 00 00 00 00 00 00 
 	Call 00 05 00 00 // ProcessType[[]string]
 	Return 
-// 0x36b: ProcessEvent[Probe[main.stringSliceArg]@4a630a]
-	PrepareEventRoot ad 00 00 00 19 00 00 00 
-	Call 42 03 00 00 // ProcessExpression[Probe[main.stringSliceArg]@0x4a630a.expr[0]]
+// 0x36b: ProcessEvent[Probe[main.stringSliceArg]@4a69aa]
+	PrepareEventRoot ae 00 00 00 19 00 00 00 
+	Call 42 03 00 00 // ProcessExpression[Probe[main.stringSliceArg]@0x4a69aa.expr[0]]
 	Return 
-// 0x37a: ProcessEvent[Probe[main.stringSliceArg]Return@4a634f]
-	PrepareEventRoot ae 00 00 00 00 00 00 00 
+// 0x37a: ProcessEvent[Probe[main.stringSliceArg]Return@4a69ef]
+	PrepareEventRoot af 00 00 00 00 00 00 00 
 	Return 
-// 0x384: ProcessEvent[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]@4a6676]
-	PrepareEventRoot b8 00 00 00 00 00 00 00 
+// 0x384: ProcessEvent[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]@4a7e16]
+	PrepareEventRoot b9 00 00 00 00 00 00 00 
 	Return 
-// 0x38e: ProcessExpression[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@0x4a682e.expr[0]]
+// 0x38e: ProcessExpression[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@0x4a7fce.expr[0]]
 	ExprPrepare 
 	ExprReadRegister 00 08 00 00 00 00 
 	ExprSave 01 00 00 00 08 00 00 00 00 00 00 00 
 	Call 04 06 00 00 // ProcessType[map[uint8]map[int]main.aStructNotUsedAsAnArgument]
 	Return 
-// 0x3a9: ProcessEvent[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@4a682e]
-	PrepareEventRoot b9 00 00 00 09 00 00 00 
-	Call 8e 03 00 00 // ProcessExpression[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@0x4a682e.expr[0]]
+// 0x3a9: ProcessEvent[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@4a7fce]
+	PrepareEventRoot ba 00 00 00 09 00 00 00 
+	Call 8e 03 00 00 // ProcessExpression[Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return@0x4a7fce.expr[0]]
 	Return 
 // 0x3b8: ProcessType[*****int]
-	ProcessPointer 7e 00 00 00 
+	ProcessPointer 7f 00 00 00 
 	Return 
 // 0x3be: ProcessType[****int]
-	ProcessPointer 9f 00 00 00 
+	ProcessPointer a0 00 00 00 
 	Return 
 // 0x3c4: ProcessType[***int]
-	ProcessPointer 7f 00 00 00 
+	ProcessPointer 80 00 00 00 
 	Return 
 // 0x3ca: ProcessType[**int]
 	ProcessPointer 5d 00 00 00 
@@ -248,19 +248,19 @@
 	ProcessPointer 04 00 00 00 
 	Return 
 // 0x3dc: ProcessType[*bucket<int,main.aStructNotUsedAsAnArgument>]
-	ProcessPointer 98 00 00 00 
+	ProcessPointer 99 00 00 00 
 	Return 
 // 0x3e2: ProcessType[*bucket<string,int>]
-	ProcessPointer 6b 00 00 00 
+	ProcessPointer 6c 00 00 00 
 	Return 
 // 0x3e8: ProcessType[*bucket<string,main.bigStruct>]
-	ProcessPointer 72 00 00 00 
+	ProcessPointer 73 00 00 00 
 	Return 
 // 0x3ee: ProcessType[*bucket<string,map[int]main.aStructNotUsedAsAnArgument>]
-	ProcessPointer 7c 00 00 00 
+	ProcessPointer 7d 00 00 00 
 	Return 
 // 0x3f4: ProcessType[*bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>]
-	ProcessPointer 77 00 00 00 
+	ProcessPointer 78 00 00 00 
 	Return 
 // 0x3fa: ProcessType[*error]
 	ProcessPointer 12 00 00 00 
@@ -281,7 +281,7 @@
 	ProcessPointer 0d 00 00 00 
 	Return 
 // 0x41e: ProcessType[*main.bigStruct]
-	ProcessPointer 90 00 00 00 
+	ProcessPointer 91 00 00 00 
 	Return 
 // 0x424: ProcessType[*runtime._defer]
 	ProcessPointer 1b 00 00 00 
@@ -302,7 +302,7 @@
 	ProcessPointer 1d 00 00 00 
 	Return 
 // 0x448: ProcessType[*runtime.mapextra]
-	ProcessPointer 6d 00 00 00 
+	ProcessPointer 6e 00 00 00 
 	Return 
 // 0x44e: ProcessType[*runtime.sudog]
 	ProcessPointer 2a 00 00 00 
@@ -370,7 +370,7 @@
 	ProcessSliceDataRepeat 08 00 00 00 
 	Return 
 // 0x4e6: ProcessType[[]int]
-	ProcessSlice 86 00 00 00 08 00 00 00 
+	ProcessSlice 87 00 00 00 08 00 00 00 
 	Return 
 // 0x4f0: ProcessType[[]key<string>]
 	ProcessArrayDataPrep 80 00 00 00 
@@ -378,7 +378,7 @@
 	ProcessSliceDataRepeat 10 00 00 00 
 	Return 
 // 0x500: ProcessType[[]string]
-	ProcessSlice 88 00 00 00 10 00 00 00 
+	ProcessSlice 89 00 00 00 10 00 00 00 
 	Return 
 // 0x50a: ProcessType[[]string.array]
 	ProcessSliceDataPrep 
@@ -386,10 +386,10 @@
 	ProcessSliceDataRepeat 10 00 00 00 
 	Return 
 // 0x516: ProcessType[[]uint8]
-	ProcessSlice 82 00 00 00 01 00 00 00 
+	ProcessSlice 83 00 00 00 01 00 00 00 
 	Return 
 // 0x520: ProcessType[[]uintptr]
-	ProcessSlice 84 00 00 00 08 00 00 00 
+	ProcessSlice 85 00 00 00 08 00 00 00 
 	Return 
 // 0x52a: ProcessType[[]val<main.bigStruct>]
 	ProcessArrayDataPrep 40 00 00 00 
@@ -432,34 +432,34 @@
 	ProcessGoInterface 
 	Return 
 // 0x5a6: ProcessType[hash<int,main.aStructNotUsedAsAnArgument>]
-	ProcessGoHmap 9e 00 00 00 90 00 00 00 08 09 10 18 
+	ProcessGoHmap 9f 00 00 00 90 00 00 00 08 09 10 18 
 	Return 
 // 0x5b4: ProcessType[hash<string,int>]
-	ProcessGoHmap 8d 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 8e 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x5c2: ProcessType[hash<string,main.bigStruct>]
-	ProcessGoHmap 91 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 92 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x5d0: ProcessType[hash<string,map[int]main.aStructNotUsedAsAnArgument>]
-	ProcessGoHmap 9a 00 00 00 d0 00 00 00 08 09 10 18 
+	ProcessGoHmap 9b 00 00 00 d0 00 00 00 08 09 10 18 
 	Return 
 // 0x5de: ProcessType[hash<uint8,map[int]main.aStructNotUsedAsAnArgument>]
-	ProcessGoHmap 99 00 00 00 58 00 00 00 08 09 10 18 
+	ProcessGoHmap 9a 00 00 00 58 00 00 00 08 09 10 18 
 	Return 
 // 0x5ec: ProcessType[map[int]main.aStructNotUsedAsAnArgument]
-	ProcessPointer 96 00 00 00 
+	ProcessPointer 97 00 00 00 
 	Return 
 // 0x5f2: ProcessType[map[string]int]
-	ProcessPointer 69 00 00 00 
+	ProcessPointer 6a 00 00 00 
 	Return 
 // 0x5f8: ProcessType[map[string]main.bigStruct]
-	ProcessPointer 70 00 00 00 
+	ProcessPointer 71 00 00 00 
 	Return 
 // 0x5fe: ProcessType[map[string]map[int]main.aStructNotUsedAsAnArgument]
-	ProcessPointer 7a 00 00 00 
+	ProcessPointer 7b 00 00 00 
 	Return 
 // 0x604: ProcessType[map[uint8]map[int]main.aStructNotUsedAsAnArgument]
-	ProcessPointer 75 00 00 00 
+	ProcessPointer 76 00 00 00 
 	Return 
 // 0x60a: ProcessType[runtime.g]
 	IncrementOutputOffset 20 00 00 00 
@@ -512,7 +512,7 @@
 	Call 42 04 00 00 // ProcessType[*runtime.m]
 	Return 
 // 0x6e0: ProcessType[string]
-	ProcessString 80 00 00 00 
+	ProcessString 81 00 00 00 
 	Return 
 // Extra illegal ops to simplify code bound checks
 	Illegal 
@@ -624,97 +624,98 @@ ID: 92 Len: 8 Enqueue: 1048
 ID: 93 Len: 8 Enqueue: 1036
 ID: 94 Len: 8 Enqueue: 1144
 ID: 95 Len: 8 Enqueue: 1018
-ID: 96 Len: 8 Enqueue: 1024
-ID: 97 Len: 8 Enqueue: 1126
-ID: 98 Len: 8 Enqueue: 1132
-ID: 99 Len: 24 Enqueue: 1254
-ID: 100 Len: 24 Enqueue: 0
-ID: 101 Len: 24 Enqueue: 1280
-ID: 102 Len: 48 Enqueue: 1178
-ID: 103 Len: 8 Enqueue: 1522
-ID: 104 Len: 8 Enqueue: 0
-ID: 105 Len: 48 Enqueue: 1460
-ID: 106 Len: 8 Enqueue: 994
-ID: 107 Len: 208 Enqueue: 1365
-ID: 108 Len: 8 Enqueue: 1096
-ID: 109 Len: 8 Enqueue: 0
-ID: 110 Len: 8 Enqueue: 1528
-ID: 111 Len: 8 Enqueue: 0
-ID: 112 Len: 48 Enqueue: 1474
-ID: 113 Len: 8 Enqueue: 1000
-ID: 114 Len: 208 Enqueue: 1386
-ID: 115 Len: 8 Enqueue: 1540
-ID: 116 Len: 8 Enqueue: 0
-ID: 117 Len: 48 Enqueue: 1502
-ID: 118 Len: 8 Enqueue: 1012
-ID: 119 Len: 88 Enqueue: 1428
-ID: 120 Len: 8 Enqueue: 1534
-ID: 121 Len: 8 Enqueue: 0
-ID: 122 Len: 48 Enqueue: 1488
-ID: 123 Len: 8 Enqueue: 1006
-ID: 124 Len: 208 Enqueue: 1407
-ID: 125 Len: 8 Enqueue: 952
-ID: 126 Len: 8 Enqueue: 958
-ID: 127 Len: 8 Enqueue: 970
-ID: 128 Len: 1 Enqueue: 0
-ID: 129 Len: 8 Enqueue: 0
-ID: 130 Len: 1 Enqueue: 0
-ID: 131 Len: 8 Enqueue: 0
+ID: 96 Len: 2 Enqueue: 0
+ID: 97 Len: 8 Enqueue: 1024
+ID: 98 Len: 8 Enqueue: 1126
+ID: 99 Len: 8 Enqueue: 1132
+ID: 100 Len: 24 Enqueue: 1254
+ID: 101 Len: 24 Enqueue: 0
+ID: 102 Len: 24 Enqueue: 1280
+ID: 103 Len: 48 Enqueue: 1178
+ID: 104 Len: 8 Enqueue: 1522
+ID: 105 Len: 8 Enqueue: 0
+ID: 106 Len: 48 Enqueue: 1460
+ID: 107 Len: 8 Enqueue: 994
+ID: 108 Len: 208 Enqueue: 1365
+ID: 109 Len: 8 Enqueue: 1096
+ID: 110 Len: 8 Enqueue: 0
+ID: 111 Len: 8 Enqueue: 1528
+ID: 112 Len: 8 Enqueue: 0
+ID: 113 Len: 48 Enqueue: 1474
+ID: 114 Len: 8 Enqueue: 1000
+ID: 115 Len: 208 Enqueue: 1386
+ID: 116 Len: 8 Enqueue: 1540
+ID: 117 Len: 8 Enqueue: 0
+ID: 118 Len: 48 Enqueue: 1502
+ID: 119 Len: 8 Enqueue: 1012
+ID: 120 Len: 88 Enqueue: 1428
+ID: 121 Len: 8 Enqueue: 1534
+ID: 122 Len: 8 Enqueue: 0
+ID: 123 Len: 48 Enqueue: 1488
+ID: 124 Len: 8 Enqueue: 1006
+ID: 125 Len: 208 Enqueue: 1407
+ID: 126 Len: 8 Enqueue: 952
+ID: 127 Len: 8 Enqueue: 958
+ID: 128 Len: 8 Enqueue: 970
+ID: 129 Len: 1 Enqueue: 0
+ID: 130 Len: 8 Enqueue: 0
+ID: 131 Len: 1 Enqueue: 0
 ID: 132 Len: 8 Enqueue: 0
 ID: 133 Len: 8 Enqueue: 0
 ID: 134 Len: 8 Enqueue: 0
 ID: 135 Len: 8 Enqueue: 0
-ID: 136 Len: 16 Enqueue: 1290
-ID: 137 Len: 8 Enqueue: 0
+ID: 136 Len: 8 Enqueue: 0
+ID: 137 Len: 16 Enqueue: 1290
 ID: 138 Len: 8 Enqueue: 0
-ID: 139 Len: 128 Enqueue: 1264
-ID: 140 Len: 64 Enqueue: 0
-ID: 141 Len: 208 Enqueue: 1206
-ID: 142 Len: 64 Enqueue: 1322
-ID: 143 Len: 8 Enqueue: 1054
-ID: 144 Len: 184 Enqueue: 0
-ID: 145 Len: 208 Enqueue: 1218
-ID: 146 Len: 8 Enqueue: 0
-ID: 147 Len: 64 Enqueue: 1338
-ID: 148 Len: 8 Enqueue: 1516
-ID: 149 Len: 8 Enqueue: 0
-ID: 150 Len: 48 Enqueue: 1446
-ID: 151 Len: 8 Enqueue: 988
-ID: 152 Len: 144 Enqueue: 1354
-ID: 153 Len: 88 Enqueue: 1242
-ID: 154 Len: 208 Enqueue: 1230
-ID: 155 Len: 64 Enqueue: 0
+ID: 139 Len: 8 Enqueue: 0
+ID: 140 Len: 128 Enqueue: 1264
+ID: 141 Len: 64 Enqueue: 0
+ID: 142 Len: 208 Enqueue: 1206
+ID: 143 Len: 64 Enqueue: 1322
+ID: 144 Len: 8 Enqueue: 1054
+ID: 145 Len: 184 Enqueue: 0
+ID: 146 Len: 208 Enqueue: 1218
+ID: 147 Len: 8 Enqueue: 0
+ID: 148 Len: 64 Enqueue: 1338
+ID: 149 Len: 8 Enqueue: 1516
+ID: 150 Len: 8 Enqueue: 0
+ID: 151 Len: 48 Enqueue: 1446
+ID: 152 Len: 8 Enqueue: 988
+ID: 153 Len: 144 Enqueue: 1354
+ID: 154 Len: 88 Enqueue: 1242
+ID: 155 Len: 208 Enqueue: 1230
 ID: 156 Len: 64 Enqueue: 0
-ID: 157 Len: 8 Enqueue: 0
-ID: 158 Len: 144 Enqueue: 1194
-ID: 159 Len: 8 Enqueue: 964
-ID: 160 Len: 128 Enqueue: 0
-ID: 161 Len: 9 Enqueue: 0
-ID: 162 Len: 0 Enqueue: 0
-ID: 163 Len: 17 Enqueue: 0
-ID: 164 Len: 0 Enqueue: 0
+ID: 157 Len: 64 Enqueue: 0
+ID: 158 Len: 8 Enqueue: 0
+ID: 159 Len: 144 Enqueue: 1194
+ID: 160 Len: 8 Enqueue: 964
+ID: 161 Len: 128 Enqueue: 0
+ID: 162 Len: 9 Enqueue: 0
+ID: 163 Len: 0 Enqueue: 0
+ID: 164 Len: 17 Enqueue: 0
 ID: 165 Len: 0 Enqueue: 0
 ID: 166 Len: 0 Enqueue: 0
-ID: 167 Len: 33 Enqueue: 0
-ID: 168 Len: 0 Enqueue: 0
-ID: 169 Len: 25 Enqueue: 0
-ID: 170 Len: 0 Enqueue: 0
-ID: 171 Len: 25 Enqueue: 0
-ID: 172 Len: 0 Enqueue: 0
-ID: 173 Len: 25 Enqueue: 0
-ID: 174 Len: 0 Enqueue: 0
-ID: 175 Len: 49 Enqueue: 0
-ID: 176 Len: 0 Enqueue: 0
-ID: 177 Len: 49 Enqueue: 0
-ID: 178 Len: 17 Enqueue: 0
-ID: 179 Len: 0 Enqueue: 0
-ID: 180 Len: 17 Enqueue: 0
-ID: 181 Len: 0 Enqueue: 0
+ID: 167 Len: 0 Enqueue: 0
+ID: 168 Len: 33 Enqueue: 0
+ID: 169 Len: 0 Enqueue: 0
+ID: 170 Len: 25 Enqueue: 0
+ID: 171 Len: 0 Enqueue: 0
+ID: 172 Len: 25 Enqueue: 0
+ID: 173 Len: 0 Enqueue: 0
+ID: 174 Len: 25 Enqueue: 0
+ID: 175 Len: 0 Enqueue: 0
+ID: 176 Len: 49 Enqueue: 0
+ID: 177 Len: 0 Enqueue: 0
+ID: 178 Len: 49 Enqueue: 0
+ID: 179 Len: 17 Enqueue: 0
+ID: 180 Len: 0 Enqueue: 0
+ID: 181 Len: 17 Enqueue: 0
 ID: 182 Len: 0 Enqueue: 0
 ID: 183 Len: 0 Enqueue: 0
 ID: 184 Len: 0 Enqueue: 0
-ID: 185 Len: 9 Enqueue: 0
+ID: 185 Len: 0 Enqueue: 0
 ID: 186 Len: 9 Enqueue: 0
-ID: 187 Len: 0 Enqueue: 0
-ID: 188 Len: 17 Enqueue: 0
-ID: 189 Len: 9 Enqueue: 0
+ID: 187 Len: 9 Enqueue: 0
+ID: 188 Len: 0 Enqueue: 0
+ID: 189 Len: 17 Enqueue: 0
+ID: 190 Len: 9 Enqueue: 0
