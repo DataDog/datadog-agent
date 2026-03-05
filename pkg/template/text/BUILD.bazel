@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "text",
+    srcs = [
+        "doc.go",
+        "exec.go",
+        "funcs.go",
+        "helper.go",
+        "option.go",
+        "template.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/template/text",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/template/internal/fmtsort"],
+)
