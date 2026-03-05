@@ -442,15 +442,9 @@ type StorageReader interface {
 	// ListSeries returns keys of all series matching the filter.
 	ListSeries(filter SeriesFilter) []SeriesKey
 
-	// GetSeriesByKey returns the full series for a key.
-	GetSeriesByKey(key SeriesKey, agg Aggregate) *Series
-
-	// GetSeriesRange returns points within a time range [start, end].
+	// GetSeriesRange returns points within a time range (start, end].
+	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 	GetSeriesRange(key SeriesKey, start, end int64, agg Aggregate) *Series
-
-	// ReadSince returns points with timestamp > cursor, plus the new cursor position.
-	// Use cursor=0 to read all points.
-	ReadSince(key SeriesKey, cursor int64, agg Aggregate) (points []Point, newCursor int64)
 
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.

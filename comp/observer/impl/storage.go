@@ -443,6 +443,9 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 
 // ListSeries returns keys of all series matching the filter.
 func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.SeriesKey {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var result []observer.SeriesKey
 	for _, stats := range s.series {
 		// Check namespace filter
@@ -468,6 +471,9 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 
 // PointCount returns the number of raw data points for a series.
 func (s *timeSeriesStorage) PointCount(key observer.SeriesKey) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	k := seriesKey(key.Namespace, key.Name, key.Tags)
 	if stats, ok := s.series[k]; ok {
 		return len(stats.Points)
@@ -494,19 +500,12 @@ func matchTags(tags []string, matchers map[string]string) bool {
 	return true
 }
 
-// GetSeriesByKey returns the full series for a key.
-func (s *timeSeriesStorage) GetSeriesByKey(key observer.SeriesKey, agg Aggregate) *observer.Series {
-	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
-	stats := s.series[internalKey]
-	if stats == nil {
-		return nil
-	}
-	series := stats.toSeries(agg)
-	return &series
-}
-
-// GetSeriesRange returns points within a time range [start, end].
+// GetSeriesRange returns points within a time range (start, end].
+// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
 func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end int64, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
 	stats := s.series[internalKey]
 	if stats == nil {
@@ -515,7 +514,7 @@ func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end in
 
 	points := make([]observer.Point, 0)
 	for _, p := range stats.Points {
-		if p.Timestamp >= start && p.Timestamp <= end {
+		if p.Timestamp > start && p.Timestamp <= end {
 			points = append(points, observer.Point{
 				Timestamp: p.Timestamp,
 				Value:     p.aggregate(agg),
@@ -528,28 +527,4 @@ func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end in
 		Tags:      stats.Tags,
 		Points:    points,
 	}
-}
-
-// ReadSince returns points with timestamp > cursor, plus the new cursor position.
-func (s *timeSeriesStorage) ReadSince(key observer.SeriesKey, cursor int64, agg Aggregate) ([]observer.Point, int64) {
-	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
-	stats := s.series[internalKey]
-	if stats == nil {
-		return nil, cursor
-	}
-
-	var points []observer.Point
-	newCursor := cursor
-	for _, p := range stats.Points {
-		if p.Timestamp > cursor {
-			points = append(points, observer.Point{
-				Timestamp: p.Timestamp,
-				Value:     p.aggregate(agg),
-			})
-			if p.Timestamp > newCursor {
-				newCursor = p.Timestamp
-			}
-		}
-	}
-	return points, newCursor
 }
