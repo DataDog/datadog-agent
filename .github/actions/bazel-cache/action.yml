@@ -1,3 +1,4 @@
+---
 name: Bazel Cache
 description: Pull or push Bazel-related cache(s)
 runs:
