@@ -71,6 +71,35 @@ log "Installing datadog-checks-base from $INTEGRATIONS_CORE/datadog_checks_base"
 $PIP install "$INTEGRATIONS_CORE/datadog_checks_base"
 log "datadog-checks-base installed successfully"
 
+# ─── Step 1b: Install datadog-checks-base [deps] extra packages ───────────────
+#
+# The [deps] extra lists all runtime-required packages, but pip will NOT install
+# them unless you request [deps] explicitly.  We cannot use
+#   pip install datadog-checks-base[deps]
+# because two packages in the [deps] extra require a Rust toolchain to build
+# from source and are not available as pre-built wheels for AIX/ppc64:
+#   - ddtrace    (requires Rust, not available on AIX)
+#   - jellyfish  (requires Rust, not available on AIX)
+# We therefore install all other [deps] packages explicitly using the exact
+# versions pinned in the datadog-checks-base METADATA.
+
+log "Installing datadog-checks-base deps (excluding ddtrace and jellyfish which require Rust)"
+$PIP install \
+    'lazy-loader==0.4' \
+    'PyYAML==6.0.2' \
+    'cachetools==6.2.0' \
+    'requests==2.32.5' \
+    'wrapt==1.17.3' \
+    'simplejson==3.20.1' \
+    'requests-toolbelt==1.0.0' \
+    'requests-unixsocket2==1.0.0' \
+    'python-dateutil==2.9.0.post0' \
+    'urllib3==2.6.3' \
+    'prometheus-client==0.22.1' \
+    'protobuf==6.33.5' \
+    'binary==1.0.2'
+log "datadog-checks-base deps installed successfully"
+
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────
 #
 # Freeze the complete installed state into a constraints file.  Stage 08 passes

@@ -68,9 +68,29 @@ mkdir -p "$STAGING/opt/datadog-agent/bin"
 
 log "Setting rtloader CGO flags"
 export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
+#
+# -lpython3.13 causes libpython3.13.a(shr_64.o) to appear in the agent binary's
+# XCOFF startup-load chain.  This is necessary but not sufficient: the binary
+# must also EXPORT Python API symbols so that extension modules with IMPid="."
+# (which means "look in the main program's export table") can find them.
+#
+# -Wl,-bE:python.exp adds ~2762 Python API symbols to the agent binary's own
+# EXP (export) table.  Go's CGO security filter rejects -bE in #cgo LDFLAGS,
+# so it must be passed here via CGO_LDFLAGS instead.  The python_aix.go file
+# handles the Py_IsInitialized() call that creates the live Go→CGO reference
+# needed to trigger the //go:cgo_import_dynamic for libpython3.13.a(shr_64.o).
+PYTHON_EXP="$EMBEDDED_DESTDIR/lib/python3.13/config-3.13/python.exp"
+if [ ! -f "$PYTHON_EXP" ]; then
+    log "ERROR: $PYTHON_EXP not found — did Stage 02 (02-python) complete?"
+    exit 1
+fi
+log "Using Python export file: $PYTHON_EXP"
 export CGO_LDFLAGS="$CGO_LDFLAGS \
   -L/opt/datadog-agent/rtloader/build/rtloader \
-  -L/opt/datadog-agent/rtloader/build/three"
+  -L/opt/datadog-agent/rtloader/build/three \
+  -L$EMBEDDED_DESTDIR/lib \
+  -lpython3.13 \
+  -Wl,-bE:$PYTHON_EXP"
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 #
@@ -107,11 +127,20 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 log "Building agent binary"
 cd /opt/datadog-agent
 
+# Note: pythonHome3 must be set explicitly here.
+# The agent binary computes Python home as filepath.Join(executableFolder, "../../embedded").
+# On Linux (standard omnibus), the binary lives at bin/agent/agent so "../../embedded"
+# correctly resolves to /opt/datadog-agent/embedded.
+# On AIX we place the binary at bin/agent (one level shallower) so the relative path
+# would resolve to /opt/embedded — which does not exist.
+# Setting pythonHome3 via -ldflags overrides the relative calculation.
+
 go build \
     -tags "python otlp grpcnotrace retrynotrace no_dynamic_plugins trivy_no_javadb osusergo datadog.no_waf zstd" \
     -ldflags="-s -w \
       -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION} \
-      -X github.com/DataDog/datadog-agent/pkg/version.Commit=${COMMIT}" \
+      -X github.com/DataDog/datadog-agent/pkg/version.Commit=${COMMIT} \
+      -X github.com/DataDog/datadog-agent/pkg/collector/python.pythonHome3=${EMBEDDED}" \
     -o "$STAGING/opt/datadog-agent/bin/agent" \
     ./cmd/agent/
 

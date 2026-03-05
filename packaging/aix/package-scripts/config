@@ -6,10 +6,11 @@ chown -R dd-agent:dd-agent /etc/datadog-agent \
 
 if [ -f /etc/datadog-agent/datadog.yaml ]; then
     startsrc -s datadog-agent
+    startsrc -s datadog-trace-agent
 else
     echo ""
     echo "Datadog Agent installed."
     echo "Create /etc/datadog-agent/datadog.yaml with your api_key to start."
-    echo "Then run:  startsrc -s datadog-agent"
+    echo "Then run:  startsrc -s datadog-agent && startsrc -s datadog-trace-agent"
     echo ""
 fi

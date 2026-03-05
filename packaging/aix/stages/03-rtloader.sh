@@ -65,7 +65,23 @@ mkdir -p /opt/datadog-agent/rtloader/build
 # -DBUILD_DEMO=OFF      : skip the demo binary (not needed in the package)
 # -DDISABLE_PYTHON2=ON  : only build the Python 3 binding (libdatadog-agent-three.so)
 # -DPython3_INCLUDE_DIR : staging path (where headers are during the build)
-# -DPython3_LIBRARY     : staging path (where libpython3.13.so is during the build)
+# -DPython3_LIBRARY     : EMBEDDED (installed) path, not staging path
+#
+# Embedded path trick:
+#   On AIX, the linker bakes the Python library path into the XCOFF loader
+#   section of libdatadog-agent-three.so.  If we pass the staging path
+#   ($EMBEDDED_DESTDIR), the installed .so will look for Python at the build
+#   host's staging tree — which does not exist on a fresh target system.
+#   Instead, we pass the EMBEDDED (installed) path ($EMBEDDED/lib) and create
+#   a symlink there pointing to the staging copy so cmake can find the file
+#   during the build.  After installp installs the real libpython3.13.so to
+#   $EMBEDDED/lib, the baked-in path resolves correctly.
+
+log "Creating embedded-path symlink so rtloader embeds the installed Python path"
+mkdir -p "$EMBEDDED/lib"
+# Symlink the staging Python .so to the EMBEDDED path for the cmake build.
+# installp will overwrite the symlink with the real .so on the target system.
+ln -sf "$EMBEDDED_DESTDIR/lib/libpython3.13.so" "$EMBEDDED/lib/libpython3.13.so" 2>/dev/null || true
 
 log "Running cmake for rtloader"
 cd /opt/datadog-agent/rtloader/build
@@ -79,7 +95,7 @@ OBJECT_MODE=64 cmake \
     -DBUILD_DEMO=OFF \
     -DDISABLE_PYTHON2=ON \
     -DPython3_INCLUDE_DIR="$EMBEDDED_DESTDIR/include/python3.13" \
-    -DPython3_LIBRARY="$EMBEDDED_DESTDIR/lib/libpython3.13.so" \
+    -DPython3_LIBRARY="$EMBEDDED/lib/libpython3.13.so" \
     ..
 
 log "cmake configure complete."
@@ -89,6 +105,45 @@ log "cmake configure complete."
 log "Building rtloader with make -j$NPROC"
 OBJECT_MODE=64 make -j"$NPROC"
 log "rtloader build complete."
+
+# ─── Step 3b: Relink libdatadog-agent-three.so to use libpython3.13.a ─────────
+#
+# cmake/make built three.so against libpython3.13.so (the shared object file).
+# However, on AIX, libpython3.13.a(shr_64.o) and libpython3.13.so are the same
+# code but identified as DIFFERENT modules by the XCOFF loader (different names).
+#
+# The agent binary startup-loads libpython3.13.a(shr_64.o) via python_aix.go.
+# If three.so depends on libpython3.13.so, the loader treats it as a SECOND Python
+# instance.  With two Python instances, Python C extensions fail with:
+#   SystemError: initialization of _datetime did not return an extension module
+# because PyModule_Type lives at different addresses in the two copies.
+#
+# Fix: relink three.so using the saved link command, substituting .so with .a.
+# This makes three.so depend on libpython3.13.a(shr_64.o), which matches the
+# agent binary's startup-loaded module — the loader deduplicates to ONE instance.
+#
+# Note: libpython3.13.a and libpython3.13.so are byte-for-byte identical on AIX.
+# The .a form (archive containing shr_64.o) is the canonical AIX shared library.
+
+log "Relinking libdatadog-agent-three.so to use libpython3.13.a(shr_64.o)"
+cd /opt/datadog-agent/rtloader/build/three
+
+# Step 1: Re-run the cmake ExportImportList (export symbols file generation)
+EXPORT_CMD=$(head -1 CMakeFiles/datadog-agent-three.dir/link.txt)
+eval "$EXPORT_CMD"
+
+# Step 2: Re-run the link command, substituting .so with .a for libpython3.13
+LINK_CMD=$(tail -1 CMakeFiles/datadog-agent-three.dir/link.txt)
+LINK_CMD_FIXED=$(printf '%s' "$LINK_CMD" | sed 's|libpython3\.13\.so|libpython3.13.a|g')
+eval "$LINK_CMD_FIXED"
+log "Relink complete. three.so now depends on libpython3.13.a(shr_64.o)"
+
+# Verify the dependency switched to .a
+if dump -X64 -Hv libdatadog-agent-three.so 2>/dev/null | grep "libpython3.13.so"; then
+    log "ERROR: libdatadog-agent-three.so still references libpython3.13.so after relink!"
+    exit 1
+fi
+log "Verified: libdatadog-agent-three.so depends on libpython3.13.a(shr_64.o)"
 
 # ─── Step 4: Copy outputs to staging ──────────────────────────────────────────
 #

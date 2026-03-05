@@ -91,6 +91,12 @@ log "Runtime directories created"
 log "Copying package lifecycle scripts"
 SCRIPTS_DIR="$EMBEDDED_DESTDIR/share/installp"
 mkdir -p "$SCRIPTS_DIR"
+# mkinstallp checks lifecycle scripts at their absolute installed path, not
+# relative to the staging tree.  Copy them to BOTH the staging tree (so they
+# are included in the BFF) AND the installed path (so mkinstallp can find
+# them when building the BFF on the same host that will run the agent).
+SCRIPTS_INSTALLED="$EMBEDDED/share/installp"
+mkdir -p "$SCRIPTS_INSTALLED"
 PKGSCRIPTS_SRC="$(dirname "$0")/../package-scripts"
 
 for script in preinst postinst config unconfig prerm postrm; do
@@ -103,7 +109,10 @@ for script in preinst postinst config unconfig prerm postrm; do
     fi
     cp "$SRC" "$SCRIPTS_DIR/$script"
     chmod 755 "$SCRIPTS_DIR/$script"
-    log "  Installed: $SCRIPTS_DIR/$script"
+    cp "$SRC" "$SCRIPTS_INSTALLED/$script"
+    chmod 755 "$SCRIPTS_INSTALLED/$script"
+    log "  Staging:   $SCRIPTS_DIR/$script"
+    log "  Installed: $SCRIPTS_INSTALLED/$script"
 done
 log "All package lifecycle scripts installed"
 

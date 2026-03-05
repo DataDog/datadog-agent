@@ -1,4 +1,7 @@
 #!/bin/sh
 stopsrc -s datadog-agent 2>/dev/null || true
+stopsrc -s datadog-trace-agent 2>/dev/null || true
 odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
+odmdelete -o SRCsubsys -q "subsysname='datadog-trace-agent'" > /dev/null 2>&1 || true
 rmssys -s datadog-agent 2>/dev/null || true
+rmssys -s datadog-trace-agent 2>/dev/null || true

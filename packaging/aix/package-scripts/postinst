@@ -26,19 +26,45 @@ chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
 chown root:dd-agent /etc/datadog-agent 2>/dev/null || true
 chmod 750 /etc/datadog-agent           2>/dev/null || true
 
-# Remove stale SRC entry then register fresh
-odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
+# Write SRC wrapper script.
+# AIX's mkssys does not support setting environment variables (-e is stderr
+# redirect, not env-var injection).  This wrapper sets LIBPATH so all shared
+# libraries and Python C extensions are found, then exec's the agent binary.
+WRAPPER=/opt/datadog-agent/bin/agent-svc
+LIBPATH_VAL=/opt/datadog-agent/rtloader
+LIBPATH_VAL=${LIBPATH_VAL}:/opt/datadog-agent/embedded/lib
+LIBPATH_VAL=${LIBPATH_VAL}:/opt/mqm/lib64:/opt/mqm/lib
+LIBPATH_VAL=${LIBPATH_VAL}:/opt/ibm/db2/clidriver/lib
+LIBPATH_VAL=${LIBPATH_VAL}:/opt/freeware/lib64:/opt/freeware/lib
 
-LIBPATH=/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib
-LIBPATH=${LIBPATH}:/opt/mqm/lib64:/opt/mqm/lib
-LIBPATH=${LIBPATH}:/opt/ibm/db2/clidriver/lib
-LIBPATH=${LIBPATH}:/opt/freeware/lib64:/opt/freeware/lib
+printf '#!/bin/sh\n'                                                          > "$WRAPPER"
+printf 'export LIBPATH=%s\n' "$LIBPATH_VAL"                                  >> "$WRAPPER"
+printf 'export PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/bin:/bin\n' >> "$WRAPPER"
+printf 'exec /opt/datadog-agent/bin/agent "$@"\n'                            >> "$WRAPPER"
+chmod 755 "$WRAPPER"
+
+# Write SRC wrapper for trace-agent.
+TRACE_WRAPPER=/opt/datadog-agent/bin/trace-agent-svc
+printf '#!/bin/sh\n'                                                              > "$TRACE_WRAPPER"
+printf 'export LIBPATH=%s\n' "$LIBPATH_VAL"                                      >> "$TRACE_WRAPPER"
+printf 'export PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/bin:/bin\n' >> "$TRACE_WRAPPER"
+printf 'exec /opt/datadog-agent/bin/trace-agent --config /etc/datadog-agent/datadog.yaml\n' >> "$TRACE_WRAPPER"
+chmod 755 "$TRACE_WRAPPER"
+
+# Remove stale SRC entries then register fresh.
+# The wrappers are registered as the subsystem paths so SRC inherits the correct
+# LIBPATH when it spawns the binaries via startsrc.
+odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
+odmdelete -o SRCsubsys -q "subsysname='datadog-trace-agent'" > /dev/null 2>&1 || true
 
 mkssys -s datadog-agent \
-       -p /opt/datadog-agent/bin/agent \
+       -p /opt/datadog-agent/bin/agent-svc \
        -a "run -c /etc/datadog-agent/datadog.yaml" \
-       -e "LIBPATH=${LIBPATH}" \
-       -e "PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/bin:/bin" \
+       -u dd-agent \
+       -R -S -n 15 -f 9
+
+mkssys -s datadog-trace-agent \
+       -p /opt/datadog-agent/bin/trace-agent-svc \
        -u dd-agent \
        -R -S -n 15 -f 9
 
