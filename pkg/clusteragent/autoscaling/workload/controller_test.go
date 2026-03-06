@@ -66,7 +66,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
+				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -475,11 +475,17 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 			Replicas: 4,
 		},
 	}, schema.GroupResource{}, nil).Maybe()
+	// Pod carries the current recommendation annotation so the in-place path (default) sees
+	// it as complete and does not attempt a resize patch.
 	f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
 		Namespace: "default",
 		Kind:      "Deployment",
 		Name:      "app-0",
-	}, []*workloadmeta.KubernetesPod{{}})
+	}, []*workloadmeta.KubernetesPod{{
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{model.RecommendationIDAnnotation: "abc123"},
+		},
+	}})
 
 	// Recs are vertical error, horizontal able to recommend
 	dpaInternal := model.FakePodAutoscalerInternal{
@@ -569,7 +575,7 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 					DesiredResources: dpaInternal.MainScalingValues.Vertical.ContainerResources,
 					PodCPURequest:    cpuReqSum,
 					PodMemoryRequest: memReqSum,
-					Scaled:           pointer.Ptr[int32](0),
+					Scaled:           pointer.Ptr[int32](1),
 				},
 				LastAction: dpaInternal.VerticalLastAction,
 			},

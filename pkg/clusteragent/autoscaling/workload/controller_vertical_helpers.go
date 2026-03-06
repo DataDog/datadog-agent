@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,6 +29,27 @@ const (
 	// for StatefulSets and DaemonSets. This is managed by Kubernetes itself and changes whenever
 	// any part of the pod template changes.
 	controllerRevisionHashLabel = "controller-revision-hash"
+)
+
+type PodResizeStatus int
+
+const (
+	PodResizeStatusNeedsPatch PodResizeStatus = iota
+	PodResizeStatusCompleted
+	PodResizeStatusInProgress
+	PodResizeStatusError
+	PodResizeStatusInfeasible
+	PodResizeStatusDeferred
+)
+
+// See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+const (
+	kubePodConditionResizePending                 = "PodResizePending"
+	kubePodConditionResizePendingReasonInfeasible = "Infeasible"
+	kubePodConditionResizePendingReasonDeferred   = "Deferred"
+
+	kubePodConditionResizeInProgress            = "PodResizeInProgress"
+	kubePodConditionResizeInProgressReasonError = "Error"
 )
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.
@@ -422,4 +444,82 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 		}
 	}
 	return modified
+}
+
+// isRolloutRequired checks if a rollout is required for the podAutoscaler.
+// The default mode is in-place (Auto); only an explicit TriggerRollout mode forces a rollout.
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+	spec := autoscalerInternal.Spec()
+	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
+		return false
+	}
+
+	return spec.ApplyPolicy.Update.Mode == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode
+}
+
+func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string) PodResizeStatus {
+	if pod.Annotations[model.RecommendationIDAnnotation] != recommendationID {
+		return PodResizeStatusNeedsPatch
+	}
+
+	// A pod having the conditions PodResizePending and PodResizeInProgress are not mutually exclusive,
+	// but usually a condition of PodResizeInProgress without an error reason means the pod is actively being resized.
+	// Therefore we check for the PodResizeInProgress condition first, and if it's not present, we check for the PodResizePending condition.
+	for _, condition := range pod.Conditions {
+		if condition.Type == kubePodConditionResizeInProgress {
+			if condition.Reason == kubePodConditionResizeInProgressReasonError {
+				return PodResizeStatusError
+			}
+			return PodResizeStatusInProgress
+		}
+	}
+
+	for _, condition := range pod.Conditions {
+		if condition.Type == kubePodConditionResizePending {
+			if condition.Reason == kubePodConditionResizePendingReasonInfeasible {
+				return PodResizeStatusInfeasible
+			}
+			// If the reason is not Infeasible, it must be Deferred (ref: https://github.com/kubernetes/kubernetes/blob/42eb93b12fa6e9fd0e0da852cc01f13850ac5258/pkg/kubelet/status/status_manager.go#L289-L291)
+			return PodResizeStatusDeferred
+		}
+	}
+
+	return PodResizeStatusCompleted
+}
+
+func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
+	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
+
+	// Build a set of containers that actually exist in the pod so we only patch
+	// containers present in the running pod, not every container in the recommendation.
+	podContainers := make(map[string]struct{}, len(pod.Containers))
+	for _, c := range pod.Containers {
+		podContainers[c.Name] = struct{}{}
+	}
+
+	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
+	for _, cr := range containersResources {
+		if _, ok := podContainers[cr.Name]; !ok {
+			continue
+		}
+		patches = append(patches, workloadpatcher.ContainerResourcePatch{
+			Name:     cr.Name,
+			Requests: resourceListToStringMap(cr.Requests),
+			Limits:   resourceListToStringMap(cr.Limits),
+		})
+	}
+	return patches
+}
+
+// resourceListToStringMap converts a corev1.ResourceList to the string map expected by
+// ContainerResourcePatch, including only resources that are actually set.
+func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
+	if len(rl) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(rl))
+	for name, qty := range rl {
+		m[string(name)] = qty.String()
+	}
+	return m
 }
