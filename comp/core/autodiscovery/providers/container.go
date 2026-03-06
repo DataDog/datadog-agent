@@ -11,8 +11,11 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sort"
 	"strings"
 	"sync"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -22,6 +25,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	adannotation "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/adannotation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,16 +39,19 @@ type ContainerConfigProvider struct {
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
+	healthPlatform    healthplatform.Component
+	reportedIssues    map[string]struct{} // set of checkIDs reported to health platform
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatform.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
+		healthPlatform:    hp,
 	}, nil
 }
 
@@ -106,6 +114,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			if err != nil {
 				k.configErrors[entityName] = err
+				k.reportAnnotationErrors(entityName, err)
 			} else {
 				delete(k.configErrors, entityName)
 			}
@@ -147,6 +156,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
+			k.clearAnnotationErrors(entityName)
 
 		default:
 			log.Errorf("cannot handle event of type %d", event.Type)
@@ -287,6 +297,55 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	maps.Copy(errors, k.configErrors)
 
 	return errors
+}
+
+// reportAnnotationErrors reports each annotation error to the health platform.
+func (k *ContainerConfigProvider) reportAnnotationErrors(entityName string, errMsgSet types.ErrorMsgSet) {
+	if k.healthPlatform == nil {
+		return
+	}
+
+	// Sort error messages for stable checkID assignment
+	errMsgs := make([]string, 0, len(errMsgSet))
+	for msg := range errMsgSet {
+		errMsgs = append(errMsgs, msg)
+	}
+	sort.Strings(errMsgs)
+
+	for i, errMsg := range errMsgs {
+		checkID := fmt.Sprintf("ad-annotation:%s:%d", entityName, i)
+
+		report := &healthplatformpayload.IssueReport{
+			IssueId: adannotation.IssueID,
+			Context: map[string]string{
+				"entityName":   entityName,
+				"errorMessage": errMsg,
+			},
+		}
+
+		if err := k.healthPlatform.ReportIssue(checkID, "ad-annotation-check", report); err != nil {
+			log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
+		}
+		k.reportedIssues[checkID] = struct{}{}
+	}
+}
+
+// clearAnnotationErrors clears all previously reported annotation errors for the given entity.
+func (k *ContainerConfigProvider) clearAnnotationErrors(entityName string) {
+	if k.healthPlatform == nil {
+		return
+	}
+
+	prefix := "ad-annotation:" + entityName + ":"
+	for checkID := range k.reportedIssues {
+		if strings.HasPrefix(checkID, prefix) {
+			// Passing nil report clears the issue
+			if err := k.healthPlatform.ReportIssue(checkID, "ad-annotation-check", nil); err != nil {
+				log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
+			}
+			delete(k.reportedIssues, checkID)
+		}
+	}
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.

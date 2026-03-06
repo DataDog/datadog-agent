@@ -120,7 +120,12 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	for _, cp := range uniqueConfigProviders {
 		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
-			configProvider, err := factory(&cp, wmeta, taggerComp, filterStore, acTelemetryStore)
+			hp := ac.GetHealthPlatform()
+			if hp == nil {
+				log.Warnf("Health platform component not available for provider %v. Issue reporting disabled.", cp.Name)
+			}
+
+			configProvider, err := factory(&cp, wmeta, taggerComp, filterStore, hp, acTelemetryStore)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue
