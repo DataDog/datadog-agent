@@ -194,18 +194,6 @@ updates:
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-  - package-ecosystem: docker
-    directory: /test/fakeintake
-    labels:
-      - dependencies
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    schedule:
-      interval: weekly
-      day: saturday
-    open-pull-requests-limit: 100
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:

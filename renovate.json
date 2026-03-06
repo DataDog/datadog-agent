@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "docker"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
@@ -32,6 +32,11 @@
       {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["docker"],
+        "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
         "schedule": ["on saturday"]
       }
     ],
