@@ -1,6 +1,5 @@
 description: Both commands succeed with && operator.
 input:
-  # language=bash
   script: |+
     echo first && echo second
 expect:

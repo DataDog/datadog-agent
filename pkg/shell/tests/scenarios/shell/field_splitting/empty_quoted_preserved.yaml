@@ -1,0 +1,10 @@
+description: Empty quoted variable expansion is preserved as an empty field.
+input:
+  script: |+
+    A=""
+    for w in "$A"; do echo "[$w]"; done
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

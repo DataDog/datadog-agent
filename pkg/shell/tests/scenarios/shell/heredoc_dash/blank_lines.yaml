@@ -1,0 +1,7 @@
+description: Heredoc-dash preserves blank lines between content (blank lines have no tabs to strip).
+input:
+  script: "cat <<-EOF\n\tline1\n\n\tline3\nEOF\n"
+expect:
+  stdout: "line1\n\nline3\n"
+  stderr: ""
+  exit_code: 0

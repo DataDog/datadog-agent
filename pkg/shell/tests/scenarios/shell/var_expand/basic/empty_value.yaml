@@ -1,6 +1,5 @@
 description: A variable assigned an empty string is set but empty.
 input:
-  # language=bash
   script: |+
     EMPTY=""
     echo "value=${EMPTY}end"

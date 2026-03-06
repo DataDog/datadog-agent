@@ -1,0 +1,14 @@
+description: Heredoc can be used inside a for loop body.
+input:
+  script: |+
+    for i in 1 2; do
+      cat <<EOF
+    item:$i
+    EOF
+    done
+expect:
+  stdout: |+
+    item:1
+    item:2
+  stderr: ""
+  exit_code: 0

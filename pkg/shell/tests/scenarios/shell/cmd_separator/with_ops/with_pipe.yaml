@@ -1,6 +1,5 @@
 description: Semicolons can separate pipe commands from other commands.
 input:
-  # language=bash
   script: |+
     echo first; echo piped | cat; echo last
 expect:

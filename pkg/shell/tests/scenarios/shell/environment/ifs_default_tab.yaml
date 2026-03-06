@@ -1,7 +1,5 @@
-test_against_local_shell: false
 description: Default IFS splits on spaces, tabs, and newlines.
 input:
-  # language=bash
   script: |+
     A="hello	world"
     for w in $A; do

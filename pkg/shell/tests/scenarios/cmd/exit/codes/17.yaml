@@ -1,0 +1,8 @@
+description: Exit with code 17 terminates with that specific code.
+input:
+  script: |+
+    exit 17
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 17

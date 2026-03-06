@@ -1,0 +1,9 @@
+description: Escaped double quote inside double quotes produces a literal double quote.
+input:
+  script: |+
+    echo "a\"b\"c"
+expect:
+  stdout: |+
+    a"b"c
+  stderr: ""
+  exit_code: 0

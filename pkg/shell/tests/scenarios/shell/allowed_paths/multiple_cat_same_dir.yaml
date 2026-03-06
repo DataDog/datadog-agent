@@ -1,0 +1,20 @@
+description: "Multiple cat commands reading different files from the same allowed directory"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/first.txt"
+      content: "one\n"
+    - path: "data/second.txt"
+      content: "two\n"
+    - path: "data/third.txt"
+      content: "three\n"
+input:
+  script: |
+    cat data/first.txt
+    cat data/second.txt
+    cat data/third.txt
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "one\ntwo\nthree\n"
+  exit_code: 0

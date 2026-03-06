@@ -1,6 +1,5 @@
 description: Skipped commands after failed && produce no output.
 input:
-  # language=bash
   script: |+
     echo before && false && echo skipped
 expect:

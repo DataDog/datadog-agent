@@ -1,9 +1,0 @@
-description: The false builtin fails so && skips the next command.
-input:
-  # language=bash
-  script: |+
-    false && echo skipped
-expect:
-  stdout: ""
-  stderr: ""
-  exit_code: 1

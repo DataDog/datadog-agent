@@ -1,6 +1,5 @@
 description: Brace groups can be nested and execute correctly.
 input:
-  # language=bash
   script: |+
     { { echo inner; }; echo outer; }
 expect:

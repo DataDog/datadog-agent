@@ -1,0 +1,10 @@
+description: "Env option variable with special characters in value"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    SPECIAL: "hello world!@#"
+  script: |
+    echo "$SPECIAL"
+expect:
+  stdout: "hello world!@#\n"
+  exit_code: 0

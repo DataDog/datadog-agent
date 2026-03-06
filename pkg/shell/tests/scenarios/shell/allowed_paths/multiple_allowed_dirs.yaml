@@ -1,0 +1,20 @@
+description: "Multiple allowed directories grant access to files in each one"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/info.txt"
+      content: "data content\n"
+    - path: "config/settings.txt"
+      content: "config content\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    cat data/info.txt
+    cat config/settings.txt
+  allowed_paths:
+    - "data"
+    - "config"
+expect:
+  stdout: "data content\nconfig content\n"
+  exit_code: 0

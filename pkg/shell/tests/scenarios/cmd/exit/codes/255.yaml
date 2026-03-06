@@ -1,6 +1,5 @@
 description: Exit with code 255, the maximum single-byte value.
 input:
-  # language=bash
   script: |+
     exit 255
 expect:

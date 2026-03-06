@@ -1,0 +1,8 @@
+description: "LANG variable is not set in the default environment"
+test_against_local_shell: false
+input:
+  script: |
+    echo "lang=$LANG"
+expect:
+  stdout: "lang=\n"
+  exit_code: 0

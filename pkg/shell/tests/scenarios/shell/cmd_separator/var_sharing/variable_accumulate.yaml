@@ -1,6 +1,5 @@
 description: Variables accumulate state across semicolons and newlines.
 input:
-  # language=bash
   script: |+
     a=1; b=2
     c=3; echo "$a $b $c"

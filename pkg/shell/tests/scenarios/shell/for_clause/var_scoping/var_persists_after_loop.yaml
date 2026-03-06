@@ -1,6 +1,5 @@
 description: Loop variable retains value from last iteration after loop.
 input:
-  # language=bash
   script: |+
     for i in a b c; do echo $i; done
     echo "after: $i"

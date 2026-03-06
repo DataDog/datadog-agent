@@ -1,0 +1,16 @@
+description: Sequential commands can each use input redirection from different files.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa"
+    - path: b.txt
+      content: "bbb"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < a.txt
+    cat < b.txt
+expect:
+  stdout: "aaabbb"
+  stderr: ""
+  exit_code: 0

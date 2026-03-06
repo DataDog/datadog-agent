@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Until loops are not supported.
 input:
-  # language=bash
   script: |+
     until false; do echo loop; break; done
 expect:

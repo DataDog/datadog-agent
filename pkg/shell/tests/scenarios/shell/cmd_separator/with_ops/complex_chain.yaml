@@ -1,6 +1,5 @@
 description: Complex mix of semicolons, pipes, and logical operators.
 input:
-  # language=bash
   script: |+
     echo a | cat; echo b && echo c; false || echo d
 expect:

@@ -89,7 +89,7 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 
 func TestAllowedPathsExecNonexistent(t *testing.T) {
 	dir := t.TempDir()
-	// Command that doesn't exist at all — LookPathDir fails
+	// Command that doesn't exist at all — ExecLookPathDir fails
 	_, stderr, exitCode := runScriptInternal(t, `totally_nonexistent_cmd_12345`, dir,
 		AllowedPaths([]string{dir, "/bin", "/usr"}),
 	)

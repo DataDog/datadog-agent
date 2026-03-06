@@ -1,0 +1,8 @@
+description: The true builtin ignores any arguments passed to it.
+input:
+  script: |+
+    true unused ignored arguments
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

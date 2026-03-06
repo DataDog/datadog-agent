@@ -1,0 +1,8 @@
+description: "PATH variable is not set in the default environment"
+test_against_local_shell: false
+input:
+  script: |
+    echo "path=$PATH"
+expect:
+  stdout: "path=\n"
+  exit_code: 0

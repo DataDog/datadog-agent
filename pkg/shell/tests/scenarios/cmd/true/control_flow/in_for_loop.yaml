@@ -1,6 +1,5 @@
 description: The true builtin works correctly inside a for loop body.
 input:
-  # language=bash
   script: |+
     for x in a b; do
       true

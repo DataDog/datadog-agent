@@ -1,0 +1,13 @@
+description: Newline before "do" keyword in for loop is valid.
+input:
+  script: |+
+    for i in a b
+    do
+    echo $i
+    done
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

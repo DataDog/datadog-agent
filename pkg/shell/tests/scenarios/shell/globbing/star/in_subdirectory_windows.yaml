@@ -8,7 +8,6 @@ setup:
       content: ""
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     echo sub/*.txt
 expect:

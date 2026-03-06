@@ -1,6 +1,5 @@
 description: Continue in inner nested loop only continues the inner loop.
 input:
-  # language=bash
   script: |+
     for i in a b; do
       for j in 1 2; do

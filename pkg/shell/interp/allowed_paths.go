@@ -130,7 +130,7 @@ func wrapReadDirHandler(roots []*os.Root, allowedPaths []string) ReadDirHandlerF
 func wrapExecHandler(roots []*os.Root, allowedPaths []string, next ExecHandlerFunc) ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		hc := HandlerCtx(ctx)
-		path, err := LookPathDir(hc.Dir, hc.Env, args[0])
+		path, err := ExecLookPathDir(hc.Dir, hc.Env, args[0])
 		if err != nil {
 			fmt.Fprintf(hc.Stderr, "%s: command not found\n", args[0])
 			return ExitStatus(127)

@@ -1,0 +1,12 @@
+description: "Variables from Env option can be overridden by script assignment"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    MY_VAR: "initial"
+  script: |
+    echo "$MY_VAR"
+    MY_VAR=overridden
+    echo "$MY_VAR"
+expect:
+  stdout: "initial\noverridden\n"
+  exit_code: 0

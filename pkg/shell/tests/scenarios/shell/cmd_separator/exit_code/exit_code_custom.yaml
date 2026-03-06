@@ -1,6 +1,5 @@
 description: Custom exit code from the last command is preserved.
 input:
-  # language=bash
   script: |+
     echo hello; exit 42
 expect:

@@ -1,6 +1,5 @@
 description: Custom exit codes propagate correctly through && chains.
 input:
-  # language=bash
   script: |+
     exit 2 && echo skipped
 expect:

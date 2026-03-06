@@ -1,6 +1,5 @@
 description: A variable can be assigned and expanded with the dollar sign.
 input:
-  # language=bash
   script: |+
     MY_VAR=hello
     echo $MY_VAR

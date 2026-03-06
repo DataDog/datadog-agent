@@ -10,7 +10,6 @@ setup:
       symlink: ../middle/hop
 input:
   allowed_paths: ["allowed"]
-  # language=bash
   script: |+
     cat allowed/start
 expect:

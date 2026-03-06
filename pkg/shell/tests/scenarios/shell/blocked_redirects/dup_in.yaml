@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Input fd duplication (<&N) is blocked.
 input:
-  # language=bash
   script: |+
     echo hello <&-
 expect:

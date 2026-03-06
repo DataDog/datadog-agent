@@ -1,6 +1,5 @@
 description: Variable assigned in loop body is visible after the loop.
 input:
-  # language=bash
   script: |+
     for i in a b c; do
       LAST=$i

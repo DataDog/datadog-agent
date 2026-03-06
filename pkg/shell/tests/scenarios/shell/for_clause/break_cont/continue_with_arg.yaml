@@ -1,7 +1,5 @@
-test_against_local_shell: false
 description: Continue with argument 1 continues one level (same as simple continue).
 input:
-  # language=bash
   script: |+
     for i in a b c; do
       continue 1

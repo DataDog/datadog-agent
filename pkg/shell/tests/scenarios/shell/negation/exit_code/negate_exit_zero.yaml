@@ -1,10 +1,8 @@
-test_against_local_shell: false
-description: Negating exit 0 produces exit code 1.
+description: Exit inside negation still exits with the specified code (negation does not apply).
 input:
-  # language=bash
   script: |+
     ! exit 0
 expect:
   stdout: ""
   stderr: ""
-  exit_code: 1
+  exit_code: 0

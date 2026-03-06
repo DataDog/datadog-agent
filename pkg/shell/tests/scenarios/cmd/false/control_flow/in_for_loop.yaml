@@ -1,6 +1,5 @@
 description: The false builtin does not stop a for loop from iterating.
 input:
-  # language=bash
   script: |+
     for x in a b; do
       false

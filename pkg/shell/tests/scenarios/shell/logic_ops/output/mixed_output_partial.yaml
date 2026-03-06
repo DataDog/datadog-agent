@@ -1,6 +1,5 @@
 description: Only executed commands in a mixed chain produce output.
 input:
-  # language=bash
   script: |+
     echo a && false || echo c && echo d
 expect:

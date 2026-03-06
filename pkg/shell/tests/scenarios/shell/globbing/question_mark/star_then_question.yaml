@@ -1,0 +1,18 @@
+description: Star followed by question mark matches files with at least one character.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: ab.txt
+      content: ""
+    - path: .txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *?.txt
+expect:
+  stdout: |+
+    a.txt ab.txt
+  stderr: ""
+  exit_code: 0

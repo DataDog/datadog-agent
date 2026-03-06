@@ -7,7 +7,6 @@ setup:
         line two
 input:
   allowed_paths: ["$DIR"]
-  # language=bash
   script: |+
     cat data.txt | cat
 expect:

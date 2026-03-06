@@ -1,6 +1,5 @@
 description: The true builtin exits successfully with no output.
 input:
-  # language=bash
   script: |+
     true
 expect:

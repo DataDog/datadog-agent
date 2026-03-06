@@ -1,0 +1,11 @@
+description: Heredoc works with a numeric delimiter.
+input:
+  script: |+
+    cat <<123
+    numeric
+    123
+expect:
+  stdout: |+
+    numeric
+  stderr: ""
+  exit_code: 0

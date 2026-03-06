@@ -1,6 +1,5 @@
 description: Successful && followed by || skips the fallback.
 input:
-  # language=bash
   script: |+
     echo ok && echo done || echo fallback
 expect:

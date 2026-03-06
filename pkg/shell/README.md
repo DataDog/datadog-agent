@@ -11,13 +11,13 @@ For the complete list of supported and blocked shell features, see [SHELL_FEATUR
 Scripts are processed in two phases:
 
 1. **Parse & Validate** — The script is parsed into an AST, then validated against an allowlist of
-   supported syntax nodes. Disallowed constructs (e.g., `if`, `while`, command substitution) are
-   rejected with exit code 2 _before any code runs_. This guarantees that partially executed
-   scripts cannot occur due to an unsupported feature mid-script.
+   supported syntax nodes.
 
 2. **Execute** — The validated AST is interpreted. Commands are dispatched to builtins or to the
    configured ExecHandler. File access goes through the configured OpenHandler, which enforces
    AllowedPaths restrictions.
+
+## Shell Features
 
 See [SHELL_FEATURES.md](SHELL_FEATURES.md) for the complete list of supported and blocked features.
 
@@ -36,28 +36,44 @@ Every access path is default-deny:
 directories. It is built on Go's `os.Root` API, which uses kernel-level `openat` syscalls
 for atomic path validation, making it immune to symlink traversal, TOCTOU races, and `..` escape attacks.
 
-## Configuration
-
-The interpreter is configured through `RunnerOption` functions passed to `New()`:
-
-- **`StdIO(in, out, err)`** — Sets stdin, stdout, stderr streams.
-- **`AllowedPaths(dirs)`** — Restricts filesystem access to the given directories.
-- **`Env`** — Sets the initial environment variables (empty by default).
-- **`ExecHandler`** — Handles external command execution. Defaults to `NoExecHandler` which rejects all commands.
-
 ## Testing
 
-Tests use a YAML scenario-driven framework located in `tests/scenarios/`. Each `.yaml` file defines
-a self-contained test with `input.script`, optional `setup.files`, and `expect` (stdout, stderr, exit_code).
+Tests use a YAML scenario-driven framework located in `tests/scenarios/`.
 
 Scenarios are organized by feature area:
 
 ```
 tests/scenarios/
-├── cmd/          # builtin command tests (echo, cat, exit, true, false)
+├── cmd/          # builtin command tests (echo, cat, exit, true, ...)
 └── shell/        # shell feature tests (pipes, variables, control flow, globbing, ...)
 ```
+
+Good sources of POSIX shell test scenarios:
+- [yash POSIX shell test suite](https://github.com/magicant/yash/tree/trunk/tests)
 
 ## Platform Support
 
 Linux, macOS, and Windows.
+
+## Tips
+
+Prompt for generate test scenarios:
+```
+Improve pkg/shell/tests scenarios coverage by taking inspiration from pkg/shell/yash_posix_tests
+
+Notes:
+- avoid duplicate test coverage, if you encounter duplicate scenarios, remove or merge them
+- create as many new scenarios as possible (no limit), of course they must be valuable
+- if some tests fail, keep in mind it's possible that pkg/shell implementation is wrong, and it's fine to fix the implementation
+```
+
+Prompt for avoid disabling test_against_local_shell when possible
+```
+In pkg/shell/tests, for each scenarios with test_against_local_shell is disabled,
+examine why test_against_local_shell is disabled.
+
+test_against_local_shell is usually disabled because the restricted shell doesn't behave as bash
+
+BUT if it's disabled because of a bug in restricted shell (making it behave differently than bash),
+then the restricted shell implementation must be fixed
+```

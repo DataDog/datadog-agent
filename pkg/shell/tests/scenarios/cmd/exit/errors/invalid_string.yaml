@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Exit with a non-numeric string argument produces an error and exits.
 input:
-  # language=bash
   script: |+
     exit abc
 expect:

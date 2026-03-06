@@ -1,0 +1,14 @@
+description: True in a for loop keeps exit code zero for each iteration.
+input:
+  script: |+
+    for i in a b c; do
+      true
+      echo "$i:$?"
+    done
+expect:
+  stdout: |+
+    a:0
+    b:0
+    c:0
+  stderr: ""
+  exit_code: 0

@@ -1,6 +1,5 @@
 description: For loop iterates over many items in order.
 input:
-  # language=bash
   script: |+
     for n in 1 2 3 4 5; do echo $n; done
 expect:

@@ -1,0 +1,16 @@
+description: Asterisk matches empty string before suffix, so *.txt matches a file named just the suffix.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: bb.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.txt
+expect:
+  stdout: |+
+    a.txt bb.txt
+  stderr: ""
+  exit_code: 0

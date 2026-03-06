@@ -1,6 +1,5 @@
 description: Left side failure does not affect exit code when right side succeeds.
 input:
-  # language=bash
   script: |+
     false | echo ok
 expect:

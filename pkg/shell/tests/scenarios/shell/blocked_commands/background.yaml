@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: Background execution (&) is blocked.
 input:
-  # language=bash
   script: |+
     echo hello &
 expect:

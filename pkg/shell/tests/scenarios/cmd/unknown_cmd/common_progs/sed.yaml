@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: The sed command is not a builtin and is rejected as unknown.
 input:
-  # language=bash
   script: |+
     sed s/foo/bar/ file.txt
 expect:

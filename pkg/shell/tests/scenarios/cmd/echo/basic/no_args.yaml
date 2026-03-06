@@ -1,6 +1,5 @@
 description: Echo with no arguments outputs only a newline.
 input:
-  # language=bash
   script: |+
     echo
 expect:

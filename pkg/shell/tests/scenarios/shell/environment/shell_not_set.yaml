@@ -1,0 +1,8 @@
+description: "SHELL variable is not set in the default environment"
+test_against_local_shell: false
+input:
+  script: |
+    echo "shell=$SHELL"
+expect:
+  stdout: "shell=\n"
+  exit_code: 0

@@ -1,0 +1,17 @@
+description: "When $DIR is allowed, all files under the temp directory are accessible"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "a.txt"
+      content: "file a\n"
+    - path: "sub/b.txt"
+      content: "file b\n"
+input:
+  script: |
+    cat a.txt
+    cat sub/b.txt
+  allowed_paths:
+    - "$DIR"
+expect:
+  stdout: "file a\nfile b\n"
+  exit_code: 0

@@ -1,6 +1,5 @@
 description: Exit on left side of pipe does not propagate to the parent shell.
 input:
-  # language=bash
   script: |+
     exit 42 | echo ok
 expect:

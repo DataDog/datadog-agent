@@ -1,6 +1,5 @@
 description: The $? variable is updated after each command execution.
 input:
-  # language=bash
   script: |+
     true
     A=$?

@@ -1,6 +1,5 @@
 description: The true builtin works correctly in semicolon-separated chains.
 input:
-  # language=bash
   script: |+
     true; echo after
 expect:

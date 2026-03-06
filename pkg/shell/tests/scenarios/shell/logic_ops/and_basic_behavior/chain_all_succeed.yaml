@@ -1,6 +1,5 @@
 description: A chain of && commands all succeed and all execute.
 input:
-  # language=bash
   script: |+
     echo one && echo two && echo three
 expect:

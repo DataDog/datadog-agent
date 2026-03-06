@@ -1,0 +1,11 @@
+description: Line continuation works inside double quotes.
+input:
+  script: |+
+    echo "a\
+    b\
+    c"
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

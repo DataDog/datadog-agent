@@ -1,0 +1,8 @@
+description: Heredoc-dash output can be piped to another command.
+input:
+  script: "cat <<-EOF | cat\n\tpiped content\nEOF\n"
+expect:
+  stdout: |+
+    piped content
+  stderr: ""
+  exit_code: 0

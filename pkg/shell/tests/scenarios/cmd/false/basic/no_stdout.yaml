@@ -1,6 +1,5 @@
 description: The false builtin produces no stdout output.
 input:
-  # language=bash
   script: |+
     false
     echo done

@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: If-else statements are not supported.
 input:
-  # language=bash
   script: |+
     if false; then echo yes; else echo no; fi
 expect:

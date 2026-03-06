@@ -1,0 +1,19 @@
+description: "Variable-expanded file path outside allowed path is blocked"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/ok.txt"
+      content: "ok\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    DIR=secret
+    FILE=hidden.txt
+    cat "$DIR/$FILE"
+  allowed_paths:
+    - "data"
+expect:
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

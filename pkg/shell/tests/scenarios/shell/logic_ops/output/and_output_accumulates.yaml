@@ -1,6 +1,5 @@
 description: Output accumulates across && when both sides succeed.
 input:
-  # language=bash
   script: |+
     echo first && echo second && echo third
 expect:

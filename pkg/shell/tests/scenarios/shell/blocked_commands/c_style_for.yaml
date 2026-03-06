@@ -1,7 +1,6 @@
 test_against_local_shell: false
 description: C-style for loops are not supported.
 input:
-  # language=bash
   script: |+
     for ((i=0; i<3; i++)); do echo $i; done
 expect:
