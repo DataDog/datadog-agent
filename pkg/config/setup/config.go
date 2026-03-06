@@ -1481,6 +1481,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"ntp",
 		"process",
 		"service_discovery",
+		"snmp",
+		"cisco-sdwan",
+		"versa",
+		"cisco-aci",
 		"system",
 		"system_core",
 		"system_swap",
@@ -1491,6 +1495,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"windows_service",
 	})
 	// integration.basic.excluded: checks to exclude (user configured)
 	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
