@@ -13,3 +13,7 @@ apm_config:
 
 # enable the datadog-installer, needs an API KEY
 remote_updates: true
+
+# enable private action runner
+private_action_runner:
+  enabled: true
