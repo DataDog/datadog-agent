@@ -352,7 +352,13 @@ pkg_filegroup(
 dd_auto_pkg_artifact(
     name = "openssl_pkg",
     src = ":openssl_shared",
-    install_files = [":all_files"],
+    # Temporarily don't propagate what needs to be installed.
+    # If we were propagating openssl files here, we would end up installing them
+    # twice: once from the omnibus recipe, once from openscap or any other
+    # package depending on OpenSSL that we install.
+    # This causes rules_pkg to emit a "File exists" error.
+    # This will need to go away once we package directly from bazel
+    install_files = [],
     visibility = ["//visibility:public"],
 )
 
