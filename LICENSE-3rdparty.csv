@@ -1510,8 +1510,8 @@ core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob/fastwalk,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mdlayher/kobject,MIT,Copyright (C) 2017 Matt Layher
-core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
-core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
+core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2026 Matt Layher
+core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2026 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mdlayher/vsock,MIT,Copyright (C) 2017-2022 Matt Layher
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
