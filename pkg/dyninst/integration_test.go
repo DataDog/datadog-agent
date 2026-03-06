@@ -279,6 +279,7 @@ func testDyninst(
 		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
+		t.Logf("Snapshot [probe=%s]: %s", log.id, string(log.body))
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
