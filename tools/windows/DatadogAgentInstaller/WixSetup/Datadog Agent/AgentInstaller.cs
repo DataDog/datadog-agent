@@ -74,6 +74,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
+                new Property("DD_APP_KEY")
+                {
+                    AttributesDefinition = "Hidden=yes;Secure=yes"
+                },
                 new Property("DDAGENTUSER_NAME")
                 {
                     AttributesDefinition = "Secure=yes"
