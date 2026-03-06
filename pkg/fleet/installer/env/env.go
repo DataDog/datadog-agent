@@ -409,7 +409,6 @@ func (e *Env) ToEnv() []string {
 	if e.PAREnabled {
 		env = append(env, envPAREnabled+"=true")
 		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
-		env = append(env, "self_enroll=true")
 	}
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
