@@ -343,10 +343,10 @@ rust_library(
 
 ## Release Builds
 
-For optimized release builds with size optimization, use the `rust-release` config:
+For optimized release builds with size optimization, use the `release` config:
 
 ```bash
-bazel build --config=rust-release //pkg/your/component/rust:my_binary
+bazel build --config=release //pkg/your/component/rust:my_binary
 ```
 
 This enables:

@@ -67,5 +67,9 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/rust.bazelrc
 
+# Global release config ------------------------------------------------------------------------------------------------
+# This should aggregate all the release configs for all the languages with enabled optimizations, stripping, etc.
+common:release --config=rust-release
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
