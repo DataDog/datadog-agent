@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/vishvananda/netns"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -54,7 +54,7 @@ var gatewayLookupTelemetry = struct {
 type gatewayLookup struct {
 	rootNetNs   netns.NsHandle
 	routeCache  RouteCache
-	subnetCache *simplelru.LRU[int, any] // interface index to subnet cache
+	subnetCache *lru.Cache[int, any] // interface index to subnet cache
 }
 
 type cloudProvider interface {
@@ -107,7 +107,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32, telem
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, defaultMaxRouteCacheSize)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU[int, any](int(routeCacheSize), nil)
+	gl.subnetCache, _ = lru.New[int, any](int(routeCacheSize))
 	gl.routeCache = NewRouteCache(telemetryComp, int(routeCacheSize), router)
 	return gl
 }
