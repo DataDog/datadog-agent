@@ -27,10 +27,12 @@ mod tests {
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
     use crate::ProcessManager;
+    use crate::command::Command;
     use crate::config::{ProcessConfig, RestartPolicy};
     use crate::process::ManagedProcess;
     use hyper_util::rt::TokioIo;
     use tokio::net::UnixListener;
+    use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::transport::{Channel, Endpoint, Uri};
     use tower::service_fn;
@@ -41,13 +43,14 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
+        let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let dir = tempfile::tempdir().unwrap();
         let sock_path = dir.path().join("test.sock");
         let uds = UnixListener::bind(&sock_path).unwrap();
         let uds_stream = UnixListenerStream::new(uds);
 
         let mgr = ProcessManager::new(processes);
-        let svc = ProcessManagerService::new(mgr, "/test/config/path".to_string());
+        let svc = ProcessManagerService::new(mgr.clone(), "/test/config/path".to_string(), cmd_tx);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -75,6 +78,43 @@ mod tests {
                 .await
                 .unwrap();
             drop(dir);
+        });
+
+        let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<crate::ExitEvent>();
+        let mgr_loop = mgr.clone();
+        let exit_tx_loop = exit_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(cmd) = cmd_rx.recv() => {
+                        match cmd {
+                            Command::Create { name, config, reply } => {
+                                let _ = reply.send(
+                                    mgr_loop.handle_create(name, *config).await,
+                                );
+                            }
+                            Command::Start { name, reply } => {
+                                let _ = reply.send(
+                                    mgr_loop.handle_start(&name, &exit_tx_loop).await,
+                                );
+                            }
+                            Command::Stop { name, reply } => {
+                                let _ = reply.send(mgr_loop.handle_stop(&name).await);
+                            }
+                            Command::ReloadConfig { reply } => {
+                                let _ = reply.send(
+                                    mgr_loop.handle_reload_config(&exit_tx_loop).await,
+                                );
+                            }
+                        }
+                    }
+                    Some(event) = exit_rx.recv() => {
+                        let restart_tx = mpsc::unbounded_channel::<String>().0;
+                        mgr_loop.handle_exit(event, &restart_tx).await;
+                    }
+                    else => break,
+                }
+            }
         });
 
         let channel = Endpoint::try_from("http://[::]:50051")
@@ -432,5 +472,367 @@ mod tests {
         );
 
         child.kill().await.ok();
+    }
+
+    // -- Write RPC tests --
+
+    #[tokio::test]
+    async fn test_start_rpc_success() {
+        let proc = ManagedProcess::new(
+            "sleeper".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        client
+            .start(proto::StartRequest {
+                name: "sleeper".to_string(),
+            })
+            .await
+            .unwrap();
+
+        // Verify process is now running
+        let resp = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
+        assert!(resp.processes[0].pid > 0);
+
+        // Clean up
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_not_found() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        let err = client
+            .start(proto::StartRequest {
+                name: "nonexistent".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_start_rpc_already_running() {
+        let mut proc = ManagedProcess::new(
+            "running".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+        proc.spawn().unwrap();
+        let mut child = proc.take_child().unwrap();
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        let err = client
+            .start(proto::StartRequest {
+                name: "running".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+
+        child.kill().await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_stop_rpc_success() {
+        let proc = ManagedProcess::new(
+            "to-stop".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        // Start via RPC so the watcher is wired
+        client
+            .start(proto::StartRequest {
+                name: "to-stop".to_string(),
+            })
+            .await
+            .unwrap();
+
+        client
+            .stop(proto::StopRequest {
+                name: "to-stop".to_string(),
+            })
+            .await
+            .unwrap();
+
+        // Give the watcher time to process the exit event
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        let resp = client
+            .describe(proto::DescribeRequest {
+                name: "to-stop".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            resp.detail.unwrap().state,
+            proto::ProcessState::Stopped as i32
+        );
+    }
+
+    #[tokio::test]
+    async fn test_stop_rpc_not_found() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        let err = client
+            .stop(proto::StopRequest {
+                name: "nonexistent".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_stop_rpc_not_running() {
+        let proc = ManagedProcess::new(
+            "idle".to_string(),
+            ProcessConfig {
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        );
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        let err = client
+            .stop(proto::StopRequest {
+                name: "idle".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+    }
+
+    #[tokio::test]
+    async fn test_start_then_stop_round_trip() {
+        let proc = ManagedProcess::new(
+            "lifecycle".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        // Start
+        client
+            .start(proto::StartRequest {
+                name: "lifecycle".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.running_processes, 1);
+
+        // Stop
+        client
+            .stop(proto::StopRequest {
+                name: "lifecycle".to_string(),
+            })
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        let resp = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.running_processes, 0);
+        assert_eq!(resp.stopped_processes, 1);
+    }
+
+    // -- Create RPC tests --
+
+    #[tokio::test]
+    async fn test_create_then_start() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        client
+            .create(proto::CreateRequest {
+                name: "new-svc".to_string(),
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.total_processes, 1);
+        assert_eq!(resp.created_processes, 1);
+
+        client
+            .start(proto::StartRequest {
+                name: "new-svc".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
+        assert!(resp.processes[0].pid > 0);
+
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+    }
+
+    #[tokio::test]
+    async fn test_create_duplicate_name() {
+        let proc = ManagedProcess::new(
+            "existing".to_string(),
+            ProcessConfig {
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        );
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+
+        let err = client
+            .create(proto::CreateRequest {
+                name: "existing".to_string(),
+                command: "/bin/sleep".to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::AlreadyExists);
+    }
+
+    #[tokio::test]
+    async fn test_create_empty_command() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        let err = client
+            .create(proto::CreateRequest {
+                name: "bad".to_string(),
+                command: "".to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_create_defaults_applied() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        client
+            .create(proto::CreateRequest {
+                name: "defaults-svc".to_string(),
+                command: "/bin/echo".to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .describe(proto::DescribeRequest {
+                name: "defaults-svc".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+
+        let detail = resp.detail.unwrap();
+        assert_eq!(detail.command, "/bin/echo");
+        assert!(detail.auto_start, "auto_start should default to true");
+        assert_eq!(detail.stdout, "inherit");
+        assert_eq!(detail.stderr, "inherit");
+        assert_eq!(detail.restart_policy, "Never");
+        assert!(detail.args.is_empty());
+        assert!(detail.env.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_create_with_overrides() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        let mut env = std::collections::HashMap::new();
+        env.insert("MY_VAR".to_string(), "hello".to_string());
+
+        client
+            .create(proto::CreateRequest {
+                name: "custom-svc".to_string(),
+                command: "/usr/bin/custom".to_string(),
+                args: vec!["--verbose".to_string()],
+                env,
+                working_dir: "/tmp".to_string(),
+                stdout: "/var/log/out.log".to_string(),
+                stderr: "/var/log/err.log".to_string(),
+                restart_policy: "on-failure".to_string(),
+                description: "Custom service".to_string(),
+                auto_start: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .describe(proto::DescribeRequest {
+                name: "custom-svc".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+
+        let detail = resp.detail.unwrap();
+        assert_eq!(detail.command, "/usr/bin/custom");
+        assert_eq!(detail.args, vec!["--verbose"]);
+        assert_eq!(detail.env.get("MY_VAR").unwrap(), "hello");
+        assert_eq!(detail.working_dir, "/tmp");
+        assert_eq!(detail.stdout, "/var/log/out.log");
+        assert_eq!(detail.stderr, "/var/log/err.log");
+        assert_eq!(detail.restart_policy, "OnFailure");
+        assert_eq!(detail.description, "Custom service");
+        assert!(!detail.auto_start);
     }
 }

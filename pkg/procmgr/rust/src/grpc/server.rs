@@ -4,12 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::ProcessManager;
+use crate::command::Command;
 use crate::grpc::proto;
 use crate::grpc::service::ProcessManagerService;
 use anyhow::{Context, Result};
 use log::{info, warn};
 use std::path::{Path, PathBuf};
 use tokio::net::UnixListener;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
@@ -25,6 +27,7 @@ pub fn socket_path() -> PathBuf {
 pub async fn run(
     mgr: ProcessManager,
     config_path: String,
+    cmd_tx: mpsc::Sender<Command>,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
     let path = socket_path();
@@ -37,7 +40,7 @@ pub async fn run(
 
     let uds_stream = UnixListenerStream::new(uds);
 
-    let svc = ProcessManagerService::new(mgr, config_path);
+    let svc = ProcessManagerService::new(mgr, config_path, cmd_tx);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
     let reflection = tonic_reflection::server::Builder::configure()
