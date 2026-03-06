@@ -18,7 +18,6 @@ import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -31,7 +30,7 @@ const (
 )
 
 type testExtensionsSuite struct {
-	installerwindows.BaseSuite
+	testAgentUpgradeSuite
 }
 
 // TestExtensionPersistence tests Agent extension persistence behaviour on Windows.
@@ -191,19 +190,9 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
 	s.verifyDDOTRunning(s.StableAgentVersion().Version())
+	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
-	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost,
-		`HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs",
-		[]string{"WIXFAILWHENDEFERRED=1"})
-	s.Require().NoError(err)
-
-	s.WaitForDaemonToStop(func() {
-		_, err := s.StartExperimentCurrentVersion()
-		s.Require().NoError(err, "daemon should stop cleanly")
-	})
-
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.waitForExperimentMSIRollback()
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
