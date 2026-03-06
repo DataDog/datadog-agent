@@ -39,14 +39,10 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) (provides, error) {
-	dep.Log.Warnf("[SECRETPATH] newForwarder: dep.Secrets type=%T value=%v nil=%v", dep.Secrets, dep.Secrets, dep.Secrets == nil)
-
 	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
 	if err != nil {
 		return provides{}, err
 	}
-
-	dep.Log.Warnf("[SECRETPATH] newForwarder: options.Secrets type=%T value=%v nil=%v", options.Secrets, options.Secrets, options.Secrets == nil)
 
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
