@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Configuration keys for the private action runner.
@@ -303,15 +302,9 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 
-	orchClusterID, err := clustername.GetClusterID()
-	if err != nil {
-		pkglog.Warnf("Failed to get orchestrator cluster ID: %v", err)
-	}
-	agentFlavor := flavor.GetFlavor()
-
 	runnerNamePrefix := runnerHostname
 	// For cluster agent, use cluster name instead of hostname for better identification
-	if agentFlavor == flavor.ClusterAgent {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
 		clusterName := clustername.GetClusterName(ctx, runnerHostname)
 		if clusterName != "" {
 			runnerNamePrefix = clusterName
@@ -320,7 +313,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		}
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey, runnerHostname, orchClusterID, agentFlavor)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
