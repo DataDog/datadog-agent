@@ -246,9 +246,9 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 		return nil, err
 	}
 
-	TCP, _ := proc.NetTCP()
+	TCP, _ := proc.NetTCP() //nolint:staticcheck
 	UDP, _ := proc.NetUDP()
-	TCP6, _ := proc.NetTCP6()
+	TCP6, _ := proc.NetTCP6() //nolint:staticcheck
 	UDP6, _ := proc.NetUDP6()
 
 	tcpSockets := make(map[uint64]socketInfo)
@@ -433,7 +433,7 @@ func TestRustBinary(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	binaryPath := filepath.Join(curDir, "rust", "sd-agent")
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "sd-agent")
 
 	require.FileExists(t, binaryPath, "Rust binary should be built")
 
