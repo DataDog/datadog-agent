@@ -8,13 +8,21 @@ processors:
         allow_hostname_override: true
     infraattributes_custom: {}
     myresourcedetection: {}
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
 receivers:
     hostprofiler:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
-            - api_key: test_api_key_123
-              site: datadoghq.com
+                - api_key: test_api_key_123
+                  site: datadoghq.com
 service:
     pipelines:
         profiles:
@@ -25,5 +33,6 @@ service:
                 - myresourcedetection
                 - batch
                 - infraattributes/default
+                - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler

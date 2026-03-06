@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
@@ -164,7 +165,7 @@ func SetupAndRunIMDSTest() error {
 
 func RunIMDSTest() error {
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err := testutils.StopIMDSserver(imdsServer); err != nil {

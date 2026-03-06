@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // containersLanguageWithDirtyFlag encapsulates containers languages along with a dirty flag
@@ -148,12 +147,8 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 	var pushErrors []error
 	for owner, containersLanguages := range ownersLanguages.containersLanguages {
 		if !containersLanguages.dirty {
-			log.Debugf("[lang-detection-handler] skipping flush for %s %s/%s: not dirty", owner.Kind, owner.Namespace, owner.Name)
 			continue
 		}
-
-		log.Debugf("[lang-detection-handler] flushing %s %s/%s with %d containers to workloadmeta",
-			owner.Kind, owner.Namespace, owner.Name, len(containersLanguages.languages))
 
 		if event := generatePushEvent(owner, containersLanguages.languages); event != nil {
 			events = append(events, *event)

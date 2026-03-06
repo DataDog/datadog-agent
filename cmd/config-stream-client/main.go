@@ -9,6 +9,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -27,21 +29,43 @@ import (
 func main() {
 	ipcAddress := flag.String("ipc-address", "localhost:5001", "IPC server address")
 	authToken := flag.String("auth-token", "", "Auth token (reads from auth_token file if not provided)")
+	authTokenFile := flag.String("agent-auth-token-file", "", "Path to Agent auth token file (overrides -auth-token and default auth_token path)")
+	agentCertFile := flag.String("agent-cert-file", "", "Path to Agent IPC certificate file (required for mTLS when connecting to the agent)")
 	clientName := flag.String("name", "test-client", "Client name for subscription")
 	duration := flag.Duration("duration", 30*time.Second, "How long to listen for config events")
 	maxSamples := flag.Int("max-samples", 5, "Maximum number of sample settings to display from snapshot")
 	flag.Parse()
 
-	// Read auth token from file if not provided via flag
+	// Read auth token: flag > agent-auth-token-file > ./auth_token
 	token := *authToken
-	if token == "" {
-		tokenBytes, err := os.ReadFile("./auth_token")
+	if token == "" && *authTokenFile != "" {
+		tokenBytes, err := os.ReadFile(*authTokenFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading auth token file: %v\n", err)
-			fmt.Fprintf(os.Stderr, "Usage: Provide auth token via --auth-token flag or auth_token file\n")
+			fmt.Fprintf(os.Stderr, "Error reading auth token file %s: %v\n", *authTokenFile, err)
 			os.Exit(1)
 		}
 		token = string(tokenBytes)
+	}
+	if token == "" {
+		tokenBytes, err := os.ReadFile("./auth_token")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading auth token: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Usage: Provide auth token via --auth-token, --agent-auth-token-file, or auth_token file in current directory\n")
+			os.Exit(1)
+		}
+		token = string(tokenBytes)
+	}
+
+	if *agentCertFile == "" {
+		fmt.Fprintf(os.Stderr, "Error: -agent-cert-file is required when connecting to an agent with mTLS-enabled IPC (e.g. path to ipc_cert.pem)\n")
+		fmt.Fprintf(os.Stderr, "Example: -agent-cert-file ./bin/agent/dist/ipc_cert.pem\n")
+		os.Exit(1)
+	}
+
+	ipcCert, err := loadIPCCert(*agentCertFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load IPC certificate: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Config Stream Test Client\n")
@@ -51,7 +75,8 @@ func main() {
 	fmt.Printf("Duration: %v\n\n", *duration)
 
 	tlsCreds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true, // For testing only
+		Certificates:       []tls.Certificate{ipcCert},
+		InsecureSkipVerify: true, // For local/testing; server cert verification can be enabled for production
 	})
 
 	conn, err := grpc.NewClient(*ipcAddress,
@@ -224,6 +249,26 @@ func main() {
 		fmt.Printf("✗✗✗ Some streaming functionality criteria not met ✗✗✗\n")
 		os.Exit(1)
 	}
+}
+
+// loadIPCCert loads the IPC certificate and private key from a PEM file
+// (same format as the agent's ipc_cert.pem: certificate block followed by EC PRIVATE KEY block).
+func loadIPCCert(path string) (tls.Certificate, error) {
+	rawFile, err := os.ReadFile(path)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("reading IPC cert file: %w", err)
+	}
+	block, rest := pem.Decode(rawFile)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return tls.Certificate{}, errors.New("failed to decode PEM block containing certificate")
+	}
+	rawCert := pem.EncodeToMemory(block)
+	block, _ = pem.Decode(rest)
+	if block == nil || block.Type != "EC PRIVATE KEY" {
+		return tls.Certificate{}, errors.New("failed to decode PEM block containing EC private key")
+	}
+	rawKey := pem.EncodeToMemory(block)
+	return tls.X509KeyPair(rawCert, rawKey)
 }
 
 func formatValue(v *structpb.Value) string {

@@ -751,28 +751,6 @@ so_symlink(
     version = "20.4.2",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libgcrypt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "1.11.2",
-        "@LIBGCRYPT_CONFIG_CFLAGS@": "-I${includedir}",
-        "@LIBGCRYPT_CONFIG_LIBS@": "-L${libdir} -lgcrypt",
-        "@LIBGCRYPT_CONFIG_LIBS_PRIVATE@": "",
-    },
-    template = ":src/libgcrypt.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = [":gcrypt_h"],
@@ -785,6 +763,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -792,6 +771,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )

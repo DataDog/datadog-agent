@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix support of Kafka actions for configurations where kafka_connect_str is a list.

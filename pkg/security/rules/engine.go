@@ -44,6 +44,9 @@ import (
 const (
 	// TagMaxResolutionDelay maximum tag resolution delay
 	TagMaxResolutionDelay = 5 * time.Second
+
+	// ContainerMaxTagResolutionDelay maximum container resolution delay
+	ContainerMaxTagResolutionDelay = 1 * time.Minute
 )
 
 // RuleEngine defines a rule engine
@@ -556,12 +559,13 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" {
+	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
 		// copy the container ID here to avoid later data race
 		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
+		retryable := time.Since(ev.ProcessContext.Process.ContainerContext.UnixCreatedAt()) < ContainerMaxTagResolutionDelay
 
 		extTagsCb = func() ([]string, bool) {
-			return e.probe.GetEventTags(containerID), true
+			return e.probe.GetEventTags(containerID), retryable
 		}
 	}
 

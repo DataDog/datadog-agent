@@ -3,21 +3,22 @@ import random
 import re
 import traceback
 import typing
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.git import get_ancestor
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import query_metrics
 from tasks.libs.common.git import (
     create_tree,
-    get_ancestor_base_branch,
     get_commit_sha,
-    get_common_ancestor,
     is_a_release_branch,
 )
 from tasks.libs.common.utils import running_in_ci
@@ -32,7 +33,6 @@ from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
     StaticQualityGate,
-    StaticQualityGateError,
     byte_to_string,
 )
 from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
@@ -614,6 +614,50 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
             )
 
 
+def _run_gate(ctx, gate: StaticQualityGate):
+    try:
+        result = gate.execute_gate(ctx)
+        error_message = None
+        error_type = None
+        if not result.success:
+            violation_messages = []
+            for violation in result.violations:
+                current_mb = violation.current_size / (1024 * 1024)
+                max_mb = violation.max_size / (1024 * 1024)
+                excess_mb = violation.excess_bytes / (1024 * 1024)
+                if excess_mb < 1:
+                    excess_kb = violation.excess_bytes / 1024
+                    excess_str = f"{excess_kb:.1f} KB"
+                else:
+                    excess_str = f"{excess_mb:.1f} MB"
+                violation_messages.append(
+                    f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                    f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+                )
+            error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+            error_type = "StaticQualityGateFailed"
+            print(color_message(error_message, "red"))
+        return {
+            "name": result.config.gate_name,
+            "state": result.success,
+            "error_type": error_type,
+            "message": error_message,
+            "result": result,
+            "blocking": not result.success,
+        }
+    # re-raise the InfraError as is, don't swallow it as Exception
+    except InfraError:
+        raise
+    except Exception:
+        return {
+            "name": gate.config.gate_name,
+            "state": False,
+            "error_type": "StackTrace",
+            "message": traceback.format_exc(),
+            "blocking": True,  # StackTrace errors are always blocking
+        }
+
+
 @task
 def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
@@ -628,6 +672,10 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
     gate_list = QualityGateFactory.create_gates_from_config(config_path)
+
+    if os.environ.get("SKIP_WINDOWS") == "true":
+        gate_list = [gate for gate in gate_list if gate.config.os != "windows"]
+        print(color_message("SKIP_WINDOWS is set: skipping Windows MSI quality gates", "orange"))
 
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'
@@ -661,117 +709,84 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 if pr_author:
                     print(color_message(f"PR author: {pr_author}", "cyan"))
 
+    # Run all gates in parallel (I/O-bound: pulling images, measuring packages)
+    gate_results: dict[StaticQualityGate, dict] = {}
+    executor = ThreadPoolExecutor()
+    future_to_gate = {executor.submit(_run_gate, ctx, gate): gate for gate in gate_list}
+    try:
+        for future in as_completed(future_to_gate):
+            gate_results[future_to_gate[future]] = future.result()
+    except InfraError as e:
+        # Cancel queued futures; running threads cannot be interrupted but will be abandoned
+        executor.shutdown(wait=False, cancel_futures=True)
+        gate = future_to_gate[future]
+        print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
+        for line in traceback.format_exception(e):
+            print(color_message(line, "red"))
+        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
+        raise Exit(code=42) from e
+    executor.shutdown(wait=False)
+
+    # Process results in original gate order
     for gate in gate_list:
-        result = None
-        try:
-            result = gate.execute_gate(ctx)
-            if not result.success:
-                violation_messages = []
-                for violation in result.violations:
-                    current_mb = violation.current_size / (1024 * 1024)
-                    max_mb = violation.max_size / (1024 * 1024)
-                    excess_mb = violation.excess_bytes / (1024 * 1024)
-                    if excess_mb < 1:
-                        excess_kb = violation.excess_bytes / 1024
-                        excess_str = f"{excess_kb:.1f} KB"
-                    else:
-                        excess_str = f"{excess_mb:.1f} MB"
-                    violation_messages.append(
-                        f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                        f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
-                    )
-                error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
-                print(color_message(error_message, "red"))
-                raise StaticQualityGateError(error_message)
-            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
-        except StaticQualityGateError as e:
+        gate_result = gate_results[gate]
+        gate_states.append(gate_result)
+        if 'blocking' in gate_result and gate_result['blocking']:
             final_state = "failure"
-            gate_states.append(
-                {
-                    "name": gate.config.gate_name,
-                    "state": False,
-                    "error_type": "StaticQualityGateFailed",
-                    "message": str(e),
-                    "blocking": True,  # May be updated to False if delta=0 after relative size calculation
-                }
-            )
-        except InfraError as e:
-            print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
-            for line in traceback.format_exception(e):
-                print(color_message(line, "red"))
-            ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
-            raise Exit(code=42) from e
-        except Exception:
-            final_state = "failure"
-            gate_states.append(
-                {
-                    "name": gate.config.gate_name,
-                    "state": False,
-                    "error_type": "StackTrace",
-                    "message": traceback.format_exc(),
-                    "blocking": True,  # StackTrace errors are always blocking
-                }
-            )
-        finally:
-            # Build tags dict - only include pr_number and pr_author if we have a PR
-            gate_tags = {
-                "gate_name": gate.config.gate_name,
-                "arch": gate.config.arch,
-                "os": gate.config.os,
-                "pipeline_id": os.environ["CI_PIPELINE_ID"],
-                "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
-                "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
-            }
-            if pr_number:
-                gate_tags["pr_number"] = pr_number
-            if pr_author:
-                gate_tags["pr_author"] = pr_author
+        result = gate_result.get('result')
+        # Build tags dict - only include pr_number and pr_author if we have a PR
+        gate_tags = {
+            "gate_name": gate.config.gate_name,
+            "arch": gate.config.arch,
+            "os": gate.config.os,
+            "pipeline_id": os.environ["CI_PIPELINE_ID"],
+            "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
+            "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
+        }
+        if pr_number:
+            gate_tags["pr_number"] = pr_number
+        if pr_author:
+            gate_tags["pr_author"] = pr_author
 
-            metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+        metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
 
-            # Only register current sizes if gate executed successfully and we have a result
-            if result is not None:
-                metric_handler.register_metric(
-                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
-                )
-                metric_handler.register_metric(
-                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
-                )
+        # Only register current sizes if gate executed successfully and we have a result
+        if result is not None:
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+            )
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+            )
 
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
-    base_branch = get_ancestor_base_branch(branch)
-    # get_common_ancestor is supposed to fetch this but it doesn't, so we do it here explicitly
-    ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=True)
-    ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
-    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
+    ancestor = get_ancestor(ctx, branch)
     current_commit = get_commit_sha(ctx)
-    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
-    # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if ancestor == current_commit:
-        ancestor = get_commit_sha(ctx, commit="HEAD~1")
-        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
+    is_on_main_branch = ancestor == current_commit
     metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This means the size issue existed before this PR and wasn't introduced by current changes
-    for gate_state in gate_states:
-        if gate_state["state"] is False and gate_state.get("blocking", True):
-            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-            if gate_state["error_type"] == "StaticQualityGateFailed":
-                if should_bypass_failure(gate_state["name"], metric_handler):
-                    gate_state["blocking"] = False
-                    print(
-                        color_message(
-                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                            "orange",
+    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
+    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    if not is_on_main_branch:
+        for gate_state in gate_states:
+            if gate_state["state"] is False and gate_state.get("blocking", True):
+                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+                if gate_state["error_type"] == "StaticQualityGateFailed":
+                    if should_bypass_failure(gate_state["name"], metric_handler):
+                        gate_state["blocking"] = False
+                        print(
+                            color_message(
+                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                                "orange",
+                            )
                         )
-                    )
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
@@ -1027,6 +1042,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
+    filter: Callable[[str], bool] = lambda _: True,
 ):
     """
     Run the in-place package measurer locally for testing and development.
@@ -1053,6 +1069,7 @@ def measure_package_local(
         output_path=output_path,
         build_job_name=build_job_name,
         debug=debug,
+        filter=filter,
     )
 
 

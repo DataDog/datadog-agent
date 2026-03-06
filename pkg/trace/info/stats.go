@@ -525,6 +525,7 @@ func (ts *TagStats) WarnString() string {
 type Tags struct {
 	Lang, LangVersion, LangVendor, Interpreter, TracerVersion string
 	EndpointVersion                                           string
+	ConnectionType                                            string
 	Service                                                   string
 }
 
@@ -550,6 +551,9 @@ func (t *Tags) toArray() []string {
 	}
 	if t.EndpointVersion != "" {
 		tags = append(tags, "endpoint_version:"+t.EndpointVersion)
+	}
+	if t.ConnectionType != "" {
+		tags = append(tags, "connection_type:"+t.ConnectionType)
 	}
 	if t.Service != "" {
 		tags = append(tags, "service:"+t.Service)

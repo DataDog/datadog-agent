@@ -350,7 +350,7 @@ func (p *EBPFProbe) SendRemediationEvent(re *RemediationEvent) {
 	if re == nil {
 		return
 	}
-	customRule := events.NewCustomRule(events.RemediationStatusRuleID, events.RemediationStatusRuleDesc)
+	customRule := events.NewCustomRule(events.RemediationStatusRuleID, events.RemediationStatusRuleDesc, p.evalOpts())
 	customEvent := events.NewCustomEvent(model.CustomEventType, re)
 	p.probe.DispatchCustomEvent(customRule, customEvent)
 

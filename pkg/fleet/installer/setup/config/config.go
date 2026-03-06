@@ -271,6 +271,11 @@ type APMConfigurationDefault struct {
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
 	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
+	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`
+	RumApplicationID              string  `yaml:"DD_RUM_APPLICATION_ID,omitempty"`
+	RumClientToken                string  `yaml:"DD_RUM_CLIENT_TOKEN,omitempty"`
+	RumRemoteConfigurationID      string  `yaml:"DD_RUM_REMOTE_CONFIGURATION_ID,omitempty"`
+	RumSite                       string  `yaml:"DD_RUM_SITE,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install

@@ -40,12 +40,11 @@ import (
 
 const (
 	emptyCtrID                 = ""
-	configPrefix               = "process_config."
-	configCustomSensitiveWords = configPrefix + "custom_sensitive_words"
-	configScrubArgs            = configPrefix + "scrub_args"
-	configStripProcArgs        = configPrefix + "strip_proc_arguments"
-	configDisallowList         = configPrefix + "blacklist_patterns"
-	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
+	configCustomSensitiveWords = "process_config.custom_sensitive_words"
+	configScrubArgs            = "process_config.scrub_args"
+	configStripProcArgs        = "process_config.strip_proc_arguments"
+	configDisallowList         = "process_config.blacklist_patterns"
+	configIgnoreZombies        = "process_config.ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -211,10 +210,7 @@ func (p *ProcessCheck) IsEnabled() bool {
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
-
-	// we want the check to be run for process collection or when the new service discovery collection is enabled
-	return p.config.GetBool("process_config.process_collection.enabled") ||
-		p.sysConfig.GetBool("discovery.enabled")
+	return isProcessCheckEnabled(p.config, p.sysConfig)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -690,17 +686,14 @@ func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pStats *model
 
 func initScrubber(config pkgconfigmodel.Reader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
-	if config.IsSet(configScrubArgs) {
-		scrubber.Enabled = config.GetBool(configScrubArgs)
-	}
+	scrubber.Enabled = config.GetBool(configScrubArgs)
 
 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
 		log.Debug("Starting process collection with Scrubber enabled")
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
-	if config.IsSet(configCustomSensitiveWords) {
-		words := config.GetStringSlice(configCustomSensitiveWords)
+	if words := config.GetStringSlice(configCustomSensitiveWords); len(words) > 0 {
 		scrubber.AddCustomSensitiveWords(words)
 		log.Debug("Adding custom sensitives words to Scrubber:", words)
 	}
@@ -715,15 +708,13 @@ func initScrubber(config pkgconfigmodel.Reader, scrubber *procutil.DataScrubber)
 func initDisallowList(config pkgconfigmodel.Reader) []*regexp.Regexp {
 	var disallowList []*regexp.Regexp
 	// A list of regex patterns that will exclude a process if matched.
-	if config.IsSet(configDisallowList) {
-		for _, b := range config.GetStringSlice(configDisallowList) {
-			r, err := regexp.Compile(b)
-			if err != nil {
-				log.Warnf("Ignoring invalid disallow list pattern: %s", b)
-				continue
-			}
-			disallowList = append(disallowList, r)
+	for _, b := range config.GetStringSlice(configDisallowList) {
+		r, err := regexp.Compile(b)
+		if err != nil {
+			log.Warnf("Ignoring invalid disallow list pattern: %s", b)
+			continue
 		}
+		disallowList = append(disallowList, r)
 	}
 	return disallowList
 }

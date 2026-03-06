@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"iter"
 	"net/http"
 	"net/netip"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/zstd"
 	"go4.org/intern"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -37,20 +39,15 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ddmaps "github.com/DataDog/datadog-agent/pkg/util/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -151,7 +148,7 @@ func New(
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,
-		resolver:   newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta))),
+		resolver:   newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -173,6 +170,9 @@ func New(
 		staticHeaders: staticHeaders,
 		resultsQueue:  api.NewWeightedQueue(queueSize, int64(queueBytes)),
 		checkInterval: checkInterval,
+	}
+	if err := ds.encodeHeader(); err != nil {
+		return nil, err
 	}
 
 	ds.start()
@@ -205,35 +205,15 @@ type directSender struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	resolver   *containerResolver
-	encodeBuf  bytes.Buffer
 
 	// Used to cache the hash result of the host name and the pid of the system-probe.
 	// Being used as part of getRequestID method.
 	requestIDCachedHash uint64
 	staticHeaders       http.Header
+	staticEncodedHeader []byte
 	resultsQueue        *api.WeightedQueue
 	checkInterval       time.Duration
 	runCount            uint64
-}
-
-type result struct {
-	payloads []payload
-	size     int64
-}
-
-type payload struct {
-	body    []byte
-	headers http.Header
-}
-
-// Weight implements WeightedItem
-func (r result) Weight() int64 {
-	return r.size
-}
-
-// Type implements WeightedItem
-func (r result) Type() string {
-	return "connections"
 }
 
 func (d *directSender) start() {
@@ -277,17 +257,9 @@ func (d *directSender) submitLoop() {
 			}
 			d.readResponseStatuses(responses)
 		}
+		senderTelemetry.queueSize.Set(float64(d.resultsQueue.Len()))
+		senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 	}
-}
-
-func getDNSNameForIP(conns *network.Connections, ip util.Address) string {
-	if dnsEntry := conns.DNS[ip]; len(dnsEntry) > 0 {
-		// We are only using the first entry for now, but in the future, if we find a good solution,
-		// we might want to report the other DNS names too if necessary.
-		// (need more investigation on how to best achieve that).
-		return dnsEntry[0].Get()
-	}
-	return ""
 }
 
 var networkProtocolToModel = map[network.ConnectionType]model.ConnectionType{
@@ -307,7 +279,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 
 			srcContainerID := ""
 			if conn.ContainerID.Source != nil {
-				srcContainerID = conn.ContainerID.Source.Get().(string)
+				srcContainerID, _ = conn.ContainerID.Source.Get().(string)
 			}
 
 			npc := npmodel.NetworkPathConnection{
@@ -353,35 +325,7 @@ func (d *directSender) collect() {
 
 	allBatches := result{payloads: make([]payload, 0, d.batchCount(conns))}
 	messageIndex := 0
-	for message := range d.batches(conns, groupID) {
-		if messageIndex == 0 {
-			// only add the telemetry to the first message to prevent double counting
-			message.ConnTelemetryMap = ddmaps.MapKeys(conns.ConnTelemetry, func(k network.ConnTelemetryType) string { return string(k) })
-			message.CompilationTelemetryByAsset = ddmaps.MapValues(conns.CompilationTelemetryByAsset, func(v network.RuntimeCompilationTelemetry) *model.RuntimeCompilationTelemetry {
-				return &model.RuntimeCompilationTelemetry{
-					RuntimeCompilationEnabled:  v.RuntimeCompilationEnabled,
-					RuntimeCompilationResult:   model.RuntimeCompilationResult(v.RuntimeCompilationResult),
-					RuntimeCompilationDuration: v.RuntimeCompilationDuration,
-				}
-			})
-			message.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
-			message.CORETelemetryByAsset = ddmaps.MapValues(conns.CORETelemetryByAsset, func(v int32) model.COREResult { return model.COREResult(v) })
-			message.PrebuiltEBPFAssets = conns.PrebuiltAssets
-		}
-
-		body, err := model.EncodeMessage(model.Message{
-			Header: model.MessageHeader{
-				Version:  model.MessageV3,
-				Encoding: model.MessageEncodingZstd1xPB,
-				Type:     model.TypeCollectorConnections,
-			},
-			Body: message,
-		})
-		if err != nil {
-			d.log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
+	for body := range d.batches(conns, groupID) {
 		extraHeaders := d.staticHeaders.Clone()
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		requestID := d.getRequestID(start, messageIndex)
@@ -404,147 +348,94 @@ func (d *directSender) collect() {
 	senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 }
 
-func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[*model.CollectorConnections] {
-	cxs := conns.Conns
+func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[[]byte] {
+	messageIndex := 0
 	numBatches := d.batchCount(conns)
 	dnsEncoder := model.NewV2DNSEncoder()
-	ipc := make(ipCache, len(conns.Conns)/2)
-	tagsSet := newIndexedSet[string]()
+	tagsSet := indexedset.New[string](0)
 
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
-	containersForTagging := d.getContainersForExplicitTagging(conns)
 	d.resolver.resolveDestinationContainerIDs(conns)
 
 	// Sort connections by remote IP/PID for more efficient resolution
-	slices.SortFunc(cxs, func(a, b network.ConnectionStats) int {
+	slices.SortFunc(conns.Conns, func(a, b network.ConnectionStats) int {
 		if a.Dest.Addr != b.Dest.Addr {
 			return a.Dest.Addr.Compare(b.Dest.Addr)
 		}
 		return int(a.Pid) - int(b.Pid)
 	})
 
-	return func(yield func(*model.CollectorConnections) bool) {
-		for connsChunk := range slices.Chunk(cxs, d.maxConnsPerMessage) {
-			batchConns := make([]*model.Connection, 0, len(connsChunk))
-			containerIDForPID := make(map[int32]string)
-			// DNS values for this batch only. Subset of conns.DNS
-			dnsForBatch := make(map[string]*model.DNSDatabaseEntry)
-			dnsSet := newIndexedSet[dns.Hostname]()
-			routeSet := newIndexedSet[network.Via]()
+	builder := model.NewCollectorConnectionsBuilder(io.Discard)
 
+	return func(yield func([]byte) bool) {
+		defer func() {
+			for _, e := range usmEncoders {
+				e.Close()
+			}
+		}()
+		defer d.resolver.removeDeadTagContainers()
+
+		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
+			// TODO is there some way to get a larger lower bound on the size of a payload
+			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
+			// compression makes this calculation difficult
+			dstBuf := bytes.NewBuffer(make([]byte, 0, len(d.staticEncodedHeader)))
+			_, err := dstBuf.Write(d.staticEncodedHeader)
+			if err != nil {
+				d.log.Errorf("Unable to encode message header: %s", err)
+				continue
+			}
+			zw := zstd.NewWriter(dstBuf)
+
+			builder.Reset(zw)
+			d.encodeConfiguration(builder)
+			builder.SetGroupId(groupID)
+			builder.SetGroupSize(numBatches)
+
+			if messageIndex == 0 {
+				d.encodeTelemetry(conns, builder)
+			}
+
+			d.encodeContainerForPID(connsChunk, builder)
+			dnsSet, indexToOffset := d.encodeDNS(connsChunk, conns, dnsEncoder, builder)
+			resolvConfSet := indexedset.New[network.ResolvConf](0)
+			routeSet := indexedset.New[network.Via](0)
 			connectionsTagsEncoder := model.NewV3TagEncoder()
 			tagsEncoder := model.NewV3TagEncoder()
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
 
 			for _, nc := range connsChunk {
-				destIP := ipc.get(nc.Dest.Addr)
-				// create unique DNSDatabaseEntry values
-				if dnsHostnames, ok := conns.DNS[nc.Dest]; ok {
-					if _, present := dnsForBatch[destIP]; !present {
-						dnsForBatch[destIP] = &model.DNSDatabaseEntry{
-							NameOffsets: dnsSet.AddSlice(dnsHostnames),
-						}
-					}
-				}
-
-				c := &model.Connection{
-					Pid: int32(nc.Pid),
-					Laddr: &model.Addr{
-						Ip:          ipc.get(nc.Source.Addr),
-						Port:        int32(nc.SPort),
-						ContainerId: getInternedString(nc.ContainerID.Source),
-					},
-					Raddr: &model.Addr{
-						Ip:          destIP,
-						Port:        int32(nc.DPort),
-						ContainerId: getInternedString(nc.ContainerID.Dest),
-					},
-					Family:               formatFamily(nc.Family),
-					Type:                 formatType(nc.Type),
-					IsLocalPortEphemeral: formatEphemeralType(nc.SPortIsEphemeral),
-					LastBytesSent:        nc.Last.SentBytes,
-					LastBytesReceived:    nc.Last.RecvBytes,
-					LastPacketsSent:      nc.Last.SentPackets,
-					LastRetransmits:      nc.Last.Retransmits,
-					LastPacketsReceived:  nc.Last.RecvPackets,
-					Direction:            formatDirection(nc.Direction),
-					NetNS:                nc.NetNS,
-					IpTranslation:        formatIPTranslation(nc.IPTranslation, ipc),
-					Rtt:                  nc.RTT,
-					RttVar:               nc.RTTVar,
-					IntraHost:            nc.IntraHost,
-					LastTcpEstablished:   uint32(nc.Last.TCPEstablished),
-					LastTcpClosed:        uint32(nc.Last.TCPClosed),
-					Protocol:             marshal.FormatProtocolStack(nc.ProtocolStack, nc.StaticTags),
-					RouteIdx:             formatRouteIndex(nc.Via, routeSet),
-					TcpFailuresByErrCode: ddmaps.CastIntegerKeys[uint16, uint32](nc.TCPFailures),
-					SystemProbeConn:      nc.Pid == d.sysProbePID,
-				}
-
-				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
-				d.addTags(nc, c, tagsSet, usmEncoders, connectionsTagsEncoder)
-				d.addDNS(nc, c, dnsSet)
-
-				batchConns = append(batchConns, c)
-			}
-
-			// convert collected DNS information for this batch to an optimized version for transmission
-			var mappedDNSLookups []byte
-			uniqDNSStringList := ddslices.Map(dnsSet.UniqueKeys(), func(h dns.Hostname) string { return dns.ToString(h) })
-			encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(uniqDNSStringList)
-			if err != nil {
-				// since we were unable to properly encode the indexToOffset map, the
-				// rest of the maps will now be unreadable by the back-end.  Just clear them
-				for _, c := range batchConns {
-					c.DnsStatsByDomain = nil
-					c.DnsStatsByDomainByQueryType = nil
-					c.DnsStatsByDomainOffsetByQueryType = nil
-				}
-			} else {
-				// Now we have all available information.  EncodeMapped with take the string indices
-				// that are used, and encode (using the indexToOffset array) the offset into the buffer
-				// this way individual strings can be directly accessed on decode.
-				mappedDNSLookups, err = dnsEncoder.EncodeMapped(dnsForBatch, indexToOffset)
-				if err != nil {
-					mappedDNSLookups = nil
-				}
-				for _, c := range batchConns {
-					remapDNSStatsByOffset(c, indexToOffset)
-				}
+				builder.AddConnections(func(builder *model.ConnectionBuilder) {
+					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
+					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
+					d.addDNS(builder, nc, dnsSet, indexToOffset)
+				})
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			hostTagsIndex := int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags()))
-			cc := model.CollectorConnections{
-				AgentConfiguration: d.agentCfg,
-				ContainerHostType:  d.containerHostType,
-				HostName:           d.hostname,
-				NetworkId:          d.networkID,
-
-				GroupId:   groupID,
-				GroupSize: numBatches,
-
-				Connections:            batchConns,
-				ContainerForPid:        containerIDForPID,
-				EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
-				EncodedDnsLookups:      mappedDNSLookups,
-				EncodedDomainDatabase:  encodedNameDb,
-				EncodedTags:            tagsEncoder.Buffer(),
-				HostTagsIndex:          hostTagsIndex,
-				Routes:                 ddslices.Map(routeSet.UniqueKeys(), viaToRoute),
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags())))
+			builder.SetEncodedTags(func(b *bytes.Buffer) {
+				b.Write(tagsEncoder.Buffer())
+			})
+			builder.SetEncodedConnectionsTags(func(b *bytes.Buffer) {
+				b.Write(connectionsTagsEncoder.Buffer())
+			})
+			d.encodeRoutes(routeSet, builder)
+			for _, v := range resolvConfSet.UniqueKeys() {
+				builder.AddResolvConfs(v.Get())
 			}
 
-			// Add OS telemetry
-			cc.KernelVersion, _ = kernel.Release()
-			cc.Architecture, _ = kernel.Machine()
-			// TODO do we want to try some auto-correction for incorrect platforms, like we do with BTF?
-			cc.Platform, _ = kernel.Platform()
-			cc.PlatformVersion, _ = kernel.PlatformVersion()
+			if err := zw.Close(); err != nil {
+				d.log.Errorf("Unable to close compression writer: %s", err)
+				continue
+			}
 
-			if !yield(&cc) {
+			if !yield(dstBuf.Bytes()) {
 				return
 			}
+			messageIndex++
 		}
 	}
 }
@@ -553,7 +444,10 @@ func getInternedString(v *intern.Value) string {
 	if v == nil {
 		return ""
 	}
-	return v.Get().(string)
+	if s, ok := v.Get().(string); ok {
+		return s
+	}
+	return ""
 }
 
 const (

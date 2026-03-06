@@ -108,6 +108,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									Port: pulumi.Int(6379),
 								},
 							},
+							VolumeMounts: &corev1.VolumeMountArray{
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("redis-data"),
+									MountPath: pulumi.String("/data"),
+								},
+							},
+						},
+					},
+					Volumes: corev1.VolumeArray{
+						&corev1.VolumeArgs{
+							Name:     pulumi.String("redis-data"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 						},
 					},
 				},
@@ -291,6 +303,22 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			Namespace: pulumi.String(namespace),
 			Labels: pulumi.StringMap{
 				"app": pulumi.String("redis"),
+			},
+			Annotations: pulumi.StringMap{
+				"ad.datadoghq.com/endpoints.checks": pulumi.String(utils.JSONMustMarshal(
+					map[string]interface{}{
+						"http_check": map[string]interface{}{
+							"init_config": map[string]interface{}{},
+							"instances": []map[string]interface{}{
+								{
+									"name":    "My Redis",
+									"url":     "http://%%host%%:%%port%%",
+									"timeout": 1,
+								},
+							},
+						},
+					},
+				)),
 			},
 		},
 		Spec: &corev1.ServiceSpecArgs{

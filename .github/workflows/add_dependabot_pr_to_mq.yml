@@ -1,5 +1,5 @@
 ---
-name: Add dependabot PR to the Merge Queue
+name: Add dependency bot PR to the Merge Queue
 on:
   pull_request_review:
     types:
@@ -9,7 +9,7 @@ on:
 permissions: {}
 jobs:
   add_to_merge_queue:
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
     runs-on: ubuntu-latest
     environment:
       name: dependabot

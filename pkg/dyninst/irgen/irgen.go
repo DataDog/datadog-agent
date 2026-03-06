@@ -85,13 +85,18 @@ func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
+	options ...Option,
 ) (*ir.Program, error) {
-	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	cfg := g.config
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	elfFile, err := cfg.objectLoader.Load(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load elf file: %w", err)
 	}
 	defer elfFile.Close()
-	return generateIR(g.config, programID, elfFile, probeDefs)
+	return generateIR(cfg, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -240,6 +245,14 @@ func generateIR(
 	}
 	defer cleanupCloser(ib, "method index builder")()
 
+	// Build a set of additional type names requested via
+	// WithAdditionalTypes for efficient lookup during the gotype iteration.
+	additionalTypeSet := make(map[string]struct{}, len(cfg.additionalTypes))
+	for _, name := range cfg.additionalTypes {
+		additionalTypeSet[name] = struct{}{}
+	}
+
+	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
@@ -261,6 +274,30 @@ func generateIR(
 			)
 			continue
 		}
+
+		// If this type was requested as an additional type, resolve it to
+		// a DWARF offset and add it to the type catalog for exploration.
+		if len(additionalTypeSet) > 0 {
+			name := goType.Name().UnsafeName()
+			if _, requested := additionalTypeSet[name]; requested {
+				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+					t, addErr := typeCatalog.addType(dwarfOffset)
+					if addErr != nil {
+						log.Debugf(
+							"failed to add additional type %q at offset %#x: %v",
+							name, dwarfOffset, addErr,
+						)
+					} else {
+						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+							typeID: t.GetID(),
+							budget: additionalTypeBudget,
+						})
+					}
+				}
+				delete(additionalTypeSet, name)
+			}
+		}
+
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get methods: %w", err)
@@ -362,6 +399,9 @@ func generateIR(
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
 	{
+		// Include types discovered at runtime via interface decoding.
+		explorationRoots = append(explorationRoots, additionalTypeRoots...)
+
 		// Specialize any already-added container types before traversal.
 		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
 			return nil, err
@@ -436,6 +476,9 @@ type analyzedExpression struct {
 	// For template segments, the segment reference and index.
 	segment    *ir.JSONSegment
 	segmentIdx int // -1 if not a segment
+
+	// For capture expressions, the user-specified name.
+	captureExprName string
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe.
@@ -487,12 +530,14 @@ func analyzeAllProbes(
 
 	for _, probe := range probes {
 		budget := budgets[probe.Subprogram.ID]
-		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+		kind := probe.GetKind()
+		isSnapshot := kind == ir.ProbeKindSnapshot
+		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
 
 		ap := analyzedProbe{
 			probe:      probe,
 			budget:     budget,
-			isSnapshot: isSnapshot,
+			isSnapshot: isSnapshot || isCaptureExpression,
 		}
 
 		// Build variable lookup for this probe's subprogram.
@@ -582,7 +627,9 @@ func analyzeAllProbes(
 			}
 
 			// For snapshot probes, add variable itself as an expression.
-			if isSnapshot {
+			// Capture expression probes only capture explicitly listed
+			// expressions (handled below), not all variables.
+			if isSnapshot && !isCaptureExpression {
 				ap.expressions = append(ap.expressions, analyzedExpression{
 					expr:         &exprlang.RefExpr{Ref: v.Name},
 					dsl:          v.Name,
@@ -619,12 +666,55 @@ func analyzeAllProbes(
 					segment:      seg.segment,
 					segmentIdx:   seg.index,
 				})
-				// Log probe: add root variable type to exploration roots.
-				if !isSnapshot {
+				// Log/capture-expression probe: add root variable type to exploration roots.
+				// For snapshot probes, the variable was already added above.
+				if !isSnapshot || isCaptureExpression {
 					addRoot(v.Type.GetID(), budget)
 				}
 			}
 			delete(segmentRefs, v.Name)
+		}
+
+		// Process capture expressions.
+		for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
+			parsedExpr, err := exprlang.Parse(ce.GetJSON())
+			if err != nil {
+				continue
+			}
+			rootVarName, ok := extractRootVariableName(parsedExpr)
+			if !ok {
+				continue
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				continue
+			}
+			var evKind ir.EventKind
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				evKind = ir.EventKindEntry
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				evKind = ir.EventKindReturn
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				evKind = ir.EventKindReturn
+			case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				evKind = ir.EventKindLine
+			default:
+				continue
+			}
+			ap.expressions = append(ap.expressions, analyzedExpression{
+				expr:            parsedExpr,
+				dsl:             ce.GetDSL(),
+				rootVariable:    rootVar,
+				eventKind:       evKind,
+				exprKind:        ir.RootExpressionKindCaptureExpression,
+				segmentIdx:      -1,
+				captureExprName: ce.GetName(),
+			})
+			addRoot(rootVar.Type.GetID(), budget)
 		}
 
 		// Mark unmatched segments as invalid.
@@ -708,17 +798,32 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
 // across all probes configured for that subprogram.
+//
+// TODO: Taking the max of all per-expression capture configs as the probe-level
+// limit is a short-term solution. This should be updated with logic to set the
+// depth per expression underneath eBPF.
 func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
 	budgets := make(map[ir.SubprogramID]uint32, len(pending))
 	for _, p := range pending {
 		var maxDepth uint32
 		for _, cfg := range p.probesCfgs {
 			maxDepth = max(maxDepth, cfg.GetCaptureConfig().GetMaxReferenceDepth())
+			for _, ce := range cfg.GetCaptureExpressions() {
+				if ceCfg := ce.GetCaptureConfig(); ceCfg != nil {
+					maxDepth = max(maxDepth, ceCfg.GetMaxReferenceDepth())
+				}
+			}
 		}
 		budgets[p.id] = maxDepth
 	}
 	return budgets
 }
+
+// additionalTypeBudget is the exploration budget assigned to types discovered
+// at runtime through interface decoding and fed back via WithAdditionalTypes.
+// A budget of 3 is enough to resolve fields and one level of indirection
+// without being excessively expensive.
+const additionalTypeBudget = 3
 
 // explorationRoot represents a type that should be explored with a budget.
 type explorationRoot struct {
@@ -3364,8 +3469,12 @@ func populateEventExpressions(
 			seg.EventExpressionIndex = len(expressions)
 		}
 
+		name := expr.dsl
+		if expr.captureExprName != "" {
+			name = expr.captureExprName
+		}
 		expressions = append(expressions, &ir.RootExpression{
-			Name:       expr.dsl,
+			Name:       name,
 			Offset:     uint32(0),
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
@@ -4148,7 +4257,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
 		switch probe.GetKind() {
-		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		default:
 			issues = append(issues, ir.ProbeIssue{

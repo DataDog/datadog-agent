@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -277,6 +278,213 @@ func newFakeKubeletPodEndpointAddress(nodeName string, pod *kubelet.Pod) v1.Endp
 	return v1.EndpointAddress{
 		IP:       pod.Status.PodIP,
 		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      "Pod",
+			Namespace: pod.Metadata.Namespace,
+			Name:      pod.Metadata.Name,
+			UID:       types.UID(pod.Metadata.UID),
+		},
+	}
+}
+
+func TestMapServicesFromEndpointSlices(t *testing.T) {
+	pod1 := newFakeKubeletPod(
+		"foo",
+		"pod1_name",
+		"1111",
+		"1.1.1.1",
+	)
+
+	pod2 := newFakeKubeletPod(
+		"foo",
+		"pod2_name",
+		"2222",
+		"2.2.2.2",
+	)
+
+	pod3 := newFakeKubeletPod(
+		"foo",
+		"pod3_name",
+		"3333",
+		"3.3.3.3",
+	)
+
+	// These pods have the same name but are in different namespaces.
+	defaultPod := newFakeKubeletPod(
+		"default",
+		"pod_name",
+		"1111",
+		"1.1.1.1",
+	)
+	otherPod := newFakeKubeletPod(
+		"other",
+		"pod_name",
+		"2222",
+		"2.2.2.2",
+	)
+
+	tests := []struct {
+		desc            string
+		nodeName        string
+		kubeletPods     []*kubelet.Pod
+		slices          []discv1.EndpointSlice
+		expectedMapping apiv1.NamespacesPodsStringsSet
+	}{
+		{
+			"1 node, 1 pod, 1 service",
+			"myNode",
+			[]*kubelet.Pod{pod1},
+			[]discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc1-abc123",
+						Namespace: "foo",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc1"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", pod1),
+					},
+				},
+			},
+			apiv1.NamespacesPodsStringsSet{
+				"foo": {"pod1_name": sets.New("svc1")},
+			},
+		},
+		{
+			"1 node, 2 pods with same name, 2 services",
+			"myNode",
+			[]*kubelet.Pod{defaultPod, otherPod},
+			[]discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc1-abc123",
+						Namespace: "default",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc1"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", defaultPod),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc2-def456",
+						Namespace: "other",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc2"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", otherPod),
+					},
+				},
+			},
+			apiv1.NamespacesPodsStringsSet{
+				"default": {"pod_name": sets.New("svc1")},
+				"other":   {"pod_name": sets.New("svc2")},
+			},
+		},
+		{
+			"endpoint for pod on different node",
+			"myNode",
+			[]*kubelet.Pod{pod1, pod3},
+			[]discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc1-abc123",
+						Namespace: "foo",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc1"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", pod1),
+						// This pod is running on a different node and should not be
+						// included in the expected mapping.
+						newFakeKubeletPodEndpointSliceEndpoint("otherNode", pod2),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc2-def456",
+						Namespace: "foo",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc2"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", pod3),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc3-ghi789",
+						Namespace: "foo",
+						Labels:    map[string]string{KubernetesServiceNameLabel: "svc3"},
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeKubeletPodEndpointSliceEndpoint("myNode", pod1),
+						// This pod is running on a different node and should not be
+						// included in the expected mapping.
+						newFakeKubeletPodEndpointSliceEndpoint("otherNode", pod2),
+					},
+				},
+			},
+			apiv1.NamespacesPodsStringsSet{
+				"foo": {
+					"pod1_name": sets.New("svc1", "svc3"),
+					"pod3_name": sets.New("svc2"),
+				},
+			},
+		},
+	}
+
+	// Test the final state after all cases run to make
+	// sure mapping does not affect unlisted services
+	expectedAggregatedMapping := apiv1.NamespacesPodsStringsSet{
+		"foo": {
+			"pod1_name": sets.New("svc1", "svc3"),
+			"pod3_name": sets.New("svc2"),
+		},
+		"default": {
+			"pod_name": sets.New("svc1"),
+		},
+		"other": {
+			"pod_name": sets.New("svc2"),
+		},
+	}
+
+	mu := sync.RWMutex{}
+	aggregatedBundle := NewMetadataMapperBundle()
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			runMapServicesTestFromEndpointSlices(t, tt.nodeName, tt.kubeletPods, tt.slices, tt.expectedMapping, true)
+			runMapServicesTestFromEndpointSlices(t, tt.nodeName, tt.kubeletPods, tt.slices, tt.expectedMapping, false)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			err := aggregatedBundle.mapServicesFromEndpointSlices(tt.nodeName, tt.kubeletPods, tt.slices)
+			require.NoError(t, err)
+		})
+	}
+
+	mu.RLock()
+	assert.Equal(t, expectedAggregatedMapping, aggregatedBundle.Services)
+	mu.RUnlock()
+}
+
+func runMapServicesTestFromEndpointSlices(t *testing.T, nodeName string, pods []*kubelet.Pod, slices []discv1.EndpointSlice, expectedMapping apiv1.NamespacesPodsStringsSet, mapOnIP bool) {
+	testName := "mapOnRef"
+	if mapOnIP {
+		testName = "mapOnIP"
+	}
+	t.Run(testName, func(t *testing.T) {
+		bundle := NewMetadataMapperBundle()
+		bundle.mapOnIP = mapOnIP
+		err := bundle.mapServicesFromEndpointSlices(nodeName, pods, slices)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMapping, bundle.Services)
+	})
+}
+
+func newFakeKubeletPodEndpointSliceEndpoint(nodeName string, pod *kubelet.Pod) discv1.Endpoint {
+	return discv1.Endpoint{
+		Addresses: []string{pod.Status.PodIP},
+		NodeName:  &nodeName,
 		TargetRef: &v1.ObjectReference{
 			Kind:      "Pod",
 			Namespace: pod.Metadata.Namespace,

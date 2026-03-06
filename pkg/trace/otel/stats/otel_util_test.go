@@ -507,3 +507,267 @@ func (noopStatsWriter) Write(*pb.StatsPayload) {}
 func newTestConcentratorWithCfg(now time.Time, cfg *config.AgentConfig) *corestats.Concentrator {
 	return corestats.NewConcentrator(cfg, noopStatsWriter{}, now, &statsd.NoOpClient{})
 }
+
+// TestProcessOTLPTraces_HTTPRequestMethodAndEnvName tests stats processing with
+// http.request.method (semconv 1.23+) and deployment.environment.name (semconv 1.27+) attributes.
+func TestProcessOTLPTraces_HTTPRequestMethodAndEnvName(t *testing.T) {
+	start := time.Now().Add(-1 * time.Second)
+	end := time.Now()
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	agentEnv := "agent_env"
+	agentHost := "agent_host"
+
+	for _, tt := range []struct {
+		name                             string
+		spanName                         string
+		rattrs                           map[string]string
+		sattrs                           map[string]any
+		spanKind                         ptrace.SpanKind
+		enableOperationAndResourceNameV2 bool
+		enableReceiveResourceSpansV2     bool
+		expected                         *pb.StatsPayload
+	}{
+		{
+			name:     "http.request.method (semconv 1.23+) V2 enabled",
+			spanName: "/api/users",
+			rattrs:   map[string]string{"service.name": "http-svc"},
+			sattrs: map[string]any{
+				"http.request.method": "GET",
+				"http.route":          "/api/users",
+			},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "http-svc", "http.server.request", "web", "server", "GET /api/users", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "http.request.method (semconv 1.23+) V1 enabled",
+			spanName: "/api/users",
+			rattrs:   map[string]string{"service.name": "http-svc"},
+			sattrs: map[string]any{
+				"http.request.method": "GET",
+				"http.route":          "/api/users",
+			},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: false,
+			enableReceiveResourceSpansV2:     false,
+			expected:                         createStatsPayload(agentEnv, agentHost, "http-svc", "opentelemetry.server", "web", "server", "GET /api/users", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "deployment.environment.name (semconv 1.27+)",
+			spanName: "test-span",
+			rattrs: map[string]string{
+				"service.name":                "env-svc",
+				"deployment.environment.name": "production-127",
+			},
+			sattrs:                           map[string]any{},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "env-svc", "server.request", "web", "server", "test-span", agentHost, "production-127", "", "", nil, nil, true, false),
+		},
+		{
+			name:     "both deployment.environment.name (1.27) and deployment.environment (1.17) - newer takes precedence",
+			spanName: "test-span",
+			rattrs: map[string]string{
+				"service.name":                           "env-svc",
+				"deployment.environment.name":            "prod-127",
+				string(semconv.DeploymentEnvironmentKey): "prod-117",
+			},
+			sattrs:                           map[string]any{},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "env-svc", "server.request", "web", "server", "test-span", agentHost, "prod-127", "", "", nil, nil, true, false),
+		},
+		{
+			name:     "db.system with V2 - operation name from db.system",
+			spanName: "SELECT users",
+			rattrs: map[string]string{
+				"service.name": "db-svc",
+				"db.system":    "postgresql",
+			},
+			sattrs: map[string]any{
+				"db.statement": "SELECT * FROM users",
+			},
+			spanKind:                         ptrace.SpanKindClient,
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "db-svc", "postgresql.query", "sql", "client", "SELECT * FROM users", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "db.query.text (semconv 1.26+) with V2",
+			spanName: "SELECT orders",
+			rattrs: map[string]string{
+				"service.name": "db-svc",
+				"db.system":    "postgresql",
+			},
+			sattrs: map[string]any{
+				"db.query.text": "SELECT * FROM orders WHERE status = 'active'",
+			},
+			spanKind:                         ptrace.SpanKindClient,
+			enableOperationAndResourceNameV2: true,
+			enableReceiveResourceSpansV2:     true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "db-svc", "postgresql.query", "sql", "client", "SELECT * FROM orders WHERE status = 'active'", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rspan := traces.ResourceSpans().AppendEmpty()
+			res := rspan.Resource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			sspan := rspan.ScopeSpans().AppendEmpty()
+			span := sspan.Spans().AppendEmpty()
+			span.SetTraceID(testTraceID)
+			span.SetSpanID(testSpanID1)
+			span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+			span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+			span.SetName(tt.spanName)
+			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				switch typ := v.(type) {
+				case int64:
+					span.Attributes().PutInt(k, v.(int64))
+				case string:
+					span.Attributes().PutStr(k, v.(string))
+				default:
+					t.Fatal("unhandled attribute value type ", typ)
+				}
+			}
+
+			conf := config.New()
+			conf.Hostname = agentHost
+			conf.DefaultEnv = agentEnv
+			if !tt.enableReceiveResourceSpansV2 {
+				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+			}
+			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+
+			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+			for _, input := range inputs {
+				concentrator.Add(input)
+			}
+
+			stats := concentrator.Flush(true)
+			if diff := cmp.Diff(
+				tt.expected,
+				stats,
+				protocmp.Transform(),
+				protocmp.IgnoreFields(&pb.ClientStatsBucket{}, "start", "duration"),
+				protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
+				t.Errorf("Diff between APM stats -want +got:\n%v", diff)
+			}
+		})
+	}
+}
+
+// TestProcessOTLPTraces_SemconvVersionMixing tests stats processing when spans use different semconv versions.
+func TestProcessOTLPTraces_SemconvVersionMixing(t *testing.T) {
+	start := time.Now().Add(-1 * time.Second)
+	end := time.Now()
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	agentEnv := "agent_env"
+	agentHost := "agent_host"
+
+	for _, tt := range []struct {
+		name                             string
+		spanName                         string
+		rattrs                           map[string]string
+		sattrs                           map[string]any
+		spanKind                         ptrace.SpanKind
+		enableOperationAndResourceNameV2 bool
+		expected                         *pb.StatsPayload
+	}{
+		{
+			name:     "mixed HTTP conventions - old http.method and new http.request.method",
+			spanName: "/api/mixed",
+			rattrs:   map[string]string{"service.name": "mixed-svc"},
+			sattrs: map[string]any{
+				"http.method":         "GET",
+				"http.request.method": "POST", // newer convention should take precedence in V2
+				"http.route":          "/api/mixed",
+			},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "mixed-svc", "http.server.request", "web", "server", "POST /api/mixed", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "mixed env conventions - deployment.environment and deployment.environment.name",
+			spanName: "test-span",
+			rattrs: map[string]string{
+				"service.name":                           "mixed-env-svc",
+				string(semconv.DeploymentEnvironmentKey): "env-117",
+				"deployment.environment.name":            "env-127",
+			},
+			sattrs:                           map[string]any{},
+			spanKind:                         ptrace.SpanKindServer,
+			enableOperationAndResourceNameV2: true,
+			expected:                         createStatsPayload(agentEnv, agentHost, "mixed-env-svc", "server.request", "web", "server", "test-span", agentHost, "env-127", "", "", nil, nil, true, false),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rspan := traces.ResourceSpans().AppendEmpty()
+			res := rspan.Resource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			sspan := rspan.ScopeSpans().AppendEmpty()
+			span := sspan.Spans().AppendEmpty()
+			span.SetTraceID(testTraceID)
+			span.SetSpanID(testSpanID1)
+			span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+			span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+			span.SetName(tt.spanName)
+			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				switch typ := v.(type) {
+				case int64:
+					span.Attributes().PutInt(k, v.(int64))
+				case string:
+					span.Attributes().PutStr(k, v.(string))
+				default:
+					t.Fatal("unhandled attribute value type ", typ)
+				}
+			}
+
+			conf := config.New()
+			conf.Hostname = agentHost
+			conf.DefaultEnv = agentEnv
+			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+			}
+
+			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
+			for _, input := range inputs {
+				concentrator.Add(input)
+			}
+
+			stats := concentrator.Flush(true)
+			if diff := cmp.Diff(
+				tt.expected,
+				stats,
+				protocmp.Transform(),
+				protocmp.IgnoreFields(&pb.ClientStatsBucket{}, "start", "duration"),
+				protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
+				t.Errorf("Diff between APM stats -want +got:\n%v", diff)
+			}
+		})
+	}
+}
