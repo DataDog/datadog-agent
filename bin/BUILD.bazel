@@ -14,6 +14,7 @@ filegroup(
     name = "bin_files",
     srcs = glob(
         ["agent/**"],
+        allow_empty = True,
         exclude = [
             "agent/dist/datadog.yaml",
             "agent/dist/conf.d/**",
