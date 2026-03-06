@@ -27,7 +27,8 @@ func isMsiSuccessExitCode(err error) bool {
 	}
 	// Error format from remote execution: "Process exited with status N: ..."
 	msg := err.Error()
-	return strings.Contains(msg, "status 1641") || strings.Contains(msg, "status 3010")
+	return strings.Contains(msg, fmt.Sprintf("status %d", msiExitSuccessRebootInitiated)) ||
+		strings.Contains(msg, fmt.Sprintf("status %d", msiExitSuccessRebootRequired))
 }
 
 // MsiExec runs msiexec on the VM with the provided operation and args and collects the log
