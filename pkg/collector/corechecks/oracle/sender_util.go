@@ -85,6 +85,27 @@ func sendMetric(c *Check, method metricType, metric string, value float64, tags 
 	metricFunction(metric, value, c.dbHostname, tags)
 }
 
+func sendMetricWithTimestamp(c *Check, method metricType, metric string, value float64, tags []string, timestamp float64) {
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("failed to get metric sender: %s", err)
+		return
+	}
+	switch method {
+	case gauge:
+		if err := sender.GaugeWithTimestamp(metric, value, c.dbHostname, tags, timestamp); err != nil {
+			log.Errorf("failed to send gauge with timestamp: %s", err)
+		}
+	case count:
+		if err := sender.CountWithTimestamp(metric, value, c.dbHostname, tags, timestamp); err != nil {
+			log.Errorf("failed to send count with timestamp: %s", err)
+		}
+	default:
+		log.Warnf("metric_timestamp is not supported for metric type of %s, falling back to submission without timestamp", metric)
+		sendMetric(c, method, metric, value, tags)
+	}
+}
+
 func sendMetricWithDefaultTags(c *Check, method metricType, metric string, value float64) {
 	sendMetric(c, method, metric, value, c.tags)
 }

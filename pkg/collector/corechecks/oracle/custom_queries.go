@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -99,6 +100,10 @@ func (c *Check) CustomQueries() error {
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 				continue
 			}
+		}
+		var queryStartTimestamp float64
+		if q.MetricTimestamp == "query_start" {
+			queryStartTimestamp = float64(time.Now().UnixNano()) / float64(time.Second)
 		}
 		rows, err := c.dbCustomQueries.Queryx(q.Query)
 		if rows != nil {
@@ -193,8 +198,13 @@ func (c *Check) CustomQueries() error {
 			continue
 		}
 		for _, m := range metricRows {
-			log.Debugf("%s send metric %+v", c.logPrompt, m)
-			sendMetric(c, m.method, m.name, m.value, m.tags)
+			if q.MetricTimestamp == "query_start" {
+				log.Debugf("%s send metric %+v with timestamp %f", c.logPrompt, m, queryStartTimestamp)
+				sendMetricWithTimestamp(c, m.method, m.name, m.value, m.tags, queryStartTimestamp)
+			} else {
+				log.Debugf("%s send metric %+v", c.logPrompt, m)
+				sendMetric(c, m.method, m.name, m.value, m.tags)
+			}
 		}
 		commit(c)
 	}
