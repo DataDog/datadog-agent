@@ -65,9 +65,13 @@ fn prepare_socket(path: &Path) -> Result<()> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("failed to create socket directory: {}", parent.display()))?;
     }
-    if path.exists() {
-        std::fs::remove_file(path)
-            .with_context(|| format!("failed to remove stale socket: {}", path.display()))?;
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(e)
+                .with_context(|| format!("failed to remove stale socket: {}", path.display()));
+        }
     }
     Ok(())
 }
@@ -85,10 +89,10 @@ fn set_socket_permissions(path: &Path) {
 }
 
 fn cleanup_socket(path: &Path) {
-    if path.exists()
-        && let Err(e) = std::fs::remove_file(path)
-    {
-        warn!("failed to clean up socket {}: {e}", path.display());
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => warn!("failed to clean up socket {}: {e}", path.display()),
     }
 }
 
