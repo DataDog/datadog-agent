@@ -59,23 +59,19 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
         let procs = self.mgr.read().await;
         let total = procs.len() as u32;
-        let running = procs.iter().filter(|p| p.is_running()).count() as u32;
-        let stopped = procs
-            .iter()
-            .filter(|p| p.state() == ProcessState::Stopped)
-            .count() as u32;
-        let failed = procs
-            .iter()
-            .filter(|p| p.state() == ProcessState::Failed)
-            .count() as u32;
-        let created = procs
-            .iter()
-            .filter(|p| p.state() == ProcessState::Created)
-            .count() as u32;
-        let exited = procs
-            .iter()
-            .filter(|p| p.state() == ProcessState::Exited)
-            .count() as u32;
+        let (mut created, mut starting, mut running, mut stopping) = (0u32, 0, 0, 0);
+        let (mut stopped, mut failed, mut exited) = (0u32, 0, 0);
+        for p in procs.iter() {
+            match p.state() {
+                ProcessState::Created => created += 1,
+                ProcessState::Starting => starting += 1,
+                ProcessState::Running => running += 1,
+                ProcessState::Stopping => stopping += 1,
+                ProcessState::Stopped => stopped += 1,
+                ProcessState::Failed => failed += 1,
+                ProcessState::Exited => exited += 1,
+            }
+        }
 
         Ok(Response::new(proto::GetStatusResponse {
             ready: true,
@@ -87,8 +83,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             failed_processes: failed,
             created_processes: created,
             exited_processes: exited,
-            starting_processes: 0,
-            stopping_processes: 0,
+            starting_processes: starting,
+            stopping_processes: stopping,
             config_path: self.config_path.clone(),
         }))
     }
@@ -97,7 +93,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 fn state_to_proto(state: ProcessState) -> i32 {
     match state {
         ProcessState::Created => proto::ProcessState::Created.into(),
+        ProcessState::Starting => proto::ProcessState::Starting.into(),
         ProcessState::Running => proto::ProcessState::Running.into(),
+        ProcessState::Stopping => proto::ProcessState::Stopping.into(),
         ProcessState::Exited => proto::ProcessState::Exited.into(),
         ProcessState::Failed => proto::ProcessState::Failed.into(),
         ProcessState::Stopped => proto::ProcessState::Stopped.into(),
@@ -148,8 +146,16 @@ mod tests {
             proto::ProcessState::Created as i32
         );
         assert_eq!(
+            state_to_proto(ProcessState::Starting),
+            proto::ProcessState::Starting as i32
+        );
+        assert_eq!(
             state_to_proto(ProcessState::Running),
             proto::ProcessState::Running as i32
+        );
+        assert_eq!(
+            state_to_proto(ProcessState::Stopping),
+            proto::ProcessState::Stopping as i32
         );
         assert_eq!(
             state_to_proto(ProcessState::Exited),
