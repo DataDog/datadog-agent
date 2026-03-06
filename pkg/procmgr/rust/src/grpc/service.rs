@@ -68,6 +68,14 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             .iter()
             .filter(|p| p.state() == ProcessState::Failed)
             .count() as u32;
+        let created = procs
+            .iter()
+            .filter(|p| p.state() == ProcessState::Created)
+            .count() as u32;
+        let exited = procs
+            .iter()
+            .filter(|p| p.state() == ProcessState::Exited)
+            .count() as u32;
 
         Ok(Response::new(proto::GetStatusResponse {
             ready: true,
@@ -77,6 +85,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             running_processes: running,
             stopped_processes: stopped,
             failed_processes: failed,
+            created_processes: created,
+            exited_processes: exited,
             config_path: self.config_path.clone(),
         }))
     }
@@ -188,5 +198,48 @@ mod tests {
         assert!(!detail.auto_start);
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
+    }
+
+    #[tokio::test]
+    async fn test_process_to_proto_running_with_pid() {
+        let cfg = ProcessConfig {
+            command: "/bin/sleep".to_string(),
+            args: vec!["60".to_string()],
+            ..Default::default()
+        };
+        let mut proc = ManagedProcess::new("sleeper".to_string(), cfg);
+        proc.spawn().unwrap();
+
+        let proto = process_to_proto(&proc);
+        assert_eq!(proto.name, "sleeper");
+        assert_eq!(proto.state, proto::ProcessState::Running as i32);
+        assert!(proto.pid > 0, "running process should have a non-zero pid");
+        assert_eq!(proto.command, "/bin/sleep");
+        assert_eq!(proto.args, vec!["60"]);
+
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(proto.pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+    }
+
+    #[tokio::test]
+    async fn test_process_to_proto_failed() {
+        let cfg = ProcessConfig {
+            command: "/bin/sh".to_string(),
+            args: vec!["-c".to_string(), "exit 1".to_string()],
+            ..Default::default()
+        };
+        let mut proc = ManagedProcess::new("fail-proc".to_string(), cfg);
+        proc.spawn().unwrap();
+
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        let proto = process_to_proto(&proc);
+        assert_eq!(proto.state, proto::ProcessState::Failed as i32);
+        assert!(proto.pid > 0, "failed process retains its last known pid");
     }
 }

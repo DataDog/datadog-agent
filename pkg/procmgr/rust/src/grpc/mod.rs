@@ -229,6 +229,8 @@ mod tests {
         assert_eq!(resp.version, env!("CARGO_PKG_VERSION"));
         assert_eq!(resp.total_processes, 2);
         assert_eq!(resp.running_processes, 0);
+        assert_eq!(resp.created_processes, 2);
+        assert_eq!(resp.exited_processes, 0);
         assert_eq!(resp.config_path, "/test/config/path");
     }
 
@@ -308,5 +310,121 @@ mod tests {
         assert_eq!(resp.running_processes, 0);
         assert_eq!(resp.stopped_processes, 0);
         assert_eq!(resp.failed_processes, 0);
+        assert_eq!(resp.created_processes, 0);
+        assert_eq!(resp.exited_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_status_mixed_states() {
+        // Running: spawn a long-lived process
+        let mut proc_running = ManagedProcess::new(
+            "running-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+        proc_running.spawn().unwrap();
+        let mut child = proc_running.take_child().unwrap();
+
+        // Failed: spawn a process that exits non-zero
+        let mut proc_failed = ManagedProcess::new(
+            "failed-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "exit 1".to_string()],
+                ..Default::default()
+            },
+        );
+        proc_failed.spawn().unwrap();
+        let mut child_fail = proc_failed.take_child().unwrap();
+        let status = child_fail.wait().await.unwrap();
+        proc_failed.set_last_status(status);
+
+        // Stopped: spawn then explicitly stop
+        let mut proc_stopped = ManagedProcess::new(
+            "stopped-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+        proc_stopped.spawn().unwrap();
+        proc_stopped.request_stop();
+        proc_stopped.wait_for_stop().await;
+
+        // Exited: spawn a process that exits cleanly
+        let mut proc_exited = ManagedProcess::new(
+            "exited-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "exit 0".to_string()],
+                ..Default::default()
+            },
+        );
+        proc_exited.spawn().unwrap();
+        let mut child_exit = proc_exited.take_child().unwrap();
+        let status_exit = child_exit.wait().await.unwrap();
+        proc_exited.set_last_status(status_exit);
+
+        // Created: never spawned
+        let proc_created = ManagedProcess::new(
+            "created-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        );
+
+        let procs = vec![proc_running, proc_failed, proc_stopped, proc_exited, proc_created];
+        let (mut client, _shutdown) = start_test_server(procs).await;
+
+        let resp = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.total_processes, 5);
+        assert_eq!(resp.running_processes, 1);
+        assert_eq!(resp.failed_processes, 1);
+        assert_eq!(resp.stopped_processes, 1);
+        assert_eq!(resp.exited_processes, 1);
+        assert_eq!(resp.created_processes, 1);
+
+        child.kill().await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_list_shows_running_pid() {
+        let mut proc = ManagedProcess::new(
+            "live-proc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+        proc.spawn().unwrap();
+        let mut child = proc.take_child().unwrap();
+
+        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let resp = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.processes.len(), 1);
+        assert_eq!(resp.processes[0].name, "live-proc");
+        assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
+        assert!(
+            resp.processes[0].pid > 0,
+            "running process should report a non-zero pid"
+        );
+
+        child.kill().await.ok();
     }
 }
