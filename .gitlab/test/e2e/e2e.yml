@@ -1024,6 +1024,8 @@ new-e2e-ssi-eks:
     E2E_PROVISIONER: eks
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on EKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 .new-e2e_package_signing:
   variables:
