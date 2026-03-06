@@ -4,24 +4,29 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
+  - echo "Attempting to retrieve linux go deps"
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
+  - echo "Attempting to retrieve linux go tools deps"
   - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
   - rm -f modcache_tools.tar.xz
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_tools_deps_arm64:
+  - echo "Attempting to retrieve linux go tools deps arm64"
   - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
   - rm -f modcache_tools_arm64.tar.xz
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
+  - echo "Attempting to retrieve linux go e2e deps"
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
 
 .retrieve_linux_pulumi_plugins:
+  - echo "Attempting to retrieve linux pulumi plugins"
   - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
   - rm -f pulumi_plugins.tar.xz
 
@@ -57,16 +62,16 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
-  cache:
-    # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
-    # We should also include the file this job is defined in to invalicate the cache when this job is modified.
-    - key:
-        files:
-          - go.mod
-          - ./**/go.mod
-        prefix: "go_deps_modcache"
-      paths:
-        - modcache.tar.xz
+  # cache:
+  #   # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+  #   # We should also include the file this job is defined in to invalicate the cache when this job is modified.
+  #   - key:
+  #       files:
+  #         - go.mod
+  #         - ./**/go.mod
+  #       prefix: "go_deps_modcache"
+  #     paths:
+  #       - modcache.tar.xz
   timeout: 35m
 
 go_tools_deps:
@@ -81,14 +86,14 @@ go_tools_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache_tools.tar.xz
-  cache:
-    - key:
-        files:
-          - ./**/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_tools_deps_modcache"
-      paths:
-        - modcache_tools.tar.xz
+  # cache:
+  #   - key:
+  #       files:
+  #         - ./**/go.mod
+  #         - .gitlab/.pre/deps_fetch/deps_fetch.yml
+  #       prefix: "go_tools_deps_modcache"
+  #     paths:
+  #       - modcache_tools.tar.xz
 
 go_tools_deps_arm64:
   extends: .cache
@@ -102,14 +107,14 @@ go_tools_deps_arm64:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
-  cache:
-    - key:
-        files:
-          - ./**/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_tools_deps_modcache_arm64"
-      paths:
-        - modcache_tools_arm64.tar.xz
+  # cache:
+  #   - key:
+  #       files:
+  #         - ./**/go.mod
+  #         - .gitlab/.pre/deps_fetch/deps_fetch.yml
+  #       prefix: "go_tools_deps_modcache_arm64"
+  #     paths:
+  #       - modcache_tools_arm64.tar.xz
 
 go_e2e_deps:
   id_tokens:
@@ -138,21 +143,21 @@ go_e2e_deps:
     paths:
       - $CI_PROJECT_DIR/modcache_e2e.tar.xz
       - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
-  cache:
-    - key:
-        files:
-          - ./test/new-e2e/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "go_e2e_deps_modcache"
-      paths:
-        - modcache_e2e.tar.xz
-    - key:
-        files:
-          - ./test/new-e2e/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
-        prefix: "pulumi_plugins"
-      paths:
-        - pulumi_plugins.tar.xz
+  # cache:
+  #   - key:
+  #       files:
+  #         - ./test/new-e2e/go.mod
+  #         - .gitlab/.pre/deps_fetch/deps_fetch.yml
+  #       prefix: "go_e2e_deps_modcache"
+  #     paths:
+  #       - modcache_e2e.tar.xz
+  #   - key:
+  #       files:
+  #         - ./test/new-e2e/go.mod
+  #         - .gitlab/.pre/deps_fetch/deps_fetch.yml
+  #       prefix: "pulumi_plugins"
+  #     paths:
+  #       - pulumi_plugins.tar.xz
 
 fetch_openjdk:
   needs: []
