@@ -2,14 +2,14 @@
 # Create dd-agent group
 lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 
-# Create dd-agent user (no login shell)
+# Create dd-agent user (no interactive login).
+# Use login=false rlogin=false instead of shell=/usr/bin/false: the shell= attribute
+# requires the shell to be listed in the usw.shells list in /etc/security/login.cfg,
+# which /usr/bin/false is not on a standard AIX system.  login=false/rlogin=false
+# achieves the same "no login" result without that constraint.
 if ! id dd-agent > /dev/null 2>&1; then
-    # Register /usr/bin/false as a valid shell in AIX login config if not present
-    grep -q '^/usr/bin/false:' /etc/security/login.cfg || \
-        printf '\n/usr/bin/false:\n\tregistry = files\n' >> /etc/security/login.cfg
-    # Create home directory before mkuser so AIX does not reject the path
     mkdir -p /var/lib/datadog-agent
-    mkuser pgrp=dd-agent shell=/usr/bin/false home=/var/lib/datadog-agent id=9001 dd-agent
+    mkuser pgrp=dd-agent login=false rlogin=false home=/var/lib/datadog-agent id=9001 dd-agent
 fi
 
 # Add dd-agent to adm group (required for sar — used by the CPU check)
@@ -22,9 +22,11 @@ chown dd-agent:dd-agent /var/lib/datadog-agent 2>/dev/null || true
 chown dd-agent:dd-agent /var/log/datadog       2>/dev/null || true
 chown dd-agent:dd-agent /var/run/datadog       2>/dev/null || true
 chown dd-agent:dd-agent /opt/datadog-agent/run 2>/dev/null || true
-# Config dir: root-owned, dd-agent group readable (api_key etc. should stay private)
-chown root:dd-agent /etc/datadog-agent 2>/dev/null || true
-chmod 750 /etc/datadog-agent           2>/dev/null || true
+# Config dir: owned by dd-agent so the agent can create the auth_token file there.
+# datadog.yaml is installed with mode 640 (root-readable only from outside the group),
+# but the agent process itself must be able to write auth_token and run subdirs.
+chown dd-agent:dd-agent /etc/datadog-agent 2>/dev/null || true
+chmod 750 /etc/datadog-agent               2>/dev/null || true
 
 # Write SRC wrapper script.
 # AIX's mkssys does not support setting environment variables (-e is stderr
@@ -48,7 +50,7 @@ TRACE_WRAPPER=/opt/datadog-agent/bin/trace-agent-svc
 printf '#!/bin/sh\n'                                                              > "$TRACE_WRAPPER"
 printf 'export LIBPATH=%s\n' "$LIBPATH_VAL"                                      >> "$TRACE_WRAPPER"
 printf 'export PATH=/opt/datadog-agent/embedded/bin:/opt/freeware/bin:/usr/bin:/bin\n' >> "$TRACE_WRAPPER"
-printf 'exec /opt/datadog-agent/bin/trace-agent --config /etc/datadog-agent/datadog.yaml\n' >> "$TRACE_WRAPPER"
+printf 'exec /opt/datadog-agent/bin/trace-agent run --config /etc/datadog-agent/datadog.yaml\n' >> "$TRACE_WRAPPER"
 chmod 755 "$TRACE_WRAPPER"
 
 # Remove stale SRC entries then register fresh.
@@ -68,9 +70,12 @@ mkssys -s datadog-trace-agent \
        -u dd-agent \
        -R -S -n 15 -f 9
 
-# Compile Python bytecode
+# Compile Python bytecode.
+# LIBPATH must include the embedded Python libs; the installp shell context does not
+# set LIBPATH, so we set it explicitly here.
 PYTHON=/opt/datadog-agent/embedded/bin/python3.13
 if [ -x "$PYTHON" ]; then
+    LIBPATH=/opt/datadog-agent/embedded/lib:/opt/datadog-agent/rtloader${LIBPATH:+:$LIBPATH} \
     "$PYTHON" -m compileall /opt/datadog-agent/embedded/lib/python3.13/site-packages \
               -x 'test/' -q 2>/dev/null || true
 fi

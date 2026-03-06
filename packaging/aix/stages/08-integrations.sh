@@ -64,12 +64,16 @@ trap cleanup EXIT
 # agent binary itself and do not require pip install.  We bundle their example
 # configuration files so the operator can see the available options.
 
-log "Copying built-in Go check example configs"
-for check in cpu memory disk load network; do
+log "Copying built-in Go check default configs"
+# Built-in check config files are named conf.yaml.default (not conf.yaml.example).
+# The network check is intentionally excluded: datadog_checks.network is a Python
+# check that is not bundled in the AIX package; including its config causes the
+# agent to attempt loading the Python check and log an ImportError at startup.
+for check in cpu memory disk load; do
     mkdir -p "$STAGING/etc/datadog-agent/conf.d/${check}.d"
-    cp "/opt/datadog-agent/cmd/agent/dist/conf.d/${check}.d/conf.yaml.example" \
+    cp "/opt/datadog-agent/cmd/agent/dist/conf.d/${check}.d/conf.yaml.default" \
        "$STAGING/etc/datadog-agent/conf.d/${check}.d/" 2>/dev/null || \
-        log "WARNING: no conf.yaml.example for built-in check: $check"
+        log "WARNING: no conf.yaml.default for built-in check: $check"
 done
 log "Built-in check configs copied"
 

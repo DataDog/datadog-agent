@@ -657,6 +657,7 @@ def check_supports_python_version(check_dir, python):
     Check if a Python project states support for a given major Python version.
     """
     import toml
+
     from packaging.specifiers import SpecifierSet
 
     if python not in ['2', '3']:

@@ -178,6 +178,19 @@ ar -X64 -r libdatadog-agent-three.a shr_64.o
 rm -f shr_64.o
 log "Archive wrappers created (member: shr_64.o in each .a)."
 
+# ─── Step 4c: Copy .a archive wrappers to staging ─────────────────────────────
+#
+# The AIX dynamic linker resolves shared library dependencies by looking for
+# lib<name>.a(shr_64.o) archives in LIBPATH.  If only the .so file is present
+# the loader raises "Dependent module lib<name>.a(shr_64.o) could not be loaded."
+# Both the .so and the .a must exist in the same directory in the package.
+
+log "Copying rtloader .a archive wrappers to staging"
+cp /opt/datadog-agent/rtloader/build/rtloader/libdatadog-agent-rtloader.a \
+   /opt/datadog-agent/rtloader/build/three/libdatadog-agent-three.a \
+   "$STAGING/opt/datadog-agent/rtloader/"
+log "Archive wrappers copied to staging."
+
 # ─── Step 5: Verify XCOFF64 magic bytes ───────────────────────────────────────
 #
 # XCOFF64 files begin with magic bytes 01 f7 (big-endian 0x01F7 = XCOFF64_MAGIC).

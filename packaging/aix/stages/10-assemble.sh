@@ -65,6 +65,33 @@ cp /opt/datadog-agent/cmd/agent/dist/datadog.yaml \
     "$STAGING/etc/datadog-agent/datadog.yaml.example"
 log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 
+
+# ─── Step 2b: Install sitecustomize.py ────────────────────────────────────────
+#
+# On AIX, pydantic_core's bundled libunwind.a(libunwind.so.1) has an undefined
+# reference to __xlcxx_personality_v0 (from the XLC++ ABI library libc++abi.a).
+# GCC-compiled Python does not load libc++abi.a automatically, so importing
+# pydantic_core fails with "Could not load dynamic library" at runtime.
+#
+# sitecustomize.py is executed by Python on every startup before any user code.
+# We use it to pre-load /usr/lib/libc++abi.a with RTLD_GLOBAL so that
+# __xlcxx_personality_v0 is available when pydantic_core (or any other C++
+# extension using libunwind) is imported.
+
+SITECUSTOMIZE_SRC="$(dirname "$0")/../sitecustomize.py"
+PYTHON_LIB_DIR="$EMBEDDED_DESTDIR/lib/python3.13"
+if [ ! -f "$SITECUSTOMIZE_SRC" ]; then
+    log "ERROR: sitecustomize.py not found at $SITECUSTOMIZE_SRC"
+    exit 1
+fi
+if [ ! -d "$PYTHON_LIB_DIR" ]; then
+    log "ERROR: Python lib dir not found at $PYTHON_LIB_DIR"
+    log "       Did Stage 02 (02-python) complete successfully?"
+    exit 1
+fi
+cp "$SITECUSTOMIZE_SRC" "$PYTHON_LIB_DIR/sitecustomize.py"
+log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
+
 # ─── Step 3: Create required empty directories ────────────────────────────────
 #
 # mkinstallp will include these directories in the package so that installp
