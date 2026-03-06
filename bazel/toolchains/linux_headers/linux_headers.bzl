@@ -124,6 +124,10 @@ def _discover_header_dirs(rctx, kernel_arch):
                 candidates[resolved] = res_name
 
     # Score and filter
+    # Debian/Ubuntu split header packages. So one can install the headers for a different architecture
+    # for example, to do cross-compilation. We need to exclude the headers for the wrong architecture.
+    # Therefore, prioritization is done based on the architecture match and then the version match.
+    # TODO{agent-build}: kernel headers should be a hermetic package instead of a host lookup.
     scored = []  # list of (priority, sort_order, resolved_path)
     for resolved, name in candidates.items():
         version = _parse_kernel_version(name)
