@@ -1,3 +1,4 @@
+# check=skip=SecretsUsedInArgOrEnv
 ARG AGENT_DOCKER_REPO=datadog/agent
 ARG AGENT_VERSION=7.72.2
 ARG UBUNTU_VERSION=24.04
@@ -129,7 +130,6 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 ARG AGENT_OCI
 ARG OUTPUT_OCI
 # REGISTRY_AUTH selects the auth method ("docker", "gcr", or "password") and is not sensitive.
-# check=skip=SecretsUsedInArgOrEnv
 ARG REGISTRY_AUTH=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
     --mount=type=secret,id=registry_username,required=false \
@@ -139,7 +139,6 @@ set -e
 export REGISTRY_USERNAME=$(cat /run/secrets/registry_username 2>/dev/null || true)
 export REGISTRY_PASSWORD=$(cat /run/secrets/registry_password 2>/dev/null || true)
 ARCH=$(dpkg --print-architecture)
-mkdir -p /dist
 case "$PACKAGE_TYPE" in
   linux)
     if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
@@ -151,7 +150,6 @@ case "$PACKAGE_TYPE" in
       --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent \
       --output-oci "$OUTPUT_OCI" \
       --os linux --arch "$ARCH"
-    cp /workspace/datadog-agent/bin/otel-agent/otel-agent /dist/
     ;;
   windows)
     if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
@@ -163,21 +161,13 @@ case "$PACKAGE_TYPE" in
       --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent.exe \
       --output-oci "$OUTPUT_OCI" \
       --os windows --arch amd64
-    cp /workspace/datadog-agent/bin/otel-agent/otel-agent.exe /dist/
     ;;
-  "")
-    cp /workspace/datadog-agent/bin/otel-agent/otel-agent /dist/
-    ;;
-  *)
+  ?*)
     echo "PACKAGE_TYPE must be 'linux' or 'windows', got: $PACKAGE_TYPE" >&2
     exit 1
     ;;
 esac
 RUNSCRIPT
-
-# Create a stage for extracting the built artifact (binary or packages)
-FROM scratch AS artifact
-COPY --from=builder /dist/* /ddot-byoc/
 
 # Use the final Datadog agent image
 FROM ${AGENT_DOCKER_REPO}:${AGENT_DOCKER_TAG} AS result
