@@ -7,7 +7,6 @@ package main
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -148,7 +147,7 @@ type Manifest struct {
 }
 
 func getBinariesFromPackages(packages []string) ([]string, []string, error) {
-	binariesPath := "test-binaries.tar.gz"
+	binariesPath := "test-binaries.tar.zst"
 	manifestPath := "manifest.json"
 	extractPath := "test-binaries"
 
@@ -197,20 +196,18 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		}
 	}
 
-	// Open and extract tar.gz file
-	file, err := os.Open(binariesPath)
+	// Open and extract tar.zst file using zstd command
+	zstdCmd := exec.Command("zstd", "-dc", binariesPath)
+	zstdOut, err := zstdCmd.StdoutPipe()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
+		return nil, nil, fmt.Errorf("failed to create zstd pipe: %v", err)
 	}
-	defer file.Close()
-
-	gzr, err := gzip.NewReader(file)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create gzip reader: %v", err)
+	if err := zstdCmd.Start(); err != nil {
+		return nil, nil, fmt.Errorf("failed to start zstd: %v", err)
 	}
-	defer gzr.Close()
+	defer zstdCmd.Wait()
 
-	tr := tar.NewReader(gzr)
+	tr := tar.NewReader(zstdOut)
 
 	// Extract only the targeted binaries
 	for {
