@@ -507,12 +507,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(stateStats)
-	if err != nil {
-		return nil
-	}
-
-	stateStats := stats["state"].(map[string]int64)
+	stateStats := t.state.GetStats()["telemetry"].(map[string]int64)
 	if ccd, ok := stateStats["closed_conn_dropped"]; ok {
 		tm[network.MonotonicClosedConnDropped] = ccd
 	}
@@ -675,58 +670,25 @@ func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	return defaultUDPConnTimeoutNanoSeconds
 }
 
-type statsComp int
-
-const (
-	conntrackStats statsComp = iota
-	dnsStats
-	epbfStats
-	gatewayLookupStats
-	httpStats
-	kprobesStats
-	stateStats
-	tracerStats
-	processCacheStats
-	kafkaStats
-)
-
-var allStats = []statsComp{
-	stateStats,
-	tracerStats,
-	httpStats,
-}
-
-func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
+func (t *Tracer) getStats() (map[string]any, error) {
 	if t.state == nil {
 		return nil, errors.New("internal state not yet initialized")
 	}
 
-	if len(comps) == 0 {
-		comps = allStats
-	}
-
-	ret := map[string]interface{}{}
-	for _, c := range comps {
-		switch c {
-		case stateStats:
-			ret["state"] = t.state.GetStats()["telemetry"]
-		case tracerStats:
-			tracerStats := make(map[string]interface{})
-			tracerStats["last_check"] = t.lastCheck.Load()
-			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
-			ret["tracer"] = tracerStats
-		case httpStats:
-			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
-		}
-	}
-
-	return ret, nil
+	return map[string]any{
+		"state": t.state.GetStats()["telemetry"],
+		"tracer": map[string]any{
+			"last_check": t.lastCheck.Load(),
+			"runtime":    runtime.Tracer.GetTelemetry(),
+		},
+		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
+	}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
-func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"tracer": map[string]interface{}{
+func (t *Tracer) GetStats() (map[string]any, error) {
+	return map[string]any{
+		"tracer": map[string]any{
 			"last_check": t.lastCheck.Load(),
 		},
 		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
