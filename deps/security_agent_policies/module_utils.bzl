@@ -38,7 +38,7 @@ def _get_security_agent_policies_impl(rctx):
     rctx.download_and_extract(
         url = [url],
         sha256 = sha256,
-        stripPrefix = "security-agent-policies-{version}".format(version = version_num),
+        strip_prefix = "security-agent-policies-{version}".format(version = version_num),
         canonical_id = rctx.attr.canonical_id or get_default_canonical_id(rctx, [url]),
         auth = get_auth(rctx, [url]),
     )
