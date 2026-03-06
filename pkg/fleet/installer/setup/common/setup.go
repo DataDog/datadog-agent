@@ -103,6 +103,15 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
 	}
 
+	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
+	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
+		s.Config.DatadogYAML.AppKey = os.Getenv("DD_APP_KEY")
+		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
+		parAllowlist := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
+		s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = strings.Split(parAllowlist, ",")
+	}
+
 	return s, nil
 }
 
