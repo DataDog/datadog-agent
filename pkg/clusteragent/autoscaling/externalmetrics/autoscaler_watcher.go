@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
@@ -34,11 +35,11 @@ import (
 )
 
 const (
-	autoscalerWatcherStoreID    string = "aw"
-	autoscalerReferencesSep     string = ", "
-	autoscalerReferencesKindSep string = ":"
-	autoscalerWPAKindKey        string = "wpa"
-	autoscalerHPAKindKey        string = "hpa"
+	autoscalerWatcherStoreID    autoscaling.SenderID = "aw"
+	autoscalerReferencesSep     string               = ", "
+	autoscalerReferencesKindSep string               = ":"
+	autoscalerWPAKindKey        string               = "wpa"
+	autoscalerHPAKindKey        string               = "hpa"
 )
 
 // AutoscalerWatcher watches autoscaling objects and reconciles the corresponding external metrics
