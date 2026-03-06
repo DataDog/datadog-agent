@@ -138,7 +138,7 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if with_sd_agent:
-        env['WITH_SD_AGENT'] = 'true'
+        print("--with-sd-agent is a no-op. It is always built when appropriate for the platform.")
     if with_dd_procmgrd:
         env['WITH_DD_PROCMGRD'] = 'true'
     env['AGENT_FLAVOR'] = flavor.name
