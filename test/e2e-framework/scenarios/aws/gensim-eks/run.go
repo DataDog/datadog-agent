@@ -210,11 +210,11 @@ func Run(ctx *pulumi.Context) error {
 				"useConfigMap": pulumi.Bool(true),
 				"customAgentConfig": pulumi.Map{
 					"observer": pulumi.Map{
-						"capture_metrics": pulumi.Map{
-							"enabled": pulumi.Bool(true),
+						"recording": pulumi.Map{
+							"enabled":                pulumi.Bool(true),
+							"parquet_output_dir":     pulumi.String("/tmp/observer-parquet"),
+							"parquet_flush_interval": pulumi.String("30s"),
 						},
-						"parquet_output_dir":     pulumi.String("/tmp/observer-parquet"),
-						"parquet_flush_interval": pulumi.String("30s"),
 					},
 				},
 			},
