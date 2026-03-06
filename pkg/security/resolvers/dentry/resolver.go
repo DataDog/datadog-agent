@@ -9,7 +9,6 @@
 package dentry
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -493,18 +492,31 @@ func (dr *Resolver) computeSegmentCount() int {
 	count := 0
 	i := 0
 	for i < dr.erpcSegmentSize {
+		// ensure there is enough room for the fixed-size path key header
+		if i+16 > dr.erpcSegmentSize {
+			break
+		}
 		i += 16 // skip the path key
 
-		if i < dr.erpcSegmentSize {
-			if dr.erpcSegment[i] == '/' {
-				break
-			}
-
-			// skip the segment
-			i += bytes.IndexByte(dr.erpcSegment[i:], 0)
+		if i >= dr.erpcSegmentSize {
+			break
+		}
+		if dr.erpcSegment[i] == '/' {
+			break
 		}
 
-		i++ // skip the null terminator
+		// scan the segment until we reach the null terminator or the end of the buffer
+		j := i
+		for j < dr.erpcSegmentSize && dr.erpcSegment[j] != 0 {
+			j++
+		}
+		if j >= dr.erpcSegmentSize {
+			// no terminator found before the end of the buffer, stop counting
+			break
+		}
+
+		// skip the null terminator and count this segment
+		i = j + 1
 		count++
 	}
 	return count
