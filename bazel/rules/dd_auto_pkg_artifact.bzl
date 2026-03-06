@@ -88,6 +88,7 @@ def _dd_auto_pkg_artifact_impl(ctx):
             install_files = ctx.attr.install_files,
         ),
     ]
+
     # Re-export CC providers so this target is a drop-in for dynamic_deps.
     if has_shared_lib:
         providers.append(src[CcSharedLibraryInfo])
