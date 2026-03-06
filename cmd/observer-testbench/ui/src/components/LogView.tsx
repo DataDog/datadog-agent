@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
@@ -17,6 +18,7 @@ interface LogViewProps {
   sidebarWidth: number;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  phaseMarkers?: PhaseMarker[];
 }
 
 const LOG_CHART_HEIGHT = 80;
@@ -96,6 +98,7 @@ function LogRateChart({
   hoveredAnomalyIndex,
   timeRange,
   onTimeRangeChange,
+  phaseMarkers = [],
 }: {
   logs: LogEntry[];
   anomalies: LogAnomaly[];
@@ -105,6 +108,7 @@ function LogRateChart({
   hoveredAnomalyIndex?: number | null;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  phaseMarkers?: PhaseMarker[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,8 +122,17 @@ function LogRateChart({
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   const buckets = useMemo(() => {
-    const displayStart = timeRange?.start ?? scenarioStart;
-    const displayEnd = timeRange?.end ?? scenarioEnd;
+    let displayStart = timeRange?.start ?? scenarioStart;
+    let displayEnd = timeRange?.end ?? scenarioEnd;
+    // Fall back to log timestamp bounds when no other bounds are available
+    if (!displayStart || !displayEnd || displayEnd <= displayStart) {
+      for (const l of logs) {
+        const ts = l.timestampMs / 1000;
+        if (!ts) continue;
+        if (!displayStart || ts < displayStart) displayStart = ts;
+        if (!displayEnd || ts > displayEnd) displayEnd = ts;
+      }
+    }
     if (!displayStart || !displayEnd || displayEnd <= displayStart) return [];
     const bucketSize = Math.max(LOG_CHART_MIN_BUCKET_SIZE_S, (displayEnd - displayStart) / LOG_CHART_TARGET_BUCKETS);
     const bucketCount = Math.ceil((displayEnd - displayStart) / bucketSize);
@@ -152,7 +165,7 @@ function LogRateChart({
   // D3 chart drawing
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
-    if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart || buckets.length === 0) return;
+    if (buckets.length === 0) return;
     if (isBrushingRef.current) return;
 
     const m = LOG_CHART_MARGIN;
@@ -262,6 +275,29 @@ function LogRateChart({
       }
     }
 
+    // Phase marker lines (dotted vertical lines for episode phases)
+    phaseMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp * 1000);
+      if (x < -20 || x > innerWidth + 20) return;
+      barsG.append('line')
+        .attr('x1', x).attr('x2', x)
+        .attr('y1', 0).attr('y2', innerHeight)
+        .attr('stroke', marker.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3')
+        .attr('opacity', 0.8)
+        .attr('pointer-events', 'none');
+      barsG.append('text')
+        .attr('x', x + 3)
+        .attr('y', 10)
+        .attr('fill', marker.color)
+        .attr('font-size', '9px')
+        .attr('font-family', 'monospace')
+        .attr('opacity', 0.9)
+        .attr('pointer-events', 'none')
+        .text(marker.label);
+    });
+
     // X axis
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
@@ -301,7 +337,7 @@ function LogRateChart({
       .attr('fill', 'rgba(45, 212, 191, 0.2)')
       .attr('stroke', '#2dd4bf')
       .attr('stroke-width', 1);
-  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex]);
+  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex, phaseMarkers]);
 
   // Panning (middle-click or cmd+left-drag)
   useEffect(() => {
@@ -372,7 +408,10 @@ function LogRateChart({
     };
   }, [timeRange]);
 
-  if (!scenarioStart || !scenarioEnd || scenarioEnd <= scenarioStart) return null;
+  const hasBounds = (scenarioStart && scenarioEnd && scenarioEnd > scenarioStart)
+    || (timeRange && timeRange.end > timeRange.start)
+    || buckets.length > 0;
+  if (!hasBounds) return null;
 
   return (
     <div className="bg-slate-800/60 rounded p-3 mb-4">
@@ -567,7 +606,7 @@ function getEffectiveTags(tags: string[], status: string): string[] {
   return tags.includes(statusTag) ? tags : [statusTag, ...tags];
 }
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
@@ -653,7 +692,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
     <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
-        className="bg-slate-800 border-r border-slate-700 flex flex-col"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector
@@ -761,6 +800,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               hoveredAnomalyIndex={hoveredAnomalyIndex}
               timeRange={timeRange}
               onTimeRangeChange={onTimeRangeChange}
+              phaseMarkers={phaseMarkers}
             />
 
             {/* Detected Anomalies collapsible section */}

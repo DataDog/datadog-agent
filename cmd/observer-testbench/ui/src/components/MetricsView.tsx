@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
 import type { SeriesVariant } from './MetricsChart';
 import { getDetectorColorStable } from './MetricsChart';
-import type { TimeRange } from './ChartWithAnomalyDetails';
+import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
@@ -48,6 +48,7 @@ interface MetricsViewProps {
   timeRange: TimeRange | null;
   onTimeRangeChange: (range: TimeRange | null) => void;
   smoothLines: boolean;
+  phaseMarkers?: PhaseMarker[];
 }
 
 export function MetricsView({
@@ -57,6 +58,7 @@ export function MetricsView({
   timeRange,
   onTimeRangeChange,
   smoothLines,
+  phaseMarkers,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
@@ -101,12 +103,10 @@ export function MetricsView({
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allSeries]);
 
-  const filteredSeries = useMemo(() => {
-    const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
-    const filter = parseTagFilter(tagFilterInput);
-    if (filter.include.size === 0 && filter.exclude.size === 0) return byAggType;
-    return byAggType.filter((s) => matchesTagFilter(s.tags ?? [], filter));
-  }, [allSeries, aggregationType, tagFilterInput]);
+  const filteredSeries = useMemo(
+    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    [allSeries, aggregationType]
+  );
 
   const metricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
@@ -172,6 +172,8 @@ export function MetricsView({
     [visibleGroups]
   );
 
+  const tagFilter = useMemo(() => parseTagFilter(tagFilterInput), [tagFilterInput]);
+
   const initializedScenarioRef = useRef<string | null>(null);
   useEffect(() => {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
@@ -188,15 +190,23 @@ export function MetricsView({
     const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
     const virtKeys = visibleGroups.filter((g) => g.baseName.startsWith('_virtual.')).map((g) => g.key);
 
-    const ranked = [...visibleGroups]
-      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'))
-      .sort((a, b) => {
-        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-        if (countDiff !== 0) return countDiff;
-        return a.baseName.localeCompare(b.baseName);
-      });
+    const mainGroups = [...visibleGroups]
+      .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
 
-    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys, ...virtKeys]));
+    const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
+    const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
+    const defaultKeys = defaultGroup
+      ? [defaultGroup.key]
+      : mainGroups
+          .sort((a, b) => {
+            const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+            if (countDiff !== 0) return countDiff;
+            return a.baseName.localeCompare(b.baseName);
+          })
+          .slice(0, 6)
+          .map((g) => g.key);
+
+    setSelectedGroups(new Set(defaultKeys));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
@@ -250,7 +260,7 @@ export function MetricsView({
   return (
     <div className="flex-1 flex">
       <aside
-        className="bg-slate-800 border-r border-slate-700 flex flex-col"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector
@@ -339,7 +349,7 @@ export function MetricsView({
           </label>
         </div>
 
-        <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+        <div className="p-4 border-b border-slate-700">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Metric Groups ({displayGroups.length})
@@ -504,9 +514,12 @@ export function MetricsView({
                     .map((groupKey) => {
                       const dataList = groupSeriesData.get(groupKey) ?? [];
                       if (dataList.length === 0) return null;
-                      const chartSeries = showAnomalyOnlySeriesLines
-                        ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                      const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
+                        ? dataList.filter((d) => matchesTagFilter(d.tags ?? [], tagFilter))
                         : dataList;
+                      const chartSeries = showAnomalyOnlySeriesLines
+                        ? tagFiltered.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                        : tagFiltered;
                       if (chartSeries.length === 0) return null;
                       const seriesIDs = new Set(chartSeries.map((d) => d.id));
                       const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
@@ -530,6 +543,7 @@ export function MetricsView({
                           onTimeRangeChange={onTimeRangeChange}
                           smoothLines={smoothLines}
                           seriesVariants={seriesVariants}
+                          phaseMarkers={phaseMarkers}
                         />
                       );
                     })
@@ -585,6 +599,7 @@ export function MetricsView({
                               onTimeRangeChange={onTimeRangeChange}
                               smoothLines={smoothLines}
                               seriesVariants={seriesVariants}
+                              phaseMarkers={phaseMarkers}
                             />
                           );
                         })}
@@ -639,6 +654,7 @@ export function MetricsView({
                               smoothLines={smoothLines}
                               seriesVariants={seriesVariants}
                               isTelemetry
+                              phaseMarkers={phaseMarkers}
                             />
                           );
                         })}

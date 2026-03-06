@@ -9,6 +9,32 @@ export interface ServerConfig {
   components: Record<string, boolean>;
 }
 
+export interface EpisodePhase {
+  start: string;
+  end: string;
+}
+
+export interface EpisodeScenario {
+  app_name: string;
+  description: string;
+  long_description: string;
+}
+
+export interface EpisodeInfo {
+  episode: string;
+  cycle: number;
+  scenario: EpisodeScenario;
+  environment: string;
+  execution_id: string;
+  success: boolean;
+  start_time: string;
+  end_time: string;
+  warmup?: EpisodePhase;
+  baseline?: EpisodePhase;
+  disruption?: EpisodePhase;
+  cooldown?: EpisodePhase;
+}
+
 export interface StatusResponse {
   ready: boolean;
   scenario: string | null;
@@ -19,6 +45,7 @@ export interface StatusResponse {
   correlatorsProcessing: boolean;
   scenarioStart?: number;
   scenarioEnd?: number;
+  episodeInfo?: EpisodeInfo;
   serverConfig: ServerConfig;
 }
 
