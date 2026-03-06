@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
@@ -246,7 +247,7 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 	// Patch spec.containers[*].resources via the pods/resize subresource.
 	containersResourcePatches := fromAutoscalerToContainerResourcePatches(autoscalerInternal, pod)
 	intent := workloadpatcher.NewPatchIntent(patchTarget).With(workloadpatcher.SetContainerResources(containersResourcePatches))
-	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize"})
+	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize", PatchType: types.StrategicMergePatchType})
 	if err != nil {
 		return fmt.Errorf("failed to patch pod %s/%s resources in place: %w", pod.Namespace, pod.Name, err)
 	}
