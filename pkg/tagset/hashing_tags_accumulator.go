@@ -18,8 +18,9 @@ import (
 type HashingTagsAccumulator struct {
 	hashedTags
 
-	IncludeAll bool
-	IncludeTag func(string) bool
+	IncludeAll           bool
+	IncludeTag           func(string) bool
+	IncludeTagByNameHash func(uint64) bool
 }
 
 // RetainFunc keeps tags if `keep` returns true, otherwise the tag and associated
@@ -71,6 +72,13 @@ func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 	if h.IncludeAll {
 		h.data = append(h.data, src.data...)
 		h.hash = append(h.hash, src.hash...)
+	} else if h.IncludeTagByNameHash != nil && len(src.nameHash) > 0 {
+		for idx := range src.data {
+			if h.IncludeTagByNameHash(src.nameHash[idx]) {
+				h.data = append(h.data, src.data[idx])
+				h.hash = append(h.hash, src.hash[idx])
+			}
+		}
 	} else {
 		for idx := range src.data {
 			if h.IncludeTag(src.data[idx]) {
@@ -120,6 +128,7 @@ func (h *HashingTagsAccumulator) Reset() {
 	h.hash = h.hash[0:0]
 
 	h.IncludeAll = true
+	h.IncludeTagByNameHash = nil
 }
 
 // Truncate retains first n tags in the buffer without discarding the internal buffer
@@ -145,9 +154,10 @@ func (h *HashingTagsAccumulator) Swap(i, j int) {
 // Dup returns a complete copy of HashingTagsAccumulator
 func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{
-		hashedTags: h.dup(),
-		IncludeAll: h.IncludeAll,
-		IncludeTag: h.IncludeTag,
+		hashedTags:           h.dup(),
+		IncludeAll:           h.IncludeAll,
+		IncludeTag:           h.IncludeTag,
+		IncludeTagByNameHash: h.IncludeTagByNameHash,
 	}
 }
 
