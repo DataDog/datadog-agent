@@ -352,12 +352,12 @@ def find_copyright(ctx, licenses):
 @task
 def lint_rust_licenses(ctx):
     """
-    Checks that the Rust sd-agent LICENSE-3rdparty.csv file is up-to-date
+    Checks that the Rust LICENSE-3rdparty.csv file is up-to-date
     and that all licenses are allowed.
     """
     print("Verify Rust licenses")
 
-    rust_dir = 'pkg/discovery/module/rust'
+    rust_dir = 'rust'
 
     # Check license compliance with cargo deny
     result = ctx.run(f'cd {rust_dir} && cargo deny check licenses', warn=True)
@@ -378,8 +378,8 @@ def lint_rust_licenses(ctx):
 @task
 def generate_rust_licenses(ctx):
     """
-    Generates the LICENSE-3rdparty.csv file for sd-agent Rust module.
+    Generates the LICENSE-3rdparty.csv file for the Rust workspace.
     """
-    rust_dir = 'pkg/discovery/module/rust'
+    rust_dir = 'rust'
     ctx.run(f'cd {rust_dir} && dd-rust-license-tool write')
     print(f"Generated {rust_dir}/LICENSE-3rdparty.csv")
