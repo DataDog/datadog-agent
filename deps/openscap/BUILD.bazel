@@ -1,16 +1,1 @@
-# openscap
-
-load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "collect_dd_auto_pkg_artifacts")
-
-collect_dd_auto_pkg_artifacts(
-    name = "all_openscap_deps",
-    srcs = [
-        "@openscap//:openscap_sce_pkg",
-        "@openscap//:oscap_io_pkg",
-        "@openscap//:oscap_pkg",
-    ],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
-    visibility = ["//packages:__subpackages__"],
-)
+# Package delimiter

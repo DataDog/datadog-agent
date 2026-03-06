@@ -39,9 +39,9 @@ pkg_filegroup(
         "//deps/gstatus:bin_files",
         "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
-        "//deps/openscap:all_openscap_deps",
         "@freetds//:all_files",
         "@krb5//:all_files",
+        "@openscap//:all_openscap_deps",
     ],
     prefix = "/opt/datadog-agent",
 )
