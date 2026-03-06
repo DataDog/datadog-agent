@@ -30,6 +30,7 @@
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-platform': '#container-platform'
+'@datadog/core-authn': '#aaa-authn'
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/data-streams-monitoring': '#data-streams-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'
