@@ -286,7 +286,7 @@ func (r *HTTPReceiver) Start() {
 		ConnContext: connContext,
 	}
 
-	if r.conf.ReceiverIdleTimeout > 0 {
+	if r.conf.ReceiverIdleTimeout > r.server.ReadTimeout {
 		r.server.IdleTimeout = r.conf.ReceiverIdleTimeout
 	}
 

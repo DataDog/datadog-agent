@@ -387,18 +387,18 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost        string
+	ReceiverPort        int
+	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout     int
-	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections; must exceed the tracer's stats flush interval (~10s)
+	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
 	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
+	Decoders            int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
