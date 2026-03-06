@@ -171,15 +171,32 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// In-place resize path
-	for _, pod := range podsByResizeStatus[PodResizeStatusNeedsPatch] {
-		if err := u.patchInPlace(ctx, autoscalerInternal, pod, recommendationID); err != nil {
-			log.Warnf("failed to patch pod %s/%s in place: %v", pod.Namespace, pod.Name, err)
+	// In-place resize path.
+	// If this is a new recommendation, record the action (regardless of whether the patches
+	// below succeed) and reset the eviction counter for this cycle.
+	if needsPatch := podsByResizeStatus[PodResizeStatusNeedsPatch]; len(needsPatch) > 0 {
+		lastAction := autoscalerInternal.VerticalLastAction()
+		if lastAction == nil || lastAction.Version != recommendationID {
+			autoscalerInternal.VerticalActionSuccessInc()
+			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+				Time:    metav1.NewTime(u.clock.Now()),
+				Version: recommendationID,
+				Type:    datadoghqcommon.DatadogPodAutoscalerTriggerRolloutVerticalActionType,
+			}, nil)
+			autoscalerInternal.SetEvictedReplicas(0)
+		}
+
+		for _, pod := range needsPatch {
+			if err := u.patchInPlace(ctx, autoscalerInternal, pod, recommendationID); err != nil {
+				log.Warnf("failed to patch pod %s/%s in place: %v", pod.Namespace, pod.Name, err)
+			}
 		}
 	}
 
-	// Build the list of pods to evict
-	toEvict := append(podsByResizeStatus[PodResizeStatusError], podsByResizeStatus[PodResizeStatusInfeasible]...)
+	// Build the list of pods to evict.
+	toEvict := make([]*workloadmeta.KubernetesPod, 0, len(podsByResizeStatus[PodResizeStatusError])+len(podsByResizeStatus[PodResizeStatusInfeasible]))
+	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusError]...)
+	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusInfeasible]...)
 	now := u.clock.Now()
 	for _, pod := range podsByResizeStatus[PodResizeStatusDeferred] {
 		if shouldEvictDeferred(podAutoscaler, now) {
@@ -187,27 +204,35 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// Evict pods that cannot resize in-place, stopping on PDB rejection so we don't
-	// disrupt more pods than the budget allows.
+	// Evict pods that cannot resize in-place, counting only successful evictions and
+	// stopping on PDB rejection so we don't disrupt more pods than the budget allows.
+	var evictedThisSync int32
 	for _, pod := range toEvict {
 		result, err := u.evictPod(ctx, pod)
 		if err != nil {
 			log.Warnf("failed to evict pod %s/%s: %v", pod.Namespace, pod.Name, err)
 		}
+		if result == evictor.Evicted {
+			evictedThisSync++
+			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason,
+				"Pod %s/%s could not resize in-place, evicted as fallback", pod.Namespace, pod.Name)
+		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			break
 		}
 	}
+	autoscalerInternal.AddEvictedReplicas(evictedThisSync)
 
 	// TODO: If we have a PDB lock, here is probably where we'd add lock detection logic to trigger a rollout (worst case scenario)
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
-	// gives the total active pod count. If every active pod is complete, no requeue is needed.
+	// gives the total active pod count. If every active pod is complete, the resize cycle is done.
 	var totalActive int
 	for _, bucket := range podsByResizeStatus {
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
+		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: inplaceResizeRequeueDelay}, nil
