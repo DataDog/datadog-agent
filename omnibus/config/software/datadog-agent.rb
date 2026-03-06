@@ -186,6 +186,10 @@ build do
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+      if linux_target?
+        mkdir "#{install_dir}/embedded/lib"
+        copy 'pkg/discovery/module/rust/libdd_discovery.so', "#{install_dir}/embedded/lib"
+      end
     end
 
     # Add SELinux policy for system-probe

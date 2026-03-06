@@ -78,6 +78,7 @@ ALL_TAGS = {
     "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
+    "dd_discovery_cgo",  # used to enable the CGO-backed libdd_discovery implementation in system-probe
 }.union(COMMON_TAGS)
 
 ### Tag inclusion lists
