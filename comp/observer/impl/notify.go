@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -45,17 +47,40 @@ func newEventSender(dryRun bool) (*eventSender, error) {
 	}, nil
 }
 
-// send formats a correlation into an event and either prints or posts it.
-func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
-	var lines []string
+// correlationMessage builds the event message body for a correlation.
+func correlationMessage(c observerdef.ActiveCorrelation) string {
+	var metricLines, logLines []string
 	for _, a := range c.Anomalies {
-		if a.Description != "" {
-			lines = append(lines, "- "+a.Description)
+		if a.Description == "" {
+			continue
+		}
+		if a.Type == observerdef.AnomalyTypeLog {
+			logLines = append(logLines, "- "+a.Description)
+		} else {
+			metricLines = append(metricLines, "- "+a.Description)
 		}
 	}
-	intro := fmt.Sprintf("The following %d metric anomalies were detected and are likely related:", len(lines))
-	text := intro + "\n" + strings.Join(lines, "\n")
+	var sections []string
+	if len(metricLines) > 0 {
+		sections = append(sections, fmt.Sprintf("Metric anomalies (%d):\n%s", len(metricLines), strings.Join(metricLines, "\n")))
+	}
+	if len(logLines) > 0 {
+		sections = append(sections, fmt.Sprintf("Log anomalies (%d):\n%s", len(logLines), strings.Join(logLines, "\n")))
+	}
+	const maxLen = 4000
+	text := "The following anomalies were detected and are likely related:\n\n" + strings.Join(sections, "\n\n")
+	if len(text) > maxLen {
+		text = text[:maxLen-3] + "..."
+	}
+	return text
+}
+
+// send formats a correlation into an event and either prints or posts it.
+func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
+	text := correlationMessage(c)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
+
+	log.Printf("[observer] sending event: pattern=%s title=%q timestamp=%s\n%s\n", c.Pattern, c.Title, ts, text)
 
 	if s.api == nil {
 		fmt.Printf("[dry-run] pattern=%s title=%q timestamp=%s\n%s\n\n", c.Pattern, c.Title, ts, text)
@@ -77,7 +102,14 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 			},
 		},
 	}
-	_, _, err := s.api.CreateEvent(s.ctx, payload)
+	_, httpResp, err := s.api.CreateEvent(s.ctx, payload)
+	if err != nil && httpResp != nil {
+		body, readErr := io.ReadAll(httpResp.Body)
+		httpResp.Body.Close()
+		if readErr == nil {
+			log.Printf("[observer] API error response (HTTP %d): %s", httpResp.StatusCode, string(body))
+		}
+	}
 	return err
 }
 
