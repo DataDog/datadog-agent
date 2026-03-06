@@ -1,11 +1,9 @@
-# Our echo intentionally ignores all flags; bash interprets -E to disable escapes.
-test_against_local_shell: false
-description: Echo treats -E as a literal argument, not as an option.
+description: Echo with -E disables escape interpretation (the default).
 input:
   script: |+
     echo -E hello
 expect:
   stdout: |+
-    -E hello
+    hello
   stderr: ""
   exit_code: 0

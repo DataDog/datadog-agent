@@ -1,10 +1,9 @@
-test_against_local_shell: false
-description: Echo treats -e as a literal argument, not as an option.
+description: Echo with -e enables escape interpretation (no escapes in this input).
 input:
   script: |+
     echo -e hello
 expect:
   stdout: |+
-    -e hello
+    hello
   stderr: ""
   exit_code: 0

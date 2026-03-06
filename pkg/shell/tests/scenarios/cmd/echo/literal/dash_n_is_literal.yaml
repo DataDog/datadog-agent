@@ -1,10 +1,8 @@
-test_against_local_shell: false
-description: Echo treats -n as a literal argument, not as an option.
+description: Echo with -n suppresses the trailing newline.
 input:
   script: |+
     echo -n hello
 expect:
-  stdout: |+
-    -n hello
+  stdout: "hello"
   stderr: ""
   exit_code: 0
