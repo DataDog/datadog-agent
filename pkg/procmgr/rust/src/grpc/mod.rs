@@ -17,6 +17,7 @@ pub mod proto {
 #[cfg(bazel)]
 pub mod proto {
     pub use process_manager_proto::datadog::procmgr::*;
+    pub const FILE_DESCRIPTOR_SET: &[u8] = process_manager_proto::FILE_DESCRIPTOR_SET;
 }
 
 #[cfg(test)]
