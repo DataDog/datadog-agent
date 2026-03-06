@@ -7,6 +7,8 @@
 package securityagentimpl
 
 import (
+	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -14,6 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -25,6 +28,7 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	Status    status.Component
 }
 
 // Provides defines the output of the remoteagent component
@@ -51,8 +55,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 		ipc:               reqs.IPC,
 		cfg:               reqs.Config,
+		statusComp:        reqs.Status,
 		remoteAgentServer: remoteAgentServer,
 	}
+
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -61,10 +69,45 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type remoteagentImpl struct {
-	log log.Component
-	ipc ipc.Component
-	cfg config.Component
+	log        log.Component
+	ipc        ipc.Component
+	cfg        config.Component
+	statusComp status.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+	pbcore.UnimplementedFlareProviderServer
+}
+
+// GetStatusDetails returns the status details of the security agent
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	fields := helper.ExpvarFields()
+
+	if statusJSON, err := r.statusComp.GetStatus("json", false); err == nil {
+		fields["status"] = string(statusJSON)
+	}
+
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{Fields: fields},
+	}, nil
+}
+
+// GetFlareFiles returns files for the security agent flare
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	files := make(map[string][]byte)
+
+	if statusJSON, err := r.statusComp.GetStatus("json", false); err == nil {
+		files["security_agent_status.json"] = statusJSON
+	}
+
+	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
+		files["security_agent_expvar_dump.json"] = data
+	}
+
+	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
+		files["security_agent_runtime_config_dump.json"] = data
+	}
+
+	return &pbcore.GetFlareFilesResponse{Files: files}, nil
 }
