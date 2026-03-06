@@ -87,6 +87,8 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             failed_processes: failed,
             created_processes: created,
             exited_processes: exited,
+            starting_processes: 0,
+            stopping_processes: 0,
             config_path: self.config_path.clone(),
         }))
     }
