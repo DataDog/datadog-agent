@@ -132,27 +132,10 @@ func (c *Controller) handleObject(obj interface{}) {
 
 // handleUpdate handles the new object reported in update events.
 // It can be a callback function for update events.
-func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
+func (c *Controller) handleUpdate(_, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}
-
-	newSecret, ok := newObj.(*corev1.Secret)
-	if !ok {
-		log.Debugf("Expected Secret object, got: %v", newObj)
-		return
-	}
-
-	oldSecret, ok := oldObj.(*corev1.Secret)
-	if !ok {
-		log.Debugf("Expected Secret object, got: %v", oldObj)
-		return
-	}
-
-	if newSecret.ResourceVersion == oldSecret.ResourceVersion {
-		return
-	}
-
 	c.handleObject(newObj)
 }
 
@@ -190,7 +173,8 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(key)
 
-	if err := c.reconcile(); err != nil {
+	mutated, err := c.reconcile()
+	if err != nil {
 		c.requeue(key)
 		log.Errorf("Couldn't reconcile Secret %s/%s: %v", c.config.GetNs(), c.config.GetName(), err)
 		metrics.ReconcileErrors.Inc(metrics.SecretControllerName)
@@ -198,27 +182,30 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 
 	c.queue.Forget(key)
-	log.Debugf("Secret %s/%s reconciled successfully", c.config.GetNs(), c.config.GetName())
-	metrics.ReconcileSuccess.Inc(metrics.SecretControllerName)
+	if mutated {
+		log.Debugf("Secret %s/%s reconciled successfully", c.config.GetNs(), c.config.GetName())
+		metrics.ReconcileSuccess.Inc(metrics.SecretControllerName)
+	}
 
 	return true
 }
 
 // reconcile reconciles the current state of the Secret with its desired state.
-func (c *Controller) reconcile() error {
+// It returns true if the Secret was mutated.
+func (c *Controller) reconcile() (bool, error) {
 	secret, err := c.secretsLister.Secrets(c.config.GetNs()).Get(c.config.GetName())
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create the Secret if it doesn't exist
 			log.Infof("Secret %s/%s was not found, creating it", c.config.GetNs(), c.config.GetName())
-			return c.createSecret()
+			return true, c.createSecret()
 		}
-		return err
+		return false, err
 	}
 
 	cert, err := certificate.GetCertFromSecret(secret.Data)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Check the certificate expiration date and refresh it if needed
@@ -226,17 +213,17 @@ func (c *Controller) reconcile() error {
 	metrics.CertificateDuration.Set(durationBeforeExpiration.Hours())
 	if durationBeforeExpiration < c.config.GetCertExpiration() {
 		log.Infof("The certificate is expiring soon (%v), refreshing it", durationBeforeExpiration)
-		return c.updateSecret(secret)
+		return true, c.updateSecret(secret)
 	}
 
 	// Check the certificate dns names and update it if needed
 	if c.dnsNamesDigest != digestDNSNames(certificate.GetDNSNames(cert)) {
 		log.Info("The certificate DNS names are outdated, updating the certificate")
-		return c.updateSecret(secret)
+		return true, c.updateSecret(secret)
 	}
 
 	log.Debugf("The certificate is up-to-date, doing nothing. Duration before expiration: %v", durationBeforeExpiration)
-	return nil
+	return false, nil
 }
 
 // createSecret creates a new Secret object with a new certificate

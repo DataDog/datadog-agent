@@ -201,39 +201,6 @@ func buildSecret(data map[string][]byte) *corev1.Secret {
 	}
 }
 
-func TestHandleUpdateSkipsResync(t *testing.T) {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
-	f := newFixture(t)
-	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	c := NewController(
-		f.client,
-		factory.Core().V1().Secrets(),
-		func() bool { return true },
-		make(<-chan struct{}),
-		cfg,
-	)
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       cfg.GetNs(),
-			Name:            cfg.GetName(),
-			ResourceVersion: "123",
-		},
-	}
-
-	// Same ResourceVersion (informer resync) - should not enqueue
-	c.handleUpdate(secret, secret)
-	assert.Equal(t, 0, c.queue.Len(), "resync with same ResourceVersion should not enqueue")
-
-	// Different ResourceVersion (real update) - should enqueue
-	updatedSecret := secret.DeepCopy()
-	updatedSecret.ResourceVersion = "124"
-	c.handleUpdate(secret, updatedSecret)
-	assert.Equal(t, 1, c.queue.Len(), "real update with different ResourceVersion should enqueue")
-}
-
 func TestDigestDNSNames(t *testing.T) {
 	tests := []struct {
 		name     string
