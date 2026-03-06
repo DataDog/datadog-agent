@@ -119,6 +119,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				k.reportAnnotationErrors(entityName, err)
 			} else {
 				delete(k.configErrors, entityName)
+				k.clearAnnotationErrors(entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -325,7 +326,7 @@ func (k *ContainerConfigProvider) reportAnnotationErrors(entityName string, errM
 			},
 		}
 
-		if err := k.healthPlatform.ReportIssue(checkID, "ad-annotation-check", report); err != nil {
+		if err := k.healthPlatform.ReportIssue(checkID, adannotation.CheckName, report); err != nil {
 			log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
 		}
 		k.reportedIssues[checkID] = struct{}{}
@@ -342,7 +343,7 @@ func (k *ContainerConfigProvider) clearAnnotationErrors(entityName string) {
 	for checkID := range k.reportedIssues {
 		if strings.HasPrefix(checkID, prefix) {
 			// Passing nil report clears the issue
-			if err := k.healthPlatform.ReportIssue(checkID, "ad-annotation-check", nil); err != nil {
+			if err := k.healthPlatform.ReportIssue(checkID, adannotation.CheckName, nil); err != nil {
 				log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
 			}
 			delete(k.reportedIssues, checkID)

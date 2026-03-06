@@ -20,6 +20,9 @@ func init() {
 const (
 	// IssueID is the unique identifier for AD annotation misconfiguration issues
 	IssueID = "ad-annotation-misconfiguration"
+
+	// CheckName is the name of the check for AD annotation misconfigurations
+	CheckName = "Autodiscovery Annotation Misconfiguration"
 )
 
 // adAnnotationModule implements issues.Module

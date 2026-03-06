@@ -43,20 +43,6 @@ func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatfo
 		errorMessage = failedMsg
 	}
 
-	// Build description
-	var desc []byte
-	desc = append(desc, "Autodiscovery annotation error on '"...)
-	desc = append(desc, entityName...)
-	desc = append(desc, "': "...)
-	desc = append(desc, errorMessage...)
-
-	// Build title
-	var title []byte
-	title = append(title, "AD Annotation Error on '"...)
-	title = append(title, entityName...)
-	title = append(title, '\'')
-
-	// Build remediation steps
 	steps := []*healthplatform.RemediationStep{
 		{Order: 1, Text: "Validate JSON syntax in all ad.datadoghq.com/<container>.* annotations"},
 		{Order: 2, Text: "Verify the container name in the annotation matches an actual container in the pod spec"},
@@ -77,8 +63,8 @@ func (t *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatfo
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   issueName,
-		Title:       string(title),
-		Description: string(desc),
+		Title:       fmt.Sprintf("AD Annotation Error on '%s'", entityName),
+		Description: fmt.Sprintf("Autodiscovery annotation error on '%s': %s", entityName, errorMessage),
 		Category:    category,
 		Location:    location,
 		Severity:    severity,
