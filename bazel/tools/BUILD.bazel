@@ -19,6 +19,15 @@ py_binary(
     visibility = ["//deps:__subpackages__"],
 )
 
+py_binary(
+    name = "generate_release_bzl",
+    srcs = ["generate_release_bzl.py"],
+    data = ["//:release.json"],
+    main = "generate_release_bzl.py",
+    visibility = ["//deps:__subpackages__"],
+    deps = ["@rules_python//python/runfiles"],
+)
+
 bzl_library(
     name = "generate_module_bazel_bzl",
     srcs = ["generate_module_bazel.bzl"],
