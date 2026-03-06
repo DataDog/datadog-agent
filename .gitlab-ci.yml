@@ -366,8 +366,10 @@ variables:
     - BUILD.bazel
     - MODULE.bazel
     - release.json
-    # SMP regression detector experiments
+    # SMP regression detector
     - test/regression/**/*
+    - .gitlab/childs/smp-regression-child-pipeline.yml
+    - .gitlab/test/functional_test/regression_detector.yml
     # Containers
     - Dockerfiles/**/*
 
