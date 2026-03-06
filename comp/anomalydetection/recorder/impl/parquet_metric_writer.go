@@ -32,15 +32,16 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	return newMetricParquetWriterWithPrefix(outputDir, "observer-metrics", flushInterval, retentionDuration)
 }
 
-// newVirtualMetricParquetWriter creates a writer for log-derived virtual metrics
-// (observer-virtualmetrics-*.parquet). Uses the same schema as the raw metrics writer.
-func newVirtualMetricParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
-	return newMetricParquetWriterWithPrefix(outputDir, "observer-virtualmetrics", flushInterval, retentionDuration)
+// newResultsMetricParquetWriter creates a writer for computed result metrics
+// (observer-resultsmetrics-*.parquet). This single file holds both virtual metrics
+// (derived by log detectors) and telemetry metrics (emitted by anomaly detectors).
+func newResultsMetricParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
+	return newMetricParquetWriterWithPrefix(outputDir, "observer-resultsmetrics", flushInterval, retentionDuration)
 }
 
 // newMetricParquetWriterWithPrefix creates a metric parquet writer with the given file prefix.
 // outputDir: directory where parquet files will be written
-// filePrefix: prefix for file names (e.g. "observer-metrics", "observer-virtualmetrics")
+// filePrefix: prefix for file names (e.g. "observer-metrics", "observer-resultsmetrics")
 // flushInterval: how often to rotate files (e.g., 60s creates a new file every minute)
 // retentionDuration: how long to keep old files (0 = no cleanup)
 func newMetricParquetWriterWithPrefix(outputDir, filePrefix string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {

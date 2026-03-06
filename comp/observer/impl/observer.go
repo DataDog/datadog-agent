@@ -449,10 +449,34 @@ func (o *observerImpl) runDetectorsUpTo(upTo int64) {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
-		// TODO: handle result.Telemetry in live observer (currently only used by testbench)
+		o.recordTelemetry(result.Telemetry, detector.Name(), upTo)
 	}
 
 	o.flushAndReport()
+}
+
+// recordTelemetry records telemetry emitted by a detector to the results metrics parquet file.
+// Telemetry is not added to the observer's main storage to avoid polluting anomaly detection.
+func (o *observerImpl) recordTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestamp int64) {
+	if o.recorder == nil || len(telemetry) == 0 {
+		return
+	}
+	for _, t := range telemetry {
+		if t.DetectorName == "" {
+			t.DetectorName = detectorName
+		}
+		if t.Metric != nil {
+			ts := int64(t.Metric.GetTimestamp())
+			if ts == 0 {
+				ts = baseTimestamp
+			}
+			name := "telemetry." + t.DetectorName + "." + t.Metric.GetName()
+			o.recorder.RecordTelemetryMetric("telemetry", name, t.Metric.GetValue(), t.Metric.GetRawTags(), ts)
+		}
+		if t.Log != nil {
+			// TODO(results-logs): record telemetry logs to a results logs parquet file
+		}
+	}
 }
 
 // metricsDetectorAdapter wraps a stateless MetricsDetector to implement MultiSeriesDetector.

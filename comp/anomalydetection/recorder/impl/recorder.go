@@ -97,7 +97,6 @@ func NewComponent(req Requires) (Provides, error) {
 	// Enabled by default when recording is on; can be enabled independently.
 	// The output directory defaults to the recording directory when unset.
 	resultsEnabled := recordingEnabled || req.Config.GetBool("observer.results.enabled")
-	fmt.Printf("[cc] resultsEnabled: %t\n", resultsEnabled)
 	if resultsEnabled {
 		resultsDir := req.Config.GetString("observer.results.output_dir")
 		if resultsDir == "" {
@@ -113,13 +112,12 @@ func NewComponent(req Requires) (Provides, error) {
 			}
 			resultsRetention := retentionDuration
 
-			fmt.Printf("[cc] resultsDir: %s\n", resultsDir)
-			virtualWriter, err := newVirtualMetricParquetWriter(resultsDir, resultsFlush, resultsRetention)
+			resultsWriter, err := newResultsMetricParquetWriter(resultsDir, resultsFlush, resultsRetention)
 			if err != nil {
-				return Provides{Comp: r}, pkglog.Errorf("Failed to create virtual metrics parquet writer: %v", err)
+				return Provides{Comp: r}, pkglog.Errorf("Failed to create results metrics parquet writer: %v", err)
 			}
-			r.virtualMetricParquetWriter = virtualWriter
-			pkglog.Infof("Results saving enabled: virtual metrics → %s", resultsDir)
+			r.resultsMetricParquetWriter = resultsWriter
+			pkglog.Infof("Results saving enabled: results metrics → %s", resultsDir)
 		}
 	}
 
@@ -130,7 +128,7 @@ func NewComponent(req Requires) (Provides, error) {
 type recorderImpl struct {
 	recordingDisabled          bool
 	metricParquetWriter        *metricParquetWriter
-	virtualMetricParquetWriter *metricParquetWriter
+	resultsMetricParquetWriter *metricParquetWriter // observer-resultsmetrics-*.parquet (virtual + telemetry)
 	traceParquetWriter         *traceParquetWriter
 	profileParquetWriter       *profileParquetWriter
 	logParquetWriter           *logParquetWriter
@@ -270,39 +268,48 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 	return logs, nil
 }
 
-// EnableResultsSaving initializes the virtual metrics writer for headless mode.
-// It creates only the virtual metrics parquet writer, leaving raw observation writers
+// EnableResultsSaving initializes the results metrics writer for headless mode.
+// It creates only the results parquet writer, leaving raw observation writers
 // (metrics, logs, traces, profiles) uninitialized so that loaded input data is never
 // re-recorded. Safe to call multiple times; subsequent calls are no-ops.
 func (r *recorderImpl) EnableResultsSaving(outputDir string) error {
-	if r.virtualMetricParquetWriter != nil {
+	if r.resultsMetricParquetWriter != nil {
 		return nil // already initialized (either via full recording or a previous call)
 	}
 	// Use a very long flush interval: the testbench drives flushing explicitly via
-	// FlushVirtualMetrics(), so periodic flushing is not needed.
-	writer, err := newVirtualMetricParquetWriter(outputDir, 365*24*time.Hour, 0)
+	// FlushResultsMetrics(), so periodic flushing is not needed.
+	writer, err := newResultsMetricParquetWriter(outputDir, 365*24*time.Hour, 0)
 	if err != nil {
-		return fmt.Errorf("creating virtual metrics parquet writer: %w", err)
+		return fmt.Errorf("creating results metrics parquet writer: %w", err)
 	}
-	r.virtualMetricParquetWriter = writer
-	pkglog.Infof("Results saving enabled: virtual metrics will be written to %s", outputDir)
+	r.resultsMetricParquetWriter = writer
+	pkglog.Infof("Results saving enabled: results metrics will be written to %s", outputDir)
 	return nil
 }
 
-// RecordVirtualMetric writes a log-derived virtual metric to the virtual metrics parquet file.
+// RecordVirtualMetric writes a log-derived virtual metric to the results metrics parquet file.
 func (r *recorderImpl) RecordVirtualMetric(source, name string, value float64, tags []string, timestamp int64) {
-	if r.virtualMetricParquetWriter == nil {
+	if r.resultsMetricParquetWriter == nil {
 		return
 	}
-	r.virtualMetricParquetWriter.WriteMetric(source, name, value, tags, timestamp)
+	r.resultsMetricParquetWriter.WriteMetric(source, name, value, tags, timestamp)
 }
 
-// FlushVirtualMetrics forces an immediate flush of buffered virtual metrics to disk.
-func (r *recorderImpl) FlushVirtualMetrics() {
-	if r.virtualMetricParquetWriter == nil {
+// RecordTelemetryMetric writes a detector telemetry metric to the results metrics parquet file.
+// Telemetry metrics share the file with virtual metrics (observer-resultsmetrics-*.parquet).
+func (r *recorderImpl) RecordTelemetryMetric(source, name string, value float64, tags []string, timestamp int64) {
+	if r.resultsMetricParquetWriter == nil {
 		return
 	}
-	r.virtualMetricParquetWriter.flush()
+	r.resultsMetricParquetWriter.WriteMetric(source, name, value, tags, timestamp)
+}
+
+// FlushResultsMetrics forces an immediate flush of buffered results metrics to disk.
+func (r *recorderImpl) FlushResultsMetrics() {
+	if r.resultsMetricParquetWriter == nil {
+		return
+	}
+	r.resultsMetricParquetWriter.flush()
 }
 
 // recordingHandle wraps an observer handle to record observations.

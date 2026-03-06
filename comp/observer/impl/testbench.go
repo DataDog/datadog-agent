@@ -612,10 +612,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		fmt.Printf("  Warning: failed to run log detectors: %v\n", err)
 	}
 	if tb.config.Recorder != nil {
-		fmt.Printf("[cc] Flushing virtual metrics...\n")
-		tb.config.Recorder.FlushVirtualMetrics()
-	} else {
-		fmt.Printf("[cc] No recorder found, skipping flush of virtual metrics...\n")
+		tb.config.Recorder.FlushResultsMetrics()
 	}
 
 	// --- Metrics ---
@@ -781,22 +778,26 @@ func (tb *TestBench) rerunDetectorsLocked() {
 // It includes metrics and logs.
 func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestampMs int64) {
 	for _, telemetryEvent := range telemetry {
-		// Generate missing fields if needed
+		if telemetryEvent.DetectorName == "" {
+			telemetryEvent.DetectorName = detectorName
+		}
+
 		if telemetryEvent.Metric != nil {
-			metric := &metricObs{
-				name:      telemetryEvent.Metric.GetName(),
-				value:     telemetryEvent.Metric.GetValue(),
-				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			ts := int64(telemetryEvent.Metric.GetTimestamp())
+			if ts == 0 {
+				ts = baseTimestampMs / 1000
 			}
-			if metric.timestamp == 0 {
-				metric.timestamp = baseTimestampMs / 1000
+			name := "telemetry." + telemetryEvent.DetectorName + "." + telemetryEvent.Metric.GetName()
+			tags := telemetryEvent.Metric.GetRawTags()
+			value := telemetryEvent.Metric.GetValue()
+
+			// Store for UI display
+			tb.storage.Add("telemetry", name, value, ts, tags)
+
+			// Record to results metrics parquet file (observer-resultsmetrics-*.parquet)
+			if tb.config.Recorder != nil {
+				tb.config.Recorder.RecordTelemetryMetric("telemetry", name, value, tags, ts)
 			}
-			if telemetryEvent.DetectorName == "" {
-				telemetryEvent.DetectorName = detectorName
-			}
-			// Save this for UI
-			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
 		}
 
 		if telemetryEvent.Log != nil {
@@ -819,11 +820,9 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			if log.Status == "" {
 				log.Status = "info"
 			}
-			if telemetryEvent.DetectorName == "" {
-				telemetryEvent.DetectorName = detectorName
-			}
-			// Save this for UI
+			// Store for UI display
 			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
+			// TODO(results-logs): record telemetry logs to a results logs parquet file
 		}
 	}
 }
