@@ -57,6 +57,8 @@ class PrebuiltTool:
     archive_binary_path: str = ""
     # go.mod module path used to look up the pinned version
     go_mod_module: str = ""
+    # Override arch names when they differ from Go conventions (amd64/arm64)
+    arch_map: dict[str, str] | None = None
 
 
 # Tools that should be downloaded as pre-built binaries instead of `go install`.
@@ -85,9 +87,10 @@ PREBUILT_TOOLS: dict[str, PrebuiltTool] = {
     'github.com/vektra/mockery/v3': PrebuiltTool(
         repo='vektra/mockery',
         binary_name='mockery',
-        # mockery uses capitalized OS name (Darwin, Linux)
+        # mockery uses capitalized OS name and x86_64 instead of amd64
         asset_pattern='mockery_{version}_{Os}_{arch}.tar.gz',
         go_mod_module='github.com/vektra/mockery/v3',
+        arch_map={'amd64': 'x86_64'},
     ),
 }
 
@@ -137,6 +140,8 @@ def _install_prebuilt_tool(ctx: Context, tool_import: str, gobin: str, go_mod_di
 
     os_name = 'darwin' if sys.platform.startswith('darwin') else 'linux'
     arch = 'arm64' if platform.machine() in ('arm64', 'aarch64') else 'amd64'
+    if prebuilt.arch_map and arch in prebuilt.arch_map:
+        arch = prebuilt.arch_map[arch]
 
     asset = _format_asset_fields(prebuilt.asset_pattern, version_no_v, os_name, arch)
     url = f"https://github.com/{prebuilt.repo}/releases/download/{version}/{asset}"
