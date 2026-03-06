@@ -66,8 +66,12 @@
   # MSI installer and Windows tooling
   - tools/windows/**/*
 
-  # Omnibus packaging
+  # Build/packaging
   - omnibus/**/*
+  - packages/**/*
+  - deps/**/*
+  - rtloader/**/*
+  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
