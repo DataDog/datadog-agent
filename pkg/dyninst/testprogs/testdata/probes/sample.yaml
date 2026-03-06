@@ -2439,6 +2439,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "version_diff:go1.26rc1"
+      - "arch_diff:amd64"
     where:
       methodName: main.testErrorAtLine
       sourceFile: complex.go

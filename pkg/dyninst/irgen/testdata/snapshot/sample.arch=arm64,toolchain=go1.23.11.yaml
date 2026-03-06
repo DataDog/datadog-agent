@@ -791,7 +791,7 @@ Probes:
         methodName: main.testErrorAtLine
         sourceFile: complex.go
         lines: ["108"]
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.26rc1', 'arch_diff:amd64']
       sampling: {snapshotsPerSecond: 100}
       template: x={x}, err={err}
       segments:
