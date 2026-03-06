@@ -28,8 +28,8 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_10mb_traces_bounded_memory_limiter_100
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_10mb_traces_bounded_memory_limiter_100
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_100
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_100
 
 checks:
   - name: memory_usage

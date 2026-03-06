@@ -11,8 +11,8 @@ target:
     DD_HOSTNAME: smp-regression
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
-    # Set to 80% of memory_limiter.limit_mib (50 MiB).
-    GOMEMLIMIT: 40MiB
+    # Set to 80% of memory_limiter.limit_mib (150 MiB).
+    GOMEMLIMIT: 120MiB
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
@@ -28,8 +28,8 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_10mb_traces_bounded_memory_limiter_50
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_10mb_traces_bounded_memory_limiter_50
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_150
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_150
 
 checks:
   - name: memory_usage
