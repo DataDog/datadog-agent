@@ -454,31 +454,98 @@ func TestBuildClusterClientTLSConfig_ValidationError(t *testing.T) {
 	assert.True(t, config2.InsecureSkipVerify)
 }
 
-// TestReadClusterCA_ErrorCases tests error handling in ReadClusterCA function
+// TestBuildClusterClientTLSConfig_PrivateKeyBehavior tests the private key requirement
+// differs for DCA/CLC vs regular node agents
+func TestBuildClusterClientTLSConfig_PrivateKeyBehavior(t *testing.T) {
+	// Parse the test CA cert for use in these tests
+	block, _ := pem.Decode(clusterCAcert)
+	require.NotNil(t, block)
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+
+	block, _ = pem.Decode(clusterCAkey)
+	require.NotNil(t, block)
+	caPrivKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	require.NoError(t, err)
+
+	t.Run("DCA without private key fails", func(t *testing.T) {
+		// DCA/CLC need the private key to sign certs - TLS verification with cert-only should fail
+		caData := &clusterCAData{
+			enableTLSVerification: true,
+			caCert:                caCert,
+			caPrivKey:             nil, // No key
+			isDCA:                 true,
+			isCLC:                 false,
+		}
+		config, err := caData.buildClusterClientTLSConfig()
+		assert.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "cluster_trust_chain.ca_key_file_path")
+	})
+
+	t.Run("CLC without private key fails", func(t *testing.T) {
+		caData := &clusterCAData{
+			enableTLSVerification: true,
+			caCert:                caCert,
+			caPrivKey:             nil,
+			isDCA:                 false,
+			isCLC:                 true,
+		}
+		config, err := caData.buildClusterClientTLSConfig()
+		assert.Error(t, err)
+		assert.Nil(t, config)
+		assert.Contains(t, err.Error(), "cluster_trust_chain.ca_key_file_path")
+	})
+
+	t.Run("Regular agent without private key succeeds", func(t *testing.T) {
+		// Regular node agents only need CA cert for TLS verification - no private key required
+		caData := &clusterCAData{
+			enableTLSVerification: true,
+			caCert:                caCert,
+			caPrivKey:             nil, // No key - OK for regular agent
+			isDCA:                 false,
+			isCLC:                 false,
+		}
+		config, err := caData.buildClusterClientTLSConfig()
+		assert.NoError(t, err)
+		assert.NotNil(t, config)
+		assert.NotNil(t, config.RootCAs)
+		assert.False(t, config.InsecureSkipVerify)
+	})
+
+	t.Run("DCA with private key succeeds", func(t *testing.T) {
+		caData := &clusterCAData{
+			enableTLSVerification: true,
+			caCert:                caCert,
+			caPrivKey:             caPrivKey,
+			isDCA:                 true,
+			isCLC:                 false,
+		}
+		config, err := caData.buildClusterClientTLSConfig()
+		assert.NoError(t, err)
+		assert.NotNil(t, config)
+		assert.False(t, config.InsecureSkipVerify)
+	})
+}
+
+// TestReadClusterCA_ErrorCases tests error handling in readClusterCACert and readClusterCAPrivateKey functions
 func TestReadClusterCA_ErrorCases(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// Test case 1: Missing cert file
 	missingCertPath := filepath.Join(tempDir, "missing_cert.pem")
 	missingKeyPath := filepath.Join(tempDir, "missing_key.pem")
 
-	_, _, err := readClusterCA(missingCertPath, missingKeyPath)
+	// Test case 1: Missing cert file
+	_, err := readClusterCACert(missingCertPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to read cluster CA cert file")
 
 	// Test case 2: Invalid cert file content
 	invalidCertPath := filepath.Join(tempDir, "invalid_cert.pem")
-	validKeyPath := filepath.Join(tempDir, "valid_key.pem")
-
-	// Write invalid cert content
 	err = os.WriteFile(invalidCertPath, []byte("invalid cert content"), 0644)
 	require.NoError(t, err)
 
-	// Create a valid key file for the test
-	err = os.WriteFile(validKeyPath, clusterCAkey, 0644)
-	require.NoError(t, err)
-
-	_, _, err = readClusterCA(invalidCertPath, validKeyPath)
+	_, err = readClusterCACert(invalidCertPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to decode cluster CA cert PEM")
 
@@ -487,7 +554,10 @@ func TestReadClusterCA_ErrorCases(t *testing.T) {
 	err = os.WriteFile(validCertPath, clusterCAcert, 0644)
 	require.NoError(t, err)
 
-	_, _, err = readClusterCA(validCertPath, missingKeyPath)
+	_, err = readClusterCACert(validCertPath)
+	require.NoError(t, err)
+
+	_, err = readClusterCAPrivateKey(missingKeyPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to read cluster CA key file")
 }
