@@ -1,0 +1,11 @@
+# setuptools Python package
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "setuptools",
+    build_file = "//deps:setuptools.BUILD.bazel",
+    sha256 = "514dc60688d3118c9883a3dd54a38b28128ea912c01ea325d6e204a93da3b524",
+    strip_prefix = "setuptools-75.1.0",
+    urls = ["https://github.com/pypa/setuptools/archive/v75.1.0.tar.gz"],
+)
