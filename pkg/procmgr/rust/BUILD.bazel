@@ -16,7 +16,7 @@ rust_binary(
         "@crates//:nix",
         "@crates//:serde",
         "@crates//:serde_yaml",
-        "//pkg/log/rust:dd-agent-log",
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:tokio",
     ],
 )

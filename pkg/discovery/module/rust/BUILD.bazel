@@ -121,7 +121,7 @@ rust_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
-        "//pkg/log/rust:dd-agent-log",
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:http-body-util",
         "@crates//:hyper",
