@@ -10,6 +10,6 @@ fixes:
   - |
     Fixes a bug in the Network Configuration Management (NCM) module where the SSH Timeout settings were parsed as
     nanoseconds instead of seconds. This issue caused SSH sessions to time out prematurely, leading to errors like:
-    ```
-    Error running check: failed to connect to 192.168.0.1:22: dial tcp 192.168.0.1:22: i/o timeout
-    ```
+      ```
+      Error running check: failed to connect to 192.168.0.1:22: dial tcp 192.168.0.1:22: i/o timeout
+      ```
