@@ -134,18 +134,27 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
 }
 
-// installDDOTExtensionIfEnabled installs the DDOT extension if DD_OTELCOLLECTOR_ENABLED is set.
-// Note: Caller must call extensionsPkg.SetPackage() separately before calling this function.
+// installAgentExtensions installs the given extensions for the agent package.
+// Extensions that are already installed (e.g. from a prior restore) are skipped
+// by the idempotency check in extensionsPkg.Install.
 //
 //nolint:unused // Used in platform-specific files
-func installDDOTExtensionIfEnabled(ctx HookContext, version string, experiment bool) error {
-	e := env.FromEnv()
-	if !e.OTelCollectorEnabled {
+func installAgentExtensions(ctx HookContext, version string, isExperiment bool) error {
+	env := env.FromEnv()
+	// populate extensions list based on environment variables
+	var extensions []string
+	if env.OTelCollectorEnabled {
+		extensions = append(extensions, "ddot")
+	}
+	// if no extensions are requested, return early
+	if len(extensions) == 0 {
 		return nil
 	}
-	setRegistryConfig(e)
-	downloader := oci.NewDownloader(e, e.HTTPClient())
-	url := oci.PackageURL(e, agentPackage, version)
-	hooks := NewHooks(e, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
-	return extensionsPkg.Install(ctx, downloader, url, []string{"ddot"}, experiment, hooks)
+
+	// install extensions
+	setRegistryConfig(env)
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	url := oci.PackageURL(env, agentPackage, version)
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	return extensionsPkg.Install(ctx, downloader, url, extensions, isExperiment, hooks)
 }
