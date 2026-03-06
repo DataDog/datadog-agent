@@ -155,8 +155,9 @@ func Run(ctx *pulumi.Context) error {
 				// imageRegistry is prepended to all custom service images by the chart's _helpers.tpl.
 				"imageRegistry": pulumi.String(imageRegistry),
 				"namespace":     pulumi.String(namespace),
-				// Pass credentials to the episode chart's built-in agent so it doesn't crash-loop.
-				// M3 will replace it with a proper DaemonSet-based agent.
+				// Pass credentials to the episode chart (used by services that talk to DD).
+				// The chart's stub agent DaemonSet is stripped by the post-renderer;
+				// dda-linux deploys the real agent.
 				"datadog": pulumi.Map{
 					"apiKey": awsEnv.AgentAPIKey(),
 					"appKey": awsEnv.AgentAPPKey(),
@@ -184,6 +185,11 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(episodeRelease)),
 		}
 
+		// Use the observer-recorder agent image if provided (--full-image-path flag).
+		if fullImagePath := awsEnv.AgentFullImagePath(); fullImagePath != "" {
+			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(fullImagePath))
+		}
+
 		// Pass gensim-specific agent config via WithExtraHelmValues (pulumi.Map) rather
 		// than WithHelmValues/WithHelmValuesFile (AssetOrArchiveArray). Map values flow
 		// through the computed ToYAMLPulumiAssetOutput() path and survive local-backend
@@ -196,15 +202,21 @@ func Run(ctx *pulumi.Context) error {
 					"tlsVerify": pulumi.Bool(false),
 				},
 				"clusterName": pulumi.String("gensim"),
-				// Observer-recorder: captures metrics as parquet for offline analysis.
-				// parquet_output_dir must match the path the runner collects from.
-				"additionalConfig": pulumi.String(
-					"observer:\n" +
-						"  capture_metrics:\n" +
-						"    enabled: true\n" +
-						"  parquet_output_dir: /tmp/observer-parquet\n" +
-						"  parquet_flush_interval: 30s\n",
-				),
+			},
+			// Observer-recorder: inject custom datadog.yaml config via ConfigMap.
+			// Deep merge preserves the agents.image, agents.enabled, etc. from
+			// buildLinuxHelmValues while adding these keys.
+			"agents": pulumi.Map{
+				"useConfigMap": pulumi.Bool(true),
+				"customAgentConfig": pulumi.Map{
+					"observer": pulumi.Map{
+						"capture_metrics": pulumi.Map{
+							"enabled": pulumi.Bool(true),
+						},
+						"parquet_output_dir":     pulumi.String("/tmp/observer-parquet"),
+						"parquet_flush_interval": pulumi.String("30s"),
+					},
+				},
 			},
 			// Cluster-checks runners are not needed for a single-node test cluster.
 			// Disabling them removes the 2 extra pods whose readiness probe blocks
@@ -419,9 +431,9 @@ func deployRunnerJob(
 
 bash /episode/play-episode.sh run-episode %s
 
-AGENT_POD=$(kubectl get pod -n %s -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+AGENT_POD=$(kubectl get pod -n %s -l app=dda-linux-datadog -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
 if [ -z "$AGENT_POD" ]; then
-  echo "ERROR: no agent pod found in namespace %s (label app=datadog-agent) — parquet not collected" >&2
+  echo "ERROR: no agent pod found in namespace %s (label app=dda-linux-datadog) — parquet not collected" >&2
 else
   echo "Collecting parquet from pod $AGENT_POD..."
   mkdir -p /episode/results/parquet
@@ -762,10 +774,29 @@ func writePatchScript() (string, error) {
 	}
 	defer f.Close()
 
-	// Always pull from ECR on pod start. This ensures iterative redeploys
-	// (with a mutable :latest tag) pick up the newly pushed image rather than
-	// using a stale node-local cache. IfNotPresent would silently keep old code.
-	script := "#!/bin/sh\nexec sed 's/imagePullPolicy: Never/imagePullPolicy: Always/g'\n"
+	// 1. imagePullPolicy: Never → Always (episode charts hardcode Never for Kind).
+	// 2. Strip the episode chart's stub datadog-agent DaemonSet + RBAC so the
+	//    framework's dda-linux agent can take over without selector conflicts.
+	script := `#!/bin/sh
+# Post-renderer: patch imagePullPolicy and strip stub agent resources.
+# Helm pipes the rendered manifests through stdin; we write to stdout.
+python3 -c '
+import sys, re
+
+docs = sys.stdin.read().split("\n---\n")
+out = []
+for doc in docs:
+    # Drop stub agent resources (DaemonSet, ServiceAccount, ClusterRole, ClusterRoleBinding)
+    # that the episode chart bundles for standalone use.
+    if re.search(r"kind:\s*(DaemonSet|ServiceAccount|ClusterRole|ClusterRoleBinding)", doc) \
+       and re.search(r"name:\s*datadog-agent\s*$", doc, re.MULTILINE):
+        continue
+    # Patch imagePullPolicy
+    doc = doc.replace("imagePullPolicy: Never", "imagePullPolicy: Always")
+    out.append(doc)
+print("\n---\n".join(out))
+'
+`
 	if _, err := f.WriteString(script); err != nil {
 		return "", fmt.Errorf("writing post-renderer script: %w", err)
 	}

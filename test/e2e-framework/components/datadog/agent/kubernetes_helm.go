@@ -192,10 +192,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	values.configureImagePullSecret(imgPullSecret)
 	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
 
-	// Merge caller-provided extra values last so they override framework defaults.
-	for k, v := range args.ExtraValues {
-		values[k] = v
-	}
+	// Deep-merge caller-provided extra values so they override individual keys
+	// without replacing entire top-level maps like "datadog" or "agents".
+	deepMergeHelmValues(values, args.ExtraValues)
 
 	// Pass agent default values via the Values map (pulumi.Map) rather than
 	// ValuesYAML (AssetOrArchiveArray). AssetOrArchiveArray values deserialise
@@ -877,6 +876,40 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
+	}
+}
+
+// deepMergeHelmValues recursively merges src into dst.  For keys whose values
+// are both pulumi.Map, it recurses so that nested keys are preserved rather than
+// replaced.  All other value types in src overwrite the corresponding key in dst.
+func deepMergeHelmValues(dst HelmValues, src pulumi.Map) {
+	for k, v := range src {
+		existing, ok := dst[k]
+		if ok {
+			// If both sides are pulumi.Map, recurse.
+			if dstMap, dOk := existing.(pulumi.Map); dOk {
+				if srcMap, sOk := v.(pulumi.Map); sOk {
+					deepMergePulumiMap(dstMap, srcMap)
+					continue
+				}
+			}
+		}
+		dst[k] = v
+	}
+}
+
+func deepMergePulumiMap(dst, src pulumi.Map) {
+	for k, v := range src {
+		existing, ok := dst[k]
+		if ok {
+			if dstMap, dOk := existing.(pulumi.Map); dOk {
+				if srcMap, sOk := v.(pulumi.Map); sOk {
+					deepMergePulumiMap(dstMap, srcMap)
+					continue
+				}
+			}
+		}
+		dst[k] = v
 	}
 }
 
