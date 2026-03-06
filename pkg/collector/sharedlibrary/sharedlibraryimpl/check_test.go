@@ -50,7 +50,10 @@ func TestCancelCheck(t *testing.T) {
 }
 
 func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	sharedLibraryLoader := ffi.NewSharedLibraryLoader("fake/library/folder/path")
+	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader("fake/library/folder/path")
+	if err != nil {
+		return nil, err
+	}
 
 	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary())
 

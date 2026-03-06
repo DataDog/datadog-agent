@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -79,10 +80,15 @@ type LibraryLoader interface {
 type SharedLibraryLoader struct {
 	folderPath string
 	aggregator *C.aggregator_t
+	permission *filesystem.Permission
 }
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
+	if err := l.permission.CheckOwnerAndPermissions(path); err != nil {
+		return nil, err
+	}
+
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
@@ -165,9 +171,14 @@ func (l *SharedLibraryLoader) ComputeLibraryPath(name string) string {
 }
 
 // NewSharedLibraryLoader creates a new SharedLibraryLoader
-func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
+func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
+	permission, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
-	}
+		permission: permission,
+	}, nil
 }
