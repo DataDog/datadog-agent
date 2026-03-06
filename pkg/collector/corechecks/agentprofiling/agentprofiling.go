@@ -365,9 +365,6 @@ func (m *Check) generateFlare() error {
 			return fmt.Errorf("Failed to send flare: %s (%w)", response, err)
 		}
 		log.Infof("Flare sent successfully with case ID %q (attempt %d/%d)", m.instance.TicketID, m.flareAttemptCount, defaultMaxFlareAttempts)
-		if removeErr := os.Remove(flarePath); removeErr != nil {
-			log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
-		}
 	} else {
 		log.Infof("Flare generated locally at %q (attempt %d/%d)", flarePath, m.flareAttemptCount, defaultMaxFlareAttempts)
 	}

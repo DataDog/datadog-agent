@@ -117,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 			)
 
-			return fxutil.OneShot(makeFlare,
+					return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         c,
@@ -315,15 +315,7 @@ func makeFlare(flareComp flare.Component,
 
 	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
-	if e != nil {
-		return e
-	}
-	if err := os.Remove(filePath); err != nil {
-		fmt.Fprintf(color.Output, "Note: could not remove local flare archive %s: %v\n", filePath, err)
-	} else {
-		fmt.Fprintf(color.Output, "Removed local flare archive %s\n", color.YellowString(filePath))
-	}
-	return nil
+	return e
 }
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {

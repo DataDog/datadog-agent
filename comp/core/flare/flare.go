@@ -29,6 +29,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,6 +40,9 @@ import (
 type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
 
 var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
+
+// sendToFunc is used to send a flare to the backend. Overridden in tests to avoid real HTTP calls.
+var sendToFunc func(model.Reader, string, string, string, string, string, helpers.FlareSource) (string, error)
 
 type dependencies struct {
 	fx.In
@@ -139,13 +143,6 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
 	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
-	if err == nil {
-		if removeErr := os.Remove(filePath); removeErr != nil {
-			f.log.Warnf("Could not remove local flare archive %s: %v", filePath, removeErr)
-		} else {
-			f.log.Infof("Removed local flare archive %s", filePath)
-		}
-	}
 	return true, err
 }
 
@@ -195,11 +192,24 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(filePath))
 }
 
-// Send sends a flare archive to Datadog
+// Send sends a flare archive to Datadog. The local archive file is removed on success.
 func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
-	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	sendFn := sendToFunc
+	if sendFn == nil {
+		sendFn = helpers.SendTo
+	}
+	response, err := sendFn(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	if err != nil {
+		return response, err
+	}
+	if removeErr := os.Remove(flarePath); removeErr != nil {
+		f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
+	} else {
+		f.log.Infof("Removed local flare archive %s", flarePath)
+	}
+	return response, nil
 }
 
 // Create creates a new flare and returns the path to the final archive file.

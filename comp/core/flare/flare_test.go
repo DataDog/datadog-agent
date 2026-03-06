@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,6 +40,7 @@ import (
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -50,6 +53,10 @@ type rcSettings struct {
 }
 
 func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Option) *flare {
+	return getFlareWithParams(t, Params{}, overrides, fillers...)
+}
+
+func getFlareWithParams(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) *flare {
 	fillerModule := fxutil.Component(fillers...)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	return newFlare(
@@ -61,7 +68,7 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 			hostnameimpl.MockModule(),
 			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
-			fx.Provide(func() Params { return Params{} }),
+			fx.Provide(func() Params { return params }),
 			collector.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
@@ -243,6 +250,25 @@ func TestAgentTaskFlareStreamLogsArgs(t *testing.T) {
 	runFlareTestScenarios(t, testCfg, scenarios, func(fb types.FlareBuilder, expSettings rcSettings) {
 		assert.Equal(t, expSettings.duration, fb.GetFlareArgs().StreamLogsDuration)
 	})
+}
+
+func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	archivePath := filepath.Join(tmpDir, "flare.zip")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake flare"), 0600))
+
+	origSendTo := sendToFunc
+	defer func() { sendToFunc = origSendTo }()
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+		return "success", nil
+	}
+
+	f := getFlare(t, nil)
+	_, err := f.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(archivePath)
+	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful send")
 }
 
 func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenarios []struct {
