@@ -713,7 +713,7 @@ collect_dd_auto_pkg_artifacts(
     target_compatible_with = [
         "@platforms//os:linux",
     ],
-    visibility = ["//packages:__subpackages__"],
+    visibility = ["@@//packages:__subpackages__"],
 )
 
 pkg_install(
