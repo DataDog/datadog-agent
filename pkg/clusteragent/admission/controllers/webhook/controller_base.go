@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/ncclprofiler"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -176,6 +177,10 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 			log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
 		}
 	}
+
+	// Setup NCCL profiler injection webhook.
+	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, ncclWebhook)
 
 	return webhooks
 }
