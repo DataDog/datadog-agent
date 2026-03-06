@@ -18,6 +18,7 @@ def rtloader_test_go_library(**kwargs):
             "@platforms//os:macos": [],
             "@platforms//os:windows": ["@platforms//:incompatible"],
         }),
+        testonly = True,
         **kwargs
     )
 
