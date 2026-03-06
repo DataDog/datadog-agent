@@ -47,6 +47,7 @@ export interface StatusResponse {
   scenarioEnd?: number;
   episodeInfo?: EpisodeInfo;
   serverConfig: ServerConfig;
+  loadedFromResultFiles: boolean;
 }
 
 export interface ScenarioInfo {
@@ -55,6 +56,7 @@ export interface ScenarioInfo {
   hasParquet: boolean;
   hasLogs: boolean;
   hasEvents: boolean;
+  hasResultFiles: boolean;
 }
 
 export interface ComponentInfo {

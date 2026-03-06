@@ -698,7 +698,17 @@ function ScenarioSelector({
                   : 'text-slate-300 hover:bg-slate-700'
               }`}
             >
-              <div className="font-medium">{scenario.name}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium">{scenario.name}</span>
+                {scenario.hasResultFiles && (
+                  <span
+                    className="text-xs px-1 py-0.5 rounded bg-emerald-800/60 text-emerald-400 font-medium shrink-0"
+                    title="Pre-computed result files available — detectors will be skipped"
+                  >
+                    cached
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-slate-400 mt-0.5">
                 {[
                   scenario.hasParquet && 'parquet',

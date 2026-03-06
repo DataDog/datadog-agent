@@ -465,6 +465,14 @@ function App() {
                 </button>
               </label>
             )}
+            {state.status?.loadedFromResultFiles && (
+              <span
+                className="text-xs px-2 py-0.5 rounded bg-emerald-800/60 text-emerald-400 font-medium"
+                title="Virtual metrics and telemetry were loaded from pre-computed result files. Anomaly detectors were not executed."
+              >
+                cached results
+              </span>
+            )}
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
               <span className="text-sm text-slate-400">

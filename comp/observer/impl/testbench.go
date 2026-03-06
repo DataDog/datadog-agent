@@ -125,17 +125,23 @@ type TestBench struct {
 	correlatorGen         int64      // generation counter, incremented each rerun
 	correlatorsDone       *sync.Cond // signaled when correlatorsProcessing transitions to false
 
+	// loadedFromResultFiles is true when the current scenario was loaded from
+	// pre-computed result files (observer-resultsmetrics-*.parquet) rather than
+	// by executing the anomaly detectors.
+	loadedFromResultFiles bool
+
 	// API server
 	api *TestBenchAPI
 }
 
 // ScenarioInfo describes an available scenario.
 type ScenarioInfo struct {
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	HasParquet bool   `json:"hasParquet"`
-	HasLogs    bool   `json:"hasLogs"`
-	HasEvents  bool   `json:"hasEvents"`
+	Name           string `json:"name"`
+	Path           string `json:"path"`
+	HasParquet     bool   `json:"hasParquet"`
+	HasLogs        bool   `json:"hasLogs"`
+	HasEvents      bool   `json:"hasEvents"`
+	HasResultFiles bool   `json:"hasResultFiles"`
 }
 
 // ComponentInfo describes a registered component.
@@ -159,6 +165,7 @@ type StatusResponse struct {
 	ScenarioEnd           *int64       `json:"scenarioEnd,omitempty"`
 	EpisodeInfo           *EpisodeInfo `json:"episodeInfo,omitempty"`
 	ServerConfig          ServerConfig `json:"serverConfig"`
+	LoadedFromResultFiles bool         `json:"loadedFromResultFiles"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.
@@ -270,6 +277,15 @@ func (tb *TestBench) ListScenarios() ([]ScenarioInfo, error) {
 			}
 		}
 
+		// Check for pre-computed result files (observer-resultsmetrics-*.parquet)
+		parquetSubdir := filepath.Join(scenarioPath, "parquet")
+		if _, err := os.Stat(parquetSubdir); err == nil {
+			info.HasResultFiles = hasResultFiles(parquetSubdir)
+		}
+		if !info.HasResultFiles {
+			info.HasResultFiles = hasResultFiles(scenarioPath)
+		}
+
 		scenarios = append(scenarios, info)
 	}
 
@@ -309,6 +325,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = name
+	tb.loadedFromResultFiles = false
 
 	// Try to read optional episode.json metadata
 	tb.episodeInfo = nil
@@ -343,13 +360,88 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
-	// Run analyses on all loaded data (detectors sync, correlators async)
-	analysisStart := time.Now()
-	tb.rerunDetectorsLocked()
-	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
-	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
+	// Determine the directory that may contain result files. Result files are
+	// written to the same directory as the input parquet files.
+	resultDir := parquetDir
+	if _, err := os.Stat(parquetDir); err != nil {
+		resultDir = scenarioPath
+	}
+
+	if hasResultFiles(resultDir) {
+		// Pre-computed results are available: load virtual metrics and telemetry
+		// directly from result files without re-running the anomaly detectors.
+		fmt.Printf("  Result files found in %s — skipping detector execution\n", resultDir)
+		resultStart := time.Now()
+		if err := tb.loadResultFilesLocked(resultDir); err != nil {
+			fmt.Printf("  Warning: failed to load result files: %v\n", err)
+		}
+		fmt.Printf("  Result file loading took %s\n", time.Since(resultStart))
+		tb.loadedFromResultFiles = true
+		tb.ready = true
+		// Kick off the correlator phase using any anomalies that may already be
+		// populated (e.g. from a prior run). In practice they will be empty when
+		// loading purely from result files, but we still start the goroutine so
+		// the correlatorsDone condition is properly signaled and the status API
+		// reports correlatorsProcessing = false as expected.
+		tb.rerunCorrelatorsLocked()
+	} else {
+		// No result files — run the full analysis pipeline.
+		analysisStart := time.Now()
+		tb.rerunDetectorsLocked()
+		fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
+	}
+
+	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
+	return nil
+}
+
+// hasResultFiles returns true if the given directory contains at least one
+// observer-resultsmetrics-*.parquet file, indicating that a previous detector
+// run already computed virtual metrics and telemetry.
+func hasResultFiles(dir string) bool {
+	matches, err := filepath.Glob(filepath.Join(dir, "observer-resultsmetrics-*.parquet"))
+	return err == nil && len(matches) > 0
+}
+
+// loadResultFilesLocked loads pre-computed virtual metrics, telemetry metrics,
+// and telemetry logs from result parquet files in dir.  Caller must hold tb.mu (write lock).
+func (tb *TestBench) loadResultFilesLocked(dir string) error {
+	if tb.config.Recorder == nil {
+		return fmt.Errorf("recorder not configured")
+	}
+
+	// Load result metrics (virtual + telemetry) with correct namespaces.
+	metrics, err := tb.config.Recorder.ReadResultsMetrics(dir)
+	if err != nil {
+		return fmt.Errorf("reading result metrics: %w", err)
+	}
+
+	for _, m := range metrics {
+		var namespace string
+		switch {
+		case strings.HasPrefix(m.Name, "_virtual."):
+			namespace = "logs"
+		case strings.HasPrefix(m.Name, "telemetry."):
+			namespace = "telemetry"
+		default:
+			namespace = "parquet"
+		}
+		tb.storage.Add(namespace, m.Name, m.Value, m.Timestamp, m.Tags)
+	}
+
+	// Load result logs (telemetry logs emitted by detectors).
+	resultLogs, err := tb.config.Recorder.ReadResultsLogs(dir)
+	if err != nil {
+		return fmt.Errorf("reading result logs: %w", err)
+	}
+
+	for i := range resultLogs {
+		tb.rawLogs = append(tb.rawLogs, &logDataView{data: &resultLogs[i]})
+	}
+
+	fmt.Printf("  Loaded %d result metrics and %d result logs from %s\n", len(metrics), len(resultLogs), dir)
 	return nil
 }
 
@@ -596,6 +688,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
 		EpisodeInfo:           tb.episodeInfo,
+		LoadedFromResultFiles: tb.loadedFromResultFiles,
 		ServerConfig: ServerConfig{
 			Components: compMap,
 		},
@@ -694,10 +787,14 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.config.Recorder.FlushResultsLogs()
 	}
 
-	// --- Correlations ---
-	// Mark scenario ready now that detectors are done — anomalies are available
+	// Mark scenario ready and kick off async correlator phase.
 	tb.ready = true
+	tb.rerunCorrelatorsLocked()
+}
 
+// rerunCorrelatorsLocked starts an async goroutine that runs all enabled correlators
+// over the current metricsAnomalies snapshot. Caller must hold tb.mu (write lock).
+func (tb *TestBench) rerunCorrelatorsLocked() {
 	// Snapshot anomalies sorted by time for the background goroutine.
 	// Anomalies are collected per-series, not in time order. Sorting ensures
 	// correlators see events chronologically, matching the live observer's
@@ -1173,6 +1270,7 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = "demo"
+	tb.loadedFromResultFiles = false
 
 	// Reset all state
 	tb.resetAllState()

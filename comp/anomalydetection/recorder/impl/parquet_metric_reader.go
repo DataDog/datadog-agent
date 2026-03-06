@@ -109,15 +109,26 @@ func (r *parquetMetricReader) EndTime() int64 {
 // minParquetFileSize is the minimum valid size for a parquet file
 const minParquetFileSize = 20
 
-// findParquetFiles recursively finds all .parquet files in a directory,
-// skipping files that are too small to be valid parquet files.
+// isResultParquetFile reports whether the base filename belongs to a result
+// parquet file (observer-resultsmetrics-* or observer-resultslogs-*).
+// Result files are written by the recorder after running detectors and should
+// not be treated as raw input data.
+func isResultParquetFile(name string) bool {
+	base := filepath.Base(name)
+	return strings.HasPrefix(base, "observer-resultsmetrics-") ||
+		strings.HasPrefix(base, "observer-resultslogs-")
+}
+
+// findParquetFiles recursively finds all input .parquet files in a directory,
+// skipping result files (observer-resultsmetrics-*, observer-resultslogs-*)
+// and files that are too small to be valid parquet files.
 func findParquetFiles(dirPath string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".parquet") {
+		if !info.IsDir() && strings.HasSuffix(path, ".parquet") && !isResultParquetFile(path) {
 			if info.Size() < minParquetFileSize {
 				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", path, info.Size())
 				return nil
@@ -131,6 +142,62 @@ func findParquetFiles(dirPath string) ([]string, error) {
 	}
 	sort.Strings(files) // Sort for consistent ordering
 	return files, nil
+}
+
+// findResultMetricParquetFiles finds observer-resultsmetrics-*.parquet files in a directory.
+func findResultMetricParquetFiles(dirPath string) ([]string, error) {
+	var files []string
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, "observer-resultsmetrics-") && strings.HasSuffix(name, ".parquet") {
+			fullPath := filepath.Join(dirPath, name)
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			if info.Size() < minParquetFileSize {
+				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", fullPath, info.Size())
+				continue
+			}
+			files = append(files, fullPath)
+		}
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+// newResultParquetReader creates a parquet reader for result metric files only.
+func newResultParquetReader(dirPath string) (*parquetMetricReader, error) {
+	parquetFiles, err := findResultMetricParquetFiles(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("finding result parquet files: %w", err)
+	}
+
+	var allMetrics []FGMMetric
+	for _, filePath := range parquetFiles {
+		metrics, err := readParquetFile(filePath)
+		if err != nil {
+			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	sort.Slice(allMetrics, func(i, j int) bool {
+		return allMetrics[i].Time < allMetrics[j].Time
+	})
+
+	return &parquetMetricReader{
+		metrics: allMetrics,
+		index:   0,
+	}, nil
 }
 
 // readParquetFile reads a single parquet file and extracts FGM metrics.

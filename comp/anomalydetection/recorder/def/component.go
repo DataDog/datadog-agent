@@ -86,6 +86,17 @@ type Component interface {
 	// written before the process exits.
 	FlushResultsCorrelations()
 
+	// ReadResultsMetrics reads only result metrics from observer-resultsmetrics-*.parquet files.
+	// This is used by the testbench to load pre-computed virtual metrics and telemetry metrics
+	// when result files are available, avoiding a full re-run of the anomaly detectors.
+	// Returns an empty slice (no error) when no result files are found in the directory.
+	ReadResultsMetrics(inputDir string) ([]MetricData, error)
+
+	// ReadResultsLogs reads only result logs from observer-resultslogs-*.parquet files.
+	// These are telemetry logs emitted by anomaly detectors during a previous run.
+	// Returns an empty slice (no error) when no result log files are found in the directory.
+	ReadResultsLogs(inputDir string) ([]LogData, error)
+
 	// EnableResultsSaving initializes the results metrics writer to save computed intermediate
 	// data to the given output directory. Intended for headless mode: it enables saving only
 	// the derived/computed data (virtual metrics, telemetry metrics) without re-recording the

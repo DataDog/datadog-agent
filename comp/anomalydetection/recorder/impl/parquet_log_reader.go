@@ -29,6 +29,17 @@ type LogParquetReader struct {
 
 // NewLogParquetReader creates a reader for log parquet files.
 func NewLogParquetReader(inputDir string) (*LogParquetReader, error) {
+	return newLogParquetReaderWithPrefix(inputDir, "observer-logs-")
+}
+
+// NewResultLogParquetReader creates a reader for result log parquet files
+// (observer-resultslogs-*.parquet). Returns an empty reader (no error) when
+// no result log files are found.
+func NewResultLogParquetReader(inputDir string) (*LogParquetReader, error) {
+	return newLogParquetReaderWithPrefix(inputDir, "observer-resultslogs-")
+}
+
+func newLogParquetReaderWithPrefix(inputDir, prefix string) (*LogParquetReader, error) {
 	entries, err := os.ReadDir(inputDir)
 	if err != nil {
 		return nil, err
@@ -39,7 +50,7 @@ func NewLogParquetReader(inputDir string) (*LogParquetReader, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if strings.HasPrefix(entry.Name(), "observer-logs-") && strings.HasSuffix(entry.Name(), ".parquet") {
+		if strings.HasPrefix(entry.Name(), prefix) && strings.HasSuffix(entry.Name(), ".parquet") {
 			files = append(files, filepath.Join(inputDir, entry.Name()))
 		}
 	}

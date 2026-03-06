@@ -222,6 +222,58 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+// ReadResultsMetrics reads only result metrics from observer-resultsmetrics-*.parquet files.
+// Returns an empty slice (no error) when no result files are found.
+func (r *recorderImpl) ReadResultsMetrics(inputDir string) ([]recorderdef.MetricData, error) {
+	reader, err := newResultParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating result parquet reader: %w", err)
+	}
+
+	if reader.Len() == 0 {
+		return nil, nil
+	}
+
+	pkglog.Infof("ReadResultsMetrics: loading %d metrics from %s", reader.Len(), inputDir)
+
+	metrics := make([]recorderdef.MetricData, 0, reader.Len())
+	for {
+		metric := reader.Next()
+		if metric == nil {
+			break
+		}
+
+		var value float64
+		if metric.ValueFloat != nil {
+			value = *metric.ValueFloat
+		} else if metric.ValueInt != nil {
+			value = float64(*metric.ValueInt)
+		}
+
+		tags := make([]string, 0, len(metric.Tags))
+		for k, v := range metric.Tags {
+			if v != "" {
+				tags = append(tags, k+":"+v)
+			} else {
+				tags = append(tags, k)
+			}
+		}
+
+		timestamp := metric.Time / 1000
+
+		metrics = append(metrics, recorderdef.MetricData{
+			Source:    metric.RunID,
+			Name:      metric.MetricName,
+			Value:     value,
+			Timestamp: timestamp,
+			Tags:      tags,
+		})
+	}
+
+	pkglog.Infof("ReadResultsMetrics: loaded %d result metrics", len(metrics))
+	return metrics, nil
+}
+
 // ReadAllTraces reads all traces from parquet files and returns them as a slice.
 // Traces are reconstructed from denormalized span rows grouped by trace ID.
 func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
@@ -280,6 +332,22 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 	logs := reader.ReadAll()
 
 	pkglog.Infof("ReadAllLogs: loaded %d logs", len(logs))
+	return logs, nil
+}
+
+// ReadResultsLogs reads only result logs from observer-resultslogs-*.parquet files.
+// Returns an empty slice (no error) when no result log files are found.
+func (r *recorderImpl) ReadResultsLogs(inputDir string) ([]recorderdef.LogData, error) {
+	reader, err := NewResultLogParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating result log parquet reader: %w", err)
+	}
+
+	logs := reader.ReadAll()
+
+	if len(logs) > 0 {
+		pkglog.Infof("ReadResultsLogs: loaded %d result logs from %s", len(logs), inputDir)
+	}
 	return logs, nil
 }
 
