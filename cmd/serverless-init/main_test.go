@@ -11,44 +11,34 @@ import (
 	"testing"
 	"time"
 
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagsSetup(t *testing.T) {
-	// TODO: Fix and re-enable flaky test
-	t.Skip()
-
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeCompression := compressionmock.NewMockCompressor()
-	fakeHostname, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(""))
-
 	configmock.New(t)
+
+	modeConf = mode.DetectMode()
 
 	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
 	ddExtraTagsEnv := "key22:value22 key23:value23"
 	t.Setenv("DD_TAGS", ddTagsEnv)
 	t.Setenv("DD_EXTRA_TAGS", ddExtraTagsEnv)
-	ddTags := cast.ToStringSlice(ddTagsEnv)
-	ddExtraTags := cast.ToStringSlice(ddExtraTagsEnv)
+	cloudService := &cloudservice.LocalService{}
+	configuredTags, metricTags, enhancedMetricTags, enhancedMetricTagsAll := configureTags(cloudService)
 
-	allTags := append(ddTags, ddExtraTags...)
+	cloudServiceTags := cloudService.GetTags()
+	cloudServiceEnhancedMetricTags, cloudServiceEnhancedMetricTagsHighCardinality := cloudService.GetEnhancedMetricTags(cloudServiceTags)
 
-	_, _, tracingCtx, metricAgent, _, _ := setup(secretsmock.New(t), delegatedauthmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
-	defer tracingCtx.TraceAgent.Stop()
-	defer metricAgent.Stop()
-	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
+	assert.ElementsMatch(t, append(configuredTags, append(serverlessTag.MapToArray(cloudServiceTags), "_dd.datadog_init_version:xxx")...), serverlessTag.MapToArray(metricTags))
+	assert.ElementsMatch(t, append(configuredTags, append(serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), []string{"datadog_init_version:xxx", "sidecar:false"}...)...), serverlessTag.MapToArray(enhancedMetricTags))
+	assert.ElementsMatch(t, append(configuredTags, append(serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), append(serverlessTag.MapToArray(cloudServiceEnhancedMetricTagsHighCardinality), []string{"datadog_init_version:xxx", "sidecar:false"}...)...)...), serverlessTag.MapToArray(enhancedMetricTagsAll))
 }
 
 func TestFxApp(t *testing.T) {

@@ -81,7 +81,7 @@ func TestAddExtraTags(t *testing.T) {
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Contains(t, metric.Tags, "exit_code:1")
-	assert.NotContains(t, mockAgent.GetExtraTags(), "exit_code:1")
+	assert.NotContains(t, mockAgent.tags, "exit_code:1")
 }
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {

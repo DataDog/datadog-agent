@@ -77,16 +77,20 @@ const defaultPrefix = "datadog.serverless_agent"
 
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"local": "true",
+	}
 }
 
 // GetEnhancedMetricTags is a default implementation that returns an empty tag set
 func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
-		"origin": tags["origin"],
+		"local": tags["local"],
 	}
 
-	highCardinalityTags := map[string]string{}
+	highCardinalityTags := map[string]string{
+		"high_cardinality": "true",
+	}
 
 	return baseTags, highCardinalityTags
 }

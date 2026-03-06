@@ -110,11 +110,6 @@ func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string, enhancedMetricTa
 	}
 }
 
-// GetExtraTags gets extra tags
-func (c *ServerlessMetricAgent) GetExtraTags() []string {
-	return c.tags
-}
-
 // AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
 func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
 	c.sendMetricSample(name, value, metricSource, 0, c.tags, extraTags...)
