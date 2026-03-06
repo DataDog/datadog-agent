@@ -69,6 +69,11 @@ var (
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
 	TlmBytesMissed = telemetry.NewCounter("logs", "bytes_missed",
 		nil, "Total number of bytes lost before they could be consumed by the agent, such as after log rotation")
+	// MessagesDiscarded is the number of messages discarded due to context cancellation (e.g., close_timeout expiring during file rotation)
+	MessagesDiscarded = expvar.Int{}
+	// TlmMessagesDiscarded is the number of messages discarded due to context cancellation
+	TlmMessagesDiscarded = telemetry.NewCounter("logs", "messages_discarded_context_cancelled",
+		nil, "Total number of messages discarded due to context cancellation during file rotation. Consider increasing logs_config.close_timeout if this value is high")
 	// SenderLatency the last reported latency value from the http sender (ms)
 	SenderLatency = expvar.Int{}
 	// TlmSenderLatency a histogram of http sender latency (ms)
@@ -154,6 +159,7 @@ func init() {
 	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
 	LogsExpvars.Set("BytesMissed", &BytesMissed)
+	LogsExpvars.Set("MessagesDiscarded", &MessagesDiscarded)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
