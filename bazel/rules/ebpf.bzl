@@ -166,19 +166,36 @@ def _ebpf_prog_impl(ctx):
 
     # --- Step 3: strip (optional) ---
     if ctx.attr.strip:
-        stripped_obj = ctx.actions.declare_file(obj_file_name)
-        strip_args = ctx.actions.args()
-        strip_args.add("-g")
-        strip_args.add(raw_obj)
-        strip_args.add("-o", stripped_obj)
+        debug_stripped = ctx.actions.declare_file(ctx.label.name + ".o.dbg")
+        strip_dbg_args = ctx.actions.args()
+        strip_dbg_args.add("-g")
+        strip_dbg_args.add(raw_obj)
+        strip_dbg_args.add("-o", debug_stripped)
 
         ctx.actions.run(
             inputs = [raw_obj],
+            outputs = [debug_stripped],
+            executable = tc.llvm_strip,
+            arguments = [strip_dbg_args],
+            mnemonic = "EbpfStripDebug",
+            progress_message = "Stripping debug info from eBPF %{label}",
+        )
+
+        # Remove LLVM-generated local basic block labels (LBB*)
+        stripped_obj = ctx.actions.declare_file(obj_file_name)
+        strip_lbb_args = ctx.actions.args()
+        strip_lbb_args.add("-w")
+        strip_lbb_args.add("-N", "LBB*")
+        strip_lbb_args.add(debug_stripped)
+        strip_lbb_args.add("-o", stripped_obj)
+
+        ctx.actions.run(
+            inputs = [debug_stripped],
             outputs = [stripped_obj],
             executable = tc.llvm_strip,
-            arguments = [strip_args],
-            mnemonic = "EbpfStrip",
-            progress_message = "Stripping eBPF %{label}",
+            arguments = [strip_lbb_args],
+            mnemonic = "EbpfStripLBB",
+            progress_message = "Stripping LBB symbols from eBPF %{label}",
         )
         final_obj = stripped_obj
     else:
