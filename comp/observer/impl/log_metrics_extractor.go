@@ -13,7 +13,6 @@ import (
 	"strings"
 	"unicode"
 
-	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -35,51 +34,27 @@ type LogMetricsExtractor struct {
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
 func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectionResult {
-	// TODO A
-	return observer.LogDetectionResult{
-		Metrics: []observer.MetricOutput{
-			{
-				Name:  "celian.is.the.best.questionmark",
-				Value: 1,
-				Tags:  log.GetTags(),
-			},
-		},
-		Telemetry: []observer.ObserverTelemetry{
-			{
-				Log: &logDataView{
-					data: &recorderdef.LogData{
-						Content:     []byte("Hello"),
-						Status:      log.GetStatus(),
-						Tags:        log.GetTags(),
-						TimestampMs: log.GetTimestampMs(),
-						Hostname:    log.GetHostname(),
-					},
-				},
-			},
-		},
+	content := log.GetContent()
+	tags := log.GetTags()
+
+	// Always emit pattern frequency metric for all logs
+	patternSig := logSignature(content, a.MaxEvalBytes)
+	if patternSig == "" {
+		return observer.LogDetectionResult{}
 	}
 
-	// content := log.GetContent()
-	// tags := log.GetTags()
+	metrics := []observer.MetricOutput{{
+		Name:  patternCountMetricName(patternSig),
+		Value: 1,
+		Tags:  tags,
+	}}
 
-	// // Always emit pattern frequency metric for all logs
-	// patternSig := logSignature(content, a.MaxEvalBytes)
-	// if patternSig == "" {
-	// 	return observer.LogDetectionResult{}
-	// }
+	// For JSON logs, also extract numeric field metrics
+	if isJSONObject(content) {
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
+	}
 
-	// metrics := []observer.MetricOutput{{
-	// 	Name:  patternCountMetricName(patternSig),
-	// 	Value: 1,
-	// 	Tags:  tags,
-	// }}
-
-	// // For JSON logs, also extract numeric field metrics
-	// if isJSONObject(content) {
-	// 	metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
-	// }
-
-	// return observer.LogDetectionResult{Metrics: metrics}
+	return observer.LogDetectionResult{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {
