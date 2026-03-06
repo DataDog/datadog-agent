@@ -1,0 +1,9 @@
+[package]
+name = "dd-agent-log"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+log = { workspace = true, features = ["std"] }

@@ -98,7 +98,7 @@ fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
                     return Some("<non-string key>");
                 };
                 match s.as_str() {
-                    "discovery" | "log_level" => continue,
+                    "discovery" | "log_level" | "log_file" => continue,
                     "event_monitoring_config" => {
                         if is_yaml_bool_true(&value["process"], "enabled") {
                             return Some("event_monitoring_config.process.enabled");
@@ -228,6 +228,28 @@ pub fn get_sysprobe_socket_path(config: &Option<Yaml>) -> String {
 
     // Default fallback
     "/opt/datadog-agent/run/sysprobe.sock".to_string()
+}
+
+/// Returns the log file path from config.
+/// Priority: env var > `system_probe_config.log_file` > `log_file` > default
+pub fn get_log_file(config: &Result<Option<Yaml>>) -> String {
+    // Check environment variable first
+    if let Ok(path) = env::var("DD_SYSTEM_PROBE_CONFIG_LOG_FILE") {
+        return path;
+    }
+
+    // Try using the pre-loaded config
+    if let Some(doc) = config.as_ref().ok().and_then(|opt| opt.as_ref()) {
+        if let Some(path) = get_yaml_string_option(doc, "system_probe_config.log_file") {
+            return path;
+        }
+        if let Some(path) = get_yaml_string_option(doc, "log_file") {
+            return path;
+        }
+    }
+
+    // Default fallback
+    "/var/log/datadog/system-probe.log".to_string()
 }
 
 /// Parse a Go log level string into a log::Level

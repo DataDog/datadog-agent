@@ -63,13 +63,13 @@ fn test_fallback_on_npm_enabled() {
         expected_args,
         content
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains(
+        stderr.contains(
             "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
         ),
         "Expected fallback due to DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -139,11 +139,11 @@ fn test_config_file_only() {
         .expect("Failed to execute sd-agent");
 
     assert!(marker_file.exists(), "Should fallback based on config file");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: YAML key network_config is active"),
+        stderr.contains("Falling back to system-probe: YAML key network_config is active"),
         "Expected fallback due to network_config YAML key, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -192,11 +192,11 @@ fn test_invalid_yaml_triggers_fallback() {
         .expect("Failed to execute sd-agent");
 
     assert!(marker_file.exists(), "Should fallback on invalid YAML");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Failed to load YAML config. Falling back to system-probe."),
+        stderr.contains("Failed to load YAML config. Falling back to system-probe."),
         "Expected fallback due to invalid YAML, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -230,11 +230,11 @@ fn test_unknown_yaml_key_triggers_fallback() {
         marker_file.exists(),
         "Unknown YAML key should trigger fallback"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: YAML key unknown_module is active"),
+        stderr.contains("Falling back to system-probe: YAML key unknown_module is active"),
         "Expected fallback due to unknown_module YAML key, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -301,13 +301,13 @@ fn test_discovery_enabled_with_fallback() {
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains(
+        stderr.contains(
             "Falling back to system-probe: env var DD_RUNTIME_SECURITY_CONFIG_ENABLED is set"
         ),
         "Expected fallback due to DD_RUNTIME_SECURITY_CONFIG_ENABLED, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -339,11 +339,11 @@ fn test_killswitch_disabled_fallback() {
         marker_file.exists(),
         "Killswitch disabled should trigger fallback to system-probe"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stderr.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
         "Expected fallback due to killswitch disabled, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -373,11 +373,11 @@ fn test_killswitch_not_set_defaults_to_fallback() {
         marker_file.exists(),
         "Killswitch not set should default to fallback (safe default)"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stderr.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
         "Expected fallback due to killswitch not set, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -457,11 +457,11 @@ fn test_killswitch_yaml_config() {
         marker_file.exists(),
         "YAML with killswitch disabled should trigger fallback"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stderr.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
         "Expected fallback due to killswitch disabled in YAML, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -500,11 +500,11 @@ fn test_killswitch_env_overrides_yaml_enabled() {
         marker_file.exists(),
         "Env var should override YAML - fallback should happen"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stderr.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
         "Expected fallback due to killswitch env var override, got: {}",
-        stdout
+        stderr
     );
 }
 
@@ -605,12 +605,12 @@ fn test_env_var_non_boolean_triggers_fallback() {
         marker_file.exists(),
         "Env var with non-boolean value should trigger fallback as safety net"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stdout.contains(
+        stderr.contains(
             "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
         ),
         "Expected fallback due to non-boolean DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
-        stdout
+        stderr
     );
 }
