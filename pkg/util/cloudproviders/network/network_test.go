@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -63,4 +64,92 @@ func TestGetVPCSubnetsForHostError(t *testing.T) {
 	})
 	_, err := GetVPCSubnetsForHost(context.Background())
 	require.ErrorIs(t, err, errMock)
+}
+
+// addCleanupForNetworkID clears the network ID cache after the tests.
+func addCleanupForNetworkID(t *testing.T) {
+	t.Cleanup(func() {
+		cache.Cache.Delete(networkIDCacheKey)
+	})
+}
+
+func TestGetNetworkIDFromConfig(t *testing.T) {
+	addCleanupForNetworkID(t)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("network.id", "configured-network-123")
+
+	networkID, err := GetNetworkID(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "configured-network-123", networkID)
+}
+
+func TestGetNetworkIDCaching(t *testing.T) {
+	addCleanupForNetworkID(t)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("network.id", "cached-network-id")
+
+	// First call
+	networkID1, err := GetNetworkID(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "cached-network-id", networkID1)
+
+	// Change config - should still return cached value
+	cfg.SetWithoutSource("network.id", "new-network-id")
+
+	networkID2, err := GetNetworkID(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "cached-network-id", networkID2, "should return cached value")
+}
+
+func TestGetNetworkIDEmptyConfig(t *testing.T) {
+	addCleanupForNetworkID(t)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("network.id", "")
+
+	// When config is empty, it will try GCE and EC2 which will fail in test env
+	_, err := GetNetworkID(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "could not detect network ID")
+}
+
+func TestGetVPCSubnetsForHostEmptyList(t *testing.T) {
+	addCleanupForSubnets(t)
+	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
+		return []string{}, nil
+	})
+	subnets, err := GetVPCSubnetsForHost(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, subnets)
+}
+
+func TestGetVPCSubnetsForHostIPv4Only(t *testing.T) {
+	addCleanupForSubnets(t)
+	expectedSubnets := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
+		return expectedSubnets, nil
+	})
+	subnets, err := GetVPCSubnetsForHost(context.Background())
+	require.NoError(t, err)
+
+	var actualSubnets []string
+	for _, subnet := range subnets {
+		actualSubnets = append(actualSubnets, subnet.String())
+	}
+	require.ElementsMatch(t, expectedSubnets, actualSubnets)
+}
+
+func TestGetVPCSubnetsForHostIPv6Only(t *testing.T) {
+	addCleanupForSubnets(t)
+	expectedSubnets := []string{"2001:db8::/32", "fe80::/10"}
+	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
+		return expectedSubnets, nil
+	})
+	subnets, err := GetVPCSubnetsForHost(context.Background())
+	require.NoError(t, err)
+
+	var actualSubnets []string
+	for _, subnet := range subnets {
+		actualSubnets = append(actualSubnets, subnet.String())
+	}
+	require.ElementsMatch(t, expectedSubnets, actualSubnets)
 }

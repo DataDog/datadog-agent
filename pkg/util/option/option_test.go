@@ -6,6 +6,7 @@
 package option
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -80,4 +81,41 @@ func TestSetOptionIfNone(t *testing.T) {
 	v, ok = optional.Get()
 	require.Equal(t, 10, v)
 	require.True(t, ok)
+}
+
+func TestNewPtr(t *testing.T) {
+	p := NewPtr("hello")
+	require.NotNil(t, p)
+	v, ok := p.Get()
+	require.True(t, ok)
+	require.Equal(t, "hello", v)
+}
+
+func TestNonePtr(t *testing.T) {
+	p := NonePtr[int]()
+	require.NotNil(t, p)
+	_, ok := p.Get()
+	require.False(t, ok)
+}
+
+func TestUnmarshalYAML(t *testing.T) {
+	// successful unmarshal
+	var opt Option[int]
+	err := opt.UnmarshalYAML(func(v interface{}) error {
+		*(v.(*int)) = 42
+		return nil
+	})
+	require.NoError(t, err)
+	v, ok := opt.Get()
+	require.True(t, ok)
+	require.Equal(t, 42, v)
+
+	// failed unmarshal returns error and sets None
+	var opt2 Option[int]
+	err = opt2.UnmarshalYAML(func(_ interface{}) error {
+		return errors.New("unmarshal failed")
+	})
+	require.Error(t, err)
+	_, ok = opt2.Get()
+	require.False(t, ok)
 }

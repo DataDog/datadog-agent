@@ -129,3 +129,202 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	assert.Equal(t, 1, len(payload.MessageMetas))
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
+
+func TestMessageContentStates(t *testing.T) {
+	t.Run("unstructured state", func(t *testing.T) {
+		msg := NewMessage([]byte("test content"), nil, StatusInfo, time.Now().UnixNano())
+		assert.Equal(t, StateUnstructured, msg.State)
+		assert.Equal(t, "test content", string(msg.GetContent()))
+	})
+
+	t.Run("rendered state", func(t *testing.T) {
+		msg := NewMessage([]byte("original"), nil, StatusInfo, time.Now().UnixNano())
+		msg.SetRendered([]byte("rendered content"))
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "rendered content", string(msg.GetContent()))
+	})
+
+	t.Run("encoded state", func(t *testing.T) {
+		msg := NewMessage([]byte("original"), nil, StatusInfo, time.Now().UnixNano())
+		msg.SetEncoded([]byte("encoded content"))
+		assert.Equal(t, StateEncoded, msg.State)
+		assert.Equal(t, "encoded content", string(msg.GetContent()))
+	})
+}
+
+func TestMessageRender(t *testing.T) {
+	t.Run("unstructured message", func(t *testing.T) {
+		msg := NewMessage([]byte("test"), nil, StatusInfo, 0)
+		rendered, err := msg.Render()
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("test"), rendered)
+	})
+
+	t.Run("rendered message", func(t *testing.T) {
+		msg := NewMessage([]byte("original"), nil, StatusInfo, 0)
+		msg.SetRendered([]byte("rendered"))
+		rendered, err := msg.Render()
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("rendered"), rendered)
+	})
+
+	t.Run("encoded message returns error", func(t *testing.T) {
+		msg := NewMessage([]byte("original"), nil, StatusInfo, 0)
+		msg.SetEncoded([]byte("encoded"))
+		_, err := msg.Render()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "encoded message")
+	})
+}
+
+func TestBasicStructuredContent(t *testing.T) {
+	t.Run("render", func(t *testing.T) {
+		content := &BasicStructuredContent{
+			Data: map[string]interface{}{
+				"message": "test message",
+				"level":   "info",
+			},
+		}
+		rendered, err := content.Render()
+		assert.NoError(t, err)
+		assert.Contains(t, string(rendered), "test message")
+		assert.Contains(t, string(rendered), "info")
+	})
+
+	t.Run("get content", func(t *testing.T) {
+		content := &BasicStructuredContent{
+			Data: map[string]interface{}{
+				"message": "hello world",
+			},
+		}
+		assert.Equal(t, []byte("hello world"), content.GetContent())
+	})
+
+	t.Run("get content missing message", func(t *testing.T) {
+		content := &BasicStructuredContent{
+			Data: map[string]interface{}{
+				"other": "value",
+			},
+		}
+		assert.Equal(t, []byte{}, content.GetContent())
+	})
+
+	t.Run("set content", func(t *testing.T) {
+		content := &BasicStructuredContent{
+			Data: map[string]interface{}{},
+		}
+		content.SetContent([]byte("new content"))
+		assert.Equal(t, "new content", content.Data["message"])
+	})
+}
+
+func TestStructuredMessage(t *testing.T) {
+	content := &BasicStructuredContent{
+		Data: map[string]interface{}{
+			"message": "structured message",
+		},
+	}
+	origin := NewOrigin(nil)
+	msg := NewStructuredMessage(content, origin, StatusInfo, time.Now().UnixNano())
+
+	assert.Equal(t, StateStructured, msg.State)
+	assert.Equal(t, []byte("structured message"), msg.GetContent())
+
+	// Test SetContent on structured message
+	msg.SetContent([]byte("modified"))
+	assert.Equal(t, "modified", content.Data["message"])
+
+	// Test Render on structured message
+	rendered, err := msg.Render()
+	assert.NoError(t, err)
+	assert.Contains(t, string(rendered), "modified")
+}
+
+func TestNewStructuredMessageWithParsingExtra(t *testing.T) {
+	content := &BasicStructuredContent{
+		Data: map[string]interface{}{
+			"message": "test",
+		},
+	}
+	msg := NewStructuredMessageWithParsingExtra(content, nil, StatusInfo, 0, true)
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+}
+
+func TestMessageMetadataMethods(t *testing.T) {
+	t.Run("GetStatus with empty status", func(t *testing.T) {
+		meta := &MessageMetadata{Status: ""}
+		assert.Equal(t, StatusInfo, meta.GetStatus())
+	})
+
+	t.Run("GetStatus with set status", func(t *testing.T) {
+		meta := &MessageMetadata{Status: StatusError}
+		assert.Equal(t, StatusError, meta.GetStatus())
+	})
+
+	t.Run("GetLatency", func(t *testing.T) {
+		ingestionTime := time.Now().UnixNano()
+		meta := &MessageMetadata{IngestionTimestamp: ingestionTime}
+		latency := meta.GetLatency()
+		assert.True(t, latency >= 0)
+	})
+
+	t.Run("Count", func(t *testing.T) {
+		meta := &MessageMetadata{}
+		assert.Equal(t, int64(1), meta.Count())
+	})
+
+	t.Run("Size", func(t *testing.T) {
+		meta := &MessageMetadata{RawDataLen: 100}
+		assert.Equal(t, int64(100), meta.Size())
+	})
+}
+
+func TestTagFunctions(t *testing.T) {
+	t.Run("TruncatedReasonTag", func(t *testing.T) {
+		tag := TruncatedReasonTag("single_line")
+		assert.Equal(t, "truncated:single_line", tag)
+	})
+
+	t.Run("MultiLineSourceTag", func(t *testing.T) {
+		tag := MultiLineSourceTag("docker")
+		assert.Equal(t, "multiline:docker", tag)
+	})
+
+	t.Run("LogSourceTag", func(t *testing.T) {
+		tag := LogSourceTag("stdout")
+		assert.Equal(t, "logsource:stdout", tag)
+	})
+}
+
+func TestNewMessageWithParsingExtra(t *testing.T) {
+	parsingExtra := ParsingExtra{
+		Timestamp:   "2024-01-01T00:00:00Z",
+		IsPartial:   true,
+		IsTruncated: true,
+		IsMultiLine: true,
+	}
+	msg := NewMessageWithParsingExtra([]byte("test"), nil, StatusInfo, 0, parsingExtra)
+	assert.Equal(t, parsingExtra.Timestamp, msg.ParsingExtra.Timestamp)
+	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.True(t, msg.ParsingExtra.IsMultiLine)
+}
+
+func TestPayloadIsMRF(t *testing.T) {
+	t.Run("empty payload", func(t *testing.T) {
+		payload := NewPayload([]*MessageMetadata{}, []byte{}, "", 0)
+		assert.False(t, payload.IsMRF())
+	})
+
+	t.Run("non-MRF payload", func(t *testing.T) {
+		meta := &MessageMetadata{ParsingExtra: ParsingExtra{IsMRFAllow: false}}
+		payload := NewPayload([]*MessageMetadata{meta}, []byte{}, "", 0)
+		assert.False(t, payload.IsMRF())
+	})
+
+	t.Run("MRF payload", func(t *testing.T) {
+		meta := &MessageMetadata{ParsingExtra: ParsingExtra{IsMRFAllow: true}}
+		payload := NewPayload([]*MessageMetadata{meta}, []byte{}, "", 0)
+		assert.True(t, payload.IsMRF())
+	})
+}

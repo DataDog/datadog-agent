@@ -41,3 +41,42 @@ func TestScheduler(t *testing.T) {
 	assert.Nil(t, source.Config.Tags)
 	assert.Equal(t, []string{"foo"}, []string(source.Config.ChannelTags))
 }
+
+func TestGetLogsTags(t *testing.T) {
+	s, _ := setup()
+
+	s.SetLogsTags([]string{"env:prod", "service:web"})
+	tags := s.GetLogsTags()
+	assert.Equal(t, []string{"env:prod", "service:web"}, tags)
+
+	// Verify it's a defensive copy - modifying returned slice should not affect original
+	tags[0] = "modified"
+	assert.Equal(t, []string{"env:prod", "service:web"}, s.GetLogsTags())
+}
+
+func TestGetLogsTagsEmpty(t *testing.T) {
+	s, _ := setup()
+	s.SetLogsTags([]string{})
+	tags := s.GetLogsTags()
+	assert.Empty(t, tags)
+}
+
+func TestStop(t *testing.T) {
+	s, _ := setup()
+	// Stop should not panic
+	s.Stop()
+}
+
+func TestSetSourceReplacesExisting(t *testing.T) {
+	s, spy := setup()
+
+	require.Len(t, spy.Events, 1)
+	assert.True(t, spy.Events[0].Add)
+
+	// Calling setSource again should remove the old and add a new source
+	s.setSource()
+
+	require.Len(t, spy.Events, 3)
+	assert.False(t, spy.Events[1].Add) // Remove old
+	assert.True(t, spy.Events[2].Add)  // Add new
+}

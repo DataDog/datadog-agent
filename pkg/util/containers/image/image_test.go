@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSplitImageName(t *testing.T) {
@@ -67,4 +68,19 @@ func TestSplitImageName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSanitizeHostPath(t *testing.T) {
+	// with HOST_ROOT set
+	t.Setenv("HOST_ROOT", "/custom-root")
+	assert.Equal(t, "/custom-root/some/path", SanitizeHostPath("/some/path"))
+	assert.Equal(t, "/custom-root/var/lib/docker", SanitizeHostPath("/prefix/var/lib/docker"))
+
+	// without HOST_ROOT, defaults to /host
+	t.Setenv("HOST_ROOT", "")
+	assert.Equal(t, "/host/some/path", SanitizeHostPath("/some/path"))
+
+	// path containing /var/lib is trimmed to /var/lib onward
+	result := SanitizeHostPath("/overlay2/var/lib/containers")
+	require.Contains(t, result, "/var/lib/containers")
 }

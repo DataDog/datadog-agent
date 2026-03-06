@@ -137,3 +137,61 @@ func TestReporterAllowedTypesAtomic(t *testing.T) {
 	require.Equal(t, int64(6), stats["i64p"])
 	require.Equal(t, uint64(7), stats["u64p"])
 }
+
+func TestReporterAtomicFloat64(t *testing.T) {
+	type test struct {
+		floatVal *atomic.Float64 `stats:""`
+	}
+	v := &test{floatVal: atomic.NewFloat64(3.14)}
+	stats := Report(v)
+	require.Equal(t, 3.14, stats["float_val"])
+}
+
+func TestReporterAtomicString(t *testing.T) {
+	type test struct {
+		strVal *atomic.String `stats:""`
+	}
+	v := &test{strVal: atomic.NewString("hello")}
+	stats := Report(v)
+	require.Equal(t, "hello", stats["str_val"])
+}
+
+func TestReporterAtomicInt32(t *testing.T) {
+	type test struct {
+		i32Val *atomic.Int32 `stats:""`
+	}
+	v := &test{i32Val: atomic.NewInt32(42)}
+	stats := Report(v)
+	require.Equal(t, int32(42), stats["i32_val"])
+}
+
+func TestReporterAtomicUint32(t *testing.T) {
+	type test struct {
+		u32Val *atomic.Uint32 `stats:""`
+	}
+	v := &test{u32Val: atomic.NewUint32(99)}
+	stats := Report(v)
+	require.Equal(t, uint32(99), stats["u32_val"])
+}
+
+func TestReporterCaching(t *testing.T) {
+	// Verify that calling Report twice with the same type uses cached reporter
+	type test struct {
+		val int64 `stats:""`
+	}
+	v1 := &test{val: 1}
+	v2 := &test{val: 2}
+
+	stats1 := Report(v1)
+	stats2 := Report(v2)
+	require.Equal(t, int64(1), stats1["val"])
+	require.Equal(t, int64(2), stats2["val"])
+}
+
+func TestReporterBadAtomicPtrType(t *testing.T) {
+	type badType struct{}
+	type test struct {
+		bad *badType `stats:""`
+	}
+	require.Panics(t, func() { Report(&test{}) })
+}

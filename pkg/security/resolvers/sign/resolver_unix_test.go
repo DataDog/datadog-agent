@@ -84,6 +84,24 @@ func TestSign_SignatureIsValidHex(t *testing.T) {
 	}
 }
 
+func TestSign_NilProcessContext(t *testing.T) {
+	resolver := &Resolver{signatureKey: 12345}
+
+	sig, err := resolver.Sign(nil)
+	assert.Error(t, err)
+	assert.Empty(t, sig)
+	assert.Contains(t, err.Error(), "no valid process cache entry")
+}
+
+func TestNewSignatureResolver(t *testing.T) {
+	r1 := NewSignatureResolver()
+	assert.NotNil(t, r1)
+
+	// Should return the same singleton
+	r2 := NewSignatureResolver()
+	assert.Same(t, r1, r2)
+}
+
 func TestSign_EmptyCgroupID_ProducesDifferentSignature(t *testing.T) {
 	resolver := &Resolver{signatureKey: 12345}
 
