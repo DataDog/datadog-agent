@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(detail.env.get("FOO").unwrap(), "bar");
         assert_eq!(detail.env.get("BAZ").unwrap(), "qux");
         assert_eq!(detail.env.len(), 2);
-        assert_eq!(detail.restart_policy, "OnFailure");
+        assert_eq!(detail.restart_policy, "on-failure");
         assert_eq!(detail.stdout, "/var/log/out.log");
         assert_eq!(detail.stderr, "/var/log/err.log");
         assert_eq!(detail.condition_path_exists, "/opt/bin/myservice");

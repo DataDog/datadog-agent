@@ -126,7 +126,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         args: cfg.args.clone(),
         working_dir: cfg.working_dir.clone().unwrap_or_default(),
         env: cfg.env.clone(),
-        restart_policy: format!("{:?}", cfg.restart),
+        restart_policy: cfg.restart.to_string(),
         stdout: cfg.stdout.clone(),
         stderr: cfg.stderr.clone(),
         auto_start: cfg.auto_start,
