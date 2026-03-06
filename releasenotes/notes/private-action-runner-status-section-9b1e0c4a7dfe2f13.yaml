@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add a ``Private Action Runner`` section to ``datadog-agent status`` that reports
+    enablement, runtime state, and enrollment-related configuration visibility.
