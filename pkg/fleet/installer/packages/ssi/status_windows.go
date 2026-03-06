@@ -38,13 +38,14 @@ func SetIISInstrumentedMarker(enabled bool) error {
 	}
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, iisInstrumentedRegistryKey, registry.SET_VALUE)
 	if err != nil {
-		// key doesn't exist, nothing to clear
-		return nil
+		if errors.Is(err, registry.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("could not open IIS instrumentation registry key: %w", err)
 	}
-	defer k.Close()
-	err = k.DeleteValue(iisInstrumentedRegistryValue)
-	if err != nil && !errors.Is(err, registry.ErrNotExist) {
-		return fmt.Errorf("could not delete IIS instrumentation registry value: %w", err)
+	k.Close()
+	if err := registry.DeleteKey(registry.LOCAL_MACHINE, iisInstrumentedRegistryKey); err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return fmt.Errorf("could not delete IIS instrumentation registry key: %w", err)
 	}
 	return nil
 }
@@ -62,6 +63,8 @@ func GetInstrumentationStatus() (status APMInstrumentationStatus, err error) {
 			return status, fmt.Errorf("could not read IIS instrumentation registry value: %w", err)
 		}
 		status.IISInstrumented = val == 1
+	} else if !errors.Is(err, registry.ErrNotExist) {
+		return status, fmt.Errorf("could not open IIS instrumentation registry key: %w", err)
 	}
 
 	// Host instrumentation: check if the DDInjector kernel driver service is running
