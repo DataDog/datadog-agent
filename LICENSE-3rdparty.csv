@@ -2640,14 +2640,15 @@ core,go.opentelemetry.io/contrib/otelconf/v0.3.0,Apache-2.0,Copyright The OpenTe
 core,go.opentelemetry.io/contrib/propagators/b3,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/armhelpers,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/asm/amd,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/asm/arm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/asm/expression,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/host,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/controller,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/internal/linux,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/apmint,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2751,6 +2752,7 @@ core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/counter,Apac
 core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdouttrace/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/internal/errorhandler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/log/embedded,Apache-2.0,Copyright The OpenTelemetry Authors

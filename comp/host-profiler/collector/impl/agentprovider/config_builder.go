@@ -106,14 +106,50 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-func buildConfig(agent configManager) confMap {
+func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
+	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
+
+	// Add OTLP receiver
+	receivers, _ := converters.Ensure[confMap](conf, "receivers")
+	receivers["prometheus"] = converters.PrometheusReceiverConfig()
+
+	// Add cumulativetodelta processor
+	processors, _ := converters.Ensure[confMap](conf, "processors")
+	processors["cumulativetodelta"] = confMap{}
+	processors["filter"] = converters.FilterProcessorConfig()
+
+	// Build metrics processors: cumulativetodelta + profile processors (infraattributes, metadata)
+	metricsProcessors := []any{"filter", "cumulativetodelta"}
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+	if enableGoRuntimeMetrics {
+		receivers["otlp"] = confMap{
+			"protocols": confMap{
+				"grpc": nil,
+				"http": nil,
+			},
+		}
+	}
+
+	// Use all exporters from profiles pipeline (they all have metrics_endpoint)
+	metricsPipeline["receivers"] = []any{"otlp", "prometheus"}
+	metricsPipeline["processors"] = metricsProcessors
+	metricsPipeline["exporters"] = profilesExporters
+}
+
+func buildConfig(agent configManager, params CollectorParams) confMap {
 	config := make(confMap)
 
 	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
 
-	profilesPipeline["processors"] = buildProcessors(config)
-	profilesPipeline["exporters"] = buildExporters(config, agent)
-	profilesPipeline["receivers"] = buildReceivers(config, agent)
+	profilesProcessors := buildProcessors(config)
+	profilesExporters := buildExporters(config, agent)
+	profilesReceivers := buildReceivers(config, agent)
+
+	profilesPipeline["processors"] = profilesProcessors
+	profilesPipeline["exporters"] = profilesExporters
+	profilesPipeline["receivers"] = profilesReceivers
+
+	buildMetricsPipeline(config, params.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})

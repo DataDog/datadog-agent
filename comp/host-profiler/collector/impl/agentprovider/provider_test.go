@@ -42,6 +42,13 @@ var updateGolden = flag.Bool("update", false, "update golden test files")
 
 const testVersion = "7.0.0-test"
 
+// mockCollectorParams is a minimal mock of CollectorParams for testing
+type mockCollectorParams struct{}
+
+func (m *mockCollectorParams) GetGoRuntimeMetrics() bool {
+	return true // Always enable metrics pipeline in tests for full coverage
+}
+
 func init() {
 	// Enable profiles support for all tests (required for profiles pipeline validation)
 	_ = featuregate.GlobalRegistry().Set("service.profilesSupport", true)
@@ -207,7 +214,7 @@ func TestProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := loadConfig(t, filepath.Join("td", tt.agentConfig))
-			provider := newProvider(cfg)(confmap.ProviderSettings{})
+			provider := newProvider(cfg, &mockCollectorParams{})(confmap.ProviderSettings{})
 
 			retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 
@@ -251,7 +258,7 @@ func TestProvider(t *testing.T) {
 // instead of golden file comparison due to non-deterministic map iteration order
 func TestProviderMultipleEndpoints(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("td", "provider/multiple-endpoints/agent.yaml"))
-	provider := newProvider(cfg)(confmap.ProviderSettings{})
+	provider := newProvider(cfg, &mockCollectorParams{})(confmap.ProviderSettings{})
 
 	retrieved, err := provider.Retrieve(context.Background(), "dd:", nil)
 	require.NoError(t, err)
@@ -278,7 +285,7 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 }
 
 func TestProviderMethods(t *testing.T) {
-	provider := newProvider(config.NewMock(t))(confmap.ProviderSettings{})
+	provider := newProvider(config.NewMock(t), &mockCollectorParams{})(confmap.ProviderSettings{})
 
 	require.Equal(t, "dd", provider.Scheme())
 
