@@ -10,6 +10,7 @@ package rcclientimpl
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -436,9 +437,9 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
 		go func(configPath string, c state.RawConfig) {
-			pkglog.Debugf("Agent task %s started", configPath)
+			pkglog.Errorf("[FA] Agent task %s started", configPath)
 			defer wg.Done()
-			defer pkglog.Debugf("Agent task %s completed", configPath)
+			defer pkglog.Errorf("[FA] Agent task %s completed", configPath)
 			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
 			if err != nil {
 				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
@@ -467,11 +468,30 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 					// Check if the task was processed at least once
 					processed = oneProcessed || processed
 					if oneErr != nil {
-						pkglog.Errorf("Error while processing agent task %s: %s", configPath, oneErr)
+						pkglog.Errorf("[FA] Error while processing agent task %s: %s", configPath, oneErr)
 						if err == nil {
 							err = oneErr
 						} else {
 							err = errors.Wrap(oneErr, err.Error())
+						}
+					}
+
+					if task.Config.TaskType == string(types.TaskRestart) {
+						processed = true
+						pkglog.Errorf("[FA] Restarting agent task %s", configPath)
+						switch task.Config.TaskArgs["manager"] {
+						case "docker":
+							pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
+							err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
+						case "launchctl":
+							pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
+							err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
+						case "systemctl":
+							pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
+							err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
+						}
+						if err != nil {
+							pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
 						}
 					}
 				}
@@ -506,10 +526,10 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 	select {
 	case <-c:
 		// completed normally
-		pkglog.Debugf("All %d agent tasks were applied successfully", len(updates))
+		pkglog.Errorf("[FA] All %d agent tasks were applied successfully", len(updates))
 		return
 	case <-time.After(agentTaskTimeout):
 		// timed out
-		pkglog.Warnf("Timeout of at least one agent task configuration")
+		pkglog.Errorf("[FA] Timeout of at least one agent task configuration")
 	}
 }
