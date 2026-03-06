@@ -108,6 +108,10 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			cr.taggerBuffer.IncludeTag = tagMatcher
 			cr.metricBuffer.IncludeAll = false
 			cr.metricBuffer.IncludeTag = tagMatcher
+			if nameHashMatcher, _ := filterList.ShouldStripTagsByNameHash(metricSampleContext.GetName()); nameHashMatcher != nil {
+				cr.taggerBuffer.IncludeTagByNameHash = nameHashMatcher
+				cr.metricBuffer.IncludeTagByNameHash = nameHashMatcher
+			}
 		}
 	}
 

@@ -123,3 +123,20 @@ func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, 
 
 	return keepTag, ok
 }
+
+// ShouldStripTagsByNameHash is a faster variant of ShouldStripTags that operates on
+// pre-computed xxh3 hashes of tag names. The returned closure performs only a binary
+// search on uint64 values with no string operations.
+func (m *tagMatcher) ShouldStripTagsByNameHash(metricName string) (func(nameHash uint64) bool, bool) {
+	tm, ok := m.MetricTags[metricName]
+	if !ok {
+		return nil, false
+	}
+
+	keepTag := func(nameHash uint64) bool {
+		_, found := slices.BinarySearch(tm.tags, nameHash)
+		return found != bool(tm.action)
+	}
+
+	return keepTag, ok
+}

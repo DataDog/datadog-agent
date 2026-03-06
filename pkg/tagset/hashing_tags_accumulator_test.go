@@ -107,6 +107,59 @@ func TestRemoveSorted(t *testing.T) {
 	assert.ElementsMatch(t, []string{"A", "e"}, r.Get())
 }
 
+func TestAppendHashedWithIncludeTagByNameHash(t *testing.T) {
+	src := NewHashedTagsFromSlice([]string{"env:prod", "host:server1", "version:1.0"})
+	envHash := src.nameHash[0]  // xxh3("env")
+	hostHash := src.nameHash[1] // xxh3("host")
+
+	acc := NewHashingTagsAccumulator()
+	acc.IncludeAll = false
+	acc.IncludeTagByNameHash = func(h uint64) bool {
+		return h != envHash && h != hostHash
+	}
+
+	acc.AppendHashed(src)
+	assert.Equal(t, []string{"version:1.0"}, acc.Get())
+}
+
+func TestAppendHashedNameHashFallsBackToIncludeTag(t *testing.T) {
+	// When nameHash is empty (zero-value HashedTags) the fallback to IncludeTag must be used.
+	src := HashedTags{hashedTags: newHashedTagsFromSlice([]string{"env:prod", "host:server1", "version:1.0"})}
+	assert.Nil(t, src.nameHash)
+
+	acc := NewHashingTagsAccumulator()
+	acc.IncludeAll = false
+	acc.IncludeTagByNameHash = func(_ uint64) bool { return false } // would exclude everything
+	acc.IncludeTag = func(tag string) bool { return tag == "version:1.0" }
+
+	acc.AppendHashed(src)
+	// nameHash is nil → falls back to IncludeTag
+	assert.Equal(t, []string{"version:1.0"}, acc.Get())
+}
+
+func TestHashingTagsAccumulatorResetClearsNameHashFilter(t *testing.T) {
+	acc := NewHashingTagsAccumulator()
+	acc.IncludeAll = false
+	acc.IncludeTagByNameHash = func(_ uint64) bool { return true }
+
+	acc.Reset()
+	assert.True(t, acc.IncludeAll)
+	assert.Nil(t, acc.IncludeTagByNameHash)
+}
+
+func TestHashingTagsAccumulatorDupCopiesNameHashFilter(t *testing.T) {
+	filter := func(_ uint64) bool { return true }
+	acc := NewHashingTagsAccumulator()
+	acc.IncludeAll = false
+	acc.IncludeTagByNameHash = filter
+
+	dup := acc.Dup()
+	assert.NotNil(t, dup.IncludeTagByNameHash)
+	// Same function pointer (closures are equal by reference in Go only when they are nil,
+	// but we can verify behavior is the same)
+	assert.True(t, dup.IncludeTagByNameHash(0))
+}
+
 func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
 	assert.Equal(t, len(acc.data), len(acc.hash))
 	for idx, tag := range acc.data {

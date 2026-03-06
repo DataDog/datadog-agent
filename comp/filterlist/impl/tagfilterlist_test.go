@@ -132,3 +132,80 @@ func TestTagMatcher(t *testing.T) {
 	_, shouldStrip = matcher.ShouldStripTags("metric5")
 	assert.False(t, shouldStrip)
 }
+
+func TestShouldStripTagsByNameHash(t *testing.T) {
+	metrics := map[string]MetricTagList{
+		"metric1": {
+			Tags:   []string{"env", "host"},
+			Action: "exclude",
+		},
+		"metric2": {
+			Tags:   []string{"env", "host"},
+			Action: "include",
+		},
+		"metric3": {
+			Tags:   []string{},
+			Action: "include",
+		},
+	}
+
+	matcher := newTagMatcher(metrics)
+
+	hashOf := func(tag string) uint64 {
+		return xxh3.HashString(tagName(tag))
+	}
+
+	// metric1: exclude "env" and "host" — those hashes should return false (strip them)
+	keepByHash, ok := matcher.ShouldStripTagsByNameHash("metric1")
+	assert.True(t, ok)
+	assert.False(t, keepByHash(hashOf("env:prod")))
+	assert.False(t, keepByHash(hashOf("host:server1")))
+	assert.True(t, keepByHash(hashOf("version:1.0")))
+
+	// metric2: include only "env" and "host" — only those hashes should return true
+	keepByHash, ok = matcher.ShouldStripTagsByNameHash("metric2")
+	assert.True(t, ok)
+	assert.True(t, keepByHash(hashOf("env:prod")))
+	assert.True(t, keepByHash(hashOf("host:server1")))
+	assert.False(t, keepByHash(hashOf("version:1.0")))
+
+	// metric3: include with empty tag list — all tags are excluded
+	keepByHash, ok = matcher.ShouldStripTagsByNameHash("metric3")
+	assert.True(t, ok)
+	assert.False(t, keepByHash(hashOf("env:prod")))
+	assert.False(t, keepByHash(hashOf("version:1.0")))
+
+	// unconfigured metric
+	keepByHash, ok = matcher.ShouldStripTagsByNameHash("metric_unknown")
+	assert.False(t, ok)
+	assert.Nil(t, keepByHash)
+}
+
+// TestShouldStripTagsByNameHashMatchesStringFilter verifies that the hash-based filter
+// returns identical results to the string-based filter for every tag.
+func TestShouldStripTagsByNameHashMatchesStringFilter(t *testing.T) {
+	tags := []string{"env:prod", "host:server1", "version:1.0", "region:us-east", "service:web"}
+
+	for _, tc := range []struct {
+		name   string
+		action string
+	}{
+		{"exclude-metric", "exclude"},
+		{"include-metric", "include"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := newTagMatcher(map[string]MetricTagList{
+				tc.name: {Tags: []string{"env", "host"}, Action: tc.action},
+			})
+
+			keepStr, _ := matcher.ShouldStripTags(tc.name)
+			keepHash, _ := matcher.ShouldStripTagsByNameHash(tc.name)
+
+			for _, tag := range tags {
+				wantStr := keepStr(tag)
+				gotHash := keepHash(xxh3.HashString(tagName(tag)))
+				assert.Equal(t, wantStr, gotHash, "mismatch for tag %q", tag)
+			}
+		})
+	}
+}

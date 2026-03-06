@@ -46,3 +46,9 @@ func (*noopTagMatcher) ShouldStripTags(_ string) (func(tag string) bool, bool) {
 		return true
 	}, false
 }
+
+func (*noopTagMatcher) ShouldStripTagsByNameHash(_ string) (func(nameHash uint64) bool, bool) {
+	return func(_ uint64) bool {
+		return true
+	}, false
+}

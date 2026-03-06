@@ -385,6 +385,7 @@ use_repo(
     "com_github_xeipuuv_gojsonschema",
     "com_github_xi2_xz",
     "com_github_yusufpapurcu_wmi",
+    "com_github_zeebo_xxh3",
     "com_gitlab_gitlab_org_api_client_go",
     "in_gopkg_datadog_dd_trace_go_v1",
     "in_gopkg_zorkian_go_datadog_api_v2",
