@@ -51,7 +51,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &collector{
 			id:      collectorID,
 			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog: workloadmeta.NodeAgent,
 		},
 	}, nil
 }
