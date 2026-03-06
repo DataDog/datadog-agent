@@ -3,42 +3,43 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package gensimeks provisions an EKS cluster for running gensim episodes.
+// Package gensimeks provisions a persistent EKS cluster and deploys an
+// orchestrator Job that drives gensim episode execution.
 //
-// Milestones:
+// Architecture:
 //
-//	M1 (✓): EKS cluster + kubeconfig export — no workloads.
-//	M2 (✓): Episode services built on an EC2 build VM, pushed to ECR, deployed to EKS.
-//	M3 (✓): Datadog Agent DaemonSet deployed; stub agent removed.
-//	M4 (✓): Kubernetes Job running play-episode.sh autonomously.
-//	M5 (this file): S3 results upload + parquet collection, observer-recorder agent image.
+//	Persistent layer (always created by Pulumi):
+//	  - EKS cluster with EC2 node group
+//	  - Kubernetes provider
+//	  - ServiceAccount, ClusterRoleBinding, Secret
+//	  - S3 IAM policy (when s3Bucket is set)
+//
+//	Orchestrator Job (created when episodes are submitted):
+//	  - Per-episode ConfigMaps (play-episode.sh + scenario YAML)
+//	  - Post-renderer ConfigMap
+//	  - gensim-orchestrator Job (alpine/k8s)
 package gensimeks
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	eksscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	pulumiKubernetes "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	batchv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/batch/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	helmv3 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -72,39 +73,22 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	// ── Episode (M2+) ─────────────────────────────────────────────────────────
-	// chartPath is only set when --episode is passed to the invoke task.
-	// If absent, stop here — valid for M1 cluster-only runs.
+	// ── Config ───────────────────────────────────────────────────────────────
 	cfg := config.New(ctx, "gensim")
-	chartPath := cfg.Get("chartPath")
-	if chartPath == "" {
-		return nil
-	}
-
-	episodeName := cfg.Require("episodeName")
-	episodePath := cfg.Get("episodePath")     // full path to episode dir on the developer's machine
-	imageRegistry := cfg.Get("imageRegistry") // ECR registry URL, computed by the invoke task
-	s3Bucket := cfg.Get("s3Bucket")           // optional: upload results here after episode completes
+	episodes := cfg.Get("episodes")             // comma-separated "ep1:scen1,ep2:scen2"
+	agentImage := cfg.Get("agentImage")         // full agent Docker image path
+	gensimSha := cfg.Get("gensimSha")           // gensim-episodes git SHA
+	s3Bucket := cfg.Get("s3Bucket")             // optional S3 bucket
+	imageRegistry := cfg.Get("imageRegistry")   // ECR registry URL
+	episodeDataDir := cfg.Get("episodeDataDir") // local path to postmortems directory
 	namespace := cfg.Get("namespace")
 	if namespace == "" {
 		namespace = "default"
 	}
 
-	// ── Build VM (M2) ─────────────────────────────────────────────────────────
-	// If the episode has custom service images (signalled by a docker-compose.yaml),
-	// we build them on a dedicated EC2 VM rather than on the developer's laptop.
-	//
-	// Building on EC2 avoids two classes of problems:
-	//   1. Cross-platform: Apple Silicon Macs build linux/arm64 by default; EKS nodes are x86_64.
-	//   2. Credential friction: the instance IAM role authenticates to ECR automatically —
-	//      no local credential setup or `aws sso login` required for the push.
-	var dependsOnImages pulumi.ResourceOption
-	dockerComposePath := filepath.Join(episodePath, "docker-compose.yaml")
-	if _, statErr := os.Stat(dockerComposePath); statErr == nil {
-		dependsOnImages, err = buildAndPushImages(ctx, awsEnv, episodePath, imageRegistry)
-		if err != nil {
-			return err
-		}
+	// If no episodes are specified, stop here — cluster-only mode.
+	if episodes == "" {
+		return nil
 	}
 
 	// ── Kubernetes provider ───────────────────────────────────────────────────
@@ -118,122 +102,19 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	// ── imagePullPolicy post-renderer ─────────────────────────────────────────
-	// Episode charts hardcode imagePullPolicy: Never (a Kind artifact).
-	// This script patches it to IfNotPresent so EKS nodes pull from ECR.
-	patchScriptPath, err := writePatchScript()
+	// ── Persistent resources ─────────────────────────────────────────────────
+	sa, ddSecret, err := deployPersistentResources(ctx, &awsEnv, kubeProvider, namespace)
 	if err != nil {
 		return err
 	}
 
-	// ── Episode Helm chart ────────────────────────────────────────────────────
-	// Helm release names: lowercase alphanumeric + hyphens, max 53 chars.
-	releaseName := "gensim-" + strings.ToLower(strings.ReplaceAll(episodeName, "_", "-"))
-	if len(releaseName) > 53 {
-		releaseName = releaseName[:53]
-	}
-
-	opts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
-	if dependsOnImages != nil {
-		opts = append(opts, dependsOnImages)
-	}
-
-	episodeRelease, err := helmv3.NewRelease(ctx, awsEnv.Namer.ResourceName("episode"),
-		&helmv3.ReleaseArgs{
-			Name:            pulumi.StringPtr(releaseName),
-			Chart:           pulumi.String(chartPath),
-			Namespace:       pulumi.StringPtr(namespace),
-			CreateNamespace: pulumi.BoolPtr(true),
-			Postrender:      pulumi.StringPtr(patchScriptPath),
-			// Don't wait for all pods to become Ready. The episode chart includes a
-			// built-in datadog-agent DaemonSet that tries to schedule on Fargate nodes
-			// (which have NoSchedule taints) and will never become Ready. The episode
-			// services we care about (svc-login, pgbouncer, etc.) start successfully.
-			// M3 will delete this stub agent and deploy the proper DaemonSet-based one.
-			SkipAwait: pulumi.BoolPtr(true),
-			Values: pulumi.Map{
-				// imageRegistry is prepended to all custom service images by the chart's _helpers.tpl.
-				"imageRegistry": pulumi.String(imageRegistry),
-				"namespace":     pulumi.String(namespace),
-				// Pass credentials to the episode chart (used by services that talk to DD).
-				// The chart's stub agent DaemonSet is stripped by the post-renderer;
-				// dda-linux deploys the real agent.
-				"datadog": pulumi.Map{
-					"apiKey": awsEnv.AgentAPIKey(),
-					"appKey": awsEnv.AgentAPPKey(),
-					"site":   pulumi.String(awsEnv.Site()),
-					"env":    pulumi.String(releaseName),
-				},
-			},
-		},
-		opts...,
-	)
-	if err != nil {
-		return err
-	}
-
-	ctx.Export("episode-release", pulumi.String(releaseName))
-
-	// ── Datadog Agent (M3) ────────────────────────────────────────────────────
-	// gated on ddagent:deploy=true, which is set by the invoke task when
-	// install_agent=True (i.e. when --episode is passed).
-	if awsEnv.AgentDeploy() {
-		agentOpts := []kubernetesagentparams.Option{
-			kubernetesagentparams.WithNamespace(namespace),
-			// Wait for the episode chart to be deployed before the agent starts,
-			// so the agent immediately sees the episode's pods and services.
-			kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(episodeRelease)),
-		}
-
-		// Use the observer-recorder agent image if provided (--full-image-path flag).
-		if fullImagePath := awsEnv.AgentFullImagePath(); fullImagePath != "" {
-			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(fullImagePath))
-		}
-
-		// Pass gensim-specific agent config via WithExtraHelmValues (pulumi.Map) rather
-		// than WithHelmValues/WithHelmValuesFile (AssetOrArchiveArray). Map values flow
-		// through the computed ToYAMLPulumiAssetOutput() path and survive local-backend
-		// state round-trips correctly; asset values corrupt to []interface{} on update.
-		agentOpts = append(agentOpts, kubernetesagentparams.WithExtraHelmValues(pulumi.Map{
-			"datadog": pulumi.Map{
-				// Required on EKS: kubelet uses a self-signed cert not trusted by the
-				// agent's default CA bundle.
-				"kubelet": pulumi.Map{
-					"tlsVerify": pulumi.Bool(false),
-				},
-				"clusterName": pulumi.String("gensim"),
-			},
-			// Observer-recorder: inject custom datadog.yaml config via ConfigMap.
-			// Deep merge preserves the agents.image, agents.enabled, etc. from
-			// buildLinuxHelmValues while adding these keys.
-			"agents": pulumi.Map{
-				"useConfigMap": pulumi.Bool(true),
-				"customAgentConfig": pulumi.Map{
-					"observer": pulumi.Map{
-						"recording": pulumi.Map{
-							"enabled":                pulumi.Bool(true),
-							"parquet_output_dir":     pulumi.String("/tmp/observer-parquet"),
-							"parquet_flush_interval": pulumi.String("30s"),
-						},
-					},
-				},
-			},
-			// Cluster-checks runners are not needed for a single-node test cluster.
-			// Disabling them removes the 2 extra pods whose readiness probe blocks
-			// the Helm timeout when the forwarder hasn't fully initialised yet.
-			"clusterChecksRunner": pulumi.Map{
-				"enabled": pulumi.Bool(false),
-			},
-		}))
-
-		// S3 upload (M5): attach write access to the EKS Linux node role so the Job
-		// pod can push results. The role name follows the same naming convention used
-		// in cluster.go when creating the node group.
-		if s3Bucket != "" {
-			_, err = awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-s3-upload"),
-				&awsIam.RolePolicyArgs{
-					Role: awsEnv.CommonNamer().DisplayName(64, pulumi.String("eks-linux-node-role")),
-					Policy: pulumi.Sprintf(`{
+	// ── S3 IAM policy ────────────────────────────────────────────────────────
+	// Attach write access to the EKS Linux node role so pods can push results.
+	if s3Bucket != "" {
+		_, err = awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-s3-upload"),
+			&awsIam.RolePolicyArgs{
+				Role: awsEnv.CommonNamer().DisplayName(64, pulumi.String("eks-linux-node-role")),
+				Policy: pulumi.Sprintf(`{
   "Version": "2012-10-17",
   "Statement": [{
     "Effect": "Allow",
@@ -241,107 +122,60 @@ func Run(ctx *pulumi.Context) error {
     "Resource": ["arn:aws:s3:::%s", "arn:aws:s3:::%s/*"]
   }]
 }`, s3Bucket, s3Bucket),
-				},
-				awsEnv.WithProviders(e2econfig.ProviderAWS),
-			)
-			if err != nil {
-				return err
-			}
-		}
-
-		if awsEnv.AgentFullImagePath() != "" {
-			agentOpts = append(agentOpts, kubernetesagentparams.WithAgentFullImagePath(awsEnv.AgentFullImagePath()))
-		}
-
-		_, err = helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent"), kubeProvider, agentOpts...)
+			},
+			awsEnv.WithProviders(e2econfig.ProviderAWS),
+		)
 		if err != nil {
 			return err
 		}
 	}
 
-	// ── Episode runner Job (M4) ──────────────────────────────────────────────
-	// Runs play-episode.sh autonomously inside the cluster as a Kubernetes Job.
-	// Only started when gensim:scenario is set; omitting it deploys infrastructure
-	// only (useful for debugging before committing to a full run).
-	scenario := cfg.Get("scenario")
-	if scenario != "" && awsEnv.AgentDeploy() {
-		if err := deployRunnerJob(ctx, &awsEnv, kubeProvider, episodePath, scenario, namespace, releaseName, s3Bucket, episodeName); err != nil {
-			return err
-		}
+	// ── Orchestrator Job ─────────────────────────────────────────────────────
+	if err := deployOrchestratorJob(
+		ctx, &awsEnv, kubeProvider, sa, ddSecret,
+		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir,
+	); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// deployRunnerJob creates the RBAC, Secret, ConfigMap, and Job needed to run
-// play-episode.sh autonomously inside the cluster.
-//
-// The Job uses alpine/k8s which provides kubectl, bash, curl, and jq.
-// play-episode.sh uses in-cluster config automatically (no explicit KUBECONFIG),
-// authenticating via the gensim-runner ServiceAccount and ClusterRoleBinding.
-func deployRunnerJob(
+// deployPersistentResources creates the ServiceAccount, ClusterRoleBinding
+// (to the built-in cluster-admin ClusterRole), and Secret that the orchestrator
+// Job and future components need.
+func deployPersistentResources(
 	ctx *pulumi.Context,
 	awsEnv *resAws.Environment,
 	kubeProvider *pulumiKubernetes.Provider,
-	episodePath, scenario, namespace, ddEnv, s3Bucket, episodeName string,
-) error {
+	namespace string,
+) (sa *corev1.ServiceAccount, ddSecret *corev1.Secret, err error) {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
 	// ── ServiceAccount ───────────────────────────────────────────────────────
-	sa, err := corev1.NewServiceAccount(ctx, awsEnv.Namer.ResourceName("runner-sa"),
+	sa, err = corev1.NewServiceAccount(ctx, awsEnv.Namer.ResourceName("runner-sa"),
 		&corev1.ServiceAccountArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String("gensim-runner"),
+				Name:      pulumi.String("gensim-orchestrator"),
 				Namespace: pulumi.String(namespace),
 			},
 		}, kubeOpts...)
 	if err != nil {
-		return err
-	}
-
-	// ── ClusterRole ───────────────────────────────────────────────────────────
-	// play-episode.sh requires:
-	//   kubectl scale deployment   → update deployments/scale
-	//   kubectl wait pods --for=condition=ready → get/list/watch pods
-	clusterRole, err := rbacv1.NewClusterRole(ctx, awsEnv.Namer.ResourceName("runner-role"),
-		&rbacv1.ClusterRoleArgs{
-			Metadata: metav1.ObjectMetaArgs{
-				Name: pulumi.String("gensim-runner"),
-			},
-			Rules: rbacv1.PolicyRuleArray{
-				rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("")},
-					Resources: pulumi.StringArray{pulumi.String("pods")},
-					Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
-				},
-				// pods/exec is required for kubectl cp to collect parquet from the agent pod.
-				rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("")},
-					Resources: pulumi.StringArray{pulumi.String("pods/exec")},
-					Verbs:     pulumi.StringArray{pulumi.String("create")},
-				},
-				rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("apps")},
-					Resources: pulumi.StringArray{pulumi.String("deployments"), pulumi.String("deployments/scale")},
-					// patch is required: `kubectl scale` issues a PATCH on deployments/scale, not update.
-					Verbs: pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("update"), pulumi.String("patch")},
-				},
-			},
-		}, kubeOpts...)
-	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	// ── ClusterRoleBinding ────────────────────────────────────────────────────
+	// The orchestrator needs cluster-admin because it helm-installs charts that
+	// create arbitrary resource types (CRDs, RBAC, etc.).
 	_, err = rbacv1.NewClusterRoleBinding(ctx, awsEnv.Namer.ResourceName("runner-binding"),
 		&rbacv1.ClusterRoleBindingArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name: pulumi.String("gensim-runner"),
+				Name: pulumi.String("gensim-orchestrator"),
 			},
 			RoleRef: rbacv1.RoleRefArgs{
 				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
 				Kind:     pulumi.String("ClusterRole"),
-				Name:     clusterRole.Metadata.Name().Elem(),
+				Name:     pulumi.String("cluster-admin"),
 			},
 			Subjects: rbacv1.SubjectArray{
 				rbacv1.SubjectArgs{
@@ -352,11 +186,11 @@ func deployRunnerJob(
 			},
 		}, kubeOpts...)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	// ── Secret (DD credentials) ───────────────────────────────────────────────
-	ddSecret, err := corev1.NewSecret(ctx, awsEnv.Namer.ResourceName("runner-secret"),
+	ddSecret, err = corev1.NewSecret(ctx, awsEnv.Namer.ResourceName("runner-secret"),
 		&corev1.SecretArgs{
 			Metadata: metav1.ObjectMetaArgs{
 				Name:      pulumi.String("gensim-secrets"),
@@ -368,90 +202,216 @@ func deployRunnerJob(
 			},
 		}, kubeOpts...)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	// ── ConfigMap (play-episode.sh + scenario YAML) ───────────────────────────
-	// We only mount the specific scenario YAML rather than the whole episodes/
-	// directory to keep the ConfigMap small.
-	playScriptContent, err := os.ReadFile(filepath.Join(episodePath, "play-episode.sh"))
-	if err != nil {
-		return fmt.Errorf("reading play-episode.sh: %w", err)
+	return sa, ddSecret, nil
+}
+
+// deployOrchestratorJob creates per-episode ConfigMaps, a post-renderer ConfigMap,
+// and the orchestrator Job that drives episode execution inside the cluster.
+func deployOrchestratorJob(
+	ctx *pulumi.Context,
+	awsEnv *resAws.Environment,
+	kubeProvider *pulumiKubernetes.Provider,
+	sa *corev1.ServiceAccount,
+	ddSecret *corev1.Secret,
+	episodes string,
+	agentImage string,
+	gensimSha string,
+	namespace string,
+	s3Bucket string,
+	imageRegistry string,
+	episodeDataDir string,
+) error {
+	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
+
+	// Parse episode:scenario pairs.
+	pairs := strings.Split(episodes, ",")
+	type epPair struct {
+		episode  string
+		scenario string
 	}
-	scenarioContent, err := os.ReadFile(filepath.Join(episodePath, "episodes", scenario+".yaml"))
-	if err != nil {
-		return fmt.Errorf("reading episode scenario %q: %w", scenario, err)
+	var parsed []epPair
+	for _, p := range pairs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		parts := strings.SplitN(p, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid episode:scenario pair %q (expected episode:scenario)", p)
+		}
+		parsed = append(parsed, epPair{episode: parts[0], scenario: parts[1]})
 	}
 
-	configMap, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("runner-config"),
+	// ── Per-episode ConfigMaps ──────────────────────────────────────────────
+	var episodeVolumes corev1.VolumeArray
+	var episodeVolumeMounts corev1.VolumeMountArray
+	var episodeConfigMaps []pulumi.Resource
+
+	for _, ep := range parsed {
+		playScriptContent, err := os.ReadFile(filepath.Join(episodeDataDir, ep.episode, "play-episode.sh"))
+		if err != nil {
+			return fmt.Errorf("reading play-episode.sh for episode %q: %w", ep.episode, err)
+		}
+		scenarioContent, err := os.ReadFile(filepath.Join(episodeDataDir, ep.episode, "episodes", ep.scenario+".yaml"))
+		if err != nil {
+			return fmt.Errorf("reading scenario %q for episode %q: %w", ep.scenario, ep.episode, err)
+		}
+
+		// Create chart tarball from the episode's chart/ directory.
+		chartDir := filepath.Join(episodeDataDir, ep.episode, "chart")
+		chartTarball, err := createTarGz(chartDir)
+		if err != nil {
+			return fmt.Errorf("creating chart tarball for episode %q: %w", ep.episode, err)
+		}
+		if len(chartTarball) > 500*1024 {
+			fmt.Printf("WARNING: chart tarball for episode %q is %d bytes (>500KB); ConfigMap limit is 1MiB total\n", ep.episode, len(chartTarball))
+		}
+		chartTarballB64 := base64.StdEncoding.EncodeToString(chartTarball)
+
+		cmName := "gensim-ep-" + ep.episode
+		volName := "ep-" + ep.episode
+
+		cm, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-"+ep.episode),
+			&corev1.ConfigMapArgs{
+				Metadata: metav1.ObjectMetaArgs{
+					Name:      pulumi.String(cmName),
+					Namespace: pulumi.String(namespace),
+				},
+				Data: pulumi.StringMap{
+					"play-episode.sh":     pulumi.String(string(playScriptContent)),
+					ep.scenario + ".yaml": pulumi.String(string(scenarioContent)),
+				},
+				BinaryData: pulumi.StringMap{
+					"chart.tar.gz": pulumi.String(chartTarballB64),
+				},
+			}, kubeOpts...)
+		if err != nil {
+			return err
+		}
+		episodeConfigMaps = append(episodeConfigMaps, cm)
+
+		episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
+			Name: pulumi.String(volName),
+			ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+				Name: pulumi.String(cmName),
+			},
+		})
+		episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
+			Name:      pulumi.String(volName),
+			MountPath: pulumi.String("/episodes/" + ep.episode),
+		})
+	}
+
+	// ── Post-renderer ConfigMap ──────────────────────────────────────────────
+	// Pure awk implementation: no python3 dependency (alpine/k8s doesn't ship it).
+	// Reads YAML documents separated by "---", drops stub agent resources
+	// (DaemonSet/ServiceAccount/ClusterRole/ClusterRoleBinding named datadog-agent),
+	// and patches imagePullPolicy: Never -> Always.
+	postRendererScript := `#!/bin/sh
+# Post-renderer: patch imagePullPolicy and strip stub agent resources.
+# Helm pipes the rendered manifests through stdin; we write to stdout.
+awk '
+BEGIN { doc=""; first=1 }
+/^---$/ {
+  if (doc != "") { process_doc(doc) }
+  doc = ""
+  next
+}
+{ doc = doc (doc=="" ? "" : "\n") $0 }
+END { if (doc != "") process_doc(doc) }
+
+function process_doc(d) {
+  # Drop stub agent resources.
+  # Match name: datadog-agent followed by newline (not $, which only anchors
+  # to end-of-string in awk, not end-of-line within a variable).
+  if (d ~ /kind:[[:space:]]*(DaemonSet|ServiceAccount|ClusterRole|ClusterRoleBinding)/ &&
+      (d ~ /name:[[:space:]]*datadog-agent[[:space:]]*\n/ || d ~ /name:[[:space:]]*datadog-agent[[:space:]]*$/)) {
+    return
+  }
+  # Patch imagePullPolicy
+  gsub(/imagePullPolicy: Never/, "imagePullPolicy: Always", d)
+  if (!first) printf "\n---\n"
+  printf "%s", d
+  first = 0
+}
+'
+`
+	postRendererCM, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("post-renderer-cm"),
 		&corev1.ConfigMapArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String("gensim-episode"),
+				Name:      pulumi.String("gensim-post-renderer"),
 				Namespace: pulumi.String(namespace),
 			},
 			Data: pulumi.StringMap{
-				"play-episode.sh":  pulumi.String(string(playScriptContent)),
-				scenario + ".yaml": pulumi.String(string(scenarioContent)),
+				"post-renderer.sh": pulumi.String(postRendererScript),
 			},
 		}, kubeOpts...)
 	if err != nil {
 		return err
 	}
 
-	// ── Job ───────────────────────────────────────────────────────────────────
-	// alpine/k8s provides kubectl, bash, curl, and jq — everything play-episode.sh needs.
-	// The Job uses in-cluster config (ServiceAccount token) so no KUBECONFIG is needed.
-	// pulumi.com/skipAwait prevents Pulumi from waiting for Job completion (30-60 min).
-	_, err = batchv1.NewJob(ctx, awsEnv.Namer.ResourceName("runner-job"),
+	// ── Volumes ──────────────────────────────────────────────────────────────
+	// Post-renderer volume
+	episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
+		Name: pulumi.String("post-renderer"),
+		ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+			Name: postRendererCM.Metadata.Name().Elem(),
+			Items: corev1.KeyToPathArray{
+				corev1.KeyToPathArgs{
+					Key:  pulumi.String("post-renderer.sh"),
+					Path: pulumi.String("post-renderer.sh"),
+					Mode: pulumi.IntPtr(0o755),
+				},
+			},
+		},
+	})
+	// Workspace emptyDir
+	episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
+		Name:     pulumi.String("workspace"),
+		EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
+	})
+
+	// ── Volume mounts ────────────────────────────────────────────────────────
+	episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
+		Name:      pulumi.String("post-renderer"),
+		MountPath: pulumi.String("/scripts/post-renderer.sh"),
+		SubPath:   pulumi.String("post-renderer.sh"),
+	})
+	episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
+		Name:      pulumi.String("workspace"),
+		MountPath: pulumi.String("/workspace"),
+	})
+
+	// ── Job dependencies ─────────────────────────────────────────────────────
+	var jobDeps []pulumi.Resource
+	jobDeps = append(jobDeps, sa, ddSecret, postRendererCM)
+	jobDeps = append(jobDeps, episodeConfigMaps...)
+
+	// ── Orchestrator Job ─────────────────────────────────────────────────────
+	_, err = batchv1.NewJob(ctx, awsEnv.Namer.ResourceName("orchestrator-job"),
 		&batchv1.JobArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String("gensim-runner"),
+				Name:      pulumi.String("gensim-orchestrator"),
 				Namespace: pulumi.String(namespace),
 				Annotations: pulumi.StringMap{
-					// Do not wait for the Job to complete — it runs for 30-60 min.
-					// Pulumi returns as soon as the Job resource is created.
 					"pulumi.com/skipAwait": pulumi.String("true"),
 				},
 			},
 			Spec: batchv1.JobSpecArgs{
-				BackoffLimit: pulumi.IntPtr(0), // no retries — a failed run is a failed run
+				BackoffLimit: pulumi.IntPtr(0),
 				Template: corev1.PodTemplateSpecArgs{
 					Spec: corev1.PodSpecArgs{
 						ServiceAccountName: sa.Metadata.Name().Elem(),
 						RestartPolicy:      pulumi.String("Never"),
 						Containers: corev1.ContainerArray{
 							corev1.ContainerArgs{
-								Name:  pulumi.String("runner"),
-								Image: pulumi.String("alpine/k8s:1.31.0"),
-								// Run episode then collect observer parquet and upload to S3.
-								// bash -c chains all steps in one container without sidecars.
+								Name:    pulumi.String("orchestrator"),
+								Image:   pulumi.String("alpine/k8s:1.31.0"),
 								Command: pulumi.StringArray{pulumi.String("bash"), pulumi.String("-c")},
-								Args: pulumi.StringArray{pulumi.Sprintf(
-									`set -euo pipefail
-
-bash /episode/play-episode.sh run-episode %s
-
-AGENT_POD=$(kubectl get pod -n %s -l app=dda-linux-datadog -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-if [ -z "$AGENT_POD" ]; then
-  echo "ERROR: no agent pod found in namespace %s (label app=dda-linux-datadog) — parquet not collected" >&2
-else
-  echo "Collecting parquet from pod $AGENT_POD..."
-  mkdir -p /episode/results/parquet
-  if ! kubectl cp %s/$AGENT_POD:/tmp/observer-parquet /episode/results/parquet/; then
-    echo "ERROR: kubectl cp failed — parquet not collected (observer-recorder may not have written files yet)" >&2
-  else
-    echo "Parquet collected: $(ls /episode/results/parquet/ | wc -l) files"
-  fi
-fi
-
-if [ -n "%s" ]; then
-  DEST="s3://%s/gensim-results-%s-$(date -u +%%Y%%m%%d)"
-  echo "Uploading results to $DEST/..."
-  aws s3 cp /episode/results/ "$DEST/" --recursive
-  echo "Uploaded to $DEST/"
-fi`,
-									scenario, namespace, namespace, namespace, s3Bucket, s3Bucket, episodeName,
-								)},
+								Args:    pulumi.StringArray{pulumi.String(buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry))},
 								Env: corev1.EnvVarArray{
 									corev1.EnvVarArgs{
 										Name: pulumi.String("DD_API_KEY"),
@@ -471,337 +431,345 @@ fi`,
 											},
 										},
 									},
-									corev1.EnvVarArgs{Name: pulumi.String("DD_ENV"), Value: pulumi.StringPtr(ddEnv)},
-									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
 									corev1.EnvVarArgs{Name: pulumi.String("DD_SITE"), Value: pulumi.StringPtr(awsEnv.Site())},
+									corev1.EnvVarArgs{Name: pulumi.String("EPISODES"), Value: pulumi.StringPtr(episodes)},
+									corev1.EnvVarArgs{Name: pulumi.String("AGENT_IMAGE"), Value: pulumi.StringPtr(agentImage)},
+									corev1.EnvVarArgs{Name: pulumi.String("GENSIM_SHA"), Value: pulumi.StringPtr(gensimSha)},
+									corev1.EnvVarArgs{Name: pulumi.String("S3_BUCKET"), Value: pulumi.StringPtr(s3Bucket)},
+									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
+									corev1.EnvVarArgs{Name: pulumi.String("IMAGE_REGISTRY"), Value: pulumi.StringPtr(imageRegistry)},
 								},
-								VolumeMounts: corev1.VolumeMountArray{
-									corev1.VolumeMountArgs{
-										Name:      pulumi.String("episode-script"),
-										MountPath: pulumi.String("/episode"),
-									},
-									corev1.VolumeMountArgs{
-										Name:      pulumi.String("episode-scenarios"),
-										MountPath: pulumi.String("/episode/episodes"),
-									},
-									// Writable directory for play-episode.sh results.
-									// ConfigMap volumes are read-only; play-episode.sh hardcodes
-									// RESULTS_DIR="${SCRIPT_DIR}/results" so we mount an emptyDir there.
-									corev1.VolumeMountArgs{
-										Name:      pulumi.String("episode-results"),
-										MountPath: pulumi.String("/episode/results"),
-									},
-								},
+								VolumeMounts: episodeVolumeMounts,
 							},
 						},
-						Volumes: corev1.VolumeArray{
-							// play-episode.sh → /episode/play-episode.sh
-							corev1.VolumeArgs{
-								Name: pulumi.String("episode-script"),
-								ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
-									Name: configMap.Metadata.Name().Elem(),
-									Items: corev1.KeyToPathArray{
-										corev1.KeyToPathArgs{
-											Key:  pulumi.String("play-episode.sh"),
-											Path: pulumi.String("play-episode.sh"),
-											Mode: pulumi.IntPtr(0o755),
-										},
-									},
-								},
-							},
-							// <scenario>.yaml → /episode/episodes/<scenario>.yaml
-							corev1.VolumeArgs{
-								Name: pulumi.String("episode-scenarios"),
-								ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
-									Name: configMap.Metadata.Name().Elem(),
-									Items: corev1.KeyToPathArray{
-										corev1.KeyToPathArgs{
-											Key:  pulumi.String(scenario + ".yaml"),
-											Path: pulumi.String(scenario + ".yaml"),
-										},
-									},
-								},
-							},
-							// emptyDir provides a writable /episode/results for play-episode.sh.
-							corev1.VolumeArgs{
-								Name:     pulumi.String("episode-results"),
-								EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
-							},
-						},
+						Volumes: episodeVolumes,
 					},
 				},
 			},
-		}, kubeOpts...)
+		},
+		append(kubeOpts, utils.PulumiDependsOn(jobDeps...))...,
+	)
 	return err
 }
 
-// buildAndPushImages provisions a small EC2 build VM, copies the episode's service
-// source code to it, builds Docker images for linux/amd64, and pushes them to ECR.
-//
-// The VM is kept in the Pulumi stack and destroyed when the stack is destroyed.
-// Its only purpose is image building — it is not used for running the episode.
-func buildAndPushImages(ctx *pulumi.Context, awsEnv resAws.Environment, episodePath, ecrRegistry string) (pulumi.ResourceOption, error) {
-	// Grant the build VM's instance role permission to push images to ECR.
-	// GetAuthorizationToken is account-level and must use "*" as the resource.
-	_, err := awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-ecr-push"),
-		&awsIam.RolePolicyArgs{
-			Role: pulumi.String(awsEnv.DefaultInstanceProfileName()),
-			Policy: pulumi.String(`{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": [
-      "ecr:GetAuthorizationToken",
-      "ecr:CreateRepository",
-      "ecr:DescribeImages",
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:PutImage",
-      "ecr:InitiateLayerUpload",
-      "ecr:UploadLayerPart",
-      "ecr:CompleteLayerUpload"
-    ],
-    "Resource": "*"
-  }]
-}`),
-		},
-		awsEnv.WithProviders(e2econfig.ProviderAWS),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Use the Amazon Linux ECS AMI — Docker 25 (including buildx) is pre-installed
-	// and the daemon is already running. Only AWS CLI needs to be added (~30s via yum).
-	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder", ec2.WithOS(osComp.AmazonLinuxECSDefault))
-	if err != nil {
-		return nil, err
-	}
-
-	// Install AWS CLI — Docker 25 (including buildx) is pre-installed on the ECS AMI,
-	// but AWS CLI is not. This is the only setup step needed (~30s vs ~4 min on Ubuntu).
-	installToolsCmd, err := buildHost.OS.Runner().Command(
-		awsEnv.Namer.ResourceName("install-build-tools"),
-		&command.Args{
-			Create: pulumi.String(`yum install -y awscli`),
-			Sudo:   true,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Copy the episode's docker-compose.yaml and services/ directory to the build VM.
-	servicesCopy, err := buildHost.OS.FileManager().CopyAbsoluteFolder(
-		filepath.Join(episodePath, "services"), "/tmp/gensim-build/",
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	dockerComposeCopy, err := buildHost.OS.FileManager().CopyFile(
-		"docker-compose-yaml",
-		pulumi.String(filepath.Join(episodePath, "docker-compose.yaml")),
-		pulumi.String("/tmp/gensim-build/docker-compose.yaml"),
-		utils.PulumiDependsOn(servicesCopy...),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fix ownership so the build directory is writable by the SSH user.
-	fixPermsCmd, err := buildHost.OS.Runner().Command(
-		awsEnv.Namer.ResourceName("fix-build-dir-perms"),
-		&command.Args{
-			Create: pulumi.String(`chown -R $(id -un):$(id -gn) /tmp/gensim-build/`),
-			Sudo:   true,
-		},
-		utils.PulumiDependsOn(append(servicesCopy, dockerComposeCopy)...),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Compute a hash of the local services directory so Pulumi can detect when
-	// source files change. Without this Trigger, DependsOn only controls ordering
-	// and the build command would never re-run after the initial create, even if
-	// app.py or a Dockerfile changed.
-	servicesHash, err := hashDir(filepath.Join(episodePath, "services"))
-	if err != nil {
-		return nil, fmt.Errorf("hashing services directory: %w", err)
-	}
-
-	// Build all images and push to ECR.
-	//
-	// Caching: images are also tagged with the first 12 chars of servicesHash
-	// (e.g. "abc123def456"). On re-runs — including fresh cluster recreations with
-	// unchanged source — we check ECR for this hash tag first. If all images are
-	// already present, we skip the docker-compose build entirely (saves 5-10 min).
-	//
-	// TODO: the e2e infra-cleaner job purges ECR repositories weekly, which
-	// defeats this cache between weeks. To make the cache durable, the ECR repos
-	// need to be tagged so the cleaner skips them (e.g. a "gensim:keep" tag or
-	// an exclusion rule in the cleaner config). Until then, the cache only helps
-	// within the same week or on same-day cluster recreations.
-	//
-	// The :latest tag is always pushed so the Helm chart's imageRegistry prefix works
-	// without any changes to chart values.
-	buildAndPush, err := buildHost.OS.Runner().Command(
-		awsEnv.Namer.ResourceName("build-push-images"),
-		&command.Args{
-			// Triggers forces this command to re-run whenever the source files change.
-			// Pulumi replaces the resource when any trigger value differs from state.
-			Triggers: pulumi.Array{pulumi.String(servicesHash)},
-			Create: pulumi.Sprintf(
-				`set -euo pipefail
-
-# AWS CLI is installed on the ECS AMI but not in the default SSH PATH.
-export PATH=$PATH:/usr/bin:/usr/local/bin
-
-cd /tmp/gensim-build
-
-REGION="%s"
-ECR_REGISTRY="%s"
-CACHE_TAG="%s"  # first 12 chars of services hash — stable cache key
-
-# Authenticate Docker with ECR using the instance IAM role.
-# --password-stdin works without a TTY, which is how Pulumi executes remote commands.
-aws ecr get-login-password --region "$REGION" \
-  | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-# Parse image names from docker-compose.yaml using grep+awk.
-# Avoids python3 yaml module which is not available on Amazon Linux ECS Python 3.7.
-# grep without ^ anchor matches 4-space-indented image: lines correctly.
-IMAGES=$(grep '  image:' docker-compose.yaml | awk '{print $2}')
-
-# Check if all images are already cached in ECR under the hash tag.
-# On a fresh cluster with unchanged source code this saves the full build.
-ALL_CACHED=true
-for IMAGE in $IMAGES; do
-  REPO="${IMAGE%%:*}"
-  if ! aws ecr describe-images \
-      --repository-name "$REPO" \
-      --image-ids "imageTag=$CACHE_TAG" \
-      --region "$REGION" >/dev/null 2>&1; then
-    ALL_CACHED=false
-    break
-  fi
-done
-
-if [ "$ALL_CACHED" = "true" ]; then
-  echo "[cache hit] All images cached at $CACHE_TAG — pulling and retagging as :latest"
-  for IMAGE in $IMAGES; do
-    REPO="${IMAGE%%:*}"
-    docker pull "$ECR_REGISTRY/$REPO:$CACHE_TAG"
-    docker tag  "$ECR_REGISTRY/$REPO:$CACHE_TAG" "$ECR_REGISTRY/$IMAGE"
-    docker push "$ECR_REGISTRY/$IMAGE"
-  done
-else
-  echo "[cache miss] Building images with docker buildx bake..."
-  # buildx bake understands docker-compose.yaml natively, builds all images
-  # in parallel, and deduplicates shared base layers.
-  docker buildx bake -f docker-compose.yaml
-
-  for IMAGE in $IMAGES; do
-    REPO="${IMAGE%%:*}"
-    aws ecr create-repository --repository-name "$REPO" --region "$REGION" 2>/dev/null || true
-    # :latest — consumed by the Helm chart via imageRegistry
-    docker tag  "$IMAGE" "$ECR_REGISTRY/$IMAGE"
-    docker push "$ECR_REGISTRY/$IMAGE"
-    # :hash — cache key for future cluster recreations
-    docker tag  "$IMAGE" "$ECR_REGISTRY/$REPO:$CACHE_TAG"
-    docker push "$ECR_REGISTRY/$REPO:$CACHE_TAG"
-  done
-fi`,
-				awsEnv.Region(),
-				ecrRegistry,
-				servicesHash[:12],
-			),
-		},
-		utils.PulumiDependsOn(installToolsCmd, fixPermsCmd),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return utils.PulumiDependsOn(buildAndPush), nil
+// buildOrchestratorScript constructs the bash script that the orchestrator Job executes.
+// All values come from environment variables set on the Job's env (EPISODES, AGENT_IMAGE,
+// GENSIM_SHA, KUBE_NAMESPACE, S3_BUCKET, IMAGE_REGISTRY, DD_API_KEY, DD_APP_KEY, DD_SITE).
+func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry string) string {
+	return "set -euo pipefail\n" +
+		"apk add --no-cache aws-cli 2>/dev/null || true\n" +
+		"helm repo add datadog https://helm.datadoghq.com && helm repo update\n" +
+		"\n" +
+		"# ── Parse image into repo + tag ──────────────────────────────────────────\n" +
+		"IMAGE_REPO=\"${AGENT_IMAGE%:*}\"\n" +
+		"IMAGE_TAG=\"${AGENT_IMAGE##*:}\"\n" +
+		"RUN_ID=\"eval-$(date -u +%Y%m%d)-${GENSIM_SHA:0:7}\"\n" +
+		"\n" +
+		"echo \"Orchestrator starting\"\n" +
+		"echo \"  Run ID:     $RUN_ID\"\n" +
+		"echo \"  Episodes:   $EPISODES\"\n" +
+		"echo \"  Image:      $AGENT_IMAGE\"\n" +
+		"echo \"  Gensim SHA: $GENSIM_SHA\"\n" +
+		"echo \"  S3 Bucket:  $S3_BUCKET\"\n" +
+		"echo \"  Namespace:  $KUBE_NAMESPACE\"\n" +
+		"\n" +
+		"# ── Status ConfigMap helpers ────────────────────────────────────────────\n" +
+		"init_status() {\n" +
+		"  local episodes_json=\"[]\"\n" +
+		"  IFS=',' read -ra _EP_INIT <<< \"$EPISODES\"\n" +
+		"  for _EP in \"${_EP_INIT[@]}\"; do\n" +
+		"    local _episode=\"${_EP%%:*}\"\n" +
+		"    local _scenario=\"${_EP##*:}\"\n" +
+		"    episodes_json=$(printf '%s' \"$episodes_json\" | jq -c --arg ep \"$_episode\" --arg sc \"$_scenario\" '. + [{\"episode\":$ep,\"scenario\":$sc,\"status\":\"queued\"}]')\n" +
+		"  done\n" +
+		"  local status_json\n" +
+		"  status_json=$(jq -n -c \\\n" +
+		"    --arg runId \"$RUN_ID\" \\\n" +
+		"    --arg image \"$AGENT_IMAGE\" \\\n" +
+		"    --arg sha \"$GENSIM_SHA\" \\\n" +
+		"    --arg started \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \\\n" +
+		"    --argjson eps \"$episodes_json\" \\\n" +
+		"    '{runId:$runId,image:$image,gensimSha:$sha,startedAt:$started,episodes:$eps}')\n" +
+		"  kubectl create configmap gensim-run-status \\\n" +
+		"    --from-literal=status=\"$status_json\" \\\n" +
+		"    -n \"$KUBE_NAMESPACE\" \\\n" +
+		"    --dry-run=client -o yaml | kubectl apply -f -\n" +
+		"}\n" +
+		"\n" +
+		"update_episode_status() {\n" +
+		"  local ep_spec=\"$1\" new_status=\"$2\" extra=\"${3:-{}}\"\n" +
+		"  local ep=\"${ep_spec%%:*}\"\n" +
+		"  local sc=\"${ep_spec##*:}\"\n" +
+		"  local current\n" +
+		"  current=$(kubectl get configmap gensim-run-status -n \"$KUBE_NAMESPACE\" -o jsonpath='{.data.status}')\n" +
+		"  local updated\n" +
+		"  updated=$(printf '%s' \"$current\" | jq -c \\\n" +
+		"    --arg ep \"$ep\" --arg sc \"$sc\" --arg st \"$new_status\" --argjson ex \"$extra\" \\\n" +
+		"    '(.episodes[] | select(.episode==$ep and .scenario==$sc)) |= (. + $ex + {status:$st})')\n" +
+		"  kubectl create configmap gensim-run-status \\\n" +
+		"    --from-literal=status=\"$updated\" \\\n" +
+		"    -n \"$KUBE_NAMESPACE\" \\\n" +
+		"    --dry-run=client -o yaml | kubectl apply -f -\n" +
+		"}\n" +
+		"\n" +
+		"set_run_complete() {\n" +
+		"  local current\n" +
+		"  current=$(kubectl get configmap gensim-run-status -n \"$KUBE_NAMESPACE\" -o jsonpath='{.data.status}')\n" +
+		"  local updated\n" +
+		"  updated=$(printf '%s' \"$current\" | jq -c --arg t \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '. + {completedAt:$t}')\n" +
+		"  kubectl create configmap gensim-run-status \\\n" +
+		"    --from-literal=status=\"$updated\" \\\n" +
+		"    -n \"$KUBE_NAMESPACE\" \\\n" +
+		"    --dry-run=client -o yaml | kubectl apply -f -\n" +
+		"}\n" +
+		"\n" +
+		"# ── DD event + metrics helpers (Phase 4) ────────────────────────────────\n" +
+		"emit_dd_event() {\n" +
+		"  local episode=$1 scenario=$2 duration=$3 parquet_count=$4 outcome=$5\n" +
+		"  local title=\"gensim: ${episode}/${scenario} ${outcome}\"\n" +
+		"  local text=\"Duration: ${duration}s, Parquet files: ${parquet_count}, Image: ${AGENT_IMAGE}, SHA: ${GENSIM_SHA}\"\n" +
+		"  local alert_type=\"success\"\n" +
+		"  [ \"$outcome\" != \"success\" ] && alert_type=\"error\"\n" +
+		"  curl -s -X POST \"https://api.${DD_SITE}/api/v1/events\" \\\n" +
+		"    -H \"Content-Type: application/json\" \\\n" +
+		"    -H \"DD-API-KEY: ${DD_API_KEY}\" \\\n" +
+		"    -d \"{ \\\n" +
+		"      \\\"title\\\": \\\"${title}\\\", \\\n" +
+		"      \\\"text\\\": \\\"${text}\\\", \\\n" +
+		"      \\\"alert_type\\\": \\\"${alert_type}\\\", \\\n" +
+		"      \\\"tags\\\": [ \\\n" +
+		"        \\\"episode:${episode}\\\", \\\n" +
+		"        \\\"scenario:${scenario}\\\", \\\n" +
+		"        \\\"image:${IMAGE_TAG}\\\", \\\n" +
+		"        \\\"gensim_sha:${GENSIM_SHA}\\\", \\\n" +
+		"        \\\"run_id:${RUN_ID}\\\" \\\n" +
+		"      ] \\\n" +
+		"    }\" || echo \"WARN: Failed to emit DD event\" >&2\n" +
+		"}\n" +
+		"\n" +
+		"emit_dd_metrics() {\n" +
+		"  local episode=$1 scenario=$2 duration=$3 parquet_count=$4\n" +
+		"  local now=$(date +%s)\n" +
+		"  local tags=\"[\\\"episode:${episode}\\\",\\\"scenario:${scenario}\\\",\\\"image:${IMAGE_TAG}\\\",\\\"gensim_sha:${GENSIM_SHA}\\\",\\\"run_id:${RUN_ID}\\\"]\"\n" +
+		"  curl -s -X POST \"https://api.${DD_SITE}/api/v1/series\" \\\n" +
+		"    -H \"Content-Type: application/json\" \\\n" +
+		"    -H \"DD-API-KEY: ${DD_API_KEY}\" \\\n" +
+		"    -d \"{ \\\n" +
+		"      \\\"series\\\": [ \\\n" +
+		"        {\\\"metric\\\":\\\"gensim.episode.duration_seconds\\\",\\\"type\\\":\\\"gauge\\\",\\\"points\\\":[[${now},${duration}]],\\\"tags\\\":${tags}}, \\\n" +
+		"        {\\\"metric\\\":\\\"gensim.episode.parquet_files\\\",\\\"type\\\":\\\"gauge\\\",\\\"points\\\":[[${now},${parquet_count}]],\\\"tags\\\":${tags}} \\\n" +
+		"      ] \\\n" +
+		"    }\" || echo \"WARN: Failed to emit DD metrics\" >&2\n" +
+		"}\n" +
+		"\n" +
+		"# ── Main loop ───────────────────────────────────────────────────────────\n" +
+		"IFS=',' read -ra EP_LIST <<< \"$EPISODES\"\n" +
+		"\n" +
+		"init_status\n" +
+		"\n" +
+		"for EP_SPEC in \"${EP_LIST[@]}\"; do\n" +
+		"  EPISODE=\"${EP_SPEC%%:*}\"\n" +
+		"  SCENARIO=\"${EP_SPEC##*:}\"\n" +
+		"  EP_START=$(date +%s)\n" +
+		"\n" +
+		"  echo \"=== Episode: $EPISODE / $SCENARIO ===\"\n" +
+		"\n" +
+		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"agent-install\"}'\n" +
+		"\n" +
+		"  # 1. Write agent values YAML\n" +
+		"  cat > /workspace/agent-values.yaml <<'AGENT_EOF'\n" +
+		"datadog:\n" +
+		"  apiKeyExistingSecret: gensim-secrets\n" +
+		"  appKeyExistingSecret: gensim-secrets\n" +
+		"  kubelet:\n" +
+		"    tlsVerify: false\n" +
+		"  clusterName: gensim\n" +
+		"agents:\n" +
+		"  enabled: true\n" +
+		"  image:\n" +
+		"    repository: PLACEHOLDER_IMAGE_REPO\n" +
+		"    tag: PLACEHOLDER_IMAGE_TAG\n" +
+		"    doNotCheckTag: true\n" +
+		"  useConfigMap: true\n" +
+		"  customAgentConfig:\n" +
+		"    observer:\n" +
+		"      recording:\n" +
+		"        enabled: true\n" +
+		"        parquet_output_dir: /tmp/observer-parquet\n" +
+		"        parquet_flush_interval: 30s\n" +
+		"clusterChecksRunner:\n" +
+		"  enabled: false\n" +
+		"clusterAgent:\n" +
+		"  enabled: true\n" +
+		"  image:\n" +
+		"    repository: PLACEHOLDER_IMAGE_REPO\n" +
+		"    tag: PLACEHOLDER_IMAGE_TAG\n" +
+		"    doNotCheckTag: true\n" +
+		"AGENT_EOF\n" +
+		"  # Patch placeholders with actual values (avoids heredoc variable expansion issues)\n" +
+		"  sed -i \"s|PLACEHOLDER_IMAGE_REPO|$IMAGE_REPO|g\" /workspace/agent-values.yaml\n" +
+		"  sed -i \"s|PLACEHOLDER_IMAGE_TAG|$IMAGE_TAG|g\" /workspace/agent-values.yaml\n" +
+		"\n" +
+		"  # 2. Install agent\n" +
+		"  helm install dda-linux datadog/datadog \\\n" +
+		"    -f /workspace/agent-values.yaml \\\n" +
+		"    -n \"$KUBE_NAMESPACE\" \\\n" +
+		"    --wait --timeout 5m\n" +
+		"\n" +
+		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"episode-install\"}'\n" +
+		"\n" +
+		"  # 3. Install episode chart (if chart tarball is available)\n" +
+		"  EP_RELEASE=\"\"\n" +
+		"  if [ -f \"/episodes/$EPISODE/chart.tar.gz\" ]; then\n" +
+		"    mkdir -p \"/workspace/chart-$EPISODE\"\n" +
+		"    tar xzf \"/episodes/$EPISODE/chart.tar.gz\" -C \"/workspace/chart-$EPISODE\"\n" +
+		"    CHART_DIR=$(find \"/workspace/chart-$EPISODE\" -maxdepth 1 -mindepth 1 -type d | head -1)\n" +
+		"    if [ -z \"$CHART_DIR\" ]; then\n" +
+		"      CHART_DIR=\"/workspace/chart-$EPISODE\"\n" +
+		"    fi\n" +
+		"\n" +
+		"    EP_RELEASE=\"gensim-$(echo \"$EPISODE\" | tr '_' '-' | tr '[:upper:]' '[:lower:]')\"\n" +
+		"    helm install \"$EP_RELEASE\" \"$CHART_DIR\" \\\n" +
+		"      -n \"$KUBE_NAMESPACE\" \\\n" +
+		"      --set imageRegistry=\"$IMAGE_REGISTRY\" \\\n" +
+		"      --set namespace=\"$KUBE_NAMESPACE\" \\\n" +
+		"      --set datadog.apiKey=\"$DD_API_KEY\" \\\n" +
+		"      --set datadog.appKey=\"$DD_APP_KEY\" \\\n" +
+		"      --set datadog.site=\"$DD_SITE\" \\\n" +
+		"      --set datadog.env=\"$EP_RELEASE\" \\\n" +
+		"      --post-renderer /scripts/post-renderer.sh \\\n" +
+		"      --skip-tests\n" +
+		"  fi\n" +
+		"\n" +
+		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"episode-running\"}'\n" +
+		"\n" +
+		"  # 4. Run play-episode.sh\n" +
+		"  # play-episode.sh uses SCRIPT_DIR=$(cd \"$(dirname \"$0\")\" && pwd) and looks\n" +
+		"  # for episodes/<scenario>.yaml relative to SCRIPT_DIR. Copy files so paths work.\n" +
+		"  cp \"/episodes/$EPISODE/play-episode.sh\" /workspace/play-episode.sh\n" +
+		"  chmod +x /workspace/play-episode.sh\n" +
+		"  mkdir -p /workspace/episodes\n" +
+		"  cp \"/episodes/$EPISODE/$SCENARIO.yaml\" \"/workspace/episodes/$SCENARIO.yaml\"\n" +
+		"  mkdir -p /workspace/results\n" +
+		"  cd /workspace\n" +
+		"  bash /workspace/play-episode.sh run-episode \"$SCENARIO\" || true\n" +
+		"  cd /\n" +
+		"\n" +
+		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"collecting-parquet\"}'\n" +
+		"\n" +
+		"  # 5. Collect parquet from agent pod\n" +
+		"  PARQUET_COUNT=0\n" +
+		"  AGENT_POD=$(kubectl get pod -n \"$KUBE_NAMESPACE\" -l app=dda-linux-datadog -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)\n" +
+		"  if [ -z \"$AGENT_POD\" ]; then\n" +
+		"    echo \"ERROR: no agent pod found (label app=dda-linux-datadog) -- parquet not collected\" >&2\n" +
+		"  else\n" +
+		"    echo \"Collecting parquet from pod $AGENT_POD...\"\n" +
+		"    mkdir -p /workspace/results/parquet\n" +
+		"    if kubectl cp \"$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet\" /workspace/results/parquet/; then\n" +
+		"      PARQUET_COUNT=$(find /workspace/results/parquet -type f -name '*.parquet' | wc -l)\n" +
+		"      echo \"Parquet collected: $PARQUET_COUNT files\"\n" +
+		"    else\n" +
+		"      echo \"ERROR: kubectl cp failed -- parquet not collected\" >&2\n" +
+		"    fi\n" +
+		"  fi\n" +
+		"\n" +
+		"  # 6. Upload to S3\n" +
+		"  if [ -n \"$S3_BUCKET\" ]; then\n" +
+		"    EP_SCENARIO=\"${EPISODE}--${SCENARIO}\"\n" +
+		"    S3_PATH=\"${IMAGE_TAG}/${EP_SCENARIO}/gensim-${GENSIM_SHA}/$(date -u +%Y%m%d)\"\n" +
+		"    DEST=\"s3://${S3_BUCKET}/${S3_PATH}\"\n" +
+		"    echo \"Uploading results to $DEST/...\"\n" +
+		"    aws s3 cp /workspace/results/ \"$DEST/\" --recursive || echo \"ERROR: S3 upload failed\" >&2\n" +
+		"    echo \"Uploaded to $DEST/\"\n" +
+		"  fi\n" +
+		"\n" +
+		"  EP_END=$(date +%s)\n" +
+		"  EP_DURATION=$((EP_END - EP_START))\n" +
+		"\n" +
+		"  # 7. Emit DD event + metrics\n" +
+		"  emit_dd_event \"$EPISODE\" \"$SCENARIO\" \"$EP_DURATION\" \"$PARQUET_COUNT\" \"success\"\n" +
+		"  emit_dd_metrics \"$EPISODE\" \"$SCENARIO\" \"$EP_DURATION\" \"$PARQUET_COUNT\"\n" +
+		"\n" +
+		"  # 8. Update status\n" +
+		"  update_episode_status \"$EP_SPEC\" \"done\" \"{\\\"parquetFiles\\\":$PARQUET_COUNT,\\\"durationSeconds\\\":$EP_DURATION}\"\n" +
+		"\n" +
+		"  # 9. Teardown episode + agent\n" +
+		"  echo \"Tearing down episode and agent...\"\n" +
+		"  if [ -n \"${EP_RELEASE:-}\" ]; then\n" +
+		"    helm uninstall \"$EP_RELEASE\" -n \"$KUBE_NAMESPACE\" --wait 2>/dev/null || true\n" +
+		"  fi\n" +
+		"  helm uninstall dda-linux -n \"$KUBE_NAMESPACE\" --wait 2>/dev/null || true\n" +
+		"\n" +
+		"  # Wait for pods to terminate\n" +
+		"  echo \"Waiting for agent pods to terminate...\"\n" +
+		"  kubectl wait --for=delete pod -l app=dda-linux-datadog -n \"$KUBE_NAMESPACE\" --timeout=120s 2>/dev/null || true\n" +
+		"\n" +
+		"  # Clean workspace for next episode\n" +
+		"  rm -rf /workspace/results /workspace/chart-* /workspace/agent-values.yaml /workspace/play-episode.sh /workspace/episodes\n" +
+		"\n" +
+		"  echo \"=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s) ===\"\n" +
+		"done\n" +
+		"\n" +
+		"set_run_complete\n" +
+		"echo \"All episodes complete.\"\n"
 }
 
-// hashDir computes a deterministic SHA256 hash of all files under a directory.
-// It walks the tree, sorts paths for determinism, and hashes each file's
-// contents. The result changes whenever any file is added, removed, or modified.
-func hashDir(root string) (string, error) {
-	var paths []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+// createTarGz creates a gzip-compressed tar archive of the given directory.
+// The archive preserves the directory structure relative to the parent of dir,
+// so that when extracted, files appear under a top-level directory matching
+// the base name of dir (e.g. "chart/").
+func createTarGz(dir string) ([]byte, error) {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+
+	baseDir := filepath.Base(dir) // e.g. "chart"
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
 			return err
 		}
-		paths = append(paths, path)
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	sort.Strings(paths)
 
-	h := sha256.New()
-	for _, path := range paths {
-		// Include the relative path so renames/moves are detected.
-		rel, _ := filepath.Rel(root, path)
-		fmt.Fprintf(h, "%s\n", rel)
+		// Build the archive path relative to dir's parent so it starts with "chart/".
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		archivePath := filepath.Join(baseDir, rel)
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = archivePath
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
 
 		f, err := os.Open(path)
 		if err != nil {
-			return "", err
+			return err
 		}
-		if _, err := io.Copy(h, f); err != nil {
-			f.Close()
-			return "", err
-		}
-		f.Close()
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// writePatchScript writes a shell post-renderer that rewrites
-// `imagePullPolicy: Never` → `imagePullPolicy: IfNotPresent` in Helm output.
-// It is passed to helm as a post-renderer so the patch is transparent to the chart.
-func writePatchScript() (string, error) {
-	f, err := os.CreateTemp("", "patch-imagepullpolicy-*.sh")
+		defer f.Close()
+		_, err = io.Copy(tw, f)
+		return err
+	})
 	if err != nil {
-		return "", fmt.Errorf("creating post-renderer script: %w", err)
+		return nil, err
 	}
-	defer f.Close()
 
-	// 1. imagePullPolicy: Never → Always (episode charts hardcode Never for Kind).
-	// 2. Strip the episode chart's stub datadog-agent DaemonSet + RBAC so the
-	//    framework's dda-linux agent can take over without selector conflicts.
-	script := `#!/bin/sh
-# Post-renderer: patch imagePullPolicy and strip stub agent resources.
-# Helm pipes the rendered manifests through stdin; we write to stdout.
-python3 -c '
-import sys, re
+	// Close in order: tar writer, then gzip writer.
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	if err := gw.Close(); err != nil {
+		return nil, err
+	}
 
-docs = sys.stdin.read().split("\n---\n")
-out = []
-for doc in docs:
-    # Drop stub agent resources (DaemonSet, ServiceAccount, ClusterRole, ClusterRoleBinding)
-    # that the episode chart bundles for standalone use.
-    if re.search(r"kind:\s*(DaemonSet|ServiceAccount|ClusterRole|ClusterRoleBinding)", doc) \
-       and re.search(r"name:\s*datadog-agent\s*$", doc, re.MULTILINE):
-        continue
-    # Patch imagePullPolicy
-    doc = doc.replace("imagePullPolicy: Never", "imagePullPolicy: Always")
-    out.append(doc)
-print("\n---\n".join(out))
-'
-`
-	if _, err := f.WriteString(script); err != nil {
-		return "", fmt.Errorf("writing post-renderer script: %w", err)
-	}
-	if err := os.Chmod(f.Name(), 0o755); err != nil {
-		return "", fmt.Errorf("chmod post-renderer script: %w", err)
-	}
-	return f.Name(), nil
+	return buf.Bytes(), nil
 }

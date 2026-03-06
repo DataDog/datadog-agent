@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from invoke.tasks import task
 from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws.common import get_aws_wrapper
 from tasks.e2e_framework.aws.deploy import deploy
-from tasks.e2e_framework.config import get_app_key
+from tasks.e2e_framework.config import get_api_key, get_app_key
 from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/gensim-eks"
@@ -21,20 +22,21 @@ _DEFAULT_STACK_NAME = "gensim-eks"
 
 @task(
     help={
-        "episode": "Episode directory name under gensim-episodes/postmortems/ (e.g. authcore-pgbouncer-connection-pool-saturation). Omit for a cluster-only (M1) deploy.",
+        "image": "Full agent Docker image path (e.g. docker.io/datadog/agent-dev:my-tag)",
+        "episodes": "Comma-separated episode:scenario pairs (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)",
+        "s3_bucket": "S3 bucket for parquet results upload",
         "namespace": "Kubernetes namespace for the episode workloads (default: default)",
         "stack_name": doc.stack_name,
-        "instance_type": "EC2 instance type for EKS worker nodes and build VM (default: t3.xlarge)",
+        "instance_type": "EC2 instance type for EKS worker nodes (default: t3.xlarge)",
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
     }
 )
-def create_gensim_eks(
+def submit_gensim_eks(
     ctx: Context,
-    episode: str | None = None,
-    scenario: str | None = None,
+    image: str = "",
+    episodes: str = "",
     s3_bucket: str | None = None,
-    full_image_path: str | None = None,
     namespace: str = "default",
     stack_name: str = _DEFAULT_STACK_NAME,
     instance_type: str = "t3.xlarge",
@@ -42,47 +44,156 @@ def create_gensim_eks(
     config_path: str | None = None,
 ) -> None:
     """
-    Create an EKS cluster for running gensim episodes.
+    Submit a gensim evaluation run to an EKS cluster.
 
-    Without --episode: provisions the cluster only (M1 mode, useful for debugging).
-    With --episode: also provisions an EC2 build VM that builds episode service images
-    and pushes them to ECR, then deploys the episode Helm chart (M2+).
-
-    Images are built on EC2 rather than locally, which means:
-      - No local Docker required
-      - No cross-platform issues (build VM is x86_64, matching EKS nodes)
-      - ECR auth is handled via the instance IAM role
+    Parses the --episodes flag, validates episode directories, ensures the cluster
+    is not busy, then deploys via Pulumi. The orchestrator Job on the cluster handles
+    agent installation and episode sequencing.
 
     Examples:
-        inv aws.eks.gensim.create
-        inv aws.eks.gensim.create --episode=authcore-pgbouncer-connection-pool-saturation
+        inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=authcore-pgbouncer:pool-saturation
+        inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=ep1:scen-a,ep2:scen-b --s3-bucket=my-bucket
     """
     from pydantic_core._pydantic_core import ValidationError
 
     from tasks.e2e_framework import config
 
+    if not image:
+        raise Exit("--image is required (e.g. docker.io/datadog/agent-dev:my-tag)")
+    if not episodes:
+        raise Exit("--episodes is required (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)")
+
+    # ── 1. Parse and validate episode:scenario pairs ──────────────────────
+    episode_pairs = []
+    for pair in episodes.split(","):
+        pair = pair.strip()
+        if not pair:
+            continue
+        parts = pair.split(":")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise Exit(f"Invalid episode:scenario format: '{pair}'. Expected 'episode:scenario'.")
+        episode_pairs.append((parts[0], parts[1]))
+
+    if not episode_pairs:
+        raise Exit("No valid episode:scenario pairs found in --episodes.")
+
+    # ── 2. Validate episode directories ───────────────────────────────────
+    gensim_repo_path = _get_gensim_repo_path()
+    for ep_name, scen_name in episode_pairs:
+        ep_dir = gensim_repo_path / ep_name
+        chart_dir = ep_dir / "chart"
+        scenario_file = ep_dir / "episodes" / f"{scen_name}.yaml"
+
+        if not ep_dir.exists():
+            raise Exit(f"Episode directory not found: {ep_dir}")
+        if not chart_dir.exists():
+            raise Exit(f"Chart directory not found: {chart_dir}")
+        if not scenario_file.exists():
+            raise Exit(f"Scenario file not found: {scenario_file}")
+
+    # ── 3. Capture gensim-episodes git SHA ────────────────────────────────
+    sha_buf = StringIO()
+    ctx.run(
+        f"git -C {gensim_repo_path} rev-parse --short=10 HEAD",
+        out_stream=sha_buf,
+        hide="out",
+    )
+    gensim_sha = sha_buf.getvalue().strip()
+
+    # ── 4. Validate clean checkout ────────────────────────────────────────
+    status_buf = StringIO()
+    ctx.run(
+        f"git -C {gensim_repo_path} status --porcelain",
+        out_stream=status_buf,
+        hide="out",
+    )
+    if status_buf.getvalue().strip():
+        raise Exit(
+            f"gensim-episodes checkout is dirty ({gensim_repo_path}).\n" "Commit or stash changes before submitting."
+        )
+
+    # ── 5-6. Check cluster accessibility and guard against busy cluster ──
     try:
-        cfg = config.get_local_config(config_path)
+        local_config = config.get_local_config(config_path)
     except ValidationError as e:
         raise Exit(f"Error in config: {e}") from e
 
+    try:
+        aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
+    except Exception:
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+
+    kubeconfig_path = f"{stack_name}-kubeconfig.yaml"
+    if os.path.exists(kubeconfig_path):
+        # Check if cluster is reachable
+        cluster_ok = ctx.run(
+            f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl cluster-info",
+            warn=True,
+            hide=True,
+        )
+        if cluster_ok and cluster_ok.ok:
+            # Check for active orchestrator job
+            job_result = ctx.run(
+                f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get job gensim-orchestrator "
+                f"-n {namespace} -o json",
+                warn=True,
+                hide=True,
+            )
+            if job_result and job_result.ok:
+                job_data = json.loads(job_result.stdout)
+                status = job_data.get("status", {})
+                if status.get("active", 0) == 1:
+                    # Show current run status if available
+                    cm_result = ctx.run(
+                        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get configmap "
+                        f"gensim-run-status -n {namespace} -o jsonpath='{{.data.status}}'",
+                        warn=True,
+                        hide=True,
+                    )
+                    if cm_result and cm_result.ok and cm_result.stdout.strip():
+                        tool.info("Current run status:")
+                        tool.info(cm_result.stdout.strip())
+                    raise Exit("Cluster busy. Retry after the current run completes.")
+                else:
+                    # Job completed or failed -- clean it up
+                    tool.info("Cleaning up previous orchestrator job.")
+                    ctx.run(
+                        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl delete job "
+                        f"gensim-orchestrator -n {namespace}",
+                        warn=True,
+                        hide=True,
+                    )
+
+    # ── 7. Compute ECR registry URL if any episode has docker-compose.yaml
+    ecr_registry = ""
+    for ep_name, _ in episode_pairs:
+        ep_dir = gensim_repo_path / ep_name
+        if (ep_dir / "docker-compose.yaml").exists():
+            ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
+            tool.info(f"ECR registry: {ecr_registry}")
+            break
+
+    # ── 8. Deploy via Pulumi ──────────────────────────────────────────────
     extra_flags = {
-        # Single Linux x86_64 node group. ARM, Bottlerocket, Windows, and GPU groups
-        # are disabled to keep the cluster lean and start-up time short.
+        # Cluster shape
         "ddinfra:aws/defaultInstanceType": instance_type,
         "ddinfra:aws/eks/linuxNodeGroup": "true",
         "ddinfra:aws/eks/linuxARMNodeGroup": False,
         "ddinfra:aws/eks/linuxBottlerocketNodeGroup": False,
         "ddinfra:aws/eks/windowsNodeGroup": False,
         "ddinfra:aws/eks/gpuNodeGroup": False,
+        # Gensim orchestrator config
+        "gensim:episodes": episodes,
+        "gensim:agentImage": image,
+        "gensim:gensimSha": gensim_sha,
+        "gensim:s3Bucket": s3_bucket or "",
+        "gensim:namespace": namespace,
+        "gensim:imageRegistry": ecr_registry,
+        "gensim:episodeDataDir": str(gensim_repo_path),
+        # Datadog keys -- must be explicit since install_agent=False
+        "ddagent:apiKey": get_api_key(local_config),
+        "ddagent:appKey": get_app_key(local_config),
     }
-
-    if episode is not None:
-        extra_flags.update(_episode_flags(ctx, cfg, episode, namespace))
-        if scenario is not None:
-            extra_flags["gensim:scenario"] = scenario
-        if s3_bucket is not None:
-            extra_flags["gensim:s3Bucket"] = s3_bucket
 
     full_stack_name = deploy(
         ctx,
@@ -90,48 +201,127 @@ def create_gensim_eks(
         config_path=config_path,
         debug=debug,
         stack_name=stack_name,
-        # install_agent=True sets ddagent:deploy=True and injects ddagent:apiKey,
-        # which gates the M3 DD agent deployment in run.go via awsEnv.AgentDeploy().
-        install_agent=episode is not None,
+        install_agent=False,
         install_workload=False,
-        # full_image_path allows overriding the agent image (e.g. observer-recorder build).
-        full_image_path=full_image_path,
         extra_flags=extra_flags,
     )
 
+    # ── 9. Show connection message ────────────────────────────────────────
     _show_connection_message(ctx, full_stack_name, config_path)
 
-    # M3+: post-deploy cleanup and monitoring instructions.
-    if episode is not None:
-        kubeconfig_path = f"{full_stack_name}-kubeconfig.yaml"
-        try:
-            local_config = config.get_local_config(config_path)
-            aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
-        except Exception:
-            aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+    # ── 10-11. Print monitoring instructions ──────────────────────────────
+    run_id = f"eval-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{gensim_sha[:7]}"
+    kube = f"KUBECONFIG={full_stack_name}-kubeconfig.yaml {aws_wrapper}"
 
-        # M3: remove stub agent
-        _delete_stub_agent(ctx, kubeconfig_path, aws_wrapper, namespace)
-
-        # M4: show runner monitoring instructions
-        if scenario is not None:
-            kube = f"KUBECONFIG={kubeconfig_path} {aws_wrapper}"
-            tool.info("\n" + "=" * 70)
-            tool.info("Episode runner started. Monitor progress:")
-            tool.info(f"  {kube}kubectl logs -f job/gensim-runner -n {namespace}")
-            tool.info("\nCheck pod status:")
-            tool.info(f"  {kube}kubectl get pods -n {namespace}")
-            tool.info("=" * 70)
+    tool.info("\n" + "=" * 70)
+    tool.info(f"Run submitted: {run_id}")
+    tool.info(f"  Image:    {image}")
+    tool.info(f"  Episodes: {episodes}")
+    tool.info(f"  SHA:      {gensim_sha}")
+    tool.info("\nMonitor orchestrator:")
+    tool.info(f"  {kube}kubectl logs -f job/gensim-orchestrator -n {namespace}")
+    tool.info("\nCheck run status:")
+    tool.info("  inv aws.eks.gensim.status")
+    tool.info("\nPod status:")
+    tool.info(f"  {kube}kubectl get pods -n {namespace}")
+    tool.info("=" * 70)
 
 
-@task(help={"stack_name": doc.stack_name})
+@task(
+    help={
+        "stack_name": doc.stack_name,
+        "config_path": doc.config_path,
+        "namespace": "Kubernetes namespace (default: default)",
+    }
+)
+def status_gensim_eks(
+    ctx: Context,
+    stack_name: str = _DEFAULT_STACK_NAME,
+    config_path: str | None = None,
+    namespace: str = "default",
+) -> None:
+    """
+    Show the status of a gensim evaluation run.
+
+    Reads the gensim-run-status ConfigMap from the cluster and displays
+    progress for each episode:scenario pair.
+
+    Example:
+        inv aws.eks.gensim.status
+    """
+    from tasks.e2e_framework import config
+
+    # ── 1. Get kubeconfig and aws_wrapper ─────────────────────────────────
+    kubeconfig_path = f"{stack_name}-kubeconfig.yaml"
+    if not os.path.exists(kubeconfig_path):
+        tool.warn("No gensim cluster found. Run `inv aws.eks.gensim.submit` first.")
+        return
+
+    try:
+        local_config = config.get_local_config(config_path)
+        aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
+    except Exception:
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
+
+    # ── 2. Read the status ConfigMap ──────────────────────────────────────
+    result = ctx.run(
+        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get configmap "
+        f"gensim-run-status -n {namespace} -o jsonpath='{{.data.status}}'",
+        warn=True,
+        hide=True,
+    )
+
+    if not result or not result.ok or not result.stdout.strip():
+        tool.info("No active or recent evaluation run.")
+        return
+
+    # ── 3. Parse and render status ────────────────────────────────────────
+    try:
+        status_data = json.loads(result.stdout.strip())
+    except json.JSONDecodeError:
+        tool.warn(f"Could not parse status ConfigMap: {result.stdout.strip()}")
+        return
+
+    run_id = status_data.get("runId", "unknown")
+    agent_image = status_data.get("image", "unknown")
+    gensim_sha = status_data.get("gensimSha", "unknown")
+
+    tool.info(f"Run: {run_id}")
+    tool.info(f"Image: {agent_image}")
+    tool.info(f"Gensim SHA: {gensim_sha}")
+    tool.info("")
+
+    for ep in status_data.get("episodes", []):
+        ep_name = ep.get("episode", "?")
+        scen_name = ep.get("scenario", "?")
+        state = ep.get("status", "unknown")
+        phase = ep.get("phase", "")
+        duration_secs = ep.get("durationSeconds", 0)
+        parquet_count = ep.get("parquetFiles", 0)
+
+        tag = f"[{state}]"
+        line = f"  {tag:<12} {ep_name} / {scen_name}"
+        if state == "done" and duration_secs:
+            mins = duration_secs // 60
+            line += f"  ({mins}m, {parquet_count} parquet)"
+        elif phase:
+            line += f"  ({phase})"
+        tool.info(line)
+
+
+@task(
+    help={
+        "stack_name": doc.stack_name,
+        "config_path": doc.config_path,
+    }
+)
 def destroy_gensim_eks(
     ctx: Context,
     stack_name: str = _DEFAULT_STACK_NAME,
     config_path: str | None = None,
 ) -> None:
     """
-    Destroy an EKS gensim cluster created with inv aws.eks.gensim.create.
+    Destroy an EKS gensim cluster created with inv aws.eks.gensim.submit.
 
     Example:
         inv aws.eks.gensim.destroy
@@ -140,7 +330,7 @@ def destroy_gensim_eks(
     destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
 
 def _get_gensim_repo_path() -> Path:
@@ -172,54 +362,6 @@ def _get_gensim_repo_path() -> Path:
     raise Exit("Could not find gensim-episodes repository. Set GENSIM_REPO_PATH environment variable.")
 
 
-def _episode_flags(ctx: Context, cfg, episode: str, namespace: str) -> dict:
-    """
-    Validate the episode directory and return the Pulumi extra_flags needed for M2+.
-
-    Image building and ECR pushing are handled by a build VM provisioned inside the
-    Pulumi stack (run.go), not here. This function only needs to pass the episode
-    location and the pre-computed ECR registry URL so Pulumi knows where to push.
-    """
-    gensim_path = _get_gensim_repo_path()
-    episode_dir = gensim_path / episode
-    chart_dir = episode_dir / "chart"
-
-    if not episode_dir.exists():
-        raise Exit(f"Episode directory not found: {episode_dir}")
-    if not chart_dir.exists():
-        raise Exit(f"Chart directory not found: {chart_dir}")
-
-    aws_wrapper = get_aws_wrapper(cfg.get_aws().get_account())
-
-    # Compute the ECR registry URL for this account/region.
-    # The actual image build and push happens on an EC2 VM inside the Pulumi stack,
-    # using the instance IAM role for auth — no local Docker or ECR credentials needed.
-    ecr_registry = ""
-    if (episode_dir / "docker-compose.yaml").exists():
-        ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
-        tool.info(f"ECR registry: {ecr_registry}")
-
-    # Pass datadog-values.yaml path if it exists at the postmortems root.
-    # Sets clusterName and kubelet.tlsVerify: false (required on EKS).
-    datadog_values_path = gensim_path / "datadog-values.yaml"
-
-    flags = {
-        "gensim:episodeName": episode,
-        "gensim:chartPath": str(chart_dir),
-        "gensim:episodePath": str(episode_dir),
-        "gensim:imageRegistry": ecr_registry,
-        "gensim:namespace": namespace,
-        # ddagent:appKey is not injected by deploy() without app_key_required=True.
-        # apiKey is now injected by install_agent=True in the caller.
-        "ddagent:appKey": get_app_key(cfg),
-    }
-
-    if datadog_values_path.exists():
-        flags["gensim:datadogValuesPath"] = str(datadog_values_path)
-
-    return flags
-
-
 def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
     """Return (ecr_registry_url, region) for the current AWS account."""
     account_buf = StringIO()
@@ -233,26 +375,6 @@ def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
     return f"{account_id}.dkr.ecr.{region}.amazonaws.com", region
 
 
-def _delete_stub_agent(ctx: Context, kubeconfig_path: str, aws_wrapper: str, namespace: str) -> None:
-    """Delete the episode chart's built-in stub datadog-agent after the real DaemonSet is deployed.
-
-    The episode chart ships a basic Deployment-based agent that conflicts with the full
-    DaemonSet-based agent deployed in M3. Running both would produce duplicate metrics.
-    This runs after `pulumi up` so the kubeconfig is available on disk.
-    """
-    # Delete both Deployment and DaemonSet variants of the stub agent —
-    # the episode chart may create either depending on its template.
-    ctx.run(
-        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl delete "
-        f"deployment/datadog-agent daemonset/datadog-agent "
-        f"service/datadog-agent serviceaccount/datadog-agent "
-        f"--ignore-not-found=true -n {namespace}",
-        warn=True,
-        hide="stderr",
-    )
-    tool.info("Stub datadog-agent removed (replaced by full DaemonSet-based agent).")
-
-
 def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None) -> None:
     """Write a local kubeconfig file and print kubectl + destroy commands."""
     from pydantic import ValidationError
@@ -264,7 +386,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: st
     kubeconfig_data = json.loads(outputs["dd-Cluster-gensim"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_data)
 
-    # Write with mode 0o600 — kubeconfigs contain credentials.
+    # Write with mode 0o600 -- kubeconfigs contain credentials.
     kubeconfig_path = f"{full_stack_name}-kubeconfig.yaml"
     fd = os.open(kubeconfig_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with open(fd, "w") as f:
