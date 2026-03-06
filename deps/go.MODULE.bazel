@@ -332,7 +332,6 @@ use_repo(
     "com_github_pahanini_go_grpc_bidirectional_streaming_example",
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
-    "com_github_pkg_errors",
     "com_github_planetscale_vtprotobuf",
     "com_github_prometheus_client_golang",
     "com_github_prometheus_client_model",
