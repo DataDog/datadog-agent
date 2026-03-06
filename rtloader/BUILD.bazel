@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -89,6 +90,22 @@ cc_shared_library(
     name = "datadog-agent-rtloader",
     visibility = [":__subpackages__"],
     deps = [":rtloader"],
+)
+
+cc_import(
+    name = "_rtloader_shared",
+    shared_library = "//rtloader:datadog-agent-rtloader",
+)
+
+# Headers + dynamic link against libdatadog-agent-rtloader.so.
+# Use in go_library cdeps instead of //rtloader:rtloader to avoid static linking.
+cc_library(
+    name = "rtloader_dynamic",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_rtloader_shared",
+        "//rtloader:rtloader_headers",
+    ],
 )
 
 so_symlink(
@@ -219,4 +236,23 @@ cc_shared_library(
     deps = [
         ":three",
     ],
+)
+
+cc_import(
+    name = "_three_shared",
+    shared_library = "//rtloader:datadog-agent-three",
+)
+
+# Headers + dynamic link against libdatadog-agent-three.so.
+# Use in go_library cdeps instead of //rtloader:three to avoid static linking.
+cc_library(
+    name = "three_dynamic",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":_three_shared",
+        "//rtloader:three_headers",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@cpython//:python_unix_shared"],
+    }),
 )

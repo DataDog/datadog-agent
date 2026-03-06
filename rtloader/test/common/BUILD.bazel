@@ -7,7 +7,7 @@ rtloader_test_go_library(
         "cgo_free_three.go",
         "common_three.go",
     ],
-    cdeps = ["//rtloader/test:three_dynamic"],
+    cdeps = ["//rtloader:three_dynamic"],
     cgo = True,
     clinkopts = [],  # keep: ignore cgo directives
     copts = [],  # keep: ignore cgo directives

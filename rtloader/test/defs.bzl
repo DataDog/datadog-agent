@@ -8,7 +8,7 @@ def rtloader_test_go_library(**kwargs):
     Args:
       **kwargs: arguments to be forwarded to go_library
     """
-    cdeps = kwargs.pop("cdeps", []) + ["//rtloader/test:rtloader_dynamic"]
+    cdeps = kwargs.pop("cdeps", []) + ["//rtloader:rtloader_dynamic"]
 
     go_library(
         cdeps = cdeps,
@@ -40,7 +40,6 @@ def rtloader_go_test(**kwargs):
         "@cpython//:python3_bin",
         "//rtloader/test:python_stubs",
     ]
-    cdeps = kwargs.pop("cdeps", []) + ["//rtloader/test:rtloader_dynamic"]
 
     go_test(
         # Running from the folder where the "three" library we want to dlopen simplifies finding it
@@ -48,7 +47,6 @@ def rtloader_go_test(**kwargs):
         rundir = "rtloader",
         data = data,
         env = env,
-        cdeps = cdeps,
         # WIP: support for windows to come later
         target_compatible_with = select({
             "@platforms//os:linux": [],
