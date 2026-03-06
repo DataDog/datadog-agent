@@ -145,7 +145,21 @@ def _dd_auto_pkg_artifact_aspect_impl(target, ctx):
 
 _dd_auto_pkg_artifact_aspect = aspect(
     implementation = _dd_auto_pkg_artifact_aspect_impl,
-    attr_aspects = ["src", "srcs", "deps", "dynamic_deps"],
+    attr_aspects = [
+        # dd_auto_pkg_artifact: the wrapped cc_shared_library or cc_binary.
+        "src",
+        # collect_dd_auto_pkg_artifacts: the root targets to collect from.
+        "srcs",
+        # cc_library / cc_binary: transitive compile/link dependencies.
+        "deps",
+        # cc_shared_library / cc_binary / configure_make: shared libraries
+        # linked at runtime.
+        "dynamic_deps",
+        # foreign_cc_shared_wrapper: the wrapped rules_foreign_cc target
+        # (e.g. configure_make). These targets expose their wrapped output via
+        # `input` rather than `src` or `deps`.
+        "input",
+    ],
     provides = [_TransitiveDdAutoPkgArtifactsInfo],
 )
 
