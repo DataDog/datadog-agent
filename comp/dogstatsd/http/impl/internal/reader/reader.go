@@ -31,7 +31,7 @@ type originInfo = agentpayload.Origin
 //	for r.HaveMoreMetrics() {
 //	    if err := r.NextMetric(); err != nil {
 //	        return err
-//      }
+//	    }
 //	    // Accessors for metric entry data can be called.
 //	    for r.HaveMorePoints() {
 //	        if err := r.NextPoint(); err != nil {
@@ -39,7 +39,7 @@ type originInfo = agentpayload.Origin
 //	        }
 //	        // Acessors for metric data point can be called.
 //	    }
-//	 }
+//	}
 type MetricDataReader struct {
 	data *pb.MetricData
 
