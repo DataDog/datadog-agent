@@ -30,12 +30,7 @@ build do
     command "unzip #{jar_dir}/jmxfetch.jar -d ."
     delete "#{jar_dir}/jmxfetch.jar"
 
-    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-      hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-    else
-      hardened_runtime = ""
-    end
-
+    hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
     command "find . -type f | grep -E '(\\.so|\\.dylib|\\.jnilib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
     command "zip jmxfetch.jar -r ."
     copy "jmxfetch.jar", "#{jar_dir}/jmxfetch.jar"
