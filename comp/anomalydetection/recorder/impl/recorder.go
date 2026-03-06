@@ -117,7 +117,14 @@ func NewComponent(req Requires) (Provides, error) {
 				return Provides{Comp: r}, pkglog.Errorf("Failed to create results metrics parquet writer: %v", err)
 			}
 			r.resultsMetricParquetWriter = resultsWriter
-			pkglog.Infof("Results saving enabled: results metrics → %s", resultsDir)
+
+			resultsLogWriter, err := newResultsLogParquetWriter(resultsDir, resultsFlush, resultsRetention)
+			if err != nil {
+				return Provides{Comp: r}, pkglog.Errorf("Failed to create results logs parquet writer: %v", err)
+			}
+			r.resultsLogParquetWriter = resultsLogWriter
+
+			pkglog.Infof("Results saving enabled: results metrics + logs → %s", resultsDir)
 		}
 	}
 
@@ -128,7 +135,8 @@ func NewComponent(req Requires) (Provides, error) {
 type recorderImpl struct {
 	recordingDisabled          bool
 	metricParquetWriter        *metricParquetWriter
-	resultsMetricParquetWriter *metricParquetWriter // observer-resultsmetrics-*.parquet (virtual + telemetry)
+	resultsMetricParquetWriter *metricParquetWriter // observer-resultsmetrics-*.parquet (virtual + telemetry metrics)
+	resultsLogParquetWriter    *logParquetWriter    // observer-resultslogs-*.parquet (telemetry logs)
 	traceParquetWriter         *traceParquetWriter
 	profileParquetWriter       *profileParquetWriter
 	logParquetWriter           *logParquetWriter
@@ -268,22 +276,29 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 	return logs, nil
 }
 
-// EnableResultsSaving initializes the results metrics writer for headless mode.
-// It creates only the results parquet writer, leaving raw observation writers
-// (metrics, logs, traces, profiles) uninitialized so that loaded input data is never
-// re-recorded. Safe to call multiple times; subsequent calls are no-ops.
+// EnableResultsSaving initializes the results writers for headless mode.
+// It creates only the results parquet writers (metrics + logs), leaving raw observation
+// writers (metrics, logs, traces, profiles) uninitialized so that loaded input data is
+// never re-recorded. Safe to call multiple times; subsequent calls are no-ops.
 func (r *recorderImpl) EnableResultsSaving(outputDir string) error {
 	if r.resultsMetricParquetWriter != nil {
 		return nil // already initialized (either via full recording or a previous call)
 	}
 	// Use a very long flush interval: the testbench drives flushing explicitly via
-	// FlushResultsMetrics(), so periodic flushing is not needed.
-	writer, err := newResultsMetricParquetWriter(outputDir, 365*24*time.Hour, 0)
+	// FlushResultsMetrics() / FlushResultsLogs(), so periodic flushing is not needed.
+	metricWriter, err := newResultsMetricParquetWriter(outputDir, 365*24*time.Hour, 0)
 	if err != nil {
 		return fmt.Errorf("creating results metrics parquet writer: %w", err)
 	}
-	r.resultsMetricParquetWriter = writer
-	pkglog.Infof("Results saving enabled: results metrics will be written to %s", outputDir)
+	r.resultsMetricParquetWriter = metricWriter
+
+	logWriter, err := newResultsLogParquetWriter(outputDir, 365*24*time.Hour, 0)
+	if err != nil {
+		return fmt.Errorf("creating results logs parquet writer: %w", err)
+	}
+	r.resultsLogParquetWriter = logWriter
+
+	pkglog.Infof("Results saving enabled: metrics + logs will be written to %s", outputDir)
 	return nil
 }
 
@@ -310,6 +325,22 @@ func (r *recorderImpl) FlushResultsMetrics() {
 		return
 	}
 	r.resultsMetricParquetWriter.flush()
+}
+
+// RecordTelemetryLog writes a detector telemetry log to the results logs parquet file.
+func (r *recorderImpl) RecordTelemetryLog(source string, content []byte, status, hostname string, tags []string, timestampMs int64) {
+	if r.resultsLogParquetWriter == nil {
+		return
+	}
+	r.resultsLogParquetWriter.WriteLog(source, content, status, hostname, tags, timestampMs)
+}
+
+// FlushResultsLogs forces an immediate flush of buffered results logs to disk.
+func (r *recorderImpl) FlushResultsLogs() {
+	if r.resultsLogParquetWriter == nil {
+		return
+	}
+	r.resultsLogParquetWriter.flush()
 }
 
 // recordingHandle wraps an observer handle to record observations.

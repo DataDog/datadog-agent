@@ -611,9 +611,6 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	if err := tb.runLogDetectors(); err != nil {
 		fmt.Printf("  Warning: failed to run log detectors: %v\n", err)
 	}
-	if tb.config.Recorder != nil {
-		tb.config.Recorder.FlushResultsMetrics()
-	}
 
 	// --- Metrics ---
 	// Clear existing results
@@ -687,6 +684,14 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			}
 		}
 		tb.handleTelemetry(multiResult.Telemetry, detector.Name(), dataTime)
+	}
+
+	// Flush results (virtual metrics, telemetry metrics, telemetry logs) now that all
+	// sync detector phases are done. This ensures headless runs capture everything
+	// including telemetry from metric detectors, not just from log detectors.
+	if tb.config.Recorder != nil {
+		tb.config.Recorder.FlushResultsMetrics()
+		tb.config.Recorder.FlushResultsLogs()
 	}
 
 	// --- Correlations ---
@@ -822,7 +827,11 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			}
 			// Store for UI display
 			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
-			// TODO(results-logs): record telemetry logs to a results logs parquet file
+
+			// Record to results logs parquet file (observer-resultslogs-*.parquet)
+			if tb.config.Recorder != nil {
+				tb.config.Recorder.RecordTelemetryLog("telemetry", log.Content, log.Status, log.Hostname, log.Tags, log.TimestampMs)
+			}
 		}
 	}
 }

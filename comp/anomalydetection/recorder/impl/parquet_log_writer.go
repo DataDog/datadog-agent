@@ -26,13 +26,23 @@ type logParquetWriter struct {
 	typedBuilder *logBatchBuilder
 }
 
-// newLogParquetWriter creates a writer for log data.
+// newLogParquetWriter creates a writer for raw observed logs (observer-logs-*.parquet).
 func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*logParquetWriter, error) {
+	return newLogParquetWriterWithPrefix(outputDir, "observer-logs", flushInterval, retentionDuration)
+}
+
+// newResultsLogParquetWriter creates a writer for computed result logs
+// (observer-resultslogs-*.parquet). This file holds telemetry logs emitted by detectors.
+func newResultsLogParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*logParquetWriter, error) {
+	return newLogParquetWriterWithPrefix(outputDir, "observer-resultslogs", flushInterval, retentionDuration)
+}
+
+// newLogParquetWriterWithPrefix creates a log parquet writer with the given file prefix.
+func newLogParquetWriterWithPrefix(outputDir, filePrefix string, flushInterval, retentionDuration time.Duration) (*logParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
 
-	// Schema for logs
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "RunID", Type: arrow.BinaryTypes.String},
@@ -56,7 +66,7 @@ func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 	lw := &logParquetWriter{
 		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
-			filePrefix:        "observer-logs",
+			filePrefix:        filePrefix,
 			schema:            schema,
 			writerProps:       props,
 			builder:           builder,
@@ -68,7 +78,7 @@ func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 	}
 	lw.start()
 
-	pkglog.Infof("Log parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+	pkglog.Infof("Log parquet writer initialized: prefix=%s dir=%s flush=%v retention=%v", filePrefix, outputDir, flushInterval, retentionDuration)
 	return lw, nil
 }
 

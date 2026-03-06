@@ -59,11 +59,21 @@ type Component interface {
 	// This is a no-op when neither recording nor results saving is enabled.
 	RecordTelemetryMetric(source, name string, value float64, tags []string, timestamp int64)
 
+	// RecordTelemetryLog records a detector telemetry log into the results logs parquet
+	// file (observer-resultslogs-*.parquet).
+	// Telemetry logs are emitted by anomaly detectors to expose structured diagnostic
+	// information about their internal processing.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordTelemetryLog(source string, content []byte, status, hostname string, tags []string, timestampMs int64)
+
 	// FlushResultsMetrics forces an immediate flush of buffered results metrics to disk.
 	// The testbench calls this after running detectors to ensure all results are persisted
 	// before the process exits or the scenario is unloaded.
 	// In the live observer, results metrics are also flushed on the regular periodic interval.
 	FlushResultsMetrics()
+
+	// FlushResultsLogs forces an immediate flush of buffered results logs to disk.
+	FlushResultsLogs()
 
 	// EnableResultsSaving initializes the results metrics writer to save computed intermediate
 	// data to the given output directory. Intended for headless mode: it enables saving only

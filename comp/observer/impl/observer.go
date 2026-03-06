@@ -474,7 +474,16 @@ func (o *observerImpl) recordTelemetry(telemetry []observerdef.ObserverTelemetry
 			o.recorder.RecordTelemetryMetric("telemetry", name, t.Metric.GetValue(), t.Metric.GetRawTags(), ts)
 		}
 		if t.Log != nil {
-			// TODO(results-logs): record telemetry logs to a results logs parquet file
+			ts := t.Log.GetTimestampMs()
+			if ts == 0 {
+				ts = baseTimestamp * 1000
+			}
+			status := t.Log.GetStatus()
+			if status == "" {
+				status = "info"
+			}
+			tags := append(t.Log.GetTags(), "detector:"+t.DetectorName, "telemetry:true")
+			o.recorder.RecordTelemetryLog("telemetry", t.Log.GetContent(), status, t.Log.GetHostname(), tags, ts)
 		}
 	}
 }

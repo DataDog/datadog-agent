@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -41,6 +42,19 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 				Name:  "celian.is.the.best.questionmark",
 				Value: 1,
 				Tags:  log.GetTags(),
+			},
+		},
+		Telemetry: []observer.ObserverTelemetry{
+			{
+				Log: &logDataView{
+					data: &recorderdef.LogData{
+						Content:     []byte("Hello"),
+						Status:      log.GetStatus(),
+						Tags:        log.GetTags(),
+						TimestampMs: log.GetTimestampMs(),
+						Hostname:    log.GetHostname(),
+					},
+				},
 			},
 		},
 	}
