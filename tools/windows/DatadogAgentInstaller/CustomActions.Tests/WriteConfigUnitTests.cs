@@ -76,12 +76,18 @@ random_property: test
         {
             var datadogYaml = @"
 # private_action_runner:
-#   enabled: false";
+#   enabled: false
+#   self_enroll: true";
             sessionMock.Setup(session => session["DD_PRIVATE_ACTION_RUNNER_ENABLED"]).Returns("true");
-            ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
-                .ToYaml()
+            var result = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
+                .ToYaml();
+            result
                 .Should()
                 .HaveKey("private_action_runner.enabled")
+                .And.HaveValue("true");
+            result
+                .Should()
+                .HaveKey("private_action_runner.self_enroll")
                 .And.HaveValue("true");
         }
 
