@@ -27,6 +27,7 @@ export interface ObserverState {
 
 export interface ObserverActions {
   loadScenario: (name: string) => Promise<void>;
+  recomputeScenario: (name: string) => Promise<void>;
   refresh: () => Promise<void>;
   toggleComponent: (name: string) => Promise<void>;
 }
@@ -188,6 +189,19 @@ export function useObserver(): [ObserverState, ObserverActions] {
     }
   }, [fetchAll]);
 
+  const recomputeScenario = useCallback(async (name: string) => {
+    setConnectionState('loading');
+    setError(null);
+
+    try {
+      await api.recomputeScenario(name);
+      await fetchAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to recompute scenario');
+      setConnectionState('connected');
+    }
+  }, [fetchAll]);
+
   const refresh = useCallback(async () => {
     await fetchAll();
   }, [fetchAll]);
@@ -221,6 +235,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     },
     {
       loadScenario,
+      recomputeScenario,
       refresh,
       toggleComponent,
     },

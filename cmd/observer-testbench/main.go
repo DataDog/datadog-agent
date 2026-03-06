@@ -185,6 +185,7 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 	fmt.Println("  GET  /api/status                          - Server status")
 	fmt.Println("  GET  /api/scenarios                       - List scenarios")
 	fmt.Println("  POST /api/scenarios/{name}/load            - Load a scenario")
+	fmt.Println("  POST /api/scenarios/{name}/recompute       - Recompute & save result files, then reload")
 	fmt.Println("  GET  /api/components                      - List components")
 	fmt.Println("  POST /api/components/{name}/toggle         - Toggle component")
 	fmt.Println("  GET  /api/series                          - List all series")

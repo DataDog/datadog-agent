@@ -473,6 +473,17 @@ function App() {
                 cached results
               </span>
             )}
+            {state.activeScenario && state.activeScenario !== 'demo' && state.connectionState !== 'loading' && (
+              <button
+                onClick={() => actions.recomputeScenario(state.activeScenario!)}
+                title={state.status?.loadedFromResultFiles
+                  ? 'Re-run detectors and correlators, overwriting the cached result files'
+                  : 'Run detectors and correlators and save the results to the scenario directory'}
+                className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-amber-700/70 text-slate-300 hover:text-amber-200 transition-colors"
+              >
+                {state.status?.loadedFromResultFiles ? 'Recompute' : 'Compute results'}
+              </button>
+            )}
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
               <span className="text-sm text-slate-400">

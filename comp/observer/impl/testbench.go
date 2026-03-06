@@ -130,6 +130,12 @@ type TestBench struct {
 	// by executing the anomaly detectors.
 	loadedFromResultFiles bool
 
+	// recomputing is set to true while RecomputeScenario is running so that
+	// GetStatus() hides the transient ready=true that occurs between the first
+	// detector run and the final result-file reload.  This prevents the poller
+	// from transitioning the UI state during the multi-step recompute.
+	recomputing bool
+
 	// API server
 	api *TestBenchAPI
 }
@@ -298,6 +304,8 @@ func (tb *TestBench) ListScenarios() ([]ScenarioInfo, error) {
 }
 
 // LoadScenario loads a scenario by name, clearing any previously loaded data.
+// If pre-computed result files are found in the scenario directory, detectors
+// are skipped and results are loaded directly from those files.
 func (tb *TestBench) LoadScenario(name string) error {
 	// Special handling for built-in demo scenario
 	if name == "demo" {
@@ -305,8 +313,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 
 	scenarioPath := filepath.Join(tb.config.ScenariosDir, name)
-
-	// Verify scenario exists
 	if _, err := os.Stat(scenarioPath); os.IsNotExist(err) {
 		return fmt.Errorf("scenario not found: %s", name)
 	}
@@ -314,6 +320,87 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
+	return tb.loadScenarioBodyLocked(name, scenarioPath, false)
+}
+
+// RecomputeScenario forces a full detector + correlator run for the named
+// scenario, writes the results to the scenario directory, and then reloads
+// from the freshly generated result files.  It is safe to call while the
+// server is running.
+func (tb *TestBench) RecomputeScenario(name string) error {
+	if name == "demo" {
+		return fmt.Errorf("demo scenario cannot be recomputed")
+	}
+
+	scenarioPath := filepath.Join(tb.config.ScenariosDir, name)
+	if _, err := os.Stat(scenarioPath); os.IsNotExist(err) {
+		return fmt.Errorf("scenario not found: %s", name)
+	}
+
+	// Determine the results output directory (same logic as in loadScenarioBodyLocked).
+	parquetDir := filepath.Join(scenarioPath, "parquet")
+	resultsDir := parquetDir
+	if _, err := os.Stat(parquetDir); err != nil {
+		resultsDir = scenarioPath
+	}
+
+	// Enable results saving before running so that detectors can write parquet.
+	if tb.config.Recorder != nil {
+		if err := tb.config.Recorder.EnableResultsSaving(resultsDir); err != nil {
+			return fmt.Errorf("enabling results saving: %w", err)
+		}
+	}
+
+	fmt.Printf("[cc] Enabling results saving in %s\n", resultsDir)
+	fmt.Printf("[cc] Parquet directory: %s\n", parquetDir)
+	fmt.Printf("[cc] Scenario path: %s\n", scenarioPath)
+	fmt.Printf("[cc] Results directory: %s\n", resultsDir)
+
+	// Mark recompute in progress so GetStatus() keeps reporting ready=false to
+	// the poller.  This prevents intermediate ready=true states (between the
+	// first detector run and the final result-file reload) from bouncing the UI
+	// out of 'loading' state.
+	tb.mu.Lock()
+	tb.recomputing = true
+	tb.mu.Unlock()
+	defer func() {
+		tb.mu.Lock()
+		tb.recomputing = false
+		tb.mu.Unlock()
+	}()
+
+	// Force-run detectors, ignoring any existing result files.
+	tb.mu.Lock()
+	if err := tb.loadScenarioBodyLocked(name, scenarioPath, true); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
+	tb.mu.Unlock()
+
+	// Wait for the async correlator goroutine to finish.
+	tb.mu.RLock()
+	for tb.correlatorsProcessing {
+		tb.correlatorsDone.Wait()
+	}
+	tb.mu.RUnlock()
+
+	// Flush all result writers so every row is on disk before we reload.
+	if recorder := tb.config.Recorder; recorder != nil {
+		recorder.FlushResultsMetrics()
+		recorder.FlushResultsLogs()
+		recorder.FlushResultsCorrelations()
+	}
+
+	fmt.Println("Recompute complete — reloading scenario from result files")
+
+	// Reload: result files now exist so LoadScenario will pick them up.
+	return tb.LoadScenario(name)
+}
+
+// loadScenarioBodyLocked performs the actual scenario loading.  It must be
+// called with tb.mu held for writing.  forceRun bypasses the result-file
+// check and always executes the detector pipeline.
+func (tb *TestBench) loadScenarioBodyLocked(name, scenarioPath string, forceRun bool) error {
 	// Clear existing data
 	tb.storage = newTimeSeriesStorage()
 	tb.metricsAnomalies = []observerdef.Anomaly{}
@@ -360,14 +447,13 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
-	// Determine the directory that may contain result files. Result files are
-	// written to the same directory as the input parquet files.
+	// Determine the directory that may contain result files.
 	resultDir := parquetDir
 	if _, err := os.Stat(parquetDir); err != nil {
 		resultDir = scenarioPath
 	}
 
-	if hasResultFiles(resultDir) {
+	if !forceRun && hasResultFiles(resultDir) {
 		// Pre-computed results are available: load virtual metrics and telemetry
 		// directly from result files without re-running the anomaly detectors.
 		fmt.Printf("  Result files found in %s — skipping detector execution\n", resultDir)
@@ -385,7 +471,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 		// reports correlatorsProcessing = false as expected.
 		tb.rerunCorrelatorsLocked()
 	} else {
-		// No result files — run the full analysis pipeline.
+		// No result files (or forceRun) — run the full analysis pipeline.
 		analysisStart := time.Now()
 		tb.rerunDetectorsLocked()
 		fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
@@ -729,7 +815,9 @@ func (tb *TestBench) GetStatus() StatusResponse {
 	}
 
 	return StatusResponse{
-		Ready:                 tb.ready,
+		// Suppress ready=true while a recompute is in progress so the poller
+		// does not transition the UI out of 'loading' state prematurely.
+		Ready:                 tb.ready && !tb.recomputing,
 		Scenario:              tb.loadedScenario,
 		SeriesCount:           tb.seriesCount(),
 		AnomalyCount:          len(tb.metricsAnomalies),

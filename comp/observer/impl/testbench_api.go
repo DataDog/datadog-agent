@@ -133,6 +133,16 @@ func (api *TestBenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Req
 			return
 		}
 		api.writeJSON(w, map[string]string{"status": "loaded", "scenario": scenarioName})
+	case "recompute":
+		if r.Method != "POST" {
+			api.writeError(w, http.StatusMethodNotAllowed, "use POST to recompute scenario")
+			return
+		}
+		if err := api.tb.RecomputeScenario(scenarioName); err != nil {
+			api.writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		api.writeJSON(w, map[string]string{"status": "recomputed", "scenario": scenarioName})
 	default:
 		api.writeError(w, http.StatusBadRequest, "unknown action: "+action)
 	}

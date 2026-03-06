@@ -233,6 +233,12 @@ class ApiClient {
     });
   }
 
+  async recomputeScenario(name: string): Promise<{ status: string; scenario: string }> {
+    return this.fetch(`/scenarios/${encodeURIComponent(name)}/recompute`, {
+      method: 'POST',
+    });
+  }
+
   async getComponents(): Promise<ComponentInfo[]> {
     return this.fetch('/components');
   }
