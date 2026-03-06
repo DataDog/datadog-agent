@@ -1039,9 +1039,9 @@ new-e2e-ssi-gke:
 
 .new-e2e_package_signing:
   variables:
-    TARGETS: ./tests/agent-platform/package-signing
+    TARGETS: ./tests/agent-platform
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS
+    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS --run TestPackageSigningComponent
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-package-signing-debian-a7-x86_64:

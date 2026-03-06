@@ -1,0 +1,129 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package installer
+
+import (
+	"fmt"
+	"path/filepath"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+)
+
+type testInstallScriptSuite struct {
+	BaseSuite
+}
+
+// TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
+func TestInstallScript(t *testing.T) {
+	e2e.Run(t, &testInstallScriptSuite{},
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
+}
+
+// TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
+func (s *testInstallScriptSuite) TestInstallAgentPackage() {
+	s.Run("Fresh install", func() {
+		s.installPrevious()
+		s.Run("Install different Agent version", func() {
+			s.upgradeToLatestExperiment()
+			s.Run("Reinstall last stable", func() {
+				s.installPrevious()
+			})
+		})
+	})
+}
+
+// TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
+// the major / minor version when installing the agent
+//
+// This test replaces TestFailedUnsupportedVersion which used the major/minor parameters.
+// These options were only used during the preview, we haven't documented them publicly since.
+// Customers are now expected to download a per-version .exe file.
+func (s *testInstallScriptSuite) TestInstallIgnoreMajorMinor() {
+	// Arrange
+	// Act
+	_, err := s.InstallScript().Run(
+		WithExtraEnvVars(map[string]string{
+			// install pre 7.65 version
+			"DD_AGENT_MAJOR_VERSION": "7",
+			"DD_AGENT_MINOR_VERSION": "64.0",
+		}),
+	)
+
+	// Assert
+	// should ignore params and install current agent version
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.CurrentAgentVersion().Version())
+		})
+}
+
+func (s *testInstallScriptSuite) mustInstallVersion(versionPredicate string, opts ...PackageOption) {
+	// Arrange
+	packageConfig, err := NewPackageConfig(opts...)
+	s.Require().NoError(err)
+
+	// Act
+	output, err := s.InstallScript().Run(WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": packageConfig.Version,
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        packageConfig.Registry,
+	}))
+
+	// Assert
+	if s.NoError(err) {
+		fmt.Printf("%s\n", output)
+	}
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogInstallerService().
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, versionPredicate)
+		})
+}
+
+func (s *testInstallScriptSuite) installPrevious() {
+	s.mustInstallVersion(
+		s.StableAgentVersion().Version(),
+		WithPackage(s.StableAgentVersion().OCIPackage()),
+	)
+}
+
+func (s *testInstallScriptSuite) installCurrent() {
+	s.mustInstallVersion(
+		s.CurrentAgentVersion().Version(),
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
+	)
+}
+
+func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
+	s.MustStartExperimentCurrentVersion()
+
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestReinstallAfterMSIUninstall tests that the install script can reinstall the agent after MSI uninstallation.
+// This is a regression test for the 7.72.0 issue (WINA-2017) where reinstallation was skipped after uninstall.
+func (s *testInstallScriptSuite) TestReinstallAfterMSIUninstall() {
+	s.installCurrent()
+	s.Require().NoError(windowsAgent.UninstallAgent(s.Env().RemoteHost,
+		filepath.Join(s.SessionOutputDir(), "uninstall.log"),
+	))
+	s.installCurrent()
+}
