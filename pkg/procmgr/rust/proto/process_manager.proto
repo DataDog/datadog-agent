@@ -79,5 +79,7 @@ message GetStatusResponse {
   uint32 failed_processes = 7;
   uint32 created_processes = 8;
   uint32 exited_processes = 9;
-  string config_path = 10;
+  uint32 starting_processes = 10;
+  uint32 stopping_processes = 11;
+  string config_path = 12;
 }
