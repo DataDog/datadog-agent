@@ -1765,8 +1765,8 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 		}
 
 		// After reload, the engine evaluates remediation rules and sends not_triggered for rules that did not fire.
+		test.reloadPolicies()
 		err = retry.Do(func() error {
-			test.reloadPolicies()
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg == nil {
 				return errors.New("remediation_status message not found")
@@ -1804,7 +1804,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
 	t.Run("not-triggered-no-event", func(t *testing.T) {
@@ -1817,14 +1817,16 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 			t.Fatalf("failed to set new policy: %v", err)
 		}
 		// Reload and repeatedly check that no remediation_status message appears (only remediation rules send it).
+
+		test.reloadPolicies()
 		err = retry.Do(func() error {
-			test.reloadPolicies()
+
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
 				return errors.New("should not find remediation_status message, got event : " + string(msg.Data))
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
 }
