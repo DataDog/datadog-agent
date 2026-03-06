@@ -16,4 +16,8 @@ rust_test(
     name = "dd-agent-log_test",
     crate = ":dd-agent-log",
     edition = "2024",
+    deps = [
+        "@crates//:regex",
+        "@crates//:tempfile",
+    ],
 )

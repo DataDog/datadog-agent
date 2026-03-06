@@ -42,6 +42,7 @@ zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 # dev-dependencies
 dircpy = "0.3.19"
+regex = "1"
 memmap2 = "0.9"
 nix = { version = "0.30", features = ["signal"] }
 scopeguard = "1.2"

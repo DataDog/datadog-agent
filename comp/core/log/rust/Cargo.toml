@@ -8,3 +8,7 @@ rust-version.workspace = true
 [dependencies]
 log = { workspace = true, features = ["std"] }
 time = { workspace = true }
+
+[dev-dependencies]
+regex = { workspace = true }
+tempfile = { workspace = true }

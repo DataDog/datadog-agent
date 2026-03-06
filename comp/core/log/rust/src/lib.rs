@@ -120,4 +120,118 @@ mod tests {
         assert_eq!(last_module_segment("a::b::c"), "c");
         assert_eq!(last_module_segment(""), "");
     }
+
+    fn make_logger(file: File, level: log::Level) -> DdAgentLogger {
+        DdAgentLogger {
+            logger_name: "TEST",
+            level,
+            file: Mutex::new(Some(file)),
+        }
+    }
+
+    macro_rules! log_record {
+        ($level:expr, $msg:literal) => {
+            Record::builder()
+                .args(format_args!($msg))
+                .level($level)
+                .file(Some("src/main.rs"))
+                .line(Some(42))
+                .module_path(Some("my_crate::my_module"))
+                .build()
+        };
+    }
+
+    // The log output format must match the agent log grok parsing rules in
+    // integrations-core so that log management can parse agent logs:
+    // https://github.com/DataDog/integrations-core/blob/2a5ad5eb40a777ff1cc80db054edf57c3cd7178b/datadog_cluster_agent/assets/logs/agent.yaml#L26-L41
+    //
+    // Expected format:
+    //   YYYY-MM-DD HH:MM:SS UTC | <logger_name> | <LEVEL> | (<file>:<line> in <module>) | <message>
+    fn log_line_regex() -> regex::Regex {
+        regex::Regex::new(
+            r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC \| (\S+) \| (\w+) \| \(([^:]+):(\d+) in (\S+)\) \| (.+)$",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_log_writes_to_file() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let file = tmp.reopen().unwrap();
+        let logger = make_logger(file, log::Level::Info);
+
+        logger.log(&log_record!(log::Level::Info, "hello world"));
+
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        let line = content.trim_end();
+        let re = log_line_regex();
+        let caps = re
+            .captures(line)
+            .unwrap_or_else(|| panic!("log line did not match expected format: {line}"));
+        assert_eq!(&caps[1], "TEST");
+        assert_eq!(&caps[2], "INFO");
+        assert_eq!(&caps[3], "src/main.rs");
+        assert_eq!(&caps[4], "42");
+        assert_eq!(&caps[5], "my_module");
+        assert_eq!(&caps[6], "hello world");
+    }
+
+    #[test]
+    fn test_log_format_fields() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let file = tmp.reopen().unwrap();
+        let logger = make_logger(file, log::Level::Warn);
+
+        logger.log(&log_record!(log::Level::Warn, "something bad"));
+
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        let line = content.trim_end();
+        let re = log_line_regex();
+        let caps = re
+            .captures(line)
+            .unwrap_or_else(|| panic!("log line did not match expected format: {line}"));
+        assert_eq!(&caps[1], "TEST");
+        assert_eq!(&caps[2], "WARN");
+        assert_eq!(&caps[3], "src/main.rs");
+        assert_eq!(&caps[4], "42");
+        assert_eq!(&caps[5], "my_module");
+        assert_eq!(&caps[6], "something bad");
+    }
+
+    #[test]
+    fn test_log_level_filtering() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let file = tmp.reopen().unwrap();
+        let logger = make_logger(file, log::Level::Warn);
+
+        // INFO is below WARN, should be filtered out
+        logger.log(&log_record!(log::Level::Info, "should not appear"));
+
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        assert!(content.is_empty(), "expected no output, got: {content}");
+    }
+
+    #[test]
+    fn test_log_creates_parent_dirs() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let log_path = tmp_dir
+            .path()
+            .join("subdir")
+            .join("nested")
+            .join("agent.log");
+
+        assert!(!log_path.parent().unwrap().exists());
+
+        let _ = init(LogConfig {
+            logger_name: "TEST",
+            level: log::Level::Info,
+            log_file: Some(log_path.clone()),
+        });
+        // init() may fail due to set_boxed_logger being called once per process,
+        // but the directory creation happens before that call.
+        assert!(
+            log_path.parent().unwrap().exists(),
+            "parent directories should have been created"
+        );
+    }
 }
