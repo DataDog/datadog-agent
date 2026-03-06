@@ -1,10 +1,11 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
@@ -125,11 +126,11 @@ cc_shared_library(
     name = "rpmio",
     deps = [":librpmio"],
     dynamic_deps = [
-        "@popt//:popt",
-        "@zlib//:z",
-        "@xz//:lzma",
-        "@bzip2//:bz2",
-        "@openssl//:openssl_shared",
+        "@popt//:popt_pkg",
+        "@zlib//:z_pkg",
+        "@xz//:lzma_pkg",
+        "@bzip2//:bz2_pkg",
+        "@openssl//:openssl_pkg",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -259,25 +260,37 @@ cc_shared_library(
     name = "rpm",
     deps = [":librpm"],
     dynamic_deps = [
-        ":rpmio",
-        "@sqlite3//:sqlite3",
-        "@popt//:popt",
+        ":rpmio_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@popt//:popt_pkg",
     ],
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "rpmio_rpath_patched",
+    inputs = [":rpmio"],
+)
+
+rewrite_rpath(
+    name = "rpm_rpath_patched",
+    inputs = [":rpm"],
+)
+
 so_symlink(
     name = "librpmio_files",
-    src = ":rpmio",
+    src = ":rpmio_rpath_patched",
     libname = "librpmio",
     version = "9.4.0",
+    prefix = "embedded",
 )
 
 so_symlink(
     name = "librpm_files",
-    src = ":rpm",
+    src = ":rpm_rpath_patched",
     libname = "librpm",
     version = "9.4.0",
+    prefix = "embedded",
 )
 
 dd_agent_expand_template(
@@ -302,7 +315,7 @@ dd_agent_expand_template(
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/rpm",
+    prefix = "embedded/include/rpm",
 )
 
 pkg_files(
@@ -311,7 +324,7 @@ pkg_files(
         ":gen_rpmrc",
         ":gen_rpmpopt",
     ],
-    prefix = "lib/rpm",
+    prefix = "embedded/lib/rpm",
 )
 
 pkg_filegroup(
@@ -322,13 +335,19 @@ pkg_filegroup(
         ":librpm_files",
         ":misc_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "rpmio_pkg",
+    src = ":rpmio",
+    install_files = [":librpmio_files", ":hdr_files", ":misc_files"],
+    visibility = ["//visibility:public"],
+)
+
+dd_auto_pkg_artifact(
+    name = "rpm_pkg",
+    src = ":rpm",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

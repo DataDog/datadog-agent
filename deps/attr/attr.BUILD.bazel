@@ -1,11 +1,12 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
@@ -100,12 +101,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "attr_rpath_patched",
+    inputs = [":attr"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":attr",
+    src = ":attr_rpath_patched",
     libname = "libattr",
     version = "1.1.2501",
     prefix = "embedded",
+)
+
+dd_auto_pkg_artifact(
+    name = "attr_pkg",
+    src = ":attr",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -123,9 +136,3 @@ pkg_filegroup(
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)

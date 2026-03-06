@@ -1,8 +1,9 @@
+load("@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
@@ -45,11 +46,17 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "sqlite3_rpath_patched",
+    inputs = [":sqlite3"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":sqlite3",
+    src = ":sqlite3_rpath_patched",
     libname = "libsqlite3",
     version = VERSION,
+    prefix = "embedded",
 )
 
 pkg_filegroup(
@@ -57,12 +64,11 @@ pkg_filegroup(
     srcs = [
         ":lib_files",
     ],
-    prefix = "embedded",
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "sqlite3_pkg",
+    src = ":sqlite3",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

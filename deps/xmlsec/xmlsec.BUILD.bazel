@@ -1,9 +1,10 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
@@ -103,8 +104,8 @@ cc_shared_library(
         ":libxmlsec1",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
     ],
     visibility = ["//visibility:public"],
 )
@@ -169,10 +170,10 @@ cc_shared_library(
         ":libxmlsec1-openssl",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
-        "@openssl//:openssl_shared",
-        ":xmlsec1",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
+        "@openssl//:openssl_pkg",
+        ":xmlsec1_pkg",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -183,30 +184,42 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "xmlsec1_rpath_patched",
+    inputs = [":xmlsec1"],
+)
+
+rewrite_rpath(
+    name = "xmlsec1_openssl_rpath_patched",
+    inputs = [":xmlsec1-openssl"],
+)
+
 so_symlink(
     name = "libxmlsec_files",
-    src = ":xmlsec1",
+    src = ":xmlsec1_rpath_patched",
     libname = "libxmlsec1",
     version = VERSION,
+    prefix = "embedded",
 )
 
 so_symlink(
     name = "libxmlsec_openssl_files",
-    src = ":xmlsec1-openssl",
+    src = ":xmlsec1_openssl_rpath_patched",
     libname = "libxmlsec1-openssl",
     version = VERSION,
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "headers_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/xmlsec1/xmlsec",
+    prefix = "embedded/include/xmlsec1/xmlsec",
 )
 
 pkg_files(
     name = "openssl_headers_files",
     srcs = PUBLIC_OPENSSL_HEADERS,
-    prefix = "include/xmlsec1/xmlsec/openssl",
+    prefix = "embedded/include/xmlsec1/xmlsec/openssl",
 )
 
 pkg_filegroup(
@@ -217,13 +230,19 @@ pkg_filegroup(
         ":libxmlsec_files",
         ":libxmlsec_openssl_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "xmlsec1_pkg",
+    src = ":xmlsec1",
+    install_files = [":libxmlsec_files", ":headers_files", ":openssl_headers_files"],
+    visibility = ["//visibility:public"],
+)
+
+dd_auto_pkg_artifact(
+    name = "xmlsec1_openssl_pkg",
+    src = ":xmlsec1-openssl",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

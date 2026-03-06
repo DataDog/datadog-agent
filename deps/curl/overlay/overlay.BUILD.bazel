@@ -1,12 +1,13 @@
 """ Agent specific curl build."""
 
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
@@ -97,9 +98,9 @@ cc_binary(
     defines = LOCAL_DEFINES,
     dynamic_deps = [
         ":curl",
-        "@nghttp2//:nghttp2_shared",
-        "@openssl//:openssl_shared",
-        "@zlib//:z",
+        "@nghttp2//:nghttp2_pkg",
+        "@openssl//:openssl_pkg",
+        "@zlib//:z_pkg",
     ],
     includes = [
         ".",
@@ -222,9 +223,9 @@ cc_library(
 cc_shared_library(
     name = "curl",
     dynamic_deps = [
-        "@nghttp2//:nghttp2_shared",
-        "@openssl//:openssl_shared",
-        "@zlib//:z",
+        "@nghttp2//:nghttp2_pkg",
+        "@openssl//:openssl_pkg",
+        "@zlib//:z_pkg",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -233,21 +234,29 @@ cc_shared_library(
     ],
 )
 
+rewrite_rpath(
+    name = "curl_rpath_patched",
+    inputs = [":curl"],
+)
+
+rewrite_rpath(
+    name = "curl_bin_rpath_patched",
+    inputs = [":curl_bin"],
+)
+
 pkg_files(
     name = "bin_files",
-    srcs = [
-        ":curl_bin",
-    ],
+    srcs = [":curl_bin_rpath_patched"],
     attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/bin",
     renames = {
-        "curl_bin": "curl",
+        "curl_bin_rpath_patched": "curl",
     },
 )
 
 so_symlink(
     name = "lib_files",
-    src = ":curl",
+    src = ":curl_rpath_patched",
     attributes = pkg_attributes(mode = "0755"),
     libname = "libcurl",
     prefix = "embedded",
@@ -260,6 +269,7 @@ pkg_files(
     prefix = "embedded/include/curl",
 )
 
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -269,7 +279,10 @@ pkg_filegroup(
     ],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [":all_files"],
+dd_auto_pkg_artifact(
+    name = "curl_pkg",
+    src = ":curl",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
+
