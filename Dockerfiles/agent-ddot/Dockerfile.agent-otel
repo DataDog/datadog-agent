@@ -128,6 +128,8 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 #       --secret id=registry_password,env=REGISTRY_PASSWORD ...
 ARG AGENT_OCI
 ARG OUTPUT_OCI
+# REGISTRY_AUTH selects the auth method ("docker", "gcr", or "password") and is not sensitive.
+# check=skip=SecretsUsedInArgOrEnv
 ARG REGISTRY_AUTH=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
     --mount=type=secret,id=registry_username,required=false \
