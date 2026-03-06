@@ -20,9 +20,11 @@ type registryData struct {
 }
 
 // EmbeddedRegistry loads semantic mappings from embedded JSON.
+// mappings is indexed by Concept (int), so GetAttributePrecedence is a single
+// array index with no hashing or key comparison.
 type EmbeddedRegistry struct {
 	version  string
-	mappings map[Concept][]TagInfo
+	mappings [conceptCount][]TagInfo
 }
 
 var globalRegistry = mustLoadRegistry()
@@ -55,24 +57,37 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 		return err
 	}
 	r.version = rd.Version
-	r.mappings = make(map[Concept][]TagInfo, len(rd.Concepts))
+
+	// Build a reverse lookup from canonical JSON name → Concept ID.
+	nameToID := make(map[string]Concept, conceptCount)
+	for id := Concept(0); id < conceptCount; id++ {
+		nameToID[conceptNames[id]] = id
+	}
+
 	for conceptName, mapping := range rd.Concepts {
-		r.mappings[Concept(conceptName)] = mapping.Fallbacks
+		if id, ok := nameToID[conceptName]; ok {
+			r.mappings[id] = mapping.Fallbacks
+		}
 	}
 	return nil
 }
 
 // GetAttributePrecedence returns the ordered attribute keys for a concept.
+// Out-of-range concepts return nil.
 func (r *EmbeddedRegistry) GetAttributePrecedence(concept Concept) []TagInfo {
+	if concept < 0 || concept >= conceptCount {
+		return nil
+	}
 	return r.mappings[concept]
 }
 
 // GetAllEquivalences returns all semantic equivalences as a map from concept to the ordered list of equivalent attribute keys.
 func (r *EmbeddedRegistry) GetAllEquivalences() map[Concept][]TagInfo {
-	// Return a copy to prevent external modification
-	result := make(map[Concept][]TagInfo, len(r.mappings))
-	for k, v := range r.mappings {
-		result[k] = v
+	result := make(map[Concept][]TagInfo, conceptCount)
+	for id := Concept(0); id < conceptCount; id++ {
+		if tags := r.mappings[id]; tags != nil {
+			result[id] = tags
+		}
 	}
 	return result
 }

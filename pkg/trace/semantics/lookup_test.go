@@ -93,7 +93,7 @@ func TestLookup(t *testing.T) {
 
 	t.Run("unknown concept returns false", func(t *testing.T) {
 		accessor := newTestAccessor(map[string]any{"any": "value"})
-		_, ok := Lookup(r, accessor, Concept("unknown"))
+		_, ok := Lookup(r, accessor, conceptCount)
 		assert.False(t, ok)
 	})
 }

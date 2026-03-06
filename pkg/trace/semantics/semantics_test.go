@@ -29,7 +29,7 @@ func TestGetAttributePrecedence(t *testing.T) {
 	})
 
 	t.Run("unknown concept returns nil", func(t *testing.T) {
-		tags := r.GetAttributePrecedence(Concept("unknown"))
+		tags := r.GetAttributePrecedence(conceptCount)
 		assert.Nil(t, tags)
 	})
 }
@@ -38,4 +38,10 @@ func TestDefaultRegistry(t *testing.T) {
 	r := DefaultRegistry()
 	require.NotNil(t, r)
 	assert.NotNil(t, r.GetAttributePrecedence(ConceptDBStatement))
+}
+
+func TestConceptNamesComplete(t *testing.T) {
+	for id := Concept(0); id < conceptCount; id++ {
+		assert.NotEmpty(t, conceptNames[id], "conceptNames entry missing for Concept(%d) — add it to conceptNames in semantics.go", id)
+	}
 }

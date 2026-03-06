@@ -30,92 +30,160 @@ const (
 	ValueTypeInt64   ValueType = "int64"
 )
 
-// Concept represents a semantic concept identifier (e.g., "db.system", "http.method").
-type Concept string
+// Concept is an integer identifier for a semantic concept.
+// Using int (rather than string) allows the registry to use a slice instead of
+// a hash map, reducing GetAttributePrecedence to a single array index.
+type Concept int
 
-// Peer Tags (used for stats aggregation)
+// Concept constants. The order here determines the index used in the registry
+// slice — do not reorder without also updating conceptNames below.
 const (
-	ConceptPeerService              Concept = "peer.service"
-	ConceptPeerHostname             Concept = "peer.hostname"
-	ConceptPeerDBName               Concept = "peer.db.name"
-	ConceptPeerDBSystem             Concept = "peer.db.system"
-	ConceptPeerCassandraContactPts  Concept = "peer.cassandra.contact.points"
-	ConceptPeerCouchbaseSeedNodes   Concept = "peer.couchbase.seed.nodes"
-	ConceptPeerMessagingDestination Concept = "peer.messaging.destination"
-	ConceptPeerMessagingSystem      Concept = "peer.messaging.system"
-	ConceptPeerKafkaBootstrapSrvs   Concept = "peer.kafka.bootstrap.servers"
-	ConceptPeerRPCService           Concept = "peer.rpc.service"
-	ConceptPeerRPCSystem            Concept = "peer.rpc.system"
-	ConceptPeerAWSS3Bucket          Concept = "peer.aws.s3.bucket"
-	ConceptPeerAWSSQSQueue          Concept = "peer.aws.sqs.queue"
-	ConceptPeerAWSDynamoDBTable     Concept = "peer.aws.dynamodb.table"
-	ConceptPeerAWSKinesisStream     Concept = "peer.aws.kinesis.stream"
+	// Peer Tags (used for stats aggregation)
+	ConceptPeerService Concept = iota
+	ConceptPeerHostname
+	ConceptPeerDBName
+	ConceptPeerDBSystem
+	ConceptPeerCassandraContactPts
+	ConceptPeerCouchbaseSeedNodes
+	ConceptPeerMessagingDestination
+	ConceptPeerMessagingSystem
+	ConceptPeerKafkaBootstrapSrvs
+	ConceptPeerRPCService
+	ConceptPeerRPCSystem
+	ConceptPeerAWSS3Bucket
+	ConceptPeerAWSSQSQueue
+	ConceptPeerAWSDynamoDBTable
+	ConceptPeerAWSKinesisStream
+
+	// Stats Aggregation
+	ConceptHTTPStatusCode
+	ConceptHTTPMethod
+	ConceptHTTPRoute
+	ConceptGRPCStatusCode
+	ConceptSpanKind
+	ConceptDDBaseService
+
+	// Service & Resource Identification
+	ConceptServiceName
+	ConceptResourceName
+	ConceptOperationName
+	ConceptSpanType
+	ConceptDBSystem
+	ConceptDBStatement
+	ConceptDBNamespace
+	ConceptRPCSystem
+	ConceptRPCService
+	ConceptMessagingSystem
+	ConceptMessagingDest
+	ConceptDeploymentEnv
+	ConceptServiceVersion
+	ConceptContainerID
+	ConceptK8sPodUID
+
+	// Obfuscation
+	ConceptDBQuery
+	ConceptMongoDBQuery
+	ConceptElasticsearchBody
+	ConceptOpenSearchBody
+	ConceptRedisRawCommand
+	ConceptValkeyRawCommand
+	ConceptMemcachedCommand
+	ConceptHTTPURL
+
+	// Normalization
+	ConceptMessagingOperation
+	ConceptGraphQLOperationType
+	ConceptGraphQLOperationName
+	ConceptFaaSInvokedProvider
+	ConceptFaaSInvokedName
+	ConceptFaaSTrigger
+	ConceptNetworkProtocolName
+	ConceptRPCMethod
+	ConceptComponent
+	ConceptLinkName
+
+	// Sampling
+	ConceptDDMeasured
+	ConceptDDTopLevel
+	ConceptSamplingPriority
+	ConceptOTelTraceID
+	ConceptDDTraceIDHigh
+	ConceptDDPartialVersion
+
+	// conceptCount must remain last — it is the total number of concepts and
+	// is used to size the registry slice.
+	conceptCount
 )
 
-// Stats Aggregation
-const (
-	ConceptHTTPStatusCode Concept = "http.status_code"
-	ConceptHTTPMethod     Concept = "http.method"
-	ConceptHTTPRoute      Concept = "http.route"
-	ConceptGRPCStatusCode Concept = "rpc.grpc.status_code"
-	ConceptSpanKind       Concept = "span.kind"
-	ConceptDDBaseService  Concept = "_dd.base_service"
-)
+// conceptNames maps each Concept to its canonical name in mappings.json.
+// Must stay in sync with the iota constants above.
+var conceptNames = [conceptCount]string{
+	ConceptPeerService:              "peer.service",
+	ConceptPeerHostname:             "peer.hostname",
+	ConceptPeerDBName:               "peer.db.name",
+	ConceptPeerDBSystem:             "peer.db.system",
+	ConceptPeerCassandraContactPts:  "peer.cassandra.contact.points",
+	ConceptPeerCouchbaseSeedNodes:   "peer.couchbase.seed.nodes",
+	ConceptPeerMessagingDestination: "peer.messaging.destination",
+	ConceptPeerMessagingSystem:      "peer.messaging.system",
+	ConceptPeerKafkaBootstrapSrvs:   "peer.kafka.bootstrap.servers",
+	ConceptPeerRPCService:           "peer.rpc.service",
+	ConceptPeerRPCSystem:            "peer.rpc.system",
+	ConceptPeerAWSS3Bucket:          "peer.aws.s3.bucket",
+	ConceptPeerAWSSQSQueue:          "peer.aws.sqs.queue",
+	ConceptPeerAWSDynamoDBTable:     "peer.aws.dynamodb.table",
+	ConceptPeerAWSKinesisStream:     "peer.aws.kinesis.stream",
 
-// Service & Resource Identification
-const (
-	ConceptServiceName     Concept = "service.name"
-	ConceptResourceName    Concept = "resource.name"
-	ConceptOperationName   Concept = "operation.name"
-	ConceptSpanType        Concept = "span.type"
-	ConceptDBSystem        Concept = "db.system"
-	ConceptDBStatement     Concept = "db.statement"
-	ConceptDBNamespace     Concept = "db.namespace"
-	ConceptRPCSystem       Concept = "rpc.system"
-	ConceptRPCService      Concept = "rpc.service"
-	ConceptMessagingSystem Concept = "messaging.system"
-	ConceptMessagingDest   Concept = "messaging.destination"
-	ConceptDeploymentEnv   Concept = "deployment.environment"
-	ConceptServiceVersion  Concept = "service.version"
-	ConceptContainerID     Concept = "container.id"
-	ConceptK8sPodUID       Concept = "k8s.pod.uid"
-)
+	ConceptHTTPStatusCode: "http.status_code",
+	ConceptHTTPMethod:     "http.method",
+	ConceptHTTPRoute:      "http.route",
+	ConceptGRPCStatusCode: "rpc.grpc.status_code",
+	ConceptSpanKind:       "span.kind",
+	ConceptDDBaseService:  "_dd.base_service",
 
-// Obfuscation
-const (
-	ConceptDBQuery           Concept = "db.query"
-	ConceptMongoDBQuery      Concept = "mongodb.query"
-	ConceptElasticsearchBody Concept = "elasticsearch.body"
-	ConceptOpenSearchBody    Concept = "opensearch.body"
-	ConceptRedisRawCommand   Concept = "redis.raw_command"
-	ConceptValkeyRawCommand  Concept = "valkey.raw_command"
-	ConceptMemcachedCommand  Concept = "memcached.command"
-	ConceptHTTPURL           Concept = "http.url"
-)
+	ConceptServiceName:     "service.name",
+	ConceptResourceName:    "resource.name",
+	ConceptOperationName:   "operation.name",
+	ConceptSpanType:        "span.type",
+	ConceptDBSystem:        "db.system",
+	ConceptDBStatement:     "db.statement",
+	ConceptDBNamespace:     "db.namespace",
+	ConceptRPCSystem:       "rpc.system",
+	ConceptRPCService:      "rpc.service",
+	ConceptMessagingSystem: "messaging.system",
+	ConceptMessagingDest:   "messaging.destination",
+	ConceptDeploymentEnv:   "deployment.environment",
+	ConceptServiceVersion:  "service.version",
+	ConceptContainerID:     "container.id",
+	ConceptK8sPodUID:       "k8s.pod.uid",
 
-// Normalization
-const (
-	ConceptMessagingOperation   Concept = "messaging.operation"
-	ConceptGraphQLOperationType Concept = "graphql.operation.type"
-	ConceptGraphQLOperationName Concept = "graphql.operation.name"
-	ConceptFaaSInvokedProvider  Concept = "faas.invoked.provider"
-	ConceptFaaSInvokedName      Concept = "faas.invoked.name"
-	ConceptFaaSTrigger          Concept = "faas.trigger"
-	ConceptNetworkProtocolName  Concept = "network.protocol.name"
-	ConceptRPCMethod            Concept = "rpc.method"
-	ConceptComponent            Concept = "component"
-	ConceptLinkName             Concept = "link.name"
-)
+	ConceptDBQuery:           "db.query",
+	ConceptMongoDBQuery:      "mongodb.query",
+	ConceptElasticsearchBody: "elasticsearch.body",
+	ConceptOpenSearchBody:    "opensearch.body",
+	ConceptRedisRawCommand:   "redis.raw_command",
+	ConceptValkeyRawCommand:  "valkey.raw_command",
+	ConceptMemcachedCommand:  "memcached.command",
+	ConceptHTTPURL:           "http.url",
 
-// Sampling
-const (
-	ConceptDDMeasured       Concept = "_dd.measured"
-	ConceptDDTopLevel       Concept = "_dd.top_level"
-	ConceptSamplingPriority Concept = "_sampling_priority_v1"
-	ConceptOTelTraceID      Concept = "otel.trace_id"
-	ConceptDDTraceIDHigh    Concept = "_dd.p.tid"
-	ConceptDDPartialVersion Concept = "_dd.partial_version"
-)
+	ConceptMessagingOperation:   "messaging.operation",
+	ConceptGraphQLOperationType: "graphql.operation.type",
+	ConceptGraphQLOperationName: "graphql.operation.name",
+	ConceptFaaSInvokedProvider:  "faas.invoked.provider",
+	ConceptFaaSInvokedName:      "faas.invoked.name",
+	ConceptFaaSTrigger:          "faas.trigger",
+	ConceptNetworkProtocolName:  "network.protocol.name",
+	ConceptRPCMethod:            "rpc.method",
+	ConceptComponent:            "component",
+	ConceptLinkName:             "link.name",
+
+	ConceptDDMeasured:       "_dd.measured",
+	ConceptDDTopLevel:       "_dd.top_level",
+	ConceptSamplingPriority: "_sampling_priority_v1",
+	ConceptOTelTraceID:      "otel.trace_id",
+	ConceptDDTraceIDHigh:    "_dd.p.tid",
+	ConceptDDPartialVersion: "_dd.partial_version",
+}
 
 // TagInfo contains metadata about a semantic attribute and its location.
 type TagInfo struct {
