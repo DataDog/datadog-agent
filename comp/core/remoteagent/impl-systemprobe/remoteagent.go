@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"gopkg.in/yaml.v2"
 )
 
 // Requires defines the dependencies for the remoteagent component
@@ -66,6 +67,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -82,6 +84,7 @@ type remoteagentImpl struct {
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
 	pbcore.UnimplementedStatusProviderServer
+	pbcore.UnimplementedFlareProviderServer
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
@@ -123,4 +126,23 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 // GetStatusDetails returns the status details of system-probe
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	return helper.DefaultStatusResponse(), nil
+}
+
+// GetFlareFiles returns files for the system-probe flare
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	files := make(map[string][]byte)
+
+	if data, err := yaml.Marshal(helper.ExpvarData()); err == nil {
+		files["system_probe_stats.yaml"] = data
+	}
+
+	if data, err := yaml.Marshal(r.cfg.AllSettings()); err == nil {
+		files["system_probe_runtime_config_dump.yaml"] = data
+	}
+
+	if prometheusText, err := r.telemetry.GatherText(false, telemetry.NoFilter); err == nil {
+		files["system_probe_telemetry.log"] = []byte(prometheusText)
+	}
+
+	return &pbcore.GetFlareFilesResponse{Files: files}, nil
 }

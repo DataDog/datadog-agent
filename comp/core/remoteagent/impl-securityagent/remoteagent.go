@@ -18,6 +18,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"gopkg.in/yaml.v2"
 )
 
 // Requires defines the dependencies for the remoteagent component
@@ -56,6 +57,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -71,9 +73,29 @@ type remoteagentImpl struct {
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
 	pbcore.UnimplementedStatusProviderServer
+	pbcore.UnimplementedFlareProviderServer
 }
 
 // GetStatusDetails returns the status details of the security agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	return helper.DefaultStatusResponse(), nil
+}
+
+// GetFlareFiles returns files for the security agent flare
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	files := make(map[string][]byte)
+
+	if statusJSON, err := r.statusComp.GetStatus("json", false); err == nil {
+		files["security_agent_status.json"] = statusJSON
+	}
+
+	if data, err := yaml.Marshal(helper.ExpvarData()); err == nil {
+		files["security_agent_expvar_dump.yaml"] = data
+	}
+
+	if data, err := yaml.Marshal(r.cfg.AllSettings()); err == nil {
+		files["security_agent_runtime_config_dump.yaml"] = data
+	}
+
+	return &pbcore.GetFlareFilesResponse{Files: files}, nil
 }
