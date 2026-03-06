@@ -54,7 +54,7 @@ type MetricDataReader struct {
 	sketchNumBinsIdx int
 	sketchBinsIdx    int
 
-	pointsRemaining int
+	pointsRemaining uint64
 
 	// Accumulators for delta encoded columns
 	nameRef           int64
@@ -280,7 +280,7 @@ func (r *MetricDataReader) NextMetric() error {
 		return errUnexpectedEOF
 	}
 
-	r.pointsRemaining = int(r.NumPoints())
+	r.pointsRemaining = r.NumPoints()
 
 	r.nameRef += r.data.NameRefs[r.metricIdx-1]
 	if r.nameRef < 0 || r.nameRef >= int64(len(r.dictNameStr)) {
