@@ -1,0 +1,16 @@
+{
+    "filters": {
+        "pkg/network/usm": {
+            "exclude": true
+        },
+        "pkg/network/usm/tests": {
+            "exclude": true
+        },
+        "*": {
+            "exclude": false
+        }
+    },
+    "additional_env_vars": [
+        "DD_SYSTEM_PROBE_NETWORK_ENABLE_FENTRY=true"
+    ]
+}
