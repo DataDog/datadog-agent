@@ -997,6 +997,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
+	mvdan.cc/sh/v3 v3.12.0
 )
 
 require github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
