@@ -338,7 +338,10 @@ namespace Datadog.CustomActions
 
                 PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ENABLED")
                     .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
-                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}")
+                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}"),
+
+                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+                    .Match("^[ #]*private_action_runner:")
                     .Match("^[ #]*self_enroll:.*").ReplaceWith(_ => "  self_enroll: true"),
 
                 PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
