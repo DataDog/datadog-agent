@@ -61,6 +61,14 @@ func NewComponent(req Requires) (Provides, error) {
 	r.metricParquetWriter = writer
 	pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 
+	// Initialize virtual metrics writer for log-derived metrics
+	virtualMetricWriter, err := newVirtualMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create virtual metrics parquet writer: %v", err)
+	}
+	r.virtualMetricParquetWriter = virtualMetricWriter
+	pkglog.Infof("Recorder virtual metrics writer started: dir=%s", parquetDir)
+
 	// Initialize traces writer (always enabled when recording is on)
 	traceWriter, err := newTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
@@ -98,12 +106,13 @@ func NewComponent(req Requires) (Provides, error) {
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	recordingDisabled       bool
-	metricParquetWriter     *metricParquetWriter
-	traceParquetWriter      *traceParquetWriter
-	profileParquetWriter    *profileParquetWriter
-	logParquetWriter        *logParquetWriter
-	traceStatsParquetWriter *traceStatsParquetWriter
+	recordingDisabled          bool
+	metricParquetWriter        *metricParquetWriter
+	virtualMetricParquetWriter *metricParquetWriter
+	traceParquetWriter         *traceParquetWriter
+	profileParquetWriter       *profileParquetWriter
+	logParquetWriter           *logParquetWriter
+	traceStatsParquetWriter    *traceStatsParquetWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -237,6 +246,41 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 
 	pkglog.Infof("ReadAllLogs: loaded %d logs", len(logs))
 	return logs, nil
+}
+
+// EnableResultsSaving initializes the virtual metrics writer for headless mode.
+// It creates only the virtual metrics parquet writer, leaving raw observation writers
+// (metrics, logs, traces, profiles) uninitialized so that loaded input data is never
+// re-recorded. Safe to call multiple times; subsequent calls are no-ops.
+func (r *recorderImpl) EnableResultsSaving(outputDir string) error {
+	if r.virtualMetricParquetWriter != nil {
+		return nil // already initialized (either via full recording or a previous call)
+	}
+	// Use a very long flush interval: the testbench drives flushing explicitly via
+	// FlushVirtualMetrics(), so periodic flushing is not needed.
+	writer, err := newVirtualMetricParquetWriter(outputDir, 365*24*time.Hour, 0)
+	if err != nil {
+		return fmt.Errorf("creating virtual metrics parquet writer: %w", err)
+	}
+	r.virtualMetricParquetWriter = writer
+	pkglog.Infof("Results saving enabled: virtual metrics will be written to %s", outputDir)
+	return nil
+}
+
+// RecordVirtualMetric writes a log-derived virtual metric to the virtual metrics parquet file.
+func (r *recorderImpl) RecordVirtualMetric(source, name string, value float64, tags []string, timestamp int64) {
+	if r.virtualMetricParquetWriter == nil {
+		return
+	}
+	r.virtualMetricParquetWriter.WriteMetric(source, name, value, tags, timestamp)
+}
+
+// FlushVirtualMetrics forces an immediate flush of buffered virtual metrics to disk.
+func (r *recorderImpl) FlushVirtualMetrics() {
+	if r.virtualMetricParquetWriter == nil {
+		return
+	}
+	r.virtualMetricParquetWriter.flush()
 }
 
 // recordingHandle wraps an observer handle to record observations.

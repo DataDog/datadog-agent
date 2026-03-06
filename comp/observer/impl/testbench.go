@@ -502,7 +502,11 @@ func (tb *TestBench) runLogDetectors() error {
 			result := detector.Process(log)
 			ts := log.GetTimestampMs()
 			for _, m := range result.Metrics {
-				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
+				virtualName := "_virtual." + m.Name
+				tb.storage.Add("logs", virtualName, m.Value, ts/1000, m.Tags)
+				if tb.config.Recorder != nil {
+					tb.config.Recorder.RecordVirtualMetric("logs", virtualName, m.Value, m.Tags, ts/1000)
+				}
 			}
 			for _, anomaly := range result.Anomalies {
 				// Fill in fields the detector may not have set
@@ -606,6 +610,12 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// We want to process logs first in case they produce metrics that are used by other detectors.
 	if err := tb.runLogDetectors(); err != nil {
 		fmt.Printf("  Warning: failed to run log detectors: %v\n", err)
+	}
+	if tb.config.Recorder != nil {
+		fmt.Printf("[cc] Flushing virtual metrics...\n")
+		tb.config.Recorder.FlushVirtualMetrics()
+	} else {
+		fmt.Printf("[cc] No recorder found, skipping flush of virtual metrics...\n")
 	}
 
 	// --- Metrics ---

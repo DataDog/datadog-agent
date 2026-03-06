@@ -27,11 +27,23 @@ type metricParquetWriter struct {
 	typedBuilder *metricBatchBuilder
 }
 
-// newMetricParquetWriter creates a writer that rotates parquet files at the flush interval.
+// newMetricParquetWriter creates a writer for raw observed metrics (observer-metrics-*.parquet).
+func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
+	return newMetricParquetWriterWithPrefix(outputDir, "observer-metrics", flushInterval, retentionDuration)
+}
+
+// newVirtualMetricParquetWriter creates a writer for log-derived virtual metrics
+// (observer-virtualmetrics-*.parquet). Uses the same schema as the raw metrics writer.
+func newVirtualMetricParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
+	return newMetricParquetWriterWithPrefix(outputDir, "observer-virtualmetrics", flushInterval, retentionDuration)
+}
+
+// newMetricParquetWriterWithPrefix creates a metric parquet writer with the given file prefix.
 // outputDir: directory where parquet files will be written
+// filePrefix: prefix for file names (e.g. "observer-metrics", "observer-virtualmetrics")
 // flushInterval: how often to rotate files (e.g., 60s creates a new file every minute)
 // retentionDuration: how long to keep old files (0 = no cleanup)
-func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
+func newMetricParquetWriterWithPrefix(outputDir, filePrefix string, flushInterval, retentionDuration time.Duration) (*metricParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -65,7 +77,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	pw := &metricParquetWriter{
 		parquetWriter: parquetWriter{
 			outputDir:         outputDir,
-			filePrefix:        "observer-metrics",
+			filePrefix:        filePrefix,
 			schema:            schema,
 			writerProps:       props,
 			builder:           builder,
@@ -77,7 +89,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	}
 	pw.start()
 
-	pkglog.Infof("Parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+	pkglog.Infof("Parquet writer initialized: prefix=%s dir=%s flush=%v retention=%v", filePrefix, outputDir, flushInterval, retentionDuration)
 	return pw, nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -34,9 +35,10 @@ type CLIParams struct {
 	EnableOverrides map[string]bool
 
 	// Headless mode: run a scenario and exit (no HTTP server)
-	Headless string // scenario name to run (empty = interactive mode)
-	Output   string // path for observer JSON output
-	Verbose  bool   // include full detail in JSON output (headless mode only)
+	Headless   string // scenario name to run (empty = interactive mode)
+	Output     string // path for observer JSON output
+	Verbose    bool   // include full detail in JSON output (headless mode only)
+	ResultsDir string // directory to save intermediate results (virtual metrics parquet); defaults to the scenario directory
 }
 
 func main() {
@@ -47,6 +49,7 @@ func main() {
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
+	resultsDir := flag.String("results-dir", "", "Directory to save intermediate results (virtual metrics parquet); defaults to the scenario directory in headless mode")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -83,12 +86,13 @@ func main() {
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:      *scenariosDir,
-			HTTPAddr:          *httpAddr,
-			EnableOverrides:   overrides,
-			Headless:          *headless,
-			Output:            *output,
-			Verbose:           *verbose,
+			ScenariosDir:    *scenariosDir,
+			HTTPAddr:        *httpAddr,
+			EnableOverrides: overrides,
+			Headless:        *headless,
+			Output:          *output,
+			Verbose:         *verbose,
+			ResultsDir:      *resultsDir,
 		}),
 	)
 	if err != nil {
@@ -112,6 +116,19 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
+		// Enable saving of intermediate results (virtual metrics parquet).
+		// Defaults to the scenario directory so results land alongside the input parquet files.
+		// This only initializes the virtual metrics writer — raw input data (metrics, logs,
+		// traces) is never re-recorded.
+		resultsDir := params.ResultsDir
+		if resultsDir == "" {
+			resultsDir = filepath.Join(params.ScenariosDir, params.Headless)
+		}
+		if err := recorder.EnableResultsSaving(resultsDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to enable results saving to %s: %v\n", resultsDir, err)
+		} else {
+			fmt.Printf("Results saving enabled: virtual metrics → %s\n", resultsDir)
+		}
 		return tb.RunHeadless(params.Headless, params.Output, params.Verbose)
 	}
 

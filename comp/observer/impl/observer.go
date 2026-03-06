@@ -230,6 +230,7 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+		obs.recorder = recorder
 	}
 
 	go obs.run()
@@ -361,7 +362,8 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	recorder       recorderdef.Component  // Optional: for recording virtual metrics from log detectors
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +376,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -408,7 +410,11 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		result := detector.Process(view)
 		for _, m := range result.Metrics {
 			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			virtualName := "_virtual." + m.Name
+			o.storage.Add(source, virtualName, m.Value, l.timestampMs/1000, m.Tags)
+			if o.recorder != nil {
+				o.recorder.RecordVirtualMetric(source, virtualName, m.Value, m.Tags, l.timestampMs/1000)
+			}
 		}
 		// Route directly emitted anomalies through the standard pipeline
 		for _, anomaly := range result.Anomalies {

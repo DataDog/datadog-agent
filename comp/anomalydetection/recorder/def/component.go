@@ -45,6 +45,28 @@ type Component interface {
 	// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 	// Each element corresponds to one aggregated stat group (ClientGroupedStats).
 	ReadAllTraceStats(inputDir string) ([]TraceStatsData, error)
+
+	// RecordVirtualMetric records a log-derived virtual metric to the dedicated
+	// virtual metrics parquet file (observer-virtualmetrics-*.parquet).
+	// Virtual metrics are computed by log detectors and stored with a "_virtual." prefix.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordVirtualMetric(source, name string, value float64, tags []string, timestamp int64)
+
+	// FlushVirtualMetrics forces an immediate flush of buffered virtual metrics to disk.
+	// The testbench calls this after running log detectors to ensure results are persisted
+	// before the process exits or the scenario is unloaded.
+	// In the live observer, virtual metrics are also flushed on the regular periodic interval.
+	FlushVirtualMetrics()
+
+	// EnableResultsSaving initializes the virtual metrics writer to save computed results
+	// to the given output directory. Intended for headless mode: it enables saving only
+	// the derived/computed data (virtual metrics) without re-recording the raw input
+	// observations (metrics, logs, traces) that were loaded from parquet files.
+	//
+	// If the virtual metrics writer was already initialized (e.g. because full recording
+	// is enabled via observer.recording.enabled), this call is a no-op.
+	// Returns an error if the output directory cannot be created or the writer fails to start.
+	EnableResultsSaving(outputDir string) error
 }
 
 // MetricData represents a single metric read from parquet files.

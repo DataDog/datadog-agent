@@ -34,27 +34,38 @@ type LogMetricsExtractor struct {
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
 func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectionResult {
-	content := log.GetContent()
-	tags := log.GetTags()
-
-	// Always emit pattern frequency metric for all logs
-	patternSig := logSignature(content, a.MaxEvalBytes)
-	if patternSig == "" {
-		return observer.LogDetectionResult{}
+	// TODO A
+	return observer.LogDetectionResult{
+		Metrics: []observer.MetricOutput{
+			{
+				Name:  "celian.is.the.best.questionmark",
+				Value: 1,
+				Tags:  log.GetTags(),
+			},
+		},
 	}
 
-	metrics := []observer.MetricOutput{{
-		Name:  patternCountMetricName(patternSig),
-		Value: 1,
-		Tags:  tags,
-	}}
+	// content := log.GetContent()
+	// tags := log.GetTags()
 
-	// For JSON logs, also extract numeric field metrics
-	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
-	}
+	// // Always emit pattern frequency metric for all logs
+	// patternSig := logSignature(content, a.MaxEvalBytes)
+	// if patternSig == "" {
+	// 	return observer.LogDetectionResult{}
+	// }
 
-	return observer.LogDetectionResult{Metrics: metrics}
+	// metrics := []observer.MetricOutput{{
+	// 	Name:  patternCountMetricName(patternSig),
+	// 	Value: 1,
+	// 	Tags:  tags,
+	// }}
+
+	// // For JSON logs, also extract numeric field metrics
+	// if isJSONObject(content) {
+	// 	metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
+	// }
+
+	// return observer.LogDetectionResult{Metrics: metrics}
 }
 
 func isJSONObject(b []byte) bool {
