@@ -485,3 +485,43 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when API key is invalid")
 }
+
+// TestUpdateAPIKeyAfterSetBaseDomain verifies health cache correctness after key rotation with a mutated resolver domain.
+func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
+	originalDomain := "https://app.datadoghq.com."
+
+	keysPerDomains := map[string][]utils.APIKeys{
+		originalDomain: {utils.NewAPIKeys("api_key", "old_key")},
+	}
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+	require.NoError(t, err)
+
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
+	fh.init()
+
+	// mock mutate the resolver's base domain like default forwarder does
+	resolvers[originalDomain].SetBaseDomain("https://mock-mutated-app.agent.datadoghq.com.")
+
+	resolvers[originalDomain].SetForwarderHealth(&fh)
+	resolver.OnUpdateConfig(resolvers[originalDomain], log, cfg)
+
+	// seed the config so the next SetWithoutSource has a valid oldValue
+	cfg.SetWithoutSource("api_key", "old_key")
+
+	// trigger rotation rotation through the real config update path
+	cfg.SetWithoutSource("api_key", "new_key")
+
+	// health cache should contain only new_key
+	fh.keyMapMutex.Lock()
+	var allKeys []string
+	for _, keys := range fh.keysPerAPIEndpoint {
+		allKeys = append(allKeys, keys...)
+	}
+	fh.keyMapMutex.Unlock()
+
+	assert.Contains(t, allKeys, "new_key", "new_key should be in health cache")
+	assert.NotContains(t, allKeys, "old_key", "old_key should have been removed from health cache")
+}
