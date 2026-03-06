@@ -11,15 +11,28 @@ package collector
 import (
 	"context"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
+
+// CgroupReader reads cgroup stats. Satisfied by *cgroups.Reader
+type CgroupReader interface {
+	RefreshCgroups(cacheValidity time.Duration) error
+	GetCgroup(id string) cgroups.Cgroup
+	CgroupVersion() int
+}
+
+// EnhancedMetricSender sends enhanced metrics. Satisfied by *serverlessMetrics.ServerlessMetricAgent
+type EnhancedMetricSender interface {
+	AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string)
+	AddHighCardinalityEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string)
+}
 
 // ServerlessCPUStats stores CPU stats for serverless environments
 type ServerlessCPUStats struct {
@@ -51,10 +64,12 @@ var NullServerlessRateStats = ServerlessRateStats{
 	TotalCPU: -1,
 }
 
+// Collector stores the cgroup reader used for data collection, the collection interval,
+// the metric prefix, the metric metadata, and the metrics agent where metrics are sent
 type Collector struct {
-	metricAgent        *serverlessMetrics.ServerlessMetricAgent
+	metricAgent        EnhancedMetricSender
 	metricSource       metrics.MetricSource
-	cgroupReader       *cgroups.Reader
+	cgroupReader       CgroupReader
 	collectionInterval time.Duration
 	cancelFunc         context.CancelFunc
 	metricPrefix       string
@@ -62,8 +77,9 @@ type Collector struct {
 	previousRateStats ServerlessRateStats
 }
 
-func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
-	if metricAgent == nil {
+// NewCollector creates a new Collector
+func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, collectionInterval time.Duration) (*Collector, error) {
+	if metricAgent == nil || reflect.ValueOf(metricAgent).IsNil() {
 		return nil, errors.New("metricAgent cannot be nil")
 	}
 
@@ -76,12 +92,13 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 		metricAgent:        metricAgent,
 		metricSource:       metricSource,
 		cgroupReader:       cgroupReader,
-		collectionInterval: 3 * time.Second,
+		collectionInterval: collectionInterval,
 		metricPrefix:       metricPrefix + ".enhanced.",
 		previousRateStats:  NullServerlessRateStats,
 	}, nil
 }
 
+// Start starts the Collector
 func (c *Collector) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelFunc = cancel
@@ -91,6 +108,7 @@ func (c *Collector) Start() {
 	c.collectLoop(ctx)
 }
 
+// Stop stops the Collector
 func (c *Collector) Stop() {
 	if c.cancelFunc != nil {
 		// One final collect before shutdown to collect a partial interval of enhanced metrics
@@ -100,6 +118,7 @@ func (c *Collector) Stop() {
 	}
 }
 
+// collectLoop starts the collection loop with the specified collection interval
 func (c *Collector) collectLoop(ctx context.Context) {
 	ticker := time.NewTicker(c.collectionInterval)
 	defer ticker.Stop()
@@ -117,32 +136,34 @@ func (c *Collector) collectLoop(ctx context.Context) {
 	}
 }
 
+// collect collects the enhanced metrics from the cgroup and sends them to the metric agent
 func (c *Collector) collect() {
 	if err := c.cgroupReader.RefreshCgroups(0); err != nil {
-		log.Debugf("Failed to refresh cgroups: %v", err)
+		log.Warnf("Failed to refresh cgroups: %v", err)
 		return
 	}
 
 	cgroup := c.cgroupReader.GetCgroup(cgroups.SelfCgroupIdentifier)
 	if cgroup == nil {
-		log.Debug("Failed to get self cgroup")
+		log.Warn("Failed to get self cgroup")
 		return
 	}
 
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cgroup, stats)
 	if allFailed {
-		log.Debugf("Failed to get cgroup stats: %v", errs)
+		log.Warnf("Failed to get cgroup stats: %v", errs)
 		return
 	} else if len(errs) > 0 {
 		log.Debugf("Incomplete cgroup stats: %v", errs)
 	}
 
 	containerStats := c.convertToServerlessContainerStats(stats)
-	enhancedMetrics := c.computeContainerMetrics(containerStats)
+	enhancedMetrics := c.computeEnhancedMetrics(containerStats)
 	c.sendMetrics(enhancedMetrics)
 }
 
+// convertToServerlessContainerStats converts the cgroup stats to the ServerlessContainerStats struct
 func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *ServerlessContainerStats {
 	serverlessStats := &ServerlessContainerStats{
 		CollectionTime: time.Now(),
@@ -153,12 +174,13 @@ func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *Ser
 		serverlessStats.CPU.Total = pointer.Ptr(float64(*stats.CPU.Total))
 	}
 
-	serverlessStats.CPU.Limit = computeCPULimit(stats.CPU)
+	serverlessStats.CPU.Limit = computeCPULimit(stats.CPU, systemutils.HostCPUCount())
 
 	return serverlessStats
 }
 
-func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) ServerlessEnhancedMetrics {
+// computeEnhancedMetrics computes the enhanced metrics from the ServerlessContainerStats struct
+func (c *Collector) computeEnhancedMetrics(inStats *ServerlessContainerStats) ServerlessEnhancedMetrics {
 	enhancedMetrics := ServerlessEnhancedMetrics{}
 
 	if inStats == nil {
@@ -169,7 +191,7 @@ func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) S
 
 	if inStats.CPU != nil {
 		currentTotal := statValue(inStats.CPU.Total, -1)
-		enhancedMetrics.CPUUsage = c.calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
+		enhancedMetrics.CPUUsage = calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
 
 		// Store current cpu total and collection time for next rate calculation
 		c.previousRateStats.TotalCPU = currentTotal
@@ -181,27 +203,27 @@ func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) S
 	return enhancedMetrics
 }
 
-func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
+// computeCPULimit computes the CPU limit from the cgroup stats
+func computeCPULimit(stats *cgroups.CPUStats, hostCPUCount int) *float64 {
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
 	// Default to host CPU count if no other limit is available
 	var limit *float64
 
-	hostCPUCount := systemutils.HostCPUCount()
 	log.Debugf("CPU limit from host: %d cores", hostCPUCount)
 
-	if cgs.CPUCount != nil {
-		log.Debugf("CPU limit from CPUSet: %d cores", *cgs.CPUCount)
+	if stats.CPUCount != nil {
+		log.Debugf("CPU limit from CPUSet: %d cores", *stats.CPUCount)
 	} else {
 		log.Debugf("CPU limit from CPUSet: nil")
 	}
 
-	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(hostCPUCount) {
-		limit = pointer.Ptr(float64(*cgs.CPUCount))
+	if stats.CPUCount != nil && *stats.CPUCount != uint64(hostCPUCount) {
+		limit = pointer.Ptr(float64(*stats.CPUCount))
 	}
 
-	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
-		quotaLimit := (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		log.Debugf("CPU limit from CFS quota: %.3f cores (quota=%d, period=%d)", quotaLimit, *cgs.SchedulerQuota, *cgs.SchedulerPeriod)
+	if stats.SchedulerQuota != nil && stats.SchedulerPeriod != nil {
+		quotaLimit := (float64(*stats.SchedulerQuota) / float64(*stats.SchedulerPeriod))
+		log.Debugf("CPU limit from CFS quota: %.3f cores (quota=%d, period=%d)", quotaLimit, *stats.SchedulerQuota, *stats.SchedulerPeriod)
 		if limit == nil || quotaLimit < *limit {
 			limit = &quotaLimit
 		}
@@ -215,12 +237,13 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 
 	// Convert CPU limit from cores to nanocores
 	limitNanos := *limit * 1e9
+
 	return &limitNanos
 }
 
 // calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
-// Returns -1 if invalid data or first run, returns 0 if unable to calculate using values and times provided
-func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
+// Returns -1 if first run or invalid data
+func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
 	log.Debugf("calculateCPUUsage: currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
 		currentTotal, previousTotal, currentTime, previousTime)
 
@@ -229,22 +252,23 @@ func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float6
 	}
 
 	if previousTime.IsZero() {
-		return 0
+		return -1
 	}
 
 	timeDiff := currentTime.Sub(previousTime).Seconds()
 	if timeDiff <= 0 {
-		return 0
+		return -1
 	}
 
 	valueDiff := currentTotal - previousTotal
 	if valueDiff <= 0 {
-		return 0
+		return -1
 	}
 
 	return valueDiff / timeDiff
 }
 
+// sendMetrics sends the enhanced metrics to the metric agent
 func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	// CPU usage in nanocores
 	// Skip when value is -1 since this value is used on the first collect before the rate can be computed
@@ -256,6 +280,7 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	c.metricAgent.AddHighCardinalityEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
 }
 
+// statValue returns the value of a float64 pointer, or a default value if the pointer is nil
 func statValue(val *float64, def float64) float64 {
 	if val != nil {
 		return *val
