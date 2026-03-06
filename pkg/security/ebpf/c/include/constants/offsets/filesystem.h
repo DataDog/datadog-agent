@@ -465,16 +465,26 @@ static int __attribute__((always_inline)) get_overlayfs_layer(struct dentry *den
 }
 
 static void __attribute__((always_inline)) set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
-    u64 orig_inode = file->path_key.ino;
     u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
-    // NOTE(safchain) both lower & upper inode seems to be incorrect sometimes on kernel >= 6.8.
-    // Need to investigate the root cause.
-    if (get_ovl_path_in_inode() == 2 && lower_inode != orig_inode && upper_inode != orig_inode) {
+    if (get_ovl_path_in_inode() == 2) {
+        // On kernels >= 6.5 (ovl_path_in_inode == 2), the overlay inode's i_ino is set
+        // by ovl_map_ino to match the underlying filesystem inode (for samefs) or to a
+        // properly mapped value (for xino). Do NOT swap path_key.ino in this case.
+        //
+        // Swapping would replace the overlay inode with the raw lower/upper filesystem
+        // inode, which lives in a different numbering space than the overlay inodes used
+        // for parent entries in the pathnames eBPF map. If the swapped inode collides
+        // with an overlay inode of a parent directory, the dentry walk overwrites the
+        // leaf entry and corrupts the resolved path (e.g. /usr/bin/bash -> /usr/usr/bin/bash).
+        file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
         return;
     }
 
+    // On older kernels, the overlay inode's i_ino may be a meaningless sequential number
+    // that doesn't match what stat() returns. We must swap to the real lower/upper inode
+    // for correct event reporting and path resolution.
     if (lower_inode) {
         file->path_key.ino = lower_inode;
     } else if (upper_inode) {
