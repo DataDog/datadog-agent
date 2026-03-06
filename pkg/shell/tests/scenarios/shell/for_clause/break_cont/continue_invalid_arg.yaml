@@ -1,6 +1,4 @@
-# Our shell exits 2 for non-numeric args; bash exits 128 (special builtin fatal error).
-test_against_local_shell: false
-description: Continue with non-numeric argument breaks the loop and produces an error.
+description: Continue with non-numeric argument exits the shell and produces an error.
 input:
   script: |+
     for i in a b c; do
@@ -8,6 +6,6 @@ input:
     done
 expect:
   stdout: ""
-  stderr: |+
-    continue: abc: numeric argument required
-  exit_code: 2
+  stderr_contains:
+    - "continue: abc: numeric argument required"
+  exit_code: 128
