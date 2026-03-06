@@ -296,6 +296,48 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
 }
 
+// TestExperimentIntegrationLoaded verifies that an integration config deployed
+// via the config experiment flow is picked up by the experiment agent before promotion.
+func (s *configSuite) TestExperimentIntegrationLoaded() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
+	}
+
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	nginxConfig := `{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "integration-loaded-test",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{}`),
+			},
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/conf.d/nginx.yaml",
+				Patch:             []byte(nginxConfig),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	status, err := s.Agent.Status()
+	require.NoError(s.T(), err)
+	_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+	assert.True(s.T(), nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	status, err = s.Agent.Status()
+	require.NoError(s.T(), err)
+	_, nginxLoaded = status.RunnerStats.Checks["nginx"]
+	assert.True(s.T(), nginxLoaded, "nginx check should still be loaded after promotion")
+}
+
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
 // correctly preserves the stable_config_version and does not overwrite it
 // with the experiment deployment ID.
