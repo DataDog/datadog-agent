@@ -18,6 +18,7 @@ rust_library_group(
 
 rust_prost_toolchain(
     name = "prost_toolchain_impl",
+    prost_opts = ["file_descriptor_set"],
     prost_plugin = "@crates//:protoc-gen-prost__protoc-gen-prost",
     prost_runtime = ":prost_runtime",
     prost_types = "@crates//:prost-types",
