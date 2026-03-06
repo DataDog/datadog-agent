@@ -1,0 +1,47 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+
+cc_library(
+    name = "corecheck_ebpf_headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+
+_CORECHECK_FLAGS = ["-Ipkg/collector/corechecks/ebpf/c/runtime"]
+
+_COMMON_DEPS = [
+    ":corecheck_ebpf_headers",
+    "//pkg/ebpf/c:ebpf_c_headers",
+]
+
+ebpf_program_suite(
+    name = "oom-kill",
+    src = "oom-kill-kern.c",
+    core = True,
+    extra_flags = _CORECHECK_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "tcp-queue-length",
+    src = "tcp-queue-length-kern.c",
+    core = True,
+    extra_flags = _CORECHECK_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "ebpf",
+    src = "ebpf-kern.c",
+    core = True,
+    extra_flags = _CORECHECK_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "noisy-neighbor",
+    src = "noisy-neighbor-kern.c",
+    core = True,
+    extra_flags = _CORECHECK_FLAGS,
+    deps = _COMMON_DEPS,
+)

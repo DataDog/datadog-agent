@@ -1,0 +1,52 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+
+cc_library(
+    name = "runtime_headers",
+    hdrs = glob(["*.h"]),
+    includes = ["."],
+)
+
+_COMMON_DEPS = [
+    ":runtime_headers",
+    "//pkg/ebpf/c:ebpf_c_headers",
+    "//pkg/network/ebpf/c:ebpf_c_network",
+]
+
+ebpf_program_suite(
+    name = "usm",
+    src = "usm.c",
+    core = True,
+    extra_flags = [
+        "-Ipkg/network/ebpf/c/runtime",
+        "-Ipkg/network/ebpf/c",
+    ],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "shared-libraries",
+    src = "shared-libraries.c",
+    core = True,
+    extra_flags = [
+        "-Ipkg/network/ebpf/c/runtime",
+        "-Ipkg/network/ebpf/c",
+    ],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_program_suite(
+    name = "conntrack",
+    src = "conntrack.c",
+    core = True,
+    extra_flags = [
+        "-Ipkg/network/ebpf/c/runtime",
+        "-Ipkg/network/ebpf/c",
+    ],
+    deps = _COMMON_DEPS,
+)
+
+exports_files([
+    "conntrack-types.h",
+    "conntrack.h",
+])

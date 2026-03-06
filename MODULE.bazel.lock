@@ -224,6 +224,38 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
+      "general": {
+        "bzlTransitiveDigest": "QiOaa5CVaJ3bJxE401UZ9Tu9lro3PMhLV8MsEv6kgSI=",
+        "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "linux_headers": {
+            "repoRuleId": "@@//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_repo",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
+    "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
+      "general": {
+        "bzlTransitiveDigest": "o3WQK5onnT+XDTR4ycq/ksDCX8NqRqO+rMHVpbJbwNs=",
+        "usagesDigest": "zVMywqtcDCrcDt/bRMHd1VJ/EnqarG0lOrpUiziqZ9w=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "llvm_bpf": {
+            "repoRuleId": "@@//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%download_llvm_bpf",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
         "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
