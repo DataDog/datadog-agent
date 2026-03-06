@@ -27,16 +27,87 @@ def load_and_validate(
     return result
 
 
+class ProxyMap(dict):
+    def __init__(self, file_name, channel_type):
+        self.file_name = file_name
+        self.channel_type = channel_type
+        self._local_map = None
+        self._final_map = None
+
+    def _ensure_initialized(self):
+        if self._final_map is not None:
+            return
+
+        if self._local_map is None:
+            self._local_map = load_and_validate(self.file_name, "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+
+        self._final_map = self._local_map.copy()
+        try:
+            from tasks.libs.pipeline.packs import get_team_channels
+
+            for team in self._local_map:
+                notif, review = get_team_channels(team)
+                pack_val = notif if self.channel_type == 'notification' else review
+                if pack_val:
+                    self._final_map[team] = pack_val
+        except Exception:
+            # Fallback to local map on error (e.g. no network, no ddtool)
+            pass
+
+    def __getitem__(self, key):
+        self._ensure_initialized()
+        return self._final_map[key]
+
+    def __iter__(self):
+        self._ensure_initialized()
+        return iter(self._final_map)
+
+    def __len__(self):
+        self._ensure_initialized()
+        return len(self._final_map)
+
+    def __contains__(self, key):
+        self._ensure_initialized()
+        return key in self._final_map
+
+    def keys(self):
+        self._ensure_initialized()
+        return self._final_map.keys()
+
+    def values(self):
+        self._ensure_initialized()
+        return self._final_map.values()
+
+    def items(self):
+        self._ensure_initialized()
+        return self._final_map.items()
+
+    def get(self, key, default=None):
+        self._ensure_initialized()
+        return self._final_map.get(key, default)
+
+    def clear(self):
+        # Needed for some tests that clear the map
+        self._final_map = {}
+        self._local_map = {}
+
+    def __setitem__(self, key, value):
+        self._ensure_initialized()
+        self._final_map[key] = value
+
+    def __repr__(self):
+        self._ensure_initialized()
+        return repr(self._final_map)
+
+
 GITHUB_BASE_URL = "https://github.com"
 DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 HELP_SLACK_CHANNEL = "#agent-devx-help"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
-GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+GITHUB_SLACK_MAP = ProxyMap("github_slack_map.yaml", "notification")
 GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-GITHUB_SLACK_REVIEW_MAP = load_and_validate(
-    "github_slack_review_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL
-)
+GITHUB_SLACK_REVIEW_MAP = ProxyMap("github_slack_review_map.yaml", "review")
 
 
 def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
