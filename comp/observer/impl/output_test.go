@@ -79,8 +79,8 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
-	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
+	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"}, observerdef.MetricTypeGauge)
+	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"}, observerdef.MetricTypeGauge)
 	tb.correlations = []observerdef.ActiveCorrelation{testCorrelation()}
 	tb.components["cusum"] = &registeredComponent{
 		Registration: ComponentRegistration{Name: "cusum", Category: "detector"},
@@ -113,8 +113,8 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 func TestWriteObserverOutput_Verbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
-	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
+	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"}, observerdef.MetricTypeGauge)
+	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"}, observerdef.MetricTypeGauge)
 	tb.correlations = []observerdef.ActiveCorrelation{testCorrelation()}
 	tb.components["cusum"] = &registeredComponent{
 		Registration: ComponentRegistration{Name: "cusum", Category: "detector"},
@@ -169,8 +169,8 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 
 func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	tb := newTestBenchForOutput()
-	tb.storage.Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"})
-	tb.storage.Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
+	tb.storage.Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"}, observerdef.MetricTypeGauge)
+	tb.storage.Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"}, observerdef.MetricTypeGauge)
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
 	require.NoError(t, tb.WriteObserverOutput(outPath, false))

@@ -39,9 +39,10 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogDet
 		if strings.Contains(content, pattern) {
 			return observer.LogDetectionResult{
 				Metrics: []observer.MetricOutput{{
-					Name:  "connection.errors",
-					Value: 1.0,
-					Tags:  log.GetTags(),
+					Name:       "connection.errors",
+					Value:      1.0,
+					Tags:       log.GetTags(),
+					MetricType: observer.MetricTypeDeltaCount,
 				}},
 			}
 		}

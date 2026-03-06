@@ -54,9 +54,10 @@ func (m *MyLogDetector) Process(log observer.LogView) observer.LogDetectionResul
     // Return metrics and/or anomalies
     return observer.LogDetectionResult{
         Metrics: []observer.MetricOutput{{
-            Name:  "my.metric",
-            Value: 1,
-            Tags:  log.GetTags(),
+            Name:       "my.metric",
+            Value:      1,
+            Tags:       log.GetTags(),
+            MetricType: observer.MetricTypeDeltaCount,
         }},
     }
 }

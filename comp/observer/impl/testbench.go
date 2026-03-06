@@ -385,6 +385,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			m.Value,
 			m.Timestamp,
 			m.Tags,
+			observerdef.ParseMetricType(m.MetricType),
 		)
 	}
 
@@ -433,7 +434,7 @@ type storageHandle struct {
 }
 
 func (h *storageHandle) ObserveMetric(sample observerdef.MetricView) {
-	h.storage.Add(h.namespace, sample.GetName(), sample.GetValue(), int64(sample.GetTimestamp()), sample.GetRawTags())
+	h.storage.Add(h.namespace, sample.GetName(), sample.GetValue(), int64(sample.GetTimestamp()), sample.GetRawTags(), observerdef.ParseMetricType(sample.GetMetricTypeName()))
 }
 func (h *storageHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *storageHandle) ObserveTrace(_ observerdef.TraceView)           {}
@@ -502,7 +503,7 @@ func (tb *TestBench) runLogDetectors() error {
 			result := detector.Process(log)
 			ts := log.GetTimestampMs()
 			for _, m := range result.Metrics {
-				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
+				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags, m.MetricType)
 			}
 			for _, anomaly := range result.Anomalies {
 				// Fill in fields the detector may not have set
@@ -778,7 +779,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				value:      telemetryEvent.Metric.GetValue(),
 				tags:       telemetryEvent.Metric.GetRawTags(),
 				timestamp:  int64(telemetryEvent.Metric.GetTimestamp()),
-				metricType: telemetryEvent.Metric.GetMetricTypeName(),
+				metricType: observerdef.ParseMetricType(telemetryEvent.Metric.GetMetricTypeName()),
 			}
 			if metric.timestamp == 0 {
 				metric.timestamp = baseTimestampMs / 1000
@@ -787,7 +788,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags, metric.metricType)
 		}
 
 		if telemetryEvent.Log != nil {
@@ -1130,44 +1131,44 @@ func (tb *TestBench) loadDemoScenario() error {
 
 		// Heap usage (host:web-1)
 		heapValue := getDemoHeapValue(elapsed)
-		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"})
+		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"}, observerdef.MetricTypeGauge)
 
 		// GC pause time (host:web-1)
 		gcValue := getDemoGCPauseValue(elapsed)
-		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"})
+		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"}, observerdef.MetricTypeGauge)
 
 		// CPU usage (host:web-1)
 		cpuValue := getDemoCPUValue(elapsed)
-		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"})
+		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"}, observerdef.MetricTypeGauge)
 
 		// Request latency — two service variants
 		latencyValue := getDemoLatencyValue(elapsed)
-		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"})
-		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"})
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"}, observerdef.MetricTypeGauge)
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"}, observerdef.MetricTypeGauge)
 
 		// Error rate — two service variants
 		errorValue := getDemoErrorRateValue(elapsed)
-		tb.storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"})
-		tb.storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"})
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"}, observerdef.MetricTypeGauge)
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"}, observerdef.MetricTypeGauge)
 
 		// Throughput — two service variants
 		throughputValue := getDemoThroughputValue(elapsed)
-		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
-		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"}, observerdef.MetricTypeGauge)
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"}, observerdef.MetricTypeGauge)
 
 		// Correlator-targeted metrics (trigger kernel_bottleneck / network_degradation patterns)
 		// network.retransmits → analyzed as "network.retransmits:avg" — host-level
 		retransmits := getDemoNetworkRetransmitsValue(elapsed)
-		tb.storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"})
+		tb.storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"}, observerdef.MetricTypeDeltaCount)
 
 		// ebpf.lock_contention_ns → analyzed as "ebpf.lock_contention_ns:avg" — host-level
 		lockContention := getDemoLockContentionValue(elapsed)
-		tb.storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"})
+		tb.storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"}, observerdef.MetricTypeDeltaCount)
 
 		// connection.errors → analyzed as "connection.errors:count" — two service variants
 		connErrors := getDemoConnectionErrorsValue(elapsed)
-		tb.storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"})
-		tb.storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"})
+		tb.storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"}, observerdef.MetricTypeDeltaCount)
+		tb.storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"}, observerdef.MetricTypeDeltaCount)
 	}
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)

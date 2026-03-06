@@ -65,7 +65,7 @@ type metricObs struct {
 	value      float64
 	tags       []string
 	timestamp  int64
-	metricType string
+	metricType observerdef.MetricType
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -93,7 +93,7 @@ func (m *metricObs) GetSampleRate() float64 {
 }
 
 func (m *metricObs) GetMetricTypeName() string {
-	return m.metricType
+	return m.metricType.String()
 }
 
 // logObs contains copied log data and implements observerdef.LogView.
@@ -402,7 +402,7 @@ func (o *observerImpl) run() {
 
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
-	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags, m.metricType)
 	o.maybeRunDetectors(m.timestamp)
 }
 
@@ -413,7 +413,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		result := detector.Process(view)
 		for _, m := range result.Metrics {
 			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags, m.MetricType)
 		}
 		// Route directly emitted anomalies through the standard pipeline
 		for _, anomaly := range result.Anomalies {
@@ -707,7 +707,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 			value:      sample.GetValue(),
 			tags:       copyTags(sample.GetRawTags()),
 			timestamp:  timestamp,
-			metricType: sample.GetMetricTypeName(),
+			metricType: observerdef.ParseMetricType(sample.GetMetricTypeName()),
 		},
 	}
 
