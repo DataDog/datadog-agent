@@ -1,0 +1,12 @@
+description: Newline-separated commands continue executing after a failure.
+input:
+  script: |+
+    false
+    echo still running
+    echo done
+expect:
+  stdout: |+
+    still running
+    done
+  stderr: ""
+  exit_code: 0

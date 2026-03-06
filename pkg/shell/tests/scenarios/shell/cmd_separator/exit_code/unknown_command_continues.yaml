@@ -1,0 +1,9 @@
+description: An unknown command does not prevent subsequent commands from running.
+input:
+  script: |+
+    nonexistent_cmd; echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["nonexistent_cmd", "command not found"]
+  exit_code: 0

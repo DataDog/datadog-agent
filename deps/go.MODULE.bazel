@@ -10,6 +10,7 @@ use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "b
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 use_repo(
     go_deps,
+    "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_units",
@@ -387,6 +388,7 @@ use_repo(
     "com_github_yusufpapurcu_wmi",
     "com_gitlab_gitlab_org_api_client_go",
     "in_gopkg_datadog_dd_trace_go_v1",
+    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",

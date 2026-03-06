@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: The $PPID variable has no special meaning and expands to empty.
+input:
+  script: |+
+    echo "[$PPID]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

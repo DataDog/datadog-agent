@@ -1,0 +1,9 @@
+description: Negation of a three-stage pipeline inverts the exit code of the last command.
+input:
+  script: |+
+    ! echo hello | cat | cat
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 1

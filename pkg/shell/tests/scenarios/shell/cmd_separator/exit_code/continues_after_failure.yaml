@@ -1,0 +1,10 @@
+description: Execution continues after a failing command in a semicolon list.
+input:
+  script: |+
+    false; echo still running; echo done
+expect:
+  stdout: |+
+    still running
+    done
+  stderr: ""
+  exit_code: 0

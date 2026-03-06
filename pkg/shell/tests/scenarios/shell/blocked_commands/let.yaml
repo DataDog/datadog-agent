@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: let is not supported.
+input:
+  script: |+
+    let "x=1+2"
+expect:
+  stdout: ""
+  stderr: |+
+    let is not supported
+  exit_code: 2

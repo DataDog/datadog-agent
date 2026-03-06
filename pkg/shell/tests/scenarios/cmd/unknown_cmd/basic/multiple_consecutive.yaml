@@ -1,0 +1,10 @@
+description: Multiple unknown commands on separate lines all execute and report errors.
+input:
+  script: |+
+    foo
+    bar
+    baz
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "bar", "baz", "command not found"]
+  exit_code: 127

@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: readonly is not supported.
+input:
+  script: |+
+    readonly X=42
+expect:
+  stdout: ""
+  stderr: |+
+    readonly is not supported
+  exit_code: 2

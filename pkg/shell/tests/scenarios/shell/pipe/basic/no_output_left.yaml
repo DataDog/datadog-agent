@@ -1,0 +1,8 @@
+description: Pipe with no output from left side produces empty stdout.
+input:
+  script: |+
+    true | cat
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

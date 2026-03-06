@@ -1,0 +1,12 @@
+description: Commands after a for loop execute normally.
+input:
+  script: |+
+    for i in a b; do echo $i; done
+    echo after
+expect:
+  stdout: |+
+    a
+    b
+    after
+  stderr: ""
+  exit_code: 0

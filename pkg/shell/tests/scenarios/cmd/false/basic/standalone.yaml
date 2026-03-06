@@ -1,0 +1,8 @@
+description: The false builtin exits with code 1 and no output.
+input:
+  script: |+
+    false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

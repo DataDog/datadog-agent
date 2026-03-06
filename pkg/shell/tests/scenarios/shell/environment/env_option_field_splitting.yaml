@@ -1,0 +1,10 @@
+description: "Env option provides variables used in field splitting"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    ITEMS: "a b c"
+  script: |
+    for w in $ITEMS; do echo "$w"; done
+expect:
+  stdout: "a\nb\nc\n"
+  exit_code: 0

@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Pattern replacement ${var/pattern/replacement} is not supported.
+input:
+  script: |+
+    X=hello
+    echo ${X/l/L}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var/pattern/replacement} is not supported
+  exit_code: 2

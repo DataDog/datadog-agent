@@ -1,0 +1,13 @@
+test_against_local_shell: false
+description: Input redirect from a nonexistent file fails at the redirect level, not cat itself, so the error has no "cat:" prefix.
+target_os: [linux, darwin]
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "nonexistent.txt"
+    - "no such file or directory"
+  exit_code: 1

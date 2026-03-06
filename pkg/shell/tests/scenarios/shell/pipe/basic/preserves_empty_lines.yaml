@@ -1,0 +1,11 @@
+description: Pipeline preserves blank lines in multi-line output.
+input:
+  script: |+
+    { echo a; echo ""; echo b; } | cat
+expect:
+  stdout: |+
+    a
+
+    b
+  stderr: ""
+  exit_code: 0

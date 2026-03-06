@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Exit with multiple arguments produces an error and exits.
+input:
+  script: |+
+    exit 1 2
+expect:
+  stdout: ""
+  stderr: |+
+    exit cannot take multiple arguments
+  exit_code: 1

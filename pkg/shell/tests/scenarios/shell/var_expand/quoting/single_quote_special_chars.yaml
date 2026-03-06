@@ -1,0 +1,9 @@
+description: Single quotes preserve special characters literally including dollar, backtick, backslash, and glob chars.
+input:
+  script: |+
+    echo '$VAR' '\n' '\t' '`cmd`' '$(cmd)' '*' '?' '[abc]'
+expect:
+  stdout: |+
+    $VAR \n \t `cmd` $(cmd) * ? [abc]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: "Input redirect using a variable-expanded path inside allowed path"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/input.txt"
+      content: "redirect via var\n"
+input:
+  script: |
+    F=data/input.txt
+    cat < "$F"
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "redirect via var\n"
+  exit_code: 0

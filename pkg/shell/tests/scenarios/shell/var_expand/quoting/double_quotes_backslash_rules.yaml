@@ -1,0 +1,9 @@
+description: In double quotes only $ ` \ " and newline are special after backslash.
+input:
+  script: |+
+    echo "a\\b" "a\b"
+expect:
+  stdout: |+
+    a\b a\b
+  stderr: ""
+  exit_code: 0

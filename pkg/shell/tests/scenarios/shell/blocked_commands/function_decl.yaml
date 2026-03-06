@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Function declarations are not supported.
+input:
+  script: |+
+    myfunc() { echo hello; }
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

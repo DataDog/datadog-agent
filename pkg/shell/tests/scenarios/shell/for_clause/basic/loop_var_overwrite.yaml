@@ -1,0 +1,18 @@
+description: Reassigning the loop variable inside the body does not affect iteration.
+input:
+  script: |+
+    for i in a b c; do
+      echo "before:$i"
+      i=overwritten
+      echo "after:$i"
+    done
+expect:
+  stdout: |+
+    before:a
+    after:overwritten
+    before:b
+    after:overwritten
+    before:c
+    after:overwritten
+  stderr: ""
+  exit_code: 0

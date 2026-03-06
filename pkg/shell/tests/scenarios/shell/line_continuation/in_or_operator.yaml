@@ -1,0 +1,12 @@
+description: Line continuation after || operator continues the or-list on the next line.
+input:
+  script: |+
+    false ||
+    false ||
+
+    echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

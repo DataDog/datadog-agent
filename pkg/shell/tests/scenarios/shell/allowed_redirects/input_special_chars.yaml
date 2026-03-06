@@ -1,0 +1,13 @@
+description: Input redirection preserves special characters in file content.
+setup:
+  files:
+    - path: special.txt
+      content: "tab\there\n*glob* ?question\n$dollar ${brace}\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < special.txt
+expect:
+  stdout: "tab\there\n*glob* ?question\n$dollar ${brace}\n"
+  stderr: ""
+  exit_code: 0

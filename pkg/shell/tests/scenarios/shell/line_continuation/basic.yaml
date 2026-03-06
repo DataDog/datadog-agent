@@ -1,0 +1,10 @@
+description: Backslash at end of line continues the command on the next line.
+input:
+  script: |+
+    echo hel\
+    lo
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

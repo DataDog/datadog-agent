@@ -1,0 +1,17 @@
+description: Star glob matches all non-hidden files.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.log
+      content: ""
+    - path: c
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *
+expect:
+  stdout_contains: ["a.txt", "b.log", "c"]
+  stderr: ""
+  exit_code: 0

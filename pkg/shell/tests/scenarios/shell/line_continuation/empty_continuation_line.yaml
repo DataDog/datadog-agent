@@ -1,0 +1,11 @@
+description: Line continuation with empty continuation line (just backslash-newline-backslash-newline).
+input:
+  script: |+
+    echo 123\
+    \
+    456
+expect:
+  stdout: |+
+    123456
+  stderr: ""
+  exit_code: 0

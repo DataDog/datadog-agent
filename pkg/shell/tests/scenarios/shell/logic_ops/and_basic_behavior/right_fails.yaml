@@ -1,0 +1,9 @@
+description: When left side succeeds but right side fails, exit code is from right.
+input:
+  script: |+
+    echo ok && false
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 1

@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Arithmetic commands are not supported.
+input:
+  script: |+
+    (( 1 + 2 ))
+expect:
+  stdout: ""
+  stderr: |+
+    arithmetic commands are not supported
+  exit_code: 2

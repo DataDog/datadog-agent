@@ -1,0 +1,12 @@
+test_against_local_shell: false
+description: A blocked command after valid commands still causes rejection.
+input:
+  script: |+
+    echo before
+    if true; then echo yes; fi
+    echo after
+expect:
+  stdout: ""
+  stderr: |+
+    if statements are not supported
+  exit_code: 2

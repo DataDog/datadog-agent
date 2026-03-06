@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Extended globbing is not supported.
+input:
+  script: |+
+    echo @(foo|bar)
+expect:
+  stdout: ""
+  stderr: |+
+    extended globbing is not supported
+  exit_code: 2

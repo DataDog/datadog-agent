@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Process substitution is not supported.
+input:
+  script: |+
+    cat <(echo hello)
+expect:
+  stdout: ""
+  stderr: |+
+    process substitution is not supported
+  exit_code: 2

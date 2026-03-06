@@ -1,0 +1,12 @@
+description: Variable value containing a newline preserves it when quoted.
+input:
+  script: |+
+    VAR="line1
+    line2"
+    echo "$VAR"
+expect:
+  stdout: |+
+    line1
+    line2
+  stderr: ""
+  exit_code: 0

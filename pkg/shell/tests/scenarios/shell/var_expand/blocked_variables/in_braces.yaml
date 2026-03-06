@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Variables without special meaning also expand to empty with brace syntax.
+input:
+  script: |+
+    echo "[${RANDOM}]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

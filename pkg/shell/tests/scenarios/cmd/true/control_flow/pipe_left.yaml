@@ -1,0 +1,9 @@
+description: The true builtin on the left side of a pipe produces no input.
+input:
+  script: |+
+    true | echo piped
+expect:
+  stdout: |+
+    piped
+  stderr: ""
+  exit_code: 0

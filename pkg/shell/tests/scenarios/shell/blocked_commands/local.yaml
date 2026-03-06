@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: local is not supported.
+input:
+  script: |+
+    local X=42
+expect:
+  stdout: ""
+  stderr: |+
+    local is not supported
+  exit_code: 2

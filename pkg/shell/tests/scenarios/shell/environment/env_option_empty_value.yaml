@@ -1,0 +1,10 @@
+description: "Env option can provide empty-string values"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    EMPTY_VAR: ""
+  script: |
+    echo "val=[$EMPTY_VAR]"
+expect:
+  stdout: "val=[]\n"
+  exit_code: 0

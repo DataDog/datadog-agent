@@ -1,0 +1,18 @@
+description: "For loop reading files from allowed path via glob"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/a.txt"
+      content: "alpha\n"
+    - path: "data/b.txt"
+      content: "beta\n"
+input:
+  script: |
+    for f in data/*.txt; do
+      cat "$f"
+    done
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "alpha\nbeta\n"
+  exit_code: 0

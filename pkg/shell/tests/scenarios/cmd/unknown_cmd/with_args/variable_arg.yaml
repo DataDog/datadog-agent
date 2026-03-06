@@ -1,0 +1,9 @@
+description: An unknown command with a variable-expanded argument still prints "command not found".
+input:
+  script: |+
+    MY_VAR=hello
+    foo $MY_VAR
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "command not found"]
+  exit_code: 127

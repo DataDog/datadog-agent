@@ -1,0 +1,9 @@
+description: Double quotes preserve single quote characters literally.
+input:
+  script: |+
+    echo "'hello'" "'a'"
+expect:
+  stdout: |+
+    'hello' 'a'
+  stderr: ""
+  exit_code: 0

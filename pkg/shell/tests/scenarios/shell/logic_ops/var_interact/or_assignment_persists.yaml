@@ -1,0 +1,10 @@
+description: Variable set in || left side is visible even when left succeeds and right is skipped.
+input:
+  script: |+
+    V=set || echo "fallback"
+    echo "$V"
+expect:
+  stdout: |+
+    set
+  stderr: ""
+  exit_code: 0

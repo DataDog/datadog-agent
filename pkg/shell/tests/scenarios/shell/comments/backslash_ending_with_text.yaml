@@ -1,0 +1,10 @@
+description: Comment ending with backslash does not cause line continuation - next line runs normally.
+input:
+  script: |+
+    # this comment ends with backslash \
+    echo ok
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

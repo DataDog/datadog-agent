@@ -1,0 +1,19 @@
+description: Variable containing glob characters is expanded and glob-matched when unquoted.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.log
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    PATTERN="*.txt"
+    echo $PATTERN
+expect:
+  stdout: |+
+    a.txt b.txt
+  stderr: ""
+  exit_code: 0

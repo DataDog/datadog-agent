@@ -1,0 +1,13 @@
+description: In a 4-stage pipeline, the last command's exit code determines the pipeline status.
+input:
+  script: |+
+    exit 1 | exit 2 | exit 3 | exit 4
+    echo $?
+    exit 9 | exit 8 | exit 7 | exit 0
+    echo $?
+expect:
+  stdout: |+
+    4
+    0
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: An unknown command sets exit code 127.
+input:
+  script: |+
+    nonexistent
+expect:
+  stdout: ""
+  stderr_contains: ["nonexistent", "command not found"]
+  exit_code: 127

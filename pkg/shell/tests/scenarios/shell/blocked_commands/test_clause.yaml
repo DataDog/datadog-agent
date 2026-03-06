@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Test expressions are not supported.
+input:
+  script: |+
+    [[ -n "hello" ]]
+expect:
+  stdout: ""
+  stderr: |+
+    test expressions are not supported
+  exit_code: 2

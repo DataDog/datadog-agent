@@ -1,0 +1,18 @@
+test_against_local_shell: false
+description: Cat on a directory fails with "is a directory" error and exits with code 1.
+target_os: [linux, darwin]
+setup:
+  files:
+    - path: mydir/placeholder.txt
+      content: "placeholder"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat mydir
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: mydir:"
+    - "is a directory"
+  exit_code: 1

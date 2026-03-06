@@ -1,0 +1,9 @@
+description: Negating a command-not-found (exit 127) produces exit code 0.
+input:
+  script: |+
+    ! nonexistent_command_xyz
+expect:
+  stdout: ""
+  stderr_contains:
+    - "command not found"
+  exit_code: 0
