@@ -34,10 +34,10 @@ type PersistedIdentity struct {
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ctx context.Context, ddSite, runnerHostname, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey string) (*Result, error) {
 	now := time.Now().UTC()
 	formattedTime := now.Format("20060102150405")
-	runnerName := runnerHostname + "-" + formattedTime
+	runnerName := runnerNamePrefix + "-" + formattedTime
 
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
