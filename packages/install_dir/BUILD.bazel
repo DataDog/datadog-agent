@@ -34,6 +34,7 @@ filegroup(
         "//packages/agent:linux_default": [
             "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
+            "@cpython//:all_files",
             "@freetds//:all_files",
         ],
         "//conditions:default": [

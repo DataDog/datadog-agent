@@ -35,6 +35,7 @@ pkg_filegroup(
 pkg_filegroup(
     name = "transitive_deps",
     srcs = [
+        "//deps/cpython:all_python_deps",
         "//deps/gstatus:bin_files",
         "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",

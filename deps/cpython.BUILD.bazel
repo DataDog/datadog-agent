@@ -1,5 +1,7 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -247,10 +249,10 @@ configure_make(
         "@zlib//:zlib",
     ],
     dynamic_deps = [
-        "@bzip2//:bz2",
-        "@sqlite3//:sqlite3",
-        "@xz//:lzma",
-        "@zlib//:z",
+        "@bzip2//:bz2_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
     ],
     includes = ["python{}".format(VERSION_STR)],
     targets = [
@@ -401,11 +403,21 @@ select_file(
     subpath = "lib/libpython3.so",
 )
 
+rewrite_rpath(
+    name = "python_lib_unix_rpath_patched",
+    inputs = [":python_lib_unix"],
+)
+
+rewrite_rpath(
+    name = "python3_bin_rpath_patched",
+    inputs = [":python3_bin"],
+)
+
 pkg_files(
     name = "install_libs_unix",
     srcs = [
         ":python_lib_dir_unix",
-        ":python_lib_unix",
+        ":python_lib_unix_rpath_patched",
     ] + select({
         "@platforms//os:linux": [":python_stable_lib_linux"],
         "//conditions:default": [],
@@ -422,7 +434,7 @@ pkg_files(
 pkg_files(
     name = "install_bins_unix",
     srcs = [
-        ":python3_bin",
+        ":python3_bin_rpath_patched",
         ":patch_pip_interpreter",
     ],
     prefix = "bin",
@@ -448,6 +460,13 @@ pkg_filegroup(
         "@platforms//os:windows": "embedded3",
         "//conditions:default": "embedded",
     }),
+)
+
+dd_auto_pkg_artifact(
+    name = "python_pkg",
+    src = ":python_unix_shared",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(
