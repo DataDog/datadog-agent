@@ -126,15 +126,16 @@ RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
 #       --build-arg REGISTRY_AUTH=password \
 #       --secret id=registry_username,env=REGISTRY_USERNAME \
 #       --secret id=registry_password,env=REGISTRY_PASSWORD ...
-#     (with REGISTRY_AUTH=password, REGISTRY_USERNAME=..., REGISTRY_PASSWORD=... in the environment)
 ARG AGENT_OCI
 ARG OUTPUT_OCI
 ARG REGISTRY_AUTH=""
 RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
-    --mount=type=secret,id=registry_username,env=REGISTRY_USERNAME,required=false \
-    --mount=type=secret,id=registry_password,env=REGISTRY_PASSWORD,required=false \
+    --mount=type=secret,id=registry_username,required=false \
+    --mount=type=secret,id=registry_password,required=false \
     <<'RUNSCRIPT'
 set -e
+export REGISTRY_USERNAME=$(cat /run/secrets/registry_username 2>/dev/null || true)
+export REGISTRY_PASSWORD=$(cat /run/secrets/registry_password 2>/dev/null || true)
 ARCH=$(dpkg --print-architecture)
 mkdir -p /dist
 case "$PACKAGE_TYPE" in
