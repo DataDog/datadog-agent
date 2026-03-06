@@ -97,6 +97,12 @@ RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
 
+# Rust packages that produce a CGO-linkable shared library (.so).
+# Kept separate from RUST_BINARIES since not every Rust binary exposes a CGO interface.
+RUST_CGO_LIBS = [
+    "pkg/discovery/module/rust",
+]
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -1659,7 +1665,7 @@ def build_rust_cgo_libs(ctx: Context, arch: Arch):
     if arch.kmt_arch in platform_map:
         platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
 
-    for source_path in RUST_BINARIES:
+    for source_path in RUST_CGO_LIBS:
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install_cgo_libs --destdir={Path(source_path)}")
 
 
