@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod command;
 mod config;
 mod env;
 mod grpc;
@@ -11,6 +12,7 @@ mod process;
 mod shutdown;
 mod state;
 
+use crate::command::{Command, ReloadResult};
 use crate::config::NamedProcess;
 use anyhow::Result;
 use log::{info, warn};
@@ -18,10 +20,11 @@ use process::ManagedProcess;
 use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{RwLock, mpsc, oneshot};
+use tonic::Status;
 
-struct ExitEvent {
-    index: usize,
-    status: std::process::ExitStatus,
+pub(crate) struct ExitEvent {
+    pub name: String,
+    pub status: std::process::ExitStatus,
 }
 
 #[derive(Clone)]
@@ -42,35 +45,156 @@ impl ProcessManager {
 
     async fn wire_watchers(&self, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
         let mut procs = self.processes.write().await;
-        for (i, proc) in procs.iter_mut().enumerate() {
+        for proc in procs.iter_mut() {
             if proc.is_running() {
-                spawn_watcher(i, proc, exit_tx.clone());
+                spawn_watcher(proc, exit_tx.clone());
             }
         }
     }
 
-    async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::UnboundedSender<usize>) {
+    async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::UnboundedSender<String>) {
         let mut procs = self.processes.write().await;
-        let proc = &mut procs[event.index];
+        let Some(proc) = procs.iter_mut().find(|p| p.name == event.name) else {
+            warn!("exit event for unknown process '{}'", event.name);
+            return;
+        };
         info!("[{}] exited with {}", proc.name, event.status);
         proc.set_last_status(event.status);
         if let Some(delay) = proc.handle_restart() {
             let tx = restart_tx.clone();
-            let idx = event.index;
+            let name = event.name;
             tokio::spawn(async move {
                 tokio::time::sleep(delay).await;
-                let _ = tx.send(idx);
+                let _ = tx.send(name);
             });
         }
     }
 
-    async fn complete_restart(&self, index: usize, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
+    async fn complete_restart(&self, name: &str, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
         let mut procs = self.processes.write().await;
-        let proc = &mut procs[index];
+        let Some(proc) = procs.iter_mut().find(|p| p.name == name) else {
+            warn!("restart for unknown process '{name}'");
+            return;
+        };
         match proc.spawn() {
-            Ok(()) => spawn_watcher(index, proc, exit_tx.clone()),
+            Ok(()) => spawn_watcher(proc, exit_tx.clone()),
             Err(e) => warn!("[{}] restart failed: {e:#}", proc.name),
         }
+    }
+
+    pub(crate) async fn handle_create(
+        &self,
+        name: String,
+        config: config::ProcessConfig,
+    ) -> Result<(), Status> {
+        if config.command.is_empty() {
+            return Err(Status::invalid_argument("command must not be empty"));
+        }
+        let mut procs = self.processes.write().await;
+        if procs.iter().any(|p| p.name == name) {
+            return Err(Status::already_exists(format!(
+                "process '{name}' already exists"
+            )));
+        }
+        procs.push(process::ManagedProcess::new(name, config));
+        Ok(())
+    }
+
+    pub(crate) async fn handle_start(
+        &self,
+        name: &str,
+        exit_tx: &mpsc::UnboundedSender<ExitEvent>,
+    ) -> Result<(), Status> {
+        let mut procs = self.processes.write().await;
+        let proc = procs
+            .iter_mut()
+            .find(|p| p.name == name)
+            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+
+        if proc.is_running() {
+            return Err(Status::failed_precondition(format!(
+                "process '{name}' is already running"
+            )));
+        }
+        proc.spawn()
+            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+        spawn_watcher(proc, exit_tx.clone());
+        Ok(())
+    }
+
+    pub(crate) async fn handle_stop(&self, name: &str) -> Result<(), Status> {
+        let mut procs = self.processes.write().await;
+        let proc = procs
+            .iter_mut()
+            .find(|p| p.name == name)
+            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+
+        if !proc.is_running() {
+            return Err(Status::failed_precondition(format!(
+                "process '{name}' is not running"
+            )));
+        }
+        proc.request_stop();
+        Ok(())
+    }
+
+    pub(crate) async fn handle_reload_config(
+        &self,
+        exit_tx: &mpsc::UnboundedSender<ExitEvent>,
+    ) -> Result<ReloadResult, Status> {
+        let new_configs = load_configs();
+        let new_names: std::collections::HashSet<&str> =
+            new_configs.iter().map(|(n, _)| n.as_str()).collect();
+
+        let mut procs = self.processes.write().await;
+        let existing_names: std::collections::HashSet<String> =
+            procs.iter().map(|p| p.name.clone()).collect();
+
+        let mut added = Vec::new();
+        let mut removed = Vec::new();
+        let mut unchanged = Vec::new();
+
+        // Stop and remove processes whose configs were deleted
+        let mut i = 0;
+        while i < procs.len() {
+            if !new_names.contains(procs[i].name.as_str()) {
+                let proc = &mut procs[i];
+                info!("[{}] config removed, stopping", proc.name);
+                if proc.is_running() {
+                    proc.request_stop();
+                    proc.wait_for_stop().await;
+                }
+                removed.push(proc.name.clone());
+                procs.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+
+        // Add new processes
+        for (name, cfg) in new_configs {
+            if existing_names.contains(&name) {
+                unchanged.push(name);
+            } else {
+                info!("[{name}] new config found, adding");
+                let mut proc = ManagedProcess::new(name.clone(), cfg);
+                if proc.should_start() {
+                    if let Err(e) = proc.spawn() {
+                        warn!("[{name}] failed to start: {e:#}");
+                    } else {
+                        spawn_watcher(&mut proc, exit_tx.clone());
+                    }
+                }
+                procs.push(proc);
+                added.push(name);
+            }
+        }
+
+        Ok(ReloadResult {
+            added,
+            removed,
+            unchanged,
+        })
     }
 
     async fn shutdown(&self, startup_order: &[usize]) {
@@ -93,16 +217,18 @@ async fn main() -> Result<()> {
     let processes = start_processes(configs, &startup_order);
     let mgr = ProcessManager::new(processes);
 
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
     let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
     let config_path = config::config_dir().display().to_string();
     let grpc_handle = tokio::spawn(grpc::server::run(
         mgr.clone(),
         config_path,
+        cmd_tx,
         grpc_shutdown_rx,
     ));
 
     let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-    let (restart_tx, mut restart_rx) = mpsc::unbounded_channel::<usize>();
+    let (restart_tx, mut restart_rx) = mpsc::unbounded_channel::<String>();
     mgr.wire_watchers(&exit_tx).await;
 
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -121,8 +247,24 @@ async fn main() -> Result<()> {
             Some(event) = exit_rx.recv() => {
                 mgr.handle_exit(event, &restart_tx).await;
             }
-            Some(index) = restart_rx.recv() => {
-                mgr.complete_restart(index, &exit_tx).await;
+            Some(name) = restart_rx.recv() => {
+                mgr.complete_restart(&name, &exit_tx).await;
+            }
+            Some(cmd) = cmd_rx.recv() => {
+                match cmd {
+                    Command::Create { name, config, reply } => {
+                        let _ = reply.send(mgr.handle_create(name, *config).await);
+                    }
+                    Command::Start { name, reply } => {
+                        let _ = reply.send(mgr.handle_start(&name, &exit_tx).await);
+                    }
+                    Command::Stop { name, reply } => {
+                        let _ = reply.send(mgr.handle_stop(&name).await);
+                    }
+                    Command::ReloadConfig { reply } => {
+                        let _ = reply.send(mgr.handle_reload_config(&exit_tx).await);
+                    }
+                }
             }
         }
     }
@@ -142,14 +284,17 @@ async fn main() -> Result<()> {
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.
-fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
+pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
         let name = proc.name.clone();
         let handle = tokio::spawn(async move {
             let mut child = child;
             match child.wait().await {
                 Ok(status) => {
-                    let _ = tx.send(ExitEvent { index, status });
+                    let _ = tx.send(ExitEvent {
+                        name: name.clone(),
+                        status,
+                    });
                 }
                 Err(e) => {
                     warn!("[{name}] wait error: {e}, killing process");

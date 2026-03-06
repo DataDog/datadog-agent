@@ -4,24 +4,29 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::ProcessManager;
+use crate::command::Command;
+use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::proto;
 use crate::process::ManagedProcess;
 use crate::state::ProcessState;
 use std::time::Instant;
+use tokio::sync::{mpsc, oneshot};
 use tonic::{Request, Response, Status};
 
 pub struct ProcessManagerService {
     mgr: ProcessManager,
     started_at: Instant,
     config_path: String,
+    cmd_tx: mpsc::Sender<Command>,
 }
 
 impl ProcessManagerService {
-    pub fn new(mgr: ProcessManager, config_path: String) -> Self {
+    pub fn new(mgr: ProcessManager, config_path: String, cmd_tx: mpsc::Sender<Command>) -> Self {
         Self {
             mgr,
             started_at: Instant::now(),
             config_path,
+            cmd_tx,
         }
     }
 }
@@ -88,6 +93,84 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             config_path: self.config_path.clone(),
         }))
     }
+
+    async fn create(
+        &self,
+        request: Request<proto::CreateRequest>,
+    ) -> Result<Response<proto::CreateResponse>, Status> {
+        let req = request.into_inner();
+        let config = create_request_to_config(&req)?;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.cmd_tx
+            .send(Command::Create {
+                name: req.name,
+                config: Box::new(config),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| Status::internal("event loop not available"))?;
+        reply_rx
+            .await
+            .map_err(|_| Status::internal("event loop dropped reply"))?
+            .map(|()| Response::new(proto::CreateResponse {}))
+    }
+
+    async fn start(
+        &self,
+        request: Request<proto::StartRequest>,
+    ) -> Result<Response<proto::StartResponse>, Status> {
+        let name = request.into_inner().name;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.cmd_tx
+            .send(Command::Start {
+                name,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| Status::internal("event loop not available"))?;
+        reply_rx
+            .await
+            .map_err(|_| Status::internal("event loop dropped reply"))?
+            .map(|()| Response::new(proto::StartResponse {}))
+    }
+
+    async fn stop(
+        &self,
+        request: Request<proto::StopRequest>,
+    ) -> Result<Response<proto::StopResponse>, Status> {
+        let name = request.into_inner().name;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.cmd_tx
+            .send(Command::Stop {
+                name,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| Status::internal("event loop not available"))?;
+        reply_rx
+            .await
+            .map_err(|_| Status::internal("event loop dropped reply"))?
+            .map(|()| Response::new(proto::StopResponse {}))
+    }
+
+    async fn reload_config(
+        &self,
+        _request: Request<proto::ReloadConfigRequest>,
+    ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.cmd_tx
+            .send(Command::ReloadConfig { reply: reply_tx })
+            .await
+            .map_err(|_| Status::internal("event loop not available"))?;
+        let result = reply_rx
+            .await
+            .map_err(|_| Status::internal("event loop dropped reply"))??;
+        Ok(Response::new(proto::ReloadConfigResponse {
+            added: result.added,
+            removed: result.removed,
+            unchanged: result.unchanged,
+        }))
+    }
 }
 
 fn state_to_proto(state: ProcessState) -> i32 {
@@ -111,6 +194,59 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         args: cfg.args.clone(),
         state: state_to_proto(proc.state()),
     }
+}
+
+#[allow(clippy::result_large_err)]
+fn parse_restart_policy(s: &str) -> Result<RestartPolicy, Status> {
+    match s {
+        "" | "never" | "Never" => Ok(RestartPolicy::Never),
+        "always" | "Always" => Ok(RestartPolicy::Always),
+        "on-failure" | "OnFailure" => Ok(RestartPolicy::OnFailure),
+        "on-success" | "OnSuccess" => Ok(RestartPolicy::OnSuccess),
+        other => Err(Status::invalid_argument(format!(
+            "unknown restart_policy '{other}'"
+        ))),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig, Status> {
+    let defaults = ProcessConfig::default();
+    Ok(ProcessConfig {
+        command: req.command.clone(),
+        args: req.args.clone(),
+        env: req.env.clone(),
+        description: if req.description.is_empty() {
+            None
+        } else {
+            Some(req.description.clone())
+        },
+        working_dir: if req.working_dir.is_empty() {
+            None
+        } else {
+            Some(req.working_dir.clone())
+        },
+        stdout: if req.stdout.is_empty() {
+            defaults.stdout
+        } else {
+            req.stdout.clone()
+        },
+        stderr: if req.stderr.is_empty() {
+            defaults.stderr
+        } else {
+            req.stderr.clone()
+        },
+        auto_start: req.auto_start.unwrap_or(defaults.auto_start),
+        restart: parse_restart_policy(&req.restart_policy)?,
+        condition_path_exists: if req.condition_path_exists.is_empty() {
+            None
+        } else {
+            Some(req.condition_path_exists.clone())
+        },
+        after: req.after.clone(),
+        before: req.before.clone(),
+        ..defaults
+    })
 }
 
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
