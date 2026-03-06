@@ -8,13 +8,13 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
 
 	"go.uber.org/atomic"
-	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -145,7 +145,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
-	if err := yaml.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
+	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
 	}
 
@@ -177,21 +177,21 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 
 	log.Infof("Interpreter stats received: %v", payload)
 
-	stats := map[interface{}]interface{}{}
-	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
+	stats := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(payload), &stats); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
 	}
 
 	myPythonStats := []*PythonStats{}
 	// Let's iterate map
 	for entryName, value := range stats {
-		entrySummary := value.(map[interface{}]interface{})
-		num := entrySummary["num"].(int)
-		size := entrySummary["sz"].(int)
+		entrySummary := value.(map[string]interface{})
+		num := int(entrySummary["num"].(float64))
+		size := int(entrySummary["sz"].(float64))
 		entries := entrySummary["entries"].([]interface{})
 
 		pyStat := &PythonStats{
-			Type:     entryName.(string),
+			Type:     entryName,
 			NObjects: num,
 			Size:     size,
 			Entries:  []*PythonStatsEntry{},
@@ -200,8 +200,8 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		for _, entry := range entries {
 			contents := entry.([]interface{})
 			ref := contents[0].(string)
-			refNum := contents[1].(int)
-			refSz := contents[2].(int)
+			refNum := int(contents[1].(float64))
+			refSz := int(contents[2].(float64))
 
 			// add to list
 			pyEntry := &PythonStatsEntry{

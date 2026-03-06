@@ -11,8 +11,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 // CodeMetadata contains metadata about the generated code.
@@ -229,7 +227,7 @@ func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 		comment: i.target.String(),
 	}
 	if i.codeByteLen() != si.codeByteLen() {
-		return errors.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+		return fmt.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
 	}
 	return si.encode(t, out)
 }

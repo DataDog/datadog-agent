@@ -15,11 +15,11 @@ package customresources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

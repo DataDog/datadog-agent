@@ -101,6 +101,12 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 	return integrations, nil
 }
 
+// InstallIntegration installs a custom integration on the agent (e.g. "datadog-ping==1.0.2").
+func (a *Agent) InstallIntegration(name string) error {
+	_, err := a.runCommand("integration", "install", "-t", name)
+	return err
+}
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
