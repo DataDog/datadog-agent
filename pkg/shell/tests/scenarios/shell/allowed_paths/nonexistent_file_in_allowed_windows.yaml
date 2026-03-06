@@ -1,6 +1,6 @@
-description: "Non-existent file inside allowed directory returns an error"
+description: "Non-existent file inside allowed directory returns an error (Windows)"
 test_against_local_shell: false
-target_os: [linux, darwin]
+target_os: [windows]
 setup:
   files:
     - path: "data/exists.txt"
@@ -12,5 +12,5 @@ input:
     - "data"
 expect:
   stderr_contains:
-    - "no such file or directory"
+    - "The system cannot find the file specified."
   exit_code: 1

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -103,7 +104,11 @@ func TestAllowedPathsCatOutside(t *testing.T) {
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
-	assert.Contains(t, stderr, "permission denied")
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, stderr, "path escapes from parent")
+	} else {
+		assert.Contains(t, stderr, "permission denied")
+	}
 }
 
 func TestAllowedPathsRedirectInside(t *testing.T) {

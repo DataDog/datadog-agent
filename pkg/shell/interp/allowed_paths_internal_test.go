@@ -69,12 +69,25 @@ func runScriptInternal(t *testing.T, script, dir string, opts ...RunnerOption) (
 
 func TestAllowedPathsExecInside(t *testing.T) {
 	dir := t.TempDir()
-	// /bin/echo should be within the allowed path if we allow /bin or /usr
-	stdout, _, exitCode := runScriptInternal(t, `/bin/echo hello`, dir,
-		AllowedPaths([]string{dir, "/bin", "/usr"}),
-	)
-	assert.Equal(t, 0, exitCode)
-	assert.Equal(t, "hello\n", stdout)
+	if runtime.GOOS == "windows" {
+		// On Windows, use the system directory for echo
+		systemRoot := os.Getenv("SystemRoot")
+		if systemRoot == "" {
+			systemRoot = `C:\Windows`
+		}
+		stdout, _, exitCode := runScriptInternal(t, `echo hello`, dir,
+			AllowedPaths([]string{dir, systemRoot}),
+		)
+		assert.Equal(t, 0, exitCode)
+		assert.Equal(t, "hello\n", stdout)
+	} else {
+		// /bin/echo should be within the allowed path if we allow /bin or /usr
+		stdout, _, exitCode := runScriptInternal(t, `/bin/echo hello`, dir,
+			AllowedPaths([]string{dir, "/bin", "/usr"}),
+		)
+		assert.Equal(t, 0, exitCode)
+		assert.Equal(t, "hello\n", stdout)
+	}
 }
 
 func TestAllowedPathsExecOutside(t *testing.T) {
@@ -89,9 +102,17 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 
 func TestAllowedPathsExecNonexistent(t *testing.T) {
 	dir := t.TempDir()
+	allowedPaths := []string{dir, "/bin", "/usr"}
+	if runtime.GOOS == "windows" {
+		systemRoot := os.Getenv("SystemRoot")
+		if systemRoot == "" {
+			systemRoot = `C:\Windows`
+		}
+		allowedPaths = []string{dir, systemRoot}
+	}
 	// Command that doesn't exist at all — ExecLookPathDir fails
 	_, stderr, exitCode := runScriptInternal(t, `totally_nonexistent_cmd_12345`, dir,
-		AllowedPaths([]string{dir, "/bin", "/usr"}),
+		AllowedPaths(allowedPaths),
 	)
 	assert.Equal(t, 127, exitCode)
 	assert.Contains(t, stderr, "command not found")
