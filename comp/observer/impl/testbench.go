@@ -454,8 +454,8 @@ func (tb *TestBench) loadScenarioBodyLocked(name, scenarioPath string, forceRun 
 	}
 
 	if !forceRun && hasResultFiles(resultDir) {
-		// Pre-computed results are available: load virtual metrics and telemetry
-		// directly from result files without re-running the anomaly detectors.
+		// Pre-computed results are available: load virtual metrics, telemetry,
+		// and correlations directly from result files without re-running detectors.
 		fmt.Printf("  Result files found in %s — skipping detector execution\n", resultDir)
 		resultStart := time.Now()
 		if err := tb.loadResultFilesLocked(resultDir); err != nil {
@@ -464,12 +464,14 @@ func (tb *TestBench) loadScenarioBodyLocked(name, scenarioPath string, forceRun 
 		fmt.Printf("  Result file loading took %s\n", time.Since(resultStart))
 		tb.loadedFromResultFiles = true
 		tb.ready = true
-		// Kick off the correlator phase using any anomalies that may already be
-		// populated (e.g. from a prior run). In practice they will be empty when
-		// loading purely from result files, but we still start the goroutine so
-		// the correlatorsDone condition is properly signaled and the status API
-		// reports correlatorsProcessing = false as expected.
-		tb.rerunCorrelatorsLocked()
+		// Correlations were loaded from the result file; do NOT run the correlator
+		// goroutine because it would overwrite tb.correlations with empty results
+		// (metricsAnomalies is empty when loading from result files).
+		// Instead, stale any prior goroutine and mark correlators as done so that
+		// any callers waiting on correlatorsDone (e.g. RunHeadless) can proceed.
+		tb.correlatorGen++
+		tb.correlatorsProcessing = false
+		tb.correlatorsDone.Broadcast()
 	} else {
 		// No result files (or forceRun) — run the full analysis pipeline.
 		analysisStart := time.Now()
