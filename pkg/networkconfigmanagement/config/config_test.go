@@ -220,13 +220,51 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 	assert.Equal(t, "tcp", config.Auth.Protocol)
 }
 
-func TestParsingYamlFields(t *testing.T) {
-	t.Run("ssh timeouts are parsed from duration strings", func(t *testing.T) {
+func TestParsingSSHTimeoutFromYAML(t *testing.T) {
+	var tests = []struct {
+		name     string
+		timeout  string
+		expected time.Duration
+	}{
+		{
+			// we directed customers to specify this option as a timeout string, and want to maintain backwards compatibility for now.
+			name:     "duration string with units",
+			timeout:  "1m30s",
+			expected: 90 * time.Second,
+		},
+		{
+			name:     "duration string without units",
+			timeout:  "60",
+			expected: 60 * time.Second,
+		},
+		{
+			name:     "duration string with only seconds unit",
+			timeout:  "45s",
+			expected: 45 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			timeout:  "999999",
+			expected: 999999 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			timeout:  "1000000",
+			expected: time.Millisecond,
+		},
+		{
+			name:     "negative duration string",
+			timeout:  "-30s",
+			expected: defaultSSHTimeout, // should fall back to default on error
+		},
+	}
+
+	var newConfigs = func(timeout string) ([]byte, []byte) {
 		initConfig := `
 namespace: default
 ssh:
   insecure_skip_verify: true
-  timeout: 1m30s
+  timeout: ` + timeout + `
 `
 		instanceConfig := `
 ip_address: 192.168.0.1
@@ -234,25 +272,15 @@ auth:
   password: 'password'
   username: 'admin'
 `
-		cfg, err := NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
-		require.NoError(t, err)
-		assert.Equal(t, 90*time.Second, cfg.Device.Auth.SSH.Timeout, "it should parse the timeout duration correctly with units")
+		return []byte(initConfig), []byte(instanceConfig)
+	}
 
-		initConfig = `
-namespace: default
-ssh:
-  insecure_skip_verify: true
-  timeout: 60
-`
-		instanceConfig = `
-ip_address: 192.168.0.1
-auth:
-  password: 'password'
-  username: 'admin'
-`
-		cfg, err = NewNcmCheckContext([]byte(instanceConfig), []byte(initConfig))
-		require.NoError(t, err)
-		assert.Equal(t, 60*time.Nanosecond, cfg.Device.Auth.SSH.Timeout, "when there is no unit, it assumes nanoseconds")
-	})
-
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			initConfig, instanceConfig := newConfigs(tt.timeout)
+			cfg, err := NewNcmCheckContext(instanceConfig, initConfig)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Device.Auth.SSH.Timeout)
+		})
+	}
 }
