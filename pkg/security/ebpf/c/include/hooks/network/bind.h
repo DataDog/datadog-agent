@@ -63,6 +63,12 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         }
     }
 
+    if (!(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
+        if (approve_bind_sample(event.process.pid, syscall->bind.family, syscall->bind.port, syscall->bind.protocol)) {
+            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        }
+    }
+
     send_event(ctx, EVENT_BIND, event);
     return 0;
 }

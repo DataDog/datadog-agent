@@ -51,6 +51,13 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         }
     }
 
+    // rate limit only
+    if (!(evt->event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
+        if (approve_dns_sample(evt->process.pid)) {
+            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+        }
+    }
+
     return evt;
 }
 

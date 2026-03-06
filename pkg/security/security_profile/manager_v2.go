@@ -373,6 +373,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	// Debug: log sampled bind events reaching userspace
+	if event.IsActivityDumpSample() && event.GetEventType() == model.BindEventType {
+		seclog.Debugf("v2 sampled bind: pid=%d family=%d port=%d protocol=%d comm=%s",
+			event.ProcessContext.Pid, event.Bind.AddrFamily, event.Bind.Addr.Port, event.Bind.Protocol, event.ProcessContext.Comm)
+	}
+
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
@@ -763,7 +769,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithPathsReducer(m.pathsReducer),
 		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
-		profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
+		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 	)
 
@@ -809,7 +815,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithPathsReducer(m.pathsReducer),
 		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
-		profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
+		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 	)
 	secprof.SetTreeType(secprof, "security_profile")

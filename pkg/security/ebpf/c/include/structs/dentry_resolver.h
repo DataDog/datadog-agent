@@ -15,6 +15,14 @@ struct path_leaf_t {
     u16 len;
 };
 
+struct bind_sample_key_t {
+    u32 pid;
+    u16 family;
+    u16 port;
+    u16 protocol;
+    u16 padding;
+};
+
 struct dr_erpc_state_t {
     char *userspace_buffer;
     struct path_key_t key;
