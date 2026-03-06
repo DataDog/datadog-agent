@@ -82,7 +82,7 @@ impl Log for DdAgentLogger {
             record.args(),
         );
 
-        let _ = std::io::stderr().write_all(msg.as_bytes());
+        let _ = std::io::stdout().write_all(msg.as_bytes());
 
         if let Ok(mut guard) = self.file.lock()
             && let Some(ref mut f) = *guard
@@ -92,7 +92,7 @@ impl Log for DdAgentLogger {
     }
 
     fn flush(&self) {
-        let _ = std::io::stderr().flush();
+        let _ = std::io::stdout().flush();
         if let Ok(mut guard) = self.file.lock()
             && let Some(ref mut f) = *guard
         {
@@ -114,7 +114,7 @@ pub fn init(config: LogConfig) -> Result<(), log::SetLoggerError> {
             Err(e) => {
                 let _ = std::io::stderr().write_all(
                     format!(
-                        "WARNING: could not open log file {}: {e}, logging to stderr only\n",
+                        "WARNING: could not open log file {}: {e}, logging to stdout only\n",
                         path.display()
                     )
                     .as_bytes(),
