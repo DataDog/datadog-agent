@@ -1,6 +1,6 @@
-load("//rtloader/test:defs.bzl", "rtloader_go_library", "rtloader_go_test")
+load("//rtloader/test:defs.bzl", "rtloader_go_test", "rtloader_test_go_library")
 
-rtloader_go_library(
+rtloader_test_go_library(
     name = "containers",
     srcs = ["containers.go"],
     cgo = True,

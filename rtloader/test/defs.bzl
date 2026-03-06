@@ -2,7 +2,7 @@
 
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-def rtloader_go_library(**kwargs):
+def rtloader_test_go_library(**kwargs):
     """A go_library wrapper that adds the rtloader library.
 
     Args:

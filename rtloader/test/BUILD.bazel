@@ -2,7 +2,7 @@ load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 # gazelle:map_kind go_test rtloader_go_test //rtloader/test:defs.bzl
-# gazelle:map_kind go_library rtloader_go_library //rtloader/test:defs.bzl
+# gazelle:map_kind go_library rtloader_test_go_library //rtloader/test:defs.bzl
 
 filegroup(
     name = "python_stubs",

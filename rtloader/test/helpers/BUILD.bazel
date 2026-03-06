@@ -1,6 +1,6 @@
-load("//rtloader/test:defs.bzl", "rtloader_go_library")
+load("//rtloader/test:defs.bzl", "rtloader_test_go_library")
 
-rtloader_go_library(
+rtloader_test_go_library(
     name = "helpers",
     srcs = [
         "helpers.go",
