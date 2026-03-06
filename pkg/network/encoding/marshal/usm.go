@@ -49,6 +49,16 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 }
 
+// IsClaimed returns whether this data has been claimed by a connection
+func (gd *USMConnectionData[K, V]) IsClaimed() bool {
+	return gd.claimed
+}
+
+// GetData returns the underlying data map for iteration
+func (bc *USMConnectionIndex[K, V]) GetData() map[types.ConnectionKey]*USMConnectionData[K, V] {
+	return bc.data
+}
+
 // USMKeyValue is a generic container for USM data
 type USMKeyValue[K comparable, V any] struct {
 	Key   K

@@ -96,4 +96,14 @@ typedef struct {
     __u64 b_len;
 } go_tls_write_args_data_t;
 
+// Key for the Go TLS connection cache map.
+// Using a composite key (tls.Conn pointer + conn_fd_ptr fingerprint) ensures that
+// when Go reuses a tls.Conn memory address for a new connection, we get a cache miss
+// instead of returning stale data. The conn_fd_ptr points to the underlying netFD
+// struct which is unique per TCP connection.
+typedef struct {
+    __u64 tls_conn_ptr;
+    __u64 conn_fd_ptr;
+} go_tls_conn_key_t;
+
 #endif //__GO_TLS_TYPES_H
