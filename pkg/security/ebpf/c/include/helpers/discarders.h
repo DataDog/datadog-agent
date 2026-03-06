@@ -320,4 +320,25 @@ bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char* data) {
     return *entry == get_discarders_revision();
 }
 
+void __attribute__((always_inline)) discard_auid(u32 auid) {
+    int val = get_discarders_revision();
+    bpf_map_update_elem(&auid_discarders, &auid, &val, BPF_ANY);
+}
+
+bool __attribute__((always_inline)) is_auid_discarder() {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    if (!pid_entry || !pid_entry->credentials.is_auid_set) {
+        return false;
+    }
+
+    u32 auid = pid_entry->credentials.auid;
+
+    int* entry = bpf_map_lookup_elem(&auid_discarders, &auid);
+    if (entry == NULL) {
+        return false;
+    }
+
+    return *entry == get_discarders_revision();
+}
 #endif
