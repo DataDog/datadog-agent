@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -39,6 +40,14 @@ const (
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close() system call
 	tcpCloseReturn = "tcp_close_exit"
+
+	// tcpDone traces the tcp_done() kernel function for failed connection tracking
+	tcpDone = "tcp_done"
+	// tcpDoneReturn traces the return of tcp_done()
+	tcpDoneReturn = "tcp_done_exit"
+
+	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
+	tcpReadSockReturn = "tcp_read_sock_exit"
 
 	// We use the following two probes for UDP
 	udpRecvMsg              = "udp_recvmsg"
@@ -81,6 +90,17 @@ const (
 	inetBindRet = "inet_bind_exit"
 	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
+
+	// Protocol classification socket filters
+	protocolClassifierEntry     = "socket__classifier_entry"
+	protocolClassifierTLSClient = "socket__classifier_tls_handshake_client"
+	protocolClassifierTLSServer = "socket__classifier_tls_handshake_server"
+	protocolClassifierQueues    = "socket__classifier_queues"
+	protocolClassifierDBs       = "socket__classifier_dbs"
+	protocolClassifierGRPC      = "socket__classifier_grpc"
+
+	// net_dev_queue raw tracepoint for protocol classification (fentry requires 5.8+ so raw tracepoints are always available)
+	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
 )
 
 var programs = map[string]struct{}{
@@ -99,6 +119,9 @@ var programs = map[string]struct{}{
 	tcpRetransmitRet:          {},
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
+	tcpDone:                   {},
+	tcpDoneReturn:     {},
+	tcpReadSockReturn: {},
 	udpDestroySock:            {},
 	udpDestroySockReturn:      {},
 	udpRecvMsg:                {},
@@ -118,12 +141,56 @@ var programs = map[string]struct{}{
 	tcpRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
+	// Protocol classification
+	protocolClassifierEntry:     {},
+	protocolClassifierTLSClient: {},
+	protocolClassifierTLSServer: {},
+	protocolClassifierQueues:    {},
+	protocolClassifierDBs:       {},
+	protocolClassifierGRPC:      {},
+	// net_dev_queue: also added separately in manager.go with tracepoint fields,
+	// but must be in programs map for enableProgram() to work
+	netDevQueueRawTracepoint: {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
 	if _, ok := programs[name]; ok {
 		enabled[name] = struct{}{}
 	}
+}
+
+// classificationSupported returns true if protocol classification is supported.
+// Note: fentry requires kernel 5.8+ which is well above the 4.11 minimum for
+// bpf_skb_load_bytes in socket filters, so no kernel version check is needed
+// for that. However, RHEL 9+ has a known issue with protocol classification.
+func classificationSupported(c *config.Config) bool {
+	if !c.ProtocolClassificationEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+
+	// TODO: fix protocol classification is not supported on RHEL 9+
+	family, err := kernel.Family()
+	if err != nil {
+		log.Warnf("could not determine OS family: %s", err)
+		return false
+	}
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	rhel9KernelVersion := kernel.VersionCode(5, 14, 0)
+	if family == "rhel" && kv >= rhel9KernelVersion {
+		log.Warn("protocol classification is currently not supported on RHEL 9+")
+		return false
+	}
+
+	return true
 }
 
 // enabledPrograms returns a map of probes that are enabled per config settings.
@@ -147,20 +214,28 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
-
-		// TODO: see comments above on availability for these
-		//       hooks
-		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		// if err == nil && len(missing) == 0 {
-		// 	enableProgram(enabled, sockFDLookupRet)
-		// }
+		enableProgram(enabled, tcpDone)
+		enableProgram(enabled, tcpReadSockReturn)
 
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, tcpCloseReturn)
+			enableProgram(enabled, tcpDoneReturn)
 		}
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
+		}
+
+		// Protocol classification probes
+		if classificationSupported(c) {
+			enableProgram(enabled, protocolClassifierEntry)
+			enableProgram(enabled, protocolClassifierTLSClient)
+			enableProgram(enabled, protocolClassifierTLSServer)
+			enableProgram(enabled, protocolClassifierQueues)
+			enableProgram(enabled, protocolClassifierDBs)
+			enableProgram(enabled, protocolClassifierGRPC)
+
+			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
+			enableProgram(enabled, netDevQueueRawTracepoint)
 		}
 	}
 

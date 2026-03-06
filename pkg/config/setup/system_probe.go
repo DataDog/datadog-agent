@@ -244,7 +244,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("network_config.enable_ebpfless", false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
-	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false)
+	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FENTRY")
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault("network_config.enable_cert_collection", false)
