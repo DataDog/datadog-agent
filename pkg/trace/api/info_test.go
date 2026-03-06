@@ -7,6 +7,7 @@ package api
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -320,6 +321,7 @@ func TestInfoHandler(t *testing.T) {
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
 		"obfuscation_version":       nil,
+		"opm":                       nil,
 		"filter_tags": map[string]any{
 			"require": nil,
 			"reject":  nil,
@@ -360,6 +362,11 @@ func TestInfoHandler(t *testing.T) {
 	}
 
 	rcv := newTestReceiverFromConfig(conf)
+	// Simulate a successfully fetched org UUID so that "opm" appears in the response.
+	testUUID := "test-org-uuid-1234"
+	testHash := sha256.Sum256([]byte(testUUID))
+	expectedOPM := base64.RawURLEncoding.EncodeToString(testHash[:8])[:10]
+	rcv.orgUUIDOPM.Store(expectedOPM)
 	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)
@@ -368,6 +375,7 @@ func TestInfoHandler(t *testing.T) {
 	var m map[string]any
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
+	assert.Equal(t, expectedOPM, m["opm"])
 	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
 }
