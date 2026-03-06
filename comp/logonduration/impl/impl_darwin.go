@@ -10,7 +10,6 @@ package logondurationimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -25,7 +24,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -63,7 +61,8 @@ func (w *sysProbeClientWrapper) GetLoginTimestamps(ctx context.Context) (logondu
 		if err == nil {
 			return timestamps, nil
 		}
-
+		// Only retry if System Probe hasn't started yet.
+		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
 		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
 			return logonduration.LoginTimestamps{}, fmt.Errorf("failed to get login timestamps from system-probe: %w", err)
 		}
@@ -272,9 +271,9 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 	logonMs := ts.DesktopReadyTime.Sub(ts.LoginTime).Milliseconds()
 
 	custom["durations"] = map[string]interface{}{
-		"Boot Duration (ms)":       bootMs,
-		"Logon Duration (ms)":      logonMs,
-		"Total Boot Duration (ms)": bootMs + logonMs,
+		"boot_duration_ms":       bootMs,
+		"logon_duration_ms":      logonMs,
+		"total_boot_duration_ms": bootMs + logonMs,
 	}
 
 	custom["filevault_enabled"] = ts.FileVaultEnabled
@@ -285,54 +284,19 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
-	// Build and submit the event
-	hostnameValue := c.hostname.GetSafe(context.TODO())
 	custom := buildCustomPayload(bootTime, ts)
-
-	timestamp := bootTime.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
 	msg := "macOS logon duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if logonMs, ok := durations["Logon Duration (ms)"]; ok {
+		if logonMs, ok := durations["logon_duration_ms"]; ok {
 			msg = fmt.Sprintf("macOS logon took %d ms", logonMs)
 		}
 	}
 
-	eventData := map[string]interface{}{
-		"data": map[string]interface{}{
-			"type": "event",
-			"attributes": map[string]interface{}{
-				"host":           hostnameValue,
-				"title":          "Logon duration",
-				"category":       "alert",
-				"integration_id": "system-notable-events",
-				"system-notable-events": map[string]interface{}{
-					"event_type": "Logon duration",
-				},
-				"attributes": map[string]interface{}{
-					"status":   "ok",
-					"priority": "3",
-					"custom":   custom,
-				},
-				"message":   msg,
-				"timestamp": timestamp,
-			},
-		},
-	}
-
-	jsonData, err := json.Marshal(eventData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event payload: %w", err)
-	}
-
-	log.Debugf("Logon duration event payload: %s", string(jsonData))
-	log.Debugf("Submitting logon duration event for host %s", hostnameValue)
-
-	m := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
-	if err := c.eventPlatformForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeEventManagement); err != nil {
-		return fmt.Errorf("failed to send event to platform: %w", err)
-	}
-
-	log.Debugf("Successfully submitted logon duration event")
-	return nil
+	return sendEvent(c.eventPlatformForwarder, eventInput{
+		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Message:   msg,
+		Timestamp: bootTime,
+		Custom:    custom,
+	})
 }

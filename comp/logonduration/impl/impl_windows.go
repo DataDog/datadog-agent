@@ -9,7 +9,6 @@ package logondurationimpl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -21,7 +20,6 @@ import (
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -320,7 +318,6 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
-	hostnameValue := c.hostname.GetSafe(context.TODO())
 	tl := result.Timeline
 
 	custom := buildCustomPayload(tl)
@@ -329,7 +326,6 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	if eventTimestamp.IsZero() {
 		eventTimestamp = time.Now()
 	}
-	timestamp := eventTimestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
 	msg := "Windows logon duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
@@ -338,41 +334,10 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		}
 	}
 
-	eventData := map[string]interface{}{
-		"data": map[string]interface{}{
-			"type": "event",
-			"attributes": map[string]interface{}{
-				"host":           hostnameValue,
-				"title":          "Logon duration",
-				"category":       "alert",
-				"integration_id": "system-notable-events",
-				"system-notable-events": map[string]interface{}{
-					"event_type": "Logon duration",
-				},
-				"attributes": map[string]interface{}{
-					"status":   "ok",
-					"priority": "3",
-					"custom":   custom,
-				},
-				"message":   msg,
-				"timestamp": timestamp,
-			},
-		},
-	}
-
-	jsonData, err := json.Marshal(eventData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event payload: %w", err)
-	}
-
-	log.Debugf("Logon duration event payload: %s", string(jsonData))
-	log.Debugf("Submitting logon duration event for host %s", hostnameValue)
-
-	m := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
-	if err := c.eventPlatformForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeEventManagement); err != nil {
-		return fmt.Errorf("failed to send event to platform: %w", err)
-	}
-
-	log.Debugf("Successfully submitted logon duration event")
-	return nil
+	return sendEvent(c.eventPlatformForwarder, eventInput{
+		Hostname:  c.hostname.GetSafe(context.TODO()),
+		Message:   msg,
+		Timestamp: eventTimestamp,
+		Custom:    custom,
+	})
 }

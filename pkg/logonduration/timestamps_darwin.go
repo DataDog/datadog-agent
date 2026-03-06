@@ -17,7 +17,7 @@ package logonduration
 import "C"
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +41,7 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 	}
 	result := C.queryLoginWindowTimestamp(fvEnabled)
 	if result == 0 {
-		return time.Time{}, fmt.Errorf("failed to query login window time from unified logs")
+		return time.Time{}, errors.New("failed to query login window time from unified logs")
 	}
 	return cTimestampToTime(result), nil
 }
@@ -52,7 +52,7 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 func GetLoginTime() (time.Time, error) {
 	result := C.queryLoginTimestamp()
 	if result == 0 {
-		return time.Time{}, fmt.Errorf("failed to query login time from unified logs")
+		return time.Time{}, errors.New("failed to query login time from unified logs")
 	}
 	return cTimestampToTime(result), nil
 }
@@ -63,7 +63,7 @@ func GetLoginTime() (time.Time, error) {
 func GetDesktopReadyTime() (time.Time, error) {
 	result := C.queryDesktopReadyTimestamp()
 	if result == 0 {
-		return time.Time{}, fmt.Errorf("failed to query desktop ready time from unified logs")
+		return time.Time{}, errors.New("failed to query desktop ready time from unified logs")
 	}
 	return cTimestampToTime(result), nil
 }
@@ -73,7 +73,7 @@ func GetDesktopReadyTime() (time.Time, error) {
 func IsFileVaultEnabled() (bool, error) {
 	result := C.checkFileVaultEnabled()
 	if result < 0 {
-		return false, fmt.Errorf("failed to check FileVault status")
+		return false, errors.New("failed to check FileVault status")
 	}
 	return result == 1, nil
 }
