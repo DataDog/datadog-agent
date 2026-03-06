@@ -32,9 +32,9 @@ filegroup(
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
+            "//deps/cpython:all_python_deps",
             "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
-            "@cpython//:all_files",
             "@freetds//:all_files",
         ],
         "//conditions:default": [
