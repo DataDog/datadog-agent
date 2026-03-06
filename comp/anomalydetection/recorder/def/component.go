@@ -75,6 +75,17 @@ type Component interface {
 	// FlushResultsLogs forces an immediate flush of buffered results logs to disk.
 	FlushResultsLogs()
 
+	// RecordCorrelation records a correlator output into the results correlations parquet file
+	// (observer-resultscorrelations-*.parquet). Each call adds one ActiveCorrelation row
+	// with its member series, metric names, and embedded anomaly details as parallel lists.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordCorrelation(data CorrelationData)
+
+	// FlushResultsCorrelations forces an immediate flush of buffered correlation results to disk.
+	// RunHeadless calls this after the correlator goroutine completes so that all rows are
+	// written before the process exits.
+	FlushResultsCorrelations()
+
 	// EnableResultsSaving initializes the results metrics writer to save computed intermediate
 	// data to the given output directory. Intended for headless mode: it enables saving only
 	// the derived/computed data (virtual metrics, telemetry metrics) without re-recording the
@@ -183,6 +194,24 @@ type TraceStatsData struct {
 	OkSummary         []byte   // DDSketch encoded latency distribution for ok spans
 	ErrorSummary      []byte   // DDSketch encoded latency distribution for error spans
 	PeerTags          []string // Peer entity tags (e.g., "db.hostname:...")
+}
+
+// CorrelationData represents a single correlator output written to the results correlations
+// parquet file. Member series, metric names, and anomaly details are stored as parallel lists
+// so the full correlation can be reconstructed from a single row without joins.
+type CorrelationData struct {
+	Pattern     string // pattern name, e.g. "kernel_bottleneck"
+	Title       string // display title, e.g. "Correlated: Kernel network bottleneck"
+	FirstSeen   int64  // unix seconds
+	LastUpdated int64  // unix seconds
+	// Member series and metric names participating in this correlation
+	MemberSeriesIDs []string
+	MetricNames     []string
+	// Anomaly details as parallel lists (one entry per triggering anomaly)
+	AnomalyTimestamps []int64
+	AnomalySources    []string
+	AnomalySeriesIDs  []string
+	AnomalyDetectors  []string
 }
 
 // LogData represents a log entry read from parquet files.

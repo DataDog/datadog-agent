@@ -774,6 +774,43 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			tb.correlations = append(tb.correlations, corr)
 		}
 
+		// Record finalized correlations to parquet (observer-resultscorrelations-*.parquet).
+		// Flushing is done separately in RunHeadless after this goroutine completes.
+		if recorder := tb.config.Recorder; recorder != nil {
+			for _, corr := range tb.correlations {
+				anomalyTimestamps := make([]int64, len(corr.Anomalies))
+				anomalySources := make([]string, len(corr.Anomalies))
+				anomalySeriesIDs := make([]string, len(corr.Anomalies))
+				anomalyDetectors := make([]string, len(corr.Anomalies))
+				for i, a := range corr.Anomalies {
+					anomalyTimestamps[i] = a.Timestamp
+					anomalySources[i] = string(a.Source)
+					anomalySeriesIDs[i] = string(a.SourceSeriesID)
+					anomalyDetectors[i] = a.DetectorName
+				}
+				memberIDs := make([]string, len(corr.MemberSeriesIDs))
+				for i, id := range corr.MemberSeriesIDs {
+					memberIDs[i] = string(id)
+				}
+				metricNames := make([]string, len(corr.MetricNames))
+				for i, n := range corr.MetricNames {
+					metricNames[i] = string(n)
+				}
+				recorder.RecordCorrelation(recorderdef.CorrelationData{
+					Pattern:           corr.Pattern,
+					Title:             corr.Title,
+					FirstSeen:         corr.FirstSeen,
+					LastUpdated:       corr.LastUpdated,
+					MemberSeriesIDs:   memberIDs,
+					MetricNames:       metricNames,
+					AnomalyTimestamps: anomalyTimestamps,
+					AnomalySources:    anomalySources,
+					AnomalySeriesIDs:  anomalySeriesIDs,
+					AnomalyDetectors:  anomalyDetectors,
+				})
+			}
+		}
+
 		tb.correlatorsProcessing = false
 		tb.correlatorsDone.Broadcast()
 	}()
@@ -1083,6 +1120,11 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 		tb.correlatorsDone.Wait()
 	}
 	tb.mu.RUnlock()
+
+	// Flush correlation results now that the goroutine has finished recording.
+	if tb.config.Recorder != nil {
+		tb.config.Recorder.FlushResultsCorrelations()
+	}
 
 	// Write structured JSON output.
 	if outputPath != "" {

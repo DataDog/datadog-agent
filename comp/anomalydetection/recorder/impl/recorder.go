@@ -124,7 +124,13 @@ func NewComponent(req Requires) (Provides, error) {
 			}
 			r.resultsLogParquetWriter = resultsLogWriter
 
-			pkglog.Infof("Results saving enabled: results metrics + logs → %s", resultsDir)
+			correlationWriter, err := newResultsCorrelationParquetWriter(resultsDir, resultsFlush, resultsRetention)
+			if err != nil {
+				return Provides{Comp: r}, pkglog.Errorf("Failed to create results correlations parquet writer: %v", err)
+			}
+			r.resultsCorrelationParquetWriter = correlationWriter
+
+			pkglog.Infof("Results saving enabled: results metrics + logs + correlations → %s", resultsDir)
 		}
 	}
 
@@ -133,14 +139,15 @@ func NewComponent(req Requires) (Provides, error) {
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	recordingDisabled          bool
-	metricParquetWriter        *metricParquetWriter
-	resultsMetricParquetWriter *metricParquetWriter // observer-resultsmetrics-*.parquet (virtual + telemetry metrics)
-	resultsLogParquetWriter    *logParquetWriter    // observer-resultslogs-*.parquet (telemetry logs)
-	traceParquetWriter         *traceParquetWriter
-	profileParquetWriter       *profileParquetWriter
-	logParquetWriter           *logParquetWriter
-	traceStatsParquetWriter    *traceStatsParquetWriter
+	recordingDisabled               bool
+	metricParquetWriter             *metricParquetWriter
+	resultsMetricParquetWriter      *metricParquetWriter      // observer-resultsmetrics-*.parquet (virtual + telemetry metrics)
+	resultsLogParquetWriter         *logParquetWriter         // observer-resultslogs-*.parquet (telemetry logs)
+	resultsCorrelationParquetWriter *correlationParquetWriter // observer-resultscorrelations-*.parquet (correlator output)
+	traceParquetWriter              *traceParquetWriter
+	profileParquetWriter            *profileParquetWriter
+	logParquetWriter                *logParquetWriter
+	traceStatsParquetWriter         *traceStatsParquetWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -298,7 +305,13 @@ func (r *recorderImpl) EnableResultsSaving(outputDir string) error {
 	}
 	r.resultsLogParquetWriter = logWriter
 
-	pkglog.Infof("Results saving enabled: metrics + logs will be written to %s", outputDir)
+	corrWriter, err := newResultsCorrelationParquetWriter(outputDir, 365*24*time.Hour, 0)
+	if err != nil {
+		return fmt.Errorf("creating results correlations parquet writer: %w", err)
+	}
+	r.resultsCorrelationParquetWriter = corrWriter
+
+	pkglog.Infof("Results saving enabled: metrics + logs + correlations will be written to %s", outputDir)
 	return nil
 }
 
@@ -341,6 +354,22 @@ func (r *recorderImpl) FlushResultsLogs() {
 		return
 	}
 	r.resultsLogParquetWriter.flush()
+}
+
+// RecordCorrelation writes a correlator output row to the results correlations parquet file.
+func (r *recorderImpl) RecordCorrelation(data recorderdef.CorrelationData) {
+	if r.resultsCorrelationParquetWriter == nil {
+		return
+	}
+	r.resultsCorrelationParquetWriter.WriteCorrelation(data)
+}
+
+// FlushResultsCorrelations forces an immediate flush of buffered correlation results to disk.
+func (r *recorderImpl) FlushResultsCorrelations() {
+	if r.resultsCorrelationParquetWriter == nil {
+		return
+	}
+	r.resultsCorrelationParquetWriter.flush()
 }
 
 // recordingHandle wraps an observer handle to record observations.
