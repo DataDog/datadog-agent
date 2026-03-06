@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/twmb/murmur3"
+	"github.com/zeebo/xxh3"
 )
 
 type statsdFilterListUpdate struct {
@@ -253,7 +253,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 func hashTags(tags []string) []uint64 {
 	hashed := make([]uint64, 0, len(tags))
 	for _, tag := range tags {
-		hashed = append(hashed, murmur3.StringSum64(tag))
+		hashed = append(hashed, xxh3.HashString(tag))
 	}
 
 	return hashed
