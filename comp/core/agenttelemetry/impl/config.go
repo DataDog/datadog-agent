@@ -465,6 +465,56 @@ var defaultProfiles = `
             - tag
             - bucket
             - outcome
+        - name: admission_webhooks.mutation_attempts
+          aggregate_tags:
+            - mutation_type
+            - status
+            - injected
+        - name: admission_webhooks.library_injection_attempts
+          aggregate_tags:
+            - language
+            - injected
+            - auto_detected
+            - injection_type
+        - name: admission_webhooks.library_injection_errors
+          aggregate_tags:
+            - language
+            - auto_detected
+            - injection_type
+        - name: admission_webhooks.patcher_errors
+        - name: admission_webhooks.rc_provider_configs
+        - name: admission_webhooks.rc_provider_configs_invalid
+        - name: autodiscovery.errors
+          aggregate_tags:
+            - provider
+        - name: autodiscovery.watched_resources
+          aggregate_tags:
+            - listener
+            - kind
+        - name: cluster_checks.configs_dispatched
+        - name: cluster_checks.configs_dangling
+        - name: cluster_checks.unscheduled_check
+          aggregate_tags:
+            - config_source
+        - name: external_metrics.datadog_metrics
+          aggregate_tags:
+            - valid
+            - active
+        - name: language_detection_patcher.patches
+          aggregate_tags:
+            - owner_kind
+            - status
+        - name: workloadmeta.stored_entities
+          aggregate_tags:
+            - kind
+            - source
+        - name: tagger.stored_entities
+          aggregate_tags:
+            - source
+            - prefix
+        - name: workloadmeta.pull_errors
+          aggregate_tags:
+            - collector_id
     schedule:
       start_after: 30
       iterations: 0
