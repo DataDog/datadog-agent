@@ -486,6 +486,23 @@ disable_windows_driver: true
 				DisableWindowsDriver:  true,
 			},
 		},
+		{
+			name: "Disable collecting source public IP",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+disable_source_public_ip_collection: true
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:                    "1.2.3.4",
+				MinCollectionInterval:           time.Duration(60) * time.Second,
+				Namespace:                       "my-namespace",
+				Timeout:                         setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                          setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:               setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:                      setup.DefaultNetworkPathStaticPathE2eQueries,
+				DisableSourcePublicIPCollection: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

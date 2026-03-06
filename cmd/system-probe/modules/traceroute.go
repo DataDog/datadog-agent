@@ -146,6 +146,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
 	disableWindowsDriver := query.Get("disable_windows_driver")
 	reverseDNS := query.Get("reverse_dns")
+	disableSourcePublicIPCollection := query.Get("disable_source_public_ip_collection")
 	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
@@ -165,6 +166,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
 		DisableWindowsDriver:      disableWindowsDriver == "true",
 		ReverseDNS:                reverseDNS == "true",
+		DisableSourcePublicIPCollection: disableSourcePublicIPCollection == "true",
 		TracerouteQueries:         int(tracerouteQueries),
 		E2eQueries:                int(e2eQueries),
 	}, nil

@@ -37,6 +37,7 @@ type collectorConfigs struct {
 	tracerouteQueries            int
 	e2eQueries                   int
 	disableWindowsDriver         bool
+	disableSourcePublicIPCollection bool
 	filterConfig                 []connfilter.Config
 	monitorIPWithoutDomain       bool
 	ddSite                       string
@@ -76,6 +77,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		tracerouteQueries:         agentConfig.GetInt("network_path.collector.traceroute_queries"),
 		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
+		disableSourcePublicIPCollection: agentConfig.GetBool("network_path.collector.disable_source_public_ip_collection"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 		filterConfig:              filterConfigs,
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),

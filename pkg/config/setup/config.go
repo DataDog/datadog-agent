@@ -578,6 +578,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
+	config.BindEnvAndSetDefault("network_path.collector.disable_source_public_ip_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
 	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
 

@@ -214,6 +214,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.E2eQueries = *ncr.ProbeCount
 	}
 	cfg.ReverseDNS = true
+	cfg.DisableSourcePublicIPCollection = false
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.

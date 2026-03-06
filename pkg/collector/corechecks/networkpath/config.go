@@ -49,6 +49,8 @@ type InstanceConfig struct {
 	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool `yaml:"disable_windows_driver"`
+	// DisableSourcePublicIPCollection disables collection of the source public IP address
+	DisableSourcePublicIPCollection bool `yaml:"disable_source_public_ip_collection"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -78,7 +80,9 @@ type CheckConfig struct {
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
-	DisableWindowsDriver  bool
+	DisableWindowsDriver bool
+	// DisableSourcePublicIPCollection disables collection of the source public IP address
+	DisableSourcePublicIPCollection bool
 	Timeout               time.Duration
 	MinCollectionInterval time.Duration
 	TracerouteQueries     int
@@ -117,6 +121,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
 	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
 	c.DisableWindowsDriver = instance.DisableWindowsDriver
+	c.DisableSourcePublicIPCollection = instance.DisableSourcePublicIPCollection
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,

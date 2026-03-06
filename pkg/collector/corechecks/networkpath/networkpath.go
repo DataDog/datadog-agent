@@ -61,6 +61,7 @@ func (c *Check) Run() error {
 		TCPMethod:                 c.config.TCPMethod,
 		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
 		DisableWindowsDriver:      c.config.DisableWindowsDriver,
+		DisableSourcePublicIPCollection: c.config.DisableSourcePublicIPCollection,
 		ReverseDNS:                true,
 		TracerouteQueries:         c.config.TracerouteQueries,
 		E2eQueries:                c.config.E2eQueries,

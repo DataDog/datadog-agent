@@ -90,17 +90,18 @@ func (h *RunNetworkPathHandler) Run(
 	}
 
 	cfg := tracerouteconfig.Config{
-		DestHostname:       inputs.Hostname,
-		DestPort:           inputs.Port,
-		DestinationService: inputs.DestinationService,
-		SourceService:      inputs.SourceService,
-		MaxTTL:             maxTTL,
-		Timeout:            timeout,
-		Protocol:           protocol,
-		TCPMethod:          inputs.TCPMethod,
-		ReverseDNS:         true,
-		TracerouteQueries:  tracerouteQueries,
-		E2eQueries:         e2eQueries,
+		DestHostname:          inputs.Hostname,
+		DestPort:              inputs.Port,
+		DestinationService:    inputs.DestinationService,
+		SourceService:         inputs.SourceService,
+		MaxTTL:                maxTTL,
+		Timeout:               timeout,
+		Protocol:              protocol,
+		TCPMethod:             inputs.TCPMethod,
+		ReverseDNS:            true,
+		DisableSourcePublicIPCollection: false,
+		TracerouteQueries:     tracerouteQueries,
+		E2eQueries:            e2eQueries,
 	}
 
 	path, err := h.traceroute.Run(ctx, cfg)

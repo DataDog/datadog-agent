@@ -60,7 +60,7 @@ type remoteTraceroute struct {
 }
 
 func (t *remoteTraceroute) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
-	resp, err := t.getTracerouteFromSysProbe(ctx, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
+	resp, err := t.getTracerouteFromSysProbe(ctx, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.DisableSourcePublicIPCollection, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
 	}
@@ -86,13 +86,13 @@ var getSysProbeClient = funcs.MemoizeArgNoError(func(socket string) *http.Client
 	}
 })
 
-func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func (t *remoteTraceroute) getTracerouteFromSysProbe(ctx context.Context, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, disableSourcePublicIPCollection bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	t.log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, tracerouteQueries, e2eQueries))
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&disable_source_public_ip_collection=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, disableSourcePublicIPCollection, tracerouteQueries, e2eQueries))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

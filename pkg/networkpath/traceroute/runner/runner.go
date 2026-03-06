@@ -137,7 +137,7 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
 		WantV6:                false,
 		ReverseDns:            cfg.ReverseDNS,
-		CollectSourcePublicIP: true,
+		CollectSourcePublicIP: !cfg.DisableSourcePublicIPCollection,
 		UseWindowsDriver:      !cfg.DisableWindowsDriver,
 		TracerouteQueries:     cfg.TracerouteQueries,
 		E2eQueries:            cfg.E2eQueries,
