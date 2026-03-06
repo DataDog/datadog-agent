@@ -331,15 +331,22 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     // constants. A zero offset means the field doesn't exist on this kernel.
     // For the runtime compiler, use a compile-time kernel version guard.
 #if defined(COMPILE_CORE)
+    // Use bpf_probe_read (not bpf_probe_read_kernel, which requires 5.5+).
+    // Read into stack variables first because bpf_probe_read on older kernels
+    // (e.g. 4.4) requires the destination to be a stack pointer, not a map value.
     __u64 delivered_ce_offset = 0;
     LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
     if (delivered_ce_offset > 0) {
-        bpf_probe_read_kernel(&val->delivered_ce, sizeof(val->delivered_ce), (char *)sk + delivered_ce_offset);
+        __u64 tmp = 0;
+        bpf_probe_read(&tmp, sizeof(val->delivered_ce), (char *)sk + delivered_ce_offset);
+        val->delivered_ce = tmp;
     }
     __u64 reord_seen_offset = 0;
     LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
     if (reord_seen_offset > 0) {
-        bpf_probe_read_kernel(&val->reord_seen, sizeof(val->reord_seen), (char *)sk + reord_seen_offset);
+        __u64 tmp = 0;
+        bpf_probe_read(&tmp, sizeof(val->reord_seen), (char *)sk + reord_seen_offset);
+        val->reord_seen = tmp;
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
