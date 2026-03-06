@@ -67,6 +67,13 @@ namespace Datadog.CustomActions
 
         private static ActionResult ConfigureAutoLogger(ISession session)
         {
+            var autologgerEnabled = session.Property("DD_LOGON_DURATION_AUTOLOGGER");
+            if (!string.Equals(autologgerEnabled, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                session.Log("DD_LOGON_DURATION_AUTOLOGGER is not set to true, skipping AutoLogger configuration");
+                return ActionResult.Success;
+            }
+
             try
             {
                 var appDataDir = session.Property("APPLICATIONDATADIRECTORY");
