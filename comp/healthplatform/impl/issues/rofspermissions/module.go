@@ -33,6 +33,7 @@ type rofsPermissionsModule struct {
 	conf     config.Component
 }
 
+// NewModule creates a new ROFS permissions issue module
 func NewModule(conf config.Component) issues.Module {
 	return &rofsPermissionsModule{
 		template: NewRofsPermissionIssue(),
@@ -55,6 +56,6 @@ func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
 		CheckFn: func() (*healthplatform.IssueReport, error) {
 			return Check(r.conf)
 		},
-		Once: true,
+		Startup: true,
 	}
 }

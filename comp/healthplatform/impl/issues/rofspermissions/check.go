@@ -48,14 +48,14 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 			nonWritableDirs = append(nonWritableDirs, dir)
 		}
 	}
-	report := &healthplatform.IssueReport{
+	if len(nonWritableDirs) == 0 {
+		return nil, nil
+	}
+
+	return &healthplatform.IssueReport{
 		IssueId: "read-only-filesystem-error",
 		Context: map[string]string{
 			"directories": strings.Join(nonWritableDirs, ","),
 		},
-	}
-	if len(nonWritableDirs) == 0 {
-		return nil, nil
-	}
-	return report, nil
+	}, nil
 }

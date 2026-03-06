@@ -29,7 +29,6 @@ type registeredCheck struct {
 	checkFn   healthplatform.HealthCheckFunc
 	interval  time.Duration
 	stopCh    chan struct{}
-	once      bool
 }
 
 // issueReporter is the interface for reporting issues (satisfied by healthPlatformImpl)
@@ -92,7 +91,7 @@ func (r *checkRunner) Stop() {
 }
 
 // RegisterCheck registers a new periodic health check
-func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc, interval time.Duration, once bool) error {
+func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc, interval time.Duration) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
@@ -119,7 +118,6 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 		checkFn:   checkFn,
 		interval:  interval,
 		stopCh:    make(chan struct{}),
-		once:      once,
 	}
 
 	r.checks[checkID] = check
@@ -133,20 +131,32 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 	return nil
 }
 
+// RunCheck runs a single health check immediately
+func (r *checkRunner) RunCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc) error {
+	if checkID == "" {
+		return errors.New("check ID cannot be empty")
+	}
+	if checkFn == nil {
+		return errors.New("check function cannot be nil")
+	}
+
+	r.checkMux.Lock()
+	defer r.checkMux.Unlock()
+
+	go r.executeCheck(&registeredCheck{
+		checkID:   checkID,
+		checkName: checkName,
+		checkFn:   checkFn,
+		stopCh:    make(chan struct{}),
+	})
+	return nil
+}
+
 // startCheck launches a goroutine to run the check at its interval
 func (r *checkRunner) startCheck(check *registeredCheck) {
 	r.wg.Add(1)
-	if check.once {
-		r.log.Warnf("Running health check '%s' once", check.checkName)
-		go func() {
-			r.executeCheck(check)
-			r.wg.Done()
-		}()
-	} else {
-		r.log.Debugf("Running health check '%s' on interval %v", check.checkName, check.interval)
-		go r.runAndScheduleCheck(check)
-	}
-
+	r.log.Debugf("Running health check '%s' on interval %v", check.checkName, check.interval)
+	go r.runAndScheduleCheck(check)
 }
 
 // runAndScheduleCheck runs a check immediately and schedules it to run periodically
