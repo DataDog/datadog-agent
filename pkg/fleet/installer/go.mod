@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/fleet/installer
 
-go 1.25.0
+go 1.25.6
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
@@ -11,7 +11,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/fatih/color v1.18.0
-	github.com/google/go-containerregistry v0.20.7
+	github.com/google/go-containerregistry v0.21.2
 	github.com/google/uuid v1.6.0
 	github.com/shirou/gopsutil/v4 v4.26.2
 	github.com/spf13/cobra v1.10.2
@@ -30,9 +30,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
+	github.com/containerd/stargz-snapshotter/estargz v0.18.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/docker/cli v29.0.3+incompatible // indirect
+	github.com/docker/cli v29.2.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
@@ -57,7 +57,6 @@ require (
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
 
