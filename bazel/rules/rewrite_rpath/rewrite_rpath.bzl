@@ -33,7 +33,7 @@ def _rewrite_rpath_impl(ctx):
                 executable = toolchain.path,
             )
         else:
-            toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+            toolchain = ctx.toolchains["@otool//:otool_toolchain_type"].otool
             args = ctx.actions.args()
             args.add(toolchain.path)
             args.add(rpath)
@@ -82,6 +82,6 @@ rewrite_rpath = rule(
     },
     toolchains = [
         "@@//bazel/toolchains/patchelf:patchelf_toolchain_type",
-        "@@//bazel/toolchains/otool:otool_toolchain_type",
+        "@otool//:otool_toolchain_type",
     ],
 )

@@ -104,19 +104,25 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
-## Use local object file tools
-find_system_otool = use_extension("//bazel/toolchains/otool:otool_configure.bzl", "find_system_otool", dev_dependency = True)
+######################################
+# Pick up OS provided tools
+
+find_system_codesign = use_extension("//bazel/toolchains/codesign:configure.bzl", "find_system_codesign", dev_dependency = True)
+use_repo(find_system_codesign, "codesign")
+
+find_system_install_name_tool = use_extension("//bazel/toolchains/install_name_tool:configure.bzl", "find_system_install_name_tool", dev_dependency = True)
+use_repo(find_system_install_name_tool, "install_name_tool")
+
+find_system_otool = use_extension("//bazel/toolchains/otool:configure.bzl", "find_system_otool", dev_dependency = True)
 use_repo(find_system_otool, "otool")
 
-register_toolchains(
-    "@otool//:all",
-    dev_dependency = True,
-)
-
-find_system_patchelf = use_extension("//bazel/toolchains/patchelf:patchelf_configure.bzl", "find_system_patchelf", dev_dependency = True)
+find_system_patchelf = use_extension("//bazel/toolchains/patchelf:configure.bzl", "find_system_patchelf", dev_dependency = True)
 use_repo(find_system_patchelf, "patchelf_toolchains")
 
 register_toolchains(
+    "@codesign//:all",
+    "@install_name_tool//:all",
+    "@otool//:all",
     "@patchelf_toolchains//:all",
     dev_dependency = True,
 )
