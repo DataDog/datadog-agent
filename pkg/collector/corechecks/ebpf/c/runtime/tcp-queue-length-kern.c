@@ -38,7 +38,7 @@ static __always_inline void check_sock(struct sock *sk) {
         .write_buffer_max_usage = 0
     };
 
-    struct stats_key k;
+    struct stats_key k = { 0 };
     if (!get_cgroup_name(k.cgroup, sizeof(k.cgroup))) {
         return;
     }
