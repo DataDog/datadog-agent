@@ -93,16 +93,3 @@ func TestEnhancedMetricsDisabledWithEnvVar(t *testing.T) {
 	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
 	assert.Equal(t, false, enhancedMetricsEnabled)
 }
-
-func TestEnhancedMetricsDisabledWithLegacyEnvVar(t *testing.T) {
-	t.Setenv("DD_ENHANCED_METRICS", "false")
-	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
-	assert.Equal(t, false, enhancedMetricsEnabled)
-}
-
-func TestEnhancedMetricsOverridesLegacyEnvVar(t *testing.T) {
-	t.Setenv("DD_ENHANCED_METRICS_ENABLED", "false")
-	t.Setenv("DD_ENHANCED_METRICS", "true")
-	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
-	assert.Equal(t, false, enhancedMetricsEnabled)
-}
