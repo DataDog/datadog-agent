@@ -1,4 +1,5 @@
 description: "PWD is set to the working directory"
+target_os: [linux, darwin]
 input:
   script: |
     echo "$PWD"

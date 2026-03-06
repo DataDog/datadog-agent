@@ -68,6 +68,9 @@ func runScriptInternal(t *testing.T, script, dir string, opts ...RunnerOption) (
 }
 
 func TestAllowedPathsExecInside(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("/bin and /usr do not exist on Windows")
+	}
 	dir := t.TempDir()
 	// /bin/echo should be within the allowed path if we allow /bin or /usr
 	stdout, _, exitCode := runScriptInternal(t, `/bin/echo hello`, dir,
@@ -88,6 +91,9 @@ func TestAllowedPathsExecOutside(t *testing.T) {
 }
 
 func TestAllowedPathsExecNonexistent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("/bin and /usr do not exist on Windows")
+	}
 	dir := t.TempDir()
 	// Command that doesn't exist at all — ExecLookPathDir fails
 	_, stderr, exitCode := runScriptInternal(t, `totally_nonexistent_cmd_12345`, dir,
