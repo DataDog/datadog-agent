@@ -17,13 +17,10 @@ macro_rules! generate_ffi {
                 instance_config_cstr,
                 aggregator_ptr,
             ) {
-                let cstr_ptr = match core::to_cstring(&e.to_string()) {
-                    Ok(ptr) => ptr,
-                    Err(_) => core::to_cstring("").unwrap(),
-                };
-
+                let error_msg = std::ffi::CString::new(e.to_string()).unwrap_or_default();
                 unsafe {
-                    *error_handler = cstr_ptr
+                    let ptr = libc::strdup(error_msg.as_ptr());
+                    *error_handler = ptr;
                 };
             }
         }

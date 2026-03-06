@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 core = { path = "../../core" }
+libc = "0.2.182"
 
 [lib]
 crate-type = ["cdylib"]

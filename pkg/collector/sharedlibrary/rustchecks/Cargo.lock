@@ -13,6 +13,7 @@ name = "core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "serde",
  "serde_yaml",
 ]
@@ -29,6 +30,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "core",
+ "libc",
 ]
 
 [[package]]
@@ -52,6 +54,12 @@ name = "itoa"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
+
+[[package]]
+name = "libc"
+version = "0.2.182"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6800badb6cb2082ffd7b6a67e6125bb39f18782f793520caee8cb8846be06112"
 
 [[package]]
 name = "proc-macro2"
