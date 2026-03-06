@@ -91,18 +91,18 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	}
 	getClusterAgentClusterChecks(fb, client) //nolint:errcheck
 
-	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                          //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                         //nolint:errcheck
-	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                                  //nolint:errcheck
-	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                                   //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                              //nolint:errcheck
-	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                                   //nolint:errcheck
-	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                             //nolint:errcheck
-	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) })       //nolint:errcheck
-	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                                     //nolint:errcheck
-	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                                  //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })            //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                                        //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                                       //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                                                //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                                                 //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                                            //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                                                 //nolint:errcheck
+	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                                           //nolint:errcheck
+	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) })                     //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                                                   //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                                                //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })                          //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettingsWithoutSecrets()) }) //nolint:errcheck
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
 	getPerformanceProfileDCA(fb, pdata)
 

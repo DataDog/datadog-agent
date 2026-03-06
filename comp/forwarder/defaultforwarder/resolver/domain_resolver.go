@@ -94,7 +94,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
 
 			if health := resolver.GetForwarderHealth(); health != nil {
-				health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
+				health.UpdateAPIKeys(resolver.GetConfigName(), []string{oldAPIKey}, []string{newAPIKey})
 			}
 
 			log.Infof("rotating API key for '%s': %s -> %s",
@@ -136,7 +136,7 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	added := missing(newKeys, oldKeys)
 
 	if health := resolver.GetForwarderHealth(); health != nil {
-		health.UpdateAPIKeys(resolver.GetBaseDomain(), removed, added)
+		health.UpdateAPIKeys(resolver.GetConfigName(), removed, added)
 	}
 
 	removed = scrubKeys(removed)

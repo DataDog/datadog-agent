@@ -315,9 +315,10 @@ func TestGetAllSources(t *testing.T) {
 	cfg.Set("a", 3, model.SourceFile)
 	cfg.Set("a", 5, model.SourceFleetPolicies)
 	cfg.Set("a", 6, model.SourceAgentRuntime)
-	cfg.Set("a", 7, model.SourceLocalConfigProcess)
-	cfg.Set("a", 8, model.SourceRC)
-	cfg.Set("a", 9, model.SourceCLI)
+	cfg.Set("a", 7, model.SourceSecretBackend)
+	cfg.Set("a", 8, model.SourceLocalConfigProcess)
+	cfg.Set("a", 9, model.SourceRC)
+	cfg.Set("a", 10, model.SourceCLI)
 
 	res := cfg.GetAllSources("a")
 	assert.Equal(t,
@@ -329,9 +330,10 @@ func TestGetAllSources(t *testing.T) {
 			{Source: model.SourceEnvVar, Value: 4},
 			{Source: model.SourceFleetPolicies, Value: 5},
 			{Source: model.SourceAgentRuntime, Value: 6},
-			{Source: model.SourceLocalConfigProcess, Value: 7},
-			{Source: model.SourceRC, Value: 8},
-			{Source: model.SourceCLI, Value: 9},
+			{Source: model.SourceSecretBackend, Value: 7},
+			{Source: model.SourceLocalConfigProcess, Value: 8},
+			{Source: model.SourceRC, Value: 9},
+			{Source: model.SourceCLI, Value: 10},
 		},
 		res,
 	)

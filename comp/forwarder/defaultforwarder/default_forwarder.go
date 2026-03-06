@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -225,6 +226,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		Secrets:                        &secretnooptypes.SecretNoop{}, // will get overwritten with actual secrets if needed
 	}
 
 	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
