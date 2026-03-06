@@ -320,6 +320,8 @@ func makeFlare(flareComp flare.Component,
 	}
 	if err := os.Remove(filePath); err != nil {
 		fmt.Fprintf(color.Output, "Note: could not remove local flare archive %s: %v\n", filePath, err)
+	} else {
+		fmt.Fprintf(color.Output, "Removed local flare archive %s\n", color.YellowString(filePath))
 	}
 	return nil
 }

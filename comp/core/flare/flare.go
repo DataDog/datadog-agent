@@ -142,6 +142,8 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	if err == nil {
 		if removeErr := os.Remove(filePath); removeErr != nil {
 			f.log.Warnf("Could not remove local flare archive %s: %v", filePath, removeErr)
+		} else {
+			f.log.Infof("Removed local flare archive %s", filePath)
 		}
 	}
 	return true, err

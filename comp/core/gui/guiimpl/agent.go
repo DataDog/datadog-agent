@@ -168,6 +168,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	log.Infof("Flare zipfile successfully created: %s\n%s", filePath, res)
 	if err := os.Remove(filePath); err != nil {
 		log.Warnf("Could not remove local flare archive %s: %v", filePath, err)
+	} else {
+		log.Infof("Removed local flare archive %s", filePath)
 	}
 }
 
