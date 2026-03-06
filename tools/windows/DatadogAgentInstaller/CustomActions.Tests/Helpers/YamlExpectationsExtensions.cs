@@ -34,13 +34,5 @@ namespace CustomActions.Tests.Helpers
                 .HaveKey("process_config.process_collection.enabled")
                 .And.HaveValue("true");
         }
-
-        public static void HasParEnabled(this YamlStream yaml)
-        {
-            yaml
-                .Should()
-                .HaveKey("private_action_runner.enabled")
-                .And.HaveValue("true");
-        }
     }
 }

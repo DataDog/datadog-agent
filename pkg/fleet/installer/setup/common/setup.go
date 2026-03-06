@@ -89,6 +89,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 				},
 				Env:                os.Getenv("DD_ENV"),
 				InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
+				AppKey:             os.Getenv("DD_APP_KEY"),
 			},
 			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
@@ -101,6 +102,15 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
 		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
+	}
+
+	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
+	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
+		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
+		if parAllowlist := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"); parAllowlist != "" {
+			s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = strings.Split(parAllowlist, ",")
+		}
 	}
 
 	return s, nil

@@ -102,11 +102,9 @@ namespace CustomActions.Tests.IntegrationTests
             foreach (var keyValuePair in new Dictionary<string, string>()
                      {
                          { "APIKEY", "testapikey" },
-                         { "DD_APP_KEY", "testappkey1234567890abcdef12345678" },
                          { "LOGS_ENABLED", "true" },
                          { "PROCESS_ENABLED", "true" },
                          { "APM_ENABLED", "true" },
-                         { "DD_PRIVATE_ACTION_RUNNER_ENABLED", "true" },
                      })
             {
                 sessionMock.Setup(session => session[keyValuePair.Key]).Returns(keyValuePair.Value);
@@ -119,14 +117,9 @@ namespace CustomActions.Tests.IntegrationTests
                 .Should()
                 .HaveKey("api_key")
                 .And.HaveValue("testapikey");
-            resultingYaml
-                .Should()
-                .HaveKey("app_key")
-                .And.HaveValue("testappkey1234567890abcdef12345678");
             resultingYaml.HasLogsEnabled();
             resultingYaml.HasProcessEnabled();
             resultingYaml.HasApmEnabled();
-            resultingYaml.HasParEnabled();
         }
     }
 }

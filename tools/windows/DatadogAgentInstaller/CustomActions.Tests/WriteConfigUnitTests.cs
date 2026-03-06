@@ -12,7 +12,6 @@ namespace CustomActions.Tests
     {
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
-        [InlineAutoData("DD_APP_KEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
@@ -36,7 +35,6 @@ namespace CustomActions.Tests
 
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
-        [InlineAutoData("DD_APP_KEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
@@ -52,8 +50,6 @@ namespace CustomActions.Tests
         [InlineAutoData("DD_URL", "dd_url")]
         [InlineAutoData("PYVER", "python_version")]
         [InlineAutoData("HOSTNAME_FQDN_ENABLED", "hostname_fqdn")]
-        [InlineAutoData("DD_PRIVATE_ACTION_RUNNER_ENABLED", "private_action_runner")]
-        [InlineAutoData("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", "private_action_runner")]
         public void Properties_Should_Not_Be_Replaced_Given_A_Property_Does_Not_Match(string property, string key, string value, Mock<ISession> sessionMock)
         {
             var datadogYaml = $@"
@@ -68,48 +64,6 @@ random_property: test
                 .ToYaml()
                 .Should()
                 .NotHaveKey(key);
-        }
-
-        [Theory]
-        [InlineAutoData]
-        public void PAR_ENABLED_Should_Be_Replaced_Given_It_Matches(Mock<ISession> sessionMock)
-        {
-            var datadogYaml = @"
-# private_action_runner:
-#   enabled: false
-#   self_enroll: true";
-            sessionMock.Setup(session => session["DD_PRIVATE_ACTION_RUNNER_ENABLED"]).Returns("true");
-            var result = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
-                .ToYaml();
-            result
-                .Should()
-                .HaveKey("private_action_runner.enabled")
-                .And.HaveValue("true");
-            result
-                .Should()
-                .HaveKey("private_action_runner.self_enroll")
-                .And.HaveValue("true");
-        }
-
-        [Theory]
-        [InlineAutoData]
-        public void PAR_ACTIONS_ALLOWLIST_Should_Be_Replaced_Given_It_Matches(Mock<ISession> sessionMock)
-        {
-            var datadogYaml = @"
-# private_action_runner:
-#   actions_allowlist:
-#     - com.datadoghq.script.runPredefinedScript";
-            sessionMock.Setup(session => session["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"]).Returns("com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection");
-            var result = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
-                .ToYaml();
-            result
-                .Should()
-                .HaveKey("private_action_runner.actions_allowlist")
-                .And.HaveValues(new[]
-                {
-                    "com.datadoghq.script.runPredefinedScript",
-                    "com.datadoghq.script.testConnection"
-                });
         }
 
         [Theory]

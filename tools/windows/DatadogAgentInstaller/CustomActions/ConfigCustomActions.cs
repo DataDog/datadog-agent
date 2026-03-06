@@ -253,25 +253,12 @@ namespace Datadog.CustomActions
             return tagsConfiguration.ToString();
         }
 
-        static string FormatParActionsAllowlist(string value)
-        {
-            var newLine = $"{Environment.NewLine}    - ";
-            var sb = new StringBuilder();
-            sb.Append("  actions_allowlist:");
-            sb.Append(newLine);
-            sb.Append(string.Join(newLine, value.Split(',')));
-            return sb.ToString();
-        }
-
         public static string ReplaceProperties(string yaml, ISession session)
         {
             var replacers = new List<PropertyReplacer>
             {
                 PropertyReplacer.For("APIKEY")
                     .Match("^[ #]*api_key:.*").ReplaceWith(value => $"api_key: {value}"),
-
-                PropertyReplacer.For("DD_APP_KEY")
-                    .Match("^[ #]*app_key:.*").ReplaceWith(value => $"app_key: {value}"),
 
                 PropertyReplacer.For("SITE")
                     .Match("^[ #]*site:.*").ReplaceWith(value => $"site: {value}"),
@@ -334,19 +321,7 @@ namespace Datadog.CustomActions
                     .Match("^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>").ReplaceWith(FormatTags),
 
                 PropertyReplacer.For("EC2_USE_WINDOWS_PREFIX_DETECTION")
-                    .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}"),
-
-                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ENABLED")
-                    .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
-                    .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}"),
-
-                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ENABLED")
-                    .Match("^[ #]*private_action_runner:")
-                    .Match("^[ #]*self_enroll:.*").ReplaceWith(_ => "  self_enroll: true"),
-
-                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
-                    .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
-                    .Match("^[ #]*actions_allowlist:(?:(?:.|\n)*?)^[ #]*- com\\.datadoghq\\.script\\.runPredefinedScript").ReplaceWith(FormatParActionsAllowlist)
+                    .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}")
             };
 
             foreach (var replacer in replacers)

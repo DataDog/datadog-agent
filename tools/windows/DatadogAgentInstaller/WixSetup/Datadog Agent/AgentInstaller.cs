@@ -152,6 +152,14 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"

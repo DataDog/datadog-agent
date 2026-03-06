@@ -102,6 +102,24 @@ namespace Datadog.CustomActions
                 env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
             }
 
+            var appKey = _session.Property("DD_APP_KEY");
+            if (!string.IsNullOrEmpty(appKey))
+            {
+                env["DD_APP_KEY"] = appKey;
+            }
+
+            var parEnabled = _session.Property("DD_PRIVATE_ACTION_RUNNER_ENABLED");
+            if (!string.IsNullOrEmpty(parEnabled))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_ENABLED"] = parEnabled;
+            }
+
+            var parActionsAllowlist = _session.Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST");
+            if (!string.IsNullOrEmpty(parActionsAllowlist))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"] = parActionsAllowlist;
+            }
+
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()

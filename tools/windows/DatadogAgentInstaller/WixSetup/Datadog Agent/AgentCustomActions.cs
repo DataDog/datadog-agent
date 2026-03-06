@@ -224,7 +224,6 @@ namespace WixSetup.Datadog_Agent
                     "PROJECTLOCATION=[PROJECTLOCATION], " +
                     "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
                     "APIKEY=[APIKEY], " +
-                    "DD_APP_KEY=[DD_APP_KEY], " +
                     "TAGS=[TAGS], " +
                     "HOSTNAME=[HOSTNAME], " +
                     "PROXY_HOST=[PROXY_HOST], " +
@@ -244,9 +243,7 @@ namespace WixSetup.Datadog_Agent
                     "PYVER=[PYVER], " +
                     "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                     "NPM=[NPM], " +
-                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
-                    "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED], " +
-                    "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]")
+                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
             // Cleanup leftover files on rollback
@@ -506,6 +503,9 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
+                           "DD_APP_KEY=[DD_APP_KEY]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
