@@ -93,6 +93,39 @@ func NewFactoryForAgent(
 	)
 }
 
+// Requires defines the dependencies needed to create a dogtelExtension via FX.
+type Requires struct {
+	Config       coreconfig.Component
+	Log          log.Component
+	Serializer   serializer.MetricSerializer
+	Hostname     hostnameinterface.Component
+	Workloadmeta workloadmeta.Component
+	Tagger       tagger.Component
+	IPC          ipc.Component
+	Telemetry    telemetry.Component
+	Secrets      secrets.Component
+}
+
+// NewExtension creates a new dogtelextension instance for use with FX.
+func NewExtension(reqs Requires) (dogtelextension.Component, error) {
+	cfg := createDefaultConfig().(*Config)
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+	return &dogtelExtension{
+		config:       cfg,
+		log:          reqs.Log,
+		coreConfig:   reqs.Config,
+		serializer:   reqs.Serializer,
+		hostname:     reqs.Hostname,
+		workloadmeta: reqs.Workloadmeta,
+		tagger:       reqs.Tagger,
+		ipc:          reqs.IPC,
+		telemetry:    reqs.Telemetry,
+		secrets:      reqs.Secrets,
+	}, nil
+}
+
 func createDefaultConfig() component.Config {
 	return &Config{
 		EnableMetadataCollection: true,
