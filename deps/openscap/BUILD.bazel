@@ -6,8 +6,8 @@ collect_dd_auto_pkg_artifacts(
     name = "all_openscap_deps",
     srcs = [
         "@openscap//:openscap_sce_pkg",
-        "@openscap//:oscap_pkg",
         "@openscap//:oscap_io_pkg",
+        "@openscap//:oscap_pkg",
     ],
     target_compatible_with = [
         "@platforms//os:linux",
