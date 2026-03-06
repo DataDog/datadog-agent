@@ -221,6 +221,7 @@ export function MetricsView({
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange, state.status?.loadedFromResultFiles]);
 
   const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
+  const prevGroupByKeyRef = useRef<typeof groupByKey | null>(null);
   useEffect(() => {
     if (selectedGroups.size === 0 || state.connectionState !== 'ready') {
       if (groupSeriesData.size > 0) setGroupSeriesData(new Map());
@@ -229,8 +230,12 @@ export function MetricsView({
 
     const selectionChanged = selectedGroups.size !== prevSelectedGroupsRef.current.size ||
       [...selectedGroups].some((k) => !prevSelectedGroupsRef.current.has(k));
-    if (!selectionChanged) return;
+    // Also re-fetch when groupByKey is a new object (series data changed, e.g. after recompute)
+    // even if the selected group keys themselves didn't change.
+    const seriesDataChanged = prevGroupByKeyRef.current !== groupByKey;
+    if (!selectionChanged && !seriesDataChanged) return;
     prevSelectedGroupsRef.current = new Set(selectedGroups);
+    prevGroupByKeyRef.current = groupByKey;
 
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
