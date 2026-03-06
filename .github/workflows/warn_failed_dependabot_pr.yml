@@ -1,5 +1,5 @@
 ---
-name: Warn Failed Dependabot PR
+name: Warn Failed Dependency Bot PR
 
 on:
   issue_comment:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   check_comment:
-    if: github.event.comment.user.id == 'dd-devflow[bot]' && github.event.issue.user.login == 'dependabot[bot]'
+    if: github.event.comment.user.id == 'dd-devflow[bot]' && (github.event.issue.user.login == 'dependabot[bot]' || github.event.issue.user.login == 'renovate[bot]')
     runs-on: ubuntu-latest
     environment:
       name: dependabot

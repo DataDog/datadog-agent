@@ -18,9 +18,6 @@ dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 
-# External agents
-dependency 'jmxfetch'
-
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
