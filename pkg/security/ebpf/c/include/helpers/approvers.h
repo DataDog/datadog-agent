@@ -297,6 +297,10 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
     u64 open_sampling_enabled = 0;
     LOAD_CONSTANT("open_sampling_enabled", open_sampling_enabled);
+
+    u64 open_sampling_rate = 0;
+    LOAD_CONSTANT("open_sampling_rate", open_sampling_rate);
+
     if (!open_sampling_enabled) {
         return DISCARDED;
     }
@@ -333,13 +337,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
 
     u8 value = 0;
     if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
-        bpf_printk("discarding open sample from pid %d %d %d", pid, ppid, file->path_key.ino);
         return DISCARDED;
     }
 
-    u64 open_sampling_rate = 0;
-    LOAD_CONSTANT("open_sampling_rate", open_sampling_rate);
     if (open_sampling_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, open_sampling_rate, 1)) {
+        bpf_map_delete_elem(&open_samples, &key);
         return DISCARDED;
     }
 
