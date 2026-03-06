@@ -1,7 +1,10 @@
 import os
 import platform
+import re
 import sys
+import tempfile
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from invoke import Context, Exit, task
@@ -41,6 +44,126 @@ TOOLS = {
 }
 
 
+@dataclass
+class PrebuiltTool:
+    """Describes how to download a pre-built binary from GitHub Releases."""
+
+    repo: str  # GitHub repo (e.g. 'bazelbuild/bazelisk')
+    binary_name: str  # Name of the binary to place in GOBIN
+    # Asset filename pattern. Placeholders: {version} (without 'v' prefix), {os}, {arch}
+    asset_pattern: str
+    is_archive: bool = True  # If False, asset is a raw binary (not tar.gz)
+    # Path to binary inside the archive (empty = binary at archive root)
+    archive_binary_path: str = ""
+    # go.mod module path used to look up the pinned version
+    go_mod_module: str = ""
+
+
+# Tools that should be downloaded as pre-built binaries instead of `go install`.
+# These are the slowest to compile from source and all provide darwin/arm64 binaries.
+PREBUILT_TOOLS: dict[str, PrebuiltTool] = {
+    'github.com/bazelbuild/bazelisk': PrebuiltTool(
+        repo='bazelbuild/bazelisk',
+        binary_name='bazelisk',
+        asset_pattern='bazelisk-{os}-{arch}',
+        is_archive=False,
+        go_mod_module='github.com/bazelbuild/bazelisk',
+    ),
+    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint': PrebuiltTool(
+        repo='golangci/golangci-lint',
+        binary_name='golangci-lint',
+        asset_pattern='golangci-lint-{version}-{os}-{arch}.tar.gz',
+        archive_binary_path='golangci-lint-{version}-{os}-{arch}/golangci-lint',
+        go_mod_module='github.com/golangci/golangci-lint/v2',
+    ),
+    'gotest.tools/gotestsum': PrebuiltTool(
+        repo='gotestyourself/gotestsum',
+        binary_name='gotestsum',
+        asset_pattern='gotestsum_{version}_{os}_{arch}.tar.gz',
+        go_mod_module='gotest.tools/gotestsum',
+    ),
+    'github.com/vektra/mockery/v3': PrebuiltTool(
+        repo='vektra/mockery',
+        binary_name='mockery',
+        # mockery uses capitalized OS name (Darwin, Linux)
+        asset_pattern='mockery_{version}_{Os}_{arch}.tar.gz',
+        go_mod_module='github.com/vektra/mockery/v3',
+    ),
+}
+
+# Map of go.mod dir -> parsed module versions, lazily populated
+_go_mod_versions_cache: dict[str, dict[str, str]] = {}
+
+
+def _parse_go_mod_versions(go_mod_path: str) -> dict[str, str]:
+    """Parse a go.mod file and return a dict of module -> version."""
+    versions = {}
+    with open(go_mod_path) as f:
+        for line in f:
+            m = re.match(r'\s+(\S+)\s+(v\S+)', line)
+            if m:
+                versions[m.group(1)] = m.group(2)
+    return versions
+
+
+def _get_tool_version(tool_import: str, go_mod_dir: str) -> str:
+    """Get the pinned version of a tool from its go.mod."""
+    if go_mod_dir not in _go_mod_versions_cache:
+        _go_mod_versions_cache[go_mod_dir] = _parse_go_mod_versions(os.path.join(go_mod_dir, 'go.mod'))
+    versions = _go_mod_versions_cache[go_mod_dir]
+    prebuilt = PREBUILT_TOOLS[tool_import]
+    mod = prebuilt.go_mod_module
+    if mod in versions:
+        return versions[mod]
+    raise Exit(f"Could not find version for {mod} in {go_mod_dir}/go.mod", code=1)
+
+
+def _format_asset_fields(pattern: str, version: str, os_name: str, arch: str) -> str:
+    """Format an asset pattern with version/os/arch, supporting {Os} for capitalized OS."""
+    return pattern.format(
+        version=version,
+        os=os_name,
+        Os=os_name.capitalize(),
+        arch=arch,
+    )
+
+
+def _install_prebuilt_tool(ctx: Context, tool_import: str, gobin: str, go_mod_dir: str):
+    """Download a pre-built binary from GitHub Releases and place it in GOBIN."""
+    prebuilt = PREBUILT_TOOLS[tool_import]
+    version = _get_tool_version(tool_import, go_mod_dir)
+    version_no_v = version.lstrip('v')
+    dest = os.path.join(gobin, prebuilt.binary_name)
+
+    os_name = 'darwin' if sys.platform.startswith('darwin') else 'linux'
+    arch = 'arm64' if platform.machine() in ('arm64', 'aarch64') else 'amd64'
+
+    asset = _format_asset_fields(prebuilt.asset_pattern, version_no_v, os_name, arch)
+    url = f"https://github.com/{prebuilt.repo}/releases/download/{version}/{asset}"
+
+    print(f"Downloading {prebuilt.binary_name} {version} from {url}")
+
+    if not prebuilt.is_archive:
+        # Raw binary download
+        ctx.run(f'curl -fsSL --retry 4 -o {dest} {url}')
+        ctx.run(f'chmod +x {dest}')
+    else:
+        # Archive: extract the binary
+        binary_in_archive = prebuilt.binary_name
+        if prebuilt.archive_binary_path:
+            binary_in_archive = _format_asset_fields(prebuilt.archive_binary_path, version_no_v, os_name, arch)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            archive_path = os.path.join(tmpdir, 'archive.tar.gz')
+            ctx.run(f'curl -fsSL --retry 4 -o {archive_path} {url}')
+            ctx.run(f'tar xzf {archive_path} -C {tmpdir} {binary_in_archive}')
+            extracted = os.path.join(tmpdir, binary_in_archive)
+            ctx.run(f'mv {extracted} {dest}')
+            ctx.run(f'chmod +x {dest}')
+
+    print(f"Installed {prebuilt.binary_name} {version} to {dest}")
+
+
 @task
 def download_tools(ctx):
     """Download all Go tools for testing."""
@@ -50,9 +173,18 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3):
-    """Install all Go tools for testing."""
+def install_tools(ctx: Context, max_retry: int = 3, use_prebuilt: bool = True):
+    """Install all Go tools for testing.
+
+    Args:
+        max_retry: Number of retries for go install commands.
+        use_prebuilt: Download pre-built binaries for supported tools instead of
+            compiling from source with ``go install``. Defaults to True.
+    """
     with gitlab_section("Installing Go tools", collapsed=True):
+        gobin = get_gobin(ctx)
+        os.makedirs(gobin, exist_ok=True)
+
         env = {'GO111MODULE': 'on'}
         if os.getenv('DD_CC'):
             env['CC'] = os.getenv('DD_CC')
@@ -62,8 +194,11 @@ def install_tools(ctx: Context, max_retry: int = 3):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:
-                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
-        for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
+                        if use_prebuilt and tool in PREBUILT_TOOLS:
+                            _install_prebuilt_tool(ctx, tool, gobin, path)
+                        else:
+                            run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+        for bazelisk in Path(gobin).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 
 
