@@ -199,7 +199,7 @@ def install_tools(ctx: Context, max_retry: int = 3, use_prebuilt: bool = True):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:
-                        if use_prebuilt and tool in PREBUILT_TOOLS:
+                        if use_prebuilt and tool in PREBUILT_TOOLS and sys.platform != 'win32':
                             _install_prebuilt_tool(ctx, tool, gobin, path)
                         else:
                             run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
