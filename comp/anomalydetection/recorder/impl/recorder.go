@@ -31,75 +31,97 @@ type Provides struct {
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
 
-	// Check if recording is enabled
-	if !req.Config.GetBool("observer.recording.enabled") {
-		pkglog.Debug("Recorder disabled (observer.recording.enabled=false)")
+	recordingEnabled := req.Config.GetBool("observer.recording.enabled")
+
+	// --- Raw observation recording ---
+	// When enabled, all incoming observations (metrics, logs, traces, profiles, trace stats)
+	// are written to parquet files as they arrive via the handle middleware.
+	var recordingDir string
+	var flushInterval time.Duration
+	var retentionDuration time.Duration
+
+	if recordingEnabled {
+		recordingDir = req.Config.GetString("observer.recording.parquet_output_dir")
+		if recordingDir == "" {
+			return Provides{Comp: r}, errors.New("observer.recording.parquet_output_dir not set")
+		}
+
+		flushInterval = req.Config.GetDuration("observer.recording.parquet_flush_interval")
+		if flushInterval == 0 {
+			flushInterval = 60 * time.Second
+		}
+
+		retentionDuration = req.Config.GetDuration("observer.recording.parquet_retention")
+		if retentionDuration <= 0 {
+			retentionDuration = 24 * time.Hour
+		}
+
+		writer, err := newMetricParquetWriter(recordingDir, flushInterval, retentionDuration)
+		if err != nil {
+			return Provides{Comp: r}, pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
+		}
+		r.metricParquetWriter = writer
+
+		traceWriter, err := newTraceParquetWriter(recordingDir, flushInterval, retentionDuration)
+		if err != nil {
+			return Provides{Comp: r}, pkglog.Errorf("Failed to create trace parquet writer: %v", err)
+		}
+		r.traceParquetWriter = traceWriter
+
+		profileWriter, err := newProfileParquetWriter(recordingDir, flushInterval, retentionDuration)
+		if err != nil {
+			return Provides{Comp: r}, pkglog.Errorf("Failed to create profile parquet writer: %v", err)
+		}
+		r.profileParquetWriter = profileWriter
+
+		logWriter, err := newLogParquetWriter(recordingDir, flushInterval, retentionDuration)
+		if err != nil {
+			return Provides{Comp: r}, pkglog.Errorf("Failed to create log parquet writer: %v", err)
+		}
+		r.logParquetWriter = logWriter
+
+		traceStatsWriter, err := newTraceStatsParquetWriter(recordingDir, flushInterval, retentionDuration)
+		if err != nil {
+			return Provides{Comp: r}, pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
+		}
+		r.traceStatsParquetWriter = traceStatsWriter
+
+		pkglog.Infof("Recorder started: dir=%s flush=%v retention=%v", recordingDir, flushInterval, retentionDuration)
+	} else {
 		r.recordingDisabled = true
-		return Provides{Comp: r}, nil
+		pkglog.Debug("Recorder disabled (observer.recording.enabled=false)")
 	}
 
-	parquetDir := req.Config.GetString("observer.recording.parquet_output_dir")
-	if parquetDir == "" {
-		return Provides{Comp: r}, errors.New("observer.recording.parquet_output_dir not set")
-	}
+	// --- Results saving ---
+	// Writes computed intermediate data (virtual metrics from log detectors).
+	// Enabled by default when recording is on; can be enabled independently.
+	// The output directory defaults to the recording directory when unset.
+	resultsEnabled := recordingEnabled || req.Config.GetBool("observer.results.enabled")
+	fmt.Printf("[cc] resultsEnabled: %t\n", resultsEnabled)
+	if resultsEnabled {
+		resultsDir := req.Config.GetString("observer.results.output_dir")
+		if resultsDir == "" {
+			resultsDir = recordingDir // falls back to recording dir (may be empty if recording is off)
+		}
+		if resultsDir == "" {
+			pkglog.Warn("observer.results.enabled is true but no output directory configured; set observer.results.output_dir or observer.recording.parquet_output_dir")
+		} else {
+			// Reuse recording flush settings when available; fall back to sensible defaults.
+			resultsFlush := flushInterval
+			if resultsFlush == 0 {
+				resultsFlush = 60 * time.Second
+			}
+			resultsRetention := retentionDuration
 
-	flushInterval := req.Config.GetDuration("observer.recording.parquet_flush_interval")
-	if flushInterval == 0 {
-		flushInterval = 60 * time.Second
+			fmt.Printf("[cc] resultsDir: %s\n", resultsDir)
+			virtualWriter, err := newVirtualMetricParquetWriter(resultsDir, resultsFlush, resultsRetention)
+			if err != nil {
+				return Provides{Comp: r}, pkglog.Errorf("Failed to create virtual metrics parquet writer: %v", err)
+			}
+			r.virtualMetricParquetWriter = virtualWriter
+			pkglog.Infof("Results saving enabled: virtual metrics → %s", resultsDir)
+		}
 	}
-
-	retentionDuration := req.Config.GetDuration("observer.recording.parquet_retention")
-	if retentionDuration <= 0 {
-		retentionDuration = 24 * time.Hour
-	}
-
-	// Initialize metrics writer (always enabled when recording is on)
-	writer, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
-	}
-	r.metricParquetWriter = writer
-	pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
-
-	// Initialize virtual metrics writer for log-derived metrics
-	virtualMetricWriter, err := newVirtualMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create virtual metrics parquet writer: %v", err)
-	}
-	r.virtualMetricParquetWriter = virtualMetricWriter
-	pkglog.Infof("Recorder virtual metrics writer started: dir=%s", parquetDir)
-
-	// Initialize traces writer (always enabled when recording is on)
-	traceWriter, err := newTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace parquet writer: %v", err)
-	}
-	r.traceParquetWriter = traceWriter
-	pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
-
-	// Initialize profiles writer (always enabled when recording is on)
-	profileWriter, err := newProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create profile parquet writer: %v", err)
-	}
-	r.profileParquetWriter = profileWriter
-	pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
-
-	// Initialize logs writer (always enabled when recording is on)
-	logWriter, err := newLogParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create log parquet writer: %v", err)
-	}
-	r.logParquetWriter = logWriter
-	pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
-
-	// Initialize trace stats writer (always enabled when recording is on)
-	traceStatsWriter, err := newTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
-	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
-	}
-	r.traceStatsParquetWriter = traceStatsWriter
-	pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
 
 	return Provides{Comp: r}, nil
 }

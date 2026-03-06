@@ -38,7 +38,7 @@ type CLIParams struct {
 	Headless   string // scenario name to run (empty = interactive mode)
 	Output     string // path for observer JSON output
 	Verbose    bool   // include full detail in JSON output (headless mode only)
-	ResultsDir string // directory to save intermediate results (virtual metrics parquet); defaults to the scenario directory
+	ResultsDir string // directory for intermediate results (virtual metrics parquet); defaults to the scenario directory
 }
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
-	resultsDir := flag.String("results-dir", "", "Directory to save intermediate results (virtual metrics parquet); defaults to the scenario directory in headless mode")
+	resultsDir := flag.String("results-dir", "", "Directory for intermediate results (virtual metrics parquet); defaults to the scenario directory in headless mode")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -77,6 +77,13 @@ func main() {
 		fmt.Println()
 	}
 
+	// Resolve results dir early so it's available in CLIParams.
+	// Defaults to the scenario directory so results land alongside the input parquet files.
+	resolvedResultsDir := *resultsDir
+	if resolvedResultsDir == "" && *headless != "" {
+		resolvedResultsDir = filepath.Join(*scenariosDir, *headless)
+	}
+
 	err := fxutil.OneShot(run,
 		recorderfx.Module(),
 		core.Bundle(),
@@ -92,7 +99,7 @@ func main() {
 			Headless:        *headless,
 			Output:          *output,
 			Verbose:         *verbose,
-			ResultsDir:      *resultsDir,
+			ResultsDir:      resolvedResultsDir,
 		}),
 	)
 	if err != nil {
@@ -114,20 +121,14 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 		return err
 	}
 
-	// Headless mode: run scenario, write output, exit (no HTTP server)
+	// Headless mode: run scenario, write output, exit (no HTTP server).
 	if params.Headless != "" {
-		// Enable saving of intermediate results (virtual metrics parquet).
-		// Defaults to the scenario directory so results land alongside the input parquet files.
-		// This only initializes the virtual metrics writer — raw input data (metrics, logs,
-		// traces) is never re-recorded.
-		resultsDir := params.ResultsDir
-		if resultsDir == "" {
-			resultsDir = filepath.Join(params.ScenariosDir, params.Headless)
-		}
-		if err := recorder.EnableResultsSaving(resultsDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to enable results saving to %s: %v\n", resultsDir, err)
+		// Enable results saving (virtual metrics parquet) now that the recorder is initialized.
+		// This only activates the virtual metrics writer; raw input data is never re-recorded.
+		if err := recorder.EnableResultsSaving(params.ResultsDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to enable results saving to %s: %v\n", params.ResultsDir, err)
 		} else {
-			fmt.Printf("Results saving enabled: virtual metrics → %s\n", resultsDir)
+			fmt.Printf("Results saving enabled: virtual metrics → %s\n", params.ResultsDir)
 		}
 		return tb.RunHeadless(params.Headless, params.Output, params.Verbose)
 	}
