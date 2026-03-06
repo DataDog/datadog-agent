@@ -108,6 +108,11 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
                     increment_telemetry_count_times(tcp_syn_retransmit, *count);
                     bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
                 }
+                // Clean up RTO/recovery stats (zero-PID keyed) before early return.
+                __u32 saved_pid = conn.tup.pid;
+                conn.tup.pid = 0;
+                bpf_map_delete_elem(&tcp_rto_recovery_stats, &(conn.tup));
+                conn.tup.pid = saved_pid;
                 return -1;
             }
         }
