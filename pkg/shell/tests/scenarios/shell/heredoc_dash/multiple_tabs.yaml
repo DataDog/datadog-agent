@@ -1,0 +1,9 @@
+description: Dash heredoc strips multiple leading tabs.
+input:
+  # language=bash
+  script: "cat <<-EOF\n\t\t\tdeeply indented\nEOF\n"
+expect:
+  stdout: |+
+    deeply indented
+  stderr: ""
+  exit_code: 0

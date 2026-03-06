@@ -1,0 +1,9 @@
+description: Exit with code 42 returns that specific code.
+input:
+  # language=bash
+  script: |+
+    exit 42
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 42

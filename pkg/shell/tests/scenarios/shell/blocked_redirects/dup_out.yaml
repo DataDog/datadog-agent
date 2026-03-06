@@ -1,0 +1,10 @@
+description: Output fd duplication (>&N) is blocked.
+input:
+  # language=bash
+  script: |+
+    echo hello 2>&1
+expect:
+  stdout: ""
+  stderr: |+
+    >&N fd duplication is not supported
+  exit_code: 2

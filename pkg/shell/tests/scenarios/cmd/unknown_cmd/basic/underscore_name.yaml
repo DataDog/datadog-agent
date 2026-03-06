@@ -1,0 +1,10 @@
+description: An unknown command with underscores in the name prints "not found".
+input:
+  # language=bash
+  script: |+
+    my_unknown_command
+expect:
+  stdout: ""
+  stderr: |+
+    my_unknown_command: not found
+  exit_code: 127

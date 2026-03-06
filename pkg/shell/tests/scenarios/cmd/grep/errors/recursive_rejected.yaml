@@ -1,0 +1,15 @@
+# Directory argument without -r is rejected with an error message.
+description: grep rejects a directory argument without -r flag.
+setup:
+  files:
+    - path: subdir/f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep pattern subdir
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

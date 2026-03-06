@@ -1,0 +1,15 @@
+# No pattern provided: error message and exit code 2.
+description: grep exits 2 with an error when no pattern is given.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

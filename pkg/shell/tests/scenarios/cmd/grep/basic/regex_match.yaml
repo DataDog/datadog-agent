@@ -1,0 +1,15 @@
+# Extended regular expression pattern matching.
+description: grep uses ERE patterns by default (Go RE2 syntax).
+setup:
+  files:
+    - path: f.txt
+      content: "abc\ndef\n123\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep '[0-9]+' f.txt
+expect:
+  stdout: "123\n"
+  stderr: ""
+  exit_code: 0

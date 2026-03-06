@@ -1,0 +1,15 @@
+# -E / --extended-regexp: use extended regular expression syntax (Go default; accepted for compat).
+description: grep -E is accepted and uses the default ERE syntax.
+setup:
+  files:
+    - path: f.txt
+      content: "abc\ndef\n123\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -E '[a-z]+' f.txt
+expect:
+  stdout: "abc\ndef\n"
+  stderr: ""
+  exit_code: 0

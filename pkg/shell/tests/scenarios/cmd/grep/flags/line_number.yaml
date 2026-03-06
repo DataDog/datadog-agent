@@ -1,0 +1,15 @@
+# -n / --line-number: prefix matching lines with their line number.
+description: grep -n prefixes each output line with its 1-based line number.
+setup:
+  files:
+    - path: f.txt
+      content: "one\ntwo\nthree\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -n two f.txt
+expect:
+  stdout: "2:two\n"
+  stderr: ""
+  exit_code: 0

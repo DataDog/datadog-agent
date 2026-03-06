@@ -1,0 +1,17 @@
+# Error handling: directory as argument
+description: tail on a directory fails with an error and exits with code 1.
+setup:
+  files:
+    - path: mydir/placeholder.txt
+      content: "placeholder"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail mydir
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail: mydir:"
+  exit_code: 1

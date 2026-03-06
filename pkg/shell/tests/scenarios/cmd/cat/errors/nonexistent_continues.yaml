@@ -1,0 +1,14 @@
+description: Cat failure does not stop script execution; the exit code is from the last command.
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat nonexistent.txt
+    echo hello
+expect:
+  stdout: |+
+    hello
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 0

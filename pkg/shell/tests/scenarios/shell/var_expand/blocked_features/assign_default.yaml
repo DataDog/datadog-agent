@@ -1,0 +1,10 @@
+description: Assign default expansion ${var:=default} is not supported.
+input:
+  # language=bash
+  script: |+
+    echo ${UNSET:=fallback}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

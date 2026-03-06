@@ -1,0 +1,9 @@
+description: Exit on right side of pipe sets the pipe exit code.
+input:
+  # language=bash
+  script: |+
+    echo ok | exit 42
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 42

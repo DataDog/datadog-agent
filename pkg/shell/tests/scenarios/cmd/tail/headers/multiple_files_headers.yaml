@@ -1,0 +1,19 @@
+# Derived from GNU coreutils tail.pl: multiple files get headers
+description: tail with multiple files prints a header before each file's content.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa\n"
+      chmod: 0644
+    - path: b.txt
+      content: "bbb\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\naaa\n\n==> b.txt <==\nbbb\n"
+  stderr: ""
+  exit_code: 0

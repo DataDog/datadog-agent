@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl test n-5b
+description: tail -n 0 outputs nothing.
+setup:
+  files:
+    - path: f.txt
+      content: "a\nb\nc\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 0 f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

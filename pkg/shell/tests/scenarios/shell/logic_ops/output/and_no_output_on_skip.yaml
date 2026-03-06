@@ -1,0 +1,10 @@
+description: Skipped commands after failed && produce no output.
+input:
+  # language=bash
+  script: |+
+    echo before && false && echo skipped
+expect:
+  stdout: |+
+    before
+  stderr: ""
+  exit_code: 1

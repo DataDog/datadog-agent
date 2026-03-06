@@ -1,0 +1,10 @@
+description: In a || chain, commands execute until one succeeds.
+input:
+  # language=bash
+  script: |+
+    false || false || echo reached
+expect:
+  stdout: |+
+    reached
+  stderr: ""
+  exit_code: 0

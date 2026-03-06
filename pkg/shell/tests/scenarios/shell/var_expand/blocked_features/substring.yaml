@@ -1,0 +1,11 @@
+description: Substring expansion ${var:offset:length} is not supported.
+input:
+  # language=bash
+  script: |+
+    X=hello
+    echo ${X:1:3}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var:offset} is not supported
+  exit_code: 2

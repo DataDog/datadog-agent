@@ -1,0 +1,10 @@
+description: PipeAll (|&) pipes stderr-only output to the right side.
+input:
+  # language=bash
+  script: |+
+    break |& cat
+expect:
+  stdout: |+
+    break is only useful in a loop
+  stderr: ""
+  exit_code: 0

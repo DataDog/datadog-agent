@@ -1,0 +1,11 @@
+description: Unknown command on left side of pipe sends error to stderr; right side still runs.
+input:
+  # language=bash
+  script: |+
+    foo | echo ok
+expect:
+  stdout: |+
+    ok
+  stderr: |+
+    foo: not found
+  exit_code: 0

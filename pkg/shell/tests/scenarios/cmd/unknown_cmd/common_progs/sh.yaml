@@ -1,0 +1,10 @@
+description: The sh command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    sh -c "echo hello"
+expect:
+  stdout: ""
+  stderr: |+
+    sh: not found
+  exit_code: 127

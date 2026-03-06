@@ -1,0 +1,14 @@
+description: Input redirection (<) is still allowed.
+setup:
+  files:
+    - path: data.txt
+      content: "hello from file"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat < data.txt
+expect:
+  stdout: "hello from file"
+  stderr: ""
+  exit_code: 0

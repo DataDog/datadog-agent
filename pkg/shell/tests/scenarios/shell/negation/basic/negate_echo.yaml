@@ -1,0 +1,10 @@
+description: Negating a successful echo still prints output but returns exit code 1.
+input:
+  # language=bash
+  script: |+
+    ! echo hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 1

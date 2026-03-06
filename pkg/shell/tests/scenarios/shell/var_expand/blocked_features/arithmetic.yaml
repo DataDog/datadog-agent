@@ -1,0 +1,10 @@
+description: Arithmetic expansion is not supported.
+input:
+  # language=bash
+  script: |+
+    echo $((1+2))
+expect:
+  stdout: ""
+  stderr: |+
+    arithmetic expansion is not supported
+  exit_code: 2

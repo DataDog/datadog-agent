@@ -1,0 +1,10 @@
+description: local is not supported.
+input:
+  # language=bash
+  script: |+
+    local X=42
+expect:
+  stdout: ""
+  stderr: |+
+    local is not supported
+  exit_code: 2

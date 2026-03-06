@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl test n-4 (+0 treated as +1 = output all)
+description: tail -n +0 outputs all lines (treated as +1).
+setup:
+  files:
+    - path: f.txt
+      content: "x\ny\nz\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n +0 f.txt
+expect:
+  stdout: "x\ny\nz\n"
+  stderr: ""
+  exit_code: 0

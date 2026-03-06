@@ -1,0 +1,10 @@
+description: Echo does not read stdin; piped data is discarded.
+input:
+  # language=bash
+  script: |+
+    echo hello | echo world
+expect:
+  stdout: |+
+    world
+  stderr: ""
+  exit_code: 0

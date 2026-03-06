@@ -1,0 +1,10 @@
+description: The $RANDOM variable has no special meaning and expands to empty.
+input:
+  # language=bash
+  script: |+
+    echo "[$RANDOM]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

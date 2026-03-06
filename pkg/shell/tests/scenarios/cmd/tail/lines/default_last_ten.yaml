@@ -1,0 +1,38 @@
+# Derived from GNU coreutils tail.pl test n-1 (last N lines, default=10)
+description: Default tail outputs the last 10 lines of a file.
+setup:
+  files:
+    - path: f.txt
+      content: |+
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail f.txt
+expect:
+  stdout: |+
+    3
+    4
+    5
+    6
+    7
+    8
+    9
+    10
+    11
+    12
+  stderr: ""
+  exit_code: 0

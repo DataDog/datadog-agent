@@ -1,0 +1,12 @@
+# Error handling: non-numeric -n value
+description: tail -n with a non-numeric value prints an error and exits with code 1.
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n abc
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail:"
+  exit_code: 1

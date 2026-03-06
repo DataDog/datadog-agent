@@ -1,0 +1,21 @@
+# -L / --files-without-match: print only filenames containing no match.
+description: grep -L prints only the names of files that have no matching lines.
+setup:
+  files:
+    - path: a.txt
+      content: "match\nno\n"
+      chmod: 0644
+    - path: b.txt
+      content: "no\nno\n"
+      chmod: 0644
+    - path: c.txt
+      content: "also match\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -L match a.txt b.txt c.txt
+expect:
+  stdout: "b.txt\n"
+  stderr: ""
+  exit_code: 0

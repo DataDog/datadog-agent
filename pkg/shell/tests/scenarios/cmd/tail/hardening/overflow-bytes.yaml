@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl test big-c.
+# Verifies that an astronomically large -c value is clamped rather than causing OOM or panic.
+description: tail -c with an overflow-sized count on a small file returns the whole file without OOM.
+setup:
+  files:
+    - path: input.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -c 99999999999999999999 input.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

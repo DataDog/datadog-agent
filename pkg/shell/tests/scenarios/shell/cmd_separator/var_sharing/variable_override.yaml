@@ -1,0 +1,11 @@
+description: A variable can be overridden across semicolon-separated commands.
+input:
+  # language=bash
+  script: |+
+    x=first; echo $x; x=second; echo $x
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: Break with multiple arguments produces a usage error on each iteration.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      break 1 2
+    done
+expect:
+  stdout: ""
+  stderr: |+
+    usage: break [n]
+    usage: break [n]
+    usage: break [n]
+  exit_code: 2

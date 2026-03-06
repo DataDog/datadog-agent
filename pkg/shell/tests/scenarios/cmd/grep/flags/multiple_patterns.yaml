@@ -1,0 +1,15 @@
+# -e PAT: specify multiple patterns (OR semantics).
+description: grep -e accepts multiple patterns and matches any of them.
+setup:
+  files:
+    - path: f.txt
+      content: "apple\nbanana\ncherry\ndaemon\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -e apple -e cherry f.txt
+expect:
+  stdout: "apple\ncherry\n"
+  stderr: ""
+  exit_code: 0

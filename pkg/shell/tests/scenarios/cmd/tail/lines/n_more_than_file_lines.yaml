@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl: large N outputs all lines
+description: tail -n N where N exceeds line count outputs the entire file.
+setup:
+  files:
+    - path: f.txt
+      content: "a\nb\nc\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 100 f.txt
+expect:
+  stdout: "a\nb\nc\n"
+  stderr: ""
+  exit_code: 0

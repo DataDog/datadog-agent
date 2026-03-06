@@ -52,6 +52,7 @@ PATH_EXCLUSION_REGEX = [
     '/pkg/security/serializers/serializers_base_windows_easyjson.go',
     '/pkg/security/probe/selftests/self_tests_easyjson.go',
     # These are files that we should not add our copyright to
+    '/pkg/shell/interp/',
     '/internal/patch/grpc-go-insecure/',
     '/internal/patch/logr/funcr/funcr(_test){,1}.go',
     '/internal/patch/logr/funcr/internal/logr/',

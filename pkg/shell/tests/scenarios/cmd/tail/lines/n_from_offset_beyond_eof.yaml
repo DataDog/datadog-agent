@@ -1,0 +1,16 @@
+# Derived from GNU coreutils tail.pl: +N where N > line count
+description: tail -n +N where N exceeds line count outputs nothing.
+setup:
+  files:
+    - path: f.txt
+      content: "a\nb\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n +99 f.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

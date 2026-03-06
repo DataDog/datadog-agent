@@ -1,0 +1,10 @@
+description: Herestring output can be piped to another command.
+input:
+  # language=bash
+  script: |+
+    cat <<< "piped" | cat
+expect:
+  stdout: |+
+    piped
+  stderr: ""
+  exit_code: 0

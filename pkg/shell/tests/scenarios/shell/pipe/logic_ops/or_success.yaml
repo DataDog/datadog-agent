@@ -1,0 +1,10 @@
+description: Successful pipe followed by || skips the fallback command.
+input:
+  # language=bash
+  script: |+
+    echo abc | cat || echo fallback
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+# -F / --fixed-strings: treat pattern as a literal string (no regex).
+description: grep -F treats the pattern literally, not as a regular expression.
+setup:
+  files:
+    - path: f.txt
+      content: "a.b\naXb\na[b\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -F 'a.b' f.txt
+expect:
+  stdout: "a.b\n"
+  stderr: ""
+  exit_code: 0

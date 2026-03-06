@@ -1,0 +1,11 @@
+description: A variable assigned an empty string is set but empty.
+input:
+  # language=bash
+  script: |+
+    EMPTY=""
+    echo "value=${EMPTY}end"
+expect:
+  stdout: |+
+    value=end
+  stderr: ""
+  exit_code: 0

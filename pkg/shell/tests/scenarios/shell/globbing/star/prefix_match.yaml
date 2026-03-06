@@ -1,0 +1,19 @@
+description: Star glob with prefix matches files starting with that prefix.
+setup:
+  files:
+    - path: test_one.sh
+      content: ""
+    - path: test_two.sh
+      content: ""
+    - path: other.sh
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    echo test_*
+expect:
+  stdout: |+
+    test_one.sh test_two.sh
+  stderr: ""
+  exit_code: 0

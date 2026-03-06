@@ -1,0 +1,11 @@
+description: Variables are NOT expanded inside single quotes.
+input:
+  # language=bash
+  script: |+
+    NAME=world
+    echo 'hello $NAME'
+expect:
+  stdout: |+
+    hello $NAME
+  stderr: ""
+  exit_code: 0

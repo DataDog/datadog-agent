@@ -1,0 +1,15 @@
+# All matching lines are printed.
+description: grep prints all lines that match, in order.
+setup:
+  files:
+    - path: f.txt
+      content: "foo bar\nbaz\nfoo qux\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep foo f.txt
+expect:
+  stdout: "foo bar\nfoo qux\n"
+  stderr: ""
+  exit_code: 0

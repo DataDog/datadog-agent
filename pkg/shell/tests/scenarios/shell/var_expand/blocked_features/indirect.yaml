@@ -1,0 +1,11 @@
+description: Indirect expansion ${!var} is not supported.
+input:
+  # language=bash
+  script: |+
+    X=HOME
+    echo ${!X}
+expect:
+  stdout: ""
+  stderr: |+
+    ${!var} is not supported
+  exit_code: 2

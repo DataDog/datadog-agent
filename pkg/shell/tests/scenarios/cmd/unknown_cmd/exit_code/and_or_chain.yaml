@@ -1,0 +1,11 @@
+description: Mixed && and || operators work correctly with unknown commands.
+input:
+  # language=bash
+  script: |+
+    foo && echo no || echo yes
+expect:
+  stdout: |+
+    yes
+  stderr: |+
+    foo: not found
+  exit_code: 0

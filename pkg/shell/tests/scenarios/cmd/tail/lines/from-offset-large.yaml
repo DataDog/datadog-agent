@@ -1,0 +1,15 @@
+# Derived from GNU coreutils tail.pl test n-3.
+description: tail -n +10 on a 12-line file outputs the last 3 lines starting at line 10.
+setup:
+  files:
+    - path: input.txt
+      content: "x\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\nz"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n +10 input.txt
+expect:
+  stdout: "y\ny\nz"
+  stderr: ""
+  exit_code: 0

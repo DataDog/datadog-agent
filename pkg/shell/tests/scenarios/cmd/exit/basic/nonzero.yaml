@@ -1,0 +1,9 @@
+description: Exit 1 terminates with a non-zero exit code.
+input:
+  # language=bash
+  script: |+
+    exit 1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

@@ -1,0 +1,15 @@
+description: Even common parent env vars like PATH are not propagated to the interpreter.
+input:
+  envs:
+    PATH: /usr/bin:/bin
+    USER: testuser
+  # language=bash
+  script: |+
+    echo "path=$PATH"
+    echo "user=$USER"
+expect:
+  stdout: |+
+    path=
+    user=
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Script name $0 is not supported.
+input:
+  # language=bash
+  script: |+
+    echo $0
+expect:
+  stdout: ""
+  stderr: |+
+    $0 is not supported
+  exit_code: 2

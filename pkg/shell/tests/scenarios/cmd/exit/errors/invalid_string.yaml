@@ -1,0 +1,10 @@
+description: Exit with a non-numeric string argument produces an error.
+input:
+  # language=bash
+  script: |+
+    exit abc
+expect:
+  stdout: ""
+  stderr: |+
+    invalid exit status code: "abc"
+  exit_code: 2

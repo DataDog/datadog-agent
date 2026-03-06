@@ -1,0 +1,11 @@
+description: Double quotes preserve internal spaces in expanded variables.
+input:
+  # language=bash
+  script: |+
+    VAR="hello    world"
+    echo "$VAR"
+expect:
+  stdout: |+
+    hello    world
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: The ls command is not a builtin and is rejected as unknown.
+input:
+  # language=bash
+  script: |+
+    ls
+expect:
+  stdout: ""
+  stderr: |+
+    ls: not found
+  exit_code: 127

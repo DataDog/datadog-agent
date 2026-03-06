@@ -1,0 +1,16 @@
+description: Symlink inside allowed dir pointing to file outside is blocked by os.Root
+setup:
+  files:
+    - path: secret/hidden.txt
+      content: "secret data"
+    - path: allowed/escape_link
+      symlink: ../secret/hidden.txt
+input:
+  allowed_paths: ["allowed"]
+  # language=bash
+  script: |+
+    cat allowed/escape_link
+expect:
+  stdout: ""
+  stderr: "cat: allowed/escape_link: openat escape_link: path escapes from parent\n"
+  exit_code: 1

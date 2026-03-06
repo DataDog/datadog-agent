@@ -1,0 +1,12 @@
+description: The $_ variable (last argument) expands to empty.
+input:
+  # language=bash
+  script: |+
+    echo hello
+    echo "[$_]"
+expect:
+  stdout: |+
+    hello
+    []
+  stderr: ""
+  exit_code: 0

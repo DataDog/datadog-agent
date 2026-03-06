@@ -1,0 +1,18 @@
+# Derived from GNU coreutils grep recursive search behavior.
+description: grep -r recurses into subdirectories and prints filename-prefixed matches.
+setup:
+  files:
+    - path: subdir/a.txt
+      content: "alpha\n"
+      chmod: 0644
+    - path: b.txt
+      content: "beta\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -r alpha .
+expect:
+  stdout_contains: ["subdir/a.txt:alpha"]
+  stderr: ""
+  exit_code: 0

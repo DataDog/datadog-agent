@@ -1,0 +1,15 @@
+# File without trailing newline: last line is still matched and output.
+description: grep matches the last line even when the file has no trailing newline.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep beta f.txt
+expect:
+  stdout: "beta\n"
+  stderr: ""
+  exit_code: 0

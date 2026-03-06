@@ -1,0 +1,15 @@
+# Unknown flags are rejected with exit code 2.
+description: grep exits 2 when an unsupported flag is used.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep --no-such-option pattern f.txt
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

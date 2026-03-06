@@ -1,0 +1,9 @@
+description: Dash heredoc expands variables when delimiter is unquoted.
+input:
+  # language=bash
+  script: "NAME=world\ncat <<-EOF\n\thello $NAME\nEOF\n"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

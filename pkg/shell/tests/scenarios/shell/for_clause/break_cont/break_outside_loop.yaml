@@ -1,0 +1,12 @@
+description: Break outside a loop produces an error message.
+input:
+  # language=bash
+  script: |+
+    break
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    break is only useful in a loop
+  exit_code: 0

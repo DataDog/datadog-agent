@@ -1,0 +1,15 @@
+# Derived from GNU grep max-count-vs-context: -m1 -A5 prints after-context even when match limit reached.
+description: grep -m 1 -A 5 prints 5 lines of context after the single allowed match.
+setup:
+  files:
+    - path: f.txt
+      content: "needle\n1st line of context\n2nd line of context\n3rd line of context\nanother needle\n5th line of context\n6th line\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -m 1 -A 5 needle f.txt
+expect:
+  stdout: "needle\n1st line of context\n2nd line of context\n3rd line of context\nanother needle\n5th line of context\n"
+  stderr: ""
+  exit_code: 0

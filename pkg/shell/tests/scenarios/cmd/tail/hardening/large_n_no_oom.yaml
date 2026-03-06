@@ -1,0 +1,16 @@
+# Hardening: very large -n value must not OOM; clamped to tailMaxLines
+description: tail -n with a huge value is clamped and outputs the full file without OOM.
+setup:
+  files:
+    - path: f.txt
+      content: "a\nb\nc\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n 99999999999999999999 f.txt
+expect:
+  stdout: "a\nb\nc\n"
+  stderr: ""
+  exit_code: 0

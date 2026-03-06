@@ -1,0 +1,15 @@
+# -c with no match: prints 0, exit code 1.
+description: grep -c prints 0 and exits with code 1 when no lines match.
+setup:
+  files:
+    - path: f.txt
+      content: "alpha\nbeta\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c delta f.txt
+expect:
+  stdout: "0\n"
+  stderr: ""
+  exit_code: 1

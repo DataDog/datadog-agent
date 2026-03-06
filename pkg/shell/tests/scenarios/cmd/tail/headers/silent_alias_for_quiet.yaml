@@ -1,0 +1,19 @@
+# Derived from GNU coreutils tail --silent alias
+description: tail --silent is an alias for --quiet and suppresses headers.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa\n"
+      chmod: 0644
+    - path: b.txt
+      content: "bbb\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail --silent a.txt b.txt
+expect:
+  stdout: "aaa\nbbb\n"
+  stderr: ""
+  exit_code: 0

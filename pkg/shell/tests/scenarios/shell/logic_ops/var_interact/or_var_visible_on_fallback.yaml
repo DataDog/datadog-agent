@@ -1,0 +1,10 @@
+description: Variable set before || is visible in the fallback.
+input:
+  # language=bash
+  script: |+
+    X=world; false || echo $X
+expect:
+  stdout: |+
+    world
+  stderr: ""
+  exit_code: 0

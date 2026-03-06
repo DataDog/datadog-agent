@@ -1,0 +1,10 @@
+# Missing file: error message on stderr, exit code 2.
+description: grep reports an error and exits 2 when a file does not exist.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep pattern nonexistent_file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["grep: nonexistent_file.txt:"]
+  exit_code: 2

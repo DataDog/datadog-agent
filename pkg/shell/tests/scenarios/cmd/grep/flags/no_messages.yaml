@@ -1,0 +1,10 @@
+# -s / --no-messages: suppress error messages about missing files.
+description: grep -s suppresses the error message for a missing file, but still exits 2.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -s pattern nonexistent_file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 2

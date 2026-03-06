@@ -1,0 +1,16 @@
+# Hardening: -- end-of-flags separator separates flags from filenames
+description: tail -- treats the next argument as a filename, not a flag.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -- f.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

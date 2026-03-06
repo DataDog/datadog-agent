@@ -1,0 +1,11 @@
+description: The true builtin produces no stdout output.
+input:
+  # language=bash
+  script: |+
+    true
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

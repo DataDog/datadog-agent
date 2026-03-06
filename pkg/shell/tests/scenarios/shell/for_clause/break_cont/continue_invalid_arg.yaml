@@ -1,0 +1,14 @@
+description: Continue with non-numeric argument produces an error on each iteration.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      continue abc
+    done
+expect:
+  stdout: ""
+  stderr: |+
+    continue: abc: numeric argument required
+    continue: abc: numeric argument required
+    continue: abc: numeric argument required
+  exit_code: 2

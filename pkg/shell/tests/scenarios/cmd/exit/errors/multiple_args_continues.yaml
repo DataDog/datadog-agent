@@ -1,0 +1,11 @@
+description: Exit with multiple arguments does not stop execution; subsequent commands still run.
+input:
+  # language=bash
+  script: |+
+    exit 1 2; echo still running
+expect:
+  stdout: |+
+    still running
+  stderr: |+
+    exit cannot take multiple arguments
+  exit_code: 0

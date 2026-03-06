@@ -1,0 +1,15 @@
+# Derived from GNU coreutils tail.pl test n-4a.
+description: tail -n +1 outputs all lines starting from line 1.
+setup:
+  files:
+    - path: input.txt
+      content: "y\ny\ny\ny\ny\n"
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    tail -n +1 input.txt
+expect:
+  stdout: "y\ny\ny\ny\ny\n"
+  stderr: ""
+  exit_code: 0

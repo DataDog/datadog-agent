@@ -1,0 +1,18 @@
+# Multiple files: output prefixed with filename.
+description: grep prefixes filenames when searching multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "match here\nno\n"
+      chmod: 0644
+    - path: b.txt
+      content: "no\nmatch too\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep match a.txt b.txt
+expect:
+  stdout: "a.txt:match here\nb.txt:match too\n"
+  stderr: ""
+  exit_code: 0

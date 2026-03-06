@@ -1,0 +1,10 @@
+description: If-else statements are not supported.
+input:
+  # language=bash
+  script: |+
+    if false; then echo yes; else echo no; fi
+expect:
+  stdout: ""
+  stderr: |+
+    if statements are not supported
+  exit_code: 2

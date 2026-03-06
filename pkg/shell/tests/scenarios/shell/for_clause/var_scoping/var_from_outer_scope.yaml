@@ -1,0 +1,11 @@
+description: Variables defined before the loop are accessible inside the body.
+input:
+  # language=bash
+  script: |+
+    PREFIX=hello
+    for i in world; do echo "$PREFIX $i"; done
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

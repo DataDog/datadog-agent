@@ -1,0 +1,18 @@
+description: When the first of multiple files fails, cat stops immediately without processing remaining files.
+setup:
+  files:
+    - path: existing.txt
+      content: |+
+        hello world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  # language=bash
+  script: |+
+    cat nonexistent.txt existing.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

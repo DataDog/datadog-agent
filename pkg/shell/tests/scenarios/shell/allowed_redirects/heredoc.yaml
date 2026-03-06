@@ -1,0 +1,12 @@
+description: Here-documents are still allowed.
+input:
+  # language=bash
+  script: |+
+    cat <<EOF
+    hello heredoc
+    EOF
+expect:
+  stdout: |+
+    hello heredoc
+  stderr: ""
+  exit_code: 0

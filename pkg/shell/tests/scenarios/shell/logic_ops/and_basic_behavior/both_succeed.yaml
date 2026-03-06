@@ -1,0 +1,11 @@
+description: Both commands succeed with && operator.
+input:
+  # language=bash
+  script: |+
+    echo first && echo second
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

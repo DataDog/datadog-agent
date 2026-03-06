@@ -1,0 +1,15 @@
+# Accessing a file outside the allowed path sandbox must fail with exit code 2.
+description: grep cannot access files outside the allowed paths sandbox.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep pattern /etc/hosts
+expect:
+  stdout: ""
+  stderr_contains: ["grep:"]
+  exit_code: 2

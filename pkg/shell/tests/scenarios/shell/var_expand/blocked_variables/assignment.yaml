@@ -1,0 +1,11 @@
+description: Variables without special meaning can be assigned and used as regular variables.
+input:
+  # language=bash
+  script: |+
+    RANDOM=42
+    echo $RANDOM
+expect:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

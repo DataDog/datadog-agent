@@ -1,0 +1,15 @@
+description: Break with argument exceeding nesting depth breaks all loops.
+input:
+  # language=bash
+  script: |+
+    for i in a b c; do
+      echo $i
+      break 99
+    done
+    echo done
+expect:
+  stdout: |+
+    a
+    done
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+# -w / --word-regexp: match only whole words.
+description: grep -w matches only whole words, not partial word matches.
+setup:
+  files:
+    - path: f.txt
+      content: "cat\ncatfish\nthe cat sat\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -w cat f.txt
+expect:
+  stdout: "cat\nthe cat sat\n"
+  stderr: ""
+  exit_code: 0

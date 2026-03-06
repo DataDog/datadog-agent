@@ -1,0 +1,15 @@
+# Empty file: no output, exit 1 (no match).
+description: grep on an empty file returns exit code 1.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep pattern empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

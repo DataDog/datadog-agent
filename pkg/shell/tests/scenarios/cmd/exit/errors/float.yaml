@@ -1,0 +1,10 @@
+description: Exit with a floating-point argument is invalid.
+input:
+  # language=bash
+  script: |+
+    exit 1.5
+expect:
+  stdout: ""
+  stderr: |+
+    invalid exit status code: "1.5"
+  exit_code: 2

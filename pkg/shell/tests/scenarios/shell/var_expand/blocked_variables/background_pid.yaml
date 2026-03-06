@@ -1,0 +1,10 @@
+description: The $! variable is blocked.
+input:
+  # language=bash
+  script: |+
+    echo "[$!]"
+expect:
+  stdout: ""
+  stderr: |+
+    $! is not supported
+  exit_code: 2

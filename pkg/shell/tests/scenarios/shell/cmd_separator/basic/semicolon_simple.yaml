@@ -1,0 +1,11 @@
+description: Two commands separated by a semicolon execute sequentially.
+input:
+  # language=bash
+  script: |+
+    echo first; echo second
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0
