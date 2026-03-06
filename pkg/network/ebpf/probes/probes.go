@@ -220,12 +220,12 @@ const (
 	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
 	// TCPCongestionStatsMap is the map storing per-connection TCP congestion snapshots
-	// (packets_out, lost_out, sacked_out, delivered, retrans_out, ca_state).
+	// (delivered_ce, reord_seen, ecn_negotiated).
 	// CO-RE/runtime only; prebuilt tracer leaves entries absent.
 	TCPCongestionStatsMap BPFMapName = "tcp_congestion_stats"
-	// TCPRTORecoveryStatsMap is the map storing per-connection RTO and fast-recovery
-	// event counters (rto_count, recovery_count). Keyed by zero-PID conn_tuple_t.
-	// CO-RE/runtime only; prebuilt tracer leaves entries absent.
+	// TCPRTORecoveryStatsMap is the map storing per-connection RTO, fast-recovery,
+	// and zero-window probe event counters (rto_count, recovery_count, probe0_count).
+	// Keyed by zero-PID conn_tuple_t. CO-RE/runtime only; prebuilt tracer leaves entries absent.
 	TCPRTORecoveryStatsMap BPFMapName = "tcp_rto_recovery_stats"
 	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
 	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
