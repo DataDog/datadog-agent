@@ -132,10 +132,27 @@ func (c *Controller) handleObject(obj interface{}) {
 
 // handleUpdate handles the new object reported in update events.
 // It can be a callback function for update events.
-func (c *Controller) handleUpdate(_, newObj interface{}) {
+func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}
+
+	newSecret, ok := newObj.(*corev1.Secret)
+	if !ok {
+		log.Debugf("Expected Secret object, got: %v", newObj)
+		return
+	}
+
+	oldSecret, ok := oldObj.(*corev1.Secret)
+	if !ok {
+		log.Debugf("Expected Secret object, got: %v", oldObj)
+		return
+	}
+
+	if newSecret.ResourceVersion == oldSecret.ResourceVersion {
+		return
+	}
+
 	c.handleObject(newObj)
 }
 
