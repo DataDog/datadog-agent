@@ -193,23 +193,32 @@ export function MetricsView({
     const mainGroups = [...visibleGroups]
       .filter((g) => g.namespace !== 'telemetry' && !g.baseName.startsWith('_virtual.'));
 
-    const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
-    const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
-    const defaultKeys = defaultGroup
-      ? [defaultGroup.key]
-      : mainGroups
-          .sort((a, b) => {
-            const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-            if (countDiff !== 0) return countDiff;
-            return a.baseName.localeCompare(b.baseName);
-          })
-          .slice(0, 6)
-          .map((g) => g.key);
+    const loadedFromResultFiles = state.status?.loadedFromResultFiles ?? false;
+
+    let defaultKeys: string[];
+    if (loadedFromResultFiles) {
+      // When loaded from result files, the telemetry and virtual metrics ARE the results —
+      // surface them automatically alongside the regular metrics.
+      defaultKeys = [...telKeys, ...virtKeys];
+    } else {
+      const DEFAULT_METRIC = 'datadog.dogstatsd.client.metrics';
+      const defaultGroup = mainGroups.find((g) => g.baseName === DEFAULT_METRIC);
+      defaultKeys = defaultGroup
+        ? [defaultGroup.key]
+        : mainGroups
+            .sort((a, b) => {
+              const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+              if (countDiff !== 0) return countDiff;
+              return a.baseName.localeCompare(b.baseName);
+            })
+            .slice(0, 6)
+            .map((g) => g.key);
+    }
 
     setSelectedGroups(new Set(defaultKeys));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
-  }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
+  }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange, state.status?.loadedFromResultFiles]);
 
   const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {

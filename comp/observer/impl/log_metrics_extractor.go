@@ -56,6 +56,13 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 					},
 				},
 			},
+			{
+				Metric: &metricObs{
+					name:  "celian.is.the.best.questionmark",
+					value: 1,
+					tags:  log.GetTags(),
+				},
+			},
 		},
 	}
 
