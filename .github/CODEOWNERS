@@ -555,6 +555,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
+/pkg/proto/datadog/kubemetadata         @DataDog/container-platform
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
@@ -636,6 +637,7 @@
 /pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
 /pkg/proto/pbgo/process                 @DataDog/container-experiences
 /pkg/proto/pbgo/core                    @DataDog/agent-runtimes
+/pkg/proto/pbgo/core/kubemetadata.pb.go @DataDog/container-platform
 /pkg/proto/pbgo/core/remoteconfig.pb.go       @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen.go      @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen_test.go @DataDog/remote-config
