@@ -270,7 +270,7 @@ namespace Datadog.CustomActions
                 PropertyReplacer.For("APIKEY")
                     .Match("^[ #]*api_key:.*").ReplaceWith(value => $"api_key: {value}"),
 
-                PropertyReplacer.For("APPKEY")
+                PropertyReplacer.For("DD_APP_KEY")
                     .Match("^[ #]*app_key:.*").ReplaceWith(value => $"app_key: {value}"),
 
                 PropertyReplacer.For("SITE")
@@ -336,11 +336,11 @@ namespace Datadog.CustomActions
                 PropertyReplacer.For("EC2_USE_WINDOWS_PREFIX_DETECTION")
                     .Match("(^[ #]*ec2_use_windows_prefix_detection:.*|\\Z)").ReplaceWith(value => $"ec2_use_windows_prefix_detection: {value}"),
 
-                PropertyReplacer.For("PAR_ENABLED")
+                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ENABLED")
                     .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
                     .Match("^[ #]*enabled:.*").ReplaceWith(value => $"  enabled: {value}"),
 
-                PropertyReplacer.For("PAR_ACTIONS_ALLOWLIST")
+                PropertyReplacer.For("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
                     .Match("^[ #]*private_action_runner:").ReplaceWith(_ => "private_action_runner:")
                     .Match("^[ #]*actions_allowlist:(?:(?:.|\n)*?)^[ #]*- com\\.datadoghq\\.script\\.runPredefinedScript").ReplaceWith(FormatParActionsAllowlist)
             };

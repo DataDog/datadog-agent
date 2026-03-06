@@ -102,11 +102,11 @@ namespace CustomActions.Tests.IntegrationTests
             foreach (var keyValuePair in new Dictionary<string, string>()
                      {
                          { "APIKEY", "testapikey" },
-                         { "APPKEY", "testappkey1234567890abcdef12345678" },
+                         { "DD_APP_KEY", "testappkey1234567890abcdef12345678" },
                          { "LOGS_ENABLED", "true" },
                          { "PROCESS_ENABLED", "true" },
                          { "APM_ENABLED", "true" },
-                         { "PAR_ENABLED", "true" },
+                         { "DD_PRIVATE_ACTION_RUNNER_ENABLED", "true" },
                      })
             {
                 sessionMock.Setup(session => session[keyValuePair.Key]).Returns(keyValuePair.Value);

@@ -12,7 +12,7 @@ namespace CustomActions.Tests
     {
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
-        [InlineAutoData("APPKEY", "app_key")]
+        [InlineAutoData("DD_APP_KEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
@@ -36,7 +36,7 @@ namespace CustomActions.Tests
 
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
-        [InlineAutoData("APPKEY", "app_key")]
+        [InlineAutoData("DD_APP_KEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
@@ -52,8 +52,8 @@ namespace CustomActions.Tests
         [InlineAutoData("DD_URL", "dd_url")]
         [InlineAutoData("PYVER", "python_version")]
         [InlineAutoData("HOSTNAME_FQDN_ENABLED", "hostname_fqdn")]
-        [InlineAutoData("PAR_ENABLED", "private_action_runner")]
-        [InlineAutoData("PAR_ACTIONS_ALLOWLIST", "private_action_runner")]
+        [InlineAutoData("DD_PRIVATE_ACTION_RUNNER_ENABLED", "private_action_runner")]
+        [InlineAutoData("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", "private_action_runner")]
         public void Properties_Should_Not_Be_Replaced_Given_A_Property_Does_Not_Match(string property, string key, string value, Mock<ISession> sessionMock)
         {
             var datadogYaml = $@"
@@ -77,7 +77,7 @@ random_property: test
             var datadogYaml = @"
 # private_action_runner:
 #   enabled: false";
-            sessionMock.Setup(session => session["PAR_ENABLED"]).Returns("true");
+            sessionMock.Setup(session => session["DD_PRIVATE_ACTION_RUNNER_ENABLED"]).Returns("true");
             ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
                 .ToYaml()
                 .Should()
@@ -93,7 +93,7 @@ random_property: test
 # private_action_runner:
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedScript";
-            sessionMock.Setup(session => session["PAR_ACTIONS_ALLOWLIST"]).Returns("com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection");
+            sessionMock.Setup(session => session["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"]).Returns("com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection");
             var result = ConfigCustomActions.ReplaceProperties(datadogYaml, sessionMock.Object)
                 .ToYaml();
             result

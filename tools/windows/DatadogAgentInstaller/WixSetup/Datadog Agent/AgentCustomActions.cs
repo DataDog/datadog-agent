@@ -224,7 +224,7 @@ namespace WixSetup.Datadog_Agent
                     "PROJECTLOCATION=[PROJECTLOCATION], " +
                     "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
                     "APIKEY=[APIKEY], " +
-                    "APPKEY=[APPKEY], " +
+                    "DD_APP_KEY=[DD_APP_KEY], " +
                     "TAGS=[TAGS], " +
                     "HOSTNAME=[HOSTNAME], " +
                     "PROXY_HOST=[PROXY_HOST], " +
@@ -245,8 +245,8 @@ namespace WixSetup.Datadog_Agent
                     "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
                     "NPM=[NPM], " +
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION], " +
-                    "PAR_ENABLED=[PAR_ENABLED], " +
-                    "PAR_ACTIONS_ALLOWLIST=[PAR_ACTIONS_ALLOWLIST]")
+                    "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED], " +
+                    "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]")
                 .HideTarget(true);
 
             // Cleanup leftover files on rollback
