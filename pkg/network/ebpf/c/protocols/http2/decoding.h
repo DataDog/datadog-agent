@@ -132,60 +132,17 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         return false;
     }
 
-    // The header name is new (literal key with literal value)
-    // Try to detect and remap :path, :method, or :status to their static table indices
+    // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        char b[HTTP2_METHOD_MAX_LEN];
-        pktbuf_load_bytes_from_current_offset(pkt, b, HTTP2_METHOD_MAX_LEN);
-
-        // Split paths by is_huffman_encoded to reduce verifier complexity (avoids OR conditions)
-        if (is_huffman_encoded) {
-            // Huffman encoded header names
-            // :path Huffman: 4 bytes, :method/:status Huffman: 5 bytes
-            if (str_len == HTTP2_HEADER_PATH_HUFFMAN_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH_HUFFMAN, HTTP2_HEADER_PATH_HUFFMAN_LEN) == 0) {
-                index = kEmptyPath; // :path
-            } else if (str_len == HTTP2_HEADER_METHOD_HUFFMAN_LEN) {
-                // Both :method and :status have 5 byte Huffman encoding
-                if (bpf_memcmp(b, HTTP2_HEADER_METHOD_HUFFMAN, HTTP2_HEADER_METHOD_HUFFMAN_LEN) == 0) {
-                    index = kGET; // :method
-                } else if (bpf_memcmp(b, HTTP2_HEADER_STATUS_HUFFMAN, HTTP2_HEADER_STATUS_HUFFMAN_LEN) == 0) {
-                    index = k200; // :status
-                }
-            }
-        } else {
-            // Plain text header names
-            // :path (5 bytes), :method/:status (7 bytes)
-            if (str_len == HTTP2_HEADER_PATH_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH, HTTP2_HEADER_PATH_LEN) == 0) {
-                index = kEmptyPath; // :path
-            } else if (str_len == HTTP2_HEADER_METHOD_LEN) {
-                // Both :method and :status are 7 bytes
-                if (bpf_memcmp(b, HTTP2_HEADER_METHOD, HTTP2_HEADER_METHOD_LEN) == 0) {
-                    index = kGET; // :method
-                } else if (bpf_memcmp(b, HTTP2_HEADER_STATUS, HTTP2_HEADER_STATUS_LEN) == 0) {
-                    index = k200; // :status
-                }
-            }
-        }
-
         pktbuf_advance(pkt, str_len);
-
-        if (index == 0) {
-            // The header is not recognized - skip the value
-            str_len = 0;
-            // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-            // At this point the huffman code is not interesting due to the fact that we already read the string length,
-            // We are reading the current size in order to skip it.
-            if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
-                return false;
-            }
-            goto end;
-        }
-
-        // The header was recognized (:path, :method, or :status) - read the value length to process it
         str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+        // At this point the huffman code is not interesting due to the fact that we already read the string length,
+        // We are reading the current size in order to skip it.
         if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
+        goto end;
     }
 
     // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
