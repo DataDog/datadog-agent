@@ -3,7 +3,7 @@
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
 
-.bazel:defs:cache:ephemeral:
+.bazel:defs:cache:progressive:
   extends: .bazel:defs
   cache:
     - &bazelversion_cache
@@ -53,14 +53,14 @@
 .bazel:runner:linux-amd64:
   #extends: .bazel:defs:cache:persistent
   #tags: [ "k8s-persistent:amd64", "specific:true" ]
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   tags: [ "arch:amd64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 
 .bazel:runner:linux-arm64:
   #extends: .bazel:defs:cache:persistent
   #tags: [ "k8s-persistent:arm64", "specific:true" ]
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   tags: [ "arch:arm64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 

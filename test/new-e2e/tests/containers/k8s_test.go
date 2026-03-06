@@ -915,6 +915,32 @@ func (suite *k8sSuite) TestRedis() {
 		},
 	})
 
+	// Test AD annotated endpoint check configured as an 'http_check' for redis service
+	// http checks are expected to fail for redis services. This assertion is focused
+	// on confirming an endpoint check is scheduled and running as expected.
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "network.http.cant_connect",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: suite.testClusterTags([]string{
+				`^cluster_name:`,
+				`^instance:My_Redis$`,
+				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_service:redis$`,
+				`^kube_endpoint_ip:`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`, // endpoint checks should have pod tags
+				`^pod_phase:running$`,
+			}),
+			AcceptUnexpectedTags: true,
+		},
+	})
+
 	// Test KSM metrics for the redis deployment
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
