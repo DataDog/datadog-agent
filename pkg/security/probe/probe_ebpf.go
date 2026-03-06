@@ -29,7 +29,6 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
-	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
@@ -135,7 +134,6 @@ type EBPFProbe struct {
 	hostname  string
 
 	// TC Classifier & raw packets
-	tcRequests                chan tcClassifierRequest
 	rawPacketFilterCollection *lib.Collection
 	rawPacketActionCollection *lib.Collection
 
@@ -799,15 +797,6 @@ func (p *EBPFProbe) Start() error {
 	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
 	p.replayEvents(true)
 
-	if p.probe.IsNetworkEnabled() {
-		// start new tc classifier loop
-		p.wg.Add(1)
-		go func() {
-			defer p.wg.Done()
-			p.startSetupNewTCClassifierLoop()
-		}()
-	}
-
 	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
 		p.wg.Add(1)
@@ -1203,9 +1192,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NSPath {
-		return utils.NewNSPathFromPid(event.PIDContext.Pid, utils.NetNsType)
-	})
+	netNS := event.PIDContext.NetNS
+	pid := event.PIDContext.Pid
+	go func() {
+		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
+			return utils.NewNSPathFromPid(pid, utils.NetNsType)
+		})
+	}()
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
@@ -1438,27 +1431,28 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 
-		request := tcClassifierRequest{
-			requestType: tcNewDeviceRequestType,
-			device:      event.NetDevice.Device,
+		request := netns.TcClassifierRequest{
+			RequestType: netns.TcNewDeviceRequestType,
+			Device:      event.NetDevice.Device,
 		}
-		p.pushNewTCClassifierRequest(request)
+
+		p.Resolvers.NamespaceResolver.PushNewTCClassifierRequest(request)
 	case model.VethPairEventType, model.VethPairNsEventType:
 		if !p.regularUnmarshalEvent(&event.VethPair, eventType, offset, dataLen, data) {
 			return false
 		}
 
-		request := tcClassifierRequest{
-			device: event.VethPair.PeerDevice,
+		request := netns.TcClassifierRequest{
+			Device: event.VethPair.PeerDevice,
 		}
 
 		if eventType == model.VethPairEventType {
-			request.requestType = tcNewDeviceRequestType
+			request.RequestType = netns.TcNewDeviceRequestType
 		} else {
-			request.requestType = tcDeviceUpdateRequestType
+			request.RequestType = netns.TcDeviceUpdateRequestType
 		}
 
-		p.pushNewTCClassifierRequest(request)
+		p.Resolvers.NamespaceResolver.PushNewTCClassifierRequest(request)
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
@@ -2255,7 +2249,6 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
-	close(p.tcRequests)
 	return p.Resolvers.Close()
 }
 
@@ -2282,97 +2275,6 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			seclog.Tracef("sysctl snapshot sent !")
 		}
 	}
-}
-
-// QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
-// resolved.
-type QueuedNetworkDeviceError struct {
-	msg string
-}
-
-func (err QueuedNetworkDeviceError) Error() string {
-	return err.msg
-}
-
-type tcClassifierRequestType int
-
-const (
-	tcNewDeviceRequestType tcClassifierRequestType = iota
-	tcDeviceUpdateRequestType
-)
-
-type tcClassifierRequest struct {
-	requestType tcClassifierRequestType
-	device      model.NetDevice
-}
-
-func (p *EBPFProbe) pushNewTCClassifierRequest(request tcClassifierRequest) {
-	select {
-	case <-p.ctx.Done():
-		// the probe is stopping, do not push the new tc classifier request
-		return
-	case p.tcRequests <- request:
-		// do nothing
-	default:
-		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
-	}
-}
-
-func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
-	for {
-		select {
-		case <-p.ctx.Done():
-			return
-		case request, ok := <-p.tcRequests:
-			if !ok {
-				return
-			}
-
-			if err := p.setupNewTCClassifier(request.device); err != nil {
-				var qnde QueuedNetworkDeviceError
-				var linkNotFound netlink.LinkNotFoundError
-
-				if errors.As(err, &qnde) {
-					seclog.Debugf("%v", err)
-				} else if errors.As(err, &linkNotFound) {
-					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
-				} else if errors.Is(err, manager.ErrIdentificationPairInUse) {
-					if request.requestType != tcDeviceUpdateRequestType {
-						seclog.Errorf("tc classifier already exists: %v", err)
-					} else {
-						seclog.Debugf("tc classifier already exists: %v", err)
-					}
-				} else {
-					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.device, err)
-				}
-			}
-		}
-	}
-}
-
-func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
-	// select netns handle
-	var handle *os.File
-	var err error
-	netns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(device.NetNS)
-	if netns != nil {
-		handle, err = netns.GetNamespaceHandleDup()
-	}
-	defer handle.Close()
-	if netns == nil || err != nil || handle == nil {
-		// queue network device so that a TC classifier can be added later
-		p.Resolvers.NamespaceResolver.QueueNetworkDevice(device)
-		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
-	}
-	err = p.Resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
-	if err != nil {
-		return err
-	}
-	if err := handle.Close(); err != nil {
-		return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
-	}
-
-	return nil
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -2959,7 +2861,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
-		tcRequests:           make(chan tcClassifierRequest, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
