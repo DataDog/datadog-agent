@@ -1689,7 +1689,7 @@ def build_object_files(
         # (e.g. build_cws_object_files for unit tests) can still find them.
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        ctx.run("bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
+        ctx.run(f"{sudo} bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
 
     run_ninja(
         ctx,
