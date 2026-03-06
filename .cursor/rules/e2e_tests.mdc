@@ -69,7 +69,6 @@ Provisioners are in `test/e2e-framework/testing/provisioners/`:
 ### Installing Docker with ECR Support
 
 ```go
-installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 ```
 
@@ -106,8 +105,7 @@ provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
 
 When EC2 instances fail to pull images from ECR:
 1. Verify `~/.test_infra_config.yaml` is configured for `agent-sandbox`
-2. Install ECR credentials helper: `ec2.InstallECRCredentialsHelper()`
-3. Install Docker: `docker.NewManager()` configures Docker to use the credentials helper
+2. Install Docker: `docker.NewManager()` configures Docker to use the credentials helper
 
 Root causes:
 - Running in wrong AWS account (should be `agent-sandbox` for local)

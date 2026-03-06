@@ -168,7 +168,13 @@ func (d *Manager) install() (command.Command, error) {
 		return nil, err
 	}
 
-	restartDockerDaemon, err := d.Host.OS.ServiceManger().EnsureRestarted("docker", nil, utils.MergeOptions(opts, utils.PulumiDependsOn(daemonPatch))...)
+	// Install ECR credentials helper to auto-login to (among others) our pull-through ECR cache
+	ecrCredsHelperInstall, err := InstallECRCredentialsHelper(d.namer, d.Host, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	restartDockerDaemon, err := d.Host.OS.ServiceManger().EnsureRestarted("docker", nil, utils.MergeOptions(opts, utils.PulumiDependsOn(daemonPatch, ecrCredsHelperInstall))...)
 	if err != nil {
 		return nil, err
 	}
