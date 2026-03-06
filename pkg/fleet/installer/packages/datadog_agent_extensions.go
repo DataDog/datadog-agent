@@ -133,3 +133,19 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 
 	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
 }
+
+// installDDOTExtensionIfEnabled installs the DDOT extension if DD_OTELCOLLECTOR_ENABLED is set.
+// Note: Caller must call extensionsPkg.SetPackage() separately before calling this function.
+//
+//nolint:unused // Used in platform-specific files
+func installDDOTExtensionIfEnabled(ctx HookContext, version string, experiment bool) error {
+	e := env.FromEnv()
+	if !e.OTelCollectorEnabled {
+		return nil
+	}
+	setRegistryConfig(e)
+	downloader := oci.NewDownloader(e, e.HTTPClient())
+	url := oci.PackageURL(e, agentPackage, version)
+	hooks := NewHooks(e, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	return extensionsPkg.Install(ctx, downloader, url, []string{"ddot"}, experiment, hooks)
+}
