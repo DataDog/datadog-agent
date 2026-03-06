@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,8 +20,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	tagNames "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -40,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Configuration keys for the private action runner.
@@ -90,20 +88,6 @@ func validateAppKey(key string) error {
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(parEnabled)
-}
-
-func (p *PrivateActionRunner) getOrchClusterID() string {
-	globalTags, err := p.tagger.GlobalTags(types.LowCardinality)
-	if err != nil {
-		return ""
-	}
-	for _, tag := range globalTags {
-		name, value, ok := strings.Cut(tag, ":")
-		if ok && name == tagNames.OrchClusterID {
-			return value
-		}
-	}
-	return ""
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -319,7 +303,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 
-	orchClusterID := p.getOrchClusterID()
+	orchClusterID, err := clustername.GetClusterID()
+	if err != nil {
+		pkglog.Warnf("Failed to get orchestrator cluster ID: %v", err)
+	}
 	agentFlavor := flavor.GetFlavor()
 
 	runnerNamePrefix := runnerHostname
