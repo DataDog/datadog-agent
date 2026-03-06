@@ -16,6 +16,8 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -82,6 +84,8 @@ type TestBenchConfig struct {
 	ScenariosDir string
 	HTTPAddr     string
 	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
+	Cfg          config.Component
+	Logger       log.Component
 
 	// EnableOverrides controls which components are enabled at startup.
 	// Keys are component names (e.g. "cusum", "lead_lag").
@@ -1090,7 +1094,7 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string, dryRun bool) error {
 	for tb.correlatorsProcessing {
 		tb.correlatorsDone.Wait()
 	}
-	return sendCorrelationEvents(tb.correlations, dryRun)
+	return sendCorrelationEvents(tb.correlations, tb.config.Cfg, tb.config.Logger, dryRun)
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.

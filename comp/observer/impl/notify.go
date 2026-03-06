@@ -9,32 +9,33 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // eventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, send prints to stdout (dry-run mode) instead of calling the API.
 type eventSender struct {
-	api *datadogV2.EventsApi
-	ctx context.Context
+	api    *datadogV2.EventsApi
+	ctx    context.Context
+	logger log.Component
 }
 
 // newEventSender creates an eventSender. When dryRun is true, api is left nil.
-func newEventSender(dryRun bool) (*eventSender, error) {
+func newEventSender(cfg config.Component, logger log.Component, dryRun bool) (*eventSender, error) {
 	if dryRun {
-		return &eventSender{}, nil
+		return &eventSender{logger: logger}, nil
 	}
-	apiKey := os.Getenv("DD_API_KEY")
+	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
-		return nil, fmt.Errorf("DD_API_KEY environment variable is not set")
+		return nil, fmt.Errorf("api_key is not set in configuration")
 	}
 	ctx := context.WithValue(
 		datadog.NewDefaultContext(context.Background()),
@@ -42,8 +43,9 @@ func newEventSender(dryRun bool) (*eventSender, error) {
 		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
 	)
 	return &eventSender{
-		api: datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
-		ctx: ctx,
+		api:    datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		ctx:    ctx,
+		logger: logger,
 	}, nil
 }
 
@@ -80,7 +82,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	text := correlationMessage(c)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 
-	log.Printf("[observer] sending event: pattern=%s title=%q timestamp=%s\n%s\n", c.Pattern, c.Title, ts, text)
+	s.logger.Infof("[observer] sending event: pattern=%s title=%q timestamp=%s\n%s\n", c.Pattern, c.Title, ts, text)
 
 	if s.api == nil {
 		fmt.Printf("[dry-run] pattern=%s title=%q timestamp=%s\n%s\n\n", c.Pattern, c.Title, ts, text)
@@ -107,15 +109,15 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		body, readErr := io.ReadAll(httpResp.Body)
 		httpResp.Body.Close()
 		if readErr == nil {
-			log.Printf("[observer] API error response (HTTP %d): %s", httpResp.StatusCode, string(body))
+			s.logger.Errorf("[observer] API error response (HTTP %d): %s", httpResp.StatusCode, string(body))
 		}
 	}
 	return err
 }
 
 // sendCorrelationEvents creates a sender and dispatches one event per correlation.
-func sendCorrelationEvents(correlations []observerdef.ActiveCorrelation, dryRun bool) error {
-	sender, err := newEventSender(dryRun)
+func sendCorrelationEvents(correlations []observerdef.ActiveCorrelation, cfg config.Component, logger log.Component, dryRun bool) error {
+	sender, err := newEventSender(cfg, logger, dryRun)
 	if err != nil {
 		return err
 	}
