@@ -40,24 +40,29 @@ func (ctc *testContainer) start() error {
 	args := []string{
 		"run",
 		"--name", containerName,
-		"--privileged",
 		"--detach",
 	}
 
-	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK", "ALL"}
+	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK"}
 	for _, cap := range capabilities {
 		args = append(args, "--cap-add", cap)
 	}
 
 	var mounts = []string{
-		"/dev:/dev",
-		"/proc:/host/proc",
-		"/etc:/host/etc",
-		"/sys:/host/sys",
-		"/etc/os-release:/host/etc/os-release",
-		"/usr/lib/os-release:/host/usr/lib/os-release",
+		// required
+		"/:/host/root",                        // hostroot
+		"/proc:/host/proc",                    // host procfs
+		"/sys:/host/sys",                      // host sysfs
+		"/etc:/host/etc",                      // host etc
+		"/sys/kernel/debug:/sys/kernel/debug", // bind mount debugfs
 		"/etc/passwd:/etc/passwd",
 		"/etc/group:/etc/group",
+		// already included in above mounts, can we remove these?
+		"/etc/os-release:/host/etc/os-release",
+		"/usr/lib/os-release:/host/usr/lib/os-release",
+		"/sys/fs/cgroup:/host/sys/fs/cgroup",
+		// tests only
+		"/dev:/dev",
 		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
 		"/opt/kmt-ramfs:/opt/kmt-ramfs",
 		ctc.bpfDir + ":/opt/bpf",
@@ -67,9 +72,11 @@ func (ctc *testContainer) start() error {
 	}
 
 	var envs = []string{
+		"HOST_ROOT=/host/root",
 		"HOST_PROC=/host/proc",
-		"HOST_ETC=/host/etc",
 		"HOST_SYS=/host/sys",
+		"HOST_ETC=/host/etc",
+		"DD_LOG_LEVEL=debug",
 	}
 	for _, env := range envs {
 		args = append(args, "-e", env)
@@ -80,12 +87,6 @@ func (ctc *testContainer) start() error {
 	args = append(args, "sleep", "infinity")
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %s", err)
-	}
-
-	// mount debugfs
-	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
-	if err := ctc.runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
 	}
 
 	return nil

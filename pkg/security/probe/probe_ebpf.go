@@ -446,6 +446,10 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 				"CAP_CHOWN",
 			}
 
+			if p.probe.Config.RuntimeSecurity.EnforcementEnabled {
+				requiredCaps = append(requiredCaps, "CAP_KILL")
+			}
+
 			for _, requiredCap := range requiredCaps {
 				capConst := model.KernelCapabilityConstants[requiredCap]
 				if capsEffective&capConst == 0 {
