@@ -8,6 +8,7 @@ rust_library(
     visibility = ["//visibility:public"],
     deps = [
         "@crates//:log",
+        "@crates//:time",
     ],
 )
 

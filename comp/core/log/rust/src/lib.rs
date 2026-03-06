@@ -8,7 +8,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::SystemTime;
+use time::OffsetDateTime;
 
 pub struct LogConfig {
     pub logger_name: &'static str,
@@ -20,36 +20,6 @@ struct DdAgentLogger {
     logger_name: &'static str,
     level: log::Level,
     file: Mutex<Option<File>>,
-}
-
-/// Formats a `SystemTime` as `YYYY-MM-DD HH:MM:SS UTC` using pure Rust (no chrono/libc).
-fn format_utc_time(time: SystemTime) -> String {
-    let duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = duration.as_secs();
-
-    // Days and time-of-day
-    let days = secs / 86400;
-    let remaining = secs % 86400;
-    let hours = remaining / 3600;
-    let minutes = (remaining % 3600) / 60;
-    let seconds = remaining % 60;
-
-    // Convert days since epoch to year/month/day
-    // Using the algorithm from http://howardhinnant.github.io/date_algorithms.html
-    let z = days + 719_468;
-    let era = z / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-
-    format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}:{seconds:02} UTC")
 }
 
 /// Returns the last segment of a module path (e.g. `injector` from `dd_discovery::injector`).
@@ -67,7 +37,11 @@ impl Log for DdAgentLogger {
             return;
         }
 
-        let timestamp = format_utc_time(SystemTime::now());
+        let timestamp = OffsetDateTime::now_utc()
+            .format(time::macros::format_description!(
+                "[year]-[month]-[day] [hour]:[minute]:[second] UTC"
+            ))
+            .unwrap();
         let level = record.level();
         let file_path = record.file().unwrap_or("<unknown>");
         let line = record.line().unwrap_or(0);
@@ -138,21 +112,6 @@ pub fn init(config: LogConfig) -> Result<(), log::SetLoggerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_format_utc_time() {
-        // Unix epoch
-        let epoch = SystemTime::UNIX_EPOCH;
-        assert_eq!(format_utc_time(epoch), "1970-01-01 00:00:00 UTC");
-    }
-
-    #[test]
-    fn test_format_utc_time_known_date() {
-        use std::time::Duration;
-        // 2026-03-05 09:54:22 UTC = 1772704462 seconds since epoch
-        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1_772_704_462);
-        assert_eq!(format_utc_time(time), "2026-03-05 09:54:22 UTC");
-    }
 
     #[test]
     fn test_last_module_segment() {
