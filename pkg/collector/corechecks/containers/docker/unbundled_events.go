@@ -9,6 +9,7 @@ package docker
 
 import (
 	"fmt"
+	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -67,6 +68,14 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		}
 
 		tags = append(tags, fmt.Sprintf("event_type:%s", ev.Action))
+		if exitCodeString, ok := ev.Attributes["exitCode"]; ok {
+			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+			if err != nil {
+				log.Warnf("skipping adding exit code to event with invalid exit code: %s", err.Error())
+			} else {
+				tags = append(tags, fmt.Sprintf("exit_code:%d", exitCodeInt))
+			}
+		}
 
 		datadogEvs = append(datadogEvs, event.Event{
 			Title:          fmt.Sprintf("Container %s: %s", ev.ContainerID, ev.Action),
