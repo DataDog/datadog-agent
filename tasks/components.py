@@ -132,7 +132,6 @@ components_classic_style = [
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
     'comp/forwarder/orchestrator/orchestratorimpl',
-    'comp/languagedetection/client/clientimpl',
     'comp/logs/adscheduler/adschedulerimpl',
     'comp/logs/agent/agentimpl',
     'comp/metadata/host/hostimpl',
