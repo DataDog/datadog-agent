@@ -258,7 +258,7 @@ const (
 	MetricSourceOpenstackController
 	MetricSourceOracle
 	MetricSourcePdhCheck
-	MetricSourcePerfect
+	MetricSourcePrefect
 	MetricSourcePgbouncer
 	MetricSourcePhpFpm
 	MetricSourcePostfix
@@ -340,7 +340,7 @@ const (
 	MetricSourceDatadogOperator
 	MetricSourceBattery
 	MetricSourcePinot
-
+	MetricSourceDellPowerFlex
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -441,7 +441,7 @@ func (ms MetricSource) String() string {
 	case MetricSourceContainerd:
 		return "containerd"
 	case MetricSourceControlM:
-		return "controlm"
+		return "control_m"
 	case MetricSourceCri:
 		return "cri"
 	case MetricSourceDocker:
@@ -696,8 +696,8 @@ func (ms MetricSource) String() string {
 		return "oracle"
 	case MetricSourcePdhCheck:
 		return "pdh_check"
-	case MetricSourcePerfect:
-		return "perfect"
+	case MetricSourcePrefect:
+		return "prefect"
 	case MetricSourcePgbouncer:
 		return "pgbouncer"
 	case MetricSourcePhpFpm:
@@ -1146,7 +1146,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceContainer
 	case "containerd":
 		return MetricSourceContainerd
-	case "controlm":
+	case "control_m":
 		return MetricSourceControlM
 	case "cri":
 		return MetricSourceCri
@@ -1398,8 +1398,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOracle
 	case "pdh_check":
 		return MetricSourcePdhCheck
-	case "perfect":
-		return MetricSourcePerfect
+	case "prefect":
+		return MetricSourcePrefect
 	case "pgbouncer":
 		return MetricSourcePgbouncer
 	case "php_fpm":
@@ -1820,6 +1820,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceBattery
 	case "pinot":
 		return MetricSourcePinot
+	case "dell_powerflex":
+		return MetricSourceDellPowerFlex
 	default:
 		return MetricSourceUnknown
 	}
