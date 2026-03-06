@@ -83,7 +83,7 @@ func TestNewCollector(t *testing.T) {
 			name: "filter with unsupported kinds",
 			filter: workloadmeta.NewFilterBuilder().
 				AddKind(workloadmeta.KindContainer).
-				AddKind(workloadmeta.KindContainerImageMetadata /* No Supported */).
+				AddKind(workloadmeta.KindKubernetesMetadata /* No Supported */).
 				Build(),
 			expectsError: true,
 		},
@@ -223,6 +223,7 @@ func TestCollection(t *testing.T) {
 		Catalog:     workloadmeta.Remote,
 		StreamHandler: &streamHandler{
 			port: port,
+			ipc:  ipcComp,
 		},
 		IPC: ipcComp,
 	}

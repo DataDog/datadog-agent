@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -99,9 +100,8 @@ type EBPFResolver struct {
 	brokenLineage             *atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
-	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
-	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -1304,11 +1304,6 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncBoundSockets sets the bound sockets discovered during the snapshot
-func (p *EBPFResolver) SyncBoundSockets(pid uint32, boundSockets []model.SnapshottedBoundSocket) {
-	p.SnapshottedBoundSockets[pid] = boundSockets
-}
-
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
@@ -1361,6 +1356,17 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
 		seclog.Trace(err)
 		return nil
+	}
+
+	var err error
+	entry.SnapshottedMmapedFiles, err = procfs.GetMmapedFiles(proc)
+	if err != nil {
+		seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", proc.Pid, err)
+	}
+
+	entry.SnapshottedBoundSockets, err = procfs.NewBoundSocketSnapshotter().GetBoundSockets(proc)
+	if err != nil {
+		seclog.Debugf("error while listing sockets (pid: %v): %s", proc.Pid, err)
 	}
 
 	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode
@@ -1587,7 +1593,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),

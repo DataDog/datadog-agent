@@ -84,6 +84,15 @@ var (
 		commonOpts,
 	)
 
+	// SBOMComponentsFound is the number of components found in a SBOM
+	SBOMComponentsFound = telemetry.NewGaugeWithOpts(
+		Subsystem,
+		"components_found",
+		[]string{"source", "type"},
+		"Number of components found in a SBOM",
+		commonOpts,
+	)
+
 	// QueueMetricsProvider is the metrics provider for the sbom scanner retry queue
 	QueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )
