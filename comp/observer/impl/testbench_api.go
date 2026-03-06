@@ -483,7 +483,7 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 		// 	tags = append(tags, "status:"+l.Status)
 		// }
 		response = append(response, logEntryResponse{
-			TimestampMs: l.GetTimestampMs(),
+			TimestampMs: l.GetTimestampUnixMilli(),
 			Status:      l.GetStatus(),
 			Content:     string(l.GetContent()),
 			Hostname:    l.GetHostname(),

@@ -43,7 +43,7 @@ func (v *logDataView) GetTags() []string {
 	return v.data.Tags
 }
 
-func (v *logDataView) GetTimestampMs() int64 {
+func (v *logDataView) GetTimestampUnixMilli() int64 {
 	return v.data.TimestampMs
 }
 
@@ -433,7 +433,7 @@ type storageHandle struct {
 }
 
 func (h *storageHandle) ObserveMetric(sample observerdef.MetricView) {
-	h.storage.Add(h.namespace, sample.GetName(), sample.GetValue(), int64(sample.GetTimestamp()), sample.GetRawTags())
+	h.storage.Add(h.namespace, sample.GetName(), sample.GetValue(), sample.GetTimestampUnix(), sample.GetRawTags())
 }
 func (h *storageHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *storageHandle) ObserveTrace(_ observerdef.TraceView)           {}
@@ -476,23 +476,25 @@ func (r *parquetTraceStatRow) GetClientHostname() string    { return r.data.Clie
 func (r *parquetTraceStatRow) GetClientEnv() string         { return r.data.ClientEnv }
 func (r *parquetTraceStatRow) GetClientVersion() string     { return r.data.ClientVersion }
 func (r *parquetTraceStatRow) GetClientContainerID() string { return r.data.ClientContainerID }
-func (r *parquetTraceStatRow) GetBucketStart() uint64       { return r.data.BucketStart }
-func (r *parquetTraceStatRow) GetBucketDuration() uint64    { return r.data.BucketDuration }
-func (r *parquetTraceStatRow) GetService() string           { return r.data.Service }
-func (r *parquetTraceStatRow) GetName() string              { return r.data.Name }
-func (r *parquetTraceStatRow) GetResource() string          { return r.data.Resource }
-func (r *parquetTraceStatRow) GetType() string              { return r.data.Type }
-func (r *parquetTraceStatRow) GetHTTPStatusCode() uint32    { return r.data.HTTPStatusCode }
-func (r *parquetTraceStatRow) GetSpanKind() string          { return r.data.SpanKind }
-func (r *parquetTraceStatRow) GetIsTraceRoot() int32        { return r.data.IsTraceRoot }
-func (r *parquetTraceStatRow) GetSynthetics() bool          { return r.data.Synthetics }
-func (r *parquetTraceStatRow) GetHits() uint64              { return r.data.Hits }
-func (r *parquetTraceStatRow) GetErrors() uint64            { return r.data.Errors }
-func (r *parquetTraceStatRow) GetTopLevelHits() uint64      { return r.data.TopLevelHits }
-func (r *parquetTraceStatRow) GetDuration() uint64          { return r.data.Duration }
-func (r *parquetTraceStatRow) GetOkSummary() []byte         { return r.data.OkSummary }
-func (r *parquetTraceStatRow) GetErrorSummary() []byte      { return r.data.ErrorSummary }
-func (r *parquetTraceStatRow) GetPeerTags() []string        { return r.data.PeerTags }
+func (r *parquetTraceStatRow) GetBucketStartUnixNano() uint64 {
+	return r.data.BucketStart
+}
+func (r *parquetTraceStatRow) GetBucketDurationNano() uint64 { return r.data.BucketDuration }
+func (r *parquetTraceStatRow) GetService() string            { return r.data.Service }
+func (r *parquetTraceStatRow) GetName() string               { return r.data.Name }
+func (r *parquetTraceStatRow) GetResource() string           { return r.data.Resource }
+func (r *parquetTraceStatRow) GetType() string               { return r.data.Type }
+func (r *parquetTraceStatRow) GetHTTPStatusCode() uint32     { return r.data.HTTPStatusCode }
+func (r *parquetTraceStatRow) GetSpanKind() string           { return r.data.SpanKind }
+func (r *parquetTraceStatRow) GetIsTraceRoot() int32         { return r.data.IsTraceRoot }
+func (r *parquetTraceStatRow) GetSynthetics() bool           { return r.data.Synthetics }
+func (r *parquetTraceStatRow) GetHits() uint64               { return r.data.Hits }
+func (r *parquetTraceStatRow) GetErrors() uint64             { return r.data.Errors }
+func (r *parquetTraceStatRow) GetTopLevelHits() uint64       { return r.data.TopLevelHits }
+func (r *parquetTraceStatRow) GetDurationNano() uint64       { return r.data.Duration }
+func (r *parquetTraceStatRow) GetOkSummary() []byte          { return r.data.OkSummary }
+func (r *parquetTraceStatRow) GetErrorSummary() []byte       { return r.data.ErrorSummary }
+func (r *parquetTraceStatRow) GetPeerTags() []string         { return r.data.PeerTags }
 
 // runLogExtractors runs all the log extractors on the raw logs.
 func (tb *TestBench) runLogExtractors() error {
@@ -500,7 +502,7 @@ func (tb *TestBench) runLogExtractors() error {
 		// Process through log extractors
 		for _, extractor := range tb.extractors {
 			metrics := extractor.ProcessLog(log)
-			ts := log.GetTimestampMs()
+			ts := log.GetTimestampUnixMilli()
 			for _, m := range metrics {
 				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
 			}
@@ -535,7 +537,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 
 	// Extend bounds to include log timestamps (parquet logs can fall outside the metrics range)
 	for _, l := range tb.rawLogs {
-		ts := l.GetTimestampMs()
+		ts := l.GetTimestampUnixMilli()
 		if ts == 0 {
 			continue
 		}
@@ -721,7 +723,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 				name:      telemetryEvent.Metric.GetName(),
 				value:     telemetryEvent.Metric.GetValue(),
 				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+				timestamp: telemetryEvent.Metric.GetTimestampUnix(),
 			}
 			if metric.timestamp == 0 {
 				metric.timestamp = baseTimestampMs / 1000
@@ -734,7 +736,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 		}
 
 		if telemetryEvent.Log != nil {
-			timestamp := telemetryEvent.Log.GetTimestampMs()
+			timestamp := telemetryEvent.Log.GetTimestampUnixMilli()
 			if timestamp == 0 {
 				timestamp = baseTimestampMs
 			}
