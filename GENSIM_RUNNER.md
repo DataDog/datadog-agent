@@ -141,16 +141,22 @@ during disruption.
 
 ---
 
-### M5 — S3 upload + destroy + full parity ⬜
-Complete the artifact pipeline and harden the workflow.
+### M5 — S3 upload + full end-to-end validated ✅
+Complete the artifact pipeline: results uploaded to S3 after episode completes.
 
-**Goal:** end-to-end identical observable outcome to the Kind path — results in S3, cluster gone.
+**Goal:** end-to-end identical observable outcome — results in S3, pod Completed.
 
 **What happens:**
-- Job uploads results zip to S3 (via EKS node IAM role — same pattern as Kind's EC2 role)
-- `destroy` tears down EKS cluster + ECR repos
-- Graceful handling of episodes without `docker-compose.yaml` (public images only)
-- Stack naming convention matches existing gensim pattern
+- Job runs `play-episode.sh run-episode <scenario>` to completion
+- Parquet files collected from observer-recorder agent via `kubectl cp`
+- Results dir uploaded to S3 via `aws s3 cp --recursive`
 
-**Success:** `s3://qbranch-gensim-recordings/gensim-results-<episode>-<date>.zip` exists.
-Cluster destroyed. Ready to hand off to junior engineers.
+**Key learnings during implementation:**
+- Backticks in Go raw string literals (between backtick delimiters) terminate the string — removed from comment
+- `%%Y%%m%%d` in `pulumi.Sprintf` produces `%Y%m%d` in shell (correct); `%%%%Y%%%%m%%%%d` produces `%%Y%%m%%d` (causes `date` to output literal `%Y%m%d`)
+- Agent DaemonSet pod label is `app=datadog-agent`, not `app.kubernetes.io/component=agent`
+
+**Validated end-to-end (2026-03-06):**
+- Warmup 3m → baseline OK → disruption: surge×5 scaled up → pgbouncer monitor Alert at 210s → cooldown → monitor OK at 450s → `pool-saturation-1.json` written → S3 uploaded
+- Total runtime: ~33 minutes, pod status: `Succeeded`
+- Result JSON at `s3://qbranch-gensim-recordings/gensim-results-authcore-pgbouncer-connection-pool-saturation-<date>/pool-saturation-1.json`

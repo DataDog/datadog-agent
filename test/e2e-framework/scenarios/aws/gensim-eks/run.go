@@ -419,14 +419,14 @@ func deployRunnerJob(
 
 bash /episode/play-episode.sh run-episode %s
 
-AGENT_POD=$(kubectl get pod -n %s -l app.kubernetes.io/component=agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+AGENT_POD=$(kubectl get pod -n %s -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
 if [ -n "$AGENT_POD" ]; then
   mkdir -p /episode/results/parquet
   kubectl cp %s/$AGENT_POD:/tmp/observer-parquet /episode/results/parquet/ 2>/dev/null || echo "Warning: parquet collection failed"
 fi
 
 if [ -n "%s" ]; then
-  DEST="s3://%s/gensim-results-%s-$(date -u +%%%%Y%%%%m%%%%d)"
+  DEST="s3://%s/gensim-results-%s-$(date -u +%%Y%%m%%d)"
   echo "Uploading results to $DEST/..."
   aws s3 cp /episode/results/ "$DEST/" --recursive
   echo "Uploaded to $DEST/"
@@ -653,7 +653,8 @@ aws ecr get-login-password --region "$REGION" \
 
 # Parse image names from docker-compose.yaml using grep+awk.
 # Avoids python3 yaml module which is not available on Amazon Linux ECS Python 3.7.
-IMAGES=$(grep '^  image:' docker-compose.yaml | awk '{print $2}')
+# grep without ^ anchor matches 4-space-indented image: lines correctly.
+IMAGES=$(grep '  image:' docker-compose.yaml | awk '{print $2}')
 
 # Check if all images are already cached in ECR under the hash tag.
 # On a fresh cluster with unchanged source code this saves the full build.
