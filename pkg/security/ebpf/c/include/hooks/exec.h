@@ -244,6 +244,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         if (parent_pc) {
             fill_cgroup_context(parent_pc, &event->cgroup);
             copy_proc_entry(&parent_pc->entry, &event->proc_entry);
+
+            // store the process path key
+            bpf_map_update_elem(&pid_path_keys, &pid, &parent_pc->entry.executable.path_key, BPF_ANY);
         }
     }
 
@@ -761,6 +764,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     };
     fill_file(syscall->exec.dentry, &pc.entry.executable);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
+
+    // store the process path key
+    bpf_map_update_elem(&pid_path_keys, &tgid, &syscall->exec.file.path_key, BPF_ANY);
 
     u64 parent_inode = 0;
 
