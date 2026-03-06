@@ -1,10 +1,11 @@
 """Rules to build /etc for ddot."""
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(default_visibility = ["//visibility:private"])
 
 dd_agent_expand_template(
     name = "upstart_debian_ddot_conf_gen",
@@ -26,11 +27,34 @@ pkg_filegroup(
         ":sysvinit_debian_ddot_gen",
         ":upstart_debian_ddot_conf_gen",
     ],
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
         ":all_files",
+    ],
+)
+
+pkg_tar(
+    name = "init_scripts_tar",
+    srcs = [
+        ":all_files",
+    ],
+    out = "init_scripts_ddot.tar.xz",
+)
+
+pkg_files(
+    name = "init_scripts_ddot_tar",
+    srcs = [
+        ":init_scripts_tar",
+    ],
+)
+
+pkg_install(
+    name = "hacky_packager_install",
+    srcs = [
+        ":init_scripts_ddot_tar",
     ],
 )
