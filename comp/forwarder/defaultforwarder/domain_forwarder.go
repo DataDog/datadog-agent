@@ -48,7 +48,7 @@ type domainForwarder struct {
 	workers                   []*Worker
 	retryQueue                *retry.TransactionRetryQueue
 	connectionResetInterval   time.Duration
-	internalState             uint32
+	internalState             forwarderState
 	m                         sync.Mutex // To control Start/Stop races
 	transactionPrioritySorter retry.TransactionPrioritySorter
 	blockedList               *blockedEndpoints
@@ -327,7 +327,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	f.internalState = Stopped
 }
 
-func (f *domainForwarder) State() uint32 {
+func (f *domainForwarder) State() forwarderState {
 	// Lock so we can't start/stop a Forwarder while getting its state
 	f.m.Lock()
 	defer f.m.Unlock()

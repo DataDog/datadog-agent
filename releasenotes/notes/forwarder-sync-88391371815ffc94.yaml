@@ -1,0 +1,2 @@
+fixes:
+  - Fix crash when stopping otel agent.
