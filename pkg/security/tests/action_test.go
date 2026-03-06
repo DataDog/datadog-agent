@@ -1694,3 +1694,89 @@ func TestRemediationCustomEvents(t *testing.T) {
 	})
 
 }
+
+func TestRemediationCustomEventNotTriggered(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
+		})
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_remediation_not_triggering",
+			Expression: `exec.file.name == "there-is-no-file-like-that" && ${process.kill_remediation_performed} != "done"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "kill_remediation_performed",
+						Value: "done",
+					},
+				}, {
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+						Scope:  "process",
+					},
+				},
+			},
+			Tags: map[string]string{
+				"remediation_rule": "true",
+				"agent_event_id":   "BDoIdt0EAAAbKF9Rg_3TKKJ",
+				"creator_uuid":     "b6497050-10b2-11f0-a294-324b18620407",
+				"creator_name":     "Allan Turing",
+				"creator_handle":   "allan.turing@example.com",
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("not-triggered-sent-at-startup", func(t *testing.T) {
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("remediation_status")
+			if msg == nil {
+				return errors.New("remediation_status message not found")
+			}
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_id`); err != nil || el != "remediation_status" {
+					t.Errorf("agent.rule_id should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.event_type`); err != nil || el != "remediation_status" {
+					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.status`); err != nil || el != sprobe.RemediationStatusNotTriggered {
+					t.Errorf("status should be 'not_triggered': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
+					t.Errorf("remediation_action should be 'kill': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.scope`); err != nil || el != "process" {
+					t.Errorf("scope should be 'process': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.remediation_rule`); err != nil || el != "true" {
+					t.Errorf("rule_tags.remediation_rule should be 'true': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.agent_event_id`); err != nil || el != "BDoIdt0EAAAbKF9Rg_3TKKJ" {
+					t.Errorf("rule_tags.agent_event_id should be 'BDoIdt0EAAAbKF9Rg_3TKKJ': %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
+}
