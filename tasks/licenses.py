@@ -358,15 +358,16 @@ def lint_rust_licenses(ctx):
     print("Verify Rust licenses")
 
     rust_dir = 'rust'
+    manifest_path = 'pkg/discovery/module/rust/Cargo.toml'
 
     # Check license compliance with cargo deny
-    result = ctx.run(f'cd {rust_dir} && cargo deny check licenses', warn=True)
+    result = ctx.run(f'cd {rust_dir} && cargo deny --manifest-path ../{manifest_path} check licenses', warn=True)
     if result.return_code != 0:
         print("\nCargo-deny found non-allowed licenses.")
         raise Exit(code=1)
 
     # Check LICENSE-3rdparty.csv is up-to-date
-    result = ctx.run(f'cd {rust_dir} && dd-rust-license-tool check', warn=True)
+    result = ctx.run(f'cd {rust_dir} && dd-rust-license-tool --manifest-path ../{manifest_path} check', warn=True)
     if result.return_code != 0:
         print("\nRust LICENSE-3rdparty.csv is not up-to-date.")
         print("Please run 'dda inv -e generate-rust-licenses' to update.")
@@ -381,5 +382,6 @@ def generate_rust_licenses(ctx):
     Generates the LICENSE-3rdparty.csv file for the Rust workspace.
     """
     rust_dir = 'rust'
-    ctx.run(f'cd {rust_dir} && dd-rust-license-tool write')
+    manifest_path = 'pkg/discovery/module/rust/Cargo.toml'
+    ctx.run(f'cd {rust_dir} && dd-rust-license-tool --manifest-path ../{manifest_path} write')
     print(f"Generated {rust_dir}/LICENSE-3rdparty.csv")
