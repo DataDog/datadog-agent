@@ -1,4 +1,5 @@
 description: "Non-existent file inside allowed directory returns an error"
+target_os: [linux, darwin]
 test_against_local_shell: false
 setup:
   files:
