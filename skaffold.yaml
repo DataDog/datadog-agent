@@ -16,6 +16,9 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
+        valuesFiles: [".skaffold/values.yaml"]
+        namespace: "datadog-agent-helm"
+        createNamespace: true
         setValueTemplates:
           datadog:
             apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"
