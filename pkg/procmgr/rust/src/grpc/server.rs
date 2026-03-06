@@ -40,19 +40,13 @@ pub async fn run(
     let svc = ProcessManagerService::new(mgr, config_path);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
-    #[cfg(not(bazel))]
-    let router = {
-        let reflection = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
-            .build_v1()
-            .context("failed to build gRPC reflection service")?;
-        Server::builder()
-            .add_service(reflection)
-            .add_service(pm_service)
-    };
-
-    #[cfg(bazel)]
-    let router = Server::builder().add_service(pm_service);
+    let reflection = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
+        .build_v1()
+        .context("failed to build gRPC reflection service")?;
+    let router = Server::builder()
+        .add_service(reflection)
+        .add_service(pm_service);
 
     router
         .serve_with_incoming_shutdown(uds_stream, async {

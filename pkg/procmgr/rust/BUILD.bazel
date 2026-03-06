@@ -54,6 +54,7 @@ rust_binary(
         "@crates//:tokio",
         "@crates//:tokio-stream",
         "@crates//:tonic",
+        "@crates//:tonic-reflection",
     ],
 )
 
