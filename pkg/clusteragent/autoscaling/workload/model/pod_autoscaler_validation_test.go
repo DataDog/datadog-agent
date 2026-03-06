@@ -320,6 +320,44 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 				},
 			},
 		},
+		"resizePendingPeriod zero is valid (disabled)": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: 0,
+					},
+				},
+			},
+		},
+		"resizePendingPeriod 1 is valid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: 1,
+					},
+				},
+			},
+		},
+		"resizePendingPeriod 3600 is invalid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: 3600,
+					},
+				},
+			},
+			wantErr: "applyPolicy.update.resizePendingPeriod (3600) must be 0 (disabled) or between 1 and 3599 seconds",
+		},
+		"resizePendingPeriod negative is invalid": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+						ResizePendingPeriod: -1,
+					},
+				},
+			},
+			wantErr: "applyPolicy.update.resizePendingPeriod (-1) must be 0 (disabled) or between 1 and 3599 seconds",
+		},
 	}
 
 	for name, tt := range tests {

@@ -28,6 +28,21 @@ func ValidateAutoscalerSpec(spec *datadoghq.DatadogPodAutoscalerSpec) error {
 	if err := validateFallback(spec.Fallback); err != nil {
 		return err
 	}
+	if err := validateApplyPolicy(spec.ApplyPolicy); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateApplyPolicy(policy *datadoghq.DatadogPodAutoscalerApplyPolicy) error {
+	if policy == nil || policy.Update == nil {
+		return nil
+	}
+	period := policy.Update.ResizePendingPeriod
+	if period != 0 && (period < 1 || period >= 3600) {
+		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec,
+			"applyPolicy.update.resizePendingPeriod (%d) must be 0 (disabled) or between 1 and 3599 seconds", period)
+	}
 	return nil
 }
 
