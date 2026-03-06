@@ -201,6 +201,7 @@ func NewComponent(deps Requires) Provides {
 		},
 		detectors: []observerdef.Detector{
 			newSeriesDetectorAdapter(NewCUSUMDetector(), defaultAggregations),
+			newSeriesDetectorAdapter(NewBOCPDDetector(), defaultAggregations),
 			NewRRCFDetector(DefaultRRCFConfig()),
 		},
 		correlators: []observerdef.Correlator{
