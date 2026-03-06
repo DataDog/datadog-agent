@@ -323,10 +323,16 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     }
 
     // Counter fields: monotonically increasing, latest value = max.
-    // Guard newer tcp_sock fields with kernel version checks for the runtime
-    // compiler (which compiles against real kernel headers). CO-RE handles
-    // missing fields gracefully via BTF relocations at load time.
-#if defined(COMPILE_CORE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    // delivered_ce and reord_seen were added in kernel 4.19. For CO-RE, use
+    // bpf_core_field_exists() so the relocation is skipped on older kernels
+    // (e.g. 4.15) instead of failing at load time. For the runtime compiler,
+    // use a compile-time kernel version guard.
+#if defined(COMPILE_CORE)
+    if (bpf_core_field_exists(tcp_sk(sk)->delivered_ce)) {
+        BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
+        BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+    }
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
 #endif
