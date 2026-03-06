@@ -179,7 +179,7 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 
 	c.Monotonic.TCPDeliveredCE = cs.Delivered_ce
 	c.Monotonic.TCPReordSeen = cs.Reord_seen
-	c.TCPECNNegotiated = cs.Ecn_negotiated
+	c.TCPECNNegotiated = cs.Ecn_negotiated != 0
 }
 
 // FromTCPRTORecoveryStats populates the RTO and fast-recovery event counters in Monotonic.

@@ -290,20 +290,20 @@ type ConnectionStats struct {
 	Last      StatCounters
 	Cookie    StatCookie
 	// LastUpdateEpoch is the last time the stats for this connection were updated
-	LastUpdateEpoch  uint64
-	Duration         time.Duration
-	RTT              uint32 // Stored in µs
-	RTTVar           uint32
-	TCPECNNegotiated uint8 // 1 if ECN was negotiated on this connection (CO-RE/runtime only; 0 on prebuilt)
-	StaticTags       uint64
-	ProtocolStack    protocols.Stack
-	TLSTags          tls.Tags
+	LastUpdateEpoch uint64
+	Duration        time.Duration
+	RTT             uint32 // Stored in µs
+	RTTVar          uint32
+	StaticTags      uint64
+	ProtocolStack   protocols.Stack
+	TLSTags         tls.Tags
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	SPortIsEphemeral EphemeralPortType
 	IntraHost        bool
 	IsAssured        bool
 	IsClosed         bool
+	TCPECNNegotiated bool // true if ECN was negotiated on this connection (CO-RE/runtime only; false on prebuilt)
 }
 
 // Via has info about the routing decision for a flow

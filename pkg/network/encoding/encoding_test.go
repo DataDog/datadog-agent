@@ -251,7 +251,7 @@ func TestSerialization(t *testing.T) {
 					},
 					ProtocolStack:    protocols.Stack{Application: protocols.HTTP},
 					TLSTags:          tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
-					TCPECNNegotiated: 1,
+					TCPECNNegotiated: true,
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),
