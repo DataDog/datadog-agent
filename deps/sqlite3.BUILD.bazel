@@ -14,7 +14,7 @@ VERSION = "3.50.4"
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/generic:unencumbered"],
+    license_kinds = ["@rules_license//licenses/spdx:blessing"],
     license_text = "@sqlite3_license//file",
     visibility = ["//visibility:public"],
 )
