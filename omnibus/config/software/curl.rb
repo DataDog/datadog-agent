@@ -23,10 +23,6 @@ build do
   license_file "https://raw.githubusercontent.com/bagder/curl/master/COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
 
-  command_on_repo_root "bazelisk run -- @nghttp2//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libnghttp2.so"
-
   command_on_repo_root "bazelisk run -- @curl//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libcurl.so" \
