@@ -29,8 +29,7 @@ func loopControl(callCtx *CallContext, name string, args []string) Result {
 		parsed, err := strconv.Atoi(args[0])
 		if err != nil {
 			callCtx.Errf("%s: %s: numeric argument required\n", name, args[0])
-			// In bash, invalid args still break the loop.
-			return Result{Code: 2, BreakN: 1}
+			return Result{Code: 128, Exiting: true}
 		}
 		if parsed < 1 {
 			callCtx.Errf("%s: %s: loop count out of range\n", name, args[0])
