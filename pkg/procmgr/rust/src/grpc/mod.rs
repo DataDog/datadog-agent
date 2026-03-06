@@ -378,7 +378,13 @@ mod tests {
             },
         );
 
-        let procs = vec![proc_running, proc_failed, proc_stopped, proc_exited, proc_created];
+        let procs = vec![
+            proc_running,
+            proc_failed,
+            proc_stopped,
+            proc_exited,
+            proc_created,
+        ];
         let (mut client, _shutdown) = start_test_server(procs).await;
 
         let resp = client
