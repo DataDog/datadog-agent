@@ -405,8 +405,8 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
 	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
-	env = appendStringEnv(env, envAppKey, e.AppKey, "")
 	if e.PAREnabled {
+		env = appendStringEnv(env, envAppKey, e.AppKey, "")
 		env = append(env, envPAREnabled+"=true")
 		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
 	}
