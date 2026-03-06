@@ -325,6 +325,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourcedetectionprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
