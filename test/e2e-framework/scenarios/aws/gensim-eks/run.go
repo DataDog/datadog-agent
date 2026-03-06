@@ -651,15 +651,9 @@ CACHE_TAG="%s"  # first 12 chars of services hash — stable cache key
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-# Parse image names from docker-compose.yaml via Python (no docker-compose needed).
-IMAGES=$(python3 -c "
-import yaml
-with open('docker-compose.yaml') as f:
-    c = yaml.safe_load(f)
-for svc in c['services'].values():
-    if 'image' in svc:
-        print(svc['image'])
-")
+# Parse image names from docker-compose.yaml using grep+awk.
+# Avoids python3 yaml module which is not available on Amazon Linux ECS Python 3.7.
+IMAGES=$(grep '^  image:' docker-compose.yaml | awk '{print $2}')
 
 # Check if all images are already cached in ECR under the hash tag.
 # On a fresh cluster with unchanged source code this saves the full build.
