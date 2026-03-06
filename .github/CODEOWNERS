@@ -306,7 +306,6 @@
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/patches                  @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
@@ -381,6 +380,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
+/comp/logonduration @DataDog/windows-products
 /comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/privateactionrunner @DataDog/action-platform
@@ -865,6 +865,7 @@
 /tools/windows/                         @DataDog/windows-products
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-products @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-devx
+/tools/build-ddot-byoc/                 @DataDog/opentelemetry-agent
 
 /internal/remote-agent                  @DataDog/agent-runtimes
 /internal/tools/                        @DataDog/agent-devx
@@ -875,6 +876,7 @@
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/BUILD.bazel                         @DataDog/agent-build
+/**/*.bzl                               @DataDog/agent-build
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
