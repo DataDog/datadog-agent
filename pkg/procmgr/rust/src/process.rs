@@ -86,12 +86,21 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
+    runtime_created: bool,
 }
 
 impl ManagedProcess {
     const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new(name: String, config: ProcessConfig) -> Self {
+        Self::new_inner(name, config, false)
+    }
+
+    pub fn new_runtime(name: String, config: ProcessConfig) -> Self {
+        Self::new_inner(name, config, true)
+    }
+
+    fn new_inner(name: String, config: ProcessConfig, runtime_created: bool) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
@@ -102,7 +111,12 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
+            runtime_created,
         }
+    }
+
+    pub fn is_runtime_created(&self) -> bool {
+        self.runtime_created
     }
 
     pub fn state(&self) -> ProcessState {
