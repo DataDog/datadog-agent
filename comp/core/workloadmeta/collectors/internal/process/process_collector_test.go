@@ -18,6 +18,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -692,9 +693,8 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	// Wait for first collection to complete
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid)
-		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
-			return
-		}
+		require.NoError(cT, err)
+		require.NotNil(cT, actualProc)
 		assert.Equal(cT, []string{"bash"}, actualProc.Cmdline)
 	}, time.Second, time.Millisecond*100)
 
@@ -704,9 +704,8 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	// After exec, the store should have htop, not bash
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid)
-		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
-			return
-		}
+		require.NoError(cT, err)
+		require.NotNil(cT, actualProc)
 		// Critical assertion: cmdline should be updated to htop after exec
 		assert.Equal(cT, []string{"htop"}, actualProc.Cmdline, "Process cmdline should be updated after exec")
 		assert.Equal(cT, "htop", actualProc.Name, "Process name should be updated after exec")
@@ -780,6 +779,121 @@ func TestProcessCacheSameCmdline(t *testing.T) {
 	diff := processCacheDifference(cacheA, cacheB)
 
 	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
+}
+
+// TestProcessCacheDifferenceContainerID tests that processCacheDifference detects
+// when a process gains or changes its container ID (same PID, same CreateTime, same Cmdline).
+func TestProcessCacheDifferenceContainerID(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	for _, tc := range []struct {
+		description string
+		cacheA      map[int32]*procutil.Process
+		cacheB      map[int32]*procutil.Process
+		expectedLen int
+	}{
+		{
+			description: "CID becomes available",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: ""},
+			},
+			expectedLen: 1,
+		},
+		{
+			description: "CID changes",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-new"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-old"},
+			},
+			expectedLen: 1,
+		},
+		{
+			description: "CID unchanged - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"nginx"}, Stats: &procutil.Stats{CreateTime: createTime}, ContainerID: "cid-abc"},
+			},
+			expectedLen: 0,
+		},
+		{
+			description: "host process without CID - no diff",
+			cacheA: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			cacheB: map[int32]*procutil.Process{
+				pid: {Pid: pid, Cmdline: []string{"bash"}, Stats: &procutil.Stats{CreateTime: createTime}},
+			},
+			expectedLen: 0,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			diff := processCacheDifference(tc.cacheA, tc.cacheB)
+			assert.Len(t, diff, tc.expectedLen)
+		})
+	}
+}
+
+// TestContainerIDRaceCondition tests that a process initially collected without a container ID
+// gets re-emitted with the correct container ID on the next collection cycle.
+func TestContainerIDRaceCondition(t *testing.T) {
+	collectionInterval := time.Second * 10
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+
+	// Separate objects per cycle since enrichProcessesWithContainerID mutates in-place.
+	// In production, ProcessesByPID returns fresh objects each call.
+	proc1CycleA := createTestPythonProcess(pid1, creationTime1)
+	proc1CycleB := createTestPythonProcess(pid1, creationTime1)
+
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.intervals.process", 10)
+
+	c := setUpCollectorTest(t, cfg, nil, nil)
+	defer c.cleanup()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// Cycle 1: process exists but container ID is not yet available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		pid1: proc1CycleA,
+	}, nil).Times(1)
+	// Cycle 2: same process, now container ID is available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		pid1: proc1CycleB,
+	}, nil).Times(1)
+
+	gomock.InOrder(
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1),
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
+			int(pid1): "container-abc",
+		}).Times(1),
+	)
+
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.NoError(t, err)
+
+	// Advance clock to trigger cycle 2
+	c.mockClock.Add(collectionInterval)
+
+	// After both cycles: process should have the container ID from cycle 2
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		assert.NoError(cT, err)
+		assert.Equal(cT, "container-abc", actualProc.ContainerID)
+		assert.Equal(cT, &workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-abc",
+		}, actualProc.Owner)
+	}, time.Second, time.Millisecond*100)
 }
 
 func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {
