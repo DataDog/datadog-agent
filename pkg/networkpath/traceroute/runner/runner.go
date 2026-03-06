@@ -80,7 +80,7 @@ type Runner struct {
 func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	gatewayLookup, nsIno, err := createGatewayLookup(telemetryComp)
 	if err != nil {
-		log.Errorf("failed to create gateway lookup: %s", err.Error())
+		log.Warnf("failed to create gateway lookup: %s", err.Error())
 	}
 	if gatewayLookup == nil {
 		log.Warnf("gateway lookup is not enabled")
