@@ -1,5 +1,4 @@
 description: "Explicitly empty variable (VAR=) differs from unset variable"
-test_against_local_shell: false
 input:
   script: |
     EMPTY=

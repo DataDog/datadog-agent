@@ -1,5 +1,4 @@
 description: "IFS set to multiple non-whitespace characters splits on each"
-test_against_local_shell: false
 input:
   script: |
     IFS=:,
