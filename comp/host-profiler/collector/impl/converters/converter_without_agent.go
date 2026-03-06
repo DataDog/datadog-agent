@@ -439,12 +439,12 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 	}
 
 	// Add prometheus receiver
-	if err := Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, prometheusReceiverConfig()); err != nil {
+	if err := Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, PrometheusReceiverConfig()); err != nil {
 		return fmt.Errorf("failed to add prometheus receiver: %w", err)
 	}
 
 	// Add filter processor
-	if err := Set(conf, pathPrefixProcessors+reservedFilterProcessor, filterProcessorConfig()); err != nil {
+	if err := Set(conf, pathPrefixProcessors+reservedFilterProcessor, FilterProcessorConfig()); err != nil {
 		return fmt.Errorf("failed to add filter processor: %w", err)
 	}
 

@@ -298,9 +298,9 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
 }
 
-// prometheusReceiverConfig returns the default configuration for the internal prometheus receiver
+// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
 // that scrapes OTel collector's internal telemetry metrics.
-func prometheusReceiverConfig() confMap {
+func PrometheusReceiverConfig() confMap {
 	return confMap{
 		"config": confMap{
 			"scrape_configs": []any{
@@ -322,9 +322,9 @@ func prometheusReceiverConfig() confMap {
 	}
 }
 
-// filterProcessorConfig returns the default configuration for the filter processor
+// FilterProcessorConfig returns the default configuration for the filter processor
 // that drops internal prometheus scrape metrics from being exported.
-func filterProcessorConfig() confMap {
+func FilterProcessorConfig() confMap {
 	return confMap{
 		"metrics": confMap{
 			"exclude": confMap{
