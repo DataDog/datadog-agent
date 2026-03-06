@@ -30,7 +30,7 @@ type Component interface {
 	// CreateWithArgs creates a new flare locally and returns the path to the flare file.
 	// This function is used to create a flare with specific arguments.
 	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
-	// Send sends a flare archive to Datadog. The local archive is removed after a successful upload.
+	// Send sends a flare archive to Datadog. The local archive is removed after a successful upload unless the component was created with KeepArchiveAfterSend (e.g. CLI --keep-archive).
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
 }
 

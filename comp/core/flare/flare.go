@@ -192,7 +192,7 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(filePath))
 }
 
-// Send sends a flare archive to Datadog. The local archive file is removed on success.
+// Send sends a flare archive to Datadog. The local archive file is removed on success unless Params.KeepArchiveAfterSend is set (e.g. CLI --keep-archive).
 func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
@@ -204,10 +204,12 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 	if err != nil {
 		return response, err
 	}
-	if removeErr := os.Remove(flarePath); removeErr != nil {
-		f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
-	} else {
-		f.log.Infof("Removed local flare archive %s", flarePath)
+	if !f.params.KeepArchiveAfterSend && flarePath != "" {
+		if removeErr := os.Remove(flarePath); removeErr != nil {
+			f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
+		} else {
+			f.log.Infof("Removed local flare archive %s", flarePath)
+		}
 	}
 	return response, nil
 }

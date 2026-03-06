@@ -83,6 +83,34 @@ func getFlareWithParams(t *testing.T, params Params, overrides map[string]interf
 	).Comp.(*flare)
 }
 
+// getFlareComponent returns the flare Component (public API) for tests that should only use the interface.
+func getFlareComponent(t *testing.T, params Params, overrides map[string]interface{}, fillers ...fx.Option) Component {
+	fillerModule := fxutil.Component(fillers...)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	return newFlare(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+			nooptelemetry.Module(),
+			hostnameimpl.MockModule(),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+			demultiplexerimpl.MockModule(),
+			fx.Provide(func() Params { return params }),
+			collector.NoneModule(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			autodiscoveryimpl.MockModule(),
+			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			fx.Provide(func() taggermock.Mock { return fakeTagger }),
+			fx.Provide(func() tagger.Component { return fakeTagger }),
+			fillerModule,
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+		),
+	).Comp
+}
+
 // CreateFlareBuilderMockFactory generates a FlareBuilderFactory that will output mocked builders when called.
 func setupMockBuilder(t *testing.T) func() {
 	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
@@ -263,12 +291,31 @@ func TestSendRemovesArchiveAfterSuccess(t *testing.T) {
 		return "success", nil
 	}
 
-	f := getFlare(t, nil)
-	_, err := f.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	comp := getFlareComponent(t, Params{}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
 	require.NoError(t, err)
 
 	_, statErr := os.Stat(archivePath)
 	assert.True(t, os.IsNotExist(statErr), "flare archive should be removed after successful send")
+}
+
+func TestSendKeepsArchiveWhenKeepArchiveAfterSend(t *testing.T) {
+	tmpDir := t.TempDir()
+	archivePath := filepath.Join(tmpDir, "flare.zip")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake flare"), 0600))
+
+	origSendTo := sendToFunc
+	defer func() { sendToFunc = origSendTo }()
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+		return "success", nil
+	}
+
+	comp := getFlareComponent(t, Params{KeepArchiveAfterSend: true}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(archivePath)
+	assert.NoError(t, statErr, "flare archive should be kept when KeepArchiveAfterSend is true")
 }
 
 func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenarios []struct {

@@ -84,6 +84,7 @@ type cliParams struct {
 
 	customerEmail        string
 	autoconfirm          bool
+	keepArchive          bool
 	forceLocal           bool
 	profiling            int
 	profileMutex         bool
@@ -117,21 +118,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 			)
 
-					return fxutil.OneShot(makeFlare,
+			flareParams := flare.NewLocalParams(
+				defaultpaths.GetDistPath(),
+				defaultpaths.PyChecksPath,
+				defaultpaths.LogFile,
+				defaultpaths.JmxLogFile,
+				defaultpaths.DogstatsDLogFile,
+				defaultpaths.StreamlogsLogFile,
+			)
+			flareParams.KeepArchiveAfterSend = cliParams.keepArchive
+			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         c,
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
-				flare.Module(flare.NewLocalParams(
-					defaultpaths.GetDistPath(),
-					defaultpaths.PyChecksPath,
-					defaultpaths.LogFile,
-					defaultpaths.JmxLogFile,
-					defaultpaths.DogstatsDLogFile,
-					defaultpaths.StreamlogsLogFile,
-				)),
+				flare.Module(flareParams),
 				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -178,6 +181,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().BoolVar(&cliParams.keepArchive, "keep-archive", false, "Keep the flare archive file after a successful upload")
 	flareCmd.Flags().BoolVarP(&cliParams.forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.Flags().IntVarP(&cliParams.profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
 	flareCmd.Flags().BoolVarP(&cliParams.profileMutex, "profile-mutex", "M", false, "Add mutex profile to the performance data in the flare")
