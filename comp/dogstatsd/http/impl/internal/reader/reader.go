@@ -21,18 +21,18 @@ import (
 type resource = metrics.Resource
 type originInfo = agentpayload.Origin
 
-// MetricDataRader is an iterator over data contained in MetricData part of the payload.
+// MetricDataReader is an iterator over data contained in MetricData part of the payload.
 //
 // Usage:
 //
-//	r := NewMetricDataRader(payload.MetricData)
+//	r := NewMetricDataReader(payload.MetricData)
 //	if err := r.Initialize(); err != nil {
 //	    return err
 //	}
 //	for r.HaveMoreMetrics() {
 //	    if err := r.NextMetric(); err != nil {
 //	        return err
-//
+//      }
 //	    // Accessors for metric entry data can be called.
 //	    for r.HaveMorePoints() {
 //	        if err := r.NextPoint(); err != nil {
@@ -81,7 +81,7 @@ func NewMetricDataReader(data *pb.MetricData) *MetricDataReader {
 	}
 }
 
-// UnpackDicts reads and normalizes payload dictionaries for fast access.
+// Initialize reads and normalizes payload dictionaries for fast access.
 func (r *MetricDataReader) Initialize() error {
 	var err error
 	if r.data == nil {
