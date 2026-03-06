@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dogtelextensionimpl provides the implementation of the dogtelextension component.
 package dogtelextensionimpl
 
 import (
@@ -17,9 +18,9 @@ type Config struct {
 
 	// Tagger server settings
 	EnableTaggerServer      bool   `mapstructure:"enable_tagger_server"`
-	TaggerServerPort        int    `mapstructure:"tagger_server_port"`          // 0 = auto-assign
-	TaggerServerAddr        string `mapstructure:"tagger_server_addr"`          // Default: localhost
-	TaggerMaxMessageSize    int    `mapstructure:"tagger_max_message_size"`     // Default: 4MB
+	TaggerServerPort        int    `mapstructure:"tagger_server_port"`         // 0 = auto-assign
+	TaggerServerAddr        string `mapstructure:"tagger_server_addr"`         // Default: localhost
+	TaggerMaxMessageSize    int    `mapstructure:"tagger_max_message_size"`    // Default: 4MB
 	TaggerMaxConcurrentSync int    `mapstructure:"tagger_max_concurrent_sync"` // Default: 5
 
 	// Standalone mode (controls secrets and other features)

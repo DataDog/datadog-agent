@@ -20,8 +20,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -43,8 +41,6 @@ type dogtelExtension struct {
 
 	// Metadata components (created by extension)
 	metadataRunner runner.Component
-	hostMetadata   host.Component
-	inventoryHost  inventoryhost.Component
 
 	// Tagger gRPC server
 	taggerServer     *grpc.Server
@@ -53,7 +49,7 @@ type dogtelExtension struct {
 }
 
 // Start implements extension.Extension
-func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error {
+func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 	// Check if running in standalone mode
 	standalone := e.coreConfig.GetBool("otel_standalone")
 	if !standalone {
@@ -86,7 +82,7 @@ func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error 
 }
 
 // Shutdown implements extension.Extension
-func (e *dogtelExtension) Shutdown(ctx context.Context) error {
+func (e *dogtelExtension) Shutdown(_ context.Context) error {
 	e.log.Info("Shutting down dogtelextension")
 
 	// Stop tagger server gracefully
