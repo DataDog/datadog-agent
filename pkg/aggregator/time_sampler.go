@@ -244,7 +244,15 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		strippedKey := ck
 		ctxTags := ctx.Tags()
 		if keepTag, strip := tagFilter.ShouldStripTags(ctx.Name); strip {
-			strippedKey, ctxTags = s.computeStrippedKey(ctx, keepTag)
+			if ctx.strippedValid {
+				strippedKey = ctx.strippedKey
+				ctxTags = ctx.strippedTags
+			} else {
+				strippedKey, ctxTags = s.computeStrippedKey(ctx, ck, keepTag)
+				ctx.strippedKey = strippedKey
+				ctx.strippedTags = ctxTags
+				ctx.strippedValid = true
+			}
 		}
 
 		if _, exists := s.flushFirstCtxByStrippedKey[strippedKey]; !exists {
@@ -296,7 +304,8 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 // computeStrippedKey generates a context key and filtered tags for the given context,
 // applying the keepTag filter to both tagger and metric tags.
 // Reuses the contextResolver's shared buffers and key generator (same pattern as trackContext).
-func (s *TimeSampler) computeStrippedKey(ctx *Context, keepTag func(string) bool) (ckey.ContextKey, tagset.CompositeTags) {
+// ck is the original context key, returned unchanged when no tags are stripped (fast-path).
+func (s *TimeSampler) computeStrippedKey(ctx *Context, ck ckey.ContextKey, keepTag func(string) bool) (ckey.ContextKey, tagset.CompositeTags) {
 	cr := s.contextResolver.resolver
 	cr.taggerBuffer.IncludeAll = false
 	cr.taggerBuffer.IncludeTag = keepTag
@@ -306,7 +315,17 @@ func (s *TimeSampler) computeStrippedKey(ctx *Context, keepTag func(string) bool
 	cr.taggerBuffer.Append(ctx.taggerTags.Tags()...)
 	cr.metricBuffer.Append(ctx.metricTags.Tags()...)
 
-	tlmFilteredTags.Add(float64(len(ctx.metricTags.Tags()) - len(cr.metricBuffer.Get())))
+	taggerFiltered := len(cr.taggerBuffer.Get())
+	metricFiltered := len(cr.metricBuffer.Get())
+
+	tlmFilteredTags.Add(float64(len(ctx.metricTags.Tags()) - metricFiltered))
+
+	// Fast-path: no tags were stripped — return the original key and tags without copying.
+	if taggerFiltered == len(ctx.taggerTags.Tags()) && metricFiltered == len(ctx.metricTags.Tags()) {
+		cr.taggerBuffer.Reset()
+		cr.metricBuffer.Reset()
+		return ck, ctx.Tags()
+	}
 
 	key, _, _ := cr.keyGenerator.GenerateWithTags2(ctx.Name, ctx.Host, cr.taggerBuffer, cr.metricBuffer)
 	// Capture tags after GenerateWithTags2 deduplication
