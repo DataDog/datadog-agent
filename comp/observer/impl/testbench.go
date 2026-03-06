@@ -101,8 +101,8 @@ type TestBench struct {
 	ready          bool
 	episodeInfo    *EpisodeInfo
 
-	// Components (log detectors are not registry-managed)
-	logDetectors []observerdef.LogDetector
+	// Components (log extractors are not registry-managed)
+	extractors []observerdef.LogMetricsExtractor
 
 	// Registry-managed components
 	components map[string]*registeredComponent
@@ -184,8 +184,8 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		config:  config,
 		storage: newTimeSeriesStorage(),
 
-		// Log detectors are not registry-managed
-		logDetectors: []observerdef.LogDetector{
+		// Log extractors are not registry-managed
+		extractors: []observerdef.LogMetricsExtractor{
 			&LogMetricsExtractor{
 				MaxEvalBytes: 4096,
 				ExcludeFields: map[string]struct{}{
@@ -494,37 +494,16 @@ func (r *parquetTraceStatRow) GetOkSummary() []byte         { return r.data.OkSu
 func (r *parquetTraceStatRow) GetErrorSummary() []byte      { return r.data.ErrorSummary }
 func (r *parquetTraceStatRow) GetPeerTags() []string        { return r.data.PeerTags }
 
-// runLogDetectors runs all the log detectors on the raw logs.
-func (tb *TestBench) runLogDetectors() error {
+// runLogExtractors runs all the log extractors on the raw logs.
+func (tb *TestBench) runLogExtractors() error {
 	for _, log := range tb.rawLogs {
-		// Process through log detectors
-		for _, detector := range tb.logDetectors {
-			result := detector.Process(log)
+		// Process through log extractors
+		for _, extractor := range tb.extractors {
+			metrics := extractor.ProcessLog(log)
 			ts := log.GetTimestampMs()
-			for _, m := range result.Metrics {
+			for _, m := range metrics {
 				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
 			}
-			for _, anomaly := range result.Anomalies {
-				// Fill in fields the detector may not have set
-				anomaly.Type = observerdef.AnomalyTypeLog
-				if anomaly.DetectorName == "" {
-					anomaly.DetectorName = detector.Name()
-				}
-				if anomaly.Timestamp == 0 {
-					anomaly.Timestamp = ts / 1000
-				}
-				// If still zero (log had no parseable timestamp), use current time
-				if anomaly.Timestamp == 0 {
-					anomaly.Timestamp = time.Now().Unix()
-				}
-				if anomaly.Source == "" {
-					anomaly.Source = "logs"
-				}
-				tb.logAnomalies = append(tb.logAnomalies, anomaly)
-				tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
-					tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
-			}
-			tb.handleTelemetry(result.Telemetry, detector.Name(), ts)
 		}
 	}
 
@@ -587,7 +566,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		SeriesCount:           tb.seriesCount(),
 		AnomalyCount:          len(tb.metricsAnomalies),
 		LogAnomalyCount:       len(tb.logAnomalies),
-		ComponentCount:        len(tb.logDetectors) + len(tb.components),
+		ComponentCount:        len(tb.extractors) + len(tb.components),
 		CorrelatorsProcessing: tb.correlatorsProcessing,
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
@@ -604,8 +583,8 @@ func (tb *TestBench) GetStatus() StatusResponse {
 func (tb *TestBench) rerunDetectorsLocked() {
 	// --- Logs ---
 	// We want to process logs first in case they produce metrics that are used by other detectors.
-	if err := tb.runLogDetectors(); err != nil {
-		fmt.Printf("  Warning: failed to run log detectors: %v\n", err)
+	if err := tb.runLogExtractors(); err != nil {
+		fmt.Printf("  Warning: failed to run log extractors: %v\n", err)
 	}
 
 	// --- Metrics ---
@@ -622,56 +601,21 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Reset ALL components (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
 
-	detectors := tb.enabledDetectors()
-
-	// Phase 1 (sync): Run time series detectors to collect anomalies
-	for _, ns := range tb.storage.Namespaces() {
-		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
-			allSeries := tb.storage.AllSeries(ns, agg)
-			for _, series := range allSeries {
-				seriesCopy := series
-				seriesCopy.Name = series.Name + ":" + aggSuffix(agg)
-
-				for _, detector := range detectors {
-					result := detector.Detect(seriesCopy)
-					for _, anomaly := range result.Anomalies {
-						anomaly.Type = observerdef.AnomalyTypeMetric
-						anomaly.DetectorName = detector.Name()
-						anomaly.Source = observerdef.MetricName(seriesCopy.Name)
-						anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags))
-						if anomaly.DetectorName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
-							fmt.Printf("  Warning: dropping invalid anomaly (detector=%q source=%q ts=%d)\n",
-								anomaly.DetectorName, anomaly.Source, anomaly.Timestamp)
-							continue
-						}
-
-						tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
-						tb.metricsByDetector[anomaly.DetectorName] = append(tb.metricsByDetector[anomaly.DetectorName], anomaly)
-						if anomaly.SourceSeriesID != "" {
-							tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
-						}
-					}
-
-					baseTimestamp := time.Now().Unix()
-					if len(seriesCopy.Points) > 0 {
-						baseTimestamp = seriesCopy.Points[0].Timestamp
-					}
-					tb.handleTelemetry(result.Telemetry, detector.Name(), baseTimestamp)
-				}
-			}
-		}
-	}
-
-	// Phase 1b (sync): Run multi-series detectors (pull-based, e.g. RRCF)
+	// Run all detectors (both SeriesDetector-based via adapter and native Detector)
 	dataTime := tb.storage.MaxTimestamp()
-	for _, detector := range tb.enabledMultiDetectors() {
-		multiResult := detector.Detect(tb.storage, dataTime)
-		for _, anomaly := range multiResult.Anomalies {
+	for _, detector := range tb.enabledDetectors() {
+		result := detector.Detect(tb.storage, dataTime)
+		for _, anomaly := range result.Anomalies {
 			// If the anomaly has a Source (telemetry metric name) but no SourceSeriesID,
 			// resolve it to the telemetry series using the same naming convention as handleTelemetry.
 			if anomaly.SourceSeriesID == "" && anomaly.Source != "" {
 				telemetryName := "telemetry." + detector.Name() + "." + string(anomaly.Source)
 				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey("telemetry", telemetryName+":avg", nil))
+			}
+			if anomaly.DetectorName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
+				fmt.Printf("  Warning: dropping invalid anomaly (detector=%q source=%q ts=%d)\n",
+					anomaly.DetectorName, anomaly.Source, anomaly.Timestamp)
+				continue
 			}
 			tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
 			tb.metricsByDetector[anomaly.DetectorName] = append(tb.metricsByDetector[anomaly.DetectorName], anomaly)
@@ -679,7 +623,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 				tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
 			}
 		}
-		tb.handleTelemetry(multiResult.Telemetry, detector.Name(), dataTime)
+		tb.handleTelemetry(result.Telemetry, detector.Name(), dataTime)
 	}
 
 	// --- Correlations ---
@@ -919,10 +863,9 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 		if comp.Registration.Category != "detector" {
 			continue
 		}
-		if detector, ok := comp.Instance.(observerdef.MetricsDetector); ok {
+		if detector, ok := comp.Instance.(observerdef.Detector); ok {
 			result[detector.Name()] = componentName
-		}
-		if detector, ok := comp.Instance.(observerdef.MultiSeriesDetector); ok {
+		} else if detector, ok := comp.Instance.(observerdef.SeriesDetector); ok {
 			result[detector.Name()] = componentName
 		}
 	}

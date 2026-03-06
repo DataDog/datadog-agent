@@ -1,81 +1,245 @@
 # Observer Component
 
-Observes data flowing through the agent for sampling and analysis.
+The observer watches data flowing through the agent — metrics, logs, traces, profiles — and runs anomaly detection on it. The core idea is a pipeline:
 
-## Components
-
-**Component** is the entry point. Call `GetHandle(name)` to get a handle scoped to a named source (e.g. "dogstatsd", "otlp").
-
-**Handle** is the lightweight interface passed to data pipelines. It has two methods:
-
-- `ObserveMetric(MetricView)` — adds the metric to storage, then runs metrics detection on the updated series.
-- `ObserveLog(LogView)` — runs all log detectors. Any metrics they produce are added to storage and trigger metrics detection.
-
-**MetricView / LogView** are read-only interfaces to avoid data races. The underlying data may be reused after the call returns, so copy any values you need synchronously.
-
-**Storage** accumulates metrics into per-second buckets, tracking sum/count/min/max for each series. When retrieved, you specify an aggregation (average, sum, count, min, max) to collapse each bucket to a single value.
-
-**LogDetector** transforms logs into metrics and anomaly events:
 ```
-Process(log LogView) → LogDetectionResult{Metrics[], Anomalies[]}
+                      ┌─────────────────────────────────────────────────────────────────────┐
+                      │                                                                     │
+┌────────────┐        │    ┌───────────────────────┐    ┌───────────────────────────┐       │
+│   Handle   ├─Logs───┼─┬──▶  LogMetricExtractors  │    │         Detectors         │       │
+└──────┬─────┘        │ │  └───────────┬───────────┘    │                           │       │
+       │              │ │              │                │  ┌─────────────────────┐  │       │
+       │              │ └──────────────┼────────────────┼──▶     LogObserver     │  ├───┐   │
+       │              │                │                │  └─────────────────────┘  │   │   │
+       │              │                │                │                           │   │   │
+       │              │    ┌───────────▼───────────┐    │  ┌─────────────────────┐  │   │   │
+       └───Metrics────┼────▶     MetricStorage     ├────▶  │   SeriesDetector    │  │   │   │
+                      │    └───────────────────────┘    │  └─────────────────────┘  │   │   │
+                      │                                 └───────────────────────────┘   │   │
+                      │                                                                 │   │
+                      │        ┌──────────────────┐                                     │   │
+                      │        │   Correlators    ◀─────────────Anomalies───────────────┘   │
+                      │        └────────┬─────────┘                                         │
+                      │                 │                                                   │
+                      │        ┌────────▼─────────┐                                         │
+                      │        │    Reporters     │                                         │
+                      │        └──────────────────┘                                         │
+                      │                                                                     │
+                      └─────────────────────────────────────────────────────────────────────┘
 ```
-Implementations should be stateless and fast since they run synchronously on every log.
 
-**MetricsDetector** detects anomalies from accumulated time series:
-```
-Detect(Series) → MetricsDetectionResult{Anomalies[]}
-```
-Receives a series of aggregated points. Implementations should be stateless and just do math on the points.
+Data enters through lightweight **Handles** that copy and send observations over a channel. The framework handles scheduling, threading, and data flow — individual components (detectors, extractors, correlators) are just functions that receive data and return results, with no need to worry about concurrency or how they get called.
 
-**Correlator** receives and accumulates anomaly events from all analyses:
+## Pipeline Stages
+
+### 1. Observe (Handles)
+
+**Component** is the entry point. Call `GetHandle(name)` to get a handle scoped to a named source (e.g. "dogstatsd", "otlp", "trace-agent").
+
+**Handle** is the lightweight interface passed to data pipelines. It accepts five signal types:
+
+- `ObserveMetric(MetricView)` — a DogStatsD metric sample
+- `ObserveLog(LogView)` — a log message
+- `ObserveTrace(TraceView)` — a trace (collection of spans)
+- `ObserveTraceStats(TraceStatsView)` — aggregated APM stats (decomposed into metrics at the handle layer)
+- `ObserveProfile(ProfileView)` — a profiling sample
+
+Each method copies the data synchronously, then does a **non-blocking send** to a buffered channel (capacity 1000). If the channel is full, the observation is silently dropped. This ensures the observer never blocks data ingestion, even if analysis is slow.
+
+> **Note:** Trace and profile observation are wired up but analysis is not yet implemented — they are recorded but not yet used for detection. A fetcher periodically pulls traces and profiles from remote trace-agents via gRPC.
+
+**View interfaces** (`MetricView`, `LogView`, `TraceView`, etc.) provide read-only access to prevent data races. The underlying data may be reused after the call returns, so handles copy everything before sending.
+
+### 2. Store
+
+**Storage** accumulates metrics into per-second buckets. Each bucket tracks sum, count, min, and max for the series. Aggregation (average, sum, count, min, max) is chosen at **read time**, not write time — storage always keeps the full summary.
+
+Metrics from logs are stored with a `_virtual.` prefix (e.g. `_virtual.log.field.duration`) to distinguish them from directly observed metrics.
+
+### 3. Detect
+
+Detection is **not** scheduled on a timer. It's triggered by data arrival: when data at time T arrives, detectors run on data up to T-1. This "complete seconds" rule ensures deterministic results whether data arrives in batch or streaming.
+
+**Why determinism matters:** Because detection is driven entirely by data timestamps (not wall-clock time), replaying the same data always produces the same anomalies. This makes it cheap to simulate the full detection pipeline offline, which is key to iterating quickly on algorithms. The testbench leverages this — it loads a parquet file of recorded metrics, runs them through the same pipeline that runs live, and produces identical results every time. This gives us fast, repeatable iteration loops: change a detector, re-run the scenario, compare results.
+
+There are two detector interfaces, from simple to flexible:
+
+**SeriesDetector** analyzes a single time series:
+```
+Detect(Series) → DetectionResult{Anomalies[]}
+```
+Receives aggregated points for one series. Implementations should be stateless — just do math on the points. Examples: CUSUM (change-point detection), BOCPD (Bayesian changepoint detection).
+
+**Detector** pulls whatever it needs from storage:
+```
+Detect(StorageReader, dataTime int64) → DetectionResult{Anomalies[]}
+```
+Supports multivariate detection across multiple series. Example: RRCF (Robust Random Cut Forest) reads several metrics, aligns them by timestamp, and scores the combined signal.
+
+**How they connect:** SeriesDetector implementations are automatically wrapped into Detectors via `seriesDetectorAdapter`. The adapter iterates all series in storage × a set of aggregations (avg, count by default), runs the SeriesDetector on each, and appends an aggregation suffix (`:avg`, `:count`) to the metric name. If you need per-series detection, implement SeriesDetector. If you need cross-series detection, implement Detector directly.
+
+**LogObserver** is an optional interface that Detectors can implement to receive raw log observations directly, without going through the metrics extraction path:
+```go
+type LogObserver interface {
+    ProcessLog(log LogView)
+}
+```
+
+### 4. Correlate
+
+**Correlator** accumulates anomaly events and looks for patterns:
 ```
 Process(anomaly Anomaly)
-Flush() []ReportOutput
+Flush() → []ReportOutput
 ```
-Unlike analyses, correlators are stateful. They accumulate events and produce reports when `Flush()` is called.
+Correlators are stateful. They receive individual anomalies, accumulate them over a time window, and produce reports when patterns are detected. Example: `TimeClusterCorrelator` groups anomalies that occur close together in time into clusters, surfacing correlated bursts of anomalous behavior across different series.
 
-## Threading Model
+### 5. Report
 
-Handles are the only concurrent part. They copy data and send it over a channel. Everything else (storage, analyses, consumers) runs in a single dispatch goroutine, so no locks are needed in component implementations.
+**Reporter** delivers results to their destination:
+```
+Report(report ReportOutput)
+```
+Reporters query state interfaces like `CorrelationState` and `RawAnomalyState` to access current system state, rather than relying solely on the report argument. Example: `StdoutReporter` queries the correlator's `ActiveCorrelations()` to print changes.
 
-## Writing a New Log Detector
+> **Note:** The Reporter interface hasn't seen much focus yet and may need some evolution as we learn more about what reporting needs look like in practice.
 
-Implement `LogDetector` or `MetricsDetector`:
+## Log Processing
+
+When a log is observed, two things happen:
+
+1. **LogMetricsExtractors** run synchronously, transforming the log into metrics:
+   ```
+   ProcessLog(log LogView) → []MetricOutput
+   ```
+   Each returned metric is stored as `_virtual.{name}` and flows through normal detection. Implementations should be stateless and fast.
+
+2. **Detectors implementing LogObserver** receive the raw log directly, allowing log-based anomaly detection without the metrics extraction step.
+
+## Framework vs. Component Responsibilities
+
+The observer separates **framework concerns** from **component logic**. If you're writing a detector, extractor, or correlator, you don't need to think about threading, scheduling, or data flow — the framework handles all of that. Your code is just a function that receives data and returns results.
+
+**The framework's job:**
+- Copying data from handles and dispatching it to the right place
+- Storing metrics and managing time series buckets
+- Deciding when to run detectors (data-driven, not timer-based)
+- Routing anomalies to correlators and flushing reports to reporters
+- All threading and concurrency
+
+**Your job as a component author:**
+- Implement a simple interface (e.g. `Detect(Series) → DetectionResult`)
+- Do your math or logic on the data you're given
+- Return results — the framework takes it from there
+
+Currently the framework runs everything in a single dispatch goroutine, but this is an implementation detail that could evolve (e.g. parallelizing independent detectors). Component implementations shouldn't depend on or worry about the threading model.
+
+### Threading Details (for framework contributors)
+
+Handles are the only concurrent part. They copy data and do a **non-blocking send** to a buffered channel (capacity 1000). If the buffer is full, observations are silently dropped — analysis should never back-pressure data ingestion.
+
+Everything after the channel — storage, extractors, detectors, correlators, reporters — currently runs in a single dispatch goroutine:
+```go
+for obs := range o.obsCh {
+    if obs.metric != nil { processMetric() }
+    if obs.log != nil    { processLog() }
+    if obs.trace != nil  { processTrace() }
+    if obs.profile != nil { processProfile() }
+}
+```
+
+## Writing Extensions
+
+### New SeriesDetector
+
+Implement `SeriesDetector` for stateless per-series anomaly detection. The adapter will automatically run it across all series and aggregations.
 
 ```go
-type MyLogDetector struct{}
+type MyDetector struct{}
 
-func (m *MyLogDetector) Name() string { return "my_detector" }
+func (d *MyDetector) Name() string { return "my_detector" }
 
-func (m *MyLogDetector) Process(log observer.LogView) observer.LogDetectionResult {
-    // Extract what you need synchronously - don't store the view
-    content := string(log.GetContent())
-
-    // Return metrics and/or anomalies
-    return observer.LogDetectionResult{
-        Metrics: []observer.MetricOutput{{
-            Name:  "my.metric",
-            Value: 1,
-            Tags:  log.GetTags(),
-        }},
+func (d *MyDetector) Detect(series observer.Series) observer.DetectionResult {
+    // Analyze series.Points (already aggregated to one value per second)
+    for _, p := range series.Points {
+        if p.Value > 100 {
+            return observer.DetectionResult{
+                Anomalies: []observer.Anomaly{{
+                    Title:     "Spike detected",
+                    Timestamp: p.Timestamp,
+                }},
+            }
+        }
     }
+    return observer.DetectionResult{}
 }
 ```
 
 Register in `observer.go`:
+```go
+detectors: []observerdef.Detector{
+    newSeriesDetectorAdapter(&MyDetector{}, defaultAggregations),
+    // ...
+},
+```
+
+### New Detector (Multivariate)
+
+Implement `Detector` for cross-series analysis. You pull data from storage directly.
 
 ```go
-obs := &observerImpl{
-    logDetectors: []observerdef.LogDetector{
-        &MyLogDetector{},  // add here
-    },
-    // ...
+type MyDetector struct{}
+
+func (d *MyDetector) Name() string { return "my_detector" }
+
+func (d *MyDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+    // Find series you care about
+    keys := storage.ListSeries(observer.SeriesFilter{NamePattern: "cpu"})
+
+    // Read their data
+    for _, key := range keys {
+        series := storage.GetSeriesRange(key, 0, dataTime, observer.AggregateAverage)
+        // ... analyze across series
+    }
+    return observer.DetectionResult{}
 }
 ```
 
-## Writing a New Correlator
+Register in `observer.go`:
+```go
+detectors: []observerdef.Detector{
+    &MyDetector{},
+    // ...
+},
+```
 
-Implement `Correlator`:
+### New LogMetricsExtractor
+
+```go
+type MyExtractor struct{}
+
+func (m *MyExtractor) Name() string { return "my_extractor" }
+
+func (m *MyExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
+    content := string(log.GetContent())
+    // Extract what you need synchronously — don't store the view
+    return []observer.MetricOutput{{
+        Name:  "my.metric",    // stored as _virtual.my.metric
+        Value: 1,
+        Tags:  log.GetTags(),
+    }}
+}
+```
+
+Register in `observer.go`:
+```go
+extractors: []observerdef.LogMetricsExtractor{
+    &MyExtractor{},
+    // ...
+},
+```
+
+### New Correlator
 
 ```go
 type MyCorrelator struct {
@@ -89,7 +253,6 @@ func (c *MyCorrelator) Process(anomaly observer.Anomaly) {
 }
 
 func (c *MyCorrelator) Flush() []observer.ReportOutput {
-    // Do something with accumulated events
     var reports []observer.ReportOutput
     for _, e := range c.events {
         reports = append(reports, observer.ReportOutput{Title: e.Title})
@@ -100,34 +263,43 @@ func (c *MyCorrelator) Flush() []observer.ReportOutput {
 ```
 
 Register in `observer.go`:
-
 ```go
-obs := &observerImpl{
-    correlators: []observerdef.Correlator{
-        &MemoryCorrelator{},
-        &MyCorrelator{},  // add here
-    },
+correlators: []observerdef.Correlator{
+    &MyCorrelator{},
     // ...
-}
+},
+```
+
+## Configuration
+
+```yaml
+observer:
+  # Main switches
+  analysis:
+    enabled: true                    # Enable the anomaly detection pipeline
+
+  # Agent internal log capture
+  capture_agent_internal_logs:
+    enabled: true
+    sample_rate_info: 0.1            # Sample 10% of info logs
+    sample_rate_debug: 0.0           # Drop debug logs
+    sample_rate_trace: 0.0           # Drop trace logs
+
+  # Parquet metric recording
+  capture_metrics:
+    enabled: true
+  parquet_output_dir: "/var/log/datadog/observer-metrics"
+  parquet_flush_interval: 60s        # File rotation interval
+  parquet_retention: 24h             # Automatic cleanup (0 = disabled)
+
+  # Debug
+  debug_dump_path: "/tmp/observer-dump.json"
+  debug_dump_interval: 30s
 ```
 
 ## Metric Recording to Parquet Files
 
 The observer can record all observed metrics to Parquet files for long-term storage and analysis.
-
-### Configuration
-
-Enable Parquet recording in `datadog.yaml`:
-
-```yaml
-observer:
-  capture_metrics.enabled: true
-  parquet_output_dir: "/var/log/datadog/observer-metrics"
-  parquet_flush_interval: 60s  # File rotation interval
-  parquet_retention: 24h        # Automatic cleanup (0 = disabled)
-```
-
-### File Format
 
 Files are rotated at the flush interval with UTC-timestamped names:
 
@@ -154,20 +326,7 @@ Schema is compatible with **FGM (Flare Graph Metrics)** format:
 | `ValueFloat` | `float64`      | Metric value                                     |
 | `Tags`       | `list<string>` | Array of tags in "key:value" format              |
 
-**Arrow Schema Definition:**
-
-```go
-arrow.NewSchema([]arrow.Field{
-    {Name: "RunID", Type: arrow.BinaryTypes.String},
-    {Name: "Time", Type: arrow.PrimitiveTypes.Int64},
-    {Name: "MetricName", Type: arrow.BinaryTypes.String},
-    {Name: "ValueFloat", Type: arrow.PrimitiveTypes.Float64},
-    {Name: "Tags", Type: arrow.ListOf(arrow.BinaryTypes.String)},
-}, nil)
-```
-
-**Important Notes:**
 - Time is in **milliseconds** (divide by 1000 for seconds)
 - Tags format: `["host:server1", "env:prod"]`
 - All timestamps are UTC
-- **Bloom filters enabled** on Tags and MetricName for fast queries
+- Bloom filters enabled on Tags and MetricName for fast queries

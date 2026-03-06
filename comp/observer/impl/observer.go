@@ -182,7 +182,7 @@ func NewComponent(deps Requires) Provides {
 	reporter.SetCorrelationState(correlator)
 
 	obs := &observerImpl{
-		logDetectors: []observerdef.LogDetector{
+		extractors: []observerdef.LogMetricsExtractor{
 			&LogMetricsExtractor{
 				MaxEvalBytes: 4096,
 				// Exclude metadata fields that shouldn't be metrics.
@@ -199,11 +199,9 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		multiDetectors: []observerdef.MultiSeriesDetector{
-			newMetricsDetectorAdapter(NewCUSUMDetector(), []observerdef.Aggregate{
-				observerdef.AggregateAverage,
-				observerdef.AggregateCount,
-			}),
+		detectors: []observerdef.Detector{
+			newSeriesDetectorAdapter(NewCUSUMDetector(), defaultAggregations),
+			newSeriesDetectorAdapter(NewBOCPDDetector(), defaultAggregations),
 			NewRRCFDetector(DefaultRRCFConfig()),
 		},
 		correlators: []observerdef.Correlator{
@@ -355,8 +353,8 @@ func samplePass(rate float64, n uint64) bool {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	logDetectors   []observerdef.LogDetector
-	multiDetectors []observerdef.MultiSeriesDetector
+	extractors []observerdef.LogMetricsExtractor
+	detectors  []observerdef.Detector
 	correlators    []observerdef.Correlator
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
@@ -404,16 +402,17 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
 	view := &logView{obs: l}
-	for _, detector := range o.logDetectors {
-		result := detector.Process(view)
-		for _, m := range result.Metrics {
+	for _, extractor := range o.extractors {
+		metrics := extractor.ProcessLog(view)
+		for _, m := range metrics {
 			// Virtual metrics coming from logs starts with _virtual.
 			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
 		}
-		// Route directly emitted anomalies through the standard pipeline
-		for _, anomaly := range result.Anomalies {
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
+	}
+	// Allow detectors to observe logs directly
+	for _, d := range o.detectors {
+		if lo, ok := d.(observerdef.LogObserver); ok {
+			lo.ProcessLog(view)
 		}
 	}
 	o.maybeRunDetectors(l.timestampMs / 1000)
@@ -437,7 +436,7 @@ func (o *observerImpl) maybeRunDetectors(dataTime int64) {
 // runDetectorsUpTo runs all multi-series detectors, providing them access to storage
 // and the data timestamp up to which they should analyze.
 func (o *observerImpl) runDetectorsUpTo(upTo int64) {
-	for _, detector := range o.multiDetectors {
+	for _, detector := range o.detectors {
 		result := detector.Detect(o.storage, upTo)
 		for _, anomaly := range result.Anomalies {
 			o.captureRawAnomaly(anomaly)
@@ -449,25 +448,32 @@ func (o *observerImpl) runDetectorsUpTo(upTo int64) {
 	o.flushAndReport()
 }
 
-// metricsDetectorAdapter wraps a stateless MetricsDetector to implement MultiSeriesDetector.
+// defaultAggregations is the standard set of aggregations used when adapting
+// a SeriesDetector into a Detector.
+var defaultAggregations = []observerdef.Aggregate{
+	observerdef.AggregateAverage,
+	observerdef.AggregateCount,
+}
+
+// seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
 // It runs the wrapped detector on all series, handling aggregation suffixes.
-type metricsDetectorAdapter struct {
-	detector     observerdef.MetricsDetector
+type seriesDetectorAdapter struct {
+	detector     observerdef.SeriesDetector
 	aggregations []observerdef.Aggregate
 }
 
-func newMetricsDetectorAdapter(detector observerdef.MetricsDetector, aggregations []observerdef.Aggregate) *metricsDetectorAdapter {
-	return &metricsDetectorAdapter{
+func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
+	return &seriesDetectorAdapter{
 		detector:     detector,
 		aggregations: aggregations,
 	}
 }
 
-func (a *metricsDetectorAdapter) Name() string {
+func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
-func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.MultiSeriesDetectionResult {
+func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
@@ -488,6 +494,7 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 
 			result := a.detector.Detect(seriesWithAgg)
 			for _, anomaly := range result.Anomalies {
+				anomaly.Type = observerdef.AnomalyTypeMetric
 				anomaly.DetectorName = a.detector.Name()
 				anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
 				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
@@ -497,7 +504,7 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 		}
 	}
 
-	return observerdef.MultiSeriesDetectionResult{
+	return observerdef.DetectionResult{
 		Anomalies: allAnomalies,
 		Telemetry: allTelemetry,
 	}

@@ -179,24 +179,24 @@ func (r *RRCFDetector) Name() string {
 	return "rrcf"
 }
 
-// Detect implements MultiSeriesDetector. It queries storage for system metrics,
+// Detect implements Detector. It queries storage for system metrics,
 // builds multivariate shingles, and detects anomalies using RRCF.
-func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) observer.MultiSeriesDetectionResult {
+func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	// Step 0: Resolve all metric keys to the same tag set (on first call)
 	if !r.resolveAllKeys(storage) {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Step 1: Read new points for each metric since last cursor
 	newPointsByMetric := r.readNewPoints(storage, dataTime)
 	if len(newPointsByMetric) == 0 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Step 2: Align points by timestamp and build multivariate vectors
 	alignedPoints := r.alignByTimestamp(newPointsByMetric)
 	if len(alignedPoints) == 0 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	r.alignedCount += len(alignedPoints)
@@ -204,7 +204,7 @@ func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 	// Step 3: Build shingles from aligned points
 	shingles := r.buildShingles(alignedPoints)
 	if len(shingles) == 0 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	r.shingleCount += len(shingles)
@@ -434,7 +434,7 @@ func (r *RRCFDetector) buildShingles(aligned []timestampedVector) []shingle {
 // scoreAndDetect scores shingles using RRCF and returns anomalies and telemetry.
 // Uses rolling z-score thresholding: after a warmup period (TreeSize points), a point
 // is anomalous if its score exceeds mean + ThresholdSigma*stddev of the recent window.
-func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.MultiSeriesDetectionResult {
+func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.DetectionResult {
 	var anomalies []observer.Anomaly
 	var telemetry []observer.ObserverTelemetry
 	warmup := r.config.TreeSize
@@ -503,7 +503,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Mult
 		}
 	}
 
-	return observer.MultiSeriesDetectionResult{
+	return observer.DetectionResult{
 		Anomalies: anomalies,
 		Telemetry: telemetry,
 	}
