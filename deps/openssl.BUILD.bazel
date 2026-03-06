@@ -1,5 +1,7 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -256,18 +258,30 @@ filegroup(
     }),
 )
 
+rewrite_rpath(
+    name = "libssl_rpath_patched",
+    inputs = [":libssl_shared_file"],
+)
+
+rewrite_rpath(
+    name = "libcrypto_rpath_patched",
+    inputs = [":libcrypto_shared_file"],
+)
+
 so_symlink(
     name = "libssl_with_symlink",
-    src = ":libssl_shared_file",
+    src = ":libssl_rpath_patched",
     libname = "libssl",
     version = OPENSSL_VERSION,
+    prefix = "embedded",
 )
 
 so_symlink(
     name = "libcrypto_with_symlink",
-    src = ":libcrypto_shared_file",
+    src = ":libcrypto_rpath_patched",
     libname = "libcrypto",
     version = OPENSSL_VERSION,
+    prefix = "embedded",
 )
 
 filegroup(
@@ -293,15 +307,27 @@ pkg_files(
         ":libssl_static",
         ":libcrypto_static",
     ],
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+rewrite_rpath(
+    name = "openssl_binary_rpath_patched",
+    inputs = [":openssl_binary"],
 )
 
 pkg_files(
     name = "openssl_bin_files",
-    srcs = [":openssl_binary"],
-    strip_prefix = "openssl",
+    srcs = [":openssl_binary_rpath_patched"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
+    prefix = select({
+        "@platforms//os:windows": "embedded3/bin",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_filegroup(
@@ -321,15 +347,16 @@ pkg_filegroup(
             ":libcrypto_with_symlink",
         ],
     }),
-    prefix = select({
-        "@platforms//os:windows": "embedded3",
-        "//conditions:default": "embedded",
-    }),
+)
+
+dd_auto_pkg_artifact(
+    name = "openssl_pkg",
+    src = ":openssl_shared",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(
     name = "install",
-    srcs = [
-        ":all_files",
-    ],
+    srcs = [":all_files"],
 )

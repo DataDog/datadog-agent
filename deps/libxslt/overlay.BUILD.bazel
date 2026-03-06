@@ -1,9 +1,10 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 XSLT_VERSION = "1.1.43"
@@ -111,7 +112,7 @@ cc_shared_library(
     name = "xslt",
     deps = [":libxslt"],
     # Ensure we don't statically link with libxml2
-    dynamic_deps = ["@libxml2//:xml2"],
+    dynamic_deps = ["@libxml2//:xml2_pkg"],
     additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
@@ -119,17 +120,23 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "xslt_rpath_patched",
+    inputs = [":xslt"],
+)
+
 so_symlink(
     name = "xslt_lib_files",
-    src = ":xslt",
+    src = ":xslt_rpath_patched",
     libname = "libxslt",
     version = "1.1.43",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "xslt_headers",
     srcs = _PUBLIC_XSLT_HDRS,
-    prefix = "include/libxslt",
+    prefix = "embedded/include/libxslt",
 )
 
 expand_template(
@@ -186,21 +193,27 @@ cc_library(
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
-    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
+    dynamic_deps = ["@libxml2//:xml2_pkg", ":xslt_pkg"],
     visibility = ["//visibility:public"],
+)
+
+rewrite_rpath(
+    name = "exslt_rpath_patched",
+    inputs = [":exslt"],
 )
 
 so_symlink(
     name = "exslt_lib_files",
-    src = ":exslt",
+    src = ":exslt_rpath_patched",
     libname = "libexslt",
     version = "0.8.24",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "exslt_headers",
     srcs = _PUBLIC_EXSLT_HDRS,
-    prefix = "include/libexslt",
+    prefix = "embedded/include/libexslt",
 )
 
 pkg_filegroup(
@@ -211,13 +224,19 @@ pkg_filegroup(
         ":xslt_lib_files",
         ":exslt_lib_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "xslt_pkg",
+    src = ":xslt",
+    install_files = [":xslt_lib_files", ":xslt_headers", ":exslt_headers"],
+    visibility = ["//visibility:public"],
+)
+
+dd_auto_pkg_artifact(
+    name = "exslt_pkg",
+    src = ":exslt",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

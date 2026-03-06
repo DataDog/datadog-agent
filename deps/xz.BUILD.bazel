@@ -1,11 +1,12 @@
 """Agent specific BUILD file for xz-utils / liblzma."""
 
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
@@ -117,23 +118,29 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "lzma_rpath_patched",
+    inputs = [":lzma"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":lzma",
+    src = ":lzma_rpath_patched",
     libname = "liblzma",
     version = VERSION,
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "main_header",
     srcs = _MAIN_HEADER,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 pkg_files(
     name = "api_headers",
     srcs = _API_HEADERS,
-    prefix = "include/lzma",
+    prefix = "embedded/include/lzma",
 )
 
 pkg_filegroup(
@@ -143,12 +150,11 @@ pkg_filegroup(
         ":api_headers",
         ":lib_files",
     ],
-    prefix = "embedded",
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "lzma_pkg",
+    src = ":lzma",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

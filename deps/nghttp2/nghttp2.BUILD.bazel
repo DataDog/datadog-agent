@@ -1,7 +1,8 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 package(
@@ -114,14 +115,26 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "nghttp2_rpath_patched",
+    inputs = [":nghttp2_shared"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":nghttp2_shared",
+    src = ":nghttp2_rpath_patched",
     libname = "libnghttp2",
     # Lands in embedded/lib. so_symlink FR, prefix should be able to override the automatic 'lib/'.
     prefix = "embedded",
     version = SO_VERSION,
     attributes = pkg_attributes(mode = "0755"),
+)
+
+dd_auto_pkg_artifact(
+    name = "nghttp2_pkg",
+    src = ":nghttp2_shared",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -139,10 +152,3 @@ pkg_filegroup(
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-#  This is generally installed with destdir={install_dir}
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)
