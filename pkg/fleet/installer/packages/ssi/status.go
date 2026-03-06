@@ -11,4 +11,5 @@ type APMInstrumentationStatus struct {
 	HostInstrumented   bool `json:"host_instrumented"`
 	DockerInstalled    bool `json:"docker_installed"`
 	DockerInstrumented bool `json:"docker_instrumented"`
+	IISInstrumented    bool `json:"iis_instrumented"`
 }

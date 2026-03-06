@@ -79,6 +79,7 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -207,6 +208,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
+				rcstatusimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{

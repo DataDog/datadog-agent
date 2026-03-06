@@ -29,7 +29,8 @@ func testPipelines() PipelineSet {
 
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
-	s, b := in.Sketch, in.Sketch.Basic
+	s := in.Sketch
+	bCnt, bMin, bMax, bSum, bAvg := in.Sketch.BasicStats()
 	require.Equal(t, in.Ts, pb.Ts)
 
 	// sketch
@@ -38,11 +39,11 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 	require.Equal(t, n, pb.N)
 
 	// summary
-	require.Equal(t, b.Cnt, pb.Cnt)
-	require.Equal(t, b.Min, pb.Min)
-	require.Equal(t, b.Max, pb.Max)
-	require.Equal(t, b.Avg, pb.Avg)
-	require.Equal(t, b.Sum, pb.Sum)
+	require.Equal(t, bCnt, pb.Cnt)
+	require.Equal(t, bMin, pb.Min)
+	require.Equal(t, bMax, pb.Max)
+	require.Equal(t, bAvg, pb.Avg)
+	require.Equal(t, bSum, pb.Sum)
 }
 
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {

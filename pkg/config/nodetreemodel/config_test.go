@@ -361,6 +361,7 @@ func TestAllSettingsBySource(t *testing.T) {
 				"c": 123,
 			},
 		},
+		model.SourceSecretBackend:      map[string]interface{}{},
 		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceRC:                 map[string]interface{}{},
 		model.SourceCLI:                map[string]interface{}{},
@@ -372,6 +373,63 @@ func TestAllSettingsBySource(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestAllSettingsWithoutSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	// includes secrets
+	all := cfg.AllSettings()
+	assert.Equal(t, "secret_value", all["a"])
+	assert.Equal(t, 42, all["b"])
+
+	// excludes secrets layer, "a" falls back to file layer value
+	withoutSecrets := cfg.AllSettingsWithoutSecrets()
+	assert.Equal(t, "file_value", withoutSecrets["a"])
+	assert.Equal(t, 42, withoutSecrets["b"])
+}
+
+func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.SetDefault("c", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("a", "file_value", model.SourceFile)
+	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("b", 42, model.SourceAgentRuntime)
+
+	result := cfg.AllSettingsWithoutDefaultOrSecrets()
+	// "a" has a fallback file value
+	assert.Equal(t, "file_value", result["a"])
+	assert.Equal(t, 42, result["b"])
+	// "c" is only a default, excluded
+	_, found := result["c"]
+	assert.False(t, found)
+}
+
+func TestGetSecretSettingPaths(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("api_key", "")
+	cfg.SetDefault("proxy.https", "")
+	cfg.SetDefault("proxy.http", "")
+	cfg.BuildSchema()
+
+	assert.Empty(t, cfg.GetSecretSettingPaths())
+
+	cfg.Set("api_key", "resolved_key", model.SourceSecretBackend)
+	cfg.Set("proxy.https", "resolved_proxy", model.SourceSecretBackend)
+
+	paths := cfg.GetSecretSettingPaths()
+	assert.ElementsMatch(t, []string{"api_key", "proxy.https"}, paths)
 }
 
 func TestIsSet(t *testing.T) {

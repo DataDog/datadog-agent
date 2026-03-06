@@ -142,7 +142,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 			log.Error("Secrets component not available, cannot trigger refresh")
 			return "", errors.New("secrets component not available")
 		}
-		return deps.Secrets.Refresh(true)
+		return deps.Secrets.RefreshNow()
 	}
 
 	c.Agent = pkgagent.NewAgent(

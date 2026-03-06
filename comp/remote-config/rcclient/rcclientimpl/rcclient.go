@@ -9,12 +9,12 @@ package rcclientimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
@@ -471,7 +471,7 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 						if err == nil {
 							err = oneErr
 						} else {
-							err = errors.Wrap(oneErr, err.Error())
+							err = fmt.Errorf("%s: %w", err.Error(), oneErr)
 						}
 					}
 				}

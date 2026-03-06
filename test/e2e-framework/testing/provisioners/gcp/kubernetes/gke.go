@@ -7,6 +7,7 @@
 package gcpkubernetes
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -60,6 +61,11 @@ func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return err
 	}
 
+	// If InitOnly is set, return after creating the cluster without deploying the agent.
+	if gcpEnv.InitOnly() {
+		return nil
+	}
+
 	agentOptions := params.agentOptions
 
 	// Deploy a fakeintake
@@ -86,6 +92,13 @@ func GKERunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
 		if err != nil {
 			return err
+		}
+		dependsOnDDAgent := utils.PulumiDependsOn(agent)
+		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+			_, err := appFunc(&gcpEnv, cluster.KubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		env.Agent = nil

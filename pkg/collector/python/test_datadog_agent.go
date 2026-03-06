@@ -9,6 +9,7 @@ package python
 
 import (
 	"context"
+	"encoding/json"
 	"math/rand/v2"
 	"sync"
 	"testing"
@@ -61,8 +62,8 @@ func testHeaders(t *testing.T) {
 	require.NotNil(t, headers)
 
 	h := httpHeaders()
-	yamlPayload, _ := yaml.Marshal(h)
-	assert.Equal(t, string(yamlPayload), C.GoString(headers))
+	jsonPayload, _ := json.Marshal(h)
+	assert.Equal(t, string(jsonPayload), C.GoString(headers))
 }
 
 func testGetConfig(t *testing.T) {
@@ -73,7 +74,7 @@ func testGetConfig(t *testing.T) {
 
 	GetConfig(C.CString("cmd_port"), &config)
 	require.NotNil(t, config)
-	assert.Equal(t, "5001\n", C.GoString(config))
+	assert.Equal(t, "5001", C.GoString(config))
 }
 
 func testSetExternalTags(t *testing.T) {

@@ -9,6 +9,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"

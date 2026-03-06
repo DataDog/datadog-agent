@@ -9,10 +9,8 @@
 #include "stringutils.h"
 
 
-PyObject * yload = NULL;
-PyObject * ydump = NULL;
-PyObject * loader = NULL;
-PyObject * dumper = NULL;
+PyObject * jloads = NULL;
+PyObject * jdumps = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
@@ -57,95 +55,68 @@ char *as_string(PyObject *object)
 }
 
 int init_stringutils(void) {
-    PyObject *yaml = NULL;
+    PyObject *json = NULL;
     int ret = EXIT_FAILURE;
 
-    char module_name[] = "yaml";
-    yaml = PyImport_ImportModule(module_name);
-    if (yaml == NULL) {
+    char module_name[] = "json";
+    json = PyImport_ImportModule(module_name);
+    if (json == NULL) {
         goto done;
     }
 
-    // get pyyaml load()
-    char load_name[] = "load";
-    yload = PyObject_GetAttrString(yaml, load_name);
-    if (yload == NULL) {
+    // get json.loads()
+    char loads_name[] = "loads";
+    jloads = PyObject_GetAttrString(json, loads_name);
+    if (jloads == NULL) {
         goto done;
     }
 
-    // We try to use the C-extensions, if they're available, but it's a best effort
-    char c_loader_name[] = "CSafeLoader";
-    loader = PyObject_GetAttrString(yaml, c_loader_name);
-    if (loader == NULL) {
-        PyErr_Clear();
-        char loader_name[] = "SafeLoader";
-        loader = PyObject_GetAttrString(yaml, loader_name);
-        if (loader == NULL) {
-            goto done;
-        }
-    }
-
-    // get pyyaml dump()
-    char dump_name[] = "dump";
-    ydump = PyObject_GetAttrString(yaml, dump_name);
-    if (ydump == NULL) {
+    // get json.dumps()
+    char dumps_name[] = "dumps";
+    jdumps = PyObject_GetAttrString(json, dumps_name);
+    if (jdumps == NULL) {
         goto done;
-    }
-
-    char c_dumper_name[] = "CSafeDumper";
-    dumper = PyObject_GetAttrString(yaml, c_dumper_name);
-    if (dumper == NULL) {
-        PyErr_Clear();
-        char dumper_name[] = "SafeDumper";
-        dumper = PyObject_GetAttrString(yaml, dumper_name);
-        if (dumper == NULL) {
-            goto done;
-        }
     }
 
     ret = EXIT_SUCCESS;
 
 done:
-    Py_XDECREF(yaml);
+    Py_XDECREF(json);
     return ret;
 }
 
-PyObject *from_yaml(const char *data) {
+PyObject *from_json(const char *data) {
     PyObject *args = NULL;
-    PyObject *kwargs = NULL;
     PyObject *retval = NULL;
 
     if (!data) {
         goto done;
     }
-    if (yload == NULL) {
+    if (jloads == NULL) {
         goto done;
     }
 
-    args = PyTuple_New(0);
+    args = Py_BuildValue("(s)", data);
     if (args == NULL) {
         goto done;
     }
-    kwargs = Py_BuildValue("{s:s, s:O}", "stream", data, "Loader", loader);
-    if (kwargs == NULL) {
-        goto done;
-    }
-    retval = PyObject_Call(yload, args, kwargs);
+    retval = PyObject_Call(jloads, args, NULL);
 
 done:
-    Py_XDECREF(kwargs);
     Py_XDECREF(args);
     return retval;
 }
 
-char *as_yaml(PyObject *object) {
+char *as_json(PyObject *object) {
     char *retval = NULL;
     PyObject *dumped = NULL;
 
-    PyObject *args = PyTuple_New(0);
-    PyObject *kwargs = Py_BuildValue("{s:O, s:O}", "data", object, "Dumper", dumper);
+    PyObject *args = Py_BuildValue("(O)", object);
+    if (args == NULL) {
+        goto done;
+    }
 
-    dumped = PyObject_Call(ydump, args, kwargs);
+    dumped = PyObject_Call(jdumps, args, NULL);
     if (dumped == NULL) {
         goto done;
     }
@@ -154,7 +125,6 @@ char *as_yaml(PyObject *object) {
 done:
     //Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
-    Py_XDECREF(kwargs);
     Py_XDECREF(args);
     return retval;
 }

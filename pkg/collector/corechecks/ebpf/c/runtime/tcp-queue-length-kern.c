@@ -38,15 +38,17 @@ static __always_inline void check_sock(struct sock *sk) {
         .write_buffer_max_usage = 0
     };
 
-    struct stats_key k;
+    struct stats_key k = { 0 };
     if (!get_cgroup_name(k.cgroup, sizeof(k.cgroup))) {
         return;
     }
 
-    bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
     struct stats_value *v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
     if (!v) {
-        return;
+        bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
+        v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
+        if (!v)
+            return;
     }
 
     int rqueue_size = BPF_CORE_READ(sk, sk_rcvbuf);
