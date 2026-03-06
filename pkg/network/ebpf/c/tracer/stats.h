@@ -323,14 +323,23 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     }
 
     // Counter fields: monotonically increasing, latest value = max.
-    // delivered_ce and reord_seen were added in kernel 4.19. For CO-RE, use
-    // bpf_core_field_exists() so the relocation is skipped on older kernels
-    // (e.g. 4.15) instead of failing at load time. For the runtime compiler,
-    // use a compile-time kernel version guard.
+    // delivered_ce and reord_seen were added in kernel 4.19. On CO-RE, we
+    // cannot use BPF_CORE_READ_INTO because poisoned CO-RE relocations for
+    // missing fields are not pruned by the BPF verifier on older kernels
+    // (e.g. 4.15), even when guarded by bpf_core_field_exists(). Instead,
+    // Go looks up the field offsets via BTF at startup and passes them as
+    // constants. A zero offset means the field doesn't exist on this kernel.
+    // For the runtime compiler, use a compile-time kernel version guard.
 #if defined(COMPILE_CORE)
-    if (bpf_core_field_exists(tcp_sk(sk)->delivered_ce)) {
-        BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
-        BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+    __u64 delivered_ce_offset = 0;
+    LOAD_CONSTANT("delivered_ce_offset", delivered_ce_offset);
+    if (delivered_ce_offset > 0) {
+        bpf_probe_read_kernel(&val->delivered_ce, sizeof(val->delivered_ce), (char *)sk + delivered_ce_offset);
+    }
+    __u64 reord_seen_offset = 0;
+    LOAD_CONSTANT("reord_seen_offset", reord_seen_offset);
+    if (reord_seen_offset > 0) {
+        bpf_probe_read_kernel(&val->reord_seen, sizeof(val->reord_seen), (char *)sk + reord_seen_offset);
     }
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
