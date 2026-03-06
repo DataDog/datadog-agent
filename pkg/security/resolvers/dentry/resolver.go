@@ -286,8 +286,10 @@ func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
 
 	name, err = dr.ResolveNameFromCache(pathKey)
 
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, _ = dr.ResolveNameFromMap(pathKey, cache)
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		// trigger a full path resolution via eRPC to populate the cache, then retry from cache
+		_, _ = dr.Resolve(pathKey, cache)
+		name, _ = dr.ResolveNameFromCache(pathKey)
 	}
 
 	return name
@@ -602,10 +604,11 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		path, err = dr.ResolveFromERPC(pathKey, cache)
 		dr.traceCheckpoint("dentry_erpc_done")
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		dr.traceCheckpoint("dentry_map")
-		path, err = dr.ResolveFromMap(pathKey, cache)
-		dr.traceCheckpoint("dentry_map_done")
+	if err != nil && err != errTruncatedParentsERPC && dr.config.ERPCDentryResolutionEnabled {
+		// retry eRPC resolution instead of falling back to the kernel map implementation
+		dr.traceCheckpoint("dentry_erpc")
+		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
 	return path, err
 }
@@ -646,16 +649,18 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
-	pathKey, err := dr.ResolveParentFromCache(pathKey)
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromMap(pathKey)
+	parent, err := dr.ResolveParentFromCache(pathKey)
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		// trigger a full path resolution via eRPC to populate the cache, then retry from cache
+		_, _ = dr.Resolve(pathKey, true)
+		parent, err = dr.ResolveParentFromCache(pathKey)
 	}
 
-	if pathKey.Inode == 0 {
+	if parent.Inode == 0 {
 		return model.PathKey{}, ErrEntryNotFound
 	}
 
-	return pathKey, err
+	return parent, err
 }
 
 func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {
