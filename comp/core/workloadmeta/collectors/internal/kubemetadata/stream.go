@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	reconnectDelay    = 1 * time.Second
-	streamRecvTimeout = 10 * time.Minute
+	initialReconnectDelay = 1 * time.Second
+	maxReconnectDelay     = 30 * time.Second
+	streamRecvTimeout     = 10 * time.Minute
 )
 
 // streamClient manages a gRPC streaming connection to the DCA for
@@ -54,9 +55,10 @@ func newStreamClient(nodeName string, cfg configmodel.Reader) *streamClient {
 	}
 }
 
-// run manages the streaming connection with reconnection and backoff.
-// It falls back permanently if the DCA returns gRPC Unimplemented.
+// run manages the streaming connection with reconnection and exponential
+// backoff. It falls back permanently if the DCA returns gRPC Unimplemented.
 func (sc *streamClient) run(ctx context.Context) {
+	delay := initialReconnectDelay
 	for {
 		err := sc.streamOnce(ctx)
 		if err == nil {
@@ -72,16 +74,23 @@ func (sc *streamClient) run(ctx context.Context) {
 		}
 
 		sc.mu.Lock()
+		wasActive := sc.active
 		sc.active = false
 		sc.mu.Unlock()
 
-		log.Warnf("Kube metadata stream disconnected: %v, reconnecting in %v", err, reconnectDelay)
+		if wasActive {
+			delay = initialReconnectDelay
+		}
+
+		log.Warnf("Kube metadata stream disconnected: %v, reconnecting in %v", err, delay)
 
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(reconnectDelay):
+		case <-time.After(delay):
 		}
+
+		delay = min(delay*2, maxReconnectDelay)
 	}
 }
 
