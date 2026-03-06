@@ -115,14 +115,10 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	return err
 }
 
-// sendCorrelationEvents creates a sender and dispatches one event per correlation.
-func sendCorrelationEvents(correlations []observerdef.ActiveCorrelation, cfg config.Component, logger log.Component, dryRun bool) error {
-	sender, err := newEventSender(cfg, logger, dryRun)
-	if err != nil {
-		return err
-	}
+// sendCorrelationEvents dispatches one event per correlation.
+func (s *eventSender) sendCorrelationEvents(correlations []observerdef.ActiveCorrelation) error {
 	for _, c := range correlations {
-		if err := sender.send(c); err != nil {
+		if err := s.send(c); err != nil {
 			return fmt.Errorf("sending event for pattern %q: %w", c.Pattern, err)
 		}
 	}

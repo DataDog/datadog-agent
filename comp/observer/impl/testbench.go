@@ -1094,7 +1094,11 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string, dryRun bool) error {
 	for tb.correlatorsProcessing {
 		tb.correlatorsDone.Wait()
 	}
-	return sendCorrelationEvents(tb.correlations, tb.config.Cfg, tb.config.Logger, dryRun)
+	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger, dryRun)
+	if err != nil {
+		return err
+	}
+	return sender.sendCorrelationEvents(tb.correlations)
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
