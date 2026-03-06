@@ -215,6 +215,16 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	s.Require().Equal(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be restored to initial version after rollback")
 }
 
+// TestDDOTAutoInstalledWithEnvVar verifies that when DD_OTELCOLLECTOR_ENABLED=true is set
+// during a fresh agent install, the DDOT extension is automatically installed and running
+// by the postinstall hook — without any explicit extension install call.
+func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
+	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
+	defer s.Agent.MustUninstall()
+
+	s.verifyDDOTRunning()
+}
+
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
 func (s *extensionsSuite) TestDDOTExtension() {
 	// Install base agent

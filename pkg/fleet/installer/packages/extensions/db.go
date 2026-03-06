@@ -139,6 +139,12 @@ func (p *extensionsDB) SetPackageVersion(pkg string, version string, isExperimen
 			Name:    pkg,
 			Version: version,
 		}
+		if existing := b.Get(getKey(pkg, isExperiment)); len(existing) > 0 {
+			var existingPkg dbPackage
+			if err := json.Unmarshal(existing, &existingPkg); err == nil && existingPkg.Version == version {
+				return nil
+			}
+		}
 		rawPkg, err := json.Marshal(&dbPkg)
 		if err != nil {
 			return fmt.Errorf("could not marshal package: %w", err)

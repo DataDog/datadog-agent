@@ -29,10 +29,11 @@ const (
 type InstallOption func(*installParams)
 
 type installParams struct {
-	remoteUpdates   bool
-	stablePackages  bool
-	stagingPackages string
-	pipelineID      string
+	remoteUpdates        bool
+	stablePackages       bool
+	stagingPackages      string
+	pipelineID           string
+	otelCollectorEnabled bool
 }
 
 var defaultInstallParams = &installParams{
@@ -66,6 +67,14 @@ func WithStagingPackages(version string) InstallOption {
 func WithPipelineID(pipelineID string) InstallOption {
 	return func(p *installParams) {
 		p.pipelineID = pipelineID
+	}
+}
+
+// WithOTelCollectorEnabled sets DD_OTELCOLLECTOR_ENABLED=true during installation,
+// causing the DDOT extension to be installed automatically in the postinstall hook.
+func WithOTelCollectorEnabled() InstallOption {
+	return func(p *installParams) {
+		p.otelCollectorEnabled = true
 	}
 }
 
@@ -121,6 +130,9 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	if params.remoteUpdates {
 		env["DD_REMOTE_UPDATES"] = "true"
 	}
+	if params.otelCollectorEnabled {
+		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
+	}
 	if !params.stablePackages && params.stagingPackages == "" {
 		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
 		env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", params.pipelineID)
@@ -147,6 +159,9 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 	}
 	if params.remoteUpdates {
 		env["DD_REMOTE_UPDATES"] = "true"
+	}
+	if params.otelCollectorEnabled {
+		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
 	scriptURL := windowsInstallScriptURL
 	if !params.stablePackages && params.stagingPackages == "" {
