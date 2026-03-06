@@ -226,7 +226,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
-        "bzlTransitiveDigest": "BYfGPFTOX6QzH1rIZm4bEYfVamz9iYxvGBN048ySBPE=",
+        "bzlTransitiveDigest": "QiOaa5CVaJ3bJxE401UZ9Tu9lro3PMhLV8MsEv6kgSI=",
         "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
