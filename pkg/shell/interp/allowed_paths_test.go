@@ -99,7 +99,8 @@ func TestAllowedPathsCatOutside(t *testing.T) {
 	secret := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(secret, "hidden.txt"), []byte("secret"), 0644))
 
-	_, stderr, exitCode := runScript(t, "cat "+filepath.Join(secret, "hidden.txt"), allowed,
+	catPath := strings.ReplaceAll(filepath.Join(secret, "hidden.txt"), `\`, `/`)
+	_, stderr, exitCode := runScript(t, "cat "+catPath, allowed,
 		interp.AllowedPaths([]string{allowed}),
 	)
 	assert.Equal(t, 1, exitCode)
