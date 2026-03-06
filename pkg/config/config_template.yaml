@@ -208,7 +208,7 @@ api_key:
 # dogstatsd_tag_cardinality: low
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
-## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: "max median avg count"
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -219,7 +219,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
-## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: "0.95"
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -362,8 +362,8 @@ api_key:
 ## higher maximum backoff time.
 # forwarder_backoff_max: 64
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
+## @param cloud_provider_metadata - list of strings - optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: "aws gcp azure alibaba oracle ibm"
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -1277,10 +1277,11 @@ api_key:
 #
 #   receiver_port: 8126
 {{ if (eq .OS "windows") }}
-#   # Please note that UDS receiver is not available in Windows.
-#   # @ Enabling this setting may result in unexpected behavior.
 #   # @param receiver_socket - string - optional - default: ""
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
+#   # Please note that UDS receiver is not available in Windows.
+#   # Enabling this setting may result in unexpected behavior.
+#   #
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #
@@ -1554,8 +1555,9 @@ api_key:
 #       pattern: "<REGEX_PATTERN>"
 #       repl: "<PATTERN_TO_INLINE>"
 
-#   # @param ignore_resources - list of strings - optional
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
+#   # @param ignore_resources - list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -3332,7 +3334,7 @@ api_key:
 #   - k8s.io
 #
 ## @param containerd_exclude_namespaces - list of strings - optional - default: ["moby"]
-## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: ["moby"]
+## @env DD_CONTAINERD_EXCLUDE_NAMESPACES - space separated list of strings - optional - default: "moby"
 ## When containerd_namespaces is set to [], containerd_exclude_namespaces
 ## allows the exclusion of containers from specific namespaces. By default it
 ## excludes "moby", to prevent Docker containers from being detected as
@@ -3519,8 +3521,8 @@ api_key:
 #
 ## DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
-## @param kubernetes_node_annotations_as_tags - map - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## @param kubernetes_node_annotations_as_tags - object - optional - default: {'cluster.k8s.io/machine': 'kube_machine'}
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {"cluster.k8s.io/machine": "kube_machine"}
 ## Configure node annotationss that should be collected and their name as host tags.
 #
 # kubernetes_node_annotations_as_tags:
@@ -3528,8 +3530,8 @@ api_key:
 #
 ## DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
 
-## @param kubernetes_node_annotations_as_host_aliases - list - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
+## @param kubernetes_node_annotations_as_host_aliases - list of strings - optional - default: ["cluster.k8s.io/machine"]
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - space separated list of strings - optional - default: "cluster.k8s.io/machine"
 ## Configure node annotations that should be collected and used as host aliases.
 #
 # kubernetes_node_annotations_as_host_aliases:
