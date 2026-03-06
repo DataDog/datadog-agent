@@ -344,17 +344,17 @@ func (tb *TestBench) RecomputeScenario(name string) error {
 		resultsDir = scenarioPath
 	}
 
+	// Remove stale result files so the new run starts clean.
+	if err := removeResultFiles(resultsDir); err != nil {
+		fmt.Printf("  Warning: failed to remove old result files: %v\n", err)
+	}
+
 	// Enable results saving before running so that detectors can write parquet.
 	if tb.config.Recorder != nil {
 		if err := tb.config.Recorder.EnableResultsSaving(resultsDir); err != nil {
 			return fmt.Errorf("enabling results saving: %w", err)
 		}
 	}
-
-	fmt.Printf("[cc] Enabling results saving in %s\n", resultsDir)
-	fmt.Printf("[cc] Parquet directory: %s\n", parquetDir)
-	fmt.Printf("[cc] Scenario path: %s\n", scenarioPath)
-	fmt.Printf("[cc] Results directory: %s\n", resultsDir)
 
 	// Mark recompute in progress so GetStatus() keeps reporting ready=false to
 	// the poller.  This prevents intermediate ready=true states (between the
@@ -491,6 +491,33 @@ func (tb *TestBench) loadScenarioBodyLocked(name, scenarioPath string, forceRun 
 func hasResultFiles(dir string) bool {
 	matches, err := filepath.Glob(filepath.Join(dir, "observer-resultsmetrics-*.parquet"))
 	return err == nil && len(matches) > 0
+}
+
+// removeResultFiles deletes all result parquet files (metrics, logs, correlations)
+// from dir so that a recompute starts from a clean state.
+func removeResultFiles(dir string) error {
+	patterns := []string{
+		"observer-resultsmetrics-*.parquet",
+		"observer-resultslogs-*.parquet",
+		"observer-resultscorrelations-*.parquet",
+	}
+	var firstErr error
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(dir, pattern))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		for _, path := range matches {
+			fmt.Printf("  Removing stale result file: %s\n", filepath.Base(path))
+			if err := os.Remove(path); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
 
 // loadResultFilesLocked loads pre-computed virtual metrics, telemetry metrics,
