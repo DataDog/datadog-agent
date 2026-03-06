@@ -175,7 +175,7 @@ linters:
             - "!**/comp/process/status/statusimpl/status.go"
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient.go"
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient_test.go"
-            - "!**/comp/systray/systray/systrayimpl/doflare.go"
+            - "!**/comp/systray/systray/impl/doflare.go"
             - "!**/comp/trace/agent/impl/run.go"
             - "!**/comp/trace/config/config.go"
             - "!**/comp/trace/config/config_nix.go"
