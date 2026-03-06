@@ -281,10 +281,10 @@ pkg_filegroup(
         ":libodbcinst_so_link",
         ":libodbc_so_link",
         ":libodbccr_so_link",
-        #":bin_files",
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(

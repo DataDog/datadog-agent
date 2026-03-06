@@ -7,7 +7,7 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl"
 	expvarserverfx "github.com/DataDog/datadog-agent/comp/agent/expvarserver/fx"
 	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
@@ -19,7 +19,7 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		jmxloggerfx.Module(),
 		expvarserverfx.Module(),
 		cloudfoundrycontainerimpl.Module(),
