@@ -772,7 +772,8 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
-                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
+                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
         }
     }
