@@ -9,7 +9,6 @@ package reader
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 
@@ -513,46 +512,4 @@ func deltaDecode(s []int32) {
 	for i := 1; i < len(s); i++ {
 		s[i] += s[i-1]
 	}
-}
-
-func (r *MetricDataReader) Debug() {
-	fmt.Printf(`--
-	metricIdx      %d
-	pointIdx       %d
-	valsSint64Idx  %d
-	valsFloat32Idx %d
-	valsFloat64Idx %d
-
-	sketchNumBinsIdx %d
-	sketchBinsIdx    %d
-
-	pointsRemaining %d
-
-	nameRef           %d
-	tagsRef           %d
-	resourcesRef      %d
-	sourceTypeNameRef %d
-	originInfoRef     %d
-	timestamp         %d
-`,
-		// Indexes point to the last consumed element
-		r.metricIdx,
-		r.pointIdx,
-		r.valsSint64Idx,
-		r.valsFloat32Idx,
-		r.valsFloat64Idx,
-		r.sketchNumBinsIdx,
-		r.sketchBinsIdx,
-
-		r.pointsRemaining,
-
-		// Accumulators for delta encoded columns
-		r.nameRef,
-		r.tagsRef,
-		r.resourcesRef,
-		r.sourceTypeNameRef,
-		r.originInfoRef,
-		r.timestamp,
-	)
-
 }
