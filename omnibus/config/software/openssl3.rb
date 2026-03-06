@@ -18,8 +18,6 @@ name "openssl3"
 
 skip_transitive_dependency_licensing true
 
-dependency "cacerts"
-
 default_version "3.5.5"
 
 relative_path "openssl-#{version}"
@@ -28,6 +26,7 @@ build do
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
   command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
+  command_on_repo_root "bazelisk run #{flavor_flag} -- //deps/cacerts:install --destdir=#{install_dir}"
 
   unless windows?
     command_on_repo_root "bazelisk run -- @zlib//:install --destdir=#{install_dir}"
