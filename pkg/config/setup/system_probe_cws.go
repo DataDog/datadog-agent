@@ -98,6 +98,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// CWS - Open sampling
 	cfg.BindEnvAndSetDefault("runtime_security_config.open_sampling.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.open_sampling.rate", 500)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)

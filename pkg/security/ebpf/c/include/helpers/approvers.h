@@ -315,30 +315,33 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     }
 
     struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
-    if (process_path_key != NULL) {
-        u32 ppid = 0;
-        struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
-        if (pid_entry != NULL) {
-            ppid = pid_entry->ppid;
-        }
-
-        struct process_path_key_t key = {
-            .ppid = ppid,
-            .process_path_key = *process_path_key,
-            .file_path_key = file->path_key,
-        };
-
-        u8 value = 0;
-        if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
-            bpf_printk("discarding open sample from pid %d %d %d", pid, ppid, file->path_key.ino);
-            return DISCARDED;
-        }
-    }
-    // temporary disabled global limiter
-    // We can use the global limiter as a security measure, but from the tests we can conclude that the sampler above should be enough.
-    /*if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 500, 1)) {
+    if (process_path_key == NULL) {
         return DISCARDED;
-    }*/
+    }
+
+    u32 ppid = 0;
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    if (pid_entry != NULL) {
+        ppid = pid_entry->ppid;
+    }
+
+    struct process_path_key_t key = {
+        .ppid = ppid,
+        .process_path_key = *process_path_key,
+        .file_path_key = file->path_key,
+    };
+
+    u8 value = 0;
+    if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
+        bpf_printk("discarding open sample from pid %d %d %d", pid, ppid, file->path_key.ino);
+        return DISCARDED;
+    }
+
+    u64 open_sampling_rate = 0;
+    LOAD_CONSTANT("open_sampling_rate", open_sampling_rate);
+    if (open_sampling_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, open_sampling_rate, 1)) {
+        return DISCARDED;
+    }
 
     // Track open events that were sampled
     monitor_ad_sample_sampled(EVENT_OPEN);

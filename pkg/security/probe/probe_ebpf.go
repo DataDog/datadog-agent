@@ -2763,6 +2763,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.OpenSamplingEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "open_sampling_rate",
+			Value: uint64(p.config.RuntimeSecurity.OpenSamplingRate),
+		},
+		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
 			Value: utils.BoolTouint64(p.config.Probe.CapabilitiesMonitoringEnabled),
 		},

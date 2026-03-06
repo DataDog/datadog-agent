@@ -285,6 +285,8 @@ type RuntimeSecurityConfig struct {
 
 	// OpenSamplingEnabled defines if the kernel-side open event sampling logic should be enabled
 	OpenSamplingEnabled bool
+	// OpenSamplingRate defines the max number of sampled open events per second (0 = unlimited)
+	OpenSamplingRate int
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -598,6 +600,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// open sampling
 		OpenSamplingEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.open_sampling.enabled"),
+		OpenSamplingRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.open_sampling.rate"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
