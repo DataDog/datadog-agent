@@ -406,7 +406,7 @@ func (c *SurpriseCorrelator) GetStats() map[string]interface{} {
 	}
 }
 
-// GetExtraData implements CorrelatorDataProvider.
+// GetExtraData implements ComponentDataProvider.
 func (c *SurpriseCorrelator) GetExtraData() interface{} {
 	edges := c.GetEdges()
 	if edges == nil {

@@ -16,7 +16,6 @@ import (
 func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	})
 
@@ -44,7 +43,6 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	})
 
@@ -70,11 +68,10 @@ func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	})
 
-	// Anomalies outside proximity window should NOT cluster
+	// Anomalies outside proximity window should form separate clusters
 	c.Process(observer.Anomaly{
 		Source:         "metric.a",
 		SourceSeriesID: "ns|metric.a|",
@@ -89,14 +86,15 @@ func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 	})
 
 	correlations := c.ActiveCorrelations()
-	// Neither cluster meets MinClusterSize of 2
-	assert.Len(t, correlations, 0)
+	// Each anomaly forms its own cluster
+	assert.Len(t, correlations, 2)
+	assert.Len(t, correlations[0].Anomalies, 1)
+	assert.Len(t, correlations[1].Anomalies, 1)
 }
 
 func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	})
 
@@ -132,14 +130,13 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	assert.Len(t, correlations[0].Anomalies, 3)
 }
 
-func TestTimeClusterCorrelator_DedupBySeriesID(t *testing.T) {
+func TestTimeClusterCorrelator_SameSeriesMultipleAnomalies(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   1, // Lower threshold to see single-anomaly clusters
 		WindowSeconds:    60,
 	})
 
-	// Same SourceSeriesID, later anomaly should replace earlier
+	// Multiple anomalies from the same series should all be kept
 	c.Process(observer.Anomaly{
 		Source:         "metric.a",
 		SourceSeriesID: "ns|metric.a|",
@@ -152,19 +149,19 @@ func TestTimeClusterCorrelator_DedupBySeriesID(t *testing.T) {
 		SourceSeriesID: "ns|metric.a|",
 		Title:          "Anomaly A v2",
 		Description:    "second",
-		Timestamp:      105, // Later timestamp, should replace
+		Timestamp:      105,
 	})
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Len(t, correlations[0].Anomalies, 1)
-	assert.Equal(t, "second", correlations[0].Anomalies[0].Description)
+	assert.Len(t, correlations[0].Anomalies, 2)
+	// Single unique series
+	assert.Len(t, correlations[0].MemberSeriesIDs, 1)
 }
 
 func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	})
 
@@ -193,7 +190,6 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   1,
 		WindowSeconds:    30,
 	})
 
@@ -221,46 +217,27 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 	assert.Equal(t, observer.SeriesID("ns|metric.new|"), correlations[0].MemberSeriesIDs[0])
 }
 
-func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
+func TestTimeClusterCorrelator_SingletonCluster(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   3, // Require 3 anomalies
 		WindowSeconds:    60,
 	})
 
-	// Add 2 nearby anomalies
+	// A single anomaly should form a cluster of one
 	c.Process(observer.Anomaly{
 		Source:         "metric.a",
 		SourceSeriesID: "ns|metric.a|",
 		Timestamp:      100,
 	})
-	c.Process(observer.Anomaly{
-		Source:         "metric.b",
-		SourceSeriesID: "ns|metric.b|",
-		Timestamp:      105,
-	})
 
-	// Should not report - only 2 anomalies, need 3
 	correlations := c.ActiveCorrelations()
-	assert.Len(t, correlations, 0)
-
-	// Add third
-	c.Process(observer.Anomaly{
-		Source:         "metric.c",
-		SourceSeriesID: "ns|metric.c|",
-		Timestamp:      108,
-	})
-
-	// Now should report
-	correlations = c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Len(t, correlations[0].Anomalies, 3)
+	assert.Len(t, correlations[0].Anomalies, 1)
 }
 
 func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultTimeClusterConfig()
 	assert.Equal(t, int64(10), config.ProximitySeconds)
-	assert.Equal(t, 2, config.MinClusterSize)
 	assert.Equal(t, int64(60), config.WindowSeconds)
 }
 

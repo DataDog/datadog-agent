@@ -410,3 +410,61 @@ type RawAnomalyState interface {
 	// RawAnomalies returns all anomalies detected by MetricsDetector implementations.
 	RawAnomalies() []Anomaly
 }
+
+// SeriesFilter specifies criteria for selecting series.
+type SeriesFilter struct {
+	Namespace   string            // exact match (empty = any)
+	NamePattern string            // prefix match (empty = any)
+	TagMatchers map[string]string // required tag key=value pairs
+}
+
+// SeriesKey identifies a specific series.
+type SeriesKey struct {
+	Namespace string
+	Name      string
+	Tags      []string
+}
+
+// Aggregate specifies which statistic to extract from summary stats.
+type Aggregate int
+
+const (
+	AggregateAverage Aggregate = iota
+	AggregateSum
+	AggregateCount
+	AggregateMin
+	AggregateMax
+)
+
+// StorageReader provides read access to time series data.
+// Detectors use this to pull whatever data they need.
+type StorageReader interface {
+	// ListSeries returns keys of all series matching the filter.
+	ListSeries(filter SeriesFilter) []SeriesKey
+
+	// GetSeriesRange returns points within a time range (start, end].
+	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
+	GetSeriesRange(key SeriesKey, start, end int64, agg Aggregate) *Series
+
+	// PointCount returns the number of raw data points for a series without
+	// loading or converting them. Returns 0 if the series is not found.
+	PointCount(key SeriesKey) int
+}
+
+// MultiSeriesDetectionResult contains outputs from multi-series detection.
+type MultiSeriesDetectionResult struct {
+	Anomalies []Anomaly
+	// Used to debug anomaly detectors
+	Telemetry []ObserverTelemetry
+}
+
+// MultiSeriesDetector is the flexible detection interface where detectors pull data from storage.
+// This supports multivariate detection across multiple series.
+type MultiSeriesDetector interface {
+	Name() string
+
+	// Detect is called periodically by the scheduler.
+	// The detector queries storage for whatever data it needs.
+	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
+	Detect(storage StorageReader, dataTime int64) MultiSeriesDetectionResult
+}

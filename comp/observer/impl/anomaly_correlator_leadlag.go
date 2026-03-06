@@ -458,7 +458,7 @@ func (c *LeadLagCorrelator) GetStats() map[string]interface{} {
 	}
 }
 
-// GetExtraData implements CorrelatorDataProvider.
+// GetExtraData implements ComponentDataProvider.
 func (c *LeadLagCorrelator) GetExtraData() interface{} {
 	edges := c.GetEdges()
 	if edges == nil {

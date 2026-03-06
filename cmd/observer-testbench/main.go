@@ -124,18 +124,18 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 
 	// Print component status from registry
 	components := tb.GetComponents()
-	fmt.Print("Analyzers: ")
-	var analyzers []string
+	fmt.Print("Detectors: ")
+	var detectors []string
 	for _, c := range components {
-		if c.Category == "analyzer" {
+		if c.Category == "detector" {
 			status := c.DisplayName
 			if !c.Enabled {
 				status += " (disabled)"
 			}
-			analyzers = append(analyzers, status)
+			detectors = append(detectors, status)
 		}
 	}
-	fmt.Println(strings.Join(analyzers, ", "))
+	fmt.Println(strings.Join(detectors, ", "))
 
 	fmt.Print("Correlators: ")
 	var correlators []string
@@ -173,7 +173,7 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 	fmt.Println("  GET  /api/series/{ns}/{name}              - Get series data")
 	fmt.Println("  GET  /api/anomalies                       - Get anomalies")
 	fmt.Println("  GET  /api/correlations                    - Get correlations")
-	fmt.Println("  GET  /api/correlators/{name}              - Get correlator data")
+	fmt.Println("  GET  /api/components/{name}/data           - Get component data")
 	fmt.Println("  GET  /api/stats                           - Correlator stats")
 	fmt.Println()
 

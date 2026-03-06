@@ -20,10 +20,6 @@ type TimeClusterConfig struct {
 	// Default: 10 seconds.
 	ProximitySeconds int64
 
-	// MinClusterSize is the minimum number of anomalies to form a reportable cluster.
-	// Default: 2.
-	MinClusterSize int
-
 	// WindowSeconds is how long to keep anomalies before eviction.
 	// Default: 60 seconds.
 	WindowSeconds int64
@@ -33,7 +29,6 @@ type TimeClusterConfig struct {
 func DefaultTimeClusterConfig() TimeClusterConfig {
 	return TimeClusterConfig{
 		ProximitySeconds: 10,
-		MinClusterSize:   2,
 		WindowSeconds:    60,
 	}
 }
@@ -41,9 +36,9 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
 	id           int
-	anomalies    map[observer.SeriesID]observer.Anomaly // keyed by SourceSeriesID for dedup
-	minTimestamp int64                                  // earliest anomaly timestamp
-	maxTimestamp int64                                  // latest anomaly timestamp
+	anomalies    []observer.Anomaly
+	minTimestamp int64 // earliest anomaly timestamp
+	maxTimestamp int64 // latest anomaly timestamp
 }
 
 // TimeClusterCorrelator clusters anomalies based on timestamp proximity.
@@ -60,9 +55,6 @@ type TimeClusterCorrelator struct {
 func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
 	if config.ProximitySeconds == 0 {
 		config.ProximitySeconds = 10
-	}
-	if config.MinClusterSize == 0 {
-		config.MinClusterSize = 2
 	}
 	if config.WindowSeconds == 0 {
 		config.WindowSeconds = 60
@@ -101,7 +93,7 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.Anomaly) {
 		c.nextClusterID++
 		newCluster := &timeCluster{
 			id:           c.nextClusterID,
-			anomalies:    map[observer.SeriesID]observer.Anomaly{anomaly.SourceSeriesID: anomaly},
+			anomalies:    []observer.Anomaly{anomaly},
 			minTimestamp: anomaly.Timestamp,
 			maxTimestamp: anomaly.Timestamp,
 		}
@@ -124,18 +116,10 @@ func (c *TimeClusterCorrelator) isNearCluster(ts int64, cluster *timeCluster) bo
 	return ts >= cluster.minTimestamp-proximity && ts <= cluster.maxTimestamp+proximity
 }
 
-// addToCluster adds an anomaly to a cluster, updating timestamps and deduping by series ID.
+// addToCluster adds an anomaly to a cluster, updating timestamps.
 func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.Anomaly) {
-	// Dedup by SourceSeriesID - keep the one with later timestamp (more recent)
-	if existing, ok := cluster.anomalies[anomaly.SourceSeriesID]; ok {
-		if anomaly.Timestamp > existing.Timestamp {
-			cluster.anomalies[anomaly.SourceSeriesID] = anomaly
-		}
-	} else {
-		cluster.anomalies[anomaly.SourceSeriesID] = anomaly
-	}
+	cluster.anomalies = append(cluster.anomalies, anomaly)
 
-	// Expand cluster timestamp range
 	if anomaly.Timestamp < cluster.minTimestamp {
 		cluster.minTimestamp = anomaly.Timestamp
 	}
@@ -155,16 +139,7 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 
 	// Merge others into it
 	for _, other := range clusters[1:] {
-		for sid, anomaly := range other.anomalies {
-			if existing, ok := merged.anomalies[sid]; ok {
-				if anomaly.Timestamp > existing.Timestamp {
-					merged.anomalies[sid] = anomaly
-				}
-			} else {
-				merged.anomalies[sid] = anomaly
-			}
-		}
-		// Expand timestamp range
+		merged.anomalies = append(merged.anomalies, other.anomalies...)
 		if other.minTimestamp < merged.minTimestamp {
 			merged.minTimestamp = other.minTimestamp
 		}
@@ -228,21 +203,20 @@ type TimeClusterInfo struct {
 	AnomalyCount int      `json:"anomaly_count"`
 }
 
-// GetClusters returns clusters that meet the minimum size threshold for visualization.
+// GetClusters returns all clusters for visualization.
 func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	var result []TimeClusterInfo
 	for _, cluster := range c.clusters {
-		// Only include clusters that meet minimum size
-		if len(cluster.anomalies) < c.config.MinClusterSize {
-			continue
+		seen := make(map[observer.SeriesID]bool)
+		for _, a := range cluster.anomalies {
+			seen[a.SourceSeriesID] = true
 		}
-
-		sources := make([]string, 0, len(cluster.anomalies))
-		for source := range cluster.anomalies {
-			sources = append(sources, string(source))
+		sources := make([]string, 0, len(seen))
+		for sid := range seen {
+			sources = append(sources, string(sid))
 		}
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
@@ -280,14 +254,13 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 		"total_clusters":       len(c.clusters),
 		"total_anomalies":      totalAnomalies,
 		"largest_cluster_size": maxClusterSize,
-		"proximity_seconds":    c.config.ProximitySeconds,
-		"window_seconds":       c.config.WindowSeconds,
-		"min_cluster_size":     c.config.MinClusterSize,
-		"current_data_time":    c.currentDataTime,
+		"proximity_seconds": c.config.ProximitySeconds,
+		"window_seconds":    c.config.WindowSeconds,
+		"current_data_time": c.currentDataTime,
 	}
 }
 
-// GetExtraData implements CorrelatorDataProvider.
+// GetExtraData implements ComponentDataProvider.
 func (c *TimeClusterCorrelator) GetExtraData() interface{} {
 	return c.GetClusters()
 }
@@ -301,26 +274,24 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	var result []observer.ActiveCorrelation
 
 	for _, cluster := range c.clusters {
-		if len(cluster.anomalies) < c.config.MinClusterSize {
-			continue
+		// Collect unique series IDs
+		seen := make(map[observer.SeriesID]bool)
+		for _, a := range cluster.anomalies {
+			seen[a.SourceSeriesID] = true
 		}
-
-		// Collect anomalies and sources
-		anomalies := make([]observer.Anomaly, 0, len(cluster.anomalies))
-		memberSeriesIDs := make([]observer.SeriesID, 0, len(cluster.anomalies))
-		for source, anomaly := range cluster.anomalies {
-			anomalies = append(anomalies, anomaly)
-			memberSeriesIDs = append(memberSeriesIDs, source)
+		memberSeriesIDs := make([]observer.SeriesID, 0, len(seen))
+		for sid := range seen {
+			memberSeriesIDs = append(memberSeriesIDs, sid)
 		}
 		sort.Slice(memberSeriesIDs, func(i, j int) bool { return memberSeriesIDs[i] < memberSeriesIDs[j] })
-		metricNames := sortedUniqueMetricNames(anomalies)
+		metricNames := sortedUniqueMetricNames(cluster.anomalies)
 
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:         fmt.Sprintf("time_cluster_%d", cluster.id),
 			Title:           fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
 			MemberSeriesIDs: memberSeriesIDs,
 			MetricNames:     metricNames,
-			Anomalies:       anomalies,
+			Anomalies:       cluster.anomalies,
 			FirstSeen:       cluster.minTimestamp,
 			LastUpdated:     cluster.maxTimestamp,
 		})
