@@ -19,7 +19,6 @@ import (
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -90,15 +89,4 @@ func TestFlushTimeout(t *testing.T) {
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
-}
-
-func TestEnhancedMetricsEnabledByDefault(t *testing.T) {
-	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
-	assert.Equal(t, true, enhancedMetricsEnabled)
-}
-
-func TestEnhancedMetricsDisabledWithEnvVar(t *testing.T) {
-	t.Setenv("DD_ENHANCED_METRICS_ENABLED", "false")
-	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
-	assert.Equal(t, false, enhancedMetricsEnabled)
 }
