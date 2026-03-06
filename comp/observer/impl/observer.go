@@ -230,6 +230,7 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+		obs.recorder = recorder
 	}
 
 	go obs.run()
@@ -361,7 +362,8 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	recorder       recorderdef.Component  // Optional: for recording virtual metrics from log detectors
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +376,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -408,7 +410,11 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		result := detector.Process(view)
 		for _, m := range result.Metrics {
 			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			virtualName := "_virtual." + m.Name
+			o.storage.Add(source, virtualName, m.Value, l.timestampMs/1000, m.Tags)
+			if o.recorder != nil {
+				o.recorder.RecordVirtualMetric(source, virtualName, m.Value, m.Tags, l.timestampMs/1000)
+			}
 		}
 		// Route directly emitted anomalies through the standard pipeline
 		for _, anomaly := range result.Anomalies {
@@ -443,10 +449,43 @@ func (o *observerImpl) runDetectorsUpTo(upTo int64) {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
-		// TODO: handle result.Telemetry in live observer (currently only used by testbench)
+		o.recordTelemetry(result.Telemetry, detector.Name(), upTo)
 	}
 
 	o.flushAndReport()
+}
+
+// recordTelemetry records telemetry emitted by a detector to the results metrics parquet file.
+// Telemetry is not added to the observer's main storage to avoid polluting anomaly detection.
+func (o *observerImpl) recordTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestamp int64) {
+	if o.recorder == nil || len(telemetry) == 0 {
+		return
+	}
+	for _, t := range telemetry {
+		if t.DetectorName == "" {
+			t.DetectorName = detectorName
+		}
+		if t.Metric != nil {
+			ts := int64(t.Metric.GetTimestamp())
+			if ts == 0 {
+				ts = baseTimestamp
+			}
+			name := "telemetry." + t.DetectorName + "." + t.Metric.GetName()
+			o.recorder.RecordTelemetryMetric("telemetry", name, t.Metric.GetValue(), t.Metric.GetRawTags(), ts)
+		}
+		if t.Log != nil {
+			ts := t.Log.GetTimestampMs()
+			if ts == 0 {
+				ts = baseTimestamp * 1000
+			}
+			status := t.Log.GetStatus()
+			if status == "" {
+				status = "info"
+			}
+			tags := append(t.Log.GetTags(), "detector:"+t.DetectorName, "telemetry:true")
+			o.recorder.RecordTelemetryLog("telemetry", t.Log.GetContent(), status, t.Log.GetHostname(), tags, ts)
+		}
+	}
 }
 
 // metricsDetectorAdapter wraps a stateless MetricsDetector to implement MultiSeriesDetector.

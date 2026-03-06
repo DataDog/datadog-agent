@@ -45,6 +45,56 @@ type Component interface {
 	// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 	// Each element corresponds to one aggregated stat group (ClientGroupedStats).
 	ReadAllTraceStats(inputDir string) ([]TraceStatsData, error)
+
+	// RecordVirtualMetric records a log-derived virtual metric into the results metrics
+	// parquet file (observer-resultsmetrics-*.parquet).
+	// Virtual metrics are computed by log detectors and stored with a "_virtual." prefix.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordVirtualMetric(source, name string, value float64, tags []string, timestamp int64)
+
+	// RecordTelemetryMetric records a detector telemetry metric into the results metrics
+	// parquet file (observer-resultsmetrics-*.parquet).
+	// Telemetry metrics are emitted by anomaly detectors to expose their internal state
+	// and stored under the "telemetry.<detectorName>.<metricName>" naming convention.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordTelemetryMetric(source, name string, value float64, tags []string, timestamp int64)
+
+	// RecordTelemetryLog records a detector telemetry log into the results logs parquet
+	// file (observer-resultslogs-*.parquet).
+	// Telemetry logs are emitted by anomaly detectors to expose structured diagnostic
+	// information about their internal processing.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordTelemetryLog(source string, content []byte, status, hostname string, tags []string, timestampMs int64)
+
+	// FlushResultsMetrics forces an immediate flush of buffered results metrics to disk.
+	// The testbench calls this after running detectors to ensure all results are persisted
+	// before the process exits or the scenario is unloaded.
+	// In the live observer, results metrics are also flushed on the regular periodic interval.
+	FlushResultsMetrics()
+
+	// FlushResultsLogs forces an immediate flush of buffered results logs to disk.
+	FlushResultsLogs()
+
+	// RecordCorrelation records a correlator output into the results correlations parquet file
+	// (observer-resultscorrelations-*.parquet). Each call adds one ActiveCorrelation row
+	// with its member series, metric names, and embedded anomaly details as parallel lists.
+	// This is a no-op when neither recording nor results saving is enabled.
+	RecordCorrelation(data CorrelationData)
+
+	// FlushResultsCorrelations forces an immediate flush of buffered correlation results to disk.
+	// RunHeadless calls this after the correlator goroutine completes so that all rows are
+	// written before the process exits.
+	FlushResultsCorrelations()
+
+	// EnableResultsSaving initializes the results metrics writer to save computed intermediate
+	// data to the given output directory. Intended for headless mode: it enables saving only
+	// the derived/computed data (virtual metrics, telemetry metrics) without re-recording the
+	// raw input observations (metrics, logs, traces) that were loaded from parquet files.
+	//
+	// If the results writer was already initialized (e.g. because full recording is enabled
+	// via observer.recording.enabled), this call is a no-op.
+	// Returns an error if the output directory cannot be created or the writer fails to start.
+	EnableResultsSaving(outputDir string) error
 }
 
 // MetricData represents a single metric read from parquet files.
@@ -144,6 +194,24 @@ type TraceStatsData struct {
 	OkSummary         []byte   // DDSketch encoded latency distribution for ok spans
 	ErrorSummary      []byte   // DDSketch encoded latency distribution for error spans
 	PeerTags          []string // Peer entity tags (e.g., "db.hostname:...")
+}
+
+// CorrelationData represents a single correlator output written to the results correlations
+// parquet file. Member series, metric names, and anomaly details are stored as parallel lists
+// so the full correlation can be reconstructed from a single row without joins.
+type CorrelationData struct {
+	Pattern     string // pattern name, e.g. "kernel_bottleneck"
+	Title       string // display title, e.g. "Correlated: Kernel network bottleneck"
+	FirstSeen   int64  // unix seconds
+	LastUpdated int64  // unix seconds
+	// Member series and metric names participating in this correlation
+	MemberSeriesIDs []string
+	MetricNames     []string
+	// Anomaly details as parallel lists (one entry per triggering anomaly)
+	AnomalyTimestamps []int64
+	AnomalySources    []string
+	AnomalySeriesIDs  []string
+	AnomalyDetectors  []string
 }
 
 // LogData represents a log entry read from parquet files.

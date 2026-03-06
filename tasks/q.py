@@ -12,6 +12,7 @@ def build_testbench(ctx):
     Builds the observer-testbench binary.
     """
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench")
+    print(color_message('Testbench built successfully!', Color.GREEN))
 
 
 @task
@@ -57,10 +58,13 @@ def deploy_k8s_agent(ctx, cluster_name: str = ""):
         uninstall_k8s_agent(ctx)
         ctx.run('helm install datadog-agent -f /tmp/datadog-values.yaml datadog/datadog')
 
+    print(color_message('Datadog Agent deployed successfully!', Color.GREEN))
+
 
 @task
 def uninstall_k8s_agent(ctx):
     ctx.run('helm uninstall datadog-agent')
+    print(color_message('Datadog Agent uninstalled successfully!', Color.GREEN))
 
 
 @task
@@ -86,7 +90,7 @@ def build_k8s_image(ctx, devenv_id: str = ""):
     ctx.run(
         "limactl shell --workdir '/home/lima.linux' gadget-k8s-host -- kind load docker-image observer-agent:latest --name gadget-dev"
     )
-    print(color_message('Done!', Color.GREEN))
+    print(color_message('Observer-agent image built and loaded into Kind successfully!', Color.GREEN))
 
 
 @task
@@ -103,4 +107,4 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
 
     ctx.run(f"kubectl cp {datadog_agent_pod}:/tmp/observer-metrics {dest}")
 
-    print(color_message(f"Fetched observer parquet files to {dest}", Color.GREEN))
+    print(color_message(f"Fetched observer parquet files to {dest} successfully!", Color.GREEN))
