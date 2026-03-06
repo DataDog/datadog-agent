@@ -9,6 +9,15 @@ import %workspace%/.adms/adms.bazelrc
 # will be easier to understand.
 common:adms --config=dd-internal
 
+# Pass Go proxy env vars to Bazel actions (e.g. `bazel run //:go_mod_tidy_all`).
+# .adms/go/go.bazelrc already sets --repo_env for these, which covers repository rules.
+# --action_env is additionally needed for build actions running Go tools under
+# --incompatible_strict_action_env, which strips the environment by default.
+# TODO: move these to .adms/go/go.bazelrc once confirmed working.
+common --action_env=GOPROXY
+common --action_env=GONOSUMDB
+common --action_env=GOPRIVATE
+
 # Startup options ------------------------------------------------------------------------------------------------------
 startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of inactivity
 
