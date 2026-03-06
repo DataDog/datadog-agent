@@ -76,11 +76,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
-# Generate the files
-RUN dda inv collector.generate
+# Generate the files and clean up go cache to free space
+RUN dda inv collector.generate && \
+    go clean -cache -modcache
 
-# Build the OTel agent
-RUN dda inv otel-agent.build --byoc
+# Build the OTel agent with cleanup
+RUN dda inv otel-agent.build --byoc && \
+    go clean -cache
 
 # Install nfpm if package type is specified
 ARG PACKAGE_TYPE
