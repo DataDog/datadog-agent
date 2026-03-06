@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	logonduration "github.com/DataDog/datadog-agent/comp/logonduration/def"
 )
 
 // Requires defines the dependencies for the logon duration component
@@ -25,6 +26,11 @@ type Requires struct {
 	Log            logcomp.Component
 	EventPlatform  eventplatform.Component
 	Hostname       hostname.Component
+}
+
+// Provides defines what this component provides
+type Provides struct {
+	Comp logonduration.Component
 }
 
 type logonDurationComponent struct{}
