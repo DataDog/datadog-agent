@@ -41,6 +41,11 @@ fi
 tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
 tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 
+if [[ -d "/ci-visibility/coverage" ]]; then
+    echo "Collecting coverage data..."
+    tar -C /ci-visibility/coverage -czvf /ci-visibility/coverage.tar.gz .
+fi
+
 if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     echo "Collecting complexity data..."
     mkdir -p /verifier-complexity

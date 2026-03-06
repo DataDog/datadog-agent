@@ -686,7 +686,7 @@ def ninja_define_rules(
 
     nw.rule(
         name="gotestsuite",
-        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments $coverage_flags -c -o $out $in",
     )
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
@@ -874,6 +874,7 @@ def prepare(
     verbose=True,
     ci=False,
     compile_only=False,
+    coverage=False,
 ):
     arch_obj = Arch.from_str(arch)
     if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
@@ -883,7 +884,7 @@ def prepare(
 
     if ci:
         stack = "ci"
-        return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+        return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, coverage=coverage)
 
     if stack is None:
         raise Exit("stack is required")
@@ -898,7 +899,7 @@ def prepare(
         domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
         assert len(domains) > 0, err_msg
 
-    _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
+    _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains, coverage=coverage)
 
 
 def _prepare(
@@ -911,6 +912,7 @@ def _prepare(
     ci=False,
     compile_only=False,
     domains: list[LibvirtDomain] | None = None,
+    coverage: bool = False,
 ):
     if not ci:
         cc = get_compiler(ctx)
@@ -932,10 +934,11 @@ def _prepare(
             )
     elif component == "system-probe":
         if ci:
-            kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
+            kmt_sysprobe_prepare(ctx, arch_obj, ci=True, coverage=coverage)
         else:
+            coverage_flag = "--coverage" if coverage else ""
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name} {coverage_flag}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -1089,6 +1092,7 @@ def kmt_sysprobe_prepare(
     packages=None,
     extra_arguments: str | None = None,
     ci: bool = False,
+    coverage: bool = False,
 ):
     if ci:
         stack = "ci"
@@ -1168,6 +1172,8 @@ def kmt_sysprobe_prepare(
                 variables["timeout"] = f"-timeout {timeout}"
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
+            if coverage:
+                variables["coverage_flags"] = "-cover -covermode=atomic"
 
             go_files = set(glob(f"{pkg}/*.go"))
             has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
@@ -1349,6 +1355,7 @@ Alternatively you can provide the name of the SSH key file to use via the `--ssh
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
         "test-extra-env": "Extra environment variables to pass to the test runner",
+        "coverage": "Collect code coverage data from test runs. Requires test binaries built with --coverage.",
     }
 )
 def test(
@@ -1367,6 +1374,7 @@ def test(
     test_logs=False,
     test_extra_arguments=None,
     test_extra_env=None,
+    coverage=False,
 ):
     stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
     domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
@@ -1385,7 +1393,7 @@ def test(
     if not quick:
         for arch in used_archs:
             info(f"[+] Preparing {component} for {arch}")
-            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
+            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains, coverage=coverage)
 
     pkgs = []
     if packages is not None:
@@ -1410,6 +1418,7 @@ def test(
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
             f"-extra-env {test_extra_env}" if test_extra_env is not None else "",
             "-test-tools /opt/testing-tools",
+            "-coverdir /ci-visibility/coverage" if coverage else "",
         ]
         for d in domains:
             info(f"[+] Running tests on {d}")
@@ -1423,6 +1432,10 @@ def test(
             target_folder = paths.vm_test_results(d.name)
             target_folder.mkdir(parents=True, exist_ok=True)
             d.download(ctx, "/ci-visibility/junit/", target_folder)
+
+            if coverage:
+                info(f"[+] Downloading coverage data from {d}...")
+                d.download(ctx, "/ci-visibility/coverage.tar.gz", target_folder)
 
     info("[+] All domains finished, showing summary table of test results")
     show_last_test_results(ctx, stack)
