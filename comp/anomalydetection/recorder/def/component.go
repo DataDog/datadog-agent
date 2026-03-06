@@ -97,6 +97,11 @@ type Component interface {
 	// Returns an empty slice (no error) when no result log files are found in the directory.
 	ReadResultsLogs(inputDir string) ([]LogData, error)
 
+	// ReadResultsCorrelations reads correlator output from observer-resultscorrelations-*.parquet files.
+	// These are correlation patterns detected during a previous run by the correlator stage.
+	// Returns an empty slice (no error) when no result correlation files are found in the directory.
+	ReadResultsCorrelations(inputDir string) ([]CorrelationData, error)
+
 	// EnableResultsSaving initializes the results metrics writer to save computed intermediate
 	// data to the given output directory. Intended for headless mode: it enables saving only
 	// the derived/computed data (virtual metrics, telemetry metrics) without re-recording the

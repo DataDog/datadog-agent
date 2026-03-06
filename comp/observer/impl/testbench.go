@@ -441,8 +441,59 @@ func (tb *TestBench) loadResultFilesLocked(dir string) error {
 		tb.rawLogs = append(tb.rawLogs, &logDataView{data: &resultLogs[i]})
 	}
 
-	fmt.Printf("  Loaded %d result metrics and %d result logs from %s\n", len(metrics), len(resultLogs), dir)
+	// Load result correlations and reconstruct ActiveCorrelation objects.
+	corrData, err := tb.config.Recorder.ReadResultsCorrelations(dir)
+	if err != nil {
+		return fmt.Errorf("reading result correlations: %w", err)
+	}
+
+	tb.correlations = tb.correlations[:0]
+	for _, cd := range corrData {
+		memberIDs := make([]observerdef.SeriesID, len(cd.MemberSeriesIDs))
+		for i, id := range cd.MemberSeriesIDs {
+			memberIDs[i] = observerdef.SeriesID(id)
+		}
+		metricNames := make([]observerdef.MetricName, len(cd.MetricNames))
+		for i, n := range cd.MetricNames {
+			metricNames[i] = observerdef.MetricName(n)
+		}
+		anomalies := make([]observerdef.Anomaly, len(cd.AnomalyTimestamps))
+		for i := range anomalies {
+			anomalies[i] = observerdef.Anomaly{
+				Timestamp:      safeIndex(cd.AnomalyTimestamps, i),
+				Source:         observerdef.MetricName(safeStringIndex(cd.AnomalySources, i)),
+				SourceSeriesID: observerdef.SeriesID(safeStringIndex(cd.AnomalySeriesIDs, i)),
+				DetectorName:   safeStringIndex(cd.AnomalyDetectors, i),
+			}
+		}
+		tb.correlations = append(tb.correlations, observerdef.ActiveCorrelation{
+			Pattern:         cd.Pattern,
+			Title:           cd.Title,
+			FirstSeen:       cd.FirstSeen,
+			LastUpdated:     cd.LastUpdated,
+			MemberSeriesIDs: memberIDs,
+			MetricNames:     metricNames,
+			Anomalies:       anomalies,
+		})
+	}
+
+	fmt.Printf("  Loaded %d result metrics, %d result logs, and %d result correlations from %s\n", len(metrics), len(resultLogs), len(corrData), dir)
 	return nil
+}
+
+func safeIndex[T any](s []T, i int) T {
+	if i < len(s) {
+		return s[i]
+	}
+	var zero T
+	return zero
+}
+
+func safeStringIndex(s []string, i int) string {
+	if i < len(s) {
+		return s[i]
+	}
+	return ""
 }
 
 // loadParquetDir loads all parquet files from a directory using the recorder component.

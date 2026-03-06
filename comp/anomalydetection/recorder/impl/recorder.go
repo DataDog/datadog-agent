@@ -440,6 +440,17 @@ func (r *recorderImpl) FlushResultsCorrelations() {
 	r.resultsCorrelationParquetWriter.flush()
 }
 
+// ReadResultsCorrelations reads correlator output from observer-resultscorrelations-*.parquet files.
+func (r *recorderImpl) ReadResultsCorrelations(inputDir string) ([]recorderdef.CorrelationData, error) {
+	reader, err := newResultCorrelationParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating correlation reader: %w", err)
+	}
+	correlations := reader.ReadAll()
+	pkglog.Infof("ReadResultsCorrelations: loaded %d correlations from %s", len(correlations), inputDir)
+	return correlations, nil
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
