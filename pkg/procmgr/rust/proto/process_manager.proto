@@ -30,11 +30,11 @@ enum ProcessState {
 message ListRequest {}
 
 message Process {
-  string name = 2;
-  uint32 pid = 3;
-  string command = 4;
-  repeated string args = 5;
-  ProcessState state = 6;
+  string name = 1;
+  uint32 pid = 2;
+  string command = 3;
+  repeated string args = 4;
+  ProcessState state = 5;
 }
 
 message ListResponse {
@@ -46,21 +46,21 @@ message DescribeRequest {
 }
 
 message ProcessDetail {
-  string name = 2;
-  string description = 3;
-  uint32 pid = 4;
-  ProcessState state = 5;
-  string command = 9;
-  repeated string args = 10;
-  string working_dir = 14;
-  map<string, string> env = 15;
-  string restart_policy = 17;
-  string stdout = 28;
-  string stderr = 29;
-  bool auto_start = 30;
-  string condition_path_exists = 31;
-  repeated string after = 36;
-  repeated string before = 37;
+  string name = 1;
+  string description = 2;
+  uint32 pid = 3;
+  ProcessState state = 4;
+  string command = 5;
+  repeated string args = 6;
+  string working_dir = 7;
+  map<string, string> env = 8;
+  string restart_policy = 9;
+  string stdout = 10;
+  string stderr = 11;
+  bool auto_start = 12;
+  string condition_path_exists = 13;
+  repeated string after = 14;
+  repeated string before = 15;
 }
 
 message DescribeResponse {
