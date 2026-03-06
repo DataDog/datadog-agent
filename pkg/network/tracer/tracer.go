@@ -86,6 +86,7 @@ type Tracer struct {
 	usmMonitor  *usm.Monitor
 	ebpfTracer  connection.Tracer
 	lastCheck   *atomic.Int64
+	statsd      statsd.ClientInterface
 
 	bufferLock sync.Mutex
 
@@ -156,6 +157,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	tr := &Tracer{
 		config:                     cfg,
 		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
+		statsd:                     statsd,
 		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		telemetryComp:              telemetryComponent,
@@ -471,6 +473,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 
+	t.emitCongestionMetrics(delta.Conns)
+
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
@@ -486,6 +490,72 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	t.lastCheck.Store(time.Now().Unix())
 
 	return conns, cleanup, nil
+}
+
+// emitCongestionMetrics sends the new TCP congestion signals as DogStatsD
+// metrics for each TCP connection, enabling validation via Datadog dashboards
+// before the signals are added to the agent-payload.
+// TODO: remove this once the signals are wired through the agent-payload.
+func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
+	if t.statsd == nil {
+		return
+	}
+	for i := range conns {
+		c := &conns[i]
+		if c.Type != network.TCP {
+			continue
+		}
+		tags := []string{
+			fmt.Sprintf("srcip:%s", c.Source),
+			fmt.Sprintf("destip:%s", c.Dest),
+		}
+		// if c.Source is either 172.28.0.10 or 172.28.0.20 then debug log the congestion metrics for this connection
+		if c.Source.String() == "172.28.0.10" || c.Source.String() == "172.28.0.20" {
+			log.Debugf("\nTCP congestion metrics for connection %s:%d -> %s:%d: "+
+				"\n  retransmit[max_retrans_out=%d bytes_retrans=%d dsack_dups=%d] "+
+				"\n  loss[max_lost_out=%d rto_count=%d recovery_count=%d max_ca_state=%d] "+
+				"\n  out-of-order[max_sacked_out=%d reord_seen=%d] "+
+				"\n  in-flight[max_packets_out=%d delivered=%d] "+
+				"\n  ecn[delivered_ce=%d ecn_negotiated=%d] "+
+				"\n  zero-window[probe0_count=%d min_snd_wnd=%d min_rcv_wnd=%d] "+
+				"\n  rto-context[cwnd=%d ssthresh=%d srtt_us=%d max_consec=%d] "+
+				"\n  recovery-context[cwnd=%d ssthresh=%d srtt_us=%d]",
+				c.Source, c.SPort, c.Dest, c.DPort,
+				c.TCPMaxRetransOut, c.TCPBytesRetrans, c.TCPDSACKDups,
+				c.TCPMaxLostOut, c.TCPRTOCount, c.TCPRecoveryCount, c.TCPMaxCAState,
+				c.TCPMaxSackedOut, c.TCPReordSeen,
+				c.TCPMaxPacketsOut, c.TCPDelivered,
+				c.TCPDeliveredCE, c.TCPECNNegotiated,
+				c.TCPProbe0Count, c.TCPMinSndWnd, c.TCPMinRcvWnd,
+				c.TCPCwndAtLastRTO, c.TCPSsthreshAtLastRTO, c.TCPSRTTAtLastRTOUs, c.TCPMaxConsecRTOs,
+				c.TCPCwndAtLastRecovery, c.TCPSsthreshAtLastRecovery, c.TCPSRTTAtLastRecoveryUs,
+			)
+		}
+
+		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1)                    //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)                          //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)                      //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_retrans_out", float64(c.TCPMaxRetransOut), tags, 1)                    //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_ca_state", float64(c.TCPMaxCAState), tags, 1)                          //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.min_snd_wnd", float64(c.TCPMinSndWnd), tags, 1)                            //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.min_rcv_wnd", float64(c.TCPMinRcvWnd), tags, 1)                            //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", float64(c.TCPECNNegotiated), tags, 1)                     //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered", int64(c.TCPDelivered), tags, 1)                                //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)                           //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.bytes_retrans", int64(c.TCPBytesRetrans), tags, 1)                         //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.dsack_dups", int64(c.TCPDSACKDups), tags, 1)                               //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.TCPReordSeen), tags, 1)                               //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.TCPRTOCount), tags, 1)                                 //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.TCPRecoveryCount), tags, 1)                       //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.TCPProbe0Count), tags, 1)                           //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.cwnd_at_last_rto", float64(c.TCPCwndAtLastRTO), tags, 1)                   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ssthresh_at_last_rto", float64(c.TCPSsthreshAtLastRTO), tags, 1)           //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.srtt_at_last_rto", float64(c.TCPSRTTAtLastRTOUs), tags, 1)                 //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.cwnd_at_last_recovery", float64(c.TCPCwndAtLastRecovery), tags, 1)         //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ssthresh_at_last_recovery", float64(c.TCPSsthreshAtLastRecovery), tags, 1) //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.srtt_at_last_recovery", float64(c.TCPSRTTAtLastRecoveryUs), tags, 1)       //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_consec_rtos", float64(c.TCPMaxConsecRTOs), tags, 1)                    //nolint:errcheck
+	}
 }
 
 // RegisterClient registers a clientID with the tracer

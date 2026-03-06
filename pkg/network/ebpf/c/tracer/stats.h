@@ -306,6 +306,89 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
     return 0;
 }
 
+// handle_congestion_stats reads TCP congestion fields from tcp_sock into the
+// tcp_congestion_stats map. Gauge fields (packets_out, lost_out, sacked_out,
+// retrans_out, ca_state) track the max value seen over the polling interval.
+// Counter fields (delivered, delivered_ce, bytes_retrans, dsack_dups, reord_seen)
+// are monotonically increasing, so the latest value is always the max.
+// CO-RE/runtime only; prebuilt is a no-op.
+static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+#if !defined(COMPILE_PREBUILT)
+    tcp_congestion_stats_t empty = {};
+    // Initialize min-tracked window fields to UINT32_MAX so any real value
+    // becomes the min. BPF_NOEXIST ensures this only applies on first insert.
+    empty.snd_wnd = 0xFFFFFFFF;
+    empty.rcv_wnd = 0xFFFFFFFF;
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for
+    // EEXIST here spams metrics and does not provide any useful signal since the key
+    // is expected to be present sometimes.
+    bpf_map_update_with_telemetry(tcp_congestion_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_congestion_stats_t *val = bpf_map_lookup_elem(&tcp_congestion_stats, t);
+    if (val == NULL) {
+        return;
+    }
+
+    // Gauge fields: track max over the polling interval. This is safe without
+    // atomics because sendmsg/recvmsg hold the socket lock, so only one CPU
+    // can update a given connection's entry at a time.
+    __u32 tmp = 0;
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), packets_out);
+    if (tmp > val->max_packets_out) { val->max_packets_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), lost_out);
+    if (tmp > val->max_lost_out) { val->max_lost_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), sacked_out);
+    if (tmp > val->max_sacked_out) { val->max_sacked_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), retrans_out);
+    if (tmp > val->max_retrans_out) { val->max_retrans_out = tmp; }
+
+    // Counter fields: monotonically increasing, latest value = max.
+    // Guard newer tcp_sock fields with kernel version checks for the runtime
+    // compiler (which compiles against real kernel headers). CO-RE handles
+    // missing fields gracefully via BTF relocations at load time.
+#if defined(COMPILE_CORE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+    BPF_CORE_READ_INTO(&val->delivered,    tcp_sk(sk), delivered);
+#endif
+#if defined(COMPILE_CORE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+    BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
+    BPF_CORE_READ_INTO(&val->bytes_retrans, tcp_sk(sk), bytes_retrans);
+    BPF_CORE_READ_INTO(&val->dsack_dups,   tcp_sk(sk), dsack_dups);
+    BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+#endif
+
+    // Window fields: track min-over-interval to detect zero-window conditions.
+    // snd_wnd is the peer's advertised receive window; rcv_wnd is our local window.
+    // Initialized to UINT32_MAX on first insert so any real value becomes the min.
+    // A min of 0 means a zero-window condition occurred during this interval.
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), snd_wnd);
+    if (tmp < val->snd_wnd) { val->snd_wnd = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), rcv_wnd);
+    if (tmp < val->rcv_wnd) { val->rcv_wnd = tmp; }
+
+    // ECN negotiation: ecn_flags bit 0 (TCP_ECN_OK) indicates ECN was negotiated.
+    // Prerequisite for interpreting delivered_ce.
+    u16 ecn_flags = 0;
+    BPF_CORE_READ_INTO(&ecn_flags, tcp_sk(sk), ecn_flags);
+    val->ecn_negotiated = (ecn_flags & 1) ? 1 : 0;
+
+    // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
+    // only available with full CO-RE support. The runtime compiler's clang does not
+    // provide this builtin, so ca_state is read only on CO-RE (stays 0 on runtime).
+    //
+    // TODO: add runtime support for ca_state. icsk_ca_state is a 6-bit bitfield
+    // (`:6`) inside inet_connection_sock, so you can't take its address directly.
+    // The approach: since the runtime tracer compiles against real kernel headers,
+    // find the byte offset of the field at compile time, use bpf_probe_read_kernel
+    // to read the containing byte, then mask with & 0x3f to extract the low 6 bits.
+    // This is fragile across kernel versions if the bitfield layout changes, so it
+    // needs validation against a range of kernels before productionizing.
+#if defined(COMPILE_CORE)
+    struct inet_connection_sock *icsk = &tcp_sk(sk)->inet_conn;
+    u8 ca = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
+    if (ca > val->max_ca_state) { val->max_ca_state = ca; }
+#endif
+#endif
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
@@ -321,6 +404,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
         stats.state_transitions = (1 << state);
     }
     update_tcp_stats(t, stats);
+    handle_congestion_stats(t, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
