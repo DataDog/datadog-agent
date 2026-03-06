@@ -33,6 +33,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	k8s.io/apimachinery v0.35.2 // indirect
 	k8s.io/client-go v0.35.1 // indirect
 )
 
