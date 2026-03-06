@@ -1,1 +1,17 @@
-"""Package delimiter."""
+"""cpython packaging."""
+
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "collect_dd_auto_pkg_artifacts")
+
+collect_dd_auto_pkg_artifacts(
+    name = "all_python_deps",
+    srcs = [
+        "@cpython//:python_pkg",
+        # openssl cannot be discovered automatically: configure_make uses the
+        # dep's target name to construct the EXT_BUILD_DEPS/ sandbox path, so
+        # python_unix.deps must reference @openssl//:openssl (the configure_make
+        # target) rather than @openssl//:openssl_pkg. Since that target has no
+        # DdAutoPkgArtifactInfo, the aspect never reaches openssl_pkg.
+        "@openssl//:openssl_pkg",
+    ],
+    visibility = ["//packages:__subpackages__"],
+)
