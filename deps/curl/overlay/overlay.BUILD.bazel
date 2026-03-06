@@ -8,6 +8,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
@@ -269,7 +270,6 @@ pkg_files(
     prefix = "embedded/include/curl",
 )
 
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -286,3 +286,7 @@ dd_auto_pkg_artifact(
     visibility = ["//visibility:public"],
 )
 
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)
