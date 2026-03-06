@@ -60,7 +60,7 @@ func (c *CUSUMDetector) Name() string {
 
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
-func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
+func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult {
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
 		minPoints = 5
@@ -80,7 +80,7 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetection
 
 	n := len(series.Points)
 	if n < minPoints {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Estimate baseline from first portion of data
@@ -105,7 +105,7 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetection
 			baselineStddev = baselineMean * 0.1
 		} else {
 			// Can't establish meaningful baseline
-			return observer.MetricsDetectionResult{}
+			return observer.DetectionResult{}
 		}
 	}
 
@@ -126,10 +126,10 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.MetricsDetection
 	// Run CUSUM and detect threshold crossing
 	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h, debugInfo)
 	if anomaly == nil {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
-	return observer.MetricsDetectionResult{Anomalies: []observer.Anomaly{*anomaly}}
+	return observer.DetectionResult{Anomalies: []observer.Anomaly{*anomaly}}
 }
 
 // runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.

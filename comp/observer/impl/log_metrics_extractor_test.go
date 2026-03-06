@@ -28,12 +28,12 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 		tags:    []string{"service:api"},
 	}
 
-	res := a.Process(log)
-	assert.Len(t, res.Metrics, 3) // 2 numeric fields + pattern count
+	res := a.ProcessLog(log)
+	assert.Len(t, res, 3) // 2 numeric fields + pattern count
 
 	// Order is map iteration dependent; just assert set membership.
 	got := map[string]observer.MetricOutput{}
-	for _, m := range res.Metrics {
+	for _, m := range res {
 		got[m.Name] = m
 	}
 
@@ -65,16 +65,16 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 		tags:    []string{"service:web"},
 	}
 
-	res := a.Process(log)
-	assert.Len(t, res.Metrics, 1)
-	assert.Equal(t, float64(1), res.Metrics[0].Value)
-	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
+	res := a.ProcessLog(log)
+	assert.Len(t, res, 1)
+	assert.Equal(t, float64(1), res[0].Value)
+	assert.Equal(t, []string{"service:web"}, res[0].Tags)
 
 	// Compute expected metric name (hash of signature).
 	sig := logSignature([]byte("Request completed in 45ms"), 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res[0].Name)
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -89,11 +89,11 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		tags:    []string{"service:api"},
 	}
 
-	res := a.Process(log)
-	require.Len(t, res.Metrics, 2) // selected numeric field + pattern count
+	res := a.ProcessLog(log)
+	require.Len(t, res, 2) // selected numeric field + pattern count
 
 	got := map[string]observer.MetricOutput{}
-	for _, m := range res.Metrics {
+	for _, m := range res {
 		got[m.Name] = m
 	}
 
@@ -117,11 +117,11 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	input := []byte(`{"duration_ms":45,`)
 	log := &mockLogView{content: input, tags: []string{"service:api"}}
 
-	res := a.Process(log)
-	require.Len(t, res.Metrics, 1)
+	res := a.ProcessLog(log)
+	require.Len(t, res, 1)
 
 	sig := logSignature(input, 0)
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res[0].Name)
 }

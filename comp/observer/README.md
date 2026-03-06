@@ -9,23 +9,29 @@ Observes data flowing through the agent for sampling and analysis.
 **Handle** is the lightweight interface passed to data pipelines. It has two methods:
 
 - `ObserveMetric(MetricView)` — adds the metric to storage, then runs metrics detection on the updated series.
-- `ObserveLog(LogView)` — runs all log detectors. Any metrics they produce are added to storage and trigger metrics detection.
+- `ObserveLog(LogView)` — runs all log extractors. Any metrics they produce are added to storage and trigger detection.
 
 **MetricView / LogView** are read-only interfaces to avoid data races. The underlying data may be reused after the call returns, so copy any values you need synchronously.
 
 **Storage** accumulates metrics into per-second buckets, tracking sum/count/min/max for each series. When retrieved, you specify an aggregation (average, sum, count, min, max) to collapse each bucket to a single value.
 
-**LogDetector** transforms logs into metrics and anomaly events:
+**LogMetricsExtractor** transforms logs into metrics:
 ```
-Process(log LogView) → LogDetectionResult{Metrics[], Anomalies[]}
+ProcessLog(log LogView) → []MetricOutput
 ```
 Implementations should be stateless and fast since they run synchronously on every log.
 
-**MetricsDetector** detects anomalies from accumulated time series:
+**SeriesDetector** detects anomalies from a single time series:
 ```
-Detect(Series) → MetricsDetectionResult{Anomalies[]}
+Detect(Series) → DetectionResult{Anomalies[]}
 ```
 Receives a series of aggregated points. Implementations should be stateless and just do math on the points.
+
+**Detector** is the flexible detection interface that pulls data from storage:
+```
+Detect(StorageReader, dataTime int64) → DetectionResult{Anomalies[]}
+```
+Supports multivariate detection across multiple series. SeriesDetector implementations are automatically wrapped into Detectors via `seriesDetectorAdapter`.
 
 **Correlator** receives and accumulates anomaly events from all analyses:
 ```
@@ -38,27 +44,25 @@ Unlike analyses, correlators are stateful. They accumulate events and produce re
 
 Handles are the only concurrent part. They copy data and send it over a channel. Everything else (storage, analyses, consumers) runs in a single dispatch goroutine, so no locks are needed in component implementations.
 
-## Writing a New Log Detector
+## Writing a New Log Extractor
 
-Implement `LogDetector` or `MetricsDetector`:
+Implement `LogMetricsExtractor`:
 
 ```go
-type MyLogDetector struct{}
+type MyExtractor struct{}
 
-func (m *MyLogDetector) Name() string { return "my_detector" }
+func (m *MyExtractor) Name() string { return "my_extractor" }
 
-func (m *MyLogDetector) Process(log observer.LogView) observer.LogDetectionResult {
+func (m *MyExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
     // Extract what you need synchronously - don't store the view
     content := string(log.GetContent())
 
-    // Return metrics and/or anomalies
-    return observer.LogDetectionResult{
-        Metrics: []observer.MetricOutput{{
-            Name:  "my.metric",
-            Value: 1,
-            Tags:  log.GetTags(),
-        }},
-    }
+    // Return derived metrics
+    return []observer.MetricOutput{{
+        Name:  "my.metric",
+        Value: 1,
+        Tags:  log.GetTags(),
+    }}
 }
 ```
 
@@ -66,8 +70,8 @@ Register in `observer.go`:
 
 ```go
 obs := &observerImpl{
-    logDetectors: []observerdef.LogDetector{
-        &MyLogDetector{},  // add here
+    extractors: []observerdef.LogMetricsExtractor{
+        &MyExtractor{},  // add here
     },
     // ...
 }
