@@ -47,6 +47,13 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	// Reusable scratch state for flushSketches — allocated once, cleared each flush.
+	flushPointsByStrippedCtx   map[ckey.ContextKey]map[int64]*quantile.Sketch
+	flushFirstCtxByStrippedKey map[ckey.ContextKey]*Context
+	flushTagsForStrippedKey    map[ckey.ContextKey]tagset.CompositeTags
+	flushSeenCtxs              map[ckey.ContextKey]struct{}
+	flushPoints                []metrics.SketchPoint
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -69,6 +76,11 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 		id:                 id,
 		idString:           idString,
 		hostname:           hostname,
+
+		flushPointsByStrippedCtx:   make(map[ckey.ContextKey]map[int64]*quantile.Sketch),
+		flushFirstCtxByStrippedKey: make(map[ckey.ContextKey]*Context),
+		flushTagsForStrippedKey:    make(map[ckey.ContextKey]tagset.CompositeTags),
+		flushSeenCtxs:              make(map[ckey.ContextKey]struct{}),
 	}
 
 	return s
@@ -193,35 +205,40 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool, tagFilter filterlist.TagMatcher) {
-	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	// Clear reusable maps (preserves underlying allocated capacity).
+	for k := range s.flushPointsByStrippedCtx {
+		delete(s.flushPointsByStrippedCtx, k)
+	}
+	for k := range s.flushFirstCtxByStrippedKey {
+		delete(s.flushFirstCtxByStrippedKey, k)
+	}
+	for k := range s.flushTagsForStrippedKey {
+		delete(s.flushTagsForStrippedKey, k)
+	}
+	for k := range s.flushSeenCtxs {
+		delete(s.flushSeenCtxs, k)
+	}
 
 	flushAllBefore := cutoffTime
 	if forceFlushAll {
 		flushAllBefore = math.MaxInt64
 	}
 
+	preaggPoints := 0
+
+	// Single-pass: resolve context and build pointsByStrippedCtx directly inside
+	// the flushBefore callback, eliminating the intermediate pointsByCtx map.
 	s.sketchMap.flushBefore(flushAllBefore, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
-	})
+		preaggPoints++
+		s.flushSeenCtxs[ck] = struct{}{}
 
-	// pointsByStrippedCtx: stripped context key -> (timestamp -> merged sketch)
-	pointsByStrippedCtx := make(map[ckey.ContextKey]map[int64]*quantile.Sketch, len(pointsByCtx))
-	// firstCtxByStrippedKey: stripped key -> first original context seen (for metadata)
-	firstCtxByStrippedKey := make(map[ckey.ContextKey]*Context, len(pointsByCtx))
-	// tagsForStrippedKey: stripped key -> composite tags after filtering
-	tagsForStrippedKey := make(map[ckey.ContextKey]tagset.CompositeTags, len(pointsByCtx))
-
-	preaggPoints := 0
-	postaggPoints := 0
-
-	for ck, points := range pointsByCtx {
 		ctx, ok := s.contextResolver.get(ck)
 		if !ok {
 			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
-			continue
+			return
 		}
 
 		strippedKey := ck
@@ -230,38 +247,41 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 			strippedKey, ctxTags = s.computeStrippedKey(ctx, keepTag)
 		}
 
-		if _, exists := firstCtxByStrippedKey[strippedKey]; !exists {
-			firstCtxByStrippedKey[strippedKey] = ctx
-			tagsForStrippedKey[strippedKey] = ctxTags
-			pointsByStrippedCtx[strippedKey] = make(map[int64]*quantile.Sketch, len(points))
+		if _, exists := s.flushFirstCtxByStrippedKey[strippedKey]; !exists {
+			s.flushFirstCtxByStrippedKey[strippedKey] = ctx
+			s.flushTagsForStrippedKey[strippedKey] = ctxTags
+			s.flushPointsByStrippedCtx[strippedKey] = make(map[int64]*quantile.Sketch, 1)
 		}
 
-		for _, p := range points {
-			if existing := pointsByStrippedCtx[strippedKey][p.Ts]; existing != nil {
-				existing.Merge(quantile.Default(), p.Sketch)
-			} else {
-				pointsByStrippedCtx[strippedKey][p.Ts] = p.Sketch
-			}
+		if existing := s.flushPointsByStrippedCtx[strippedKey][p.Ts]; existing != nil {
+			existing.Merge(quantile.Default(), p.Sketch)
+		} else {
+			s.flushPointsByStrippedCtx[strippedKey][p.Ts] = p.Sketch
 		}
+	})
 
-		preaggPoints += len(points)
-		postaggPoints += len(pointsByStrippedCtx[strippedKey])
+	postaggPoints := 0
+	for _, pointsByTs := range s.flushPointsByStrippedCtx {
+		postaggPoints += len(pointsByTs)
 	}
 
-	tlmPreFilterContexts.Set(float64(len(pointsByCtx)))
-	tlmPostFilterContexts.Set(float64(len(pointsByStrippedCtx)))
+	tlmPreFilterContexts.Set(float64(len(s.flushSeenCtxs)))
+	tlmPostFilterContexts.Set(float64(len(s.flushPointsByStrippedCtx)))
 	tlmPreFilterPoints.Set(float64(preaggPoints))
 	tlmPostFilterPoints.Set(float64(postaggPoints))
 
-	for strippedCk, pointsByTs := range pointsByStrippedCtx {
-		ctx := firstCtxByStrippedKey[strippedCk]
-		points := make([]metrics.SketchPoint, 0, len(pointsByTs))
+	for strippedCk, pointsByTs := range s.flushPointsByStrippedCtx {
+		ctx := s.flushFirstCtxByStrippedKey[strippedCk]
+		// Reuse scratch slice to accumulate points, then copy into a correctly-sized slice.
+		s.flushPoints = s.flushPoints[:0]
 		for ts, sketch := range pointsByTs {
-			points = append(points, metrics.SketchPoint{Sketch: sketch, Ts: ts})
+			s.flushPoints = append(s.flushPoints, metrics.SketchPoint{Sketch: sketch, Ts: ts})
 		}
+		points := make([]metrics.SketchPoint, len(s.flushPoints))
+		copy(points, s.flushPoints)
 		ss := &metrics.SketchSeries{
 			Name:       ctx.Name,
-			Tags:       tagsForStrippedKey[strippedCk],
+			Tags:       s.flushTagsForStrippedKey[strippedCk],
 			Host:       ctx.Host,
 			Interval:   s.interval,
 			Points:     points,
