@@ -5,14 +5,22 @@
 
 use crate::process::ManagedProcess;
 
-/// Send SIGTERM to all running processes, wait per-process `stop_timeout`, then SIGKILL stragglers.
+/// Shut down processes in the given index order (typically reverse startup order).
+/// Sends SIGTERM to all first, then waits for each in order.
+pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
+    for &idx in order {
+        processes[idx].request_stop();
+    }
+    for &idx in order {
+        processes[idx].wait_for_stop().await;
+    }
+}
+
+/// Convenience wrapper: shut down all processes in forward index order.
+#[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
-    for proc in processes.iter() {
-        proc.request_stop();
-    }
-    for proc in processes.iter_mut() {
-        proc.wait_for_stop().await;
-    }
+    let order: Vec<usize> = (0..processes.len()).collect();
+    shutdown_ordered(processes, &order).await;
 }
 
 #[cfg(test)]
@@ -73,5 +81,29 @@ mod tests {
             ProcessState::Stopped,
             "shutdown should transition to Stopped even without child handle"
         );
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_ordered_reverse() {
+        let mut p1 = ManagedProcess::new("p1".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut p2 = ManagedProcess::new("p2".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut p3 = ManagedProcess::new("p3".into(), make_config("/bin/sleep", vec!["60"]));
+        p1.spawn().unwrap();
+        p2.spawn().unwrap();
+        p3.spawn().unwrap();
+
+        let mut procs = vec![p1, p2, p3];
+        // Reverse order: p3, p2, p1
+        shutdown_ordered(&mut procs, &[2, 1, 0]).await;
+
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert_eq!(procs[1].state(), ProcessState::Stopped);
+        assert_eq!(procs[2].state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_ordered_empty() {
+        let mut procs: Vec<ManagedProcess> = vec![];
+        shutdown_ordered(&mut procs, &[]).await;
     }
 }
