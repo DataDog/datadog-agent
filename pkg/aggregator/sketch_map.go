@@ -7,11 +7,15 @@ package aggregator
 
 import (
 	"math"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
+
+var agentPool = sync.Pool{New: func() any { return &quantile.Agent{} }}
+var innerSketchMapPool = sync.Pool{New: func() any { return make(map[ckey.ContextKey]*quantile.Agent, 8) }}
 
 type sketchMap map[int64]map[ckey.ContextKey]*quantile.Agent
 
@@ -53,14 +57,14 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 	// level 1: ts -> ctx
 	byCtx, ok := m[ts]
 	if !ok {
-		byCtx = make(map[ckey.ContextKey]*quantile.Agent)
+		byCtx = innerSketchMapPool.Get().(map[ckey.ContextKey]*quantile.Agent)
 		m[ts] = byCtx
 	}
 
 	// level 2: ctx -> sketch
 	s, ok := byCtx[ck]
 	if !ok {
-		s = &quantile.Agent{}
+		s = agentPool.Get().(*quantile.Agent)
 		m[ts][ck] = s
 	}
 
@@ -80,8 +84,16 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 				Sketch: as.Finish(),
 				Ts:     ts,
 			})
+			// Reset and return Agent to pool for reuse.
+			as.Reset()
+			agentPool.Put(as)
 		}
 
+		// Clear inner map and return to pool for reuse.
+		for k := range byCtx {
+			delete(byCtx, k)
+		}
+		innerSketchMapPool.Put(byCtx)
 		delete(m, ts)
 	}
 }

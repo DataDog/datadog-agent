@@ -103,3 +103,58 @@ BenchmarkFlushSketches_Filter_HighCollision_100-20 13525     84470 ns/op    7961
 - NoFilter_1000: 14968→13933 allocs/op (-7%), 1426KB→1042KB B/op (-27%)
 - Filter_NoCollision_100: 1638→1520 allocs/op (-7%), 130KB→106KB B/op (-18%)
 - Filter_HighCollision_100: 1433→1315 allocs/op (-8%), 103KB→79KB B/op (-23%)
+
+## Phase 2: Pool quantile.Agent and inner maps
+
+```
+goos: linux
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/pkg/aggregator
+cpu: 12th Gen Intel(R) Core(TM) i9-12900H
+BenchmarkFlushSketches_NoFilter_100-20             15072     78634 ns/op    83679 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16525     70901 ns/op    83615 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16686     72279 ns/op    83590 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16639     73076 ns/op    83618 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16195     74620 ns/op    83514 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16492     74116 ns/op    83729 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             15283     75083 ns/op    83631 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16239     75095 ns/op    83667 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             16272     72939 ns/op    83677 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_100-20             15919     75305 ns/op    83691 B/op   1109 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1371    775826 ns/op   841642 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1419    776542 ns/op   841369 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1593    782054 ns/op   840604 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1555    823715 ns/op   842197 B/op  11918 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1600    772410 ns/op   841718 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1525    764502 ns/op   840451 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1556    778439 ns/op   841998 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1539    762268 ns/op   840300 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1485    774785 ns/op   840390 B/op  11917 allocs/op
+BenchmarkFlushSketches_NoFilter_1000-20             1491    764116 ns/op   840083 B/op  11917 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13160     90183 ns/op    88548 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   12745     93316 ns/op    88617 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   12858     94632 ns/op    88641 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13086     90316 ns/op    88613 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13183     89681 ns/op    88603 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13708     89311 ns/op    88517 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13260     88965 ns/op    88634 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13425     89897 ns/op    88472 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13041     90499 ns/op    88608 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_NoCollision_100-20   13251     88742 ns/op    88564 B/op   1309 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 15372     79046 ns/op    61373 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 15560     75575 ns/op    61394 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14698     91087 ns/op    61451 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14118     82348 ns/op    61353 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14232     82629 ns/op    61336 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14296     80909 ns/op    61376 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14919     81984 ns/op    61411 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14878     80056 ns/op    61335 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 15021     81285 ns/op    61404 B/op   1104 allocs/op
+BenchmarkFlushSketches_Filter_HighCollision_100-20 14829     82818 ns/op    61451 B/op   1104 allocs/op
+```
+
+**Phase 2 vs Phase 1:**
+- NoFilter_100: 1320→1109 allocs/op (-16%), 101KB→83KB B/op (-18%)
+- NoFilter_1000: 13933→11917 allocs/op (-14%), 1042KB→841KB B/op (-19%)
+- Filter_NoCollision_100: 1520→1309 allocs/op (-14%), 106KB→88KB B/op (-17%)
+- Filter_HighCollision_100: 1315→1104 allocs/op (-16%), 79KB→61KB B/op (-22%)
