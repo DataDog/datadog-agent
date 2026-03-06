@@ -224,6 +224,7 @@ namespace WixSetup.Datadog_Agent
                     "PROJECTLOCATION=[PROJECTLOCATION], " +
                     "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
                     "APIKEY=[APIKEY], " +
+                    "APPKEY=[APPKEY], " +
                     "TAGS=[TAGS], " +
                     "HOSTNAME=[HOSTNAME], " +
                     "PROXY_HOST=[PROXY_HOST], " +

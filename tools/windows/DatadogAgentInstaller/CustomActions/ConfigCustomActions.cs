@@ -270,6 +270,9 @@ namespace Datadog.CustomActions
                 PropertyReplacer.For("APIKEY")
                     .Match("^[ #]*api_key:.*").ReplaceWith(value => $"api_key: {value}"),
 
+                PropertyReplacer.For("APPKEY")
+                    .Match("^[ #]*app_key:.*").ReplaceWith(value => $"app_key: {value}"),
+
                 PropertyReplacer.For("SITE")
                     .Match("^[ #]*site:.*").ReplaceWith(value => $"site: {value}"),
 

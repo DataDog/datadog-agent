@@ -12,6 +12,7 @@ namespace CustomActions.Tests
     {
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
+        [InlineAutoData("APPKEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
@@ -35,6 +36,7 @@ namespace CustomActions.Tests
 
         [Theory]
         [InlineAutoData("APIKEY", "api_key")]
+        [InlineAutoData("APPKEY", "app_key")]
         [InlineAutoData("SITE", "site")]
         [InlineAutoData("HOSTNAME", "hostname")]
         [InlineAutoData("LOGS_ENABLED", "logs_enabled")]
