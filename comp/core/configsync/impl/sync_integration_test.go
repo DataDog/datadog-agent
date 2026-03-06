@@ -43,11 +43,11 @@ func TestRunWithChan(t *testing.T) {
 
 		require.True(t, called)
 
-		require.Equal(t, "value0", cs.Config.GetString("key0"))
+		assert.Equal(t, "value0", cs.Config.GetString("key0"))
 		assertConfigIsSet(t, cs.Config, "key1", "value1")
 		assertConfigIsSet(t, cs.Config, "key2", "value2")
 		assertConfigIsSet(t, cs.Config, "key3", "value3")
-		require.Equal(t, "set-with-cli", cs.Config.GetString("key4"))
+		assert.Equal(t, "set-with-cli", cs.Config.GetString("key4"))
 	})
 
 	t.Run("eventual success", func(t *testing.T) {

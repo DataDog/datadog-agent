@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -91,12 +92,12 @@ func TestUpdater(t *testing.T) {
 	}
 
 	cs.updater()
-	require.Equal(t, "value1", cfg.Get("key1"))
-	require.Equal(t, 1, callbackCalled)
+	assert.Equal(t, "value1", cfg.Get("key1"))
+	assert.Equal(t, 1, callbackCalled)
 
 	cfg.Set("key1", "cli_value", model.SourceCLI)
 
 	cs.updater()
-	require.Equal(t, "cli_value", cfg.Get("key1"))
-	require.Equal(t, 2, callbackCalled)
+	assert.Equal(t, "cli_value", cfg.Get("key1"))
+	assert.Equal(t, 2, callbackCalled)
 }
