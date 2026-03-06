@@ -774,10 +774,11 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 		// Generate missing fields if needed
 		if telemetryEvent.Metric != nil {
 			metric := &metricObs{
-				name:      telemetryEvent.Metric.GetName(),
-				value:     telemetryEvent.Metric.GetValue(),
-				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+				name:       telemetryEvent.Metric.GetName(),
+				value:      telemetryEvent.Metric.GetValue(),
+				tags:       telemetryEvent.Metric.GetRawTags(),
+				timestamp:  int64(telemetryEvent.Metric.GetTimestamp()),
+				metricType: telemetryEvent.Metric.GetMetricTypeName(),
 			}
 			if metric.timestamp == 0 {
 				metric.timestamp = baseTimestampMs / 1000

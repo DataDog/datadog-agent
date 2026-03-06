@@ -41,10 +41,10 @@ func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsVie
 		timestamp := float64(row.GetBucketStart()) / 1e9
 		tags := buildStatsTagsFromRow(agentHostname, agentEnv, row)
 
-		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDuration()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestamp: timestamp})
+		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestamp: timestamp, metricType: "Count"})
+		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestamp: timestamp, metricType: "Count"})
+		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDuration()), tags: tags, timestamp: timestamp, metricType: "Count"})
+		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestamp: timestamp, metricType: "Count"})
 
 		if okSummary := row.GetOkSummary(); len(okSummary) > 0 {
 			emitPercentiles(handle, "trace.latency.ok", okSummary, tags, timestamp)
@@ -75,10 +75,11 @@ func emitPercentiles(handle observerdef.Handle, metricPrefix string, sketchBytes
 
 		metricName := fmt.Sprintf("%s.%s", metricPrefix, pq.suffix)
 		handle.ObserveMetric(&statsMetricView{
-			name:      metricName,
-			value:     value,
-			tags:      tags,
-			timestamp: timestamp,
+			name:       metricName,
+			value:      value,
+			tags:       tags,
+			timestamp:  timestamp,
+			metricType: "Gauge",
 		})
 	}
 }
@@ -149,17 +150,19 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 
 // statsMetricView implements the MetricView interface for stats-derived metrics.
 type statsMetricView struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp float64
+	name       string
+	value      float64
+	tags       []string
+	timestamp  float64
+	metricType string
 }
 
-func (m *statsMetricView) GetName() string        { return m.name }
-func (m *statsMetricView) GetValue() float64      { return m.value }
-func (m *statsMetricView) GetRawTags() []string   { return m.tags }
-func (m *statsMetricView) GetTimestamp() float64  { return m.timestamp }
-func (m *statsMetricView) GetSampleRate() float64 { return 1.0 }
+func (m *statsMetricView) GetName() string           { return m.name }
+func (m *statsMetricView) GetValue() float64         { return m.value }
+func (m *statsMetricView) GetRawTags() []string      { return m.tags }
+func (m *statsMetricView) GetTimestamp() float64     { return m.timestamp }
+func (m *statsMetricView) GetSampleRate() float64    { return 1.0 }
+func (m *statsMetricView) GetMetricTypeName() string { return m.metricType }
 
 // statsPayloadView adapts a *pb.StatsPayload to the TraceStatsView interface.
 type statsPayloadView struct {

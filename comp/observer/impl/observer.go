@@ -61,10 +61,11 @@ type observation struct {
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	tags       []string
+	timestamp  int64
+	metricType string
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -89,6 +90,10 @@ func (m *metricObs) GetTimestamp() float64 {
 // Observer does not store samplerate; just return 1.0
 func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
+}
+
+func (m *metricObs) GetMetricTypeName() string {
+	return m.metricType
 }
 
 // logObs contains copied log data and implements observerdef.LogView.
@@ -361,7 +366,7 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +379,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -698,10 +703,11 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	obs := observation{
 		source: h.source,
 		metric: &metricObs{
-			name:      sample.GetName(),
-			value:     sample.GetValue(),
-			tags:      copyTags(sample.GetRawTags()),
-			timestamp: timestamp,
+			name:       sample.GetName(),
+			value:      sample.GetValue(),
+			tags:       copyTags(sample.GetRawTags()),
+			timestamp:  timestamp,
+			metricType: sample.GetMetricTypeName(),
 		},
 	}
 
