@@ -140,22 +140,24 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, runErr error) {
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error) {
 	if collector != nil {
 		collector.Stop()
 	}
 
-	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
-	duration := float64(time.Since(c.startTime).Milliseconds())
-	metricAgent.AddEnhancedMetric(durationMetricName, duration, c.GetSource(), 0)
+	if enhancedMetricsEnabled {
+		durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
+		duration := float64(time.Since(c.startTime).Milliseconds())
+		metricAgent.AddEnhancedMetric(durationMetricName, duration, c.GetSource(), 0)
 
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
-	exitCode := exitcode.From(runErr)
-	succeededTag := "succeeded:true"
-	if exitCode != 0 {
-		succeededTag = "succeeded:false"
+		shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+		exitCode := exitcode.From(runErr)
+		succeededTag := "succeeded:true"
+		if exitCode != 0 {
+			succeededTag = "succeeded:false"
+		}
+		metricAgent.AddEnhancedMetric(shutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
 	}
-	metricAgent.AddEnhancedMetric(shutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
 
 	c.completeAndSubmitJobSpan(runErr)
 }

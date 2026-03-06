@@ -56,7 +56,7 @@ type CloudService interface {
 	Init(ctx *TracingContext) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, runErr error)
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error)
 
 	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
 	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
@@ -121,17 +121,21 @@ func (l *LocalService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
 	if collector != nil {
 		collector.Stop()
 	}
 
-	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
+	}
 }
 
 // AddStartMetric adds the start metric for LocalService
 func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

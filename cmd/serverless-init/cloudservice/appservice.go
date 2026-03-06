@@ -96,13 +96,15 @@ func (a *AppService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
 	if collector != nil {
 		collector.Stop()
 	}
 
-	metricAgent.AddEnhancedMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())
+	}
 }
 
 func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {

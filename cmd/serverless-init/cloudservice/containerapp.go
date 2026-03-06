@@ -183,13 +183,15 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
 	if collector != nil {
 		collector.Stop()
 	}
 
-	metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
-	metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(containerAppPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+	}
 }
 
 func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {

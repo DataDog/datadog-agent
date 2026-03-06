@@ -104,18 +104,18 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(secretComp, delegatedAuthComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, enhancedMetricsCollector, err)
+	defer cloudService.Shutdown(*metricAgent, enhancedMetricsCollector, enhancedMetricsEnabled, err)
 
 	return err
 }
 
-func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *collector.Collector) {
+func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *collector.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -158,19 +158,25 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	metricAgent := setupMetricAgent(tags, enhancedMetricTags, enhancedMetricTagsAll, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
-	cloudService.AddStartMetric(metricAgent)
+	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
+	if enhancedMetricsEnabled {
+		cloudService.AddStartMetric(metricAgent)
+	}
 
 	setupOtlpAgent(metricAgent, tagger)
 
-	enhancedMetricsCollector, err := collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), 3*time.Second)
-	if err != nil {
-		log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
-	} else {
-		go enhancedMetricsCollector.Start()
+	var enhancedMetricsCollector *collector.Collector
+	if enhancedMetricsEnabled {
+		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), 3*time.Second)
+		if err != nil {
+			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
+		} else {
+			go enhancedMetricsCollector.Start()
+		}
 	}
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled
 }
 
 func configureTags(cloudService cloudservice.CloudService) ([]string, map[string]string, map[string]string, map[string]string) {
