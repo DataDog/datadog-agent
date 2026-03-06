@@ -53,7 +53,7 @@ require (
 	golang.org/x/exp v0.0.0-20260209203927-2842357ff358
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.1
-	k8s.io/apimachinery v0.35.1
+	k8s.io/apimachinery v0.35.2
 	k8s.io/cli-runtime v0.34.1
 	k8s.io/client-go v0.35.1
 	k8s.io/kubectl v0.34.1
