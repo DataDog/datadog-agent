@@ -10,7 +10,6 @@ import (
 	"unsafe"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -28,6 +27,12 @@ type Context struct {
 	metricTags *tags.Entry
 	noIndex    bool
 	source     metrics.MetricSource
+
+	// Cached result of computeStrippedKey. The tag filter is process-lifetime
+	// config and ctx.Name is immutable, so this result is stable once computed.
+	strippedKey   ckey.ContextKey
+	strippedTags  tagset.CompositeTags
+	strippedValid bool
 }
 
 type resolverEntry struct {
@@ -101,21 +106,11 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64, filterList filterlist.TagMatcher) ckey.ContextKey {
+func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
 
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
-
-	if metricSampleContext.GetMetricType() == metrics.DistributionType {
-		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-			// metric.
-			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-			removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
-		}
-	}
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
@@ -243,8 +238,8 @@ func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id 
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp int64, filterList filterlist.TagMatcher) ckey.ContextKey {
-	contextKey := cr.resolver.trackContext(metricSampleContext, currentTimestamp, filterList)
+func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp int64) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext, currentTimestamp)
 	return contextKey
 }
 
@@ -311,8 +306,8 @@ func (cr *countBasedContextResolver) updateMetrics(countsByMTypeGauge telemetry.
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) ckey.ContextKey {
-	contextKey := cr.resolver.trackContext(metricSampleContext, cr.expireCount, filterList)
+func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext, cr.expireCount)
 	return contextKey
 }
 
