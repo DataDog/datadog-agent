@@ -98,7 +98,7 @@ type networkTracer struct {
 	cancelFunc   context.CancelFunc
 }
 
-func (nt *networkTracer) GetStats() map[string]interface{} {
+func (nt *networkTracer) GetStats() map[string]any {
 	stats, _ := nt.tracer.GetStats()
 	return stats
 }
