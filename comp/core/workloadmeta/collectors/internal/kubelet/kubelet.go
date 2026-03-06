@@ -56,7 +56,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                         collectorID,
-			catalog:                    workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 		},
 	}, nil
