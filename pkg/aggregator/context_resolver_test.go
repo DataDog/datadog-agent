@@ -285,4 +285,3 @@ func TestOriginTelemetry(t *testing.T) {
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
 }
-

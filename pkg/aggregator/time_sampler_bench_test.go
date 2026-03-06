@@ -71,8 +71,8 @@ func BenchmarkFlushSketches_Filter_NoCollision_100(b *testing.B) {
 	benchmarkFlushSketchesBase(100, tagFilter, func(i int) metrics.MetricSample {
 		return metrics.MetricSample{
 			Name: "my.distribution", Value: 1.0,
-			Mtype:     metrics.DistributionType,
-			Tags:      []string{"keep:" + strconv.Itoa(i), "strip:yes"},
+			Mtype:      metrics.DistributionType,
+			Tags:       []string{"keep:" + strconv.Itoa(i), "strip:yes"},
 			SampleRate: 1, Timestamp: 1000.0,
 		}
 	}, b)
@@ -88,8 +88,8 @@ func BenchmarkFlushSketches_Filter_HighCollision_100(b *testing.B) {
 	benchmarkFlushSketchesBase(100, tagFilter, func(i int) metrics.MetricSample {
 		return metrics.MetricSample{
 			Name: "my.distribution", Value: 1.0,
-			Mtype:     metrics.DistributionType,
-			Tags:      []string{"keep:yes", "strip:" + strconv.Itoa(i)},
+			Mtype:      metrics.DistributionType,
+			Tags:       []string{"keep:yes", "strip:" + strconv.Itoa(i)},
 			SampleRate: 1, Timestamp: 1000.0,
 		}
 	}, b)

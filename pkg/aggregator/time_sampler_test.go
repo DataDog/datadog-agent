@@ -543,7 +543,6 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		"test.histogram.count",
 	}, false)
 
-
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
