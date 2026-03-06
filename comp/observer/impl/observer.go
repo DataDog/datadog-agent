@@ -61,10 +61,11 @@ type observation struct {
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	tags       []string
+	timestamp  int64
+	metricType observerdef.MetricType
 }
 
 // Ensure metricObs implements observerdef.MetricView
@@ -89,6 +90,10 @@ func (m *metricObs) GetTimestamp() float64 {
 // Observer does not store samplerate; just return 1.0
 func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
+}
+
+func (m *metricObs) GetMetricTypeName() string {
+	return m.metricType.String()
 }
 
 // logObs contains copied log data and implements observerdef.LogView.
@@ -361,7 +366,7 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +379,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -397,7 +402,7 @@ func (o *observerImpl) run() {
 
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
-	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags, m.metricType)
 	o.maybeRunDetectors(m.timestamp)
 }
 
@@ -408,7 +413,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 		result := detector.Process(view)
 		for _, m := range result.Metrics {
 			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags, m.MetricType)
 		}
 		// Route directly emitted anomalies through the standard pipeline
 		for _, anomaly := range result.Anomalies {
@@ -698,10 +703,11 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	obs := observation{
 		source: h.source,
 		metric: &metricObs{
-			name:      sample.GetName(),
-			value:     sample.GetValue(),
-			tags:      copyTags(sample.GetRawTags()),
-			timestamp: timestamp,
+			name:       sample.GetName(),
+			value:      sample.GetValue(),
+			tags:       copyTags(sample.GetRawTags()),
+			timestamp:  timestamp,
+			metricType: observerdef.ParseMetricType(sample.GetMetricTypeName()),
 		},
 	}
 

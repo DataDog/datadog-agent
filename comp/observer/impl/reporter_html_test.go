@@ -192,8 +192,8 @@ func TestHTMLReporter_APISeries_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
 	storage := newTimeSeriesStorage()
-	storage.Add("test", "my.metric", 10.5, 1000, nil)
-	storage.Add("test", "my.metric", 20.5, 1001, nil)
+	storage.Add("test", "my.metric", 10.5, 1000, nil, observer.MetricTypeGauge)
+	storage.Add("test", "my.metric", 20.5, 1001, nil, observer.MetricTypeGauge)
 	r.SetStorage(storage)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/series?namespace=test&name=my.metric&agg=avg", nil)
@@ -297,7 +297,7 @@ func TestHTMLReporter_IntegrationWithHTTPServer(t *testing.T) {
 	})
 
 	storage := newTimeSeriesStorage()
-	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
+	storage.Add("demo", "cpu.usage", 50.0, 1000, nil, observer.MetricTypeGauge)
 	r.SetStorage(storage)
 
 	// Create test server using the handler
@@ -354,8 +354,8 @@ func TestHTMLReporter_APISeriesList_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
 	storage := newTimeSeriesStorage()
-	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
-	storage.Add("demo", "memory.usage", 75.0, 1000, nil)
+	storage.Add("demo", "cpu.usage", 50.0, 1000, nil, observer.MetricTypeGauge)
+	storage.Add("demo", "memory.usage", 75.0, 1000, nil, observer.MetricTypeGauge)
 	r.SetStorage(storage)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/series/list?namespace=demo", nil)

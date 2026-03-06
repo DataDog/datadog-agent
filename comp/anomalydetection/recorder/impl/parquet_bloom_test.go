@@ -23,9 +23,9 @@ func TestParquetBloomFilterOnListColumn(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write metrics with different tag combinations
-	writer.WriteMetric("test", "metric.a", 1.0, []string{"host:server1", "env:prod"}, 1000)
-	writer.WriteMetric("test", "metric.b", 2.0, []string{"host:server2", "env:dev"}, 2000)
-	writer.WriteMetric("test", "metric.c", 3.0, []string{"host:server3", "env:staging"}, 3000)
+	writer.WriteMetric("test", "metric.a", "Gauge", 1.0, []string{"host:server1", "env:prod"}, 1000)
+	writer.WriteMetric("test", "metric.b", "Gauge", 2.0, []string{"host:server2", "env:dev"}, 2000)
+	writer.WriteMetric("test", "metric.c", "Gauge", 3.0, []string{"host:server3", "env:staging"}, 3000)
 
 	// Close to flush and finalize the file
 	require.NoError(t, writer.Close())
@@ -85,7 +85,7 @@ func TestParquetWriteReadMultipleMetrics(t *testing.T) {
 			"env:prod",
 			"index:" + strconv.Itoa(i),
 		}
-		writer.WriteMetric("test", "metric.test", float64(i), tags, int64(i*1000))
+		writer.WriteMetric("test", "metric.test", "Gauge", float64(i), tags, int64(i*1000))
 	}
 	require.NoError(t, writer.Close())
 

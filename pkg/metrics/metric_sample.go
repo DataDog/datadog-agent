@@ -171,3 +171,8 @@ func (m *MetricSample) GetTimestamp() float64 {
 func (m *MetricSample) GetSampleRate() float64 {
 	return m.SampleRate
 }
+
+// GetMetricTypeName returns the metric type as a string (e.g. "Gauge", "Count", "MonotonicCount").
+func (m *MetricSample) GetMetricTypeName() string {
+	return m.Mtype.String()
+}

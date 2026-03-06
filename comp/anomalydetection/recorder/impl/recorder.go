@@ -166,11 +166,12 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 		timestamp := metric.Time / 1000
 
 		metrics = append(metrics, recorderdef.MetricData{
-			Source:    metric.RunID,
-			Name:      metric.MetricName,
-			Value:     value,
-			Timestamp: timestamp,
-			Tags:      tags,
+			Source:     metric.RunID,
+			Name:       metric.MetricName,
+			MetricType: metric.MetricType,
+			Value:      value,
+			Timestamp:  timestamp,
+			Tags:       tags,
 		})
 	}
 
@@ -259,6 +260,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	h.recorder.metricParquetWriter.WriteMetric(
 		h.name,
 		sample.GetName(),
+		sample.GetMetricTypeName(),
 		sample.GetValue(),
 		sample.GetRawTags(),
 		timestamp,

@@ -9,6 +9,7 @@ import (
 	"math"
 	"testing"
 
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add first point
-	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
 	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
 	require.NotNil(t, series)
@@ -33,9 +34,9 @@ func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add multiple points to same bucket
-	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
-	s.Add("test", "my.metric", 20.0, 1000, []string{"env:prod"})
-	s.Add("test", "my.metric", 5.0, 1000, []string{"env:prod"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 5.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
 	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
 	require.NotNil(t, series)
@@ -47,9 +48,9 @@ func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 func TestTimeSeriesStorage_AddSameBucket_Sum(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	s.Add("test", "my.metric", 10.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 5.0, 1000, nil, observer.MetricTypeGauge)
 	series := s.GetSeries("test", "my.metric", nil, AggregateSum)
 
 	require.NotNil(t, series)
@@ -60,9 +61,9 @@ func TestTimeSeriesStorage_AddSameBucket_Sum(t *testing.T) {
 func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	s.Add("test", "my.metric", 10.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 5.0, 1000, nil, observer.MetricTypeGauge)
 	series := s.GetSeries("test", "my.metric", nil, AggregateCount)
 
 	require.NotNil(t, series)
@@ -73,9 +74,9 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	s.Add("test", "my.metric", 10.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 5.0, 1000, nil, observer.MetricTypeGauge)
 
 	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
 	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
@@ -90,9 +91,9 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add points to different buckets
-	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
-	s.Add("test", "my.metric", 20.0, 1001, []string{"env:prod"})
-	s.Add("test", "my.metric", 30.0, 1002, []string{"env:prod"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1001, []string{"env:prod"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 30.0, 1002, []string{"env:prod"}, observer.MetricTypeGauge)
 	series := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 
 	require.NotNil(t, series)
@@ -110,8 +111,8 @@ func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Different tags = different series
-	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
-	s.Add("test", "my.metric", 20.0, 1000, []string{"env:staging"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, []string{"env:staging"}, observer.MetricTypeGauge)
 
 	prodSeries := s.GetSeries("test", "my.metric", []string{"env:prod"}, AggregateAverage)
 	stagingSeries := s.GetSeries("test", "my.metric", []string{"env:staging"}, AggregateAverage)
@@ -126,8 +127,8 @@ func TestTimeSeriesStorage_TagOrderDoesNotMatter(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Tags in different order should be same series
-	s.Add("test", "my.metric", 10.0, 1000, []string{"a:1", "b:2"})
-	s.Add("test", "my.metric", 20.0, 1000, []string{"b:2", "a:1"})
+	s.Add("test", "my.metric", 10.0, 1000, []string{"a:1", "b:2"}, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", 20.0, 1000, []string{"b:2", "a:1"}, observer.MetricTypeGauge)
 
 	series := s.GetSeries("test", "my.metric", []string{"a:1", "b:2"}, AggregateAverage)
 	require.NotNil(t, series)
@@ -146,9 +147,9 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	// Add series to different namespaces
-	s.Add("ns1", "metric1", 10.0, 1000, nil)
-	s.Add("ns1", "metric2", 20.0, 1000, nil)
-	s.Add("ns2", "metric3", 30.0, 1000, nil)
+	s.Add("ns1", "metric1", 10.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("ns1", "metric2", 20.0, 1000, nil, observer.MetricTypeGauge)
+	s.Add("ns2", "metric3", 30.0, 1000, nil, observer.MetricTypeGauge)
 
 	ns1Series := s.AllSeries("ns1", AggregateAverage)
 	ns2Series := s.AllSeries("ns2", AggregateAverage)
@@ -191,8 +192,8 @@ func TestAggSuffix(t *testing.T) {
 func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
-	s.Add("test", "my.metric", math.NaN(), 1001, nil)
+	s.Add("test", "my.metric", math.Inf(1), 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", math.NaN(), 1001, nil, observer.MetricTypeGauge)
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
@@ -206,8 +207,8 @@ func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
-	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil)
+	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil, observer.MetricTypeGauge)
+	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil, observer.MetricTypeGauge)
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	require.NotNil(t, series)

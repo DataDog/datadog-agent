@@ -22,6 +22,12 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
+	// metricTypes enforces one metric type per metric name.
+	// Key is metric name (not series key), value is the first-observed type.
+	metricTypes          map[string]observer.MetricType
+	metricTypeConflicts  map[string]int // sampled conflict count per metric name
+	metricTypeConflicted int64          // total conflict count
+
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
 	droppedExtreme   int64
@@ -31,10 +37,11 @@ type timeSeriesStorage struct {
 
 // seriesStats contains accumulated statistics for a time series (internal).
 type seriesStats struct {
-	Namespace string
-	Name      string
-	Tags      []string
-	Points    []statPoint
+	Namespace  string
+	Name       string
+	MetricType observer.MetricType
+	Tags       []string
+	Points     []statPoint
 }
 
 // statPoint holds summary statistics for a single time bucket (internal).
@@ -118,15 +125,22 @@ func (s *seriesStats) toSeriesUpTo(agg Aggregate, upTo int64) observer.Series {
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series:          make(map[string]*seriesStats),
-		droppedByMetric: make(map[string]int64),
-		sampledDrops:    make(map[string]int),
+		series:              make(map[string]*seriesStats),
+		metricTypes:         make(map[string]observer.MetricType),
+		metricTypeConflicts: make(map[string]int),
+		droppedByMetric:     make(map[string]int64),
+		sampledDrops:        make(map[string]int),
 	}
 }
 
 // Add records a data point for a named metric in a namespace.
 // Invalid values are dropped at ingest with accounting and sampled logging.
-func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
+// metricType is required; panics if MetricTypeUnknown.
+func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string, metricType observer.MetricType) {
+	if metricType == observer.MetricTypeUnknown {
+		panic("[observer] storage.Add called with MetricTypeUnknown for metric " + name)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -140,15 +154,32 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
+
+	// Enforce one metric type per metric name.
+	if existing, ok := s.metricTypes[name]; ok {
+		if existing != metricType {
+			s.metricTypeConflicted++
+			sampled := s.metricTypeConflicts[name]
+			if sampled < 3 {
+				s.metricTypeConflicts[name] = sampled + 1
+				log.Printf("[observer] metric type conflict for %q: first seen %s, now %s (sample %d)",
+					name, existing, metricType, sampled+1)
+			}
+		}
+	} else {
+		s.metricTypes[name] = metricType
+	}
+
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]
 	if !exists {
 		stats = &seriesStats{
-			Namespace: namespace,
-			Name:      name,
-			Tags:      copyTags(tags),
-			Points:    nil,
+			Namespace:  namespace,
+			Name:       name,
+			MetricType: metricType,
+			Tags:       copyTags(tags),
+			Points:     nil,
 		}
 		s.series[key] = stats
 	}

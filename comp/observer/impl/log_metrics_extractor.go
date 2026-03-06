@@ -44,9 +44,10 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 	}
 
 	metrics := []observer.MetricOutput{{
-		Name:  patternCountMetricName(patternSig),
-		Value: 1,
-		Tags:  tags,
+		Name:       patternCountMetricName(patternSig),
+		Value:      1,
+		Tags:       tags,
+		MetricType: observer.MetricTypeDeltaCount,
 	}}
 
 	// For JSON logs, also extract numeric field metrics
@@ -92,9 +93,10 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []str
 		}
 
 		out = append(out, observer.MetricOutput{
-			Name:  "log.field." + sanitizeMetricFragment(k),
-			Value: f,
-			Tags:  tags,
+			Name:       "log.field." + sanitizeMetricFragment(k),
+			Value:      f,
+			Tags:       tags,
+			MetricType: observer.MetricTypeGauge,
 		})
 	}
 

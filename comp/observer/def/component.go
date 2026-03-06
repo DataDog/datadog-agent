@@ -12,6 +12,74 @@ package observer
 
 // team: agent-metric-pipelines
 
+// MetricType represents the type of a metric in the observer pipeline.
+// This is a uint8 enum to minimize memory usage in per-series storage.
+type MetricType uint8
+
+const (
+	// MetricTypeUnknown indicates the metric type could not be determined.
+	MetricTypeUnknown MetricType = iota
+	// MetricTypeGauge is an instantaneous measurement (e.g. cpu.percent, heap.used_mb).
+	MetricTypeGauge
+	// MetricTypeRate is a per-second rate computed by the agent.
+	MetricTypeRate
+	// MetricTypeDeltaCount is a count of events in a flush interval (resets each interval).
+	MetricTypeDeltaCount
+	// MetricTypeMonotonicCount is a cumulative counter that only increases (resets to zero on restart).
+	MetricTypeMonotonicCount
+	// MetricTypeHistogram is a client-side aggregated distribution.
+	MetricTypeHistogram
+	// MetricTypeDistribution is a distribution sent to the backend for server-side aggregation.
+	MetricTypeDistribution
+	// MetricTypeSet tracks unique values.
+	MetricTypeSet
+)
+
+// String returns the canonical string representation of a MetricType.
+func (m MetricType) String() string {
+	switch m {
+	case MetricTypeGauge:
+		return "Gauge"
+	case MetricTypeRate:
+		return "Rate"
+	case MetricTypeDeltaCount:
+		return "DeltaCount"
+	case MetricTypeMonotonicCount:
+		return "MonotonicCount"
+	case MetricTypeHistogram:
+		return "Histogram"
+	case MetricTypeDistribution:
+		return "Distribution"
+	case MetricTypeSet:
+		return "Set"
+	default:
+		return "Unknown"
+	}
+}
+
+// ParseMetricType converts a string (from MetricView.GetMetricTypeName or parquet)
+// to a MetricType. Unrecognized strings return MetricTypeUnknown.
+func ParseMetricType(s string) MetricType {
+	switch s {
+	case "Gauge", "GaugeWithTimestamp":
+		return MetricTypeGauge
+	case "Rate":
+		return MetricTypeRate
+	case "Count", "DeltaCount", "Counter", "CountWithTimestamp":
+		return MetricTypeDeltaCount
+	case "MonotonicCount":
+		return MetricTypeMonotonicCount
+	case "Histogram", "Historate":
+		return MetricTypeHistogram
+	case "Distribution":
+		return MetricTypeDistribution
+	case "Set":
+		return MetricTypeSet
+	default:
+		return MetricTypeUnknown
+	}
+}
+
 // Component is the central observer that receives data via handles.
 type Component interface {
 	// GetHandle returns a lightweight handle for a named source.
@@ -55,6 +123,7 @@ type MetricView interface {
 	GetRawTags() []string
 	GetTimestamp() float64
 	GetSampleRate() float64
+	GetMetricTypeName() string
 }
 
 // LogView provides read-only access to a log message.
@@ -251,9 +320,10 @@ type LogDetectionResult struct {
 // The storage keeps full summaries (min/max/sum/count) so aggregation
 // is specified at read time, not write time.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Tags  []string
+	Name       string
+	Value      float64
+	Tags       []string
+	MetricType MetricType
 }
 
 // MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").
