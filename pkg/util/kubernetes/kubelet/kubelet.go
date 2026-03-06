@@ -28,7 +28,6 @@ import (
 
 	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
@@ -390,7 +389,7 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 }
 
 // GetLocalStatsSummary returns node and pod stats from kubelet
-func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
+func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
 		return nil, errors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
@@ -399,7 +398,7 @@ func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.
 		return nil, errors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
 	}
 
-	statsSummary := &kubeletv1alpha1.Summary{}
+	statsSummary := &Summary{}
 	if err := json.Unmarshal(data, statsSummary); err != nil {
 		return nil, err
 	}

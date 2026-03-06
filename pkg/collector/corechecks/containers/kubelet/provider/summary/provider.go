@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -153,7 +151,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 }
 
 func (p *Provider) processSystemStats(sender sender.Sender,
-	statsSummary *kubeletv1alpha1.Summary) {
+	statsSummary *kubelet.Summary) {
 	//System metrics
 	reportFsMetric(sender, statsSummary.Node.Fs, "node.", p.config.Tags)
 	if statsSummary.Node.Runtime != nil {
@@ -177,7 +175,7 @@ func (p *Provider) processSystemStats(sender sender.Sender,
 }
 
 func (p *Provider) processPodStats(sender sender.Sender,
-	podStats *kubeletv1alpha1.PodStats,
+	podStats *kubelet.PodStats,
 	podUID string,
 	useStatsAsSource bool,
 	rateFilterList []*regexp.Regexp) {
@@ -223,7 +221,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 }
 
 func (p *Provider) processContainerStats(sender sender.Sender,
-	podStats *kubeletv1alpha1.PodStats,
+	podStats *kubelet.PodStats,
 	podData *workloadmeta.KubernetesPod,
 	useStatsAsSource bool) {
 	if podStats == nil ||
@@ -287,7 +285,7 @@ func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, [
 }
 
 func reportFsMetric(sender sender.Sender,
-	fsStats *kubeletv1alpha1.FsStats,
+	fsStats *kubelet.FsStats,
 	metricPrefix string,
 	tags []string) {
 	if fsStats == nil {

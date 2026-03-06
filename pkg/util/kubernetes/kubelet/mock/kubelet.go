@@ -15,8 +15,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 // HTTPReplyMock represents a fake HTTP reply
@@ -50,7 +48,7 @@ func (km *KubeletMock) QueryKubelet(_ context.Context, path string) ([]byte, int
 }
 
 // GetLocalStatsSummary is a mock method
-func (km *KubeletMock) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
+func (km *KubeletMock) GetLocalStatsSummary(ctx context.Context) (*kubelet.Summary, error) {
 	data, rc, err := km.QueryKubelet(ctx, "/stats/summary")
 	if err != nil {
 		return nil, err
@@ -60,7 +58,7 @@ func (km *KubeletMock) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alph
 		return nil, fmt.Errorf("Unable to fetch stats summary from Kubelet, rc: %d", rc)
 	}
 
-	statsSummary := &kubeletv1alpha1.Summary{}
+	statsSummary := &kubelet.Summary{}
 	if err := json.Unmarshal(data, statsSummary); err != nil {
 		return nil, err
 	}

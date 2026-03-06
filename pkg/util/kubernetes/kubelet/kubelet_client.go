@@ -26,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/client-go/transport"
 )
 
 const apiServerQuery = "/api/v1/pods?fieldSelector=spec.nodeName=%s"
@@ -100,7 +98,7 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 		// Configure the authentication token.
 		// Support dynamic auth tokens, aka Bound Service Account Token Volume (k8s v1.22+)
 		// This uses the same refresh period used in the client-go (1 minute).
-		httpClient.Transport, err = transport.NewBearerAuthWithRefreshRoundTripper(config.token, config.tokenPath, customTransport)
+		httpClient.Transport, err = newBearerAuthWithRefreshRoundTripper(config.token, config.tokenPath, customTransport)
 		if err != nil {
 			return nil, err
 		}

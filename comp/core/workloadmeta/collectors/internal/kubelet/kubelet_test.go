@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -89,13 +88,13 @@ func TestPodParser(t *testing.T) {
 						Image: "nginx:1.25.2",
 						Resources: &kubelet.ContainerResourcesSpec{
 							Requests: kubelet.ResourceList{
-								"nvidia.com/gpu":              resource.MustParse("1"),
-								"cpu":                         resource.MustParse("100m"),
-								"example.com/custom-resource": resource.MustParse("1"),
+								"nvidia.com/gpu":              kubelet.MustParseQuantity("1"),
+								"cpu":                         kubelet.MustParseQuantity("100m"),
+								"example.com/custom-resource": kubelet.MustParseQuantity("1"),
 							},
 							Limits: kubelet.ResourceList{
-								"cpu":                         resource.MustParse("200m"),
-								"example.com/custom-resource": resource.MustParse("2"),
+								"cpu":                         kubelet.MustParseQuantity("200m"),
+								"example.com/custom-resource": kubelet.MustParseQuantity("2"),
 							},
 						},
 						Env: []kubelet.EnvVar{
