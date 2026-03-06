@@ -251,8 +251,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var closeTracerFn func()
 	m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, fentry.ErrorDisabled) {
-		// failed to load fentry tracer
-		return nil, err
+		// fentry failed to load — fall back to kprobe
+		log.Warnf("failed to load fentry tracer, falling back to kprobe: %s", err)
+		err = fentry.ErrorDisabled // treat as disabled so we fall through to kprobe
 	}
 
 	if err != nil {
