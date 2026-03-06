@@ -99,8 +99,8 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 
 	// If the struct changes it's ok to change these, but be careful if you notice that
 	// the size increases a lot.
-	assert.Equal(t, uint64(0x90), contextResolver.bytesByMtype[metrics.GaugeType])
-	assert.Equal(t, uint64(0x48), contextResolver.bytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0x110), contextResolver.bytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x88), contextResolver.bytesByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.bytesByMtype[metrics.RateType])
 	assert.Equal(t, uint64(0x2b), contextResolver.dataBytesByMtype[metrics.GaugeType])
 	assert.Equal(t, uint64(0x26), contextResolver.dataBytesByMtype[metrics.CountType])

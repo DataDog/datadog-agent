@@ -27,6 +27,12 @@ type Context struct {
 	metricTags *tags.Entry
 	noIndex    bool
 	source     metrics.MetricSource
+
+	// Cached result of computeStrippedKey. The tag filter is process-lifetime
+	// config and ctx.Name is immutable, so this result is stable once computed.
+	strippedKey   ckey.ContextKey
+	strippedTags  tagset.CompositeTags
+	strippedValid bool
 }
 
 type resolverEntry struct {
