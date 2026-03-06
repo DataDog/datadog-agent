@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package hostname
+package hostnameimpl
 
 import (
 	"os"
@@ -21,7 +21,5 @@ func getSystemFQDN() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	namestring := windows.BytePtrToString(he.Name)
-
-	return namestring, nil
+	return windows.BytePtrToString(he.Name), nil
 }

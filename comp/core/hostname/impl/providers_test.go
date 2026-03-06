@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+//go:build !serverless && test
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -45,11 +45,10 @@ type testCase struct {
 	expectedProvider string
 }
 
-func setupHostnameTest(t *testing.T, tc testCase) {
+func setupHostnameTest(t *testing.T, tc testCase) pkgconfigmodel.Config {
 	t.Cleanup(func() {
 		isSidecar = fargate.IsSidecar
 		ec2GetInstanceID = ec2.GetInstanceID
-		isContainerized = env.IsContainerized
 		gceGetHostname = gce.GetHostname
 		azureGetHostname = azure.GetHostname
 		osHostname = os.Hostname
@@ -59,13 +58,14 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
+
 	cfg := configmock.New(t)
 
 	if tc.configHostname {
 		cfg.SetWithoutSource("hostname", "hostname-from-configuration")
 	}
 	if tc.hostnameFile {
-		setupHostnameFile(t, "hostname-from-file")
+		setupHostnameFile(t, cfg, "hostname-from-file")
 	}
 	if tc.fargate {
 		isSidecar = func() bool { return true }
@@ -87,7 +87,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(context.Context) bool { return true }
+		osHostnameUsable = func(context.Context, pkgconfigmodel.Reader) bool { return true }
 		cfg.SetWithoutSource("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
@@ -100,7 +100,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.OS || tc.OSEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(context.Context) bool { return true }
+		osHostnameUsable = func(context.Context, pkgconfigmodel.Reader) bool { return true }
 		if !tc.OSEC2 {
 			osHostname = func() (string, error) { return "hostname-from-os", nil }
 		} else {
@@ -119,10 +119,12 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	if tc.EC2Proritized {
 		cfg.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 	}
+
+	return cfg
 }
 
 func TestFromConfigurationFalse(t *testing.T) {
-	setupHostnameTest(t, testCase{
+	cfg := setupHostnameTest(t, testCase{
 		name:             "configuration hostname file",
 		configHostname:   false,
 		hostnameFile:     true,
@@ -137,13 +139,13 @@ func TestFromConfigurationFalse(t *testing.T) {
 		expectedHostname: "hostname-from-file",
 		expectedProvider: "hostnameFile",
 	})
-	data, err := GetWithProvider(context.TODO())
+	data, err := GetWithProviderFromConfig(context.TODO(), cfg)
 	assert.NoError(t, err)
 	assert.False(t, data.FromConfiguration())
 }
 
 func TestFromConfigurationTrue(t *testing.T) {
-	setupHostnameTest(t, testCase{
+	cfg := setupHostnameTest(t, testCase{
 		name:             "configuration hostname",
 		configHostname:   true,
 		hostnameFile:     true,
@@ -159,7 +161,7 @@ func TestFromConfigurationTrue(t *testing.T) {
 		expectedProvider: configProviderName,
 	})
 
-	data, err := GetWithProvider(context.TODO())
+	data, err := GetWithProviderFromConfig(context.TODO(), cfg)
 	assert.NoError(t, err)
 	assert.True(t, data.FromConfiguration())
 }
@@ -252,7 +254,7 @@ func TestHostnamePrority(t *testing.T) {
 			FQDN:             true,
 			OS:               true,
 			EC2:              true,
-			EC2Proritized:    false, // no prority to EC2
+			EC2Proritized:    false, // no priority to EC2
 			expectedHostname: "hostname-from-fqdn",
 			expectedProvider: "fqdn",
 		},
@@ -267,7 +269,7 @@ func TestHostnamePrority(t *testing.T) {
 			FQDN:             false,
 			OS:               true,
 			EC2:              true,
-			EC2Proritized:    false, // no prority to EC2
+			EC2Proritized:    false, // no priority to EC2
 			expectedHostname: "hostname-from-os",
 			expectedProvider: "os",
 		},
@@ -287,7 +289,7 @@ func TestHostnamePrority(t *testing.T) {
 			expectedProvider: "aws",
 		},
 		{
-			name:             "hostname from EC2 prioritized",
+			name:             "hostname from EC2 prioritized (duplicate case)",
 			configHostname:   false,
 			hostnameFile:     false,
 			fargate:          false,
@@ -314,7 +316,7 @@ func TestHostnamePrority(t *testing.T) {
 			FQDNEC2:          true, // using the EC2 flavor
 			OSEC2:            true, // using the EC2 flavor
 			EC2:              true,
-			EC2Proritized:    false, // no prority to EC2. We want to naturally fallback on it
+			EC2Proritized:    false, // no priority to EC2. We want to naturally fallback on it
 			expectedHostname: "hostname-from-ec2",
 			expectedProvider: "aws",
 		},
@@ -337,9 +339,9 @@ func TestHostnamePrority(t *testing.T) {
 
 	for _, tc := range hostnameTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			setupHostnameTest(t, tc)
+			cfg := setupHostnameTest(t, tc)
 
-			data, err := GetWithProvider(context.TODO())
+			data, err := GetWithProviderFromConfig(context.TODO(), cfg)
 			if tc.expectedProvider == "" {
 				assert.Error(t, err)
 			} else {

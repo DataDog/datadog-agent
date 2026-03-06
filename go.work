@@ -17,6 +17,7 @@ use (
 	comp/core/delegatedauth/api/cloudauth/aws
 	comp/core/flare/builder
 	comp/core/flare/types
+	comp/core/hostname/def
 	comp/core/hostname/hostnameinterface
 	comp/core/ipc/def
 	comp/core/ipc/httphelpers

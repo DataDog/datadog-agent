@@ -5,13 +5,15 @@
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly || aix
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
 	"fmt"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func fromContainer(ctx context.Context, _ string) (string, error) {
+func fromContainer(_ context.Context, _ pkgconfigmodel.Reader, _ string) (string, error) {
 	return "", fmt.Errorf("container support is not compiled in")
 }

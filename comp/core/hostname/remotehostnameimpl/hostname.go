@@ -16,14 +16,15 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamedef "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 const (
@@ -51,19 +52,25 @@ func Module() fxutil.Module {
 var cachKey = "hostname"
 
 type remotehostimpl struct {
-	cache *cache.Cache
-	ipc   ipc.Component
+	cache  *cache.Cache
+	ipc    ipc.Component
+	config config.Component
+	log    log.Component
 }
 
 type dependencies struct {
 	fx.In
-	IPC ipc.Component
+	IPC    ipc.Component
+	Config config.Component
+	Log    log.Component
 }
 
-func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
+func newRemoteHostImpl(deps dependencies) hostnamedef.Component {
 	return &remotehostimpl{
-		cache: cache.New(defaultExpire, defaultPurge),
-		ipc:   deps.IPC,
+		cache:  cache.New(defaultExpire, defaultPurge),
+		ipc:    deps.IPC,
+		config: deps.Config,
+		log:    deps.Log,
 	}
 }
 
@@ -87,12 +94,12 @@ func (r *remotehostimpl) GetSafe(ctx context.Context) string {
 	return h
 }
 
-func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface.Data, error) {
+func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnamedef.Data, error) {
 	h, err := r.Get(ctx)
 	if err != nil {
-		return hostnameinterface.Data{}, err
+		return hostnamedef.Data{}, err
 	}
-	return hostnameinterface.Data{
+	return hostnamedef.Data{
 		Hostname: h,
 		Provider: "remote",
 	}, nil
@@ -106,12 +113,12 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfigsetup.GetIPCAddress(r.config)
 		if err != nil {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, r.config.GetString("cmd_port"), r.ipc.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}
@@ -121,7 +128,7 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 			return err
 		}
 
-		log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
+		r.log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
 
 		hostname = reply.Hostname
 		return nil
@@ -134,12 +141,12 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 func (r *remotehostimpl) getHostnameWithContextAndFallback(ctx context.Context) (string, error) {
 	hostnameDetected, err := r.getHostnameWithContext(ctx)
 	if err != nil {
-		log.Warnf("Could not resolve hostname from core-agent: %v", err)
-		hostnameDetected, err = hostname.Get(ctx)
+		r.log.Warnf("Could not resolve hostname from core-agent: %v", err)
+		hostnameDetected, err = hostnameimpl.GetFromConfig(ctx, r.config)
 		if err != nil {
 			return "", err
 		}
 	}
-	log.Infof("Hostname is: %s", hostnameDetected)
+	r.log.Infof("Hostname is: %s", hostnameDetected)
 	return hostnameDetected, nil
 }

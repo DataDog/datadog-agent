@@ -5,22 +5,22 @@
 
 //go:build !serverless
 
-package hostnameinterface
+package hostname
 
 const (
-	// ConfigProvider is the default provider value from the configuration file
+	// ConfigProvider is the provider name used when the hostname is found in the configuration file.
 	ConfigProvider = "configuration"
 
-	// FargateProvider is the default provider value from Fargate
+	// FargateProvider is the provider name used when running in Fargate/sidecar mode.
 	FargateProvider = "fargate"
 )
 
-// FromConfiguration returns true if the hostname was found through the configuration file
+// FromConfiguration returns true if the hostname was found through the configuration file.
 func (h Data) FromConfiguration() bool {
 	return h.Provider == ConfigProvider
 }
 
-// FromFargate returns true if the hostname was found through Fargate
+// FromFargate returns true if the hostname was found through Fargate.
 func (h Data) FromFargate() bool {
 	return h.Provider == FargateProvider
 }

@@ -5,34 +5,33 @@
 
 //go:build linux
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// isOSHostnameUsable returns `false` if it has the certainty that the agent is running
-// in a non-root UTS namespace because in that case, the OS hostname characterizes the
-// identity of the agent container and not the one of the nodes it is running on.
-func isOSHostnameUsable(_ context.Context) bool {
-	if pkgconfigsetup.Datadog().GetBool("hostname_trust_uts_namespace") {
+// isOSHostnameUsable returns false if it has certainty that the agent is running in a non-root
+// UTS namespace, since in that case the OS hostname characterizes the container identity, not the node.
+func isOSHostnameUsable(_ context.Context, cfg pkgconfigmodel.Reader) bool {
+	if cfg.GetBool("hostname_trust_uts_namespace") {
 		return true
 	}
 
 	selfUTSInode, err := system.GetProcessNamespaceInode("/proc", "self", "uts")
 	if err != nil {
-		// If we are not able to gather our own UTS Inode, in doubt, return true.
+		// If we are not able to gather our own UTS Inode, err on the side of caution and return true.
 		log.Debug("Unable to get self UTS inode")
 		return true
 	}
 
 	hostUTS := system.IsProcessHostUTSNamespace("/proc", selfUTSInode)
 	if hostUTS == nil {
-		// Similarly, if we were not able to compare, return true
+		// Similarly, if we were not able to compare, return true.
 		log.Debug("Unable to compare self UTS inode to host UTS inode")
 		return true
 	}

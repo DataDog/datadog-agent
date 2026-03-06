@@ -10,15 +10,14 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewHostnameService))
+	return hostnamefx.Module()
 }
 
 type service struct{}

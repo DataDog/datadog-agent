@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !linux
+//go:build !linux && !windows
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// On non-Linux, non-Windows, we don't support containers and will assume
-// os hostname is usable
-func isOSHostnameUsable(_ context.Context) bool {
+// isOSHostnameUsable returns true on all non-Linux, non-Windows platforms.
+func isOSHostnameUsable(_ context.Context, _ pkgconfigmodel.Reader) bool {
 	return true
 }

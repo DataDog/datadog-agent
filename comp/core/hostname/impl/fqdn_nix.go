@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
@@ -19,7 +19,6 @@ func getSystemFQDN() (string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "/bin/hostname", "-f")
-
 	out, err := cmd.Output()
 	return strings.TrimSpace(string(out)), err
 }

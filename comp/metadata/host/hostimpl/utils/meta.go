@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnamedef "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -42,7 +42,7 @@ type Meta struct {
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
 // empty, then it queries the information directly
-func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Meta {
+func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnamedef.Component) *Meta {
 	res, _ := cache.Get[*Meta](
 		metaCacheKey,
 		func() (*Meta, error) {
@@ -53,7 +53,7 @@ func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnamei
 }
 
 // getMeta returns the metadata information about the host and refreshes the cache
-func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterface.Component) *Meta {
+func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnamedef.Component) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
