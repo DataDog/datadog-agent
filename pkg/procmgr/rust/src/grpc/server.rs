@@ -91,3 +91,63 @@ fn cleanup_socket(path: &Path) {
         warn!("failed to clean up socket {}: {e}", path.display());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn test_prepare_socket_creates_parent_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a").join("b").join("c").join("test.sock");
+        prepare_socket(&nested).unwrap();
+        assert!(nested.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn test_prepare_socket_removes_stale_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("stale.sock");
+        std::fs::write(&sock, b"leftover").unwrap();
+        assert!(sock.exists());
+        prepare_socket(&sock).unwrap();
+        assert!(!sock.exists());
+    }
+
+    #[test]
+    fn test_prepare_socket_noop_on_fresh_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("fresh.sock");
+        assert!(!sock.exists());
+        prepare_socket(&sock).unwrap();
+        assert!(!sock.exists());
+    }
+
+    #[test]
+    fn test_set_socket_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("perm.sock");
+        std::fs::write(&file, b"").unwrap();
+        set_socket_permissions(&file);
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, SOCKET_PERMISSIONS);
+    }
+
+    #[test]
+    fn test_cleanup_socket_removes_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("cleanup.sock");
+        std::fs::write(&sock, b"").unwrap();
+        assert!(sock.exists());
+        cleanup_socket(&sock);
+        assert!(!sock.exists());
+    }
+
+    #[test]
+    fn test_cleanup_socket_noop_if_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("nonexistent.sock");
+        cleanup_socket(&sock);
+    }
+}
