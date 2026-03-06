@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -125,6 +127,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
+			healthplatformfx.Module(),
+			hostnameimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.

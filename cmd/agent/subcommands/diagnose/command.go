@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"go.uber.org/fx"
 
 	"github.com/fatih/color"
@@ -45,6 +46,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -118,6 +120,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				haagentfx.Module(),
+				healthplatformfx.Module(),
+				hostnameimpl.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
 				diagnosefx.Module(),

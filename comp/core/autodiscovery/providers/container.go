@@ -39,8 +39,9 @@ type ContainerConfigProvider struct {
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
-	healthPlatform    healthplatform.Component
-	reportedIssues    map[string]struct{} // set of checkIDs reported to health platform
+
+	healthPlatform healthplatform.Component
+	reportedIssues map[string]struct{} // set of checkIDs reported to health platform
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
@@ -52,6 +53,7 @@ func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta 
 		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
 		healthPlatform:    hp,
+		reportedIssues:    make(map[string]struct{}),
 	}, nil
 }
 

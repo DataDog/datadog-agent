@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"go.uber.org/fx"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -88,6 +90,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(defaults.DefaultParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
+				healthplatformfx.Module(),
+				hostnameimpl.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
