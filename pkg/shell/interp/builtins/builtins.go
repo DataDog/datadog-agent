@@ -5,9 +5,13 @@ package builtins
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"syscall"
+	"unicode"
+	"unicode/utf8"
 )
 
 // HandlerFunc is the signature for a builtin command implementation.
@@ -76,3 +80,33 @@ func Lookup(name string) (HandlerFunc, bool) {
 	return fn, ok
 }
 
+// FormatOSError extracts the underlying syscall error from a wrapped error
+// (e.g., *os.PathError) and capitalizes the first letter to match the
+// format used by coreutils and bash. Non-syscall errors (such as path
+// escape or custom permission errors) are returned unchanged.
+func FormatOSError(err error) string {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		if _, ok := pathErr.Err.(syscall.Errno); ok {
+			msg := pathErr.Err.Error()
+			r, size := utf8.DecodeRuneInString(msg)
+			if size > 0 && unicode.IsLower(r) {
+				msg = string(unicode.ToUpper(r)) + msg[size:]
+			}
+			return msg
+		}
+	}
+	return err.Error()
+}
+
+// IsSyscallPathError reports whether err is an *os.PathError wrapping
+// a syscall.Errno. This is used to decide whether to reformat the
+// error message (e.g., for redirects) or keep the original.
+func IsSyscallPathError(err error) bool {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		_, ok := pathErr.Err.(syscall.Errno)
+		return ok
+	}
+	return false
+}

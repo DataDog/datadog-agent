@@ -473,13 +473,16 @@ func (r *Runner) exec(ctx context.Context, pos syntax.Pos, args []string) {
 
 func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileMode, print bool) (io.ReadWriteCloser, error) {
 	f, err := r.openHandler(r.handlerCtx(ctx, todoPos), path, flags, mode)
-	// TODO: support wrapped PathError returned from openHandler.
 	switch err.(type) {
 	case nil:
 		return f, nil
 	case *os.PathError:
 		if print {
-			r.errf("%v\n", err)
+			if builtins.IsSyscallPathError(err) {
+				r.errf("%s: %s\n", path, builtins.FormatOSError(err))
+			} else {
+				r.errf("%v\n", err)
+			}
 		}
 	default: // handler's custom fatal error
 		r.exit.fatal(err)

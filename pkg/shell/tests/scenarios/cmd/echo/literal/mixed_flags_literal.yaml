@@ -1,13 +1,10 @@
-# Our echo intentionally ignores all flags; bash interprets -ne, -eE, etc.
-test_against_local_shell: false
-description: Echo treats combined flag-like arguments as literal strings.
+description: Echo handles combined flags like -ne and -eE correctly.
 input:
   script: |+
     echo -ne hello
     echo -eE world
 expect:
   stdout: |+
-    -ne hello
-    -eE world
+    helloworld
   stderr: ""
   exit_code: 0

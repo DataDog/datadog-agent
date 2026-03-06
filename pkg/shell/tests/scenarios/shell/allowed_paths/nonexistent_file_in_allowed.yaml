@@ -11,5 +11,5 @@ input:
     - "data"
 expect:
   stderr_contains:
-    - "no such file or directory"
+    - "No such file or directory"
   exit_code: 1

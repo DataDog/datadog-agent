@@ -1,10 +1,9 @@
-test_against_local_shell: false
 description: An invalid exit argument exits the shell; subsequent commands do not run.
 input:
   script: |+
     exit abc; echo still running
 expect:
   stdout: ""
-  stderr: |+
-    invalid exit status code: "abc"
+  stderr_contains:
+    - "exit: abc: numeric argument required"
   exit_code: 2

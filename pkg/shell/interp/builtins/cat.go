@@ -16,7 +16,7 @@ func builtinCat(ctx context.Context, callCtx *CallContext, args []string) Result
 	var failed bool
 	for _, arg := range args {
 		if err := catFile(ctx, callCtx, arg); err != nil {
-			callCtx.Errf("cat: %s: %v\n", arg, err)
+			callCtx.Errf("cat: %s: %s\n", arg, FormatOSError(err))
 			failed = true
 		}
 	}
