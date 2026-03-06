@@ -99,10 +99,17 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
-	opts := ebpf.CollectionOptions{}
-	opts.MapReplacements = maps
-	opts.MapReplacements[ringbufMapName] = l.ringbufMap
-	collection, err := ebpf.NewCollectionWithOptions(spec, opts)
+	useMultiAttach := features.HaveBPFLinkUprobeMulti() == nil
+	if useMultiAttach {
+		if progSpec, ok := spec.Programs["probe_run_with_cookie"]; ok {
+			progSpec.AttachType = ebpf.AttachTraceUprobeMulti
+		}
+	}
+
+	collOpts := ebpf.CollectionOptions{}
+	collOpts.MapReplacements = maps
+	collOpts.MapReplacements[ringbufMapName] = l.ringbufMap
+	collection, err := ebpf.NewCollectionWithOptions(spec, collOpts)
 	if err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
@@ -117,9 +124,10 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	maps = nil
 	return &Program{
-		Collection:   collection,
-		BpfProgram:   bpfProgram,
-		Attachpoints: serialized.bpfAttachPoints,
+		Collection:     collection,
+		BpfProgram:     bpfProgram,
+		Attachpoints:   serialized.bpfAttachPoints,
+		UseMultiAttach: useMultiAttach,
 	}, nil
 }
 
@@ -171,6 +179,10 @@ type Program struct {
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
+	// UseMultiAttach indicates that the program was loaded with
+	// AttachTraceUprobeMulti and should be attached using
+	// link.Executable.UprobeMulti.
+	UseMultiAttach bool
 }
 
 // Close releases the program resources.
