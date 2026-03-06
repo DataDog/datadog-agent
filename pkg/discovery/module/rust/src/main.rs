@@ -296,7 +296,7 @@ async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf
     }
 }
 
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args());
     let config = config::load_config(args.config_path);
