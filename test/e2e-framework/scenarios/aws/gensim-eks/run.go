@@ -420,9 +420,16 @@ func deployRunnerJob(
 bash /episode/play-episode.sh run-episode %s
 
 AGENT_POD=$(kubectl get pod -n %s -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-if [ -n "$AGENT_POD" ]; then
+if [ -z "$AGENT_POD" ]; then
+  echo "ERROR: no agent pod found in namespace %s (label app=datadog-agent) — parquet not collected" >&2
+else
+  echo "Collecting parquet from pod $AGENT_POD..."
   mkdir -p /episode/results/parquet
-  kubectl cp %s/$AGENT_POD:/tmp/observer-parquet /episode/results/parquet/ 2>/dev/null || echo "Warning: parquet collection failed"
+  if ! kubectl cp %s/$AGENT_POD:/tmp/observer-parquet /episode/results/parquet/; then
+    echo "ERROR: kubectl cp failed — parquet not collected (observer-recorder may not have written files yet)" >&2
+  else
+    echo "Parquet collected: $(ls /episode/results/parquet/ | wc -l) files"
+  fi
 fi
 
 if [ -n "%s" ]; then
@@ -431,7 +438,7 @@ if [ -n "%s" ]; then
   aws s3 cp /episode/results/ "$DEST/" --recursive
   echo "Uploaded to $DEST/"
 fi`,
-									scenario, namespace, namespace, s3Bucket, s3Bucket, episodeName,
+									scenario, namespace, namespace, namespace, s3Bucket, s3Bucket, episodeName,
 								)},
 								Env: corev1.EnvVarArray{
 									corev1.EnvVarArgs{
