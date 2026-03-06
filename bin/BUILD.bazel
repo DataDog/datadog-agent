@@ -25,7 +25,10 @@ filegroup(
 
 filegroup(
     name = "conf_d",
-    srcs = glob(["agent/dist/conf.d/**"]),
+    srcs = glob(
+        ["agent/dist/conf.d/**"],
+        allow_empty = True,
+    ),
     tags = ["manual"],
 )
 
