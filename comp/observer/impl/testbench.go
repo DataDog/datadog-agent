@@ -536,6 +536,8 @@ func (tb *TestBench) loadResultFilesLocked(dir string) error {
 	}
 
 	tb.correlations = tb.correlations[:0]
+	// Deduplicate anomalies across correlations by (detectorName, timestamp, seriesID).
+	seenAnomalyKey := make(map[string]struct{})
 	for _, cd := range corrData {
 		memberIDs := make([]observerdef.SeriesID, len(cd.MemberSeriesIDs))
 		for i, id := range cd.MemberSeriesIDs {
@@ -563,6 +565,25 @@ func (tb *TestBench) loadResultFilesLocked(dir string) error {
 			MetricNames:     metricNames,
 			Anomalies:       anomalies,
 		})
+
+		// Populate metricsAnomalies from embedded anomaly data so that the
+		// anomaly swimlane and related API endpoints work when loaded from
+		// result files (where the detectors were not executed).
+		for _, a := range anomalies {
+			if a.Timestamp == 0 || a.DetectorName == "" {
+				continue
+			}
+			key := fmt.Sprintf("%s|%d|%s", a.DetectorName, a.Timestamp, string(a.SourceSeriesID))
+			if _, ok := seenAnomalyKey[key]; ok {
+				continue
+			}
+			seenAnomalyKey[key] = struct{}{}
+			tb.metricsAnomalies = append(tb.metricsAnomalies, a)
+			tb.metricsByDetector[a.DetectorName] = append(tb.metricsByDetector[a.DetectorName], a)
+			if a.SourceSeriesID != "" {
+				tb.metricsBySeriesID[a.SourceSeriesID] = append(tb.metricsBySeriesID[a.SourceSeriesID], a)
+			}
+		}
 	}
 
 	fmt.Printf("  Loaded %d result metrics, %d result logs, and %d result correlations from %s\n", len(metrics), len(resultLogs), len(corrData), dir)
