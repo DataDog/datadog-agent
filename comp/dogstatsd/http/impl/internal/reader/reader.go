@@ -259,7 +259,7 @@ func (r *MetricDataReader) NextMetric() error {
 		return errUnexpectedEOF
 	}
 
-	if r.metricIdx >= 0 {
+	if r.metricIdx > 0 {
 		for r.HaveMorePoints() {
 			if err := r.NextPoint(); err != nil {
 				return err
