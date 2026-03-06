@@ -40,7 +40,7 @@ type loader struct {
 	sync.Mutex
 	modules map[sysconfigtypes.ModuleName]Module
 	errors  map[sysconfigtypes.ModuleName]error
-	stats   map[string]interface{}
+	stats   map[string]any
 	cfg     *sysconfigtypes.Config
 	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
@@ -125,7 +125,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 
 	l.configureTelemetry(deps.Telemetry)
 
-	l.stats = make(map[string]interface{})
+	l.stats = make(map[string]any)
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
 		go updateModuleStats(name, mod)
 	})
@@ -135,7 +135,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
-func GetStats() map[string]interface{} {
+func GetStats() map[string]any {
 	l.Lock()
 	defer l.Unlock()
 
