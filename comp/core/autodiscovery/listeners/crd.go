@@ -65,7 +65,7 @@ func (l *CRDListener) processFn(e workloadmeta.Entity) {
 
 	adIdentifiers := []string{strings.ToLower(crdEntity.BuildGVK())}
 
-	log.Infof("found new crd: %s - check for known integrations matching ADIdentifiers %s", crdEntity.ID, adIdentifiers)
+	log.Debugf("found new crd: %s - check for known integrations matching ADIdentifiers %s", crdEntity.ID, adIdentifiers)
 
 	s := &CRDService{
 		entityID:      crdEntity.ID,

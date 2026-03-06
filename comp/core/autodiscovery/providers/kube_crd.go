@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type CRDConfigProvider struct {
@@ -66,13 +65,9 @@ func NewKubeCRDConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry
 				PodNamespace:            cfg.PodNamespace,
 			}
 
-			log.Infof("add new config for CRD %s with ADIdentifier %v, instance: %v", adadid.Crd.Gvr, newCfg.ADIdentifiers, newCfg.Instances)
-
 			crdConfigs = append(crdConfigs, newCfg)
 		}
 	}
-
-	log.Infof("CRD Config Provider: %d configs loaded from files", len(crdConfigs))
 
 	return &CRDConfigProvider{
 		store: crdConfigs,
