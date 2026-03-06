@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -181,6 +181,41 @@ func TestActionsControllerNoBootstrapServers(t *testing.T) {
 
 	// Should succeed by matching first kafka_consumer
 	assert.Equal(t, state.ApplyStateAcknowledged, updateStatus["config_1"].State)
+}
+
+func TestNormalizeBootstrapServers(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "comma-separated list with hyphens and uppercase",
+			input:    "Kafka-Broker1:9092,kafka-broker2:9092",
+			expected: "kafka_broker1:9092_kafka_broker2:9092",
+		},
+		{
+			name:     "multiple special chars collapsed and dot-underscore cleaned",
+			input:    "kafka.-broker:9092,  broker2:9092",
+			expected: "kafka.broker:9092_broker2:9092",
+		},
+		{
+			name:     "leading and trailing special chars trimmed",
+			input:    "-broker.example.com:9092-",
+			expected: "broker.example.com:9092",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, normalizeBootstrapServers(tt.input))
+		})
+	}
 }
 
 func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {

@@ -15,7 +15,6 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -27,8 +26,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -277,9 +276,15 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector.exe",
+			)
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}

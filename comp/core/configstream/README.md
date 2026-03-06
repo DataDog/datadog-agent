@@ -156,10 +156,11 @@ Build and run the standalone test client:
 # Build
 go build -o bin/config-stream-client ./cmd/config-stream-client
 
-# Run (requires running core-agent with RAR enabled)
+# Run (requires running core-agent with RAR enabled and mTLS; use agent's IPC cert and auth token)
 ./bin/config-stream-client \
+  --agent-cert-file /etc/datadog-agent/ipc_cert.pem \
+  --agent-auth-token-file /etc/datadog-agent/auth_token \
   --ipc-address localhost:5001 \
-  --auth-token $(cat /etc/datadog-agent/auth_token) \
   --name my-test-client \
   --duration 60s
 ```

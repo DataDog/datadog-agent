@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
@@ -97,13 +98,13 @@ func Get[T any](c confMap, path string) (T, bool) {
 	for _, key := range pathSlice[:len(pathSlice)-1] {
 		childConfMap, exists := currentMap[key]
 		if !exists {
-			slog.Debug("non-existent intermediate map", "key", key, "path", path)
+			slog.Debug("non-existent intermediate map", slog.String("key", key), slog.String("path", path))
 			return zero, false
 		}
 
 		childMap, isMap := childConfMap.(confMap)
 		if !isMap {
-			slog.Debug("intermediate node is not a map", "key", key, "path", path)
+			slog.Debug("intermediate node is not a map", slog.String("key", key), slog.String("path", path))
 			return zero, false
 		}
 
@@ -112,7 +113,7 @@ func Get[T any](c confMap, path string) (T, bool) {
 
 	obj, exists := currentMap[target]
 	if !exists {
-		slog.Debug("leaf element doesn't exist", "path", path)
+		slog.Debug("leaf element doesn't exist", slog.String("path", path))
 		return zero, false
 	}
 
@@ -178,7 +179,7 @@ func Set[T any](c confMap, path string, value T) error {
 	}
 
 	if existingValue, exists := currentMap[target]; exists {
-		slog.Debug("overwriting config", "path", path, "old", existingValue, "new", value)
+		slog.Debug("overwriting config", slog.String("path", path), slog.Any("old", existingValue), slog.Any("new", value))
 	}
 	currentMap[target] = value
 	return nil
@@ -219,11 +220,14 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	// Only convert primitive numeric types
 	switch v := val.(type) {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
-		slog.Debug("converting value to string", "key", key, "type", fmt.Sprintf("%T", val))
+		slog.Debug("converting value to string", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
+	case xconfmap.ExpandedValue:
+		// ExpandedValues should not be altered at conversion stage
+		return true
 	default:
-		slog.Warn("API key has unexpected type, cannot convert", "key", key, "type", fmt.Sprintf("%T", val))
+		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		return false
 	}
 }

@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

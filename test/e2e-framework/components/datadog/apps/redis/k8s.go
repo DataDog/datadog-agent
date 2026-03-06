@@ -304,6 +304,22 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			Labels: pulumi.StringMap{
 				"app": pulumi.String("redis"),
 			},
+			Annotations: pulumi.StringMap{
+				"ad.datadoghq.com/endpoints.checks": pulumi.String(utils.JSONMustMarshal(
+					map[string]interface{}{
+						"http_check": map[string]interface{}{
+							"init_config": map[string]interface{}{},
+							"instances": []map[string]interface{}{
+								{
+									"name":    "My Redis",
+									"url":     "http://%%host%%:%%port%%",
+									"timeout": 1,
+								},
+							},
+						},
+					},
+				)),
+			},
 		},
 		Spec: &corev1.ServiceSpecArgs{
 			Selector: pulumi.StringMap{

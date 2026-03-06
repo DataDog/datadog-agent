@@ -274,8 +274,19 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
+// enrichProcessesWithContainerID sets the ContainerID field on each process
+// that has a mapping in pidToCid. This must be called before processCacheDifference
+// so the diff can detect container ID changes.
+func enrichProcessesWithContainerID(procs map[int32]*procutil.Process, pidToCid map[int]string) {
+	for pid, proc := range procs {
+		if cid, ok := pidToCid[int(pid)]; ok {
+			proc.ContainerID = cid
+		}
+	}
+}
+
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
-// It uses PID, creation time, and command line hash to detect new processes
+// It uses PID, creation time, command line hash, and container ID to detect new or changed processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -294,7 +305,7 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		if !procutil.IsSameProcess(procA, procB) {
+		if !procutil.IsSameProcess(procA, procB) || procA.ContainerID != procB.ContainerID {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -381,7 +392,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet, gpuPids core.PidSet) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
@@ -415,6 +426,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            pid,
 			InjectionState: injectionState,
+			UsesGPU:        gpuPids.Has(pid),
 		}
 
 		if service != nil {
@@ -454,6 +466,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 		preservedService.UDPPorts = newService.UDPPorts
 		preservedService.LogFiles = newService.LogFiles
 
+		// The following fields are preserved across the lifetime of the process.
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
@@ -461,9 +474,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            int32(service.PID),
 			Service:        &preservedService,
-			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
-			// Preserve language from existing process
-			Language: existingProcess.Language,
+			InjectionState: existingProcess.InjectionState,
+			Language:       existingProcess.Language,
+			UsesGPU:        existingProcess.UsesGPU,
 		}
 
 		entities = append(entities, entity)
@@ -494,13 +507,17 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
 		injectedPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
+	gpuPids := make(core.PidSet)
+	for _, pid := range resp.GPUPIDs {
+		gpuPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
@@ -634,6 +651,11 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 		// some processes are in a container so we want to store the container_id for them
 		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 		// TODO: potentially scrub process data here instead of in the check?
+
+		// Enrich processes with container IDs before diffing so that a CID
+		// change (e.g. becoming available after a race with the container
+		// runtime) is detected by processCacheDifference.
+		enrichProcessesWithContainerID(procs, pidToCid)
 
 		// categorize the processes into events for workloadmeta
 		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)

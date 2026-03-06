@@ -179,13 +179,10 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	f.log.Infof("Making a flare")
 	filePath, err := f.Create(profile, providerTimeout, nil, []byte{})
 
-	if err != nil || filePath == "" {
-		if err != nil {
-			f.log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			f.log.Warnf("The flare failed to be created")
-		}
+	if err != nil {
+		f.log.Errorf("The flare failed to be created: %s", err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 	w.Write([]byte(filePath))
 }
