@@ -288,73 +288,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::ProcessConfig;
-
-    #[tokio::test]
-    async fn test_complete_restart_skips_already_running() {
-        let proc = ManagedProcess::new(
-            "svc".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-        let mgr = ProcessManager::new(vec![proc]);
-        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-
-        mgr.handle_start("svc", &exit_tx).await.unwrap();
-        {
-            let procs = mgr.read().await;
-            assert!(procs[0].is_running());
-        }
-
-        // Simulate a queued restart firing after the process was already started
-        mgr.complete_restart("svc", &exit_tx).await;
-
-        // Should still have exactly one process, still running (no duplicate spawn)
-        let procs = mgr.read().await;
-        assert_eq!(procs.len(), 1);
-        assert!(procs[0].is_running());
-
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(procs[0].pid().unwrap() as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
-    }
-
-    #[tokio::test]
-    async fn test_reload_preserves_runtime_created_processes() {
-        // Start with an empty manager, then create a process via handle_create
-        let mgr = ProcessManager::new(vec![]);
-        let config = ProcessConfig {
-            command: "/bin/echo".to_string(),
-            ..Default::default()
-        };
-        mgr.handle_create("runtime-svc".to_string(), config)
-            .await
-            .unwrap();
-
-        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-
-        // ReloadConfig reads from a nonexistent config dir, so it sees zero
-        // YAML-backed processes. Runtime-created processes should survive.
-        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
-        assert!(
-            !result.removed.contains(&"runtime-svc".to_string()),
-            "runtime-created process should not be removed by reload"
-        );
-
-        let procs = mgr.read().await;
-        assert_eq!(procs.len(), 1);
-        assert_eq!(procs[0].name, "runtime-svc");
-    }
-}
-
 /// Spawn a background task that awaits the child's exit and sends the result.
 pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
@@ -439,4 +372,70 @@ fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<M
         }
     }
     processes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProcessConfig;
+
+    #[tokio::test]
+    async fn test_complete_restart_skips_already_running() {
+        let proc = ManagedProcess::new(
+            "svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        );
+        let mgr = ProcessManager::new(vec![proc]);
+        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
+
+        mgr.handle_start("svc", &exit_tx).await.unwrap();
+        {
+            let procs = mgr.read().await;
+            assert!(procs[0].is_running());
+        }
+
+        // Simulate a queued restart firing after the process was already started
+        mgr.complete_restart("svc", &exit_tx).await;
+
+        // Should still have exactly one process, still running (no duplicate spawn)
+        let procs = mgr.read().await;
+        assert_eq!(procs.len(), 1);
+        assert!(procs[0].is_running());
+
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(procs[0].pid().unwrap() as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+    }
+
+    #[tokio::test]
+    async fn test_reload_preserves_runtime_created_processes() {
+        let mgr = ProcessManager::new(vec![]);
+        let config = ProcessConfig {
+            command: "/bin/echo".to_string(),
+            ..Default::default()
+        };
+        mgr.handle_create("runtime-svc".to_string(), config)
+            .await
+            .unwrap();
+
+        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
+
+        // ReloadConfig reads from a nonexistent config dir, so it sees zero
+        // YAML-backed processes. Runtime-created processes should survive.
+        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        assert!(
+            !result.removed.contains(&"runtime-svc".to_string()),
+            "runtime-created process should not be removed by reload"
+        );
+
+        let procs = mgr.read().await;
+        assert_eq!(procs.len(), 1);
+        assert_eq!(procs[0].name, "runtime-svc");
+    }
 }
