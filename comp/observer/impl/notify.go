@@ -28,9 +28,10 @@ type eventSender struct {
 	logger log.Component
 }
 
-// newEventSender creates an eventSender. When dryRun is true, api is left nil.
-func newEventSender(cfg config.Component, logger log.Component, dryRun bool) (*eventSender, error) {
-	if dryRun {
+// newEventSender creates an eventSender. It reads observer.event_reporter.sending_enabled
+// from cfg; when false, api is left nil and events are only logged (dry-run mode).
+func newEventSender(cfg config.Component, logger log.Component) (*eventSender, error) {
+	if !cfg.GetBool("observer.event_reporter.sending_enabled") {
 		return &eventSender{logger: logger}, nil
 	}
 	apiKey := cfg.GetString("api_key")
@@ -109,18 +110,17 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		body, readErr := io.ReadAll(httpResp.Body)
 		httpResp.Body.Close()
 		if readErr == nil {
-			s.logger.Errorf("[observer] API error response (HTTP %d): %s", httpResp.StatusCode, string(body))
+			return fmt.Errorf("API error (HTTP %d): %s", httpResp.StatusCode, string(body))
 		}
 	}
 	return err
 }
 
-// sendCorrelationEvents dispatches one event per correlation.
-func (s *eventSender) sendCorrelationEvents(correlations []observerdef.ActiveCorrelation) error {
+// sendCorrelationEvents sends one event per correlation.
+func (s *eventSender) sendCorrelationEvents(correlations []observerdef.ActiveCorrelation) {
 	for _, c := range correlations {
 		if err := s.send(c); err != nil {
-			return fmt.Errorf("sending event for pattern %q: %w", c.Pattern, err)
+			s.logger.Errorf("[observer] failed to send event for pattern %s: %v", c.Pattern, err)
 		}
 	}
-	return nil
 }

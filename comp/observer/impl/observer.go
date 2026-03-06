@@ -16,6 +16,8 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -28,6 +30,9 @@ type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
+
+	Config config.Component
+	Log    log.Component
 
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
@@ -209,11 +214,9 @@ func NewComponent(deps Requires) Provides {
 		correlators: []observerdef.Correlator{
 			correlator,
 		},
-		reporters: []observerdef.Reporter{
-			reporter,
-		},
-		storage: newTimeSeriesStorage(),
-		obsCh:   make(chan observation, 1000),
+		reporters: []observerdef.Reporter{reporter},
+		storage:   newTimeSeriesStorage(),
+		obsCh:     make(chan observation, 1000),
 	}
 
 	cfg := pkgconfigsetup.Datadog()
@@ -230,6 +233,17 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+	}
+
+	// Optionally add the event reporter when sending is enabled via config.
+	if deps.Config.GetBool("observer.event_reporter.sending_enabled") {
+		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
+			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
+		} else {
+			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
+			eventReporter.SetCorrelationState(correlator)
+			obs.reporters = append(obs.reporters, eventReporter)
+		}
 	}
 
 	go obs.run()
@@ -361,7 +375,7 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +388,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.

@@ -363,6 +363,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.profiles.max_fetch_batch", 50)
 	config.BindEnvAndSetDefault("observer.metrics.enabled", false)
 	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
+	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

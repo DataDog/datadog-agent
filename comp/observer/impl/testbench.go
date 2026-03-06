@@ -1083,8 +1083,8 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 
 // RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then
 // delegates to notify.go to send one Datadog event per correlation.
-// When dryRun is true, events are printed to stdout instead of being sent.
-func (tb *TestBench) RunSendAnomalyEvents(scenario string, dryRun bool) error {
+// Whether events are actually sent is controlled by observer.event_reporter.sending_enabled in cfg.
+func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 	if err := tb.LoadScenario(scenario); err != nil {
 		return fmt.Errorf("loading scenario %q: %w", scenario, err)
 	}
@@ -1094,11 +1094,12 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string, dryRun bool) error {
 	for tb.correlatorsProcessing {
 		tb.correlatorsDone.Wait()
 	}
-	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger, dryRun)
+	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger)
 	if err != nil {
 		return err
 	}
-	return sender.sendCorrelationEvents(tb.correlations)
+	sender.sendCorrelationEvents(tb.correlations)
+	return nil
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.

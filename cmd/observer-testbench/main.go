@@ -40,7 +40,6 @@ type CLIParams struct {
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
-	DryRun           bool   // print events to stdout instead of sending them
 }
 
 func main() {
@@ -52,7 +51,6 @@ func main() {
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
-	dryRun := flag.Bool("dry-run", false, "Print events to stdout instead of sending them (use with --send-anomaly-event)")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -96,7 +94,6 @@ func main() {
 			Output:           *output,
 			Verbose:          *verbose,
 			SendAnomalyEvent: *sendAnomalyEvent,
-			DryRun:           *dryRun,
 		}),
 	)
 	if err != nil {
@@ -122,7 +119,7 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation, then exit.
 	if params.SendAnomalyEvent != "" {
-		return tb.RunSendAnomalyEvents(params.SendAnomalyEvent, params.DryRun)
+		return tb.RunSendAnomalyEvents(params.SendAnomalyEvent)
 	}
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
