@@ -109,74 +109,88 @@ func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time
 // runWorker is the main loop for a single worker.
 func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
+		// Non-blocking priority check: drain on-demand tests first
+		select {
+		case testCtx := <-s.onDemandPoller.TestsChan:
+			s.executeTest(ctx, workerID, testCtx)
+			continue
+		default:
+		}
+
+		// Blocking wait on all sources
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
+		case testCtx := <-s.onDemandPoller.TestsChan:
+			s.executeTest(ctx, workerID, testCtx)
 		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
 			if !ok {
 				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
 				return
 			}
-			s.log.Debugf("[worker%d] received, publicID %s", workerID, syntheticsTestCtx.cfg.PublicID)
-
-			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
-			if err != nil {
-				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
-				s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				ErrorTestConfig.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-			}
-
-			hname, err := s.hostNameService.Get(ctx)
-			if err != nil {
-				s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
-			}
-
-			wResult := &workerResult{
-				testCfg:       syntheticsTestCtx,
-				triggeredAt:   syntheticsTestCtx.nextRun,
-				startedAt:     s.timeNowFn(),
-				tracerouteCfg: tracerouteCfg,
-				hostname:      hname,
-			}
-
-			result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
-			wResult.finishedAt = s.timeNowFn()
-			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
-			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] error running traceroute: %s, publicID %s", workerID, tracerouteErr, syntheticsTestCtx.cfg.PublicID)
-				wResult.tracerouteError = tracerouteErr
-				s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				TracerouteError.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-				_, err := s.sendResult(wResult)
-				if err != nil {
-					s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
-					s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-					SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-				}
-				continue
-			}
-			wResult.tracerouteResult = result
-
-			wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
-				PacketsSent:          result.E2eProbe.PacketsSent,
-				PacketsReceived:      result.E2eProbe.PacketsReceived,
-				PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
-				Jitter:               &result.E2eProbe.Jitter,
-				Latency:              &result.E2eProbe.RTT,
-				Hops:                 result.Traceroute.HopCount,
-			})
-
-			status, err := s.sendResult(wResult)
-			if err != nil {
-				s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
-				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-				SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
-			}
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
-			ChecksProcessed.Inc(status, string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+			s.executeTest(ctx, workerID, syntheticsTestCtx)
 		}
 	}
+}
+
+// executeTest runs a single test and sends its result.
+func (s *syntheticsTestScheduler) executeTest(ctx context.Context, workerID int, syntheticsTestCtx SyntheticsTestCtx) {
+	tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
+	if err != nil {
+		s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
+		s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		ErrorTestConfig.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+	}
+
+	hname, err := s.hostNameService.Get(ctx)
+	if err != nil {
+		s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
+	}
+
+	wResult := &workerResult{
+		testCfg:       syntheticsTestCtx,
+		triggeredAt:   syntheticsTestCtx.nextRun,
+		startedAt:     s.timeNowFn(),
+		tracerouteCfg: tracerouteCfg,
+		hostname:      hname,
+	}
+
+	result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
+	wResult.finishedAt = s.timeNowFn()
+	wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
+	if tracerouteErr != nil {
+		s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
+		wResult.tracerouteError = tracerouteErr
+		s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		TracerouteError.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+		_, err := s.sendResult(wResult)
+		if err != nil {
+			s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
+			s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+			SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+		}
+		return
+	}
+	wResult.tracerouteResult = result
+	wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
+		PacketsSent:          result.E2eProbe.PacketsSent,
+		PacketsReceived:      result.E2eProbe.PacketsReceived,
+		PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
+		Jitter:               &result.E2eProbe.Jitter,
+		Latency:              &result.E2eProbe.RTT,
+		Hops:                 result.Traceroute.HopCount,
+	})
+
+	status, err := s.sendResult(wResult)
+	if err != nil {
+		s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
+		s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+		SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
+	}
+
+	s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+	ChecksProcessed.Inc(status, string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 }
 
 // workerResult represents the result produced by a worker.
@@ -337,9 +351,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Version: w.testCfg.cfg.Version,
 	}
 
-	testResultID, err := s.generateTestResultID(rand.Int)
-	if err != nil {
-		return nil, err
+	// on-demand tests have a result ID generated on the backend
+	testResultID := ""
+	if w.testCfg.cfg.ResultID != "" {
+		testResultID = w.testCfg.cfg.ResultID
+	} else {
+		resultID, err := s.generateTestResultID(rand.Int)
+		if err != nil {
+			return nil, err
+		}
+		testResultID = resultID
 	}
 
 	w.tracerouteResult.Source.Name = w.hostname

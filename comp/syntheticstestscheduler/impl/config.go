@@ -6,10 +6,14 @@
 package syntheticstestschedulerimpl
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+const defaultSite = "datadoghq.com"
 
 type schedulerConfigs struct {
 	workers                    int
@@ -22,5 +26,24 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 		syntheticsSchedulerEnabled: agentConfig.GetBool("synthetics.collector.enabled"),
 		workers:                    agentConfig.GetInt("synthetics.collector.workers"),
 		flushInterval:              agentConfig.GetDuration("synthetics.collector.flush_interval"),
+	}
+}
+
+type onDemandPollerConfig struct {
+	site          string
+	apiKey        string
+	httpTransport *http.Transport
+}
+
+func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
+	site := agentConfig.GetString("site")
+	if site == "" {
+		site = defaultSite
+	}
+
+	return &onDemandPollerConfig{
+		site:          site,
+		apiKey:        agentConfig.GetString("api_key"),
+		httpTransport: httputils.CreateHTTPTransport(agentConfig),
 	}
 }
