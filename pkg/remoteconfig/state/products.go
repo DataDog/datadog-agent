@@ -44,6 +44,7 @@ var validProducts = map[string]struct{}{
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
 	ProductFFEFlags:                     {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -124,4 +125,6 @@ const (
 	ProductApmPolicies = "APM_POLICIES"
 	// ProductFFEFlags is used for feature flagging experiments remote updates
 	ProductFFEFlags = "FFE_FLAGS"
+	// ProductDebug is used for debugging and testing remote config
+	ProductDebug = "DEBUG"
 )
