@@ -53,7 +53,8 @@ type MetricView interface {
 	GetName() string
 	GetValue() float64
 	GetRawTags() []string
-	GetTimestamp() float64
+	// GetTimestampUnix returns the sample timestamp in Unix seconds.
+	GetTimestampUnix() int64
 	GetSampleRate() float64
 }
 
@@ -66,7 +67,8 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
-	GetTimestampMs() int64
+	// GetTimestampUnixMilli returns the log timestamp in Unix milliseconds.
+	GetTimestampUnixMilli() int64
 }
 
 // TraceView provides read-only access to a trace (collection of spans with the same trace ID).
@@ -87,10 +89,10 @@ type TraceView interface {
 	GetHostname() string
 	// GetContainerID returns the container ID where the trace originated.
 	GetContainerID() string
-	// GetTimestamp returns the trace start time in nanoseconds since epoch.
-	GetTimestamp() int64
-	// GetDuration returns the trace duration in nanoseconds.
-	GetDuration() int64
+	// GetTimestampUnixNano returns the trace start time in Unix nanoseconds.
+	GetTimestampUnixNano() int64
+	// GetDurationNano returns the trace duration in nanoseconds.
+	GetDurationNano() int64
 	// GetPriority returns the sampling priority.
 	GetPriority() int32
 	// IsError returns true if this trace contains an error.
@@ -125,10 +127,10 @@ type SpanView interface {
 	GetResource() string
 	// GetType returns the span type (e.g., "web", "db", "cache").
 	GetType() string
-	// GetStart returns the span start time in nanoseconds since epoch.
-	GetStart() int64
-	// GetDuration returns the span duration in nanoseconds.
-	GetDuration() int64
+	// GetStartUnixNano returns the span start time in Unix nanoseconds.
+	GetStartUnixNano() int64
+	// GetDurationNano returns the span duration in nanoseconds.
+	GetDurationNano() int64
 	// GetError returns the error code (0 = no error, 1 = error).
 	GetError() int32
 	// GetMeta returns string tags/metadata for this span.
@@ -171,8 +173,8 @@ type TraceStatRow interface {
 	GetClientVersion() string
 	GetClientContainerID() string
 	// Time bucket window (from ClientStatsBucket)
-	GetBucketStart() uint64    // nanoseconds since epoch
-	GetBucketDuration() uint64 // nanoseconds
+	GetBucketStartUnixNano() uint64 // Unix nanoseconds
+	GetBucketDurationNano() uint64  // nanoseconds
 	// Aggregation dimensions (from ClientGroupedStats)
 	GetService() string
 	GetName() string // operation name
@@ -186,7 +188,7 @@ type TraceStatRow interface {
 	GetHits() uint64
 	GetErrors() uint64
 	GetTopLevelHits() uint64
-	GetDuration() uint64     // total duration in nanoseconds
+	GetDurationNano() uint64 // total duration in nanoseconds
 	GetOkSummary() []byte    // DDSketch encoded latency distribution for ok spans
 	GetErrorSummary() []byte // DDSketch encoded latency distribution for error spans
 	GetPeerTags() []string
@@ -213,10 +215,10 @@ type ProfileView interface {
 	GetHostname() string
 	// GetContainerID returns the container ID where the profile was collected.
 	GetContainerID() string
-	// GetTimestamp returns the profile timestamp in nanoseconds since epoch.
-	GetTimestamp() int64
-	// GetDuration returns the profile duration in nanoseconds.
-	GetDuration() int64
+	// GetTimestampUnixNano returns the profile timestamp in Unix nanoseconds.
+	GetTimestampUnixNano() int64
+	// GetDurationNano returns the profile duration in nanoseconds.
+	GetDurationNano() int64
 	// GetTags returns profile tags.
 	GetTags() map[string]string
 	// GetContentType returns the original Content-Type header (profile format is language-specific).
