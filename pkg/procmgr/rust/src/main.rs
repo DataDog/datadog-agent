@@ -148,7 +148,7 @@ impl ProcessManager {
     ) -> Result<ReloadResult, Status> {
         let new_configs = load_configs();
         let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|(n, _)| n.as_str()).collect();
+            new_configs.iter().map(|np| np.name.as_str()).collect();
 
         let mut removed_procs;
         let existing_names: std::collections::HashSet<String>;
@@ -189,12 +189,13 @@ impl ProcessManager {
         let mut unchanged = Vec::new();
         {
             let mut procs = self.processes.write().await;
-            for (name, cfg) in new_configs {
-                if existing_names.contains(&name) {
-                    unchanged.push(name);
+            for np in new_configs {
+                if existing_names.contains(&np.name) {
+                    unchanged.push(np.name);
                 } else {
+                    let name = np.name;
                     info!("[{name}] new config found, adding");
-                    let mut proc = ManagedProcess::new(name.clone(), cfg);
+                    let mut proc = ManagedProcess::new(name.clone(), np.config);
                     if proc.should_start() {
                         if let Err(e) = proc.spawn() {
                             warn!("[{name}] failed to start: {e:#}");
@@ -378,7 +379,7 @@ fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     let names: Vec<&str> = result
         .order
         .iter()
-        .map(|&i| configs[i].0.as_str())
+        .map(|&i| configs[i].name.as_str())
         .collect();
     info!("startup order: {}", names.join(" -> "));
     result.order
@@ -387,7 +388,7 @@ fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
 fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
     let mut processes: Vec<ManagedProcess> = configs
         .into_iter()
-        .map(|(name, cfg)| ManagedProcess::new(name, cfg))
+        .map(|np| ManagedProcess::new(np.name, np.config))
         .collect();
 
     for &idx in startup_order {

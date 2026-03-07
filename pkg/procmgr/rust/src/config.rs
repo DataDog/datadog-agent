@@ -11,7 +11,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub type NamedProcess = (String, ProcessConfig);
+pub struct NamedProcess {
+    pub name: String,
+    pub config: ProcessConfig,
+}
 
 const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
 
@@ -194,7 +197,7 @@ pub fn load_configs(dir: &Path) -> Result<Vec<NamedProcess>> {
             .to_string();
 
         match parse_config(&path) {
-            Ok(config) => configs.push((name, config)),
+            Ok(config) => configs.push(NamedProcess { name, config }),
             Err(e) => warn!("skipping {}: {e:#}", path.display()),
         }
     }
@@ -238,15 +241,15 @@ condition_path_exists: /usr/bin/sleep
         let configs = load_configs(dir.path()).unwrap();
         assert_eq!(configs.len(), 1);
 
-        let (name, cfg) = &configs[0];
-        assert_eq!(name, "test-proc");
-        assert_eq!(cfg.command, "/usr/bin/sleep");
-        assert_eq!(cfg.args, vec!["9999"]);
-        assert_eq!(cfg.env.get("FOO").unwrap(), "bar");
-        assert_eq!(cfg.working_dir.as_deref(), Some("/tmp"));
-        assert_eq!(cfg.pidfile.as_deref(), Some("/tmp/test.pid"));
-        assert!(cfg.auto_start);
-        assert_eq!(cfg.condition_path_exists.as_deref(), Some("/usr/bin/sleep"));
+        let np = &configs[0];
+        assert_eq!(np.name, "test-proc");
+        assert_eq!(np.config.command, "/usr/bin/sleep");
+        assert_eq!(np.config.args, vec!["9999"]);
+        assert_eq!(np.config.env.get("FOO").unwrap(), "bar");
+        assert_eq!(np.config.working_dir.as_deref(), Some("/tmp"));
+        assert_eq!(np.config.pidfile.as_deref(), Some("/tmp/test.pid"));
+        assert!(np.config.auto_start);
+        assert_eq!(np.config.condition_path_exists.as_deref(), Some("/usr/bin/sleep"));
     }
 
     #[test]
@@ -258,15 +261,15 @@ condition_path_exists: /usr/bin/sleep
         let configs = load_configs(dir.path()).unwrap();
         assert_eq!(configs.len(), 1);
 
-        let (name, cfg) = &configs[0];
-        assert_eq!(name, "minimal");
-        assert_eq!(cfg.command, "/usr/bin/true");
-        assert!(cfg.args.is_empty());
-        assert!(cfg.env.is_empty());
-        assert!(cfg.auto_start);
-        assert_eq!(cfg.stdout, "inherit");
-        assert_eq!(cfg.stderr, "inherit");
-        assert!(cfg.condition_path_exists.is_none());
+        let np = &configs[0];
+        assert_eq!(np.name, "minimal");
+        assert_eq!(np.config.command, "/usr/bin/true");
+        assert!(np.config.args.is_empty());
+        assert!(np.config.env.is_empty());
+        assert!(np.config.auto_start);
+        assert_eq!(np.config.stdout, "inherit");
+        assert_eq!(np.config.stderr, "inherit");
+        assert!(np.config.condition_path_exists.is_none());
     }
 
     #[test]
@@ -277,7 +280,7 @@ condition_path_exists: /usr/bin/sleep
 
         let configs = load_configs(dir.path()).unwrap();
         assert_eq!(configs.len(), 1);
-        assert_eq!(configs[0].0, "good");
+        assert_eq!(configs[0].name, "good");
     }
 
     #[test]
@@ -288,7 +291,7 @@ condition_path_exists: /usr/bin/sleep
         fs::write(dir.path().join("bravo.yaml"), "command: /b\n").unwrap();
 
         let configs = load_configs(dir.path()).unwrap();
-        let names: Vec<&str> = configs.iter().map(|(n, _)| n.as_str()).collect();
+        let names: Vec<&str> = configs.iter().map(|np| np.name.as_str()).collect();
         assert_eq!(names, vec!["alpha", "bravo", "charlie"]);
     }
 
@@ -315,7 +318,7 @@ condition_path_exists: /usr/bin/sleep
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("p.yaml"), "command: /a\n").unwrap();
         let configs = load_configs(dir.path()).unwrap();
-        assert!(configs[0].1.auto_start);
+        assert!(configs[0].config.auto_start);
     }
 
     #[test]
@@ -327,7 +330,7 @@ condition_path_exists: /usr/bin/sleep
         )
         .unwrap();
         let configs = load_configs(dir.path()).unwrap();
-        assert!(!configs[0].1.auto_start);
+        assert!(!configs[0].config.auto_start);
     }
 
     #[test]
@@ -381,16 +384,16 @@ stderr: inherit
 
         let configs = load_configs(dir.path()).unwrap();
         assert_eq!(configs.len(), 1);
-        let (name, cfg) = &configs[0];
-        assert_eq!(name, "datadog-agent-ddot");
+        let np = &configs[0];
+        assert_eq!(np.name, "datadog-agent-ddot");
         assert_eq!(
-            cfg.command,
+            np.config.command,
             "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
         );
-        assert_eq!(cfg.args.len(), 7);
-        assert!(cfg.auto_start);
+        assert_eq!(np.config.args.len(), 7);
+        assert!(np.config.auto_start);
         assert_eq!(
-            cfg.condition_path_exists.as_deref(),
+            np.config.condition_path_exists.as_deref(),
             Some("/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent")
         );
     }
