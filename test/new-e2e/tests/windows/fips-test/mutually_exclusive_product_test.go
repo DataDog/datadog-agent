@@ -33,11 +33,11 @@ type mutuallyExclusiveInstallSuite struct {
 // This test uses the last stable base Agent package and the pipeline produced FIPS Agent package.
 func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
 	s := &mutuallyExclusiveInstallSuite{}
-	os.Setenv(windowsAgent.PackageFlavorEnvVar, "base")
-	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv(windowsAgent.WithFlavor("base"))
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackage = previousAgentPackage
-	os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
+	s.AgentPackage, err = windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
+	require.NoError(t, err, "should get fips Agent package from env")
 	installtest.Run[environments.WindowsHost](t, s)
 }
 
@@ -47,11 +47,11 @@ func TestFIPSAgentDoesNotInstallOverAgent(t *testing.T) {
 // because the previous Agent versions do not contain the changes to detect mutually exclusive products.
 func TestAgentDoesNotInstallOverFIPSAgent(t *testing.T) {
 	s := &mutuallyExclusiveInstallSuite{}
-	os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
-	previousAgentPackage, err := windowsAgent.GetPackageFromEnv()
-	require.NoError(t, err, "should get Agent package from env")
+	previousAgentPackage, err := windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
+	require.NoError(t, err, "should get fips Agent package from env")
 	s.previousAgentPackage = previousAgentPackage
-	os.Setenv(windowsAgent.PackageFlavorEnvVar, "base")
+	s.AgentPackage, err = windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("base"))
+	require.NoError(t, err, "should get base Agent package from env")
 	installtest.Run[environments.WindowsHost](t, s)
 }
 

@@ -871,22 +871,19 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("stable")
-	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(previousVersionPackage),
-		windowsagent.WithURLFromInstallersJSON(url, previousVersionPackage),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 
-	// Allow override of version and version package via environment variables
+	// Allow override of assertion values via environment variables
 	// if not running in the CI, to reduce risk of accidentally using the wrong version in the CI.
 	if os.Getenv("CI") == "" {
-		if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+		if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 			previousVersion = val
 		}
-		if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+		if val := os.Getenv("STABLE_AGENT_ASSERT_PACKAGE_VERSION"); val != "" {
 			previousVersionPackage = val
 		}
 	}

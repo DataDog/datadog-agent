@@ -8,7 +8,6 @@ package fipstest
 
 import (
 	"fmt"
-	"os"
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -48,16 +47,15 @@ func TestFIPSAgentAltDir(t *testing.T) {
 
 func (s *fipsAgentSuite) SetupSuite() {
 	// Default to using FIPS Agent package
-	if _, set := windowsAgent.LookupFlavorFromEnv(); !set {
-		os.Setenv(windowsAgent.PackageFlavorEnvVar, "fips")
-	}
+	var err error
+	s.AgentPackage, err = windowsAgent.GetPackageFromEnv(windowsAgent.WithFlavor("fips"))
+	s.Require().NoError(err)
 
 	s.BaseAgentInstallerSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
-	var err error
 
 	// Enable FIPS mode before installing the Agent to make sure that works
 	err = windowsCommon.EnableFIPSMode(host)

@@ -2,18 +2,25 @@
 
 .new-e2e_with_version:
   variables:
-    WINDOWS_AGENT_ARCH: "x86_64"
     TEAM: windows-products
   extends:
     - .new_e2e_template
   before_script:
-    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
-    # Must run before new_e2e_template changes the aws profile
-    - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
+    # CURRENT_AGENT_* variables configure the "current" agent package for tests.
+    # Must run before new_e2e_template changes the aws profile.
+    # Assertion variables (for version checks in tests)
+    - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
+    - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
+    # Resolution variable (pipeline-based lookup)
+    - export CURRENT_AGENT_PIPELINE=$E2E_PIPELINE_ID
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
+    # STABLE_AGENT_* variables configure the "last stable" version for upgrade tests.
+    # Assertion variables
+    - export STABLE_AGENT_ASSERT_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
+    - export STABLE_AGENT_ASSERT_PACKAGE_VERSION="${STABLE_AGENT_ASSERT_VERSION}-1"
+    # Resolution variable (version-based lookup)
+    - export STABLE_AGENT_SOURCE_VERSION="${STABLE_AGENT_ASSERT_PACKAGE_VERSION}"
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_msi:
@@ -104,7 +111,6 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
 new-e2e-windows-agent-a7-x86_64-fips:
   stage: e2e_install_packages
   variables:
-    WINDOWS_AGENT_FLAVOR: "fips"
     TARGETS: ./tests/windows/fips-test
   extends:
     - .new-e2e_with_version
@@ -139,8 +145,8 @@ new-e2e-windows-ddot-package-a7-x86_64:
     - deploy_windows_testing-a7
     - deploy_ddot_oci
   before_script:
-    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
+    - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
+    - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
     - !reference [.new_e2e_template, before_script]
   rules:
     - !reference [.on_deploy]
@@ -161,12 +167,10 @@ new-e2e-installer-windows:
     - qa_installer_script_windows
     - deploy_ddot_oci
   before_script:
-    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Assertion variables for verifying installed agent version
     # Must run before new_e2e_template changes the aws profile
-    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
-    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
-    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
+    - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
+    - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
