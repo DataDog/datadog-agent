@@ -1,0 +1,77 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_stringer(
+    name = "state_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "state_string.go",
+    types = ["state"],
+)
+
+go_stringer(
+    name = "delim_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "delim_string.go",
+    types = ["delim"],
+)
+
+go_stringer(
+    name = "urlpart_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "urlpart_string.go",
+    types = ["urlPart"],
+)
+
+go_stringer(
+    name = "jsctx_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "jsctx_string.go",
+    types = ["jsCtx"],
+)
+
+go_stringer(
+    name = "element_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "element_string.go",
+    types = ["element"],
+)
+
+go_stringer(
+    name = "attr_string",
+    src = "context.go",
+    mod = "//pkg/template:go.mod",
+    output = "attr_string.go",
+    types = ["attr"],
+)
+
+go_library(
+    name = "html",
+    srcs = [
+        "attr.go",
+        "attr_string.go",
+        "content.go",
+        "context.go",
+        "css.go",
+        "delim_string.go",
+        "doc.go",
+        "element_string.go",
+        "error.go",
+        "escape.go",
+        "html.go",
+        "js.go",
+        "jsctx_string.go",
+        "state_string.go",
+        "template.go",
+        "transition.go",
+        "url.go",
+        "urlpart_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/template/html",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/template/text"],
+)

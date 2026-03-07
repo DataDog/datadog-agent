@@ -1,0 +1,29 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# language extension source through an indirection to avoid populating the root go.mod with @gazelle deps
+copy_file(
+    name = "gazelle_extension_src",
+    src = "gazelle_extension.go.tmpl",
+    out = "gazelle_extension.go",
+)
+
+# language extension runtime with a reentrancy guard to prevent gazelle from removing @gazelle deps
+# gazelle:ignore
+go_library(
+    name = "gazelle_extension",
+    srcs = [":gazelle_extension_src"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/go_stringer",
+    visibility = ["//:__pkg__"],
+    deps = [
+        "@gazelle//language",
+        "@gazelle//rule",
+    ],
+)
+
+# thin wrapper to accomodate the need for stringer to find `go` in PATH
+py_binary(
+    name = "runner",
+    srcs = ["runner.py"],
+)
