@@ -60,11 +60,7 @@ impl ProcessManager {
 
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
-        let grpc_handle = tokio::spawn(grpc::server::run(
-            self.clone(),
-            cmd_tx,
-            grpc_shutdown_rx,
-        ));
+        let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
@@ -143,18 +139,18 @@ impl ProcessManager {
         }
     }
 
-    pub(crate) async fn handle_exit(
-        &self,
-        event: ExitEvent,
-        restart_tx: &mpsc::Sender<String>,
-    ) {
+    pub(crate) async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::Sender<String>) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
             return;
         };
         if !proc.state().is_alive() {
-            info!("[{}] ignoring exit event (state: {})", proc.name(), proc.state());
+            info!(
+                "[{}] ignoring exit event (state: {})",
+                proc.name(),
+                proc.state()
+            );
             return;
         }
         info!("[{}] exited with {}", proc.name(), event.status);
@@ -169,11 +165,7 @@ impl ProcessManager {
         }
     }
 
-    pub(crate) async fn complete_restart(
-        &self,
-        name: &str,
-        exit_tx: &mpsc::Sender<ExitEvent>,
-    ) {
+    pub(crate) async fn complete_restart(&self, name: &str, exit_tx: &mpsc::Sender<ExitEvent>) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
             warn!("restart for unknown process '{name}'");
@@ -324,8 +316,7 @@ impl ProcessManager {
             .filter(|i| !ordered_set.contains(i))
             .collect();
 
-        let mut shutdown_order: Vec<usize> =
-            self.startup_order.iter().copied().rev().collect();
+        let mut shutdown_order: Vec<usize> = self.startup_order.iter().copied().rev().collect();
         shutdown_order.extend(runtime_indices);
         shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
     }
@@ -351,10 +342,12 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
                     }
                 }
             };
-            let _ = tx.send(ExitEvent {
-                name: name.clone(),
-                status,
-            }).await;
+            let _ = tx
+                .send(ExitEvent {
+                    name: name.clone(),
+                    status,
+                })
+                .await;
         });
         proc.set_watcher_handle(handle);
     }
