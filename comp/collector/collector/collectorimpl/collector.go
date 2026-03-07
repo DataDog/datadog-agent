@@ -218,39 +218,61 @@ func (c *collectorImpl) stop(_ context.Context) error {
 
 // RunCheck sends a Check in the execution queue
 func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
-	c.m.Lock()
-	defer c.m.Unlock()
-
 	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
 
 	var emptyID checkid.ID
 
+	// Capture the scheduler and runner references under the lock, and validate
+	// pre-conditions. The collector lock is released before calling into the
+	// scheduler and runner because both subsystems have their own internal
+	// locks; holding the collector lock during those calls would unnecessarily
+	// block concurrent check additions/removals.
+	c.m.Lock()
+
 	if c.state.Load() != started {
+		c.m.Unlock()
 		return emptyID, errors.New("the collector is not running")
 	}
 
 	if _, found := c.checks[ch.ID()]; found {
+		c.m.Unlock()
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	if err := c.scheduler.Enter(ch); err != nil {
+	// Capture pointers to scheduler and runner while holding the lock. These
+	// are only set to nil by stop(), which also holds the write lock, so they
+	// are guaranteed to be non-nil here (we verified started above).
+	collectorScheduler := c.scheduler
+	collectorRunner := c.runner
+
+	c.m.Unlock()
+
+	// Enter the check into the scheduler outside the collector lock. The
+	// scheduler has its own internal mutex (mu + checkToQueueMutex).
+	if err := collectorScheduler.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	// Track the total number of checks running in order to have an appropriate number of workers
+	// Re-acquire the lock to update shared state now that scheduling succeeded.
+	c.m.Lock()
 	c.checkInstances++
+	checkInstances := c.checkInstances
+	c.checks[ch.ID()] = ch
+	c.notify(ch.ID(), collector.CheckRun)
+	c.m.Unlock()
+
+	// Update the worker count outside the collector lock. The runner has its
+	// own internal workersLock.
 	if ch.Interval() == 0 {
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
+		collectorRunner.AddWorker()
 	} else {
-		c.runner.UpdateNumWorkers(c.checkInstances)
+		collectorRunner.UpdateNumWorkers(checkInstances)
 	}
 
-	c.checks[ch.ID()] = ch
-	c.notify(ch.ID(), collector.CheckRun)
 	return ch.ID(), nil
 }
 
