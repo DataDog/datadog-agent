@@ -6,6 +6,7 @@
 package tagset
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -113,10 +114,38 @@ func (t CompositeTags) Join(separator string) string {
 	return strings.Join(t.tags1, separator) + separator + strings.Join(t.tags2, separator)
 }
 
-// MarshalJSON serializes a Payload to JSON
+// MarshalJSON serializes a Payload to JSON.
+// It avoids allocating an intermediate concatenated []string by writing
+// tags1 and tags2 into a single JSON array directly.
 func (t CompositeTags) MarshalJSON() ([]byte, error) {
-	tags := append([]string{}, t.tags1...)
-	return json.Marshal(append(tags, t.tags2...))
+	var buf bytes.Buffer
+	buf.Grow(2 + (len(t.tags1)+len(t.tags2))*16) // rough pre-allocation
+	buf.WriteByte('[')
+	first := true
+	for _, s := range t.tags1 {
+		if !first {
+			buf.WriteByte(',')
+		}
+		first = false
+		b, err := json.Marshal(s)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(b)
+	}
+	for _, s := range t.tags2 {
+		if !first {
+			buf.WriteByte(',')
+		}
+		first = false
+		b, err := json.Marshal(s)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(b)
+	}
+	buf.WriteByte(']')
+	return buf.Bytes(), nil
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
