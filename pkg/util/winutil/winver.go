@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+// CI: temporary change to trigger Windows E2E pipeline - remove before merging to main
+
 //go:build windows
 
 // Package winutil contains Windows OS utilities
