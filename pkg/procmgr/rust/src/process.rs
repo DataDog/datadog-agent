@@ -411,7 +411,14 @@ impl ManagedProcess {
 fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
-        _ => Stdio::inherit(),
+        "inherit" | "" => Stdio::inherit(),
+        path => match std::fs::File::create(path) {
+            Ok(f) => f.into(),
+            Err(e) => {
+                warn!("failed to open stdio file {path}: {e}, falling back to inherit");
+                Stdio::inherit()
+            }
+        },
     }
 }
 
