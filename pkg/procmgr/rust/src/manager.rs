@@ -3,14 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::command::ReloadResult;
+use crate::command::{Command, ReloadResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
+use crate::grpc;
 use crate::ordering;
 use crate::process::ManagedProcess;
 use crate::shutdown;
+use anyhow::Result;
 use log::{info, warn};
 use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc};
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
 
 pub(crate) struct ExitEvent {
@@ -50,6 +53,75 @@ impl ProcessManager {
                 warn!("{e:#}");
             }
         }
+    }
+
+    pub async fn run(&self) -> Result<()> {
+        self.start().await;
+
+        let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
+        let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
+        let config_path = config::config_dir().display().to_string();
+        let grpc_handle = tokio::spawn(grpc::server::run(
+            self.clone(),
+            config_path,
+            cmd_tx,
+            grpc_shutdown_rx,
+        ));
+
+        let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
+        self.wire_watchers(&exit_tx).await;
+
+        let mut sigterm = signal(SignalKind::terminate())?;
+        let mut sigint = signal(SignalKind::interrupt())?;
+
+        loop {
+            tokio::select! {
+                _ = sigterm.recv() => {
+                    info!("received SIGTERM");
+                    break;
+                }
+                _ = sigint.recv() => {
+                    info!("received SIGINT");
+                    break;
+                }
+                Some(event) = exit_rx.recv() => {
+                    self.handle_exit(event, &restart_tx).await;
+                }
+                Some(name) = restart_rx.recv() => {
+                    self.complete_restart(&name, &exit_tx).await;
+                }
+                Some(cmd) = cmd_rx.recv() => {
+                    match cmd {
+                        Command::Create { name, config, reply } => {
+                            let _ = reply.send(self.handle_create(name, *config).await);
+                        }
+                        Command::Start { name, reply } => {
+                            let _ = reply.send(self.handle_start(&name, &exit_tx).await);
+                        }
+                        Command::Stop { name, reply } => {
+                            let _ = reply.send(self.handle_stop(&name).await);
+                        }
+                        Command::ReloadConfig { reply } => {
+                            let _ = reply.send(self.handle_reload_config(&exit_tx).await);
+                        }
+                    }
+                }
+            }
+        }
+
+        info!("dd-procmgrd shutting down");
+
+        let _ = grpc_shutdown_tx.send(());
+        match grpc_handle.await {
+            Ok(Err(e)) => warn!("gRPC server error: {e}"),
+            Err(e) => warn!("gRPC server task panicked: {e}"),
+            Ok(Ok(())) => {}
+        }
+
+        self.shutdown().await;
+        info!("dd-procmgrd stopped");
+        Ok(())
     }
 
     pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
