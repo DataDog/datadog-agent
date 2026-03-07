@@ -11,43 +11,39 @@ package windowseventlogimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
-	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check"
+	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
+	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newComp),
-	)
-}
-
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the windowseventlog component.
+type Requires struct {
+	Lifecycle compdef.Lifecycle
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
 	LogsComponent          option.Option[logsAgent.Component]
 	Config                 configComponent.Component
 	PublisherMetadataCache publishermetadatacache.Component
-
-	Lifecycle fx.Lifecycle
 }
 
-func newComp(deps dependencies) windowseventlog.Component {
-	deps.Lifecycle.Append(fx.Hook{
+// Provides defines the output of the windowseventlog component.
+type Provides struct {
+	Comp windowseventlog.Component
+}
+
+// NewComponent creates a new windowseventlog component.
+func NewComponent(reqs Requires) Provides {
+	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			core.RegisterCheck(check.CheckName, check.Factory(deps.LogsComponent, deps.Config, deps.PublisherMetadataCache))
+			core.RegisterCheck(check.CheckName, check.Factory(reqs.LogsComponent, reqs.Config, reqs.PublisherMetadataCache))
 			return nil
 		},
 	})
-	return struct{}{}
+	return Provides{Comp: struct{}{}}
 }

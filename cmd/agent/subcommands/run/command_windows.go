@@ -35,8 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
+	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
@@ -246,7 +246,7 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
 		etwtracerimpl.Module,
-		windowseventlogimpl.Module(),
+		windowseventlogfx.Module(),
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
