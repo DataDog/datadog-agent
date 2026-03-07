@@ -126,15 +126,15 @@ func (suite *CollectorTestSuite) TearDownTest() {
 }
 
 func (suite *CollectorTestSuite) TestNewCollector() {
-	assert.NotNil(suite.T(), suite.c.runner)
-	assert.NotNil(suite.T(), suite.c.scheduler)
+	assert.NotNil(suite.T(), suite.c.scheduling.runner)
+	assert.NotNil(suite.T(), suite.c.scheduling.scheduler)
 	assert.Equal(suite.T(), started, suite.c.state.Load())
 }
 
 func (suite *CollectorTestSuite) TestStop() {
 	suite.c.stop(context.TODO())
-	assert.Nil(suite.T(), suite.c.runner)
-	assert.Nil(suite.T(), suite.c.scheduler)
+	assert.Nil(suite.T(), suite.c.scheduling.runner)
+	assert.Nil(suite.T(), suite.c.scheduling.scheduler)
 	assert.Equal(suite.T(), stopped, suite.c.state.Load())
 }
 
@@ -145,8 +145,8 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	id, err := suite.c.RunCheck(ch)
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
+	assert.Equal(suite.T(), 1, len(suite.c.checks.checks))
+	assert.Equal(suite.T(), ch, suite.c.checks.checks["TestCheck"].Inner())
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -164,7 +164,7 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 	// all good
 	err = suite.c.StopCheck("TestCheck")
 	assert.Nil(suite.T(), err)
-	assert.Zero(suite.T(), len(suite.c.checks))
+	assert.Zero(suite.T(), len(suite.c.checks.checks))
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 
@@ -186,24 +186,24 @@ func (suite *CollectorTestSuite) TestCancelCheck_CheckIsCleanedUp() {
 	start := time.Now()
 	id, err := suite.c.RunCheck(ch)
 	assert.Nil(suite.T(), err)
-	assert.NotEmpty(suite.T(), suite.c.checks)
+	assert.NotEmpty(suite.T(), suite.c.checks.checks)
 
 	err = suite.c.StopCheck(id)
 	assert.NotNil(suite.T(), err)
 	assert.WithinDuration(suite.T(), start, time.Now(), 5*time.Second)
-	assert.Empty(suite.T(), suite.c.checks)
+	assert.Empty(suite.T(), suite.c.checks.checks)
 }
 
 func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component]())
+	suite.c.checks.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.NewNoOpSenderManager(), option.None[agenttelemetry.Component]())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
 	assert.True(suite.T(), found)
-	assert.Equal(suite.T(), suite.c.checks["bar"], c)
+	assert.Equal(suite.T(), suite.c.checks.checks["bar"], c)
 }
 
 func (suite *CollectorTestSuite) TestDelete() {
@@ -212,7 +212,7 @@ func (suite *CollectorTestSuite) TestDelete() {
 	suite.c.delete("foo")
 
 	// for good
-	suite.c.checks["bar"] = nil
+	suite.c.checks.checks["bar"] = nil
 	_, found := suite.c.get("bar")
 	assert.True(suite.T(), found)
 	suite.c.delete("bar")
@@ -240,7 +240,7 @@ func (suite *CollectorTestSuite) TestgetAllInstanceIDs() {
 	id3, err := suite.c.RunCheck(ch3)
 	assert.NotNil(suite.T(), id3)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), 3, len(suite.c.checks))
+	assert.Equal(suite.T(), 3, len(suite.c.checks.checks))
 
 	ids := suite.c.getAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
@@ -285,7 +285,7 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	sort.Sort(ChecksList(killed))
 	assert.Equal(suite.T(), killed, []checkid.ID{"baz", "qux"})
 
-	assert.Zero(suite.T(), len(suite.c.checks))
+	assert.Zero(suite.T(), len(suite.c.checks.checks))
 }
 
 func TestCollectorSuite(t *testing.T) {
