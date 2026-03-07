@@ -33,22 +33,26 @@ const (
 )
 
 // Because of rate limits, we allow the specification of multiple images for the same "kind".
-// Since dockerhub limits per pulls by 6 hours, and aws limits by data over a month, we first try the dockerhub
-// one and fallback on aws.
+// Since dockerhub limits per pulls by 6 hours, and aws limits by data over a month, we first try
+// our internal mirror, and only if that fails fallback on DockerHub and public ECR
 var dockerImageLibrary = map[string][]string{
 	"ubuntu": {
+		"registry.ddbuild.io/images/mirror/ubuntu:20.04",
 		"ubuntu:20.04",
 		"public.ecr.aws/ubuntu/ubuntu:20.04",
 	},
 	"centos": {
+		"registry.ddbuild.io/images/mirror/centos:7",
 		"centos:7",
 		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
+		"registry.ddbuild.io/images/mirror/alpine:3.18.2",
 		"alpine:3.18.2",
 		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 	"busybox": {
+		"registry.ddbuild.io/images/mirror/busybox:1.36.1",
 		"busybox:1.36.1",
 		"public.ecr.aws/docker/library/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
