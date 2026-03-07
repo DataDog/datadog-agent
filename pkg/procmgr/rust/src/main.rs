@@ -16,7 +16,7 @@ mod state;
 use anyhow::Result;
 use log::info;
 use log::warn;
-use manager::{ExitEvent, ProcessManager, resolve_startup_order, start_processes};
+use manager::{ExitEvent, ProcessManager};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{mpsc, oneshot};
 
@@ -28,10 +28,7 @@ async fn main() -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
 
-    let configs = manager::load_configs();
-    let startup_order = resolve_startup_order(&configs);
-    let processes = start_processes(configs, &startup_order);
-    let mgr = ProcessManager::new(processes);
+    let mgr = ProcessManager::from_config();
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<command::Command>(64);
     let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
@@ -94,7 +91,7 @@ async fn main() -> Result<()> {
         Ok(Ok(())) => {}
     }
 
-    mgr.shutdown(&startup_order).await;
+    mgr.shutdown().await;
     info!("dd-procmgrd stopped");
     Ok(())
 }

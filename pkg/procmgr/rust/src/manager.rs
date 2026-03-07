@@ -21,12 +21,25 @@ pub(crate) struct ExitEvent {
 #[derive(Clone)]
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    startup_order: Arc<Vec<usize>>,
 }
 
 impl ProcessManager {
+    pub(crate) fn from_config() -> Self {
+        let configs = load_configs();
+        let startup_order = resolve_startup_order(&configs);
+        let processes = start_processes(configs, &startup_order);
+        Self {
+            processes: Arc::new(RwLock::new(processes)),
+            startup_order: Arc::new(startup_order),
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn new(processes: Vec<ManagedProcess>) -> Self {
         Self {
             processes: Arc::new(RwLock::new(processes)),
+            startup_order: Arc::new(Vec::new()),
         }
     }
 
@@ -212,15 +225,16 @@ impl ProcessManager {
         })
     }
 
-    pub(crate) async fn shutdown(&self, startup_order: &[usize]) {
+    pub(crate) async fn shutdown(&self) {
         let mut procs = self.processes.write().await;
         let ordered_set: std::collections::HashSet<usize> =
-            startup_order.iter().copied().collect();
+            self.startup_order.iter().copied().collect();
         let runtime_indices: Vec<usize> = (0..procs.len())
             .filter(|i| !ordered_set.contains(i))
             .collect();
 
-        let mut shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+        let mut shutdown_order: Vec<usize> =
+            self.startup_order.iter().copied().rev().collect();
         shutdown_order.extend(runtime_indices);
         shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
     }
@@ -255,7 +269,7 @@ pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEven
     }
 }
 
-pub(crate) fn load_configs() -> Vec<NamedProcess> {
+fn load_configs() -> Vec<NamedProcess> {
     let config_dir = config::config_dir();
 
     if !config_dir.is_dir() {
@@ -284,7 +298,7 @@ pub(crate) fn load_configs() -> Vec<NamedProcess> {
     configs
 }
 
-pub fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
+fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     let result = ordering::resolve_order(configs);
     if !result.skipped.is_empty() {
         warn!(
@@ -301,7 +315,7 @@ pub fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     result.order
 }
 
-pub fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
+fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
     let mut processes: Vec<ManagedProcess> = configs
         .into_iter()
         .map(|np| ManagedProcess::new(np.name, np.config))
