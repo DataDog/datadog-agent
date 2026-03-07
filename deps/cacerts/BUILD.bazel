@@ -1,0 +1,128 @@
+"""cacert provides the list of trusted root SSL signing certificates.
+
+Here be dragons.
+
+This list is used for several things.
+- our python integrations
+- The valid certs for Docker images. //Dockerfiles/agent/Dockerfile
+- and possibly other bits.
+It forms the root of the web of trust. From a reliability, and security
+point of view, it is best if our code uses a set that we have vetted
+ourselves, rather than relying on what might happen to be on the
+customer's machine.
+
+Note: we need to bundle recent cacerts to make the Agent trust our backend.
+Not shipping the cacerts causes the following error in the Docker Agent:
+  Error while processing transaction: error while sending transaction, rescheduling it:
+  Post "https://7-31-0-app.agent.datadoghq.com/intake/?api_key=********************************":
+  x509: certificate signed by unknown authority
+because the Docker Agent image doesn't have other system SSL certificates.
+Even though these cacerts might become outdated in the future, some python
+dependencies we ship also bundle cacerts so we aren't making things worse by
+doing this.
+"""
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MPL-2.0"],
+    license_text = "MPL-2.0.txt",
+    visibility = ["//visibility:public"],
+)
+
+# There is a cron job that watches for changes to the header for the file.
+# It alerts on the team-agent-build slack channel. When we get the message,
+# update cacert.pem and the alert. There should be no need to rush a new
+# Agent release. New keys are generally phased in, so an old root cert
+# still works for a long period before its replacement is needed.
+# https://app.datadoghq.com/synthetics/details/pya-ptn-xnv
+
+# Last update from upstream: cacert-2025-02-02.pem
+# When you update this file, you almost certainly have to update our alert at
+# https://app.datadoghq.com/synthetics/edit/pya-ptn-xnv?from_details=true
+# Change the header condition.
+filegroup(
+    name = "cacerts",
+    srcs = ["cacert.pem"],
+    visibility = ["//visibility:public"],
+)
+
+# One might argue that this test is redundant with careful code review.
+# It is included as a speed bump to make it a little harder to accidentally
+# update the certs.
+sh_test(
+    name = "check_sha_test",
+    size = "medium",
+    srcs = ["check_sha_test.sh"],
+    data = [
+        "cacert.pem",
+        "cacert.sha256",
+    ],
+    # sha256sum only exists on linux, and we only need to test on a single
+    # platform anyway.
+    #target_compatible_with = [
+    #        "@platforms//os:linux",
+    #    ],
+)
+
+pkg_files(
+    name = "real_certs_file",
+    srcs = [
+        ":cacert.pem",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "embedded/ssl/cacerts",
+)
+
+# most systems can symlink to the real file
+pkg_mklink(
+    name = "certs_file_link",
+    link_name = "embedded/ssl/cacert.pem",
+    target = "cacerts/cacert.pem",
+)
+
+# but on windows we copy it out twice.
+pkg_files(
+    name = "certs_file_dup",
+    srcs = [
+        ":cacert.pem",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "embedded/ssl",
+)
+
+# TODO: add this to //packages/install_dir/embedded:everything
+# TODO: delete omnibus/config/software/cacerts.rb
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "real_certs_file",
+    ] + select({
+        "@platforms//os:windows": ["certs_file_dup"],
+        "//conditions:default": ["certs_file_link"],
+    }),
+)
+
+# Only call this directly for testing. It should be called
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+    tags = ["manual"],
+)
