@@ -34,7 +34,7 @@ impl ProcessManager {
         self.processes.read().await
     }
 
-    pub(crate) async fn wire_watchers(&self, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
+    pub(crate) async fn wire_watchers(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let mut procs = self.processes.write().await;
         for proc in procs.iter_mut() {
             if proc.is_running() {
@@ -46,7 +46,7 @@ impl ProcessManager {
     pub(crate) async fn handle_exit(
         &self,
         event: ExitEvent,
-        restart_tx: &mpsc::UnboundedSender<String>,
+        restart_tx: &mpsc::Sender<String>,
     ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
@@ -60,7 +60,7 @@ impl ProcessManager {
             let name = event.name.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(delay).await;
-                let _ = tx.send(name);
+                let _ = tx.send(name).await;
             });
         }
     }
@@ -68,7 +68,7 @@ impl ProcessManager {
     pub(crate) async fn complete_restart(
         &self,
         name: &str,
-        exit_tx: &mpsc::UnboundedSender<ExitEvent>,
+        exit_tx: &mpsc::Sender<ExitEvent>,
     ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
@@ -108,7 +108,7 @@ impl ProcessManager {
     pub(crate) async fn handle_start(
         &self,
         name: &str,
-        exit_tx: &mpsc::UnboundedSender<ExitEvent>,
+        exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<(), Status> {
         let mut procs = self.processes.write().await;
         let proc = procs
@@ -146,7 +146,7 @@ impl ProcessManager {
 
     pub(crate) async fn handle_reload_config(
         &self,
-        exit_tx: &mpsc::UnboundedSender<ExitEvent>,
+        exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
         let new_configs = load_configs();
         let new_names: std::collections::HashSet<&str> =
@@ -227,7 +227,7 @@ impl ProcessManager {
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.
-pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
+pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
         let name = proc.name().to_owned();
         let handle = tokio::spawn(async move {
@@ -249,7 +249,7 @@ pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender
             let _ = tx.send(ExitEvent {
                 name: name.clone(),
                 status,
-            });
+            }).await;
         });
         proc.set_watcher_handle(handle);
     }
@@ -334,7 +334,7 @@ mod tests {
             },
         );
         let mgr = ProcessManager::new(vec![proc]);
-        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         mgr.handle_start("svc", &exit_tx).await.unwrap();
         {
@@ -366,7 +366,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (exit_tx, _exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
         assert!(
