@@ -1,19 +1,52 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: EnvoyExtensionPolicy
+kind: EnvoyPatchPolicy
 metadata:
-  name: datadog-appsec-extproc
+  name: datadog-appsec-my-gateway
 spec:
-  targetSelectors:
-    - kind: Gateway
-      group: gateway.networking.k8s.io
-  extProc:
-    - failOpen: true
-      backendRefs:
-        - name: datadog-aap-extproc-service
-          port: 443
-          namespace: datadog
-      processingMode:
-        allowModeOverride: true
-        request: {}
-        response: {}
-
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: my-gateway
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.cluster.v3.Cluster"
+      name: datadog_appsec_ext_proc_cluster
+      operation:
+        op: add
+        path: ""
+        value:
+          name: datadog_appsec_ext_proc_cluster
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          http2_protocol_options: {}
+          load_assignment:
+            cluster_name: datadog_appsec_ext_proc_cluster
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: datadog-aap-extproc-service.datadog.svc
+                          port_value: 443
+    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
+      name: "default/my-gateway/http"
+      operation:
+        op: add
+        path: "/default_filter_chain/filters/0/typed_config/http_filters/0"
+        value:
+          name: envoy.filters.http.ext_proc
+          typed_config:
+            "@type": "type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor"
+            grpc_service:
+              envoy_grpc:
+                cluster_name: datadog_appsec_ext_proc_cluster
+              initial_metadata:
+                - key: x-datadog-envoy-integration
+                  value: "1"
+                - key: x-datadog-appsec-injector
+                  value: "1"
+            failure_mode_allow: true
+            processing_mode:
+              request_header_mode: SEND
+              response_header_mode: SEND
+            allow_mode_override: true
