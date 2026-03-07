@@ -38,7 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
+	processapiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -92,7 +93,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func setupProcessAPIServer(t *testing.T) {
 	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		processapiserver.Module(),
+		processapiserverimpl.Module(),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
