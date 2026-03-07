@@ -79,7 +79,7 @@ impl RestartTracker {
 // ---------------------------------------------------------------------------
 
 pub struct ManagedProcess {
-    pub name: String,
+    name: String,
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
@@ -118,6 +118,10 @@ impl ManagedProcess {
 
     pub fn is_runtime_created(&self) -> bool {
         self.runtime_created
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn state(&self) -> ProcessState {
