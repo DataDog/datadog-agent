@@ -1004,6 +1004,10 @@ new-e2e-ssi-kind:
   variables:
     E2E_PROVISIONER: kind
     E2E_STACK_NAME_SUFFIX: kind
+    # TestInjectionMode includes the image_volume injection mode, which requires image volume
+    # SubPath support. Kind's kindest/node:v1.34 ships with a containerd version that lacks this,
+    # so we run this suite on v1.35 where it works out of the box.
+    EXTRA_PARAMS: "-c ddinfra:kubernetesVersion=1.35"
 
 new-e2e-ssi-eks-init:
   extends: .new-e2e_ssi_extra_distribution_init
@@ -1020,6 +1024,8 @@ new-e2e-ssi-eks:
     E2E_PROVISIONER: eks
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on EKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 new-e2e-ssi-gke-init:
   extends: .new-e2e_ssi_extra_distribution_init
