@@ -652,7 +652,8 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"  cp \"/episodes/$EPISODE/$SCENARIO.yaml\" \"/workspace/episodes/$SCENARIO.yaml\"\n" +
 		"  mkdir -p /workspace/results\n" +
 		"  cd /workspace\n" +
-		"  bash /workspace/play-episode.sh run-episode \"$SCENARIO\" || true\n" +
+		"  EP_OUTCOME=\"success\"\n" +
+		"  bash /workspace/play-episode.sh run-episode \"$SCENARIO\" || EP_OUTCOME=\"failure\"\n" +
 		"  cd /\n" +
 		"\n" +
 		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"collecting-parquet\"}'\n" +
@@ -687,7 +688,7 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"  EP_DURATION=$((EP_END - EP_START))\n" +
 		"\n" +
 		"  # 7. Emit DD event + metrics\n" +
-		"  emit_dd_event \"$EPISODE\" \"$SCENARIO\" \"$EP_DURATION\" \"$PARQUET_COUNT\" \"success\"\n" +
+		"  emit_dd_event \"$EPISODE\" \"$SCENARIO\" \"$EP_DURATION\" \"$PARQUET_COUNT\" \"$EP_OUTCOME\"\n" +
 		"  emit_dd_metrics \"$EPISODE\" \"$SCENARIO\" \"$EP_DURATION\" \"$PARQUET_COUNT\"\n" +
 		"\n" +
 		"  # 8. Update status\n" +

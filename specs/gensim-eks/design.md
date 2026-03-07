@@ -7,16 +7,16 @@ orchestrator Job that executes episode queues serially. Invoke tasks on the
 developer's laptop are thin clients.
 
 ```
-Developer laptop                    EKS Cluster
-+---------------------+            +----------------------------------+
-| inv gensim.submit   |--Pulumi--->| Persistent:                      |
-|   --image=X         |  kubectl   |   EC2 node group                 |
-|   --episodes=A:a,.. |            |   S3 IAM policy                  |
-|                     |            |   RBAC (runner SA)               |
-| inv gensim.status   |--kubectl-->|                                  |
-|                     |            | Per-evaluation:                  |
-| inv gensim.destroy  |--Pulumi--->|   Orchestrator Job               |
-+---------------------+            |     for each episode:            |
+Developer laptop                          EKS Cluster
++---------------------------+            +----------------------------------+
+| inv aws.eks.gensim.submit |--Pulumi--->| Persistent:                      |
+|   --image=X               |  kubectl   |   EC2 node group                 |
+|   --episodes=A:a,..       |            |   S3 IAM policy                  |
+|                           |            |   RBAC (orchestrator SA)         |
+| inv aws.eks.gensim.status |--kubectl-->|                                  |
+|                           |            | Per-evaluation:                  |
+| inv aws.eks.gensim.destroy|--Pulumi--->|   Orchestrator Job               |
++---------------------------+            |     for each episode:            |
                                    |       helm install agent         |
                                    |       helm install episode chart |
                                    |       play-episode.sh            |
