@@ -60,6 +60,14 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+request_location_permission_value=
+if [ -n "$DD_REQUEST_LOCATION_PERMISSION" ]; then
+    case "$(echo "$DD_REQUEST_LOCATION_PERMISSION" | tr '[:upper:]' '[:lower:]')" in
+        false|0|no) request_location_permission_value=false ;;
+        *) request_location_permission_value=true ;;
+    esac
+fi
+
 agent_dist_channel=
 if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
@@ -384,6 +392,9 @@ function new_config() {
     if [ "$site" ]; then
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
     fi
+    if [ -n "$request_location_permission_value" ]; then
+        $sudo_cmd sh -c "sed $i_cmd -E 's/^#?[[:space:]]*request_location_permission:[[:space:]]*.*/request_location_permission: $request_location_permission_value/' \"$etc_dir/datadog.yaml\""
+    fi
     $sudo_cmd chown "$real_user":admin "$etc_dir/datadog.yaml"
     $sudo_cmd chmod 640 $etc_dir/datadog.yaml
 }
@@ -657,6 +668,13 @@ You may have to restart it manually using the systray app or the
     fi
 else
     printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
+    # Still respect DD_REQUEST_LOCATION_PERMISSION: add or update only request_location_permission in the existing config
+    if [ -n "$request_location_permission_value" ]; then
+        i_cmd="$(sed_inplace_arg)"
+        $sudo_cmd sh -c "sed $i_cmd -E 's/^#?[[:space:]]*request_location_permission:[[:space:]]*.*/request_location_permission: $request_location_permission_value/' \"$etc_dir/datadog.yaml\""
+        $sudo_cmd chown "$real_user":admin "$etc_dir/datadog.yaml"
+        $sudo_cmd chmod 640 "$etc_dir/datadog.yaml"
+    fi
 fi
 
 # Starting the app
