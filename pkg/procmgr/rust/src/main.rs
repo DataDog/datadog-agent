@@ -294,18 +294,24 @@ pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender
         let name = proc.name.clone();
         let handle = tokio::spawn(async move {
             let mut child = child;
-            match child.wait().await {
-                Ok(status) => {
-                    let _ = tx.send(ExitEvent {
-                        name: name.clone(),
-                        status,
-                    });
-                }
+            let status = match child.wait().await {
+                Ok(status) => status,
                 Err(e) => {
                     warn!("[{name}] wait error: {e}, killing process");
                     let _ = child.kill().await;
+                    match child.wait().await {
+                        Ok(s) => s,
+                        Err(e2) => {
+                            warn!("[{name}] failed to reap after kill: {e2}");
+                            return;
+                        }
+                    }
                 }
-            }
+            };
+            let _ = tx.send(ExitEvent {
+                name: name.clone(),
+                status,
+            });
         });
         proc.set_watcher_handle(handle);
     }
