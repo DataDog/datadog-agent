@@ -23,7 +23,7 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message) *message.Message {
+func (s *captureSampler) Process(msg *message.Message, _ []Token) *message.Message {
 	s.emitted = append(s.emitted, msg)
 	return msg
 }
@@ -35,12 +35,12 @@ type captureAggregator struct {
 	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
 	a.received = append(a.received, msg)
-	return []*message.Message{msg}
+	return []AggregatedMessageWithTokens{{Msg: msg}}
 }
-func (a *captureAggregator) Flush() []*message.Message { return nil }
-func (a *captureAggregator) IsEmpty() bool             { return true }
+func (a *captureAggregator) Flush() []AggregatedMessageWithTokens { return nil }
+func (a *captureAggregator) IsEmpty() bool                        { return true }
 
 // flushCaptureAggregator tracks flush calls.
 type flushCaptureAggregator struct {
@@ -48,17 +48,17 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []AggregatedMessageWithTokens {
 	a.pending = msg
 	return nil // buffer the message
 }
 
-func (a *flushCaptureAggregator) Flush() []*message.Message {
+func (a *flushCaptureAggregator) Flush() []AggregatedMessageWithTokens {
 	a.flushed = true
 	if a.pending != nil {
 		msg := a.pending
 		a.pending = nil
-		return []*message.Message{msg}
+		return []AggregatedMessageWithTokens{{Msg: msg}}
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func newTestPreprocessor(enableJSON bool) (*Preprocessor, *captureAggregator, *c
 		jsonAggregator = NewJSONAggregator(false, 10000)
 	}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second, 0)
 	return preprocessor, aggregator, sampler
 }
 
@@ -135,7 +135,7 @@ func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	aggregator := &flushCaptureAggregator{}
 	sampler := &captureSampler{}
 	outputChan := make(chan *message.Message, 10)
-	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second, 0)
 
 	// Send an incomplete JSON fragment — it stays in jsonAggregator
 	preprocessor.Process(newTestPreprocessorMessage(`{"key":`))
@@ -157,9 +157,9 @@ func TestPreprocessor_FlushChanNilWhenEmpty(t *testing.T) {
 	assert.Nil(t, preprocessor.FlushChan(), "FlushChan should be nil when preprocessor is empty")
 }
 
-// TestPreprocessor_SamplerReceivesCompletedMessages verifies that messages returned by the
+// TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens verifies that messages returned by the
 // aggregator flow to the sampler.
-func TestPreprocessor_SamplerReceivesCompletedMessages(t *testing.T) {
+func TestPreprocessor_SamplerReceivesAggregatedMessageWithTokens(t *testing.T) {
 	preprocessor, _, sampler := newTestPreprocessor(false)
 
 	preprocessor.Process(newTestPreprocessorMessage(`hello world`))
