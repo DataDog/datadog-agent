@@ -272,10 +272,17 @@ impl ManagedProcess {
     /// `shutdown_all()` can fan out SIGTERM to all processes before blocking
     /// on each.
     pub fn send_signal(&self, sig: Signal) {
-        if let Some(raw_pid) = self.pid
-            && let Err(e) = signal::kill(Pid::from_raw(raw_pid as i32), sig)
-        {
-            warn!("[{}] failed to send {sig}: {e}", self.name);
+        if let Some(raw_pid) = self.pid {
+            match i32::try_from(raw_pid) {
+                Ok(pid) => {
+                    if let Err(e) = signal::kill(Pid::from_raw(pid), sig) {
+                        warn!("[{}] failed to send {sig}: {e}", self.name);
+                    }
+                }
+                Err(_) => {
+                    warn!("[{}] PID {raw_pid} overflows i32, cannot send {sig}", self.name);
+                }
+            }
         }
     }
 
