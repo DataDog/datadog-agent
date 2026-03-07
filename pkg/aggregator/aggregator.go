@@ -58,6 +58,14 @@ type Stats struct {
 	m          sync.Mutex
 }
 
+// statsPool is a pool of Stats objects to reduce heap allocations in the
+// stats snapshot path (e.g. expvar scrapes).
+var statsPool = sync.Pool{
+	New: func() interface{} {
+		return &Stats{}
+	},
+}
+
 var (
 	stateOk    = "ok"
 	stateError = "error"
@@ -84,6 +92,18 @@ func (s *Stats) copy() *Stats {
 	}
 }
 
+// snapshot fills dst with a consistent point-in-time copy of s under the lock.
+// dst must not be nil. This allows callers to reuse an existing allocation
+// (e.g. from statsPool) instead of always allocating a new Stats on the heap.
+func (s *Stats) snapshot(dst *Stats) {
+	s.m.Lock()
+	dst.Flushes = s.Flushes
+	dst.FlushIndex = s.FlushIndex
+	dst.LastFlush = s.LastFlush
+	dst.Name = s.Name
+	s.m.Unlock()
+}
+
 func newFlushTimeStats(name string) {
 	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
@@ -104,7 +124,9 @@ func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
 		res := make(map[string]*Stats, len(statsMap))
 		for k, v := range statsMap {
-			res[k] = v.copy()
+			dst := statsPool.Get().(*Stats)
+			v.snapshot(dst)
+			res[k] = dst
 		}
 		return res
 	}
