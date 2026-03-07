@@ -43,7 +43,7 @@ impl ProcessManager {
         }
     }
 
-    pub(crate) async fn start(&self) {
+    async fn start(&self) {
         let mut procs = self.processes.write().await;
         for &idx in self.startup_order.iter() {
             let proc = &mut procs[idx];
@@ -55,7 +55,7 @@ impl ProcessManager {
         }
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub(crate) async fn run(&self) -> Result<()> {
         self.start().await;
 
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
@@ -124,11 +124,11 @@ impl ProcessManager {
         Ok(())
     }
 
-    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
+    pub(crate) async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
         self.processes.read().await
     }
 
-    pub(crate) async fn wire_watchers(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
+    async fn wire_watchers(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let mut procs = self.processes.write().await;
         for proc in procs.iter_mut() {
             if proc.is_running() {
@@ -310,7 +310,7 @@ impl ProcessManager {
         })
     }
 
-    pub(crate) async fn shutdown(&self) {
+    async fn shutdown(&self) {
         let mut procs = self.processes.write().await;
         let ordered_set: std::collections::HashSet<usize> =
             self.startup_order.iter().copied().collect();
@@ -326,7 +326,7 @@ impl ProcessManager {
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.
-pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
+fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
         let name = proc.name().to_owned();
         let handle = tokio::spawn(async move {
