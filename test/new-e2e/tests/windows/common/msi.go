@@ -7,8 +7,11 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -25,10 +28,12 @@ func isMsiSuccessExitCode(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Error format from remote execution: "Process exited with status N: ..."
-	msg := err.Error()
-	return strings.Contains(msg, fmt.Sprintf("status %d", msiExitSuccessRebootInitiated)) ||
-		strings.Contains(msg, fmt.Sprintf("status %d", msiExitSuccessRebootRequired))
+	var exitErr *ssh.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	code := exitErr.ExitStatus()
+	return code == msiExitSuccessRebootRequired || code == msiExitSuccessRebootInitiated
 }
 
 // MsiExec runs msiexec on the VM with the provided operation and args and collects the log
