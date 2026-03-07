@@ -217,7 +217,15 @@ impl ProcessManager {
 
     async fn shutdown(&self, startup_order: &[usize]) {
         let mut procs = self.processes.write().await;
-        let shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+        let ordered_set: std::collections::HashSet<usize> =
+            startup_order.iter().copied().collect();
+        // Indices of runtime-created processes not covered by startup_order.
+        let runtime_indices: Vec<usize> = (0..procs.len())
+            .filter(|i| !ordered_set.contains(i))
+            .collect();
+
+        let mut shutdown_order: Vec<usize> = startup_order.iter().copied().rev().collect();
+        shutdown_order.extend(runtime_indices);
         shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
     }
 }
