@@ -56,5 +56,5 @@ func Handler(w http.ResponseWriter, req *http.Request) {
 		marshableMetrics[i] = MarshableMetric{m}
 	}
 
-	utils.WriteAsJSON(w, marshableMetrics, utils.GetPrettyPrintFromQueryParams(req))
+	utils.WriteAsJSON(req, w, marshableMetrics, utils.GetPrettyPrintFromQueryParams(req))
 }
