@@ -148,6 +148,7 @@ impl ManagedProcess {
         self.state = next;
     }
 
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
@@ -367,6 +368,7 @@ impl ManagedProcess {
     /// record the attempt, advance the backoff, and return the delay the
     /// caller should sleep before calling [`spawn`]. Returns `None` if the
     /// process should not be restarted.
+    #[must_use]
     pub fn handle_restart(&mut self) -> Option<Duration> {
         let should_restart = match (self.state, &self.config.restart) {
             (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
