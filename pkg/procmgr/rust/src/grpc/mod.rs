@@ -787,7 +787,7 @@ mod tests {
         assert!(detail.auto_start, "auto_start should default to true");
         assert_eq!(detail.stdout, "inherit");
         assert_eq!(detail.stderr, "inherit");
-        assert_eq!(detail.restart_policy, "Never");
+        assert_eq!(detail.restart_policy, "never");
         assert!(detail.args.is_empty());
         assert!(detail.env.is_empty());
     }
@@ -831,7 +831,7 @@ mod tests {
         assert_eq!(detail.working_dir, "/tmp");
         assert_eq!(detail.stdout, "/var/log/out.log");
         assert_eq!(detail.stderr, "/var/log/err.log");
-        assert_eq!(detail.restart_policy, "OnFailure");
+        assert_eq!(detail.restart_policy, "on-failure");
         assert_eq!(detail.description, "Custom service");
         assert!(!detail.auto_start);
     }
