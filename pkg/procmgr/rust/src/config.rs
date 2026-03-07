@@ -62,6 +62,7 @@ pub struct ProcessConfig {
     pub env: HashMap<String, String>,
     pub environment_file: Option<String>,
     pub working_dir: Option<String>,
+    /// Parsed for forward-compatibility but not yet acted upon.
     #[allow(dead_code)]
     pub pidfile: Option<String>,
     #[serde(default = "default_inherit")]
