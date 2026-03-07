@@ -630,7 +630,9 @@ func getenv() *env.Env {
 	if env.MsiParams.AgentUserName == "" {
 		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {
-			log.Warnf("Could not read Agent user from service: %v", err)
+			if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+				log.Warnf("Could not read Agent user from service: %v", err)
+			}
 		} else {
 			env.MsiParams.AgentUserName = user
 		}
