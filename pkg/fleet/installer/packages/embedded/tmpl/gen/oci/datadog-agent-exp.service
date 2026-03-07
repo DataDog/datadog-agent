@@ -14,6 +14,7 @@ EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"
+Environment="DD_CONFD_PATH=/etc/datadog-agent-exp/conf.d"
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
