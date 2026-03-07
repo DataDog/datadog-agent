@@ -15,6 +15,11 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	if (s.Retransmits < other.Retransmits && s.Retransmits > 0) ||
 		(s.TCPClosed < other.TCPClosed && s.TCPClosed > 0) ||
 		(s.TCPEstablished < other.TCPEstablished && s.TCPEstablished > 0) ||
+		(s.TCPRTOCount < other.TCPRTOCount && s.TCPRTOCount > 0) ||
+		(s.TCPRecoveryCount < other.TCPRecoveryCount && s.TCPRecoveryCount > 0) ||
+		(s.TCPProbe0Count < other.TCPProbe0Count && s.TCPProbe0Count > 0) ||
+		(s.TCPDeliveredCE < other.TCPDeliveredCE && s.TCPDeliveredCE > 0) ||
+		(s.TCPReordSeen < other.TCPReordSeen && s.TCPReordSeen > 0) ||
 		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
 		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) ||
 		isUnderflow(other.RecvPackets, s.RecvPackets, maxPacketCountChange) ||
@@ -37,6 +42,21 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	}
 	if s.TCPClosed > 0 {
 		sc.TCPClosed = s.TCPClosed - other.TCPClosed
+	}
+	if s.TCPRTOCount > 0 {
+		sc.TCPRTOCount = s.TCPRTOCount - other.TCPRTOCount
+	}
+	if s.TCPRecoveryCount > 0 {
+		sc.TCPRecoveryCount = s.TCPRecoveryCount - other.TCPRecoveryCount
+	}
+	if s.TCPProbe0Count > 0 {
+		sc.TCPProbe0Count = s.TCPProbe0Count - other.TCPProbe0Count
+	}
+	if s.TCPDeliveredCE > 0 {
+		sc.TCPDeliveredCE = s.TCPDeliveredCE - other.TCPDeliveredCE
+	}
+	if s.TCPReordSeen > 0 {
+		sc.TCPReordSeen = s.TCPReordSeen - other.TCPReordSeen
 	}
 
 	return sc, false

@@ -20,6 +20,8 @@ import "C"
 
 type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t
+type TCPCongestionStats C.tcp_congestion_stats_t
+type TCPRTORecoveryStats C.tcp_rto_recovery_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
 type SkpConn C.skp_conn_tuple_t

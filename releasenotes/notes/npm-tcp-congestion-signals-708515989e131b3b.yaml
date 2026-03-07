@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    NPM - Add per-connection TCP congestion signals: RTO loss count,
+    fast-recovery count, zero-window probe count, ECN CE-marked segment
+    count, reordering event count, and ECN negotiation status. These
+    signals are collected via eBPF on CO-RE and runtime-compiled tracers
+    (Linux only; prebuilt tracer reports zeros).

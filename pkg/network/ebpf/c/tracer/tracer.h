@@ -95,6 +95,27 @@ typedef struct {
     __u16 failure_reason;
 } tcp_stats_t;
 
+// Per-connection TCP congestion stats. Stored in a separate BPF map (not in conn_t)
+// to avoid overflowing the BPF stack in flush_conn_close_if_full(). Updated on every
+// sendmsg/recvmsg via handle_congestion_stats(). CO-RE/runtime only; prebuilt returns 0.
+typedef struct {
+    __u32 delivered_ce;     // segments delivered with ECN CE mark (counter, 4.19+)
+    __u32 reord_seen;       // reordering events detected (counter, 4.19+)
+    __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
+    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
+} tcp_congestion_stats_t;
+
+// Per-connection RTO and fast-recovery event counters. Stored in a separate BPF map
+// (not in conn_t) for the same BPF stack reason as tcp_congestion_stats_t. Keyed by
+// zero-PID conn_tuple_t (like tcp_retransmits) because tcp_enter_loss /
+// tcp_enter_recovery fire in kernel context without a reliable userspace PID.
+// CO-RE/runtime only; prebuilt returns 0.
+typedef struct {
+    __u32 rto_count;                  // number of tcp_enter_loss() invocations
+    __u32 recovery_count;             // number of tcp_enter_recovery() invocations
+    __u32 probe0_count;               // number of tcp_send_probe0() invocations (zero-window probes)
+} tcp_rto_recovery_stats_t;
+
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;

@@ -3329,6 +3329,148 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+func (s *TracerSuite) TestTCPCongestionSignals() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	_, err = c.Write([]byte("initial data"))
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+
+	// Induce RTO: drop packets and send data, then wait for RTO to fire
+	iptablesWrapper(t, func() {
+		_, err = c.Write([]byte("data during loss"))
+		require.NoError(t, err)
+		// RTO min is ~200ms with backoff 200, 400, 800, 1600...
+		// 2 seconds should give us 2-3 RTOs.
+		time.Sleep(2 * time.Second)
+	})
+
+	// Send after iptables restored to trigger a fresh congestion snapshot
+	_, err = c.Write([]byte("post-loss data"))
+	require.NoError(t, err)
+
+	// TODO: remove this debug sleep before productionizing. It allows manual
+	// inspection of kprobe state via bpftool while the test is running:
+	//   sudo bpftool prog list | grep -i tcp_ent
+	//   sudo bpftool prog show id <ID>          # check run_cnt
+	//   sudo cat /sys/kernel/debug/kprobes/list | grep tcp_enter
+	t.Log("DEBUG: probes active — check bpftool now. Sleeping 30s...")
+	time.Sleep(30 * time.Second)
+
+	// Single assertion block: check all signals after the loss event.
+	// We use one EventuallyWithT to avoid state-delta issues from multiple
+	// GetActiveConnections calls (the state tracker returns deltas per client).
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		t.Logf("Congestion: rto_count=%d recovery_count=%d reord_seen=%d delivered_ce=%d ecn_negotiated=%v probe0_count=%d",
+			conn.Last.TCPRTOCount, conn.Last.TCPRecoveryCount, conn.Last.TCPReordSeen,
+			conn.Last.TCPDeliveredCE, conn.TCPECNNegotiated, conn.Last.TCPProbe0Count)
+		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPZeroWindowProbe validates the probe0_count signal by creating a
+// connection where the receiver stops reading, causing the receive buffer to
+// fill and the receiver to advertise window=0. The sender then sends
+// zero-window probes which are counted by the kprobe/tcp_send_probe0 handler.
+func (s *TracerSuite) TestTCPZeroWindowProbe() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	// Server accepts but never reads — receive buffer will fill up.
+	acceptCh := make(chan net.Conn, 1)
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		acceptCh <- c
+		// Block until test cleanup closes us.
+		select {}
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Wait for the server to accept so we can clamp the receive window.
+	serverConn := <-acceptCh
+	defer serverConn.Close()
+	tcpServerConn, ok := serverConn.(*net.TCPConn)
+	require.True(t, ok)
+
+	// TCP_WINDOW_CLAMP limits the advertised receive window directly,
+	// regardless of buffer size or auto-tuning. Setting it to 1 forces
+	// the receiver to quickly advertise window=0.
+	rawConn, err := tcpServerConn.SyscallConn()
+	require.NoError(t, err)
+	err = rawConn.Control(func(fd uintptr) {
+		// TCP_WINDOW_CLAMP = 10
+		if e := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, 10, 1); e != nil {
+			t.Logf("TCP_WINDOW_CLAMP setsockopt failed: %v", e)
+		}
+	})
+	require.NoError(t, err)
+
+	// Write data until the send blocks (receiver window clamped → window=0).
+	// Use a short write deadline so we don't hang forever.
+	chunk := make([]byte, 1024)
+	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	for {
+		_, err = c.Write(chunk)
+		if err != nil {
+			break // write blocked or deadline exceeded — receiver window is 0
+		}
+	}
+
+	// Wait for zero-window probes to fire. The kernel sends probes with
+	// exponential backoff starting at RTO (~200ms).
+	time.Sleep(3 * time.Second)
+
+	// Read one byte on the server side to briefly open the window,
+	// which causes the sender to transmit (triggering a sendmsg snapshot).
+	buf := make([]byte, 1)
+	serverConn.Read(buf)
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, found := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, found, "connection not found") {
+			return
+		}
+		t.Logf("Zero-window signals: probe0_count=%d", conn.Last.TCPProbe0Count)
+		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
 	// find a connection from Python client to CoreDNS
 	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
