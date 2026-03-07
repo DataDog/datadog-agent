@@ -415,7 +415,7 @@ require (
 	k8s.io/component-base v0.35.0
 	k8s.io/cri-api v0.34.1
 	k8s.io/cri-client v0.34.1
-	k8s.io/klog/v2 v2.130.1
+	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.34.1
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.34.1
