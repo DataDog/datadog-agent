@@ -26,7 +26,7 @@ mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
-    use crate::ProcessManager;
+    use crate::manager::ProcessManager;
     use crate::command::Command;
     use crate::config::{ProcessConfig, RestartPolicy};
     use crate::process::ManagedProcess;
