@@ -33,7 +33,7 @@ func registerUSMCommonEndpoints(nt *networkTracer, httpMux *module.Router) {
 		}
 		defer cleanup()
 
-		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.USMData.HTTP, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(req, w, httpdebugging.HTTP(cs.USMData.HTTP, cs.DNS), utils.GetPrettyPrintFromQueryParams(req))
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)

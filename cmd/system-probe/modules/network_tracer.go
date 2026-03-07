@@ -171,7 +171,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
@@ -226,7 +226,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+		utils.WriteAsJSON(r, w, cache, utils.CompactOutput)
 	})
 
 	registerUSMEndpoints(nt, httpMux)
