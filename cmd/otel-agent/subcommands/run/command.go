@@ -32,6 +32,7 @@ import (
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
@@ -44,7 +45,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
@@ -155,6 +159,18 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
+		// Metadata collection modules for dogtelextension (only in standalone mode)
+		func() fx.Option {
+			standalone := acfg.GetBool("otel_standalone")
+			if standalone {
+				return fx.Options(
+					runnerimpl.Module(),
+					hostimpl.Module(),
+					inventoryhostimpl.Module(),
+				)
+			}
+			return fx.Options() // No metadata modules in connected mode
+		}(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsdotel.NewOTelStatsd(client)
@@ -171,7 +187,16 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return acfg, nil
 		}),
 		fxutil.ProvideOptional[coreconfig.Component](),
-		secretsnoopfx.Module(),
+		// Conditional secrets: Use real secrets in standalone mode (DD_OTEL_STANDALONE=true),
+		// otherwise use no-op (expects core agent for secrets)
+		func() fx.Option {
+			// Check DD_OTEL_STANDALONE environment variable
+			standalone := acfg.GetBool("otel_standalone")
+			if standalone {
+				return secretsfx.Module()
+			}
+			return secretsnoopfx.Module()
+		}(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
