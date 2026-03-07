@@ -1,0 +1,8 @@
+description: Exit with code 1 returns the general error code.
+input:
+  script: |+
+    exit 1
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

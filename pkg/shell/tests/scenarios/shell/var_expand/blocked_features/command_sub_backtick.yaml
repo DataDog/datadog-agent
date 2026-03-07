@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Backtick command substitution is not supported.
+input:
+  script: |+
+    echo `echo hello`
+expect:
+  stdout: ""
+  stderr: |+
+    command substitution is not supported
+  exit_code: 2

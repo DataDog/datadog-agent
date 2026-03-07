@@ -1,0 +1,11 @@
+description: "Variables provided via interpreter_env (Env option) are accessible"
+test_against_local_shell: false
+input:
+  interpreter_env:
+    MY_VAR: "hello"
+    OTHER_VAR: "world"
+  script: |
+    echo "$MY_VAR $OTHER_VAR"
+expect:
+  stdout: "hello world\n"
+  exit_code: 0

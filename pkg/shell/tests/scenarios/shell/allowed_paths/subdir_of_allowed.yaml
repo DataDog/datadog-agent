@@ -1,0 +1,14 @@
+description: "Files in nested subdirectories inside an allowed path are accessible"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "allowed/sub/deep/file.txt"
+      content: "deep content\n"
+input:
+  script: |
+    cat allowed/sub/deep/file.txt
+  allowed_paths:
+    - "allowed"
+expect:
+  stdout: "deep content\n"
+  exit_code: 0

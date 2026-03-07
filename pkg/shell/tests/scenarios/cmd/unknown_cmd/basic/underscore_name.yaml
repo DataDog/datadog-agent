@@ -1,0 +1,8 @@
+description: An unknown command with underscores in the name prints "command not found".
+input:
+  script: |+
+    my_unknown_command
+expect:
+  stdout: ""
+  stderr_contains: ["my_unknown_command", "command not found"]
+  exit_code: 127

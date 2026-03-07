@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: C-style for loops are not supported.
+input:
+  script: |+
+    for ((i=0; i<3; i++)); do echo $i; done
+expect:
+  stdout: ""
+  stderr: |+
+    c-style for loops are not supported
+  exit_code: 2

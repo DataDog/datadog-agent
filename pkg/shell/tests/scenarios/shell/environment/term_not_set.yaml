@@ -1,0 +1,8 @@
+description: "TERM variable is not set in the default environment"
+test_against_local_shell: false
+input:
+  script: |
+    echo "term=$TERM"
+expect:
+  stdout: "term=\n"
+  exit_code: 0

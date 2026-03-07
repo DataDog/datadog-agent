@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Array assignment is not supported.
+input:
+  script: |+
+    ARR=(a b c)
+expect:
+  stdout: ""
+  stderr: |+
+    array assignment is not supported
+  exit_code: 2

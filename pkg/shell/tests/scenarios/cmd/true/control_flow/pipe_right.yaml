@@ -1,0 +1,8 @@
+description: The true builtin on the right side of a pipe results in exit code 0.
+input:
+  script: |+
+    echo hello | true
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

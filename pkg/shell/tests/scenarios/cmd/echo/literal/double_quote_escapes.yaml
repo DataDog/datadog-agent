@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Backslash escape sequences in double-quoted echo are passed literally.
+input:
+  script: |+
+    echo "hello\nworld"
+expect:
+  stdout: |+
+    hello\nworld
+  stderr: ""
+  exit_code: 0

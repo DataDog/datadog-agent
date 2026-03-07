@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Tilde expansion is disabled; ~ is passed through as a literal character.
+input:
+  script: |+
+    echo ~
+expect:
+  stdout: |+
+    ~
+  stderr: ""
+  exit_code: 0

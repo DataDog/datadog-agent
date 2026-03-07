@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: The $RANDOM variable has no special meaning and expands to empty.
+input:
+  script: |+
+    echo "[$RANDOM]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

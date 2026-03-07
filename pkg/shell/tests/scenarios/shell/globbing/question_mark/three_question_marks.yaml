@@ -1,0 +1,18 @@
+description: Three question marks match exactly three-character filenames.
+setup:
+  files:
+    - path: ab.txt
+      content: ""
+    - path: abc.txt
+      content: ""
+    - path: abcd.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo ???.txt
+expect:
+  stdout: |+
+    abc.txt
+  stderr: ""
+  exit_code: 0

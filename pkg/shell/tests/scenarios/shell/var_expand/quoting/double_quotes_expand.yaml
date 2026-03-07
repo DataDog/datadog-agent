@@ -1,0 +1,10 @@
+description: Variables are expanded inside double quotes.
+input:
+  script: |+
+    NAME=world
+    echo "hello $NAME"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Tilde with path ~/dir is not expanded.
+input:
+  script: |+
+    echo ~/mydir
+expect:
+  stdout: |+
+    ~/mydir
+  stderr: ""
+  exit_code: 0

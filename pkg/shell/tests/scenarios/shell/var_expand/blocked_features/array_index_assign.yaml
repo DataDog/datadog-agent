@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Array index assignment arr[0]=value is not supported.
+input:
+  script: |+
+    arr[0]=hello
+expect:
+  stdout: ""
+  stderr: |+
+    array index assignment is not supported
+  exit_code: 2

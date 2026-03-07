@@ -1,0 +1,14 @@
+description: "Glob pattern with no matches inside allowed path returns literal pattern"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/file.log"
+      content: "log\n"
+input:
+  script: |
+    echo data/*.xyz
+  allowed_paths:
+    - "data"
+expect:
+  stdout: "data/*.xyz\n"
+  exit_code: 0

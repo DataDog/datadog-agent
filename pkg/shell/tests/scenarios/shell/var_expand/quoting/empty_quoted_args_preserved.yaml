@@ -1,0 +1,11 @@
+description: Empty quoted strings are preserved as arguments in for loop iteration.
+input:
+  script: |+
+    for w in "" "a" ""; do echo "[$w]"; done
+expect:
+  stdout: |+
+    []
+    [a]
+    []
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Append all (&>>) is not supported.
+input:
+  script: |+
+    echo hello &>> output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    &>> file redirection is not supported
+  exit_code: 2

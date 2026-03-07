@@ -1,0 +1,9 @@
+test_against_local_shell: false
+description: The readonly keyword is not supported and is blocked at parse validation.
+input:
+  script: |+
+    readonly X=5
+expect:
+  stdout: ""
+  stderr: "readonly is not supported\n"
+  exit_code: 2

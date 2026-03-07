@@ -1,0 +1,9 @@
+description: Mixed && and || operators work correctly with unknown commands.
+input:
+  script: |+
+    foo && echo no || echo yes
+expect:
+  stdout: |+
+    yes
+  stderr_contains: ["foo", "command not found"]
+  exit_code: 0

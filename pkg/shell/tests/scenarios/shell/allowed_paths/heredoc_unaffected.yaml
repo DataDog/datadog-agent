@@ -1,0 +1,11 @@
+description: "Heredocs work regardless of AllowedPaths since they do not access the filesystem"
+test_against_local_shell: false
+input:
+  script: |
+    cat <<EOF
+    hello from heredoc
+    EOF
+  allowed_paths: []
+expect:
+  stdout: "hello from heredoc\n"
+  exit_code: 0

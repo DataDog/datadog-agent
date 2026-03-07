@@ -1,0 +1,20 @@
+test_against_local_shell: false
+description: When the first of multiple files fails, cat continues and processes remaining files.
+target_os: [linux, darwin]
+setup:
+  files:
+    - path: existing.txt
+      content: |+
+        hello world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat nonexistent.txt existing.txt
+expect:
+  stdout: |+
+    hello world
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

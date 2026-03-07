@@ -1,0 +1,11 @@
+test_against_local_shell: false
+description: Suffix removal ${var%pattern} is not supported.
+input:
+  script: |+
+    X=file.txt
+    echo ${X%.txt}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

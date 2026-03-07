@@ -1,0 +1,13 @@
+description: Continue after && skips to next iteration when left side succeeds.
+input:
+  script: |+
+    for i in 1 2; do
+    true && continue
+    echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: The exit status is 0 when true is the last command in a chain.
+input:
+  script: |+
+    echo first; true
+expect:
+  stdout: |+
+    first
+  stderr: ""
+  exit_code: 0

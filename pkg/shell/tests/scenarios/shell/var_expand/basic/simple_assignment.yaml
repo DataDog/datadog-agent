@@ -1,0 +1,10 @@
+description: A variable can be assigned and expanded with the dollar sign.
+input:
+  script: |+
+    MY_VAR=hello
+    echo $MY_VAR
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

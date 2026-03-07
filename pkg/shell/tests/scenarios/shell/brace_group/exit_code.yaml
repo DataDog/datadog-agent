@@ -1,0 +1,8 @@
+description: Brace group propagates the exit code of the last command.
+input:
+  script: |+
+    { true; false; }
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

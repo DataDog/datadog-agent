@@ -1,0 +1,11 @@
+description: Heredoc delimiter can start with a dash character.
+input:
+  script: |+
+    cat << -END
+    foo
+    -END
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Pipe of two builtins returns exit code from right side.
+input:
+  script: |+
+    true | false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

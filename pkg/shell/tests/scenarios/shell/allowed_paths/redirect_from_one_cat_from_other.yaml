@@ -1,0 +1,18 @@
+description: "Redirect input from one allowed path and cat from another both work"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "source/input.txt"
+      content: "from redirect\n"
+    - path: "files/data.txt"
+      content: "from cat\n"
+input:
+  script: |
+    cat < source/input.txt
+    cat files/data.txt
+  allowed_paths:
+    - "source"
+    - "files"
+expect:
+  stdout: "from redirect\nfrom cat\n"
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: Brace groups and for loops mixed with semicolons and newlines.
+input:
+  script: |+
+    { echo a; echo b; }
+    for i in 1 2; do echo $i; done
+    { echo c; }; echo d
+expect:
+  stdout: |+
+    a
+    b
+    1
+    2
+    c
+    d
+  stderr: ""
+  exit_code: 0

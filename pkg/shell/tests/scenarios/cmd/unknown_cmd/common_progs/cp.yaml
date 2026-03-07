@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: The cp command is not a builtin and is rejected as unknown.
+input:
+  script: |+
+    cp source.txt dest.txt
+expect:
+  stdout: ""
+  stderr: |+
+    cp: command not found
+  exit_code: 127

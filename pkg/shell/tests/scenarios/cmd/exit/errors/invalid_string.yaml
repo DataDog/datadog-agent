@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Exit with a non-numeric string argument produces an error and exits.
+input:
+  script: |+
+    exit abc
+expect:
+  stdout: ""
+  stderr: |+
+    invalid exit status code: "abc"
+  exit_code: 2

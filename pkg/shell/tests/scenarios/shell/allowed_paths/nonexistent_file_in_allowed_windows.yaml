@@ -1,0 +1,16 @@
+description: "Non-existent file inside allowed directory returns an error (Windows)"
+target_os: [windows]
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/exists.txt"
+      content: "here\n"
+input:
+  script: |
+    cat data/missing.txt
+  allowed_paths:
+    - "data"
+expect:
+  stderr_contains:
+    - "The system cannot find the file specified."
+  exit_code: 1

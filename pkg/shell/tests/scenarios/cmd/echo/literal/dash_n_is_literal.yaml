@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Echo treats -n as a literal argument, not as an option.
+input:
+  script: |+
+    echo -n hello
+expect:
+  stdout: |+
+    -n hello
+  stderr: ""
+  exit_code: 0

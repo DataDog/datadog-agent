@@ -1,0 +1,9 @@
+description: Chained && with true allows all commands to execute.
+input:
+  script: |+
+    true && true && echo end
+expect:
+  stdout: |+
+    end
+  stderr: ""
+  exit_code: 0

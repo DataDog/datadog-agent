@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Case statements are not supported.
+input:
+  script: |+
+    case "hello" in hello) echo matched;; esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

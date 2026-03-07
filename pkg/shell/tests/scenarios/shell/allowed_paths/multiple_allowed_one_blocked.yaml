@@ -1,0 +1,20 @@
+description: "Multiple allowed directories still block access outside them"
+test_against_local_shell: false
+setup:
+  files:
+    - path: "data/info.txt"
+      content: "data content\n"
+    - path: "config/settings.txt"
+      content: "config content\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    cat secret/hidden.txt
+  allowed_paths:
+    - "data"
+    - "config"
+expect:
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

@@ -1,0 +1,18 @@
+description: Question mark glob matches exactly one character.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: ab.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo ?.txt
+expect:
+  stdout: |+
+    a.txt b.txt
+  stderr: ""
+  exit_code: 0

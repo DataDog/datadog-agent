@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Herestring (<<<) is not supported (bash extension).
+input:
+  script: |+
+    cat <<< "hello"
+expect:
+  stdout: ""
+  stderr: |+
+    <<< (herestring) is not supported
+  exit_code: 2

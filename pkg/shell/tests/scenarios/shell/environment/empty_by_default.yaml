@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Without input.envs, no environment variables are available except builtins.
+input:
+  script: |+
+    echo "val=$SOME_RANDOM_VAR"
+expect:
+  stdout: |+
+    val=
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+test_against_local_shell: false
+description: Error if unset expansion ${var:?message} is not supported.
+input:
+  script: |+
+    echo ${UNSET:?message}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

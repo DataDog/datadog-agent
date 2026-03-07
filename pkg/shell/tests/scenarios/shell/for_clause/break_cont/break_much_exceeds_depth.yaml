@@ -1,0 +1,11 @@
+description: Break with much larger than nesting level breaks all loops.
+input:
+  script: |+
+    for i in 1; do
+      break 100
+      echo not reached
+    done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

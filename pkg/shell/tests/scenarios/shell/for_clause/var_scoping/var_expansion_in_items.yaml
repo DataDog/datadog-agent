@@ -1,0 +1,12 @@
+description: For loop items can reference variables via expansion.
+input:
+  script: |+
+    ITEMS="x y z"
+    for i in $ITEMS; do echo $i; done
+expect:
+  stdout: |+
+    x
+    y
+    z
+  stderr: ""
+  exit_code: 0

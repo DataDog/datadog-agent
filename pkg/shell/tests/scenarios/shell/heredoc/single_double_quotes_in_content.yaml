@@ -1,0 +1,13 @@
+description: Single and double quotes inside heredoc content are literal.
+input:
+  script: |+
+    cat <<END
+    'single'
+    "double"
+    END
+expect:
+  stdout: |+
+    'single'
+    "double"
+  stderr: ""
+  exit_code: 0
