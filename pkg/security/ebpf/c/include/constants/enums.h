@@ -128,6 +128,7 @@ enum SYSCALL_STATE
     ACCEPTED = 0,    // approved and can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
+    SAMPLED,         // sampled
 };
 
 enum MONITOR_KEYS
@@ -135,7 +136,8 @@ enum MONITOR_KEYS
     ERPC_MONITOR_KEY = 1,
     DISCARDER_MONITOR_KEY,
     APPROVER_MONITOR_KEY,
-    DNS_FILTERED_KEY
+    DNS_FILTERED_KEY,
+    AD_SAMPLE_MONITOR_KEY
 };
 
 enum tls_format
