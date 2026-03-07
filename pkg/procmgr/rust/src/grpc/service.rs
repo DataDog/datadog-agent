@@ -50,7 +50,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         let procs = self.mgr.read().await;
         let proc = procs
             .iter()
-            .find(|p| p.name == name)
+            .find(|p| p.name() == name)
             .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
 
         Ok(Response::new(proto::DescribeResponse {
@@ -190,7 +190,7 @@ impl From<ProcessState> for proto::ProcessState {
 fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     let cfg = proc.config();
     proto::Process {
-        name: proc.name.clone(),
+        name: proc.name().to_owned(),
         pid: proc.pid().unwrap_or(0),
         command: cfg.command.clone(),
         args: cfg.args.clone(),
@@ -254,7 +254,7 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     proto::ProcessDetail {
-        name: proc.name.clone(),
+        name: proc.name().to_owned(),
         description: cfg.description.clone().unwrap_or_default(),
         pid: proc.pid().unwrap_or(0),
         state: proto::ProcessState::from(proc.state()).into(),

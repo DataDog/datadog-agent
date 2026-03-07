@@ -54,11 +54,11 @@ impl ProcessManager {
 
     async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::UnboundedSender<String>) {
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.name == event.name) else {
+        let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
             return;
         };
-        info!("[{}] exited with {}", proc.name, event.status);
+        info!("[{}] exited with {}", proc.name(), event.status);
         proc.set_last_status(event.status);
         if let Some(delay) = proc.handle_restart() {
             let tx = restart_tx.clone();
@@ -72,7 +72,7 @@ impl ProcessManager {
 
     async fn complete_restart(&self, name: &str, exit_tx: &mpsc::UnboundedSender<ExitEvent>) {
         let mut procs = self.processes.write().await;
-        let Some(proc) = procs.iter_mut().find(|p| p.name == name) else {
+        let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
             warn!("restart for unknown process '{name}'");
             return;
         };
@@ -82,7 +82,7 @@ impl ProcessManager {
         }
         match proc.spawn() {
             Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name),
+            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
         }
     }
 
@@ -95,7 +95,7 @@ impl ProcessManager {
             return Err(Status::invalid_argument("command must not be empty"));
         }
         let mut procs = self.processes.write().await;
-        if procs.iter().any(|p| p.name == name) {
+        if procs.iter().any(|p| p.name() == name) {
             return Err(Status::already_exists(format!(
                 "process '{name}' already exists"
             )));
@@ -112,7 +112,7 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         let proc = procs
             .iter_mut()
-            .find(|p| p.name == name)
+            .find(|p| p.name() == name)
             .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
 
         if proc.is_running() {
@@ -130,7 +130,7 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         let proc = procs
             .iter_mut()
-            .find(|p| p.name == name)
+            .find(|p| p.name() == name)
             .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
 
         if !proc.is_running() {
@@ -159,18 +159,18 @@ impl ProcessManager {
         // gRPC reads are not blocked during the stop timeout.
         {
             let mut procs = self.processes.write().await;
-            existing_names = procs.iter().map(|p| p.name.clone()).collect();
+            existing_names = procs.iter().map(|p| p.name().to_owned()).collect();
 
             removed_procs = Vec::new();
             let mut i = 0;
             while i < procs.len() {
-                if !procs[i].is_runtime_created() && !new_names.contains(procs[i].name.as_str()) {
+                if !procs[i].is_runtime_created() && !new_names.contains(procs[i].name()) {
                     let mut proc = procs.remove(i);
-                    info!("[{}] config removed, stopping", proc.name);
+                    info!("[{}] config removed, stopping", proc.name());
                     if proc.is_running() {
                         proc.request_stop();
                     }
-                    removed.push(proc.name.clone());
+                    removed.push(proc.name().to_owned());
                     removed_procs.push(proc);
                 } else {
                     i += 1;
@@ -313,7 +313,7 @@ async fn main() -> Result<()> {
 /// Spawn a background task that awaits the child's exit and sends the result.
 pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
-        let name = proc.name.clone();
+        let name = proc.name().to_owned();
         let handle = tokio::spawn(async move {
             let mut child = child;
             let status = match child.wait().await {
@@ -464,6 +464,6 @@ mod tests {
 
         let procs = mgr.read().await;
         assert_eq!(procs.len(), 1);
-        assert_eq!(procs[0].name, "runtime-svc");
+        assert_eq!(procs[0].name(), "runtime-svc");
     }
 }
