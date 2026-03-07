@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 
 	yaml "go.yaml.in/yaml/v2"
@@ -199,7 +198,10 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		loaderErrors := make(map[string]error, len(s.loaders))
+		loaderErr := &LoaderError{
+			Config: config.Name,
+			Errors: make(map[string]string, len(s.loaders)),
+		}
 		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
@@ -212,21 +214,14 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				checks = append(checks, c)
 				break
 			}
-			loaderErrors[fmt.Sprintf("%v", loader)] = err
+			loaderErr.Errors[fmt.Sprintf("%v", loader)] = err.Error()
 		}
 
-		if len(loaderErrors) == numLoaders {
-			var concatErr strings.Builder
-			for loaderName, err := range loaderErrors {
-				errMsg := err.Error()
+		if len(loaderErr.Errors) == numLoaders {
+			for loaderName, errMsg := range loaderErr.Errors {
 				errorStats.setLoaderError(config.Name, loaderName, errMsg)
-
-				concatErr.WriteString(loaderName)
-				concatErr.WriteString(": ")
-				concatErr.WriteString(errMsg)
-				concatErr.WriteString("; ")
 			}
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
+			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, loaderErr.Error())
 		} else {
 			errorStats.removeLoaderErrors(config.Name)
 		}
