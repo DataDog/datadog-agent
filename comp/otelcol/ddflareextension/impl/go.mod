@@ -44,7 +44,7 @@ require (
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.147.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.147.0
 	go.uber.org/zap v1.27.1
-	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v2 v2.4.4
 )
 
 require (
