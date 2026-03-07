@@ -421,8 +421,18 @@ func (t *Tailer) forwardMessages() {
 			continue
 		}
 
-		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+		// Enrich the decoder output with the file-tailer origin.
+		// This mutates in-place to preserve the message's content state
+		// (e.g. StateStructured from syslog parser, StateUnstructured from
+		// plain text) rather than destructively re-wrapping via NewMessage.
+		output.Origin = origin
+		if output.ParsingExtra.SourceOverride != "" {
+			origin.SetSource(output.ParsingExtra.SourceOverride)
+		}
+		if output.ParsingExtra.ServiceOverride != "" {
+			origin.SetService(output.ParsingExtra.ServiceOverride)
+		}
+		msg := output
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the

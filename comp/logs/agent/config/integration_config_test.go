@@ -22,6 +22,11 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: TCPType, Port: 1234, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 514, Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UDPType, Port: 514, Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UnixType, SocketPath: "/var/run/myapp.sock", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UnixgramType, SocketPath: "/var/run/myapp.sock", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UnixType, SocketPath: "/var/run/myapp.sock", Format: SyslogFormat, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
@@ -38,6 +43,9 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: FileType},
 		{Type: TCPType},
 		{Type: UDPType},
+		{Type: UnixType},
+		{Type: UnixgramType},
+		{Type: TCPType, Port: 1234, Format: "yaml"},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch}}},
@@ -51,6 +59,75 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		err := config.Validate()
 		assert.NotNil(t, err)
 	}
+}
+
+func TestApplyDefaultsUnixSocketPath(t *testing.T) {
+	t.Run("unix with source and no socket_path gets auto-derived path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
+	})
+
+	t.Run("unixgram with source and no socket_path gets auto-derived path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixgramType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
+	})
+
+	t.Run("explicit socket_path is not overwritten", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app", SocketPath: "/custom/path.sock"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/custom/path.sock", cfg.SocketPath)
+	})
+
+	t.Run("no source means no auto-derivation", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("empty base dir means no auto-derivation", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("tcp type is not affected", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: TCPType, Port: 1234, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("validate passes after ApplyDefaults derives path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
+
+	t.Run("validate still fails without source or socket_path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType}
+		cfg.ApplyDefaults(mockConfig)
+		err := cfg.Validate()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "socket_path")
+	})
 }
 
 func TestAutoMultilineEnabled(t *testing.T) {

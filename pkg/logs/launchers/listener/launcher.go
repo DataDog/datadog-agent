@@ -21,6 +21,8 @@ type Launcher struct {
 	frameSize        int
 	tcpSources       chan *sources.LogSource
 	udpSources       chan *sources.LogSource
+	unixSources      chan *sources.LogSource
+	unixgramSources  chan *sources.LogSource
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
 }
@@ -38,6 +40,8 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.pipelineProvider = pipelineProvider
 	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)
 	l.udpSources = sourceProvider.GetAddedForType(config.UDPType)
+	l.unixSources = sourceProvider.GetAddedForType(config.UnixType)
+	l.unixgramSources = sourceProvider.GetAddedForType(config.UnixgramType)
 	go l.run()
 }
 
@@ -51,6 +55,14 @@ func (l *Launcher) run() {
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.udpSources:
 			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case source := <-l.unixSources:
+			listener := NewUnixStreamListener(l.pipelineProvider, source, l.frameSize)
+			listener.Start()
+			l.listeners = append(l.listeners, listener)
+		case source := <-l.unixgramSources:
+			listener := NewUnixgramListener(l.pipelineProvider, source, l.frameSize)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case <-l.stop:
