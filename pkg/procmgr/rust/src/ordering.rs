@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::config::NamedProcess;
+use crate::config::ProcessDefinition;
 use log::warn;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -26,7 +26,7 @@ pub struct ResolvedOrder {
 ///
 /// Among processes whose dependencies are equally satisfied, ties are broken
 /// alphabetically by name (globally, not per batch).
-pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
+pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
     let name_to_idx: HashMap<&str, usize> = configs
         .iter()
         .enumerate()
@@ -106,14 +106,14 @@ mod tests {
         }
     }
 
-    fn np(name: &str, after: &[&str], before: &[&str]) -> NamedProcess {
-        NamedProcess {
+    fn np(name: &str, after: &[&str], before: &[&str]) -> ProcessDefinition {
+        ProcessDefinition {
             name: name.to_string(),
             config: cfg(after, before),
         }
     }
 
-    fn names_in_order(configs: &[NamedProcess], order: &[usize]) -> Vec<String> {
+    fn names_in_order(configs: &[ProcessDefinition], order: &[usize]) -> Vec<String> {
         order.iter().map(|&i| configs[i].name.clone()).collect()
     }
 
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let configs: Vec<NamedProcess> = vec![];
+        let configs: Vec<ProcessDefinition> = vec![];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert!(result.order.is_empty());

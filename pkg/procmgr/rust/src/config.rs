@@ -11,7 +11,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub struct NamedProcess {
+pub struct ProcessDefinition {
     pub name: String,
     pub config: ProcessConfig,
 }
@@ -162,7 +162,7 @@ pub fn config_dir() -> PathBuf {
 /// Scan a directory for `*.yaml` files and parse each into a ProcessConfig.
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and skipped.
-pub fn load_configs(dir: &Path) -> Result<Vec<NamedProcess>> {
+pub fn load_configs(dir: &Path) -> Result<Vec<ProcessDefinition>> {
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 
@@ -198,7 +198,7 @@ pub fn load_configs(dir: &Path) -> Result<Vec<NamedProcess>> {
             .to_string();
 
         match parse_config(&path) {
-            Ok(config) => configs.push(NamedProcess { name, config }),
+            Ok(config) => configs.push(ProcessDefinition { name, config }),
             Err(e) => warn!("skipping {}: {e:#}", path.display()),
         }
     }

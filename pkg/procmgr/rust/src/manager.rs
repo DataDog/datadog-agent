@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::command::ReloadResult;
-use crate::config::{self, NamedProcess};
+use crate::config::{self, ProcessDefinition};
 use crate::ordering;
 use crate::process::ManagedProcess;
 use crate::shutdown;
@@ -269,7 +269,7 @@ pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEven
     }
 }
 
-fn load_configs() -> Vec<NamedProcess> {
+fn load_configs() -> Vec<ProcessDefinition> {
     let config_dir = config::config_dir();
 
     if !config_dir.is_dir() {
@@ -298,7 +298,7 @@ fn load_configs() -> Vec<NamedProcess> {
     configs
 }
 
-fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
+fn resolve_startup_order(configs: &[ProcessDefinition]) -> Vec<usize> {
     let result = ordering::resolve_order(configs);
     if !result.skipped.is_empty() {
         warn!(
@@ -315,7 +315,7 @@ fn resolve_startup_order(configs: &[NamedProcess]) -> Vec<usize> {
     result.order
 }
 
-fn start_processes(configs: Vec<NamedProcess>, startup_order: &[usize]) -> Vec<ManagedProcess> {
+fn start_processes(configs: Vec<ProcessDefinition>, startup_order: &[usize]) -> Vec<ManagedProcess> {
     let mut processes: Vec<ManagedProcess> = configs
         .into_iter()
         .map(|np| ManagedProcess::new(np.name, np.config))
