@@ -10,28 +10,23 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newJMXLogger),
-		fx.Supply(params),
-	)
-}
-
-type dependencies struct {
-	fx.In
-	Lc     fx.Lifecycle
+// Requires defines the dependencies for the jmxlogger component.
+type Requires struct {
+	Lc     compdef.Lifecycle
 	Config config.Component
 	Params Params
+}
+
+// Provides defines the output of the jmxlogger component.
+type Provides struct {
+	Comp jmxlogger.Component
 }
 
 type jmxLoggerInterface interface {
@@ -45,24 +40,24 @@ type logger struct {
 	inner jmxLoggerInterface
 }
 
-func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
-	config := deps.Config
+// NewComponent creates a new jmxlogger component.
+func NewComponent(reqs Requires) (Provides, error) {
 	var inner jmxLoggerInterface
 	var err error
 
-	if deps.Params.fromCLI {
-		inner, err = pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, config)
+	if reqs.Params.fromCLI {
+		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.logFile, "", false, true, false, reqs.Config)
 		if err != nil {
-			return logger{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
+			return Provides{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
 	} else {
-		syslogURI := pkglogsetup.GetSyslogURI(config)
-		jmxLogFile := config.GetString("jmx_log_file")
+		syslogURI := pkglogsetup.GetSyslogURI(reqs.Config)
+		jmxLogFile := reqs.Config.GetString("jmx_log_file")
 		if jmxLogFile == "" {
 			jmxLogFile = defaultpaths.JmxLogFile
 		}
 
-		if config.GetBool("disable_file_logging") {
+		if reqs.Config.GetBool("disable_file_logging") {
 			// this will prevent any logging on file
 			jmxLogFile = ""
 		}
@@ -70,14 +65,14 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 		inner, err = pkglogsetup.BuildJMXLogger(
 			jmxLogFile,
 			syslogURI,
-			config.GetBool("syslog_rfc"),
-			config.GetBool("log_to_console"),
-			config.GetBool("log_format_json"),
-			config,
+			reqs.Config.GetBool("syslog_rfc"),
+			reqs.Config.GetBool("log_to_console"),
+			reqs.Config.GetBool("log_format_json"),
+			reqs.Config,
 		)
 
 		if err != nil {
-			return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", err)
+			return Provides{}, fmt.Errorf("Error while setting up logging, exiting: %v", err)
 		}
 	}
 
@@ -85,7 +80,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 		inner: inner,
 	}
 
-	deps.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			jmxLogger.Flush()
 			jmxLogger.close()
@@ -93,7 +88,9 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 		},
 	})
 
-	return jmxLogger, nil
+	return Provides{
+		Comp: jmxLogger,
+	}, nil
 }
 
 func (j logger) JMXInfo(v ...interface{}) {
@@ -108,7 +105,7 @@ func (j logger) Flush() {
 	j.inner.Flush()
 }
 
-// close is use in to ensure we release any resource associated with the JMXLogger
+// close is used to ensure we release any resource associated with the JMXLogger
 func (j logger) close() {
 	j.inner.Close()
 }

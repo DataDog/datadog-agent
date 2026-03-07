@@ -10,7 +10,7 @@ package standalone
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

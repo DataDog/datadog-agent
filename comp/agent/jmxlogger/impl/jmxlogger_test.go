@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package jmxloggerimpl implements the logger for JMX.
 package jmxloggerimpl
 
@@ -13,11 +15,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
+
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type mockLifecycle struct{}
+
+func (m *mockLifecycle) Append(_ compdef.Hook) {}
 
 func TestJMXLog(t *testing.T) {
 	dir := t.TempDir()
@@ -26,14 +32,16 @@ func TestJMXLog(t *testing.T) {
 	assert.NoError(t, err)
 	defer f.Close()
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(NewCliParams(filePath)),
-	))
+	reqs := Requires{
+		Lc:     &mockLifecycle{},
+		Config: config.NewMock(t),
+		Params: NewCliParams(filePath),
+	}
 
-	jmxLogger, err := newJMXLogger(deps)
-
+	provides, err := NewComponent(reqs)
 	assert.NoError(t, err)
+
+	jmxLogger := provides.Comp
 
 	jmxLogger.JMXError("jmx error message")
 	jmxLogger.JMXInfo("jmx info message")
