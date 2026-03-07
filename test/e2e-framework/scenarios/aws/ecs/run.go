@@ -21,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	resourcesEcs "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 )
@@ -29,7 +30,6 @@ import (
 // An EC2 provider is considered set if at least one of its node groups is enabled.
 func isEC2ProviderSet(params *Params) bool {
 	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
-
 }
 
 // Run is the entry point for the scenario when run via pulumi.
@@ -103,6 +103,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		}
 	} else {
 		env.DisableFakeIntake()
+	}
+
+	// Wait for container instances to be ready before deploying EC2 workloads
+	// This prevents services from timing out while waiting for instances to register
+	if isEC2ProviderSet(clusterParams) {
+		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
+		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 2)
 	}
 
 	// Testing workload if at least one EC2 node group is present
