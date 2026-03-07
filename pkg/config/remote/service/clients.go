@@ -6,6 +6,7 @@
 package service
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -89,6 +90,25 @@ func (c *clients) active(pbClient *pbgo.Client) bool {
 		return false
 	}
 	return !client.expired(c.clock, c.clientsTTL)
+}
+
+// hasNewProducts checks whether the client's request contains products that
+// were not present when the client was last seen. This detects the case where
+// a tracer adds a new RC product after the initial connection,
+// which should trigger a cache bypass so the Agent fetches configs for the new product.
+func (c *clients) hasNewProducts(pbClient *pbgo.Client) bool {
+	c.m.Lock()
+	defer c.m.Unlock()
+	existing, ok := c.clients[pbClient.Id]
+	if !ok {
+		return false
+	}
+	for _, product := range pbClient.Products {
+		if !slices.Contains(existing.pbClient.Products, product) {
+			return true
+		}
+	}
+	return false
 }
 
 // activeClients returns the list of active clients

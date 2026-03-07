@@ -980,8 +980,11 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	if !s.clients.active(request.Client) {
+	if !s.clients.active(request.Client) || s.clients.hasNewProducts(request.Client) {
 		// Trigger a bypass to directly get configurations from the agent.
+		// This fires for new clients AND for existing clients that have added
+		// new products since their last request (e.g., a tracer that registers
+		// a new RC product after initially connecting for APM).
 		// This will timeout to avoid blocking the tracer if:
 		// - The previous request is still pending
 		// - The triggered request takes too long
