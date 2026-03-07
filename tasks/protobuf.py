@@ -23,6 +23,7 @@ PROTO_PKGS = {
     'autodiscovery': False,
     'trace/idx': False,
     'workloadfilter': False,
+    'dogstatsdhttp': False,
 }
 
 CLI_EXTRAS = {
@@ -38,6 +39,7 @@ CLI_EXTRAS_GRPC = {
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
+    'dogstatsdhttp': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
