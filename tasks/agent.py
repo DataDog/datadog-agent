@@ -552,7 +552,10 @@ def hacky_dev_image_build(
         build_dir = get_ebpf_build_dir(build_arch)
         runtime_dir = get_ebpf_runtime_dir()
 
-        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_extra_agents += (
+            "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/sd-agent /opt/datadog-agent/embedded/bin/sd-agent\n"
+        )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
