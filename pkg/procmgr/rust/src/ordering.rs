@@ -5,7 +5,8 @@
 
 use crate::config::NamedProcess;
 use log::warn;
-use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 /// Result of resolving startup order via topological sort.
 pub struct ResolvedOrder {
@@ -65,22 +66,22 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
         }
     }
 
-    // Kahn's algorithm: keep ready set sorted in reverse so pop() yields the
-    // alphabetically smallest name. Re-sort after inserting newly-ready nodes.
-    let mut ready: Vec<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
-    ready.sort_by(|a, b| configs[*b].name.cmp(&configs[*a].name));
+    // Kahn's algorithm with a min-heap for O(n log n) alphabetical tie-breaking.
+    let mut ready: BinaryHeap<Reverse<(&str, usize)>> = (0..n)
+        .filter(|&i| in_degree[i] == 0)
+        .map(|i| Reverse((configs[i].name.as_str(), i)))
+        .collect();
 
     let mut order: Vec<usize> = Vec::with_capacity(n);
-    while let Some(idx) = ready.pop() {
+    while let Some(Reverse((_, idx))) = ready.pop() {
         order.push(idx);
 
         for &dep_idx in &edges[idx] {
             in_degree[dep_idx] -= 1;
             if in_degree[dep_idx] == 0 {
-                ready.push(dep_idx);
+                ready.push(Reverse((configs[dep_idx].name.as_str(), dep_idx)));
             }
         }
-        ready.sort_by(|a, b| configs[*b].name.cmp(&configs[*a].name));
     }
 
     let skipped: Vec<String> = (0..n)
