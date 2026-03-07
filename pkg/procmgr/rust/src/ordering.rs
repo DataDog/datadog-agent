@@ -29,7 +29,7 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
     let name_to_idx: HashMap<&str, usize> = configs
         .iter()
         .enumerate()
-        .map(|(i, (name, _))| (name.as_str(), i))
+        .map(|(i, np)| (np.name.as_str(), i))
         .collect();
     let n = configs.len();
 
@@ -37,8 +37,8 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
     let mut edges: Vec<HashSet<usize>> = vec![HashSet::new(); n];
     let mut in_degree: Vec<u32> = vec![0; n];
 
-    for (idx, (name, cfg)) in configs.iter().enumerate() {
-        for dep in &cfg.after {
+    for (idx, np) in configs.iter().enumerate() {
+        for dep in &np.config.after {
             match name_to_idx.get(dep.as_str()) {
                 Some(&dep_idx) => {
                     if edges[dep_idx].insert(idx) {
@@ -46,12 +46,12 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
                     }
                 }
                 None => {
-                    warn!("[{name}] after dependency '{dep}' not found, ignoring");
+                    warn!("[{}] after dependency '{dep}' not found, ignoring", np.name);
                 }
             }
         }
 
-        for dep in &cfg.before {
+        for dep in &np.config.before {
             match name_to_idx.get(dep.as_str()) {
                 Some(&dep_idx) => {
                     if edges[idx].insert(dep_idx) {
@@ -59,7 +59,7 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
                     }
                 }
                 None => {
-                    warn!("[{name}] before dependency '{dep}' not found, ignoring");
+                    warn!("[{}] before dependency '{dep}' not found, ignoring", np.name);
                 }
             }
         }
@@ -68,7 +68,7 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
     // Kahn's algorithm: keep ready set sorted in reverse so pop() yields the
     // alphabetically smallest name. Re-sort after inserting newly-ready nodes.
     let mut ready: Vec<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
-    ready.sort_by(|a, b| configs[*b].0.cmp(&configs[*a].0));
+    ready.sort_by(|a, b| configs[*b].name.cmp(&configs[*a].name));
 
     let mut order: Vec<usize> = Vec::with_capacity(n);
     while let Some(idx) = ready.pop() {
@@ -80,12 +80,12 @@ pub fn resolve_order(configs: &[NamedProcess]) -> ResolvedOrder {
                 ready.push(dep_idx);
             }
         }
-        ready.sort_by(|a, b| configs[*b].0.cmp(&configs[*a].0));
+        ready.sort_by(|a, b| configs[*b].name.cmp(&configs[*a].name));
     }
 
     let skipped: Vec<String> = (0..n)
         .filter(|i| in_degree[*i] > 0)
-        .map(|i| configs[i].0.clone())
+        .map(|i| configs[i].name.clone())
         .collect();
 
     ResolvedOrder { order, skipped }
@@ -105,17 +105,20 @@ mod tests {
         }
     }
 
+    fn np(name: &str, after: &[&str], before: &[&str]) -> NamedProcess {
+        NamedProcess {
+            name: name.to_string(),
+            config: cfg(after, before),
+        }
+    }
+
     fn names_in_order(configs: &[NamedProcess], order: &[usize]) -> Vec<String> {
-        order.iter().map(|&i| configs[i].0.clone()).collect()
+        order.iter().map(|&i| configs[i].name.clone()).collect()
     }
 
     #[test]
     fn test_no_constraints_alphabetical() {
-        let configs = vec![
-            ("charlie".to_string(), cfg(&[], &[])),
-            ("alpha".to_string(), cfg(&[], &[])),
-            ("bravo".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("charlie", &[], &[]), np("alpha", &[], &[]), np("bravo", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(
@@ -126,10 +129,7 @@ mod tests {
 
     #[test]
     fn test_after_constraint() {
-        let configs = vec![
-            ("api".to_string(), cfg(&["db"], &[])),
-            ("db".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("api", &["db"], &[]), np("db", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["db", "api"]);
@@ -137,10 +137,7 @@ mod tests {
 
     #[test]
     fn test_before_constraint() {
-        let configs = vec![
-            ("db".to_string(), cfg(&[], &["api"])),
-            ("api".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("db", &[], &["api"]), np("api", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["db", "api"]);
@@ -148,11 +145,7 @@ mod tests {
 
     #[test]
     fn test_chain_a_before_b_before_c() {
-        let configs = vec![
-            ("c".to_string(), cfg(&["b"], &[])),
-            ("a".to_string(), cfg(&[], &["b"])),
-            ("b".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("c", &["b"], &[]), np("a", &[], &["b"]), np("b", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["a", "b", "c"]);
@@ -160,10 +153,7 @@ mod tests {
 
     #[test]
     fn test_cycle_skips_involved_processes() {
-        let configs = vec![
-            ("a".to_string(), cfg(&["b"], &[])),
-            ("b".to_string(), cfg(&["a"], &[])),
-        ];
+        let configs = vec![np("a", &["b"], &[]), np("b", &["a"], &[])];
         let result = resolve_order(&configs);
         assert!(result.order.is_empty());
         assert!(result.skipped.contains(&"a".to_string()));
@@ -174,10 +164,10 @@ mod tests {
     fn test_cycle_starts_non_cyclic_processes() {
         // a <-> b form a cycle; c and d are independent
         let configs = vec![
-            ("a".to_string(), cfg(&["b"], &[])),
-            ("b".to_string(), cfg(&["a"], &[])),
-            ("c".to_string(), cfg(&[], &[])),
-            ("d".to_string(), cfg(&[], &[])),
+            np("a", &["b"], &[]),
+            np("b", &["a"], &[]),
+            np("c", &[], &[]),
+            np("d", &[], &[]),
         ];
         let result = resolve_order(&configs);
         assert_eq!(names_in_order(&configs, &result.order), vec!["c", "d"]);
@@ -186,10 +176,7 @@ mod tests {
 
     #[test]
     fn test_missing_dependency_ignored() {
-        let configs = vec![
-            ("api".to_string(), cfg(&["nonexistent"], &[])),
-            ("db".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("api", &["nonexistent"], &[]), np("db", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(result.order.len(), 2);
@@ -199,10 +186,10 @@ mod tests {
     fn test_diamond_dependency() {
         // a -> b, a -> c, b -> d, c -> d
         let configs = vec![
-            ("a".to_string(), cfg(&[], &["b", "c"])),
-            ("b".to_string(), cfg(&[], &["d"])),
-            ("c".to_string(), cfg(&[], &["d"])),
-            ("d".to_string(), cfg(&[], &[])),
+            np("a", &[], &["b", "c"]),
+            np("b", &[], &["d"]),
+            np("c", &[], &["d"]),
+            np("d", &[], &[]),
         ];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
@@ -214,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_single_process() {
-        let configs = vec![("solo".to_string(), cfg(&[], &[]))];
+        let configs = vec![np("solo", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["solo"]);
@@ -233,10 +220,10 @@ mod tests {
         // d depends on a; b and c are unconstrained
         // expected: a, b, c, d (a first because d depends on it; b,c alphabetical; d last)
         let configs = vec![
-            ("d".to_string(), cfg(&["a"], &[])),
-            ("c".to_string(), cfg(&[], &[])),
-            ("b".to_string(), cfg(&[], &[])),
-            ("a".to_string(), cfg(&[], &[])),
+            np("d", &["a"], &[]),
+            np("c", &[], &[]),
+            np("b", &[], &[]),
+            np("a", &[], &[]),
         ];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
@@ -251,11 +238,7 @@ mod tests {
         // b -> a (b must start before a), c is unconstrained
         // After b is popped, a becomes ready. a < c alphabetically, so a should come before c.
         // expected: b, a, c (not b, c, a)
-        let configs = vec![
-            ("a".to_string(), cfg(&["b"], &[])),
-            ("b".to_string(), cfg(&[], &[])),
-            ("c".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("a", &["b"], &[]), np("b", &[], &[]), np("c", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a", "c"]);
@@ -263,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_self_dependency_is_cycle() {
-        let configs = vec![("a".to_string(), cfg(&["a"], &[]))];
+        let configs = vec![np("a", &["a"], &[])];
         let result = resolve_order(&configs);
         assert!(result.order.is_empty());
         assert_eq!(result.skipped, vec!["a"]);
@@ -272,10 +255,7 @@ mod tests {
     #[test]
     fn test_duplicate_dependency_in_list() {
         // Listing "b" twice in after should not double-count in_degree.
-        let configs = vec![
-            ("a".to_string(), cfg(&["b", "b"], &[])),
-            ("b".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("a", &["b", "b"], &[]), np("b", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
@@ -285,10 +265,7 @@ mod tests {
     fn test_redundant_after_and_before_same_edge() {
         // A says after:["B"] and B says before:["A"] — both express B→A.
         // Should produce exactly one edge, not a double-count.
-        let configs = vec![
-            ("a".to_string(), cfg(&["b"], &[])),
-            ("b".to_string(), cfg(&[], &["a"])),
-        ];
+        let configs = vec![np("a", &["b"], &[]), np("b", &[], &["a"])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
@@ -296,10 +273,7 @@ mod tests {
 
     #[test]
     fn test_missing_before_dependency_ignored() {
-        let configs = vec![
-            ("api".to_string(), cfg(&[], &["nonexistent"])),
-            ("db".to_string(), cfg(&[], &[])),
-        ];
+        let configs = vec![np("api", &[], &["nonexistent"]), np("db", &[], &[])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(result.order.len(), 2);
@@ -308,10 +282,7 @@ mod tests {
     #[test]
     fn test_duplicate_before_dependency_in_list() {
         // Listing "a" twice in before should not double-count in_degree.
-        let configs = vec![
-            ("a".to_string(), cfg(&[], &[])),
-            ("b".to_string(), cfg(&[], &["a", "a"])),
-        ];
+        let configs = vec![np("a", &[], &[]), np("b", &[], &["a", "a"])];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["b", "a"]);
