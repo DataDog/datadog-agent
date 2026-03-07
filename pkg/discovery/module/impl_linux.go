@@ -108,13 +108,13 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 
 // handleStateEndpoint is the handler for the /state endpoint.
 // Returns the internal state of the discovery module.
-func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
+func (s *discovery) handleStateEndpoint(w http.ResponseWriter, req *http.Request) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
 	state := make(map[string]interface{})
 
-	utils.WriteAsJSON(w, state, utils.CompactOutput)
+	utils.WriteAsJSON(req, w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
@@ -132,7 +132,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services, utils.CompactOutput)
+	utils.WriteAsJSON(req, w, services, utils.CompactOutput)
 }
 
 // socketInfo stores information related to each socket.
