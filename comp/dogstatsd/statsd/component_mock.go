@@ -7,8 +7,10 @@
 
 package statsd
 
+import (
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
+)
+
 // Mock implements mock-specific methods.
-type Mock interface {
-	// Component methods are included in Mock.
-	Component
-}
+// Deprecated: Use comp/dogstatsd/statsd/impl.Mock directly.
+type Mock = statsdimpl.Mock
