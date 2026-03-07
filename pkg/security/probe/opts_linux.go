@@ -33,6 +33,8 @@ type Opts struct {
 	EBPFLessEnabled bool
 	// DNSPort allows to change the DNS port where the events are captured from
 	DNSPort uint16
+	// EventProcessingTimeMetricsEnabled enables metrics for the time that kernel events take to get processed
+	GenerateEventProcessingTimeMetrics bool
 }
 
 func (o *Opts) normalize() {

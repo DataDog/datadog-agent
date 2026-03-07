@@ -534,19 +534,24 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
+	ev.RecordCheckpoint("rule_match_start:" + rule.ID)
+
 	// add matched rules to ensure that this information is available in activity dumps
 	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
 	e.probe.HandleActions(rule, event)
+	ev.RecordCheckpoint("rule_match_after_handle_actions:" + rule.ID)
 
 	if rule.Def.Silent {
+		ev.RecordCheckpoint("rule_match_silent_rule:" + rule.ID)
 		return false
 	}
 
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.RecordCheckpoint("rule_match_after_resolve_container_tags:" + rule.ID)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -556,6 +561,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
+	ev.RecordCheckpoint("rule_match_after_get_service:" + rule.ID)
 
 	var extTagsCb func() ([]string, bool)
 
@@ -573,6 +579,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
+	ev.RecordCheckpoint("rule_match_after_send_event:" + rule.ID)
 
 	return true
 }
@@ -654,8 +661,74 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 	e.rulesLoaded = cb
 }
 
+type slowProcessingEvent struct {
+	EventType             string                       `json:"event_type"`
+	DurationUs            int64                        `json:"duration_us"`
+	ProcessingTimeMicrosec uint32                      `json:"processingtime_microsec"`
+	ProcessingTrace       []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
+	MaxProcessingGapUs    int64                        `json:"max_processing_gap_us,omitempty"`
+	MaxProcessingGapFrom  string                       `json:"max_processing_gap_from,omitempty"`
+	MaxProcessingGapTo    string                       `json:"max_processing_gap_to,omitempty"`
+}
+
+func (e *slowProcessingEvent) GetWorkloadID() string {
+	return ""
+}
+
+func (e *slowProcessingEvent) GetTags() []string {
+	return []string{"type:slow_event_processing"}
+}
+
+func (e *slowProcessingEvent) GetType() string {
+	return "slow_event_processing"
+}
+
+func (e *slowProcessingEvent) GetActionReports() []model.ActionReport {
+	return nil
+}
+
+func (e *slowProcessingEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
+	return "", eval.ErrFieldNotFound{}
+}
+
+func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
+	durationUs := time.Since(event.StartTime).Microseconds()
+
+	var maxGapUs int64
+	var maxGapFrom string
+	var maxGapTo string
+	if len(event.ProcessingTrace) >= 2 {
+		prev := event.ProcessingTrace[0]
+		for i := 1; i < len(event.ProcessingTrace); i++ {
+			cur := event.ProcessingTrace[i]
+			gap := cur.ElapsedUs - prev.ElapsedUs
+			if gap > 0 && gap > maxGapUs {
+				maxGapUs = gap
+				maxGapFrom = prev.Name
+				maxGapTo = cur.Name
+			}
+			prev = cur
+		}
+	}
+
+	return &slowProcessingEvent{
+		EventType:             event.GetEventType().String(),
+		DurationUs:            durationUs,
+		ProcessingTimeMicrosec: uint32(durationUs),
+		ProcessingTrace:       append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+		MaxProcessingGapUs:    maxGapUs,
+		MaxProcessingGapFrom:  maxGapFrom,
+		MaxProcessingGapTo:    maxGapTo,
+	}
+}
+
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	if event.StartTime.IsZero() {
+		// StartTime is set by the probe for kernel events, but keep a safe fallback to avoid bogus processing times.
+		event.StartTime = time.Now()
+	}
+
 	// don't eval event originating from myself
 	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
 		return
@@ -672,13 +745,30 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if !ruleSet.Evaluate(event) {
+		event.RecordCheckpoint("rule_evaluate_start")
+		matched := ruleSet.Evaluate(event)
+		event.RecordCheckpoint("rule_evaluate_done")
+		if !matched {
 			evtType := int(event.GetEventType())
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
-			ruleSet.EvaluateDiscarders(event)
+			if e.probe.ShouldEvaluateDiscarders(event) {
+				event.RecordCheckpoint("rule_evaluate_discarders_start")
+				ruleSet.EvaluateDiscarders(event)
+				event.RecordCheckpoint("rule_evaluate_discarders_done")
+			}
 		}
+	}
+
+	// Debug-only: report events that took too long to process, even if no rule matched.
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 1*time.Second {
+		event.AddToFlags(model.EventFlagsSlowProcessingReported)
+
+		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
+		slowRule := events.NewSlowEventProcessingRule(originalRuleID, "")
+		slowEvent := newSlowProcessingEvent(event)
+		e.eventSender.SendEvent(slowRule, slowEvent, nil, "")
 	}
 }
 

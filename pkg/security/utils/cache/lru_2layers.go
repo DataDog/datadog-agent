@@ -173,6 +173,22 @@ func (tll *TwoLayersLRU[K1, K2, V]) Get(k1 K1, k2 K2) (v V, ok bool) {
 	return l2LRU.Get(k2)
 }
 
+// GetReadOnly looks up key values from the cache without updating recency.
+// It uses a read lock and underlying Peek operations so that concurrent readers
+// can progress without blocking each other, while writers still take the
+// exclusive lock.
+func (tll *TwoLayersLRU[K1, K2, V]) GetReadOnly(k1 K1, k2 K2) (v V, ok bool) {
+	tll.RLock()
+	defer tll.RUnlock()
+
+	l2LRU, exists := tll.cache.Peek(k1)
+	if !exists {
+		return v, false
+	}
+
+	return l2LRU.Peek(k2)
+}
+
 // Len returns the number of entries
 func (tll *TwoLayersLRU[K1, K2, V]) Len() int {
 	return int(tll.len.Load())

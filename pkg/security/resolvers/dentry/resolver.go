@@ -9,7 +9,6 @@
 package dentry
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,8 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,6 +71,31 @@ type Resolver struct {
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	// debug tracing
+	traceMu         sync.Mutex
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (dr *Resolver) traceCheckpoint(name string) {
+	dr.traceMu.Lock()
+	if dr.activeTrace != nil && !dr.activeStartTime.IsZero() {
+		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(dr.activeStartTime).Microseconds(),
+		})
+	}
+	dr.traceMu.Unlock()
+}
+
+// SetActiveTrace sets the trace target for subsequent calls
+func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.traceMu.Lock()
+	dr.activeTrace = trace
+	dr.activeStartTime = startTime
+	dr.traceMu.Unlock()
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -180,7 +206,7 @@ func (dr *Resolver) DelCacheEntriesForMountID(mountID uint32) {
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
-	entry, exists := dr.cache.Get(pathKey.MountID, pathKey)
+	entry, exists := dr.cache.GetReadOnly(pathKey.MountID, pathKey)
 	if !exists {
 		return PathEntry{}, ErrEntryNotFound
 	}
@@ -259,8 +285,10 @@ func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
 
 	name, err = dr.ResolveNameFromCache(pathKey)
 
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, _ = dr.ResolveNameFromMap(pathKey, cache)
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		// trigger a full path resolution via eRPC to populate the cache, then retry from cache
+		_, _ = dr.Resolve(pathKey, cache)
+		name, _ = dr.ResolveNameFromCache(pathKey)
 	}
 
 	return name
@@ -464,18 +492,31 @@ func (dr *Resolver) computeSegmentCount() int {
 	count := 0
 	i := 0
 	for i < dr.erpcSegmentSize {
+		// ensure there is enough room for the fixed-size path key header
+		if i+16 > dr.erpcSegmentSize {
+			break
+		}
 		i += 16 // skip the path key
 
-		if i < dr.erpcSegmentSize {
-			if dr.erpcSegment[i] == '/' {
-				break
-			}
-
-			// skip the segment
-			i += bytes.IndexByte(dr.erpcSegment[i:], 0)
+		if i >= dr.erpcSegmentSize {
+			break
+		}
+		if dr.erpcSegment[i] == '/' {
+			break
 		}
 
-		i++ // skip the null terminator
+		// scan the segment until we reach the null terminator or the end of the buffer
+		j := i
+		for j < dr.erpcSegmentSize && dr.erpcSegment[j] != 0 {
+			j++
+		}
+		if j >= dr.erpcSegmentSize {
+			// no terminator found before the end of the buffer, stop counting
+			break
+		}
+
+		// skip the null terminator and count this segment
+		i = j + 1
 		count++
 	}
 	return count
@@ -567,13 +608,19 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	var err = ErrEntryNotFound
 
 	if cache {
+		dr.traceCheckpoint("dentry_cache")
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_erpc")
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		path, err = dr.ResolveFromMap(pathKey, cache)
+	if err != nil && err != errTruncatedParentsERPC && dr.config.ERPCDentryResolutionEnabled {
+		// retry eRPC resolution instead of falling back to the kernel map implementation
+		dr.traceCheckpoint("dentry_erpc")
+		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
 	return path, err
 }
@@ -614,16 +661,18 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
-	pathKey, err := dr.ResolveParentFromCache(pathKey)
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromMap(pathKey)
+	parent, err := dr.ResolveParentFromCache(pathKey)
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		// trigger a full path resolution via eRPC to populate the cache, then retry from cache
+		_, _ = dr.Resolve(pathKey, true)
+		parent, err = dr.ResolveParentFromCache(pathKey)
 	}
 
-	if pathKey.Inode == 0 {
+	if parent.Inode == 0 {
 		return model.PathKey{}, ErrEntryNotFound
 	}
 
-	return pathKey, err
+	return parent, err
 }
 
 func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {

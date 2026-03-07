@@ -450,10 +450,6 @@ func cleanupABottomUp(path string) {
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	t.Run("map", func(t *testing.T) {
-		truncatedParents(t, testOpts{disableERPCDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
-	})
-
 	t.Run("erpc", func(t *testing.T) {
 		truncatedParents(t, testOpts{disableMapDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
 	})
