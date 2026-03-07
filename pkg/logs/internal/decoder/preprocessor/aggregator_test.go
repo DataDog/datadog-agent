@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
@@ -363,7 +364,7 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 // Tests for detectingAggregator
 
 func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	// startGroup: stored as pending, nothing emitted
 	require.Empty(t, ag.Process(newMessage("Error: Exception"), startGroup))
@@ -384,7 +385,7 @@ func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
 }
 
 func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	// startGroup: stored
 	require.Empty(t, ag.Process(newMessage("Single line 1"), startGroup))
@@ -403,7 +404,7 @@ func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
 }
 
 func TestDetectingAggregator_NoAggregateOutputsImmediately(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	msgs := ag.Process(newMessage("No aggregate 1"), noAggregate)
 	require.Len(t, msgs, 1)
@@ -417,7 +418,7 @@ func TestDetectingAggregator_NoAggregateOutputsImmediately(t *testing.T) {
 }
 
 func TestDetectingAggregator_FlushPendingMessage(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	require.Empty(t, ag.Process(newMessage("Pending message"), startGroup))
 
@@ -428,7 +429,7 @@ func TestDetectingAggregator_FlushPendingMessage(t *testing.T) {
 }
 
 func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	// Single line stored
 	require.Empty(t, ag.Process(newMessage("Single"), startGroup))
@@ -457,7 +458,7 @@ func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
 }
 
 func TestDetectingAggregator_IsEmpty(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry())
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
 
 	assert.True(t, ag.IsEmpty())
 
@@ -471,4 +472,136 @@ func TestDetectingAggregator_IsEmpty(t *testing.T) {
 	msgs = ag.Process(newMessage("Immediate"), noAggregate)
 	require.Len(t, msgs, 1)
 	assert.True(t, ag.IsEmpty())
+}
+
+// COAT telemetry tests
+
+func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// startGroup followed by two aggregates: both aggregates would be combined
+	ag.Process(newMessage("timestamp line"), startGroup)
+	ag.Process(newMessage("  continuation 1"), aggregate)
+	ag.Process(newMessage("  continuation 2"), aggregate)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(3), totalAfter-totalBefore)
+	assert.Equal(t, float64(3), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoCombineForStandaloneAggregates(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// Aggregate lines without a preceding startGroup should NOT count as would-combine
+	ag.Process(newMessage("orphan 1"), aggregate)
+	ag.Process(newMessage("orphan 2"), aggregate)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_WouldTruncate(t *testing.T) {
+	// maxContentSize=20 so combining will overflow
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 20, true)
+
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	// startGroup(10 bytes content) + aggregate(15 bytes content) → 15 + 10 = 25 >= 20 → truncation
+	ag.Process(newMessage("1234567890"), startGroup)     // 10 bytes content
+	ag.Process(newMessage("123456789012345"), aggregate) // 15 bytes, RawDataLen=15, 15+10>=20 → truncate
+
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	// Both lines (startGroup + overflowing aggregate) belong to the truncated group
+	assert.Equal(t, float64(2), truncAfter-truncBefore)
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(2), combineAfter-combineBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+
+	// A single startGroup >= maxContentSize is excluded from truncation counts
+	// (it would be truncated regardless of auto-multiline)
+	ag.Process(newMessage("12345"), startGroup) // RawDataLen=5 >= maxContentSize=5
+	ag.Process(newMessage("67"), aggregate)     // Not in group since startGroup was oversized
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+	assert.Equal(t, float64(2), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_NoCountsWhenNotDefaultPath(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	ag.Process(newMessage("timestamp line"), startGroup)
+	ag.Process(newMessage("  continuation"), aggregate)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(0), totalAfter-totalBefore)
+	assert.Equal(t, float64(0), combineAfter-combineBefore)
+	assert.Equal(t, float64(0), truncAfter-truncBefore)
+}
+
+func TestDetectingAggregator_COATTelemetry_MultiGroupWithTruncation(t *testing.T) {
+	// maxContentSize=15 to make the second group truncate
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, true)
+
+	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	// Group 1: fits (5 content + 2 LF + 3 content = 10 < 15)
+	ag.Process(newMessage("12345"), startGroup) // 5 bytes
+	ag.Process(newMessage("678"), aggregate)    // RawDataLen=3, 3+5=8 < 15 → ok, bufLen = 5+2+3 = 10
+
+	// Group 2: will truncate (10 content + RawDataLen=10 → 10+10=20 >= 15)
+	ag.Process(newMessage("1234567890"), startGroup) // 10 bytes, starts new group
+	ag.Process(newMessage("1234567890"), aggregate)  // RawDataLen=10, 10+10>=15 → truncate
+	ag.Process(newMessage("123"), aggregate)         // Aggregate out of a startGroup should not count as would-combine
+
+	// noAggregate standalone
+	ag.Process(newMessage("standalone"), noAggregate)
+
+	totalAfter := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
+	combineAfter := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
+	truncAfter := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
+
+	assert.Equal(t, float64(6), totalAfter-totalBefore)
+	assert.Equal(t, float64(4), combineAfter-combineBefore) // group 1: startGroup + aggregate, group 2: startGroup + aggregate
+	assert.Equal(t, float64(2), truncAfter-truncBefore)     // group 2 (2 lines) would truncate
 }
