@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use std::collections::VecDeque;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
@@ -21,7 +22,7 @@ use tokio::time::{self, Duration, Instant};
 
 struct RestartTracker {
     count: u32,
-    timestamps: Vec<Instant>,
+    timestamps: VecDeque<Instant>,
     current_delay: f64,
     last_spawn_time: Option<Instant>,
 }
@@ -33,7 +34,7 @@ impl RestartTracker {
     fn new(initial_delay: f64) -> Self {
         Self {
             count: 0,
-            timestamps: Vec::new(),
+            timestamps: VecDeque::new(),
             current_delay: initial_delay,
             last_spawn_time: None,
         }
@@ -58,9 +59,9 @@ impl RestartTracker {
             self.count = 0;
         }
         self.count += 1;
-        self.timestamps.push(Instant::now());
+        self.timestamps.push_back(Instant::now());
         if self.timestamps.len() > Self::MAX_TIMESTAMPS {
-            self.timestamps.remove(0);
+            self.timestamps.pop_front();
         }
     }
 
