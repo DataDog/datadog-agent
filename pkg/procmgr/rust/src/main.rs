@@ -43,8 +43,8 @@ async fn main() -> Result<()> {
         grpc_shutdown_rx,
     ));
 
-    let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
-    let (restart_tx, mut restart_rx) = mpsc::unbounded_channel::<String>();
+    let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
+    let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
     mgr.wire_watchers(&exit_tx).await;
 
     let mut sigterm = signal(SignalKind::terminate())?;

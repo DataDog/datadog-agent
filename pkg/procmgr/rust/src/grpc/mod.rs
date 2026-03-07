@@ -80,7 +80,7 @@ mod tests {
             drop(dir);
         });
 
-        let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<crate::ExitEvent>();
+        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
         let mgr_loop = mgr.clone();
         let exit_tx_loop = exit_tx.clone();
         tokio::spawn(async move {
@@ -109,7 +109,7 @@ mod tests {
                         }
                     }
                     Some(event) = exit_rx.recv() => {
-                        let restart_tx = mpsc::unbounded_channel::<String>().0;
+                        let restart_tx = mpsc::channel::<String>(256).0;
                         mgr_loop.handle_exit(event, &restart_tx).await;
                     }
                     else => break,
