@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testBigStruct",
+      "method": "main.testErrorAtLine",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testBigStruct",
+            "function": "main.testErrorAtLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 82
+            "lineNumber": 108
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 260
+            "lineNumber": 296
           },
           {
             "function": "main.main",
@@ -42,41 +42,28 @@
           }
         ],
         "probe": {
-          "id": "testBigStruct",
+          "id": "testErrorAtLineLine",
           "location": {
-            "method": "main.testBigStruct"
+            "method": "main.testErrorAtLine",
+            "file": "complex.go",
+            "line": 108
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "b": {
-                "type": "main.bigStruct",
-                "fields": {
-                  "x": {
-                    "type": "[]*string",
-                    "size": "1",
-                    "elements": [
-                      {
-                        "type": "*string",
-                        "address": "[addr]",
-                        "value": "abc"
-                      }
-                    ]
-                  },
-                  "z": {
-                    "type": "int",
-                    "value": "5"
-                  },
-                  "writer": {
-                    "type": "io.Writer",
-                    "fields": {
-                      "data": {
-                        "type": "io.discard",
-                        "fields": {}
-                      }
-                    }
-                  }
+          "lines": {
+            "108": {
+              "locals": {
+                "~r0": {
+                  "type": "int",
+                  "notCapturedReason": "unavailable"
+                },
+                "x": {
+                  "type": "int",
+                  "notCapturedReason": "unavailable"
+                },
+                "err": {
+                  "type": "error",
+                  "notCapturedReason": "unavailable"
                 }
               }
             }
@@ -85,7 +72,6 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
-    "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}"
+    "message": "x={unavailable}, err={unavailable}"
   }
 ]

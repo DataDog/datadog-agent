@@ -1,0 +1,102 @@
+## ARM64:
+
+0x00030734:   DW_TAG_subprogram
+                DW_AT_name      ("main.testErrorAtLine")
+                DW_AT_low_pc    (0x00000000008030c0)
+                DW_AT_high_pc   (0x00000000008031d0)
+                DW_AT_frame_base        (DW_OP_call_frame_cfa)
+                DW_AT_decl_file ("./github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go")
+                DW_AT_decl_line (101)
+                DW_AT_external  (0x01)
+
+0x00030756:     DW_TAG_formal_parameter
+                  DW_AT_name    ("shouldErr")
+                  DW_AT_variable_parameter      (0x00)
+                  DW_AT_decl_line       (101)
+                  DW_AT_type    (0x00000000000f4a65 "bool")
+                  DW_AT_location        (0x000247e8:
+                     [0x00000000008030c0, 0x00000000008030e0): DW_OP_reg0 W0)
+
+0x0003076b:     DW_TAG_formal_parameter
+                  DW_AT_name    ("~r0")
+                  DW_AT_variable_parameter      (0x01)
+                  DW_AT_decl_line       (101)
+                  DW_AT_type    (0x00000000000f5170 "int")
+                  DW_AT_location        (<empty>)
+
+0x00030777:     DW_TAG_variable
+                  DW_AT_name    ("x")
+                  DW_AT_decl_line       (106)
+                  DW_AT_type    (0x00000000000f5170 "int")
+                  DW_AT_location        (<empty>)
+
+0x00030780:     DW_TAG_variable
+                  DW_AT_name    ("err")
+                  DW_AT_decl_line       (102)
+                  DW_AT_type    (0x00000000000f6166 "error")
+                  DW_AT_location        (0x000247f1:
+                     [0x00000000008030d8, 0x000000000080311c): DW_OP_piece 0x8, DW_OP_reg0 W0, DW_OP_piece 0x8
+                     [0x000000000080311c, 0x000000000080317c): DW_OP_reg0 W0, DW_OP_piece 0x8, DW_OP_reg0 W0, DW_OP_piece 0x8
+                     [0x000000000080317c, 0x00000000008031d0): DW_OP_fbreg -64, DW_OP_piece 0x8, DW_OP_reg0 W0, DW_OP_piece 0x8)
+
+0x0003078e:     DW_TAG_inlined_subroutine
+                  DW_AT_abstract_origin (0x00000000002ced86 "errors.New")
+                  DW_AT_ranges  (0x0000b487
+                     [0x00000000008030ec, 0x0000000000803110))
+                  DW_AT_call_file       ("./github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go")
+                  DW_AT_call_line       (104)
+
+
+## AMD64:
+
+0x00033288:   DW_TAG_subprogram
+                DW_AT_name      ("main.testErrorAtLine")
+                DW_AT_low_pc    (0x0000000000ce5780)
+                DW_AT_high_pc   (0x0000000000ce5885)
+                DW_AT_frame_base        (DW_OP_call_frame_cfa)
+                DW_AT_decl_file ("./github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go")
+                DW_AT_decl_line (101)
+                DW_AT_external  (0x01)
+
+0x000332aa:     DW_TAG_formal_parameter
+                  DW_AT_name    ("shouldErr")
+                  DW_AT_variable_parameter      (0x00)
+                  DW_AT_decl_line       (101)
+                  DW_AT_type    (0x00000000000f5452 "bool")
+                  DW_AT_location        (0x00026777:
+                     [0x0000000000ce5780, 0x0000000000ce5798): DW_OP_reg0 RAX)
+
+0x000332bf:     DW_TAG_formal_parameter
+                  DW_AT_name    ("~r0")
+                  DW_AT_variable_parameter      (0x01)
+                  DW_AT_decl_line       (101)
+                  DW_AT_type    (0x00000000000f5b5d "int")
+                  DW_AT_location        (<empty>)
+
+0x000332cb:     DW_TAG_variable
+                  DW_AT_name    ("x")
+                  DW_AT_decl_line       (106)
+                  DW_AT_type    (0x00000000000f5b5d "int")
+                  DW_AT_location        (<empty>)
+
+0x000332d4:     DW_TAG_variable
+                  DW_AT_name    ("err")
+                  DW_AT_decl_line       (102)
+                  DW_AT_type    (0x00000000000f6c86 "error")
+                  DW_AT_location        (0x00026780:
+                     [0x0000000000ce57b3, 0x0000000000ce57cf): DW_OP_piece 0x8, DW_OP_reg0 RAX, DW_OP_piece 0x8
+                     [0x0000000000ce57cf, 0x0000000000ce583d): DW_OP_reg0 RAX, DW_OP_piece 0x8, DW_OP_reg2 RCX, DW_OP_piece 0x8
+                     [0x0000000000ce583d, 0x0000000000ce5840): DW_OP_fbreg -72, DW_OP_piece 0x8, DW_OP_reg2 RCX, DW_OP_piece 0x8
+                     [0x0000000000ce5840, 0x0000000000ce5885): DW_OP_fbreg -72, DW_OP_piece 0x8, DW_OP_piece 0x8)
+
+0x000332e2:     DW_TAG_inlined_subroutine
+                  DW_AT_abstract_origin (0x00000000002cfafe "errors.New")
+                  DW_AT_ranges  (0x0000c48b
+                     [0x0000000000ce579d, 0x0000000000ce57c5))
+                  DW_AT_call_file       ("./github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go")
+                  DW_AT_call_line       (104)
+
+
+## Error seen (only on arm):
+
+2026-03-04T22:24:17.688548Z 01O w 22:22:01.461476509 @/go/src/github.com/DataDog/datadog-agent/pkg/dyninst/module/sink.go:208| failed to report probe error for probe testErrorAtLineLine in service sample: error marshaling snapshot message: json: cannot marshal from Go decode.messageData: invalid UTF-8 within "/message" after offset 1381
