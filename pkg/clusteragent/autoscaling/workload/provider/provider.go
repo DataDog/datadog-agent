@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,10 +57,15 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
+	clock := clock.RealClock{}
+
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
-
-	clock := clock.RealClock{}
+	var spotScheduler *spot.Scheduler
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.spot.enabled") {
+		spotScheduler = spot.NewScheduler(spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm, apiCl.DynamicCl, isLeaderFunc)
+		podPatcher = &workload.PodPatcherDelegate{Patcher: podPatcher, SpotScheduler: spotScheduler}
+	}
 	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
@@ -95,6 +101,10 @@ func StartWorkloadAutoscaling(
 
 	// TODO: Wait POD Watcher sync before running the controller
 	go podWatcher.Run(ctx)
+	if spotScheduler != nil {
+		go spotScheduler.Run(ctx)
+		<-spotScheduler.WaitSubscribed()
+	}
 	go controller.Run(ctx)
 
 	// Only start the local recommender if failover metrics collection is enabled
