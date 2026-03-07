@@ -52,6 +52,7 @@ func GetVersion(agentVersion **C.char) {
 //
 //export GetHostname
 func GetHostname(hostname **C.char) {
+	// TODO(context): replace context.TODO() with a propagated context once the cgo call chain supports it
 	goHostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err)
@@ -77,6 +78,7 @@ func GetHostTags(hostTags **C.char) {
 //
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
+	// TODO(context): replace context.TODO() with a propagated context once the cgo call chain supports it
 	goHostname, _ := hostnameUtil.Get(context.TODO())
 	goClusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
