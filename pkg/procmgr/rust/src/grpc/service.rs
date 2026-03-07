@@ -173,15 +173,17 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
     }
 }
 
-fn state_to_proto(state: ProcessState) -> i32 {
-    match state {
-        ProcessState::Created => proto::ProcessState::Created.into(),
-        ProcessState::Starting => proto::ProcessState::Starting.into(),
-        ProcessState::Running => proto::ProcessState::Running.into(),
-        ProcessState::Stopping => proto::ProcessState::Stopping.into(),
-        ProcessState::Exited => proto::ProcessState::Exited.into(),
-        ProcessState::Failed => proto::ProcessState::Failed.into(),
-        ProcessState::Stopped => proto::ProcessState::Stopped.into(),
+impl From<ProcessState> for proto::ProcessState {
+    fn from(state: ProcessState) -> Self {
+        match state {
+            ProcessState::Created => Self::Created,
+            ProcessState::Starting => Self::Starting,
+            ProcessState::Running => Self::Running,
+            ProcessState::Stopping => Self::Stopping,
+            ProcessState::Exited => Self::Exited,
+            ProcessState::Failed => Self::Failed,
+            ProcessState::Stopped => Self::Stopped,
+        }
     }
 }
 
@@ -192,7 +194,7 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         pid: proc.pid().unwrap_or(0),
         command: cfg.command.clone(),
         args: cfg.args.clone(),
-        state: state_to_proto(proc.state()),
+        state: proto::ProcessState::from(proc.state()).into(),
     }
 }
 
@@ -255,7 +257,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         name: proc.name.clone(),
         description: cfg.description.clone().unwrap_or_default(),
         pid: proc.pid().unwrap_or(0),
-        state: state_to_proto(proc.state()),
+        state: proto::ProcessState::from(proc.state()).into(),
         command: cfg.command.clone(),
         args: cfg.args.clone(),
         working_dir: cfg.working_dir.clone().unwrap_or_default(),
@@ -278,32 +280,32 @@ mod tests {
     #[test]
     fn test_state_to_proto_mapping() {
         assert_eq!(
-            state_to_proto(ProcessState::Created),
-            proto::ProcessState::Created as i32
+            proto::ProcessState::from(ProcessState::Created),
+            proto::ProcessState::Created,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Starting),
-            proto::ProcessState::Starting as i32
+            proto::ProcessState::from(ProcessState::Starting),
+            proto::ProcessState::Starting,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Running),
-            proto::ProcessState::Running as i32
+            proto::ProcessState::from(ProcessState::Running),
+            proto::ProcessState::Running,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Stopping),
-            proto::ProcessState::Stopping as i32
+            proto::ProcessState::from(ProcessState::Stopping),
+            proto::ProcessState::Stopping,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Exited),
-            proto::ProcessState::Exited as i32
+            proto::ProcessState::from(ProcessState::Exited),
+            proto::ProcessState::Exited,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Failed),
-            proto::ProcessState::Failed as i32
+            proto::ProcessState::from(ProcessState::Failed),
+            proto::ProcessState::Failed,
         );
         assert_eq!(
-            state_to_proto(ProcessState::Stopped),
-            proto::ProcessState::Stopped as i32
+            proto::ProcessState::from(ProcessState::Stopped),
+            proto::ProcessState::Stopped,
         );
     }
 
