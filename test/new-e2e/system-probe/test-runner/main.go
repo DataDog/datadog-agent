@@ -49,6 +49,7 @@ type testConfig struct {
 	testingTools string
 	extraParams  string
 	extraEnv     string
+	coverDir     string
 }
 
 type userProvidedConfig struct {
@@ -149,6 +150,11 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
+
+	if testConfig.coverDir != "" {
+		pkgCoverDir := filepath.Join(testConfig.coverDir, strings.ReplaceAll(pkg, "/", "-"))
+		args = append(args, "-test.gocoverdir="+pkgCoverDir)
+	}
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -260,6 +266,12 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	if testConfig.coverDir != "" {
+		if err := createDir(testConfig.coverDir); err != nil {
+			return err
+		}
+	}
+
 	buildDir, err := getEBPFBuildDir()
 	if err != nil {
 		return fmt.Errorf("getEBPFBuildDir: %w", err)
@@ -284,6 +296,13 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 		xmlpath := filepath.Join(xmlDir, junitfilePrefix+".xml")
 		jsonpath := filepath.Join(jsonDir, junitfilePrefix+".json")
+
+		if testConfig.coverDir != "" {
+			pkgCoverDir := filepath.Join(testConfig.coverDir, strings.ReplaceAll(pkg, "/", "-"))
+			if err := createDir(pkgCoverDir); err != nil {
+				return err
+			}
+		}
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
@@ -337,6 +356,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
+	coverDir := flag.String("coverdir", "", "directory to write per-package coverage data (requires binaries built with -cover)")
 
 	flag.Parse()
 
@@ -375,6 +395,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testingTools:       tools,
 		extraParams:        *extraParams,
 		extraEnv:           *extraEnv,
+		coverDir:           *coverDir,
 	}, nil
 }
 
