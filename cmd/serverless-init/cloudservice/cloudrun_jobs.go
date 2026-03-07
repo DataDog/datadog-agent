@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -90,10 +90,28 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
+func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"location":   tags["location"],
+		"project_id": tags["project_id"],
+		"job_name":   tags["job_name"],
+		"origin":     tags["origin"],
+	}
+
+	highCardinalityTags := map[string]string{}
+
+	return baseTags, highCardinalityTags
+}
+
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (c *CloudRunJobs) GetDefaultLogsSource() string {
 	// Use the default log pipeline for Cloud Run.
 	return CloudRunOrigin
+}
+
+func (c *CloudRunJobs) GetMetricPrefix() string {
+	// Use cloud run prefix for metrics common to cloud run and cloud run jobs
+	return cloudRunPrefix
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.
@@ -122,25 +140,30 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
-	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
-	duration := float64(time.Since(c.startTime).Milliseconds())
-	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
-
-	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
-	exitCode := exitcode.From(runErr)
-	succeededTag := "succeeded:true"
-	if exitCode != 0 {
-		succeededTag = "succeeded:false"
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error) {
+	if collector != nil {
+		collector.Stop()
 	}
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
+
+	if enhancedMetricsEnabled {
+		durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
+		duration := float64(time.Since(c.startTime).Milliseconds())
+		metricAgent.AddEnhancedMetric(durationMetricName, duration, c.GetSource(), 0)
+
+		shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
+		exitCode := exitcode.From(runErr)
+		succeededTag := "succeeded:true"
+		if exitCode != 0 {
+			succeededTag = "succeeded:false"
+		}
+		metricAgent.AddEnhancedMetric(shutdownMetricName, 1.0, c.GetSource(), 0, succeededTag)
+	}
 
 	c.completeAndSubmitJobSpan(runErr)
 }
 
-// GetStartMetricName returns the metric name for container start events
-func (c *CloudRunJobs) GetStartMetricName() string {
-	return cloudRunJobsPrefix + ".enhanced.task.started"
+func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(cloudRunJobsPrefix+".enhanced.task.started", 1.0, c.GetSource(), 0)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.

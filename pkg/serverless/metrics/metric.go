@@ -15,15 +15,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
-	tags            []string
-	Tagger          tagger.Component
-	Demux           aggregator.Demultiplexer
+	dogStatsDServer       dogstatsdServer.ServerlessDogstatsd
+	enhancedMetricTags    []string // does not include high cardinality tags
+	enhancedMetricTagsAll []string // includes high cardinality tags
+	tags                  []string
+	Tagger                tagger.Component
+	Demux                 aggregator.Demultiplexer
 
 	SketchesBucketOffset time.Duration
 }
@@ -98,16 +101,54 @@ func (c *ServerlessMetricAgent) Stop() {
 }
 
 // SetExtraTags sets extra tags on the DogStatsD server
-func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
+func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string, enhancedMetricTags []string, enhancedMetricTagsAll []string) {
 	if c.IsReady() {
 		c.tags = tagArray
+		c.enhancedMetricTags = enhancedMetricTags
+		c.enhancedMetricTagsAll = enhancedMetricTagsAll
 		c.dogStatsDServer.SetExtraTags(tagArray)
 	}
 }
 
-// GetExtraTags gets extra tags
-func (c *ServerlessMetricAgent) GetExtraTags() []string {
-	return c.tags
+// AddLegacyEnhancedMetric reports a metric value to the intake with all tags.
+func (c *ServerlessMetricAgent) AddLegacyEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, 0, c.tags, extraTags...)
+}
+
+// AddEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics.
+func (c *ServerlessMetricAgent) AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTags, extraTags...)
+}
+
+// AddHighCardinalityEnhancedMetric reports a metric value to the intake with the given timestamp and tags selected for enhanced metrics, including high cardinality tags.
+func (c *ServerlessMetricAgent) AddHighCardinalityEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, timestamp, c.enhancedMetricTagsAll, extraTags...)
+}
+
+// Add records a distribution metric sample using the agent's extra tags plus any
+// optional tags supplied as `key:value` strings through extraTags.
+func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, timestamp float64, tags []string, extraTags ...string) {
+	if c.Demux == nil {
+		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
+		return
+	}
+
+	if timestamp == 0 {
+		timestamp = float64(time.Now().UnixNano()) / float64(time.Second)
+	}
+
+	if len(extraTags) > 0 {
+		tags = append(append([]string{}, tags...), extraTags...)
+	}
+	c.Demux.AggregateSample(metrics.MetricSample{
+		Name:       name,
+		Value:      value,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  timestamp,
+		Source:     metricSource,
+	})
 }
 
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (aggregator.Demultiplexer, error) {

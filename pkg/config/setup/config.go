@@ -1762,7 +1762,7 @@ func serverless(config pkgconfigmodel.Setup) {
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("enhanced_metrics", true)
+	config.BindEnvAndSetDefault("enhanced_metrics", true, "DD_ENHANCED_METRICS_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")

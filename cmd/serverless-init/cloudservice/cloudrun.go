@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,18 +43,19 @@ const (
 
 const (
 	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService   = "gcr."
-	cloudRunFunction  = "gcrfx."
-	revisionName      = "revision_name"
-	serviceName       = "service_name"
-	configName        = "configuration_name"
-	containerID       = "container_id"
-	location          = "location"
-	projectID         = "project_id"
-	resourceName      = "resource_name"
-	functionTarget    = "build_function_target"
-	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gcp.run"
+	cloudRunService      = "gcr."
+	cloudRunFunction     = "gcrfx."
+	revisionName         = "revision_name"
+	serviceName          = "service_name"
+	configName           = "configuration_name"
+	containerID          = "container_id"
+	location             = "location"
+	projectID            = "project_id"
+	resourceName         = "resource_name"
+	functionTarget       = "build_function_target"
+	functionSignature    = "function_signature_type"
+	cloudRunPrefix       = "gcp.run.container"
+	cloudRunPrefixLegacy = "gcp.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -116,6 +117,27 @@ func (c *CloudRun) GetTags() map[string]string {
 	return tags
 }
 
+func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"location":     tags["location"],
+		"project_id":   tags["project_id"],
+		"service_name": tags["service_name"],
+		"origin":       tags["origin"],
+	}
+
+	if c.spanNamespace == cloudRunFunction {
+		baseTags["resource_name"] = tags["gcrfx.resource_name"]
+	} else {
+		baseTags["resource_name"] = tags["gcr.resource_name"]
+	}
+
+	highCardinalityTags := map[string]string{
+		"container_id": tags["container_id"],
+	}
+
+	return baseTags, highCardinalityTags
+}
+
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionTargetVal := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
@@ -137,6 +159,10 @@ func (c *CloudRun) GetDefaultLogsSource() string {
 	return CloudRunOrigin
 }
 
+func (c *CloudRun) GetMetricPrefix() string {
+	return cloudRunPrefix
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
@@ -154,13 +180,20 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
+	if collector != nil {
+		collector.Stop()
+	}
+
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(cloudRunPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
+	}
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (c *CloudRun) GetStartMetricName() string {
-	return cloudRunPrefix + ".enhanced.cold_start"
+func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(cloudRunPrefix+".enhanced.cold_start", 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(cloudRunPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
@@ -230,7 +263,9 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
-		if isCloudRun {
+		if isCloudRunJob() {
+			metaChan <- keyVal{cloudRunJobNamespace + baseKey, val}
+		} else if isCloudRun {
 			metaChan <- keyVal{cloudRunService + baseKey, val}
 		} else {
 			metaChan <- keyVal{cloudRunFunction + baseKey, val}

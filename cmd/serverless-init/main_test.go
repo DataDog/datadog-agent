@@ -8,47 +8,46 @@
 package main
 
 import (
+	"slices"
 	"testing"
 	"time"
 
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagsSetup(t *testing.T) {
-	// TODO: Fix and re-enable flaky test
-	t.Skip()
-
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeCompression := compressionmock.NewMockCompressor()
-	fakeHostname, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(""))
-
 	configmock.New(t)
 
-	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
-	ddExtraTagsEnv := "key22:value22 key23:value23"
-	t.Setenv("DD_TAGS", ddTagsEnv)
-	t.Setenv("DD_EXTRA_TAGS", ddExtraTagsEnv)
-	ddTags := cast.ToStringSlice(ddTagsEnv)
-	ddExtraTags := cast.ToStringSlice(ddExtraTagsEnv)
+	modeConf = mode.DetectMode()
 
-	allTags := append(ddTags, ddExtraTags...)
+	t.Setenv("DD_TAGS", "key1:value1 key2:value2 key3:value3:4")
+	t.Setenv("DD_EXTRA_TAGS", "key22:value22 key23:value23")
 
-	_, _, tracingCtx, metricAgent, _ := setup(secretsmock.New(t), delegatedauthmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
-	defer tracingCtx.TraceAgent.Stop()
-	defer metricAgent.Stop()
-	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
+	t.Setenv("DD_SERVICE", "test-service")
+	t.Setenv("DD_ENV", "test-env")
+	t.Setenv("DD_VERSION", "1.0.0")
+
+	cloudService := &cloudservice.LocalService{}
+	configuredTags, metricTags, enhancedMetricTags, enhancedMetricTagsAll := configureTags(cloudService)
+
+	baseTags := serverlessTag.MapToArray(serverlessInitTag.GetBaseTagsMap())
+	cloudServiceTags := cloudService.GetTags()
+	cloudServiceEnhancedMetricTags, cloudServiceEnhancedMetricTagsHighCardinality := cloudService.GetEnhancedMetricTags(cloudServiceTags)
+
+	versionTag := "_dd.datadog_init_version:xxx"
+	enhancedMetricVersionTags := []string{"datadog_init_version:xxx", "sidecar:false"}
+
+	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceTags), []string{versionTag}), serverlessTag.MapToArray(metricTags))
+	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedMetricTags))
+	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), serverlessTag.MapToArray(cloudServiceEnhancedMetricTagsHighCardinality), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedMetricTagsAll))
 }
 
 func TestFxApp(t *testing.T) {

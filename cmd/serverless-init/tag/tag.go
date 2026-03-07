@@ -30,6 +30,7 @@ var highCardinalityTags = map[string]struct{}{
 	"replica_name":        {},
 	"aca.replica.name":    {},
 	"gcrj.execution_name": {},
+	"gcrj.container_id":   {},
 	"gcrj.task_index":     {},
 	"gcrj.task_attempt":   {},
 	"gcrj.task_count":     {},
@@ -51,8 +52,8 @@ func getTagFromEnv(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of the three reserved Unified Service Tagging tags, to be used everywhere
-func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) map[string]string {
+// GetBaseTagsMap returns a map of the three reserved Unified Service Tagging tags, to be used everywhere
+func GetBaseTagsMap() map[string]string {
 	tagsMap := map[string]string{}
 	listTags := []TagPair{
 		{
@@ -68,16 +69,26 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 			envName: "DD_VERSION",
 		},
 	}
+
 	for _, tagPair := range listTags {
 		if value, found := getTagFromEnv(tagPair.envName); found {
 			tagsMap[tagPair.name] = value
 		}
 	}
 
-	maps.Copy(tagsMap, metadata)
-
-	tagsMap[versionMode] = tags.GetExtensionVersion()
 	return tagsMap
+}
+
+// SetVersionMode sets the version mode tag.
+func SetVersionMode(tagMap map[string]string, versionMode string) map[string]string {
+	tagMap[versionMode] = tags.GetExtensionVersion()
+	return tagMap
+}
+
+// SetSidecarModeTag sets the sidecar mode tag.
+func SetSidecarModeTag(tagMap map[string]string, mode bool) map[string]string {
+	tagMap["sidecar"] = strconv.FormatBool(mode)
+	return tagMap
 }
 
 // MakeTraceAgentTags handles tag customization for the trace agent.

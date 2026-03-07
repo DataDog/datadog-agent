@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metric
+package metrics
 
 import (
 	"testing"
@@ -20,7 +20,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,10 +31,10 @@ const (
 
 func TestAdd(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	Add("a.super.metric", 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddLegacyEnhancedMetric("a.super.metric", 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -45,10 +44,10 @@ func TestAdd(t *testing.T) {
 
 func TestAddStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	Add(mockStartMetricName, 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddLegacyEnhancedMetric(mockStartMetricName, 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -59,10 +58,10 @@ func TestAddStartMetric(t *testing.T) {
 
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	Add(mockShutdownMetricName, 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddLegacyEnhancedMetric(mockShutdownMetricName, 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -73,26 +72,26 @@ func TestAddShutdownMetric(t *testing.T) {
 
 func TestAddExtraTags(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	Add("tagged.metric", 1.0, mockMetricSource, mockAgent, "exit_code:1")
+	mockAgent.AddLegacyEnhancedMetric("tagged.metric", 1.0, mockMetricSource, "exit_code:1")
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Contains(t, metric.Tags, "exit_code:1")
-	assert.NotContains(t, mockAgent.GetExtraTags(), "exit_code:1")
+	assert.NotContains(t, mockAgent.tags, "exit_code:1")
 }
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: nil, // Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
 	}
-	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
+	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"}, []string{}, []string{})
 	// This previously led to a panic and segmentation fault
-	Add("metric", 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddLegacyEnhancedMetric("metric", 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 0, len(generatedMetrics))

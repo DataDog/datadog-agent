@@ -6,7 +6,7 @@
 package cloudservice
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -34,9 +34,15 @@ type CloudService interface {
 	// the logs, traces, and metrics.
 	GetTags() map[string]string
 
+	// GetEnhancedMetricTags returns base tags and high cardinality tags for a given cloud service.
+	GetEnhancedMetricTags(map[string]string) (map[string]string, map[string]string)
+
 	// GetDefaultLogsSource returns the value that will be used for the logs source
 	// if `DD_SOURCE` is not set by the user.
 	GetDefaultLogsSource() string
+
+	// GetMetricPrefix returns the prefix that will be used for the metrics
+	GetMetricPrefix() string
 
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
@@ -50,10 +56,10 @@ type CloudService interface {
 	Init(ctx *TracingContext) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error)
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, runErr error)
 
-	// GetStartMetricName returns the metric name for start events
-	GetStartMetricName() string
+	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
+	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
 
 	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
 	// forceFlushAll parameter on the call to forceFlushToSerializer in the
@@ -71,12 +77,32 @@ const defaultPrefix = "datadog.serverless_agent"
 
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		"local": "true",
+	}
+}
+
+// GetEnhancedMetricTags is a default implementation that returns an empty tag set
+func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
+	baseTags := map[string]string{
+		"local": tags["local"],
+	}
+
+	highCardinalityTags := map[string]string{
+		"high_cardinality": "true",
+	}
+
+	return baseTags, highCardinalityTags
 }
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
 func (l *LocalService) GetDefaultLogsSource() string {
 	return "unknown"
+}
+
+// GetMetrixPrefix is a default implementation that returns the default prefix
+func (l *LocalService) GetMetricPrefix() string {
+	return defaultPrefix
 }
 
 // GetOrigin is a default implementation that returns a local empty origin
@@ -95,13 +121,21 @@ func (l *LocalService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), agent)
+func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, enhancedMetricsEnabled bool, _ error) {
+	if collector != nil {
+		collector.Stop()
+	}
+
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
+	}
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (l *LocalService) GetStartMetricName() string {
-	return defaultPrefix + ".enhanced.cold_start"
+// AddStartMetric adds the start metric for LocalService
+func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
