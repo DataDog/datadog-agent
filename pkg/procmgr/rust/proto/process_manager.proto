@@ -17,6 +17,7 @@ service ProcessManager {
   rpc Start (StartRequest) returns (StartResponse);
   rpc Stop (StopRequest) returns (StopResponse);
   rpc ReloadConfig (ReloadConfigRequest) returns (ReloadConfigResponse);
+  rpc GetConfig (GetConfigRequest) returns (GetConfigResponse);
 }
 
 enum ProcessState {
@@ -123,5 +124,13 @@ message GetStatusResponse {
   uint32 exited_processes = 9;
   uint32 starting_processes = 10;
   uint32 stopping_processes = 11;
-  string config_path = 12;
+}
+
+message GetConfigRequest {}
+
+message GetConfigResponse {
+  string source = 1;
+  string location = 2;
+  uint32 loaded_processes = 3;
+  uint32 runtime_processes = 4;
 }

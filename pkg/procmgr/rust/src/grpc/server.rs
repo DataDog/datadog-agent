@@ -26,7 +26,6 @@ pub fn socket_path() -> PathBuf {
 
 pub async fn run(
     mgr: ProcessManager,
-    config_path: String,
     cmd_tx: mpsc::Sender<Command>,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
@@ -40,7 +39,7 @@ pub async fn run(
 
     let uds_stream = UnixListenerStream::new(uds);
 
-    let svc = ProcessManagerService::new(mgr, config_path, cmd_tx);
+    let svc = ProcessManagerService::new(mgr, cmd_tx);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
     let reflection = tonic_reflection::server::Builder::configure()

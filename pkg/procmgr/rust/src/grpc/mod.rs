@@ -65,7 +65,7 @@ mod tests {
         let uds_stream = UnixListenerStream::new(uds);
 
         let mgr = ProcessManager::new(loader(defs));
-        let svc = ProcessManagerService::new(mgr.clone(), "/test/config/path".to_string(), cmd_tx);
+        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -268,7 +268,71 @@ mod tests {
         assert_eq!(resp.running_processes, 0);
         assert_eq!(resp.created_processes, 2);
         assert_eq!(resp.exited_processes, 0);
-        assert_eq!(resp.config_path, "/test/config/path");
+    }
+
+    #[tokio::test]
+    async fn test_get_config() {
+        let defs = vec![
+            def("svc-a", "/bin/true", &[]),
+            def("svc-b", "/bin/false", &[]),
+        ];
+
+        let (mut client, _shutdown) = start_test_server(defs).await;
+        let resp = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.source, "static");
+        assert_eq!(resp.location, "in-memory (test)");
+        assert_eq!(resp.loaded_processes, 2);
+        assert_eq!(resp.runtime_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_config_empty() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+        let resp = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.source, "static");
+        assert_eq!(resp.location, "in-memory (test)");
+        assert_eq!(resp.loaded_processes, 0);
+        assert_eq!(resp.runtime_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_config_reflects_runtime_creates() {
+        let (mut client, _shutdown) = start_test_server(vec![def("svc-a", "/bin/true", &[])]).await;
+
+        let resp = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.loaded_processes, 1);
+        assert_eq!(resp.runtime_processes, 0);
+
+        client
+            .create(proto::CreateRequest {
+                name: "dynamic-svc".to_string(),
+                command: "/bin/echo".to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.loaded_processes, 1);
+        assert_eq!(resp.runtime_processes, 1);
     }
 
     #[tokio::test]
