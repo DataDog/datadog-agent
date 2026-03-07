@@ -761,4 +761,5 @@ mod tests {
         assert_eq!(detail.description, "Custom service");
         assert!(!detail.auto_start);
     }
+
 }
