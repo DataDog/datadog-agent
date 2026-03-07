@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::command::ReloadResult;
-use crate::config::{self, ProcessDefinition};
+use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::ordering;
 use crate::process::ManagedProcess;
 use crate::shutdown;
@@ -22,24 +22,33 @@ pub(crate) struct ExitEvent {
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
     startup_order: Arc<Vec<usize>>,
+    config_loader: Arc<dyn ConfigLoader>,
 }
 
 impl ProcessManager {
-    pub(crate) fn from_config() -> Self {
-        let configs = load_configs();
+    pub(crate) fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
+        let configs = config_loader.load();
         let startup_order = resolve_startup_order(&configs);
         let processes = start_processes(configs, &startup_order);
         Self {
             processes: Arc::new(RwLock::new(processes)),
             startup_order: Arc::new(startup_order),
+            config_loader,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn new(processes: Vec<ManagedProcess>) -> Self {
+    pub(crate) fn from_processes(processes: Vec<ManagedProcess>) -> Self {
+        struct NoopLoader;
+        impl ConfigLoader for NoopLoader {
+            fn load(&self) -> Vec<ProcessDefinition> {
+                Vec::new()
+            }
+        }
         Self {
             processes: Arc::new(RwLock::new(processes)),
             startup_order: Arc::new(Vec::new()),
+            config_loader: Arc::new(NoopLoader),
         }
     }
 
@@ -161,7 +170,7 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        let new_configs = load_configs();
+        let new_configs = self.config_loader.load();
         let new_names: std::collections::HashSet<&str> =
             new_configs.iter().map(|np| np.name.as_str()).collect();
 
@@ -269,35 +278,6 @@ pub(crate) fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEven
     }
 }
 
-fn load_configs() -> Vec<ProcessDefinition> {
-    let config_dir = config::config_dir();
-
-    if !config_dir.is_dir() {
-        info!(
-            "config directory {} does not exist, no processes to manage",
-            config_dir.display()
-        );
-        return Vec::new();
-    }
-
-    let configs = match config::load_configs(&config_dir) {
-        Ok(c) => c,
-        Err(e) => {
-            warn!(
-                "cannot read config directory {}: {e:#}",
-                config_dir.display()
-            );
-            return Vec::new();
-        }
-    };
-    info!(
-        "loaded {} process config(s) from {}",
-        configs.len(),
-        config_dir.display()
-    );
-    configs
-}
-
 fn resolve_startup_order(configs: &[ProcessDefinition]) -> Vec<usize> {
     let result = ordering::resolve_order(configs);
     if !result.skipped.is_empty() {
@@ -347,7 +327,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        let mgr = ProcessManager::new(vec![proc]);
+        let mgr = ProcessManager::from_processes(vec![proc]);
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         mgr.handle_start("svc", &exit_tx).await.unwrap();
@@ -371,7 +351,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reload_preserves_runtime_created_processes() {
-        let mgr = ProcessManager::new(vec![]);
+        let mgr = ProcessManager::from_processes(vec![]);
         let config = ProcessConfig {
             command: "/bin/echo".to_string(),
             ..Default::default()

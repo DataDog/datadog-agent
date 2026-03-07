@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::{debug, warn};
+use log::{debug, info, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt;
@@ -14,6 +14,51 @@ use std::time::Duration;
 pub struct ProcessDefinition {
     pub name: String,
     pub config: ProcessConfig,
+}
+
+pub trait ConfigLoader: Send + Sync {
+    fn load(&self) -> Vec<ProcessDefinition>;
+}
+
+pub struct YamlConfigLoader {
+    dir: PathBuf,
+}
+
+impl YamlConfigLoader {
+    pub fn from_env() -> Self {
+        Self {
+            dir: config_dir(),
+        }
+    }
+}
+
+impl ConfigLoader for YamlConfigLoader {
+    fn load(&self) -> Vec<ProcessDefinition> {
+        if !self.dir.is_dir() {
+            info!(
+                "config directory {} does not exist, no processes to manage",
+                self.dir.display()
+            );
+            return Vec::new();
+        }
+
+        let configs = match load_configs(&self.dir) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(
+                    "cannot read config directory {}: {e:#}",
+                    self.dir.display()
+                );
+                return Vec::new();
+            }
+        };
+        info!(
+            "loaded {} process config(s) from {}",
+            configs.len(),
+            self.dir.display()
+        );
+        configs
+    }
 }
 
 const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
