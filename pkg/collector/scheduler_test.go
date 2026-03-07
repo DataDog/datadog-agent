@@ -63,7 +63,7 @@ func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Confi
 }
 
 func TestAddLoader(t *testing.T) {
-	s := CheckScheduler{}
+	s := CheckScheduler{errorStats: newCollectorErrors()}
 	assert.Len(t, s.loaders, 0)
 	s.addLoader(&MockCoreLoader{})
 	s.addLoader(&MockCoreLoader{}) // noop
@@ -71,7 +71,7 @@ func TestAddLoader(t *testing.T) {
 }
 
 func TestGetChecksFromConfigs(t *testing.T) {
-	s := CheckScheduler{}
+	s := CheckScheduler{errorStats: newCollectorErrors()}
 	assert.Len(t, s.loaders, 0)
 	s.addLoader(&MockCoreLoader{})
 	s.addLoader(&MockPythonLoader{})
@@ -164,6 +164,7 @@ func TestSchedule_AllChecksAllowed(t *testing.T) {
 	s := &CheckScheduler{
 		collector:      option.New[collector.Component](mockCollector),
 		configToChecks: make(map[string][]checkid.ID),
+		errorStats:     newCollectorErrors(),
 	}
 	s.addLoader(&MockCoreLoader{})
 
