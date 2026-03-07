@@ -15,7 +15,7 @@ log.workspace = true
 nix = { workspace = true, features = ["signal", "process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
-simple_logger = { workspace = true, features = ["timestamps"] }
+dd-agent-log.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
 
 [dev-dependencies]

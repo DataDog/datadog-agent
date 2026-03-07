@@ -11,12 +11,12 @@ rust_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:log",
         "@crates//:nix",
         "@crates//:serde",
         "@crates//:serde_yaml",
-        "@crates//:simple_logger",
         "@crates//:tokio",
     ],
 )
