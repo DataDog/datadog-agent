@@ -59,9 +59,7 @@ pub struct YamlConfigLoader {
 
 impl YamlConfigLoader {
     pub fn from_env() -> Self {
-        Self {
-            dir: config_dir(),
-        }
+        Self { dir: config_dir() }
     }
 }
 
@@ -86,10 +84,7 @@ impl ConfigLoader for YamlConfigLoader {
         let configs = match load_configs(&self.dir) {
             Ok(c) => c,
             Err(e) => {
-                warn!(
-                    "cannot read config directory {}: {e:#}",
-                    self.dir.display()
-                );
+                warn!("cannot read config directory {}: {e:#}", self.dir.display());
                 return Vec::new();
             }
         };
@@ -336,7 +331,10 @@ condition_path_exists: /usr/bin/sleep
         assert_eq!(np.config.working_dir.as_deref(), Some("/tmp"));
         assert_eq!(np.config.pidfile.as_deref(), Some("/tmp/test.pid"));
         assert!(np.config.auto_start);
-        assert_eq!(np.config.condition_path_exists.as_deref(), Some("/usr/bin/sleep"));
+        assert_eq!(
+            np.config.condition_path_exists.as_deref(),
+            Some("/usr/bin/sleep")
+        );
     }
 
     #[test]

@@ -26,9 +26,11 @@ mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
-    use crate::manager::ProcessManager;
     use crate::command::Command;
-    use crate::config::{ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
+    use crate::config::{
+        ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader,
+    };
+    use crate::manager::ProcessManager;
     use hyper_util::rt::TokioIo;
     use std::sync::Arc;
     use tokio::net::UnixListener;
@@ -416,29 +418,39 @@ mod tests {
 
         // Running: start a long-lived process
         client
-            .start(proto::StartRequest { name: "running-svc".to_string() })
+            .start(proto::StartRequest {
+                name: "running-svc".to_string(),
+            })
             .await
             .unwrap();
 
         // Failed: start a process that exits non-zero (watcher delivers the exit event)
         client
-            .start(proto::StartRequest { name: "failed-svc".to_string() })
+            .start(proto::StartRequest {
+                name: "failed-svc".to_string(),
+            })
             .await
             .unwrap();
 
         // Stopped: start then stop
         client
-            .start(proto::StartRequest { name: "stopped-svc".to_string() })
+            .start(proto::StartRequest {
+                name: "stopped-svc".to_string(),
+            })
             .await
             .unwrap();
         client
-            .stop(proto::StopRequest { name: "stopped-svc".to_string() })
+            .stop(proto::StopRequest {
+                name: "stopped-svc".to_string(),
+            })
             .await
             .unwrap();
 
         // Exited: start a process that exits cleanly
         client
-            .start(proto::StartRequest { name: "exited-svc".to_string() })
+            .start(proto::StartRequest {
+                name: "exited-svc".to_string(),
+            })
             .await
             .unwrap();
 
@@ -459,7 +471,11 @@ mod tests {
         assert_eq!(resp.created_processes, 1);
 
         // Clean up running-svc
-        let list = client.list(proto::ListRequest {}).await.unwrap().into_inner();
+        let list = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
         if let Some(p) = list.processes.iter().find(|p| p.name == "running-svc") {
             nix::sys::signal::kill(
                 nix::unistd::Pid::from_raw(p.pid as i32),
@@ -475,7 +491,9 @@ mod tests {
             start_test_server(vec![def("live-proc", "/bin/sleep", &["60"])]).await;
 
         client
-            .start(proto::StartRequest { name: "live-proc".to_string() })
+            .start(proto::StartRequest {
+                name: "live-proc".to_string(),
+            })
             .await
             .unwrap();
 
@@ -550,7 +568,9 @@ mod tests {
             start_test_server(vec![def("running", "/bin/sleep", &["60"])]).await;
 
         client
-            .start(proto::StartRequest { name: "running".to_string() })
+            .start(proto::StartRequest {
+                name: "running".to_string(),
+            })
             .await
             .unwrap();
 
@@ -564,7 +584,11 @@ mod tests {
 
         nix::sys::signal::kill(
             nix::unistd::Pid::from_raw({
-                let resp = client.list(proto::ListRequest {}).await.unwrap().into_inner();
+                let resp = client
+                    .list(proto::ListRequest {})
+                    .await
+                    .unwrap()
+                    .into_inner();
                 resp.processes[0].pid as i32
             }),
             nix::sys::signal::Signal::SIGKILL,
@@ -623,8 +647,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_rpc_not_running() {
-        let (mut client, _shutdown) =
-            start_test_server(vec![def("idle", "/bin/true", &[])]).await;
+        let (mut client, _shutdown) = start_test_server(vec![def("idle", "/bin/true", &[])]).await;
 
         let err = client
             .stop(proto::StopRequest {

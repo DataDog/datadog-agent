@@ -291,7 +291,10 @@ impl ManagedProcess {
                     }
                 }
                 Err(_) => {
-                    warn!("[{}] PID {raw_pid} overflows i32, cannot send {sig}", self.name);
+                    warn!(
+                        "[{}] PID {raw_pid} overflows i32, cannot send {sig}",
+                        self.name
+                    );
                 }
             }
         }

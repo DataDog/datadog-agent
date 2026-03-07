@@ -60,7 +60,10 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
                     }
                 }
                 None => {
-                    warn!("[{}] before dependency '{dep}' not found, ignoring", np.name);
+                    warn!(
+                        "[{}] before dependency '{dep}' not found, ignoring",
+                        np.name
+                    );
                 }
             }
         }
@@ -119,7 +122,11 @@ mod tests {
 
     #[test]
     fn test_no_constraints_alphabetical() {
-        let configs = vec![np("charlie", &[], &[]), np("alpha", &[], &[]), np("bravo", &[], &[])];
+        let configs = vec![
+            np("charlie", &[], &[]),
+            np("alpha", &[], &[]),
+            np("bravo", &[], &[]),
+        ];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(
@@ -146,7 +153,11 @@ mod tests {
 
     #[test]
     fn test_chain_a_before_b_before_c() {
-        let configs = vec![np("c", &["b"], &[]), np("a", &[], &["b"]), np("b", &[], &[])];
+        let configs = vec![
+            np("c", &["b"], &[]),
+            np("a", &[], &["b"]),
+            np("b", &[], &[]),
+        ];
         let result = resolve_order(&configs);
         assert!(result.skipped.is_empty());
         assert_eq!(names_in_order(&configs, &result.order), vec!["a", "b", "c"]);

@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::manager::ProcessManager;
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::proto;
+use crate::manager::ProcessManager;
 use crate::process::ManagedProcess;
 use crate::state::ProcessState;
 use std::time::Instant;
