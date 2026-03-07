@@ -339,24 +339,45 @@ func runIntegrationTestSuite(
 	for _, cfg := range cfgs {
 		probes := testprogs.MustGetProbeDefinitions(t, service)
 		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
-		// Some probes have different output in different versions, due to
-		// compiler changes. We rename the probes to organize output into different files.
+		// Some probes have different output in different versions or architectures,
+		// due to compiler changes. We rename the probes to organize output into different files.
 		resultNames := make(map[string]string)
 		otherVersionNames := make(map[string]struct{})
 		for _, p := range probes {
 			var versions []string
+			var archDiff string
 			for _, tag := range p.GetTags() {
 				if strings.HasPrefix(tag, "version_diff:") {
 					versionDiff := strings.TrimPrefix(tag, "version_diff:")
 					versions = append(versions, versionDiff)
-					if cfg.GOTOOLCHAIN >= versionDiff {
-						resultNames[p.GetID()] = p.GetID() + "_geq_" + versionDiff
-						break
-					}
+				}
+				if strings.HasPrefix(tag, "arch_diff:") {
+					archDiff = strings.TrimPrefix(tag, "arch_diff:")
 				}
 			}
-			if versions == nil {
+			// If arch_diff is specified and doesn't match the current architecture,
+			// skip all version_diff processing and use the base file name.
+			if archDiff != "" && cfg.GOARCH != archDiff {
 				resultNames[p.GetID()] = p.GetID()
+				// Still populate otherVersionNames with arch-specific variants
+				// so they're not flagged as unexpected on non-target architectures.
+				archBaseName := p.GetID() + "_" + archDiff
+				otherVersionNames[archBaseName] = struct{}{}
+				for _, version := range versions {
+					otherVersionNames[archBaseName+"_geq_"+version] = struct{}{}
+				}
+				continue
+			}
+			// Build base name with arch suffix if arch_diff matches.
+			baseName := p.GetID()
+			if archDiff != "" {
+				baseName = p.GetID() + "_" + archDiff
+				// The base file (without arch suffix) exists for other architectures,
+				// so mark it as expected on this architecture.
+				otherVersionNames[p.GetID()] = struct{}{}
+			}
+			if versions == nil {
+				resultNames[p.GetID()] = baseName
 				continue
 			}
 			// Find the largest version diff tag that applies to the version we are running with.
@@ -368,9 +389,9 @@ func runIntegrationTestSuite(
 			for _, version := range versions {
 				var resultName string
 				if version == "" {
-					resultName = p.GetID()
+					resultName = baseName
 				} else {
-					resultName = p.GetID() + "_geq_" + version
+					resultName = baseName + "_geq_" + version
 				}
 				if !found && cfg.GOTOOLCHAIN >= version {
 					resultNames[p.GetID()] = resultName
