@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use std::collections::VecDeque;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::task::JoinHandle;
@@ -21,7 +22,7 @@ use tokio::time::{self, Duration, Instant};
 
 struct RestartTracker {
     count: u32,
-    timestamps: Vec<Instant>,
+    timestamps: VecDeque<Instant>,
     current_delay: f64,
     last_spawn_time: Option<Instant>,
 }
@@ -33,7 +34,7 @@ impl RestartTracker {
     fn new(initial_delay: f64) -> Self {
         Self {
             count: 0,
-            timestamps: Vec::new(),
+            timestamps: VecDeque::new(),
             current_delay: initial_delay,
             last_spawn_time: None,
         }
@@ -58,9 +59,9 @@ impl RestartTracker {
             self.count = 0;
         }
         self.count += 1;
-        self.timestamps.push(Instant::now());
+        self.timestamps.push_back(Instant::now());
         if self.timestamps.len() > Self::MAX_TIMESTAMPS {
-            self.timestamps.remove(0);
+            self.timestamps.pop_front();
         }
     }
 
@@ -78,19 +79,29 @@ impl RestartTracker {
 // ---------------------------------------------------------------------------
 
 pub struct ManagedProcess {
-    pub name: String,
+    name: String,
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
     child: Option<Child>,
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
+    stop_requested: bool,
+    runtime_created: bool,
 }
 
 impl ManagedProcess {
     const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new(name: String, config: ProcessConfig) -> Self {
+        Self::new_inner(name, config, false)
+    }
+
+    pub fn new_runtime(name: String, config: ProcessConfig) -> Self {
+        Self::new_inner(name, config, true)
+    }
+
+    fn new_inner(name: String, config: ProcessConfig, runtime_created: bool) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
@@ -100,7 +111,17 @@ impl ManagedProcess {
             child: None,
             watcher_handle: None,
             restarts,
+            stop_requested: false,
+            runtime_created,
         }
+    }
+
+    pub fn is_runtime_created(&self) -> bool {
+        self.runtime_created
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn state(&self) -> ProcessState {
@@ -117,20 +138,20 @@ impl ManagedProcess {
 
     fn transition_to(&mut self, next: ProcessState) {
         if !self.state.can_transition_to(next) {
-            warn!(
-                "[{}] invalid state transition: {} -> {next}, ignoring",
-                self.name, self.state
-            );
-            debug_assert!(
-                false,
+            let msg = format!(
                 "[{}] invalid state transition: {} -> {next}",
                 self.name, self.state
             );
+            warn!("{msg}, ignoring");
+            if cfg!(debug_assertions) {
+                panic!("{msg}");
+            }
             return;
         }
         self.state = next;
     }
 
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
@@ -201,6 +222,10 @@ impl ManagedProcess {
         cmd.stdout(stdio_from_str(&self.config.stdout));
         cmd.stderr(stdio_from_str(&self.config.stderr));
 
+        // Place child in its own process group so SIGTERM reaches all
+        // grandchildren and our own signals don't propagate to them.
+        cmd.process_group(0);
+
         Ok(cmd)
     }
 
@@ -226,19 +251,26 @@ impl ManagedProcess {
         self.watcher_handle.take()
     }
 
-    /// Record that the child exited. Transitions state to Exited or Failed.
+    /// Record that the child exited. If a stop was explicitly requested via
+    /// `request_stop`, the process transitions to Stopped (skipping restarts).
+    /// Otherwise it transitions to Exited or Failed based on the exit code.
     pub fn set_last_status(&mut self, status: std::process::ExitStatus) {
-        if status.success() {
+        if self.stop_requested {
+            self.stop_requested = false;
+            self.transition_to(ProcessState::Stopped);
+        } else if status.success() {
             self.transition_to(ProcessState::Exited);
         } else {
             self.transition_to(ProcessState::Failed);
         }
     }
 
-    /// Send SIGTERM if the process is running.
-    pub fn request_stop(&self) {
+    /// Mark the process for stop and send SIGTERM. The watcher will observe
+    /// the exit and `set_last_status` will transition to Stopped.
+    pub fn request_stop(&mut self) {
         if self.is_running() {
-            info!("[{}] sending SIGTERM", self.name);
+            self.stop_requested = true;
+            info!("[{}] sending SIGTERM (stop requested)", self.name);
             self.send_signal(Signal::SIGTERM);
         }
     }
@@ -249,10 +281,22 @@ impl ManagedProcess {
     /// `shutdown_all()` can fan out SIGTERM to all processes before blocking
     /// on each.
     pub fn send_signal(&self, sig: Signal) {
-        if let Some(raw_pid) = self.pid
-            && let Err(e) = signal::kill(Pid::from_raw(raw_pid as i32), sig)
-        {
-            warn!("[{}] failed to send {sig}: {e}", self.name);
+        if let Some(raw_pid) = self.pid {
+            match i32::try_from(raw_pid) {
+                Ok(pid) => {
+                    // Negate PID to target the entire process group created
+                    // by process_group(0) in build_command.
+                    if let Err(e) = signal::kill(Pid::from_raw(-pid), sig) {
+                        warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
+                    }
+                }
+                Err(_) => {
+                    warn!(
+                        "[{}] PID {raw_pid} overflows i32, cannot send {sig}",
+                        self.name
+                    );
+                }
+            }
         }
     }
 
@@ -330,6 +374,7 @@ impl ManagedProcess {
     /// record the attempt, advance the backoff, and return the delay the
     /// caller should sleep before calling [`spawn`]. Returns `None` if the
     /// process should not be restarted.
+    #[must_use]
     pub fn handle_restart(&mut self) -> Option<Duration> {
         let should_restart = match (self.state, &self.config.restart) {
             (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
@@ -375,7 +420,14 @@ impl ManagedProcess {
 fn stdio_from_str(s: &str) -> Stdio {
     match s {
         "null" => Stdio::null(),
-        _ => Stdio::inherit(),
+        "inherit" | "" => Stdio::inherit(),
+        path => match std::fs::File::create(path) {
+            Ok(f) => f.into(),
+            Err(e) => {
+                warn!("failed to open stdio file {path}: {e}, falling back to inherit");
+                Stdio::inherit()
+            }
+        },
     }
 }
 
@@ -823,5 +875,55 @@ runtime_success_sec: 5
         assert_eq!(cfg.start_limit_burst, Some(10));
         assert_eq!(cfg.start_limit_interval_sec, Some(120));
         assert_eq!(cfg.runtime_success_sec, Some(5));
+    }
+
+    #[tokio::test]
+    async fn test_stop_requested_transitions_to_stopped() {
+        let mut proc = ManagedProcess::new("svc".into(), make_config("/bin/sleep", vec!["60"]));
+        proc.spawn().unwrap();
+        assert_eq!(proc.state(), ProcessState::Running);
+
+        proc.request_stop();
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn test_stop_requested_skips_restart() {
+        let mut cfg = make_config("/bin/sleep", vec!["60"]);
+        cfg.restart = RestartPolicy::Always;
+        let mut proc = ManagedProcess::new("svc".into(), cfg);
+        proc.spawn().unwrap();
+
+        proc.request_stop();
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            proc.handle_restart().is_none(),
+            "stopped process should not restart even with Always policy"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_normal_exit_not_affected_by_stop_flag() {
+        let mut proc =
+            ManagedProcess::new("svc".into(), make_config("/bin/sh", vec!["-c", "exit 1"]));
+        proc.spawn().unwrap();
+
+        let mut child = proc.take_child().unwrap();
+        let status = child.wait().await.unwrap();
+        proc.set_last_status(status);
+
+        assert_eq!(
+            proc.state(),
+            ProcessState::Failed,
+            "without stop_requested, non-zero exit should be Failed"
+        );
     }
 }
