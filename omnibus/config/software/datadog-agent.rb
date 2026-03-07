@@ -11,10 +11,11 @@ require 'pathname'
 name 'datadog-agent'
 
 # Flavor flag for bazel actions
+flavor_flag = ""
 if heroku_target?
   flavor_flag = "--//packages/agent:flavor=heroku"
-else
-  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+elif fips_mode?
+  flavor_flag = "--//packages/agent:flavor=fips"
 end
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
@@ -96,18 +97,14 @@ build do
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-  mkdir conf_dir
-  mkdir "#{install_dir}/bin"
-  unless windows_target?
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/scripts/"
-  end
 
-  # move around bin and config files
-  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  # Put the config files in the right places
+  # See https://datadoghq.atlassian.net/browse/ABLD-402
+  command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir='#{install_dir}' -- //packages/agent/product:post_build_install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
+  # We must do this to prevent a copy command below from picking it up again.
   delete 'bin/agent/dist/conf.d'
 
+  # move around bin files
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
   else
