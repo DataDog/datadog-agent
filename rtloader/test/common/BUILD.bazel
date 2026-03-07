@@ -1,0 +1,24 @@
+load("//rtloader/test:defs.bzl", "rtloader_go_test", "rtloader_test_go_library")
+
+rtloader_test_go_library(
+    name = "common",
+    srcs = [
+        "cgo_free.go",
+        "cgo_free_three.go",
+        "common_three.go",
+    ],
+    cdeps = ["//rtloader:three_dynamic"],
+    cgo = True,
+    clinkopts = [],  # keep: ignore cgo directives
+    copts = [],  # keep: ignore cgo directives
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/common",
+    visibility = ["//visibility:public"],
+    deps = ["//rtloader/test/helpers"],
+)
+
+rtloader_go_test(
+    name = "common_test",
+    srcs = ["cgo_free_test.go"],
+    embed = [":common"],
+    deps = ["//rtloader/test/helpers"],
+)
