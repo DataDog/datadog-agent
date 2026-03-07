@@ -217,6 +217,10 @@ impl ManagedProcess {
         cmd.stdout(stdio_from_str(&self.config.stdout));
         cmd.stderr(stdio_from_str(&self.config.stderr));
 
+        // Place child in its own process group so SIGTERM reaches all
+        // grandchildren and our own signals don't propagate to them.
+        cmd.process_group(0);
+
         Ok(cmd)
     }
 
@@ -275,8 +279,10 @@ impl ManagedProcess {
         if let Some(raw_pid) = self.pid {
             match i32::try_from(raw_pid) {
                 Ok(pid) => {
-                    if let Err(e) = signal::kill(Pid::from_raw(pid), sig) {
-                        warn!("[{}] failed to send {sig}: {e}", self.name);
+                    // Negate PID to target the entire process group created
+                    // by process_group(0) in build_command.
+                    if let Err(e) = signal::kill(Pid::from_raw(-pid), sig) {
+                        warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
                     }
                 }
                 Err(_) => {
