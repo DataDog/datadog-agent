@@ -30,7 +30,6 @@ build do
   command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
 
   unless windows?
-    command_on_repo_root "bazelisk run -- @zlib//:install --destdir=#{install_dir}"
     # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
     # This messes up openssl's internal paths. So we have to use another variable
     # so that replace_prefix and fix_openssl_paths set path correctly inside of the

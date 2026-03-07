@@ -8,11 +8,6 @@ else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
 
-# Linux-specific dependencies
-if linux_target?
-  dependency 'curl'
-end
-
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
 # Bundled cacerts file (is this a good idea?)

@@ -1,11 +1,12 @@
 """Agent specific BUILD file for bzip2."""
 
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
@@ -135,12 +136,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "bz2_rpath_patched",
+    inputs = [":bz2"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":bz2",
+    src = ":bz2_rpath_patched",
     libname = "libbz2",
     version = VERSION,
     prefix = "embedded",
+)
+
+dd_auto_pkg_artifact(
+    name = "bz2_pkg",
+    src = ":bz2",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -158,9 +171,3 @@ pkg_filegroup(
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)

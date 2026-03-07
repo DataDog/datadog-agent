@@ -1,9 +1,10 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.14.5"
@@ -150,22 +151,28 @@ cc_shared_library(
     deps = [":libxml2"],
     visibility = ["//visibility:public"],
     dynamic_deps = [
-        "@zlib//:z",
-        "@xz//:lzma",
+        "@zlib//:z_pkg",
+        "@xz//:lzma_pkg",
     ],
+)
+
+rewrite_rpath(
+    name = "xml2_rpath_patched",
+    inputs = [":xml2"],
 )
 
 so_symlink(
     name = "lib_files",
-    src = ":xml2",
+    src = ":xml2_rpath_patched",
     libname = "libxml2",
     version = "16.0.5",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "headers",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/libxml2/libxml",
+    prefix = "embedded/include/libxml2/libxml",
 )
 
 pkg_filegroup(
@@ -174,12 +181,11 @@ pkg_filegroup(
         ":headers",
         ":lib_files",
     ],
-    prefix = "embedded",
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "xml2_pkg",
+    src = ":xml2",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

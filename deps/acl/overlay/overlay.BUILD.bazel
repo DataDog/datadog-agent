@@ -1,13 +1,14 @@
 """libacl"""
 
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
@@ -166,7 +167,7 @@ cc_shared_library(
     name = "acl",
     deps = [":libacl"],
     dynamic_deps = [
-        "@attr//:attr",
+        "@attr//:attr_pkg",
     ],
     additional_linker_inputs = [
         "exports",
@@ -177,9 +178,14 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "acl_rpath_patched",
+    inputs = [":acl"],
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":acl",
+    src = ":acl_rpath_patched",
     libname = "libacl",
     version = "1.1.2301",
     prefix = "embedded",
@@ -201,9 +207,9 @@ pkg_filegroup(
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "acl_pkg",
+    src = ":acl",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )

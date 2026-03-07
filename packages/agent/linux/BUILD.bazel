@@ -35,15 +35,13 @@ pkg_filegroup(
 pkg_filegroup(
     name = "transitive_deps",
     srcs = [
+        "//deps/cpython:all_python_deps",
         "//deps/gstatus:bin_files",
         "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
-        "//deps/openscap:all_files",
         "@freetds//:all_files",
         "@krb5//:all_files",
-        "@nghttp2//:all_files",
-        "@xz//:all_files",
-        "@zlib//:all_files",
+        "@openscap//:all_openscap_deps",
     ],
     prefix = "/opt/datadog-agent",
 )
