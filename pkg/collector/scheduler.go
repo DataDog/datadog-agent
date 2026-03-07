@@ -139,7 +139,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			delete(s.configToChecks, digest)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
-			dangling := []checkid.ID{}
+			dangling := make([]checkid.ID, 0, len(s.configToChecks[digest]))
 			for _, id := range s.configToChecks[digest] {
 				if _, found := stopped[id]; !found {
 					dangling = append(dangling, id)
@@ -165,7 +165,7 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 // getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
 func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, error) {
-	checks := []check.Check{}
+	checks := make([]check.Check, 0, len(config.Instances))
 	numLoaders := len(s.loaders)
 
 	initConfig := commonInitConfig{}
@@ -259,7 +259,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	var allChecks []check.Check
+	allChecks := make([]check.Check, 0, len(configs))
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
 			// skip non check configs.
@@ -274,6 +274,9 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue
+		}
+		if populateCache && len(checks) > 0 && len(s.configToChecks[configDigest]) == 0 {
+			s.configToChecks[configDigest] = make([]checkid.ID, 0, len(checks))
 		}
 		for _, c := range checks {
 			allChecks = append(allChecks, c)
