@@ -49,7 +49,7 @@ mod tests {
         let uds = UnixListener::bind(&sock_path).unwrap();
         let uds_stream = UnixListenerStream::new(uds);
 
-        let mgr = ProcessManager::new(processes);
+        let mgr = ProcessManager::from_processes(processes);
         let svc = ProcessManagerService::new(mgr.clone(), "/test/config/path".to_string(), cmd_tx);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();

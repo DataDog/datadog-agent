@@ -14,9 +14,11 @@ mod shutdown;
 mod state;
 
 use anyhow::Result;
+use config::YamlConfigLoader;
 use log::info;
 use log::warn;
 use manager::{ExitEvent, ProcessManager};
+use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{mpsc, oneshot};
 
@@ -28,7 +30,8 @@ async fn main() -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
 
-    let mgr = ProcessManager::from_config();
+    let loader = Arc::new(YamlConfigLoader::from_env());
+    let mgr = ProcessManager::new(loader);
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<command::Command>(64);
     let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
