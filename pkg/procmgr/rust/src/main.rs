@@ -32,6 +32,7 @@ async fn main() -> Result<()> {
 
     let loader = Arc::new(YamlConfigLoader::from_env());
     let mgr = ProcessManager::new(loader);
+    mgr.start().await;
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<command::Command>(64);
     let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();

@@ -29,7 +29,10 @@ impl ProcessManager {
     pub(crate) fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
         let configs = config_loader.load();
         let startup_order = resolve_startup_order(&configs);
-        let processes = start_processes(configs, &startup_order);
+        let processes: Vec<ManagedProcess> = configs
+            .into_iter()
+            .map(|pd| ManagedProcess::new(pd.name, pd.config))
+            .collect();
         Self {
             processes: Arc::new(RwLock::new(processes)),
             startup_order: Arc::new(startup_order),
@@ -37,18 +40,15 @@ impl ProcessManager {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn from_processes(processes: Vec<ManagedProcess>) -> Self {
-        struct NoopLoader;
-        impl ConfigLoader for NoopLoader {
-            fn load(&self) -> Vec<ProcessDefinition> {
-                Vec::new()
+    pub(crate) async fn start(&self) {
+        let mut procs = self.processes.write().await;
+        for &idx in self.startup_order.iter() {
+            let proc = &mut procs[idx];
+            if proc.should_start()
+                && let Err(e) = proc.spawn()
+            {
+                warn!("{e:#}");
             }
-        }
-        Self {
-            processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(Vec::new()),
-            config_loader: Arc::new(NoopLoader),
         }
     }
 
@@ -75,6 +75,10 @@ impl ProcessManager {
             warn!("exit event for unknown process '{}'", event.name);
             return;
         };
+        if !proc.state().is_alive() {
+            info!("[{}] ignoring exit event (state: {})", proc.name(), proc.state());
+            return;
+        }
         info!("[{}] exited with {}", proc.name(), event.status);
         proc.set_last_status(event.status);
         if let Some(delay) = proc.handle_restart() {
@@ -295,39 +299,25 @@ fn resolve_startup_order(configs: &[ProcessDefinition]) -> Vec<usize> {
     result.order
 }
 
-fn start_processes(configs: Vec<ProcessDefinition>, startup_order: &[usize]) -> Vec<ManagedProcess> {
-    let mut processes: Vec<ManagedProcess> = configs
-        .into_iter()
-        .map(|np| ManagedProcess::new(np.name, np.config))
-        .collect();
-
-    for &idx in startup_order {
-        let proc = &mut processes[idx];
-        if proc.should_start()
-            && let Err(e) = proc.spawn()
-        {
-            warn!("{e:#}");
-        }
-    }
-    processes
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ProcessConfig;
+    use crate::config::{ProcessConfig, StaticConfigLoader};
+
+    fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
+        Arc::new(StaticConfigLoader::new(defs))
+    }
 
     #[tokio::test]
     async fn test_complete_restart_skips_already_running() {
-        let proc = ManagedProcess::new(
-            "svc".to_string(),
-            ProcessConfig {
+        let mgr = ProcessManager::new(loader(vec![ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
                 ..Default::default()
             },
-        );
-        let mgr = ProcessManager::from_processes(vec![proc]);
+        }]));
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         mgr.handle_start("svc", &exit_tx).await.unwrap();
@@ -351,7 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reload_preserves_runtime_created_processes() {
-        let mgr = ProcessManager::from_processes(vec![]);
+        let mgr = ProcessManager::new(loader(vec![]));
         let config = ProcessConfig {
             command: "/bin/echo".to_string(),
             ..Default::default()

@@ -20,6 +20,29 @@ pub trait ConfigLoader: Send + Sync {
     fn load(&self) -> Vec<ProcessDefinition>;
 }
 
+#[cfg(test)]
+pub struct StaticConfigLoader(Vec<ProcessDefinition>);
+
+#[cfg(test)]
+impl StaticConfigLoader {
+    pub fn new(configs: Vec<ProcessDefinition>) -> Self {
+        Self(configs)
+    }
+}
+
+#[cfg(test)]
+impl ConfigLoader for StaticConfigLoader {
+    fn load(&self) -> Vec<ProcessDefinition> {
+        self.0
+            .iter()
+            .map(|pd| ProcessDefinition {
+                name: pd.name.clone(),
+                config: pd.config.clone(),
+            })
+            .collect()
+    }
+}
+
 pub struct YamlConfigLoader {
     dir: PathBuf,
 }
@@ -95,7 +118,7 @@ impl fmt::Display for RestartPolicy {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProcessConfig {
     #[serde(default)]
     #[allow(dead_code)]

@@ -28,17 +28,32 @@ mod tests {
     use super::service::ProcessManagerService;
     use crate::manager::ProcessManager;
     use crate::command::Command;
-    use crate::config::{ProcessConfig, RestartPolicy};
-    use crate::process::ManagedProcess;
+    use crate::config::{ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use hyper_util::rt::TokioIo;
+    use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::transport::{Channel, Endpoint, Uri};
     use tower::service_fn;
 
+    fn def(name: &str, command: &str, args: &[&str]) -> ProcessDefinition {
+        ProcessDefinition {
+            name: name.to_string(),
+            config: ProcessConfig {
+                command: command.to_string(),
+                args: args.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            },
+        }
+    }
+
+    fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
+        Arc::new(StaticConfigLoader::new(defs))
+    }
+
     async fn start_test_server(
-        processes: Vec<ManagedProcess>,
+        defs: Vec<ProcessDefinition>,
     ) -> (
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
@@ -49,7 +64,7 @@ mod tests {
         let uds = UnixListener::bind(&sock_path).unwrap();
         let uds_stream = UnixListenerStream::new(uds);
 
-        let mgr = ProcessManager::from_processes(processes);
+        let mgr = ProcessManager::new(loader(defs));
         let svc = ProcessManagerService::new(mgr.clone(), "/test/config/path".to_string(), cmd_tx);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
@@ -136,25 +151,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_returns_processes() {
-        let procs = vec![
-            ManagedProcess::new(
-                "alpha".to_string(),
-                ProcessConfig {
+        let defs = vec![
+            ProcessDefinition {
+                name: "alpha".to_string(),
+                config: ProcessConfig {
                     command: "/usr/bin/alpha".to_string(),
                     args: vec!["--flag".to_string()],
                     ..Default::default()
                 },
-            ),
-            ManagedProcess::new(
-                "beta".to_string(),
-                ProcessConfig {
-                    command: "/usr/bin/beta".to_string(),
-                    ..Default::default()
-                },
-            ),
+            },
+            def("beta", "/usr/bin/beta", &[]),
         ];
 
-        let (mut client, _shutdown) = start_test_server(procs).await;
+        let (mut client, _shutdown) = start_test_server(defs).await;
         let resp = client
             .list(proto::ListRequest {})
             .await
@@ -177,9 +186,9 @@ mod tests {
         env.insert("FOO".to_string(), "bar".to_string());
         env.insert("BAZ".to_string(), "qux".to_string());
 
-        let procs = vec![ManagedProcess::new(
-            "my-service".to_string(),
-            ProcessConfig {
+        let defs = vec![ProcessDefinition {
+            name: "my-service".to_string(),
+            config: ProcessConfig {
                 command: "/bin/myservice".to_string(),
                 args: vec!["--port".to_string(), "8080".to_string()],
                 description: Some("A test service".to_string()),
@@ -194,9 +203,9 @@ mod tests {
                 before: vec!["dep-b".to_string()],
                 ..Default::default()
             },
-        )];
+        }];
 
-        let (mut client, _shutdown) = start_test_server(procs).await;
+        let (mut client, _shutdown) = start_test_server(defs).await;
         let resp = client
             .describe(proto::DescribeRequest {
                 name: "my-service".to_string(),
@@ -241,24 +250,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status() {
-        let procs = vec![
-            ManagedProcess::new(
-                "running-proc".to_string(),
-                ProcessConfig {
-                    command: "/bin/true".to_string(),
-                    ..Default::default()
-                },
-            ),
-            ManagedProcess::new(
-                "another-proc".to_string(),
-                ProcessConfig {
-                    command: "/bin/false".to_string(),
-                    ..Default::default()
-                },
-            ),
+        let defs = vec![
+            def("running-proc", "/bin/true", &[]),
+            def("another-proc", "/bin/false", &[]),
         ];
 
-        let (mut client, _shutdown) = start_test_server(procs).await;
+        let (mut client, _shutdown) = start_test_server(defs).await;
         let resp = client
             .get_status(proto::GetStatusRequest {})
             .await
@@ -287,32 +284,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_describe_picks_correct_process() {
-        let procs = vec![
-            ManagedProcess::new(
-                "alpha".to_string(),
-                ProcessConfig {
-                    command: "/usr/bin/alpha".to_string(),
-                    ..Default::default()
-                },
-            ),
-            ManagedProcess::new(
-                "beta".to_string(),
-                ProcessConfig {
+        let defs = vec![
+            def("alpha", "/usr/bin/alpha", &[]),
+            ProcessDefinition {
+                name: "beta".to_string(),
+                config: ProcessConfig {
                     command: "/usr/bin/beta".to_string(),
                     description: Some("The beta service".to_string()),
                     ..Default::default()
                 },
-            ),
-            ManagedProcess::new(
-                "gamma".to_string(),
-                ProcessConfig {
-                    command: "/usr/bin/gamma".to_string(),
-                    ..Default::default()
-                },
-            ),
+            },
+            def("gamma", "/usr/bin/gamma", &[]),
         ];
 
-        let (mut client, _shutdown) = start_test_server(procs).await;
+        let (mut client, _shutdown) = start_test_server(defs).await;
 
         let resp = client
             .describe(proto::DescribeRequest {
@@ -356,76 +341,45 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_mixed_states() {
-        // Running: spawn a long-lived process
-        let mut proc_running = ManagedProcess::new(
-            "running-svc".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-        proc_running.spawn().unwrap();
-        let mut child = proc_running.take_child().unwrap();
-
-        // Failed: spawn a process that exits non-zero
-        let mut proc_failed = ManagedProcess::new(
-            "failed-svc".to_string(),
-            ProcessConfig {
-                command: "/bin/sh".to_string(),
-                args: vec!["-c".to_string(), "exit 1".to_string()],
-                ..Default::default()
-            },
-        );
-        proc_failed.spawn().unwrap();
-        let mut child_fail = proc_failed.take_child().unwrap();
-        let status = child_fail.wait().await.unwrap();
-        proc_failed.set_last_status(status);
-
-        // Stopped: spawn then explicitly stop
-        let mut proc_stopped = ManagedProcess::new(
-            "stopped-svc".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-        proc_stopped.spawn().unwrap();
-        proc_stopped.request_stop();
-        proc_stopped.wait_for_stop().await;
-
-        // Exited: spawn a process that exits cleanly
-        let mut proc_exited = ManagedProcess::new(
-            "exited-svc".to_string(),
-            ProcessConfig {
-                command: "/bin/sh".to_string(),
-                args: vec!["-c".to_string(), "exit 0".to_string()],
-                ..Default::default()
-            },
-        );
-        proc_exited.spawn().unwrap();
-        let mut child_exit = proc_exited.take_child().unwrap();
-        let status_exit = child_exit.wait().await.unwrap();
-        proc_exited.set_last_status(status_exit);
-
-        // Created: never spawned
-        let proc_created = ManagedProcess::new(
-            "created-svc".to_string(),
-            ProcessConfig {
-                command: "/bin/true".to_string(),
-                ..Default::default()
-            },
-        );
-
-        let procs = vec![
-            proc_running,
-            proc_failed,
-            proc_stopped,
-            proc_exited,
-            proc_created,
+        let defs = vec![
+            def("running-svc", "/bin/sleep", &["60"]),
+            def("failed-svc", "/bin/sh", &["-c", "exit 1"]),
+            def("stopped-svc", "/bin/sleep", &["60"]),
+            def("exited-svc", "/bin/sh", &["-c", "exit 0"]),
+            def("created-svc", "/bin/true", &[]),
         ];
-        let (mut client, _shutdown) = start_test_server(procs).await;
+        let (mut client, _shutdown) = start_test_server(defs).await;
+
+        // Running: start a long-lived process
+        client
+            .start(proto::StartRequest { name: "running-svc".to_string() })
+            .await
+            .unwrap();
+
+        // Failed: start a process that exits non-zero (watcher delivers the exit event)
+        client
+            .start(proto::StartRequest { name: "failed-svc".to_string() })
+            .await
+            .unwrap();
+
+        // Stopped: start then stop
+        client
+            .start(proto::StartRequest { name: "stopped-svc".to_string() })
+            .await
+            .unwrap();
+        client
+            .stop(proto::StopRequest { name: "stopped-svc".to_string() })
+            .await
+            .unwrap();
+
+        // Exited: start a process that exits cleanly
+        client
+            .start(proto::StartRequest { name: "exited-svc".to_string() })
+            .await
+            .unwrap();
+
+        // Wait for fast processes to exit and events to flow
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
         let resp = client
             .get_status(proto::GetStatusRequest {})
@@ -440,23 +394,27 @@ mod tests {
         assert_eq!(resp.exited_processes, 1);
         assert_eq!(resp.created_processes, 1);
 
-        child.kill().await.ok();
+        // Clean up running-svc
+        let list = client.list(proto::ListRequest {}).await.unwrap().into_inner();
+        if let Some(p) = list.processes.iter().find(|p| p.name == "running-svc") {
+            nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(p.pid as i32),
+                nix::sys::signal::Signal::SIGKILL,
+            )
+            .ok();
+        }
     }
 
     #[tokio::test]
     async fn test_list_shows_running_pid() {
-        let mut proc = ManagedProcess::new(
-            "live-proc".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-        proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("live-proc", "/bin/sleep", &["60"])]).await;
 
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        client
+            .start(proto::StartRequest { name: "live-proc".to_string() })
+            .await
+            .unwrap();
+
         let resp = client
             .list(proto::ListRequest {})
             .await
@@ -471,23 +429,19 @@ mod tests {
             "running process should report a non-zero pid"
         );
 
-        child.kill().await.ok();
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
     }
 
     // -- Write RPC tests --
 
     #[tokio::test]
     async fn test_start_rpc_success() {
-        let proc = ManagedProcess::new(
-            "sleeper".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("sleeper", "/bin/sleep", &["60"])]).await;
 
         client
             .start(proto::StartRequest {
@@ -528,18 +482,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_already_running() {
-        let mut proc = ManagedProcess::new(
-            "running".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-        proc.spawn().unwrap();
-        let mut child = proc.take_child().unwrap();
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("running", "/bin/sleep", &["60"])]).await;
 
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        client
+            .start(proto::StartRequest { name: "running".to_string() })
+            .await
+            .unwrap();
 
         let err = client
             .start(proto::StartRequest {
@@ -549,21 +498,20 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::FailedPrecondition);
 
-        child.kill().await.ok();
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw({
+                let resp = client.list(proto::ListRequest {}).await.unwrap().into_inner();
+                resp.processes[0].pid as i32
+            }),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
     }
 
     #[tokio::test]
     async fn test_stop_rpc_success() {
-        let proc = ManagedProcess::new(
-            "to-stop".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("to-stop", "/bin/sleep", &["60"])]).await;
 
         // Start via RPC so the watcher is wired
         client
@@ -611,15 +559,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_rpc_not_running() {
-        let proc = ManagedProcess::new(
-            "idle".to_string(),
-            ProcessConfig {
-                command: "/bin/true".to_string(),
-                ..Default::default()
-            },
-        );
-
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("idle", "/bin/true", &[])]).await;
 
         let err = client
             .stop(proto::StopRequest {
@@ -632,16 +573,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
-        let proc = ManagedProcess::new(
-            "lifecycle".to_string(),
-            ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
-                ..Default::default()
-            },
-        );
-
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("lifecycle", "/bin/sleep", &["60"])]).await;
 
         // Start
         client
@@ -725,15 +658,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_duplicate_name() {
-        let proc = ManagedProcess::new(
-            "existing".to_string(),
-            ProcessConfig {
-                command: "/bin/true".to_string(),
-                ..Default::default()
-            },
-        );
-
-        let (mut client, _shutdown) = start_test_server(vec![proc]).await;
+        let (mut client, _shutdown) =
+            start_test_server(vec![def("existing", "/bin/true", &[])]).await;
 
         let err = client
             .create(proto::CreateRequest {
