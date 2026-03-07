@@ -150,48 +150,61 @@ impl ProcessManager {
         let new_names: std::collections::HashSet<&str> =
             new_configs.iter().map(|(n, _)| n.as_str()).collect();
 
-        let mut procs = self.processes.write().await;
-        let existing_names: std::collections::HashSet<String> =
-            procs.iter().map(|p| p.name.clone()).collect();
-
-        let mut added = Vec::new();
+        let mut removed_procs;
+        let existing_names: std::collections::HashSet<String>;
         let mut removed = Vec::new();
-        let mut unchanged = Vec::new();
 
-        // Stop and remove processes whose configs were deleted.
-        // Skip runtime-created processes (via Create RPC) since they have no backing YAML.
-        let mut i = 0;
-        while i < procs.len() {
-            if !procs[i].is_runtime_created() && !new_names.contains(procs[i].name.as_str()) {
-                let proc = &mut procs[i];
-                info!("[{}] config removed, stopping", proc.name);
-                if proc.is_running() {
-                    proc.request_stop();
-                    proc.wait_for_stop().await;
+        // Phase 1: Under write lock, extract processes whose configs were
+        // deleted and send them SIGTERM. Drop the lock before waiting so
+        // gRPC reads are not blocked during the stop timeout.
+        {
+            let mut procs = self.processes.write().await;
+            existing_names = procs.iter().map(|p| p.name.clone()).collect();
+
+            removed_procs = Vec::new();
+            let mut i = 0;
+            while i < procs.len() {
+                if !procs[i].is_runtime_created() && !new_names.contains(procs[i].name.as_str()) {
+                    let mut proc = procs.remove(i);
+                    info!("[{}] config removed, stopping", proc.name);
+                    if proc.is_running() {
+                        proc.request_stop();
+                    }
+                    removed.push(proc.name.clone());
+                    removed_procs.push(proc);
+                } else {
+                    i += 1;
                 }
-                removed.push(proc.name.clone());
-                procs.remove(i);
-            } else {
-                i += 1;
             }
         }
+        // Write lock is dropped here.
 
-        // Add new processes
-        for (name, cfg) in new_configs {
-            if existing_names.contains(&name) {
-                unchanged.push(name);
-            } else {
-                info!("[{name}] new config found, adding");
-                let mut proc = ManagedProcess::new(name.clone(), cfg);
-                if proc.should_start() {
-                    if let Err(e) = proc.spawn() {
-                        warn!("[{name}] failed to start: {e:#}");
-                    } else {
-                        spawn_watcher(&mut proc, exit_tx.clone());
+        // Phase 2: Wait for removed processes to stop without holding the lock.
+        for proc in &mut removed_procs {
+            proc.wait_for_stop().await;
+        }
+
+        // Phase 3: Re-acquire write lock to add new processes.
+        let mut added = Vec::new();
+        let mut unchanged = Vec::new();
+        {
+            let mut procs = self.processes.write().await;
+            for (name, cfg) in new_configs {
+                if existing_names.contains(&name) {
+                    unchanged.push(name);
+                } else {
+                    info!("[{name}] new config found, adding");
+                    let mut proc = ManagedProcess::new(name.clone(), cfg);
+                    if proc.should_start() {
+                        if let Err(e) = proc.spawn() {
+                            warn!("[{name}] failed to start: {e:#}");
+                        } else {
+                            spawn_watcher(&mut proc, exit_tx.clone());
+                        }
                     }
+                    procs.push(proc);
+                    added.push(name);
                 }
-                procs.push(proc);
-                added.push(name);
             }
         }
 
