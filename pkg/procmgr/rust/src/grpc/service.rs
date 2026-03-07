@@ -16,16 +16,14 @@ use tonic::{Request, Response, Status};
 pub struct ProcessManagerService {
     mgr: ProcessManager,
     started_at: Instant,
-    config_path: String,
     cmd_tx: mpsc::Sender<Command>,
 }
 
 impl ProcessManagerService {
-    pub fn new(mgr: ProcessManager, config_path: String, cmd_tx: mpsc::Sender<Command>) -> Self {
+    pub fn new(mgr: ProcessManager, cmd_tx: mpsc::Sender<Command>) -> Self {
         Self {
             mgr,
             started_at: Instant::now(),
-            config_path,
             cmd_tx,
         }
     }
@@ -90,7 +88,6 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             exited_processes: exited,
             starting_processes: starting,
             stopping_processes: stopping,
-            config_path: self.config_path.clone(),
         }))
     }
 
@@ -169,6 +166,21 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             added: result.added,
             removed: result.removed,
             unchanged: result.unchanged,
+        }))
+    }
+
+    async fn get_config(
+        &self,
+        _request: Request<proto::GetConfigRequest>,
+    ) -> Result<Response<proto::GetConfigResponse>, Status> {
+        let procs = self.mgr.read().await;
+        let runtime = procs.iter().filter(|p| p.is_runtime_created()).count() as u32;
+        let loaded = procs.len() as u32 - runtime;
+        Ok(Response::new(proto::GetConfigResponse {
+            source: self.mgr.config_source().to_string(),
+            location: self.mgr.config_location(),
+            loaded_processes: loaded,
+            runtime_processes: runtime,
         }))
     }
 }

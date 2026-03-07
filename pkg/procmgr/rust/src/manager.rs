@@ -60,10 +60,8 @@ impl ProcessManager {
 
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
-        let config_path = config::config_dir().display().to_string();
         let grpc_handle = tokio::spawn(grpc::server::run(
             self.clone(),
-            config_path,
             cmd_tx,
             grpc_shutdown_rx,
         ));
@@ -126,6 +124,14 @@ impl ProcessManager {
 
     pub(crate) async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
         self.processes.read().await
+    }
+
+    pub(crate) fn config_source(&self) -> &str {
+        self.config_loader.source()
+    }
+
+    pub(crate) fn config_location(&self) -> String {
+        self.config_loader.location()
     }
 
     async fn wire_watchers(&self, exit_tx: &mpsc::Sender<ExitEvent>) {

@@ -18,6 +18,8 @@ pub struct ProcessDefinition {
 
 pub trait ConfigLoader: Send + Sync {
     fn load(&self) -> Vec<ProcessDefinition>;
+    fn source(&self) -> &str;
+    fn location(&self) -> String;
 }
 
 #[cfg(test)]
@@ -41,6 +43,14 @@ impl ConfigLoader for StaticConfigLoader {
             })
             .collect()
     }
+
+    fn source(&self) -> &str {
+        "static"
+    }
+
+    fn location(&self) -> String {
+        "in-memory (test)".to_string()
+    }
 }
 
 pub struct YamlConfigLoader {
@@ -56,6 +66,14 @@ impl YamlConfigLoader {
 }
 
 impl ConfigLoader for YamlConfigLoader {
+    fn source(&self) -> &str {
+        "yaml"
+    }
+
+    fn location(&self) -> String {
+        self.dir.display().to_string()
+    }
+
     fn load(&self) -> Vec<ProcessDefinition> {
         if !self.dir.is_dir() {
             info!(
