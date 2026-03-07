@@ -35,7 +35,7 @@ type baseHostnameSuite struct {
 	hostnameMetadata Meta
 }
 
-func TestBaseHostnameSuite(t *testing.T) {
+func TestLinuxHostnameIMDSv2Suite(t *testing.T) {
 	e2e.Run(t, &baseHostnameSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 

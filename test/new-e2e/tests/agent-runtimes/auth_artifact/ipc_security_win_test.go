@@ -24,7 +24,7 @@ type authArtifactWindows struct {
 	authArtifactBase
 }
 
-func TestIPCSecurityWindowsSuite(t *testing.T) {
+func TestWindowsAuthArtifactSuite(t *testing.T) {
 	t.Parallel()
 
 	e2e.Run(t,
