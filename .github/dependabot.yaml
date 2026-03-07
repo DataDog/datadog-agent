@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -41,6 +42,7 @@ updates:
           - patch
   - package-ecosystem: gomod
     directory: /pkg/trace
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -62,6 +64,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/gohai
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -82,6 +85,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/obfuscate
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -102,6 +106,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -120,6 +125,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -141,6 +147,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -159,6 +166,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/new-e2e
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -192,6 +200,7 @@ updates:
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/fakeintake
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
