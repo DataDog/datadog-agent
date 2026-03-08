@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    secrets-generic-connector: Allow configuration of `X-Vault-AWS-IAM-Server-ID` header for Hashicorp Vault AWS authentication method.
+    Helps to prevent different types of replay attacks.
