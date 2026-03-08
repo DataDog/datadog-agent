@@ -274,9 +274,13 @@ func buildRunnerScript(scenarios []dockerScenario) string {
 	var b strings.Builder
 	b.WriteString("#!/bin/bash\nmkdir -p /work/results\n")
 	for _, ds := range scenarios {
-		var envPrefix string
+		var envParts []string
 		for k, v := range ds.sc.Input.Envs {
-			envPrefix += fmt.Sprintf("export %s=%s; ", k, shellQuote(v))
+			envParts = append(envParts, fmt.Sprintf("export %s=%s;", k, shellQuote(v)))
+		}
+		envPrefix := ""
+		if len(envParts) > 0 {
+			envPrefix = strings.Join(envParts, " ") + " "
 		}
 		fmt.Fprintf(&b,
 			"( cd /work/%s && %sbash /work/scripts/%s.sh ) >'/work/results/%s.stdout' 2>'/work/results/%s.stderr'; echo $? >'/work/results/%s.ec'\n",
