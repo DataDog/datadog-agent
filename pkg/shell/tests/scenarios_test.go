@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -23,6 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 )
+
+const dockerBashImage = "bash:5.2"
 
 // scenario represents a single test scenario.
 type scenario struct {
@@ -150,13 +154,6 @@ func runScenario(t *testing.T, sc scenario) {
 
 	dir := setupTestDir(t, sc)
 
-	// Set OS-level env vars so the bash comparison path (runScenarioAgainstBash)
-	// picks them up via os.Environ(). The restricted interpreter intentionally
-	// does NOT inherit these — it starts with an empty environment for security.
-	for k, v := range sc.Input.Envs {
-		t.Setenv(k, v)
-	}
-
 	parser := syntax.NewParser()
 	prog, err := parser.Parse(strings.NewReader(sc.Input.Script), "")
 	require.NoError(t, err, "failed to parse script")
@@ -226,77 +223,146 @@ func assertExpectations(t *testing.T, sc scenario, stdout, stderr string, exitCo
 	}
 }
 
-// runScenarioAgainstBash executes a scenario against real /bin/bash and asserts expectations.
-func runScenarioAgainstBash(t *testing.T, sc scenario) {
-	t.Helper()
+// dockerScenario associates a scenario with its test name and subdirectory
+// inside the shared Docker mount.
+type dockerScenario struct {
+	testName string // e.g. "cmd/echo/basic"
+	subdir   string // e.g. "s42"
+	sc       scenario
+}
 
-	if len(sc.TargetOS) > 0 {
-		matched := false
-		for _, goos := range sc.TargetOS {
-			if goos == runtime.GOOS {
-				matched = true
-				break
+// targetsLinux returns true if the scenario should run in a Linux Docker container.
+func targetsLinux(sc scenario) bool {
+	if len(sc.TargetOS) == 0 {
+		return true
+	}
+	for _, goos := range sc.TargetOS {
+		if goos == "linux" {
+			return true
+		}
+	}
+	return false
+}
+
+// setupTestDirIn creates a subdirectory named subdir inside parentDir and
+// populates it with the scenario's setup files. The script is written to
+// scriptsDir/<subdir>.sh so it doesn't pollute the working directory (which
+// would break glob-based scenarios).
+func setupTestDirIn(t *testing.T, parentDir, scriptsDir, subdir string, sc scenario) {
+	t.Helper()
+	dir := filepath.Join(parentDir, subdir)
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	for _, f := range sc.Setup.Files {
+		fullPath := filepath.Join(dir, f.Path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755), "failed to create directories for %s", f.Path)
+		if f.Symlink != "" {
+			require.NoError(t, os.Symlink(f.Symlink, fullPath), "failed to create symlink %s -> %s", f.Path, f.Symlink)
+		} else {
+			require.NoError(t, os.WriteFile(fullPath, []byte(f.Content), 0644), "failed to write file %s", f.Path)
+			if f.Chmod != 0 {
+				require.NoError(t, os.Chmod(fullPath, f.Chmod), "failed to chmod file %s", f.Path)
 			}
 		}
-		if !matched {
-			t.Skipf("skipping: scenario targets %v, current GOOS is %s", sc.TargetOS, runtime.GOOS)
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(scriptsDir, subdir+".sh"), []byte(sc.Input.Script), 0644))
+}
+
+// buildRunnerScript generates a bash script that executes all scenarios and
+// writes results (stdout, stderr, exit code) to /work/results/<subdir>.
+// Scripts live in /work/scripts/<subdir>.sh, separate from the working dirs.
+func buildRunnerScript(scenarios []dockerScenario) string {
+	var b strings.Builder
+	b.WriteString("#!/bin/bash\nmkdir -p /work/results\n")
+	for _, ds := range scenarios {
+		var envPrefix string
+		for k, v := range ds.sc.Input.Envs {
+			envPrefix += fmt.Sprintf("export %s=%s; ", k, shellQuote(v))
 		}
+		fmt.Fprintf(&b,
+			"( cd /work/%s && %sbash /work/scripts/%s.sh ) >'/work/results/%s.stdout' 2>'/work/results/%s.stderr'; echo $? >'/work/results/%s.ec'\n",
+			ds.subdir, envPrefix, ds.subdir, ds.subdir, ds.subdir, ds.subdir,
+		)
 	}
+	return b.String()
+}
 
-	dir := setupTestDir(t, sc)
-
-	env := os.Environ()
-	for k, v := range sc.Input.Envs {
-		env = append(env, k+"="+v)
-	}
-
-	cmd := exec.Command("/bin/bash", "-c", sc.Input.Script)
-	cmd.Dir = dir
-	cmd.Env = env
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-
-	exitCode := 0
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			exitCode = exitErr.ExitCode()
-		} else {
-			t.Fatalf("unexpected error running bash: %v", err)
-		}
-	}
-
-	assertExpectations(t, sc, stdout.String(), stderr.String(), exitCode)
+// shellQuote returns a single-quoted shell string, escaping any embedded single quotes.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func TestShellScenariosAgainstBash(t *testing.T) {
-	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("bash comparison tests only run on linux and darwin")
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("docker not found, skipping bash comparison tests")
 	}
-	if _, err := exec.LookPath("/bin/bash"); err != nil {
-		t.Skip("/bin/bash not found, skipping bash comparison tests")
+	// Pull the image once before starting the container.
+	pull := exec.Command("docker", "pull", "-q", dockerBashImage)
+	if out, err := pull.CombinedOutput(); err != nil {
+		t.Skipf("failed to pull %s docker image: %v\n%s", dockerBashImage, err, out)
 	}
 
+	// Create a shared temp directory that will be bind-mounted into the container.
+	sharedDir := t.TempDir()
+
+	// --- Phase 1: collect all eligible scenarios and write their files ---
 	scenariosDir := filepath.Join("scenarios")
 	groups := discoverScenarioFiles(t, scenariosDir)
 	require.NotEmpty(t, groups, "no scenario files found in %s", scenariosDir)
 
+	scriptsDir := filepath.Join(sharedDir, "scripts")
+	require.NoError(t, os.MkdirAll(scriptsDir, 0755))
+
+	var allScenarios []dockerScenario
+	seq := 0
 	for group, paths := range groups {
-		t.Run(group, func(t *testing.T) {
-			for _, path := range paths {
-				sc := loadScenario(t, path)
-				if sc.TestAgainstLocalShell != nil && !*sc.TestAgainstLocalShell {
-					continue
-				}
-				name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-				t.Run(name, func(t *testing.T) {
-					runScenarioAgainstBash(t, sc)
-				})
+		for _, path := range paths {
+			sc := loadScenario(t, path)
+			if sc.TestAgainstLocalShell != nil && !*sc.TestAgainstLocalShell {
+				continue
 			}
+			if !targetsLinux(sc) {
+				continue
+			}
+			name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+			subdir := fmt.Sprintf("s%d", seq)
+			seq++
+			setupTestDirIn(t, sharedDir, scriptsDir, subdir, sc)
+			allScenarios = append(allScenarios, dockerScenario{
+				testName: group + "/" + name,
+				subdir:   subdir,
+				sc:       sc,
+			})
+		}
+	}
+	require.NotEmpty(t, allScenarios, "no eligible scenarios found")
+
+	// --- Phase 2: run ALL scenarios in a single docker invocation ---
+	runnerScript := buildRunnerScript(allScenarios)
+	runnerPath := filepath.Join(sharedDir, "runner.sh")
+	require.NoError(t, os.WriteFile(runnerPath, []byte(runnerScript), 0755))
+
+	cmd := exec.Command("docker", "run", "--rm",
+		"-v", sharedDir+":/work",
+		dockerBashImage, "bash", "/work/runner.sh",
+	)
+	var dockerStderr bytes.Buffer
+	cmd.Stderr = &dockerStderr
+	require.NoError(t, cmd.Run(), "runner script failed: %s", dockerStderr.String())
+
+	// --- Phase 3: read results and assert per-scenario expectations ---
+	resultsDir := filepath.Join(sharedDir, "results")
+	for _, ds := range allScenarios {
+		t.Run(ds.testName, func(t *testing.T) {
+			stdout, err := os.ReadFile(filepath.Join(resultsDir, ds.subdir+".stdout"))
+			require.NoError(t, err, "missing stdout for %s", ds.testName)
+			stderr, err := os.ReadFile(filepath.Join(resultsDir, ds.subdir+".stderr"))
+			require.NoError(t, err, "missing stderr for %s", ds.testName)
+			ecBytes, err := os.ReadFile(filepath.Join(resultsDir, ds.subdir+".ec"))
+			require.NoError(t, err, "missing exit code for %s", ds.testName)
+			exitCode, err := strconv.Atoi(strings.TrimSpace(string(ecBytes)))
+			require.NoError(t, err, "invalid exit code for %s: %q", ds.testName, string(ecBytes))
+
+			assertExpectations(t, ds.sc, string(stdout), string(stderr), exitCode)
 		})
 	}
 }
@@ -308,10 +374,12 @@ func TestShellScenarios(t *testing.T) {
 
 	for group, paths := range groups {
 		t.Run(group, func(t *testing.T) {
+			t.Parallel()
 			for _, path := range paths {
 				sc := loadScenario(t, path)
 				name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 					runScenario(t, sc)
 				})
 			}
