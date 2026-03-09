@@ -42,6 +42,9 @@ jobs:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
 
+      - name: Bazel cache
+        uses: ./.github/actions/bazel-cache
+
       - name: Fetch branch
         env:
           TARGET_BRANCH: ${{ inputs.branch }}
