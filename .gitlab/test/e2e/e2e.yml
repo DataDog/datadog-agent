@@ -238,7 +238,6 @@ new-e2e-containers:
   # and move rules to template
   rules:
     - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
@@ -263,7 +262,6 @@ new-e2e-containers-k8s-latest:
     - .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
@@ -279,7 +277,6 @@ new-e2e-containers-eks-init:
     - go_tools_deps
   rules:
     - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
@@ -297,7 +294,6 @@ new-e2e-containers-eks:
   extends: .new_e2e_template
   rules:
     - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.new_e2e_template_needs_container_deploy, needs]
@@ -575,7 +571,6 @@ new-e2e-alp:
     - qa_dca
   rules:
     - !reference [.on_alp_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-log-pipelines
@@ -698,7 +693,6 @@ new-e2e-apm:
   extends: .new_e2e_template
   rules:
     - !reference [.on_apm_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
