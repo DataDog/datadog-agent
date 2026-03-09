@@ -44,15 +44,32 @@ func (e *RestartDeploymentExecutor) Execute(ctx context.Context, action *kubeact
 		}
 	}
 
-	log.Infof("Restarting deployment %s/%s", namespace, name)
+	// Validate resource_id is provided for UID safety check
+	resourceID := resource.ResourceId
+	if resourceID == "" {
+		return ExecutionResult{
+			Status:  "failed",
+			Message: "resource_id is required for deployment restart (used for UID safety check)",
+		}
+	}
 
-	// Get the deployment
+	log.Infof("Restarting deployment %s/%s (uid=%s)", namespace, name, resourceID)
+
+	// Get the deployment and verify UID matches resource_id
 	deployment, err := e.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("Failed to get deployment %s/%s: %v", namespace, name, err)
 		return ExecutionResult{
 			Status:  "failed",
 			Message: fmt.Sprintf("failed to get deployment: %v", err),
+		}
+	}
+
+	if string(deployment.UID) != resourceID {
+		log.Errorf("Deployment %s/%s UID mismatch: expected %s, got %s - deployment may have been replaced", namespace, name, resourceID, deployment.UID)
+		return ExecutionResult{
+			Status:  "failed",
+			Message: fmt.Sprintf("deployment UID mismatch: expected %s, got %s - deployment may have been replaced since action was created", resourceID, deployment.UID),
 		}
 	}
 
