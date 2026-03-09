@@ -1927,17 +1927,17 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     for vmconfig_path in vmconfig_paths:
         with open(vmconfig_path) as vmconfig:
             vmjson = json.load(vmconfig)
-            if not "vmsets" in vmjson:
+            if "vmsets" not in vmjson:
                 continue
 
             for vmset in vmjson["vmsets"]:
-                if not "disks" in vmset:
+                if "disks" not in vmset:
                     continue
                 if vmset["arch"] != arch:
                     continue
 
                 for disk in vmset["disks"]:
-                    if not "source" in disk:
+                    if "source" not in disk:
                         continue
 
                     root = disk["source"].removesuffix(f"/docker-{arch}.qcow2.xz")
@@ -1956,8 +1956,8 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
 
             docker_ls.add(
                 line.removeprefix("public.ecr.aws/docker/library/")
-                    .removeprefix("registry.ddbuild.io/images/mirror/library/")
-                    .removeprefix("registry.ddbuild.io/images/mirror/")
+                .removeprefix("registry.ddbuild.io/images/mirror/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/")
             )
 
     images = _test_docker_image_list()
