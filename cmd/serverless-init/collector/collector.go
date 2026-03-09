@@ -72,6 +72,7 @@ type Collector struct {
 	cgroupReader       CgroupReader
 	collectionInterval time.Duration
 	cancelFunc         context.CancelFunc
+	done               chan struct{}
 	metricPrefix       string
 	// Previous stats for rate calculation
 	previousRateStats ServerlessRateStats
@@ -102,18 +103,22 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 func (c *Collector) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelFunc = cancel
+	c.done = make(chan struct{})
 
 	log.Info("Enhanced metrics collector started")
 	log.Debugf("Using cgroup version %d", c.cgroupReader.CgroupVersion())
 	c.collectLoop(ctx)
+	close(c.done)
 }
 
 // Stop stops the Collector
 func (c *Collector) Stop() {
 	if c.cancelFunc != nil {
+		c.cancelFunc()
+		// Wait for the previous collect to finish before starting the final collect
+		<-c.done
 		// One final collect before shutdown to collect a partial interval of enhanced metrics
 		c.collect()
-		c.cancelFunc()
 		log.Info("Enhanced metrics collector stopped")
 	}
 }
