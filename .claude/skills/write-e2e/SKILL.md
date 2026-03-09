@@ -125,6 +125,8 @@ The fakeintake captures everything the agent sends. Use it to validate metrics, 
 **Metrics:**
 ```go
 import (
+    "github.com/stretchr/testify/require"
+
     "github.com/DataDog/datadog-agent/test/fakeintake/client"
     "github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
@@ -134,9 +136,9 @@ func (s *mySuite) TestMetricsArriveInFakeintake() {
         metrics, err := s.Env().FakeIntake.Client().FilterMetrics("metric.name",
             client.WithMetricValueHigherThan(0),
         )
-        assert.NoError(c, err)
-        assert.NotEmpty(c, metrics, "no 'metric.name' metrics yet")
-    }, 5*time.Minute, 10*time.Second)
+        require.NoError(c, err)
+        require.NotEmpty(c, metrics, "no 'metric.name' metrics yet")
+    }, 2*time.Minute, 10*time.Second)
 }
 ```
 
@@ -145,9 +147,9 @@ func (s *mySuite) TestMetricsArriveInFakeintake() {
 func (s *mySuite) TestServiceCheckReported() {
     s.EventuallyWithT(func(c *assert.CollectT) {
         checkRuns, err := s.Env().FakeIntake.Client().FilterCheckRuns("check.name")
-        assert.NoError(c, err)
-        assert.NotEmpty(c, checkRuns, "no 'check.name' service check yet")
-    }, 5*time.Minute, 10*time.Second)
+        require.NoError(c, err)
+        require.NotEmpty(c, checkRuns, "no 'check.name' service check yet")
+    }, 2*time.Minute, 10*time.Second)
 }
 ```
 
@@ -163,9 +165,9 @@ func (s *mySuite) TestLogsArriveInFakeintake() {
         logs, err := s.Env().FakeIntake.Client().FilterLogs("service_name",
             fi.WithMessageContaining("test message"),
         )
-        assert.NoError(c, err)
-        assert.NotEmpty(c, logs)
-    }, 5*time.Minute, 10*time.Second)
+        require.NoError(c, err)
+        require.NotEmpty(c, logs)
+    }, 2*time.Minute, 10*time.Second)
 }
 ```
 
@@ -181,10 +183,11 @@ metrics, err := s.Env().FakeIntake.Client().FilterMetrics("metric.name",
 
 ### 7. Timeouts and intervals
 
-- **Default assertion timeout**: 5 minutes (infrastructure may take time to report)
+- **Default assertion timeout**: 2 minutes (enough for most checks to report)
 - **Default poll interval**: 10 seconds
-- **NTP/infrequent checks**: The check may have a long interval (e.g., NTP = 15 min). Adjust the timeout accordingly or override the check's `min_collection_interval` in the config.
+- **Infrequent checks**: Some checks have long intervals (e.g., NTP = 15 min). Override `min_collection_interval` in the config rather than increasing the timeout.
 - Use `EventuallyWithT` (not `Eventually`) — it provides `*assert.CollectT` for proper assertion collection.
+- Use `require` (not `assert`) inside `EventuallyWithT` callbacks — `require` stops the current retry on first failure, while `assert` continues executing and may produce confusing cascading errors.
 
 ### 8. Platform-specific tests
 

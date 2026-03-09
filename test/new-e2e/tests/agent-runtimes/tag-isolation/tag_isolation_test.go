@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -71,25 +72,23 @@ func (s *tagIsolationSuite) TestAlphaInstanceMetrics() {
 		metrics, err := fakeintake.FilterMetrics("tag_check.metric",
 			client.WithTags[*aggregator.MetricSeries]([]string{"instance:alpha"}),
 		)
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no 'tag_check.metric' with instance:alpha yet")
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics, "no 'tag_check.metric' with instance:alpha yet")
 
 		// Verify the tag is exclusively alpha — no beta tag present.
 		for _, m := range metrics {
 			for _, tag := range m.Tags {
-				assert.NotEqual(c, "instance:beta", tag,
+				require.NotEqual(c, "instance:beta", tag,
 					"instance:beta tag leaked into alpha instance metric")
 			}
 		}
 
 		// Verify the metric value matches the alpha config (100).
 		latest := metrics[len(metrics)-1]
-		assert.NotEmpty(c, latest.Points, "metric has no data points")
-		if len(latest.Points) > 0 {
-			assert.InDelta(c, 100, latest.Points[len(latest.Points)-1].Value, 0.1,
-				"alpha instance should report value 100")
-		}
-	}, 5*time.Minute, 10*time.Second)
+		require.NotEmpty(c, latest.Points, "metric has no data points")
+		require.InDelta(c, 100, latest.Points[len(latest.Points)-1].Value, 0.1,
+			"alpha instance should report value 100")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 // TestBetaInstanceMetrics verifies that the beta instance reports metrics
@@ -101,25 +100,23 @@ func (s *tagIsolationSuite) TestBetaInstanceMetrics() {
 		metrics, err := fakeintake.FilterMetrics("tag_check.metric",
 			client.WithTags[*aggregator.MetricSeries]([]string{"instance:beta"}),
 		)
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no 'tag_check.metric' with instance:beta yet")
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics, "no 'tag_check.metric' with instance:beta yet")
 
 		// Verify the tag is exclusively beta — no alpha tag present.
 		for _, m := range metrics {
 			for _, tag := range m.Tags {
-				assert.NotEqual(c, "instance:alpha", tag,
+				require.NotEqual(c, "instance:alpha", tag,
 					"instance:alpha tag leaked into beta instance metric")
 			}
 		}
 
 		// Verify the metric value matches the beta config (200).
 		latest := metrics[len(metrics)-1]
-		assert.NotEmpty(c, latest.Points, "metric has no data points")
-		if len(latest.Points) > 0 {
-			assert.InDelta(c, 200, latest.Points[len(latest.Points)-1].Value, 0.1,
-				"beta instance should report value 200")
-		}
-	}, 5*time.Minute, 10*time.Second)
+		require.NotEmpty(c, latest.Points, "metric has no data points")
+		require.InDelta(c, 200, latest.Points[len(latest.Points)-1].Value, 0.1,
+			"beta instance should report value 200")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 // TestBothInstancesReportServiceChecks verifies that both instances report
@@ -129,8 +126,8 @@ func (s *tagIsolationSuite) TestBothInstancesReportServiceChecks() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		checks, err := fakeintake.FilterCheckRuns("tag_check.can_connect")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, checks, "no 'tag_check.can_connect' service checks yet")
+		require.NoError(c, err)
+		require.NotEmpty(c, checks, "no 'tag_check.can_connect' service checks yet")
 
 		// Verify we got service checks from both instances by looking at tags.
 		hasAlpha := false
@@ -145,10 +142,10 @@ func (s *tagIsolationSuite) TestBothInstancesReportServiceChecks() {
 				}
 			}
 			// Each service check should be OK (status 0).
-			assert.EqualValues(c, 0, cr.Status,
+			require.EqualValues(c, 0, cr.Status,
 				"expected service check OK (0), got %d", cr.Status)
 		}
-		assert.True(c, hasAlpha, "no service check from alpha instance")
-		assert.True(c, hasBeta, "no service check from beta instance")
-	}, 5*time.Minute, 10*time.Second)
+		require.True(c, hasAlpha, "no service check from alpha instance")
+		require.True(c, hasBeta, "no service check from beta instance")
+	}, 2*time.Minute, 10*time.Second)
 }
