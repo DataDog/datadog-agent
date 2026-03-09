@@ -24,7 +24,6 @@ func init() { registerModule(SoftwareInventory) }
 // SoftwareInventory Factory
 var SoftwareInventory = &module.Factory{
 	Name: config.SoftwareInventoryModule,
-
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &softwareInventoryModule{}, nil
 	},
