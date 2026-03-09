@@ -20,6 +20,19 @@ if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
   fi
 fi
 
+TOOLS_DIR="$(dirname "$0")"
+
+# Runs bazel directly or through the prettifier (tools/bazel_prettify.py).
+# Disable prettifier with BAZEL_NO_PRETTIFY=1.
+run_bazel() {
+  local prettify="$TOOLS_DIR/bazel_prettify.py"
+  if [ -f "$prettify" ] && command -v python3 &>/dev/null && [ "${BAZEL_NO_PRETTIFY:-}" != "1" ]; then
+    python3 "$prettify" "$BAZEL_REAL" "$@"
+    exit $?
+  fi
+  exec "$BAZEL_REAL" "$@"
+}
+
 # Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
 if [ -n "${XDG_CACHE_HOME:-}" ]; then
   if [[ "$XDG_CACHE_HOME" != /* ]]; then
@@ -30,8 +43,8 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
   export GOMODCACHE="$XDG_CACHE_HOME"/go/mod  # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
   unset PIP_CACHE_DIR                         # https://pip.pypa.io/en/stable/topics/caching/#default-paths
   if [[ -n "${CI:-}" && -z "${GITHUB_ACTIONS:-}" ]]; then
-    exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
+    run_bazel ${1:+"$1" --config=ci} "${@:2}"
   fi
 fi
 
-exec "$BAZEL_REAL" "$@"
+run_bazel "$@"
