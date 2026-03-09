@@ -63,7 +63,7 @@ import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -227,7 +227,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		gzipfx.Module(),
@@ -238,7 +238,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(params traceconfig.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfig.Component, error) {
+		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
 			// TODO: this would be much better if we could leverage traceconfig.Module
 			//       Must add a new parameter to traceconfig.Module to handle this.
 			provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
@@ -249,7 +249,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			})
 			return provides.Comp, err
 		}),
-		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
+		fx.Supply(traceconfigdef.Params{FailIfAPIKeyMissing: false}),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
