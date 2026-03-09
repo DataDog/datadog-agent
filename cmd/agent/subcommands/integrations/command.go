@@ -578,15 +578,13 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	}
 	var wg sync.WaitGroup
 	lastLine := ""
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
 			lastLine = in.Text()
 			fmt.Println(lastLine)
 		}
-	}()
+	})
 
 	if err := downloaderCmd.Wait(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
