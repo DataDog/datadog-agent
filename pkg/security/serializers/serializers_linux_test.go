@@ -287,6 +287,64 @@ func TestCustomEventVariables_SECLVariablesExcluded(t *testing.T) {
 	}
 }
 
+func TestCustomEventVariables_AncestorVariables(t *testing.T) {
+	// Build a process scoper that returns event.ProcessCacheEntry.
+	scopedVars := eval.NewScopedVariables("process", func(ctx *eval.Context) eval.VariableScope {
+		if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
+			return pce
+		}
+		return nil
+	})
+
+	// Create a scoped boolean variable named "process.is_suspicious".
+	seclVar, err := scopedVars.NewSECLVariable("process.is_suspicious", false, "process", eval.VariableOpts{})
+	require.NoError(t, err)
+
+	store := &eval.VariableStore{}
+	store.Add("process.is_suspicious", seclVar)
+
+	rule := events.NewCustomRule(
+		events.AnomalyDetectionRuleID,
+		events.AnomalyDetectionRuleDesc,
+		&eval.Opts{VariableStore: store},
+	)
+
+	// Create an event with a process and one ancestor.
+	event := newAnomalyEvent()
+	event.ProcessContext.Pid = 42
+
+	ancestorPCE := &model.ProcessCacheEntry{}
+	ancestorPCE.Process.Pid = 1
+	event.ProcessContext.Ancestor = ancestorPCE
+
+	mainPCE := &model.ProcessCacheEntry{}
+	mainPCE.Process.Pid = 42
+	event.ProcessCacheEntry = mainPCE
+
+	// Set the variable value for the ancestor's scope.
+	event.ProcessCacheEntry = ancestorPCE
+	ctx := eval.NewContext(event)
+	err = seclVar.(eval.MutableVariable).Set(ctx, true)
+	require.NoError(t, err)
+
+	// Restore the main process PCE.
+	event.ProcessCacheEntry = mainPCE
+
+	s := NewEventSerializer(event, rule, newTestScrubber(t))
+
+	require.NotNil(t, s.ProcessContextSerializer)
+	require.Len(t, s.ProcessContextSerializer.Ancestors, 1)
+
+	// The ancestor should have the variable set to true.
+	require.NotNil(t, s.ProcessContextSerializer.Ancestors[0].Variables)
+	assert.Equal(t, true, s.ProcessContextSerializer.Ancestors[0].Variables["is_suspicious"])
+
+	// The main process should have the variable's zero value (false), since
+	// the scoped variable evaluator returns the zero value when not explicitly set.
+	require.NotNil(t, s.ProcessContextSerializer.Variables)
+	assert.Equal(t, false, s.ProcessContextSerializer.Variables["is_suspicious"])
+}
+
 func TestProcessSerializer_IsExecFields(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.ExecEventType)
@@ -408,7 +466,12 @@ func TestProcessSerializer_IsExecFields_Ancestors(t *testing.T) {
 	event.ProcessContext.Ancestor = ancestor
 	event.ProcessContext.Parent = &ancestor.ProcessContext.Process
 
-	pcs := newProcessContextSerializer(event.ProcessContext, event)
+	rule := events.NewCustomRule(
+		events.AnomalyDetectionRuleID,
+		events.AnomalyDetectionRuleDesc,
+		&eval.Opts{},
+	)
+	pcs := newProcessContextSerializer(event.ProcessContext, event, rule)
 	require.NotNil(t, pcs)
 
 	// Verify main process fields.
