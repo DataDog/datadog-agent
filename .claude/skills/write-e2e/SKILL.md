@@ -374,3 +374,12 @@ Show the user:
 2. How to compile-check the test
 3. How to run it locally with `/run-e2e`
 4. Whether CI integration is needed
+
+## Keeping this skill accurate
+
+This skill is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
+"Keeping AI context accurate"). If while using this skill you discover that a
+step is wrong, incomplete, or doesn't match current framework conventions,
+update this file as part of your work. Also update
+`test/e2e-framework/AGENTS.md` or `test/fakeintake/AGENTS.md` if their content
+is stale.

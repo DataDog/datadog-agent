@@ -101,3 +101,10 @@ When the agent starts sending a new type of data to a new endpoint:
 - `server/server.go` — HTTP handler routing
 - `server/serverstore/in_memory.go` — payload storage
 - `api/api.go` — shared types (`Payload`, `ResponseOverride`)
+
+## Keeping this file accurate
+
+This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
+"Keeping AI context accurate"). Update it when endpoints, client methods, or
+extension patterns change. AI agents should fix inaccuracies they encounter
+during tasks.

@@ -125,3 +125,10 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `scenarios/aws/ec2/run.go` — EC2 + Agent + FakeIntake Pulumi program
 - `common/config/environment.go` — Pulumi config management
 - `README.md` — setup guide, troubleshooting, examples
+
+## Keeping this file accurate
+
+This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
+"Keeping AI context accurate"). Update it when environments, provisioners,
+agentparams, or key APIs change. AI agents should fix inaccuracies they
+encounter during tasks.

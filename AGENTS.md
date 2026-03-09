@@ -266,16 +266,42 @@ If a PR changes behavior but doesn't update the corresponding docs, comments,
 or doc strings, flag it. Stale docs lead to bugs: contributors build on
 incorrect assumptions.
 
-## Maintaining this file
+## Keeping AI context accurate
 
-This file is read by AI code reviewers (Codex reads it natively, Claude Code
-reads it via the `@AGENTS.md` include in `CLAUDE.md`). It should evolve with
-the codebase.
+AI agents read `AGENTS.md`, `CLAUDE.md`, and skill files to understand the
+codebase. These files must stay accurate — stale guidance causes recurring
+mistakes across sessions.
 
-Update this file whenever important context is missing — but keep rules
-generalizable. A good guideline covers a class of bugs, not a single incident.
-Think bias/variance: too specific and it only catches one bug; too generic and
-it's noise.
+### File hierarchy
 
-**AI reviewers:** when reviewing a PR, if you notice a gap in these guidelines,
-suggest an update to this file — either in the same PR or as a follow-up.
+```
+AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
+├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
+├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
+├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
+└── .claude/skills/*/SKILL.md      ← task-specific: step-by-step procedures
+```
+
+Each level inherits context from its parent via `CLAUDE.md` (`@../../CLAUDE.md`
+→ `@AGENTS.md`). Keep information at the right level — don't duplicate
+repo-wide rules in sub-project files.
+
+### What to update and when
+
+| File | Update when |
+|------|-------------|
+| `AGENTS.md` (root) | Architecture, workflow, build commands, or review guidelines change |
+| Sub-project `AGENTS.md` | APIs, conventions, or extension patterns in that sub-project change |
+| `.claude/skills/*/SKILL.md` | A skill's steps, examples, or recommendations become outdated |
+
+Keep rules generalizable. A good guideline covers a class of bugs, not a single
+incident. Think bias/variance: too specific and it only catches one bug; too
+generic and it's noise.
+
+### Self-improvement expectation
+
+**AI agents:** when working on any task (reviewing, writing code, running
+tests), if you notice a gap or inaccuracy in an `AGENTS.md` or skill file, fix
+it — either in the same PR or as a follow-up. Small, incremental improvements
+are preferred over large rewrites. This creates a feedback loop where every
+session leaves the context more accurate for the next one.
