@@ -627,16 +627,6 @@ cc_binary(
 )
 
 rewrite_rpath(
-    name = "openscap_rpath_patched",
-    inputs = [":openscap"],
-)
-
-rewrite_rpath(
-    name = "openscap_sce_rpath_patched",
-    inputs = [":openscap_sce"],
-)
-
-rewrite_rpath(
     name = "oscap_rpath_patched",
     inputs = [":oscap"],
 )
@@ -648,7 +638,7 @@ rewrite_rpath(
 
 so_symlink(
     name = "libopenscap_symlink",
-    src = ":openscap_rpath_patched",
+    src = ":openscap",
     libname = "libopenscap",
     prefix = "embedded",
     version = "33.1.2",
@@ -656,7 +646,7 @@ so_symlink(
 
 so_symlink(
     name = "libopenscap_sce_symlink",
-    src = ":openscap_sce_rpath_patched",
+    src = ":openscap_sce",
     libname = "libopenscap_sce",
     prefix = "embedded",
     version = "33.1.2",
