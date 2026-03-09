@@ -122,10 +122,10 @@ pub fn get(
     };
 
     match exe {
-        "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)),
-        "puma" => rails::extract_name(cmdline, ctx),
-        "beam.smp" | "beam" => erlang::extract_name(cmdline),
-        "php" => php::extract_name(cmdline, ctx),
+        "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)).or_else(fallback),
+        "puma" => rails::extract_name(cmdline, ctx).or_else(fallback),
+        "beam.smp" | "beam" => erlang::extract_name(cmdline).or_else(fallback),
+        "php" => php::extract_name(cmdline, ctx).or_else(fallback),
         &_ => match language {
             Language::Python => python::extract_name(cmdline, ctx).or_else(fallback),
             Language::Ruby => ruby::extract_name(cmdline).or_else(fallback),
@@ -279,12 +279,21 @@ mod tests {
 
     #[test]
     fn test_integration_erlang_no_name() {
-        // Integration test: Erlang process without valid name returns None
+        // When the Erlang detector can't find a name, fall back to the exe
+        // basename with extension stripped: "beam.smp" -> "beam".
+        // Matches Go's ExtractServiceMetadata fallback
+        // (pkg/discovery/usm/service.go:340-347).
         let cmdline = cmdline!["beam.smp", "-smp", "auto", "-noinput"];
         let (envs, fs) = test_ctx();
         let mut ctx = DetectionContext::new(0, envs, &fs);
         let result = get_name(&Language::Unknown, &cmdline, &mut ctx);
-        assert_eq!(result, None);
+        assert_eq!(
+            result,
+            Some(ServiceNameMetadata::new(
+                "beam",
+                ServiceNameSource::CommandLine,
+            ))
+        );
     }
 
     #[test]
