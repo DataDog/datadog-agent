@@ -4,7 +4,14 @@ from unittest.mock import MagicMock, patch
 
 from invoke.context import MockContext, Result
 
-from tasks.issue import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_REVIEW_MAP, add_reviewers, ask_reviews
+from tasks.issue import (
+    DEFAULT_SLACK_CHANNEL,
+    GITHUB_SLACK_REVIEW_MAP,
+    _get_team_file_counts,
+    add_reviewers,
+    ask_reviews,
+)
+from tasks.libs.ciproviders.github_api import get_pr_size
 
 
 class TestAddReviewers(unittest.TestCase):
@@ -145,7 +152,9 @@ class TestAskReviews(unittest.TestCase):
     )
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_label_with_ask_review(self, slack_mock, gh_mock, print_mock):
+    @patch('tasks.issue.get_pr_size', new=MagicMock(return_value='medium'))
+    @patch('tasks.issue._get_team_file_counts')
+    def test_label_with_ask_review(self, file_counts_mock, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "This is a revert"
         pr_mock.base.ref = "main"
@@ -163,6 +172,8 @@ class TestAskReviews(unittest.TestCase):
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
+        file_counts_mock.return_value = {'team1': 3, 'team2': 2}
+
         emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2', 'microwave': 'urlx'}}
         slack_client = MagicMock()
         slack_client.emoji_list.return_value = types.SimpleNamespace(data=emoji_list)
@@ -177,7 +188,12 @@ class TestAskReviews(unittest.TestCase):
         channels = [call.kwargs['channel'] for call in slack_client.chat_postMessage.mock_calls]
         self.assertIn('channel1', channels)
         self.assertIn('channel2', channels)
-        self.assertEqual(len(slack_client.chat_postMessage.mock_calls), 2)  # 2 teams
+        self.assertEqual(len(slack_client.chat_postMessage.mock_calls), 2)  # 2 channels
+        # Verify personalized messages
+        for call in slack_client.chat_postMessage.mock_calls:
+            text = call.kwargs['text']
+            self.assertIn('`medium` PR', text)
+            self.assertIn('file(s) to review', text)
 
     @patch('builtins.print')
     @patch(
@@ -304,7 +320,9 @@ class TestAskReviews(unittest.TestCase):
     )
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_default_channel(self, slack_mock, gh_mock, print_mock):
+    @patch('tasks.issue.get_pr_size', new=MagicMock(return_value='small'))
+    @patch('tasks.issue._get_team_file_counts', return_value={'newteam1': 0, 'newteam2': 0})
+    def test_default_channel(self, file_counts_mock, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Title"
         pr_mock.base.ref = "main"
@@ -327,11 +345,11 @@ class TestAskReviews(unittest.TestCase):
         GITHUB_SLACK_REVIEW_MAP.clear()
         ask_reviews(MockContext(), 7, "review_requested", team_slugs=["newteam1", "newteam2"])
 
-        # Only one message because all reviewers fall back to DEFAULT_SLACK_CHANNEL
+        # One message because both reviewers fall back to DEFAULT_SLACK_CHANNEL (grouped)
         slack_client.chat_postMessage.assert_called_once()
         args, kwargs = slack_client.chat_postMessage.call_args
-        assert kwargs['channel'] == DEFAULT_SLACK_CHANNEL
-        assert "A review channel is missing" in kwargs['text']
+        self.assertEqual(kwargs['channel'], DEFAULT_SLACK_CHANNEL)
+        self.assertIn("A review channel is missing", kwargs['text'])
 
     @patch('builtins.print')
     @patch(
@@ -340,7 +358,9 @@ class TestAskReviews(unittest.TestCase):
     )
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_same_slack_channel(self, slack_mock, gh_mock, print_mock):
+    @patch('tasks.issue.get_pr_size', new=MagicMock(return_value='small'))
+    @patch('tasks.issue._get_team_file_counts', return_value={'teamx': 5, 'teamy': 3})
+    def test_same_slack_channel(self, file_counts_mock, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Some PR"
         pr_mock.base.ref = "main"
@@ -365,11 +385,16 @@ class TestAskReviews(unittest.TestCase):
 
         ask_reviews(MockContext(), 8, "review_requested", team_slugs=["teamx", "teamy"])
 
-        # Only one message because both reviewers map to the same channel
+        # One message because both teams map to the same channel
         slack_client.chat_postMessage.assert_called_once()
         args, kwargs = slack_client.chat_postMessage.call_args
         self.assertEqual(kwargs['channel'], 'chan-shared')
         self.assertIn("actorlogin", kwargs['text'])
+        # Both teams have per-team lines
+        self.assertIn("teamx has 5 file(s) to review", kwargs['text'])
+        self.assertIn("teamy has 3 file(s) to review", kwargs['text'])
+        self.assertIn("primary", kwargs['text'])
+        self.assertIn("secondary", kwargs['text'])
 
     @patch('builtins.print')
     @patch(
@@ -378,7 +403,9 @@ class TestAskReviews(unittest.TestCase):
     )
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_review_request_one_team(self, slack_mock, gh_mock, print_mock):
+    @patch('tasks.issue.get_pr_size', new=MagicMock(return_value='large'))
+    @patch('tasks.issue._get_team_file_counts', return_value={'team1': 10})
+    def test_review_request_one_team(self, file_counts_mock, slack_mock, gh_mock, print_mock):
         """Test that when a specific team is requested (review_request event), only that team is notified"""
         pr_mock = MagicMock()
         pr_mock.title = "This is a feature"
@@ -412,3 +439,112 @@ class TestAskReviews(unittest.TestCase):
         args, kwargs = slack_client.chat_postMessage.call_args
         self.assertEqual(kwargs['channel'], 'channel1')
         self.assertIn("actorname", kwargs['text'])
+        self.assertIn("`large` PR", kwargs['text'])
+        self.assertIn("team1 has 10 file(s) to review", kwargs['text'])
+        self.assertIn("primary", kwargs['text'])
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    @patch('tasks.issue.get_pr_size', new=MagicMock(return_value='small'))
+    @patch('tasks.issue._get_team_file_counts', return_value={'team1': 5, 'team2': 0})
+    def test_team_zero_owned_files(self, file_counts_mock, slack_mock, gh_mock, print_mock):
+        """Test that a team with 0 owned files gets a secondary role"""
+        pr_mock = MagicMock()
+        pr_mock.title = "Some PR"
+        pr_mock.base.ref = "main"
+        pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
+        pr_mock.get_commits.return_value = [MagicMock(commit=MagicMock(message="This is a feature"))]
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = "actorname"
+        pr_mock.html_url = "http://foo"
+
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+
+        emoji_list = {'emoji': {'wave': 'url1'}}
+        slack_client = MagicMock()
+        slack_client.emoji_list.return_value = types.SimpleNamespace(data=emoji_list)
+        slack_mock.return_value = slack_client
+
+        GITHUB_SLACK_REVIEW_MAP.clear()
+        GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
+        GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
+
+        ask_reviews(MockContext(), 10, "labeled", team_slugs=["team1", "team2"])
+
+        self.assertEqual(len(slack_client.chat_postMessage.mock_calls), 2)
+        # Find the message for each channel
+        messages = {call.kwargs['channel']: call.kwargs['text'] for call in slack_client.chat_postMessage.mock_calls}
+        self.assertIn("team1 has 5 file(s) to review", messages['channel1'])
+        self.assertIn("primary", messages['channel1'])
+        self.assertIn("team2 has 0 file(s) to review", messages['channel2'])
+        self.assertIn("secondary", messages['channel2'])
+
+
+class TestGetTeamFileCounts(unittest.TestCase):
+    def test_basic_counts(self):
+        pr_mock = MagicMock()
+        pr_mock.get_files.return_value = [
+            types.SimpleNamespace(filename='pkg/network/foo.go'),
+            types.SimpleNamespace(filename='pkg/network/bar.go'),
+            types.SimpleNamespace(filename='pkg/debugger/baz.go'),
+        ]
+        with patch('tasks.issue.read_owners') as owners_mock:
+            co_mock = MagicMock()
+
+            def of_side_effect(filename):
+                if filename.startswith('pkg/network'):
+                    return [('TEAM', '@DataDog/network-team')]
+                if filename.startswith('pkg/debugger'):
+                    return [('TEAM', '@DataDog/debugger-team')]
+                return []
+
+            co_mock.of.side_effect = of_side_effect
+            owners_mock.return_value = co_mock
+
+            counts = _get_team_file_counts(pr_mock, ['network-team', 'debugger-team'])
+
+        self.assertEqual(counts['network-team'], 2)
+        self.assertEqual(counts['debugger-team'], 1)
+
+    def test_no_matching_teams(self):
+        pr_mock = MagicMock()
+        pr_mock.get_files.return_value = [
+            types.SimpleNamespace(filename='pkg/other/foo.go'),
+        ]
+        with patch('tasks.issue.read_owners') as owners_mock:
+            co_mock = MagicMock()
+            co_mock.of.return_value = [('TEAM', '@DataDog/other-team')]
+            owners_mock.return_value = co_mock
+
+            counts = _get_team_file_counts(pr_mock, ['network-team'])
+
+        self.assertEqual(counts['network-team'], 0)
+
+
+class TestGetPrSize(unittest.TestCase):
+    def test_small(self):
+        pr = types.SimpleNamespace(changed_files=2, additions=50, deletions=30, review_comments=1)
+        self.assertEqual(get_pr_size(pr), 'small')
+
+    def test_medium(self):
+        pr = types.SimpleNamespace(changed_files=6, additions=200, deletions=100, review_comments=3)
+        self.assertEqual(get_pr_size(pr), 'medium')
+
+    def test_large_by_files(self):
+        pr = types.SimpleNamespace(changed_files=15, additions=10, deletions=5, review_comments=0)
+        self.assertEqual(get_pr_size(pr), 'large')
+
+    def test_large_by_lines(self):
+        pr = types.SimpleNamespace(changed_files=1, additions=600, deletions=100, review_comments=0)
+        self.assertEqual(get_pr_size(pr), 'large')
+
+    def test_large_by_comments(self):
+        pr = types.SimpleNamespace(changed_files=1, additions=10, deletions=5, review_comments=10)
+        self.assertEqual(get_pr_size(pr), 'large')
