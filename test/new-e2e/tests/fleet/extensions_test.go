@@ -168,7 +168,7 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL(""), "ddot")
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
@@ -194,7 +194,7 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL(""), "ddot")
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()

@@ -80,7 +80,8 @@ func WithOTelCollectorEnabled() InstallOption {
 
 // Install installs the agent.
 func (a *Agent) Install(options ...InstallOption) error {
-	params := defaultInstallParams
+	paramsCopy := *defaultInstallParams
+	params := &paramsCopy
 	for _, option := range options {
 		option(params)
 	}
