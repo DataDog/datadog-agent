@@ -908,6 +908,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
+	// Pod check CRD controller
+	config.BindEnvAndSetDefault("podcheck.enabled", true)
+	config.BindEnvAndSetDefault("podcheck.configmap_name", "")
+	config.BindEnvAndSetDefault("podcheck.configmap_namespace", "")
+
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_id", "")

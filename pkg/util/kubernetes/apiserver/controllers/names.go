@@ -18,6 +18,7 @@ const (
 	endpointsControllerName      controllerName = "endpoints"
 	endpointSlicesControllerName controllerName = "endpointslices"
 	crdControllerName            controllerName = "crd"
+	podcheckControllerName       controllerName = "podcheck"
 )
 
 const (

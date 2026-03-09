@@ -11,6 +11,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
@@ -25,8 +26,10 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/podcheck"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -72,6 +75,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && pkgconfigsetup.Datadog().GetBool("cluster_checks.crd_collection")
 		},
 		registerCRDInformer,
+	},
+	podcheckControllerName: {
+		func() bool { return pkgconfigsetup.Datadog().GetBool("podcheck.enabled") },
+		startPodCheckController,
 	},
 }
 
@@ -220,4 +227,33 @@ func registerCRDInformer(ctx *ControllerContext, _ chan error) {
 	ctx.informersMutex.Lock()
 	ctx.informers[crdInformer] = informer
 	ctx.informersMutex.Unlock()
+}
+
+// startPodCheckController starts the PodCheck controller that watches DatadogPodCheck CRDs
+// and writes AD-compatible check configs to a ConfigMap.
+func startPodCheckController(ctx *ControllerContext, errChan chan error) {
+	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
+	if configMapName == "" {
+		errChan <- errors.New("podcheck.configmap_name must be set when podcheck.enabled is true")
+		return
+	}
+
+	configMapNamespace := pkgconfigsetup.Datadog().GetString("podcheck.configmap_namespace")
+	if configMapNamespace == "" {
+		configMapNamespace = namespace.GetResourcesNamespace()
+	}
+
+	controller, err := podcheck.NewPodCheckController(
+		ctx.DynamicInformerFactory,
+		ctx.Client,
+		ctx.IsLeaderFunc,
+		configMapName,
+		configMapNamespace,
+	)
+	if err != nil {
+		errChan <- fmt.Errorf("failed to create PodCheck controller: %w", err)
+		return
+	}
+
+	go controller.Run(ctx.StopCh)
 }
