@@ -15,6 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -51,7 +52,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if verbose {
 		tailers = b.getTailers()
 	}
-	return Status{
+	s := Status{
 		IsRunning:        b.getIsRunning(),
 		Endpoints:        b.getEndpoints(),
 		Integrations:     b.getIntegrations(),
@@ -62,6 +63,10 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		Errors:           b.getErrors(),
 		UseHTTP:          b.getUseHTTP(),
 	}
+	if s.IsRunning {
+		s.PipelineHealth = metrics.SaturationInfoProvider{}.Info()
+	}
+	return s
 }
 
 // getIsRunning returns true if the agent is running,

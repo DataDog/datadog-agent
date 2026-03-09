@@ -55,6 +55,9 @@ func (e SaturationEvent) Ongoing() bool { return e.EndTime.IsZero() }
 
 // SaturationSummary is a point-in-time snapshot returned by SaturationHistory.Summary.
 type SaturationSummary struct {
+	// CurrentFill is the most recently recorded fill percentage per stage (0.0–1.0).
+	// Updated on every CapacityMonitor sample tick (approximately once per second).
+	CurrentFill map[string]float64
 	// MaxFill5m / MaxFill30m / MaxFill2h are the per-stage maximum fill percentages
 	// observed in the last 5 minutes, 30 minutes, and 2 hours respectively.
 	// Keys are the stage TlmName constants.
@@ -116,6 +119,9 @@ type SaturationHistory struct {
 	events  []SaturationEvent                // ring buffer, oldest first
 	windows [3]rollingWindow                 // indices: 0=5m, 1=30m, 2=2h
 
+	// currentFill is the most recently sampled fill value per stage.
+	currentFill map[string]float64
+
 	// retryTimestamps is a sliding window of recent retry event times.
 	retryTimestamps []time.Time
 
@@ -144,6 +150,7 @@ func NewSaturationHistory() *SaturationHistory {
 	h := &SaturationHistory{
 		states:          make(map[string]*stageSaturationState),
 		events:          make([]SaturationEvent, 0, maxSaturationEvents),
+		currentFill:     make(map[string]float64),
 		retryTimestamps: make([]time.Time, 0, 64),
 		now:             time.Now,
 	}
@@ -159,6 +166,8 @@ func NewSaturationHistory() *SaturationHistory {
 func (h *SaturationHistory) RecordFill(stage string, fill float64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	h.currentFill[stage] = fill
 
 	now := h.now()
 	for i := range h.windows {
@@ -189,6 +198,7 @@ func (h *SaturationHistory) RecordRetry() {
 
 	// Normalise retry count to a [0, 1] fill-equivalent so it fits the same state machine.
 	rate := float64(len(h.retryTimestamps))
+	h.currentFill[SenderTlmName] = rate / float64(retryRateThreshold+1)
 	fillEquiv := rate / float64(retryRateThreshold+1)
 	if fillEquiv > 1.0 {
 		fillEquiv = 1.0
@@ -294,11 +304,13 @@ func (h *SaturationHistory) Summary() SaturationSummary {
 
 	stages := []string{ProcessorTlmName, StrategyTlmName, SenderTlmName}
 	s := SaturationSummary{
-		MaxFill5m:  make(map[string]float64, len(stages)),
-		MaxFill30m: make(map[string]float64, len(stages)),
-		MaxFill2h:  make(map[string]float64, len(stages)),
+		CurrentFill: make(map[string]float64, len(stages)),
+		MaxFill5m:   make(map[string]float64, len(stages)),
+		MaxFill30m:  make(map[string]float64, len(stages)),
+		MaxFill2h:   make(map[string]float64, len(stages)),
 	}
 	for _, stage := range stages {
+		s.CurrentFill[stage] = h.currentFill[stage]
 		s.MaxFill5m[stage] = h.windows[0].max(stage)
 		s.MaxFill30m[stage] = h.windows[1].max(stage)
 		s.MaxFill2h[stage] = h.windows[2].max(stage)

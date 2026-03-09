@@ -18,6 +18,7 @@ func newTestHistory() *SaturationHistory {
 	h := &SaturationHistory{
 		states:          make(map[string]*stageSaturationState),
 		events:          make([]SaturationEvent, 0, maxSaturationEvents),
+		currentFill:     make(map[string]float64),
 		retryTimestamps: make([]time.Time, 0, 16),
 		now:             func() time.Time { return now },
 	}

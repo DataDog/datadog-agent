@@ -46,6 +46,16 @@
   {{- end }}
 {{- end }}
 
+{{- if .PipelineHealth }}
+
+  ===============
+  Pipeline Health
+  ===============
+  {{- range $line := .PipelineHealth }}
+  {{$line}}
+  {{- end }}
+{{- end }}
+
 {{- if .Integrations }}
   ============
   Integrations
