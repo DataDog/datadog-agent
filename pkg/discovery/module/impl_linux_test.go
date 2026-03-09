@@ -23,11 +23,13 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,11 +55,13 @@ func findService(pid int, services []model.Service) *model.Service {
 }
 
 type testDiscoveryModule struct {
-	url string
+	url    string
+	client *http.Client
 }
 
-func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
+func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
+
 	mux := gorillamux.NewRouter()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
@@ -70,13 +75,75 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Cleanup(srv.Close)
 
 	return &testDiscoveryModule{
-		url: srv.URL,
+		url:    srv.URL,
+		client: http.DefaultClient,
 	}
+}
+
+func setupSdAgentDiscoveryModule(t *testing.T) *testDiscoveryModule {
+	t.Helper()
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "sd-agent")
+	require.FileExists(t, binaryPath, "sd-agent binary should be built")
+
+	socketDir := t.TempDir()
+	socketPath := filepath.Join(socketDir, "sysprobe.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
+	cmd.Env = append(os.Environ(),
+		"DD_DISCOVERY_ENABLED=true",
+		"DD_DISCOVERY_USE_SD_AGENT=true",
+		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(socketPath)
+		return err == nil
+	}, 10*time.Second, 50*time.Millisecond, "sd-agent socket did not appear")
+
+	return &testDiscoveryModule{
+		url: "http://sysprobe",
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				DialContext: spclient.DialContextFunc(socketPath),
+			},
+		},
+	}
+}
+
+type discoveryTestSuite struct {
+	suite.Suite
+	setupModule func(t *testing.T) *testDiscoveryModule
+	discovery   *testDiscoveryModule
+}
+
+func (s *discoveryTestSuite) SetupTest() {
+	s.discovery = s.setupModule(s.T())
+}
+
+func TestDiscovery(t *testing.T) {
+	t.Run("go", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
+	})
+	t.Run("sd-agent", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupSdAgentDiscoveryModule})
+	})
 }
 
 // makeRequest wraps the request to the discovery module, setting the JSON body if provided,
 // and returning the response as the given type.
-func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
+func makeRequest[T any](t require.TestingT, client *http.Client, url string, params *core.Params) *T {
 	var body *bytes.Buffer
 	if params != nil {
 		jsonData, err := params.ToJSON()
@@ -94,7 +161,7 @@ func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T 
 	}
 	require.NoError(t, err, "failed to create request")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err, "failed to send request")
 	defer resp.Body.Close()
 
