@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -917,6 +919,14 @@ func (p *WindowsProbe) Start() error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				log.Criticalf("panic in event processing goroutine: %v\n%s", r, buf[:n])
+				os.Exit(2)
+			}
+		}()
 
 		for {
 			ev := p.zeroEvent()
