@@ -257,12 +257,12 @@ func (v *tracerPayloadView) Reset() {
 	v.spanIdx = -1
 }
 
-func (v *tracerPayloadView) GetEnv() string         { return v.payload.Env }
-func (v *tracerPayloadView) GetService() string     { return "" } // Service is per-span
-func (v *tracerPayloadView) GetHostname() string    { return v.payload.Hostname }
-func (v *tracerPayloadView) GetContainerID() string { return v.payload.ContainerID }
-func (v *tracerPayloadView) GetTimestamp() int64    { return v.receivedAt }
-func (v *tracerPayloadView) GetDuration() int64     { return 0 } // Would need to calculate
+func (v *tracerPayloadView) GetEnv() string              { return v.payload.Env }
+func (v *tracerPayloadView) GetService() string          { return "" } // Service is per-span
+func (v *tracerPayloadView) GetHostname() string         { return v.payload.Hostname }
+func (v *tracerPayloadView) GetContainerID() string      { return v.payload.ContainerID }
+func (v *tracerPayloadView) GetTimestampUnixNano() int64 { return v.receivedAt }
+func (v *tracerPayloadView) GetDurationNano() int64      { return 0 } // TODO(agent-q-anomaly-detection): Would need to calculate
 func (v *tracerPayloadView) GetPriority() int32 {
 	if len(v.payload.Chunks) > 0 {
 		return v.payload.Chunks[0].Priority
@@ -292,8 +292,8 @@ func (v *spanView) GetService() string             { return v.span.Service }
 func (v *spanView) GetName() string                { return v.span.Name }
 func (v *spanView) GetResource() string            { return v.span.Resource }
 func (v *spanView) GetType() string                { return v.span.Type }
-func (v *spanView) GetStart() int64                { return v.span.Start }
-func (v *spanView) GetDuration() int64             { return v.span.Duration }
+func (v *spanView) GetStartUnixNano() int64        { return v.span.Start }
+func (v *spanView) GetDurationNano() int64         { return v.span.Duration }
 func (v *spanView) GetError() int32                { return v.span.Error }
 func (v *spanView) GetMeta() map[string]string     { return v.span.Meta }
 func (v *spanView) GetMetrics() map[string]float64 { return v.span.Metrics }
@@ -303,16 +303,16 @@ type profileDataView struct {
 	data *pbcore.ProfileData
 }
 
-func (v *profileDataView) GetProfileID() string       { return v.data.ProfileId }
-func (v *profileDataView) GetProfileType() string     { return v.data.ProfileType }
-func (v *profileDataView) GetService() string         { return v.data.Service }
-func (v *profileDataView) GetEnv() string             { return v.data.Env }
-func (v *profileDataView) GetVersion() string         { return v.data.Version }
-func (v *profileDataView) GetHostname() string        { return v.data.Hostname }
-func (v *profileDataView) GetContainerID() string     { return v.data.ContainerId }
-func (v *profileDataView) GetTimestamp() int64        { return v.data.TimestampNs }
-func (v *profileDataView) GetDuration() int64         { return v.data.DurationNs }
-func (v *profileDataView) GetTags() map[string]string { return v.data.Tags }
-func (v *profileDataView) GetContentType() string     { return v.data.ContentType }
-func (v *profileDataView) GetRawData() []byte         { return v.data.InlineData }
-func (v *profileDataView) GetExternalPath() string    { return "" }
+func (v *profileDataView) GetProfileID() string        { return v.data.ProfileId }
+func (v *profileDataView) GetProfileType() string      { return v.data.ProfileType }
+func (v *profileDataView) GetService() string          { return v.data.Service }
+func (v *profileDataView) GetEnv() string              { return v.data.Env }
+func (v *profileDataView) GetVersion() string          { return v.data.Version }
+func (v *profileDataView) GetHostname() string         { return v.data.Hostname }
+func (v *profileDataView) GetContainerID() string      { return v.data.ContainerId }
+func (v *profileDataView) GetTimestampUnixNano() int64 { return v.data.TimestampNs }
+func (v *profileDataView) GetDurationNano() int64      { return v.data.DurationNs }
+func (v *profileDataView) GetTags() map[string]string  { return v.data.Tags }
+func (v *profileDataView) GetContentType() string      { return v.data.ContentType }
+func (v *profileDataView) GetRawData() []byte          { return v.data.InlineData }
+func (v *profileDataView) GetExternalPath() string     { return "" }
