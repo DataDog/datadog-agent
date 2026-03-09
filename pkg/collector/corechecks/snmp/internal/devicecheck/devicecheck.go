@@ -59,6 +59,16 @@ const (
 	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
+// SNMPTroubleshootingDocURL is the public doc for troubleshooting unreachable or misconfigured devices (exported for tests).
+const SNMPTroubleshootingDocURL = "https://docs.datadoghq.com/network_monitoring/devices/troubleshooting/?tab=linux#unreachable-or-misconfigured-device"
+
+const snmpCheckErrorDocSuffix = ", see this documentation for troubleshooting: "
+
+// formatCheckErrorMessage appends the troubleshooting doc link to the error message shown in service checks and CLI.
+func formatCheckErrorMessage(err error) string {
+	return err.Error() + snmpCheckErrorDocSuffix + SNMPTroubleshootingDocURL
+}
+
 type profileCache struct {
 	sysObjectID string
 	timestamp   time.Time
@@ -272,7 +282,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
-		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
+		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, formatCheckErrorMessage(checkErr))
 	} else {
 		d.profileCache.RemoveMissingOIDs(values)
 
@@ -348,7 +358,10 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	d.setDeviceHostExternalTags()
 	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
 
-	return checkErr
+	if checkErr != nil {
+		return errors.New(formatCheckErrorMessage(checkErr))
+	}
+	return nil
 }
 
 func (d *DeviceCheck) setDeviceHostExternalTags() {

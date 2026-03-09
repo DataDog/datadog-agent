@@ -629,8 +629,9 @@ profiles:
 	sess.ConnectErr = errors.New("some error")
 	err = deviceCk.Run(time.Now())
 
-	assert.Error(t, err, "some error")
-	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
+	expectedMsg := "snmp connection error: some error" + ", see this documentation for troubleshooting: " + SNMPTroubleshootingDocURL
+	assert.EqualError(t, err, expectedMsg)
+	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), expectedMsg)
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
 
