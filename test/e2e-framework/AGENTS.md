@@ -110,8 +110,18 @@ Not all tests fit the four stock environments. Common advanced patterns:
 - **`e2e.WithDevMode()`** — keep infrastructure alive after test for faster iteration.
 - **`e2e.WithStackName(name)`** — custom Pulumi stack naming for parameterized tests.
 
-When you need a pattern that isn't documented here, search `test/new-e2e/tests/`
-for real examples — they're the best reference.
+### Example tests by pattern
+
+| Pattern | Look at |
+|---------|---------|
+| Stock host test | `test/new-e2e/tests/agent-runtimes/` |
+| Custom environment (extra hosts/services) | `test/new-e2e/tests/npm/`, `test/new-e2e/tests/ha-agent/` |
+| K8s + Helm | `test/new-e2e/tests/ssi/` |
+| Multi-fakeintake | `test/new-e2e/tests/agent-runtimes/forwarder/` |
+| GPU / specialized hardware | `test/new-e2e/tests/gpu/` |
+| Windows | `test/new-e2e/tests/windows/` |
+| Docker Compose | `test/new-e2e/tests/agent-health/` |
+| ECS / Fargate | `test/new-e2e/tests/cws/` |
 
 ## Adding a new provisioner or component
 
