@@ -49,7 +49,7 @@ type ServerlessContainerStats struct {
 // ServerlessEnhancedMetrics stores computed metrics ready to be sent
 type ServerlessEnhancedMetrics struct {
 	CPULimit  float64 // CPU limit in nanocores
-	CPUUsage  float64 // Total CPU usage in nanocores( nanoseconds per second)
+	CPUUsage  float64 // Total CPU usage in nanocores (nanoseconds per second)
 	Timestamp float64 // Unix timestamp in seconds
 }
 
@@ -167,9 +167,13 @@ func (c *Collector) collect() {
 func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *ServerlessContainerStats {
 	serverlessStats := &ServerlessContainerStats{
 		CollectionTime: time.Now(),
-		CPU:            &ServerlessCPUStats{},
 	}
 
+	if stats == nil || stats.CPU == nil {
+		return serverlessStats
+	}
+
+	serverlessStats.CPU = &ServerlessCPUStats{}
 	if stats.CPU.Total != nil {
 		serverlessStats.CPU.Total = pointer.Ptr(float64(*stats.CPU.Total))
 	}
@@ -205,6 +209,10 @@ func (c *Collector) computeEnhancedMetrics(inStats *ServerlessContainerStats) Se
 
 // computeCPULimit computes the CPU limit from the cgroup stats
 func computeCPULimit(stats *cgroups.CPUStats, hostCPUCount int) *float64 {
+	if stats == nil {
+		return nil
+	}
+
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
 	// Default to host CPU count if no other limit is available
 	var limit *float64

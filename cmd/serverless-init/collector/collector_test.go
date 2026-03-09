@@ -88,6 +88,47 @@ func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
 	assert.Equal(t, 1e9, *serverlessContainerStats.CPU.Limit)
 }
 
+func TestCollectorConvertToServerlessContainerStatsNilCPU(t *testing.T) {
+	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
+	c := &Collector{cgroupReader: mockReader}
+
+	// Simulate partial cgroup failure: CPU controller failed, Memory succeeded
+	stats := &cgroups.Stats{
+		CPU:    nil,
+		Memory: &cgroups.MemoryStats{},
+	}
+
+	serverlessContainerStats := c.convertToServerlessContainerStats(stats)
+
+	assert.NotNil(t, serverlessContainerStats)
+	assert.Nil(t, serverlessContainerStats.CPU)
+}
+
+func TestComputeCPULimitNilStats(t *testing.T) {
+	limit := computeCPULimit(nil, 4)
+	assert.Nil(t, limit)
+}
+
+func TestCollectorComputeEnhancedMetricsNilStats(t *testing.T) {
+	c := &Collector{}
+
+	serverlessEnhancedMetrics := c.computeEnhancedMetrics(nil)
+
+	assert.Equal(t, &ServerlessEnhancedMetrics{}, &serverlessEnhancedMetrics)
+}
+
+func TestCollectorComputeEnhancedMetricsNilCPUStats(t *testing.T) {
+	currentTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	c := &Collector{}
+
+	serverlessEnhancedMetrics := c.computeEnhancedMetrics(&ServerlessContainerStats{
+		CollectionTime: currentTime,
+	})
+
+	assert.Equal(t, &ServerlessEnhancedMetrics{Timestamp: float64(currentTime.Unix())}, &serverlessEnhancedMetrics)
+}
+
 func TestCollectorComputeEnhancedMetrics(t *testing.T) {
 	previousTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	currentTime := previousTime.Add(1 * time.Second)
