@@ -68,13 +68,21 @@ type StatsSnapshot struct {
 	ConfigError          string
 }
 
+const defaultInterval = 60 * time.Second
+
 // New creates a new admission controller connectivity probe.
 func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, datadogConfig config.Component) *Probe {
+	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
+	if interval <= 0 {
+		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
+		interval = defaultInterval
+	}
+
 	return &Probe{
 		k8sClient:    k8sClient,
 		isLeaderFunc: isLeaderFunc,
 		namespace:    datadogConfig.GetString("admission_controller.probe.namespace"),
-		interval:     time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second,
+		interval:     interval,
 		gracePeriod:  time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
 		logLimiter:   log.NewLogLimit(1, 10*time.Minute),
 	}
@@ -141,6 +149,11 @@ func (p *Probe) Run(ctx context.Context) {
 
 	p.diagnosticHint = diagnosticHintForProvider(cloudprovider.DCAGetName(ctx))
 	log.Infof("Admission controller probe is now active (namespace=%s, interval=%s)", p.namespace, p.interval)
+
+	// Run the first probe immediately, then on the configured interval.
+	if p.isLeaderFunc() {
+		p.runProbe(ctx)
+	}
 
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
