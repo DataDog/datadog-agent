@@ -126,6 +126,12 @@ The payload is a JSON dict with the following fields
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included, they cannot be overriden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
+  - `agent_configuration_files` - **dict of string to dict**: a map from config file path to its scrubbed content and SHA256
+    hash. Covers the main config file (`datadog.yaml`) and any extra config files loaded by the agent. Each entry has:
+    - `raw_config` - **string**: the scrubbed content of the file as read from disk at payload
+      generation time (preserves comments and original formatting, unlike the source-layer
+      fields above which are re-serialized from the in-memory config model).
+    - `hash` - **string**: the lowercase hex SHA256 of `raw_config`.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.

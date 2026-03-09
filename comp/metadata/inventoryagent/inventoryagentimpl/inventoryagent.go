@@ -8,9 +8,12 @@ package inventoryagentimpl
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"net/http"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -476,6 +479,33 @@ func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
 	return string(scrubbed), nil
 }
 
+func (ia *inventoryagent) getAgentConfigFiles() agentMetadata {
+	flareScrubber := scrubber.NewWithDefaults()
+	files := agentMetadata{}
+	configFiles := append([]string{ia.conf.ConfigFileUsed()}, ia.conf.ExtraConfigFilesUsed()...)
+	for _, path := range configFiles {
+		if path == "" {
+			continue
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			ia.log.Warnf("could not read agent config file '%s': %s", path, err)
+			continue
+		}
+		scrubbed, err := flareScrubber.ScrubYaml(content)
+		if err != nil {
+			ia.log.Warnf("could not scrub agent config file '%s': %s", path, err)
+			continue
+		}
+		hash := sha256.Sum256(scrubbed)
+		files[path] = agentMetadata{
+			"raw_config": string(scrubbed),
+			"hash":       hex.EncodeToString(hash[:]),
+		}
+	}
+	return files
+}
+
 func (ia *inventoryagent) getConfigs(data agentMetadata) {
 	if ia.conf.GetBool("inventories_configuration_enabled") {
 		layers := ia.conf.AllSettingsBySource()
@@ -500,6 +530,8 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
 			data["full_configuration"] = yaml
 		}
+
+		data["agent_configuration_files"] = ia.getAgentConfigFiles()
 	}
 }
 

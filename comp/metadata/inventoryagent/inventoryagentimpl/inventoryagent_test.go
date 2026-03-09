@@ -7,13 +7,18 @@ package inventoryagentimpl
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
@@ -39,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -774,8 +780,124 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 		"remote_configuration",
 		"cli_configuration",
 		"source_local_configuration",
+		"agent_configuration_files",
 	}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
+}
+
+func TestGetAgentConfigFilesNoFile(t *testing.T) {
+	// Mock config has no config file set, so ConfigFileUsed() returns "".
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	files := ia.getAgentConfigFiles()
+	assert.Empty(t, files)
+}
+
+func TestGetAgentConfigFiles(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	content := []byte("log_level: info\n")
+	require.NoError(t, os.WriteFile(configPath, content, 0o600))
+
+	p := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMockFromYAMLFile(t, configPath) }),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{}),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
+		),
+	)
+	ia := p.Comp.(*inventoryagent)
+
+	files := ia.getAgentConfigFiles()
+	require.Contains(t, files, configPath)
+
+	entry := files[configPath].(agentMetadata)
+	assert.NotEmpty(t, entry["hash"])
+	assert.Contains(t, entry["raw_config"], "log_level")
+
+	// Verify the hash matches SHA256 of the scrubbed content.
+	flareScrubber := scrubber.NewWithDefaults()
+	scrubbed, err := flareScrubber.ScrubYaml(content)
+	require.NoError(t, err)
+	expectedHash := sha256.Sum256(scrubbed)
+	assert.Equal(t, hex.EncodeToString(expectedHash[:]), entry["hash"])
+}
+
+func TestGetAgentConfigFilesInPayload(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("log_level: info\n"), 0o600))
+
+	p := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component {
+				c := config.NewMockFromYAMLFile(t, configPath)
+				c.SetWithoutSource("inventories_configuration_enabled", true)
+				return c
+			}),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{}),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
+		),
+	)
+	ia := p.Comp.(*inventoryagent)
+
+	payload := ia.getPayload().(*Payload)
+	assert.Contains(t, payload.Metadata, "agent_configuration_files")
+
+	files := payload.Metadata["agent_configuration_files"].(agentMetadata)
+	require.Contains(t, files, configPath)
+}
+
+func TestGetAgentConfigFilesDisabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	data := make(agentMetadata)
+	ia.getConfigs(data)
+	assert.NotContains(t, data, "agent_configuration_files")
+}
+
+func TestGetAgentConfigFilesReflectsDiskChanges(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("log_level: info\n"), 0o600))
+
+	p := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMockFromYAMLFile(t, configPath) }),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{}),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
+		),
+	)
+	ia := p.Comp.(*inventoryagent)
+
+	// Overwrite the file on disk after init.
+	require.NoError(t, os.WriteFile(configPath, []byte("log_level: warn\n"), 0o600))
+
+	// getAgentConfigFiles should reflect the current on-disk content.
+	files := ia.getAgentConfigFiles()
+	require.Contains(t, files, configPath)
+	entry := files[configPath].(agentMetadata)
+	assert.Contains(t, entry["raw_config"], "log_level: warn")
+	assert.NotContains(t, entry["raw_config"], "info")
 }
