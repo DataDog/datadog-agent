@@ -16,10 +16,11 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude internal/tools/independent-lint
 # gazelle:exclude internal/tools/modformatter
 # gazelle:exclude pkg
-# gazelle:exclude rtloader/test
+# gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test
 # gazelle:exclude tools
+# gazelle:exclude .gitlab
 # gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
     name = "gazelle",
