@@ -44,7 +44,7 @@ func GetProgramDataDirForProduct(product string) (path string, err error) {
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		log.Debugf("Windows installation key config not found, using default program data dir")
 		return getDefaultProgramDataDir()
 	}
 	path = val
@@ -66,7 +66,7 @@ func GetProgramFilesDirForProduct(product string) (path string, err error) {
 	defer k.Close()
 	val, _, err := k.GetStringValue("InstallPath")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		log.Debugf("Windows installation key config not found, using default program data dir")
 		return getDefaultProgramFilesDir()
 	}
 	path = val
