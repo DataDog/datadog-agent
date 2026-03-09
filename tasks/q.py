@@ -1,11 +1,25 @@
 import json
 import os
+import shlex
+import shutil
+import tempfile
+import zipfile
 
 from invoke import task
 
 from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+
+# S3 zip key for each scenario. Update when re-recording.
+SCENARIO_ZIPS = {
+    "213_pagerduty": "gensim-results-213_PagerDuty_June_2014_Outage-20260303-1309-78229d.zip",
+    "353_postmark": "gensim-results-353_postmark_upstream_cloud_provider_outage-20260303-1333-ad0bba.zip",
+    "food_delivery_redis": "gensim-results-food-delivery-redis-cpu-saturation-20260303-1314-5f7194.zip",
+}
+
+S3_BUCKET = "qbranch-gensim-recordings"
+AWS_PROFILE = "sso-agent-sandbox-account-admin"
 
 
 # --- Build ---
@@ -27,7 +41,7 @@ def build_scorer(ctx):
 
 # --- Eval ---
 @task
-def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
+def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
     """
     Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
 
@@ -48,7 +62,9 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenario
     results = []
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
-        if not os.path.isdir(parquet_dir):
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
+            _ensure_parquets(ctx, name, parquet_dir)
+        if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
             continue
 
@@ -57,14 +73,35 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenario
         print(color_message(f"  {name}", Color.BLUE))
         print(color_message(f"{'='*60}", Color.BLUE))
 
-        ctx.run(f"bin/observer-testbench --headless {name} --output {output_path} --scenarios-dir {scenarios_dir}")
-
-        scorer_result = ctx.run(
-            f"bin/observer-scorer --output {output_path} --scenarios-dir {scenarios_dir} --sigma {sigma} --json",
-            hide=True,
+        ctx.run(
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}"
         )
 
-        score = json.loads(scorer_result.stdout.strip())
+        if not os.path.isfile(output_path):
+            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            continue
+        try:
+            with open(output_path) as f:
+                json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(color_message(f"Testbench output at {output_path} is not valid JSON: {e}", Color.RED))
+            continue
+
+        scorer_result = ctx.run(
+            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
+            hide=True,
+            warn=True,
+        )
+
+        if scorer_result.failed:
+            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
+            continue
+
+        try:
+            score = json.loads(scorer_result.stdout.strip())
+        except json.JSONDecodeError:
+            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+            continue
         results.append({"name": name, **score})
 
     # Print summary table
@@ -79,52 +116,58 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenario
         print("-" * len(header))
 
         for r in results:
-            # Count baseline FPs from the output JSON
-            baseline_fps = _count_baseline_fps(
-                f"/tmp/observer-eval-{r['name']}.json",
-                os.path.join(scenarios_dir, r['name'], 'metadata.json'),
-                sigma,
-            )
-
             print(
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-                f"  {r['num_predictions']:>6}  {baseline_fps:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+                f"  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
 
-def _count_baseline_fps(output_path, metadata_path, sigma):
-    """Count scored predictions that fired before ground truth onset."""
+def _ensure_parquets(ctx, name, parquet_dir):
+    """Download and extract parquet files from S3 if not present locally."""
+    zip_key = SCENARIO_ZIPS.get(name)
+    if not zip_key:
+        print(
+            color_message(
+                f"No S3 zip configured for '{name}' — add it to SCENARIO_ZIPS to enable auto-download", Color.ORANGE
+            )
+        )
+        return
+
+    print(color_message(f"Downloading {zip_key} from S3...", Color.BLUE))
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+        tmp_path = tmp.name
+
     try:
-        with open(output_path) as f:
-            output = json.load(f)
-        with open(metadata_path) as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return 0
+        result = ctx.run(
+            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp " f"s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
+            warn=True,
+        )
+        if result is None or result.failed:
+            print(color_message(f"Failed to download {zip_key} from S3", Color.RED))
+            return
 
-    from datetime import datetime
+        scenario_dir = os.path.dirname(parquet_dir)
+        os.makedirs(parquet_dir, exist_ok=True)
+        try:
+            with zipfile.ZipFile(tmp_path) as zf:
+                for member in zf.namelist():
+                    if member.startswith("tmp/gensim-archive/parquet/") and not member.endswith("/"):
+                        filename = os.path.basename(member)
+                        with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
+                            dst.write(src.read())
+                    elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
+                        with zf.open(member) as src, open(os.path.join(scenario_dir, "metadata.json"), "wb") as dst:
+                            dst.write(src.read())
+        except (zipfile.BadZipFile, OSError) as e:
+            print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
+            shutil.rmtree(parquet_dir, ignore_errors=True)
+            return
 
-    gt_str = meta.get("disruption", {}).get("start", "")
-    bl_str = meta.get("baseline", {}).get("start", "")
-    if not gt_str:
-        return 0
-
-    gt_ts = int(datetime.fromisoformat(gt_str.replace("Z", "+00:00")).timestamp())
-    bl_ts = int(datetime.fromisoformat(bl_str.replace("Z", "+00:00")).timestamp()) if bl_str else 0
-
-    count = 0
-    cutoff = gt_ts + 2 * sigma
-    for p in output.get("anomaly_periods", []):
-        ts = p["period_start"]
-        if bl_ts and ts < bl_ts:
-            continue
-        if ts > cutoff:
-            continue
-        if ts < gt_ts:
-            count += 1
-    return count
+        print(color_message(f"Extracted parquet files to {parquet_dir}", Color.GREEN))
+    finally:
+        os.unlink(tmp_path)
 
 
 @task
