@@ -43,27 +43,26 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
-// Activity dump sample monitoring helpers
-struct activity_dump_sample_stats_t * __attribute__((always_inline)) get_active_ad_sample_stats(u64 event_type) {
-    struct bpf_map_def *ad_sample_stats = select_buffer(&fb_ad_sample_stats, &bb_ad_sample_stats, AD_SAMPLE_MONITOR_KEY);
-    if (ad_sample_stats == NULL) {
+struct event_sample_stats_t * __attribute__((always_inline)) get_active_event_sample_stats(u64 event_type) {
+    struct bpf_map_def *sample_stats = select_buffer(&fb_event_sample_stats, &bb_event_sample_stats, EVENT_SAMPLE_MONITOR_KEY);
+    if (sample_stats == NULL) {
         return NULL;
     }
 
     u32 key = event_type;
-    return bpf_map_lookup_elem(ad_sample_stats, &key);
+    return bpf_map_lookup_elem(sample_stats, &key);
 }
 
-void __attribute__((always_inline)) monitor_ad_sample_total(u64 event_type) {
-    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
+void __attribute__((always_inline)) monitor_event_sample_total(u64 event_type) {
+    struct event_sample_stats_t *stats = get_active_event_sample_stats(event_type);
     if (stats == NULL) {
         return;
     }
     __sync_fetch_and_add(&stats->events_total, 1);
 }
 
-void __attribute__((always_inline)) monitor_ad_sample_sampled(u64 event_type) {
-    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
+void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type) {
+    struct event_sample_stats_t *stats = get_active_event_sample_stats(event_type);
     if (stats == NULL) {
         return;
     }
@@ -306,7 +305,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     }
 
     // Track total open events that hit the sampling logic
-    monitor_ad_sample_total(EVENT_OPEN);
+    monitor_event_sample_total(EVENT_OPEN);
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (IS_KTHREAD(pid, pid)) {
@@ -346,7 +345,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     }
 
     // Track open events that were sampled
-    monitor_ad_sample_sampled(EVENT_OPEN);
+    monitor_event_sample_sampled(EVENT_OPEN);
 
     return SAMPLED;
 }

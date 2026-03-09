@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package adsample holds activity dump sample monitor related files
-package adsample
+// Package eventsample holds event sample monitor related files
+package eventsample
 
 import (
 	"fmt"
@@ -24,13 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// Stats is used to collect kernel space metrics about activity dump sampling.
+// Stats is used to collect kernel space metrics about event sampling.
 type Stats struct {
 	EventsTotal   uint64
 	EventsSampled uint64
 }
 
-// Monitor defines an activity dump sample monitor
+// Monitor defines an event sample monitor
 type Monitor struct {
 	statsdClient      statsd.ClientInterface
 	stats             [2]*lib.Map
@@ -69,12 +69,12 @@ func (m *Monitor) SendStats() error {
 
 		if stats.EventsTotal != 0 {
 			tags := []string{eventTypeTag}
-			_ = m.statsdClient.Count(metrics.MetricSecurityProfileV2ADSampleTotal, int64(stats.EventsTotal), tags, 1.0)
+			_ = m.statsdClient.Count(metrics.MetricEventSampleTotal, int64(stats.EventsTotal), tags, 1.0)
 		}
 
 		if stats.EventsSampled != 0 {
 			tags := []string{eventTypeTag}
-			_ = m.statsdClient.Count(metrics.MetricSecurityProfileV2ADSampleSampled, int64(stats.EventsSampled), tags, 1.0)
+			_ = m.statsdClient.Count(metrics.MetricEventSampleSampled, int64(stats.EventsSampled), tags, 1.0)
 		}
 	}
 
@@ -84,11 +84,11 @@ func (m *Monitor) SendStats() error {
 	}
 
 	m.activeStatsBuffer = 1 - m.activeStatsBuffer
-	return m.bufferSelector.Put(ebpf.BufferSelectorADSampleMonitorKey, m.activeStatsBuffer)
+	return m.bufferSelector.Put(ebpf.BufferSelectorSampleMonitorKey, m.activeStatsBuffer)
 }
 
-// NewADSampleMonitor returns a new Monitor
-func NewADSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
+// NewEventSampleMonitor returns a new Monitor
+func NewEventSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
@@ -100,13 +100,13 @@ func NewADSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientInte
 		numCPU:       numCPU,
 	}
 
-	statsFrontBuffer, err := managerhelper.Map(manager, "fb_ad_sample_stats")
+	statsFrontBuffer, err := managerhelper.Map(manager, "fb_event_sample_stats")
 	if err != nil {
 		return nil, err
 	}
 	monitor.stats[0] = statsFrontBuffer
 
-	statsBackBuffer, err := managerhelper.Map(manager, "bb_ad_sample_stats")
+	statsBackBuffer, err := managerhelper.Map(manager, "bb_event_sample_stats")
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +118,8 @@ func NewADSampleMonitor(manager *manager.Manager, statsdClient statsd.ClientInte
 	}
 	monitor.bufferSelector = bufferSelector
 
-	if err := monitor.bufferSelector.Put(ebpf.BufferSelectorADSampleMonitorKey, monitor.activeStatsBuffer); err != nil {
-		return nil, fmt.Errorf("failed to initialize AD sample buffer selector: %w", err)
+	if err := monitor.bufferSelector.Put(ebpf.BufferSelectorSampleMonitorKey, monitor.activeStatsBuffer); err != nil {
+		return nil, fmt.Errorf("failed to initialize event sample buffer selector: %w", err)
 	}
 
 	return monitor, nil
