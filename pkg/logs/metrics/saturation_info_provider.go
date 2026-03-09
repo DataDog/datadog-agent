@@ -112,10 +112,10 @@ func (s SaturationInfoProvider) Info() []string {
 	if sum.SuggestedProfile != "" {
 		rationale := profileRationale[sum.SuggestedProfile]
 		out = append(out, "")
-		out = append(out, fmt.Sprintf("!! Bottleneck detected. Suggested profile: %s", sum.SuggestedProfile))
-		out = append(out, fmt.Sprintf("   Set:    logs_config.logs_agent_profile: %s", sum.SuggestedProfile))
+		out = append(out, "!! Bottleneck detected. Suggested profile: "+sum.SuggestedProfile)
+		out = append(out, "   Set:    logs_config.logs_agent_profile: "+sum.SuggestedProfile)
 		if rationale != "" {
-			out = append(out, fmt.Sprintf("   Effect: %s", rationale))
+			out = append(out, "   Effect: "+rationale)
 		}
 	} else if !anySaturated {
 		out = append(out, "   No bottleneck detected.")
