@@ -57,11 +57,11 @@ func (p *taggerBasedTagsProvider) GetTags(ctx context.Context, runnerID, hostnam
 
 	for _, keyValue := range globalTags {
 		tagName, _, ok := strings.Cut(keyValue, ":")
-		if ok {
-			if _, found := tagSet[tagName]; found {
-
-				tags = append(tags, keyValue)
-			}
+		if !ok {
+			continue
+		}
+		if _, found := tagSet[tagName]; found {
+			tags = append(tags, keyValue)
 		}
 	}
 

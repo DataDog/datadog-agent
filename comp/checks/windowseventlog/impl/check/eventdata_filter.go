@@ -10,7 +10,7 @@ package evtlog
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
