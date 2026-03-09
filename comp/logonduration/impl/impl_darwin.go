@@ -229,33 +229,56 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
+// safeDurationSeconds returns a.Sub(b).Seconds() if both are non-zero, otherwise 0.
+func safeDurationSeconds(a, b time.Time) float64 {
+	if a.IsZero() || b.IsZero() {
+		return 0
+	}
+	return a.Sub(b).Seconds()
+}
+
+// safeDurationMs returns a.Sub(b).Milliseconds() if both are non-zero, otherwise 0.
+func safeDurationMs(a, b time.Time) int64 {
+	if a.IsZero() || b.IsZero() {
+		return 0
+	}
+	return a.Sub(b).Milliseconds()
+}
+
 func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamps) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
+
+	formatTS := func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return t.UTC().Format(tsFmt)
+	}
 
 	milestones := []Milestone{
 		{
 			Name:      "Boot Start",
 			OffsetS:   0,
-			DurationS: ts.LoginWindowTime.Sub(bootTime).Seconds(),
+			DurationS: safeDurationSeconds(ts.LoginWindowTime, bootTime),
 			Timestamp: bootTime.UTC().Format(tsFmt),
 		},
 		{
 			Name:      "Login Window Ready",
-			OffsetS:   ts.LoginWindowTime.Sub(bootTime).Seconds(),
-			DurationS: ts.LoginTime.Sub(ts.LoginWindowTime).Seconds(),
-			Timestamp: ts.LoginWindowTime.UTC().Format(tsFmt),
+			OffsetS:   safeDurationSeconds(ts.LoginWindowTime, bootTime),
+			DurationS: safeDurationSeconds(ts.LoginTime, ts.LoginWindowTime),
+			Timestamp: formatTS(ts.LoginWindowTime),
 		},
 		{
 			Name:      "User Login",
-			OffsetS:   ts.LoginTime.Sub(bootTime).Seconds(),
-			DurationS: ts.DesktopReadyTime.Sub(ts.LoginTime).Seconds(),
-			Timestamp: ts.LoginTime.UTC().Format(tsFmt),
+			OffsetS:   safeDurationSeconds(ts.LoginTime, bootTime),
+			DurationS: safeDurationSeconds(ts.DesktopReadyTime, ts.LoginTime),
+			Timestamp: formatTS(ts.LoginTime),
 		},
 		{
 			Name:      "Desktop Ready",
-			OffsetS:   ts.DesktopReadyTime.Sub(bootTime).Seconds(),
+			OffsetS:   safeDurationSeconds(ts.DesktopReadyTime, bootTime),
 			DurationS: 0,
-			Timestamp: ts.DesktopReadyTime.UTC().Format(tsFmt),
+			Timestamp: formatTS(ts.DesktopReadyTime),
 		},
 	}
 
@@ -267,8 +290,8 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 
 	custom["boot_timeline"] = buildTimelineMilestones(bootTime, ts)
 
-	bootMs := ts.LoginWindowTime.Sub(bootTime).Milliseconds()
-	logonMs := ts.DesktopReadyTime.Sub(ts.LoginTime).Milliseconds()
+	bootMs := safeDurationMs(ts.LoginWindowTime, bootTime)
+	logonMs := safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 
 	custom["durations"] = map[string]interface{}{
 		"boot_duration_ms":       bootMs,

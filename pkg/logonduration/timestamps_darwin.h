@@ -8,15 +8,19 @@
 
 // Returns Unix timestamp (seconds since epoch) or 0 on error
 // fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
-double queryLoginWindowTimestamp(int fileVaultEnabled);
+// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
+double queryLoginWindowTimestamp(int fileVaultEnabled, char **errorOut);
 
 // Returns Unix timestamp (seconds since epoch) or 0 on error
-double queryLoginTimestamp(void);
+// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
+double queryLoginTimestamp(char **errorOut);
 
 // Returns Unix timestamp (seconds since epoch) or 0 on error
-double queryDesktopReadyTimestamp(void);
+// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
+double queryDesktopReadyTimestamp(char **errorOut);
 
 // Returns 1 if FileVault is enabled, 0 if disabled, -1 on error
-int checkFileVaultEnabled(void);
+// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
+int    checkFileVaultEnabled(char **errorOut);
 
 #endif

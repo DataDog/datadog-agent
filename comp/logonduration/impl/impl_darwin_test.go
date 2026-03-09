@@ -112,6 +112,56 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 30.25, milestones[2].OffsetS, 0.001)
 		assert.InDelta(t, 90.75, milestones[3].OffsetS, 0.001)
 	})
+
+	t.Run("zero LoginWindowTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginTime:        boot.Add(30 * time.Second),
+			DesktopReadyTime: boot.Add(90 * time.Second),
+		}
+
+		milestones := buildTimelineMilestones(boot, ts)
+
+		// Boot Start duration depends on LoginWindowTime
+		assert.InDelta(t, 0.0, milestones[0].DurationS, 0.001)
+		// Login Window Ready: offset, duration, and timestamp all zero/empty
+		assert.InDelta(t, 0.0, milestones[1].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].DurationS, 0.001)
+		assert.Equal(t, "", milestones[1].Timestamp)
+		// User Login: offset and duration still computed from their own timestamps
+		assert.InDelta(t, 30.0, milestones[2].OffsetS, 0.001)
+		assert.InDelta(t, 60.0, milestones[2].DurationS, 0.001)
+	})
+
+	t.Run("zero LoginTime yields 0 durations and empty timestamp for dependent milestones", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginWindowTime:  boot.Add(10 * time.Second),
+			DesktopReadyTime: boot.Add(90 * time.Second),
+		}
+
+		milestones := buildTimelineMilestones(boot, ts)
+
+		// Login Window Ready duration depends on LoginTime
+		assert.InDelta(t, 0.0, milestones[1].DurationS, 0.001)
+		// User Login: offset, duration, and timestamp all zero/empty
+		assert.InDelta(t, 0.0, milestones[2].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[2].DurationS, 0.001)
+		assert.Equal(t, "", milestones[2].Timestamp)
+	})
+
+	t.Run("zero DesktopReadyTime yields 0 duration and empty timestamp for dependent milestones", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginWindowTime: boot.Add(10 * time.Second),
+			LoginTime:       boot.Add(30 * time.Second),
+		}
+
+		milestones := buildTimelineMilestones(boot, ts)
+
+		// User Login duration depends on DesktopReadyTime
+		assert.InDelta(t, 0.0, milestones[2].DurationS, 0.001)
+		// Desktop Ready: offset and timestamp zero/empty
+		assert.InDelta(t, 0.0, milestones[3].OffsetS, 0.001)
+		assert.Equal(t, "", milestones[3].Timestamp)
+	})
 }
 
 func TestBuildCustomPayload(t *testing.T) {
@@ -197,6 +247,32 @@ func TestBuildCustomPayload(t *testing.T) {
 		timeline, ok := custom["boot_timeline"].([]Milestone)
 		require.True(t, ok)
 		assert.Len(t, timeline, 4)
+	})
+
+	t.Run("zero LoginWindowTime yields 0 boot_duration_ms", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginTime:        boot.Add(30 * time.Second),
+			DesktopReadyTime: boot.Add(90 * time.Second),
+		}
+
+		custom := buildCustomPayload(boot, ts)
+
+		durations, ok := custom["durations"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, int64(0), durations["boot_duration_ms"])
+	})
+
+	t.Run("zero LoginTime or DesktopReadyTime yields 0 logon_duration_ms", func(t *testing.T) {
+		ts := logonduration.LoginTimestamps{
+			LoginWindowTime:  boot.Add(10 * time.Second),
+			DesktopReadyTime: boot.Add(90 * time.Second),
+		}
+
+		custom := buildCustomPayload(boot, ts)
+
+		durations, ok := custom["durations"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, int64(0), durations["logon_duration_ms"])
 	})
 }
 

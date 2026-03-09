@@ -19,16 +19,21 @@ import "C"
 import (
 	"errors"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// cTimestampToTime converts a C double Unix timestamp to time.Time with nanosecond precision.
-func cTimestampToTime(result C.double) time.Time {
-	resultFloat := float64(result)
-	sec := int64(resultFloat)
-	nsec := int64((resultFloat - float64(sec)) * 1e9)
+// unixFloatToTime converts a float64 Unix timestamp to time.Time with nanosecond precision.
+func unixFloatToTime(t float64) time.Time {
+	sec := int64(t)
+	nsec := int64((t - float64(sec)) * 1e9)
 	return time.Unix(sec, nsec)
+}
+
+// cTimestampToTime converts a C double Unix timestamp to time.Time.
+func cTimestampToTime(result C.double) time.Time {
+	return unixFloatToTime(float64(result))
 }
 
 // GetLoginWindowTime queries OSLogStore for when the login window appeared.
@@ -39,9 +44,12 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 	if fileVaultEnabled {
 		fvEnabled = 1
 	}
-	result := C.queryLoginWindowTimestamp(fvEnabled)
-	if result == 0 {
-		return time.Time{}, errors.New("failed to query login window time from unified logs")
+	var errMsg *C.char
+	result := C.queryLoginWindowTimestamp(fvEnabled, &errMsg)
+	if errMsg != nil {
+		msg := C.GoString(errMsg)
+		C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(msg)
 	}
 	return cTimestampToTime(result), nil
 }
@@ -50,9 +58,12 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 // This works the same way with or without FileVault.
 // This requires root privileges to access the local log store.
 func GetLoginTime() (time.Time, error) {
-	result := C.queryLoginTimestamp()
-	if result == 0 {
-		return time.Time{}, errors.New("failed to query login time from unified logs")
+	var errMsg *C.char
+	result := C.queryLoginTimestamp(&errMsg)
+	if errMsg != nil {
+		msg := C.GoString(errMsg)
+		C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(msg)
 	}
 	return cTimestampToTime(result), nil
 }
@@ -61,9 +72,12 @@ func GetLoginTime() (time.Time, error) {
 // This indicates the desktop is ready for user interaction.
 // This requires root privileges to access the local log store.
 func GetDesktopReadyTime() (time.Time, error) {
-	result := C.queryDesktopReadyTimestamp()
-	if result == 0 {
-		return time.Time{}, errors.New("failed to query desktop ready time from unified logs")
+	var errMsg *C.char
+	result := C.queryDesktopReadyTimestamp(&errMsg)
+	if errMsg != nil {
+		msg := C.GoString(errMsg)
+		C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(msg)
 	}
 	return cTimestampToTime(result), nil
 }
@@ -71,9 +85,12 @@ func GetDesktopReadyTime() (time.Time, error) {
 // IsFileVaultEnabled checks if FileVault is enabled.
 // This requires root privileges to run fdesetup.
 func IsFileVaultEnabled() (bool, error) {
-	result := C.checkFileVaultEnabled()
-	if result < 0 {
-		return false, errors.New("failed to check FileVault status")
+	var errMsg *C.char
+	result := C.checkFileVaultEnabled(&errMsg)
+	if errMsg != nil {
+		msg := C.GoString(errMsg)
+		C.free(unsafe.Pointer(errMsg))
+		return false, errors.New(msg)
 	}
 	return result == 1, nil
 }
@@ -84,39 +101,31 @@ func GetLoginTimestamps() LoginTimestamps {
 	result := LoginTimestamps{}
 
 	// Check FileVault status first (needed for login window query)
-	start := time.Now()
 	if fv, err := IsFileVaultEnabled(); err == nil {
 		result.FileVaultEnabled = fv
-		log.Infof("logonduration: FileVault enabled: %v (query took %.3fs)", fv, time.Since(start).Seconds())
 	} else {
-		log.Warnf("logonduration: failed to check FileVault status: %v (query took %.3fs)", err, time.Since(start).Seconds())
+		log.Warnf("logonduration: failed to check FileVault status: %v", err)
 	}
 
 	// Get login window time via CGO to OSLogStore (query depends on FileVault status)
-	start = time.Now()
 	if lwt, err := GetLoginWindowTime(result.FileVaultEnabled); err == nil {
 		result.LoginWindowTime = lwt
-		log.Infof("logonduration: login window time: %v (query took %.3fs)", lwt, time.Since(start).Seconds())
 	} else {
-		log.Warnf("logonduration: failed to get login window time: %v (query took %.3fs)", err, time.Since(start).Seconds())
+		log.Warnf("logonduration: failed to get login window time: %v", err)
 	}
 
 	// Get login time via CGO to OSLogStore
-	start = time.Now()
 	if lt, err := GetLoginTime(); err == nil {
 		result.LoginTime = lt
-		log.Infof("logonduration: login time: %v (query took %.3fs)", lt, time.Since(start).Seconds())
 	} else {
-		log.Warnf("logonduration: failed to get login time: %v (query took %.3fs)", err, time.Since(start).Seconds())
+		log.Warnf("logonduration: failed to get login time: %v", err)
 	}
 
 	// Get desktop ready time via CGO to OSLogStore (Dock checkin with launchservicesd)
-	start = time.Now()
 	if drt, err := GetDesktopReadyTime(); err == nil {
 		result.DesktopReadyTime = drt
-		log.Infof("logonduration: desktop ready time: %v (query took %.3fs)", drt, time.Since(start).Seconds())
 	} else {
-		log.Warnf("logonduration: failed to get desktop ready time: %v (query took %.3fs)", err, time.Since(start).Seconds())
+		log.Warnf("logonduration: failed to get desktop ready time: %v", err)
 	}
 
 	return result
