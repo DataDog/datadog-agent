@@ -612,6 +612,49 @@ func TestPrivateActionRunnerConfig(t *testing.T) {
 	}, datadog)
 }
 
+func TestPrivateActionRunnerConfigDisabled(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "test_key"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "test_key",
+	}, datadog)
+}
+
+func TestPrivateActionRunnerConfigMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+app_key: "old_app_key"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.AppKey = "new_app_key"
+	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
+	cfg.DatadogYAML.PrivateActionRunner.SelfEnroll = BoolToPtr(true)
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "key",
+		"app_key": "new_app_key",
+		"private_action_runner": map[string]interface{}{
+			"enabled":     true,
+			"self_enroll": true,
+		},
+	}, datadog)
+}
+
 func TestInfrastructureModeMerge(t *testing.T) {
 	tempDir := t.TempDir()
 	existing := `---
