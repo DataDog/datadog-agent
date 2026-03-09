@@ -17,10 +17,24 @@ Parse `$ARGUMENTS` to determine what to test. The user may provide:
 - A specific behavior to validate
 
 **Research the feature** before writing any code:
-- Read the implementation in `pkg/` or `comp/` to understand what metrics, logs, service checks, or behaviors it produces
+- Read the implementation in `pkg/` or `comp/` to understand what data it produces
 - Read existing unit tests to understand edge cases
 - Check if E2E tests already exist under `test/new-e2e/tests/`
-- Identify the exact metric names, tags, service check names, and expected values
+- Identify **all expected payloads** the feature sends to the intake. This is not
+  limited to metrics — depending on the feature it could be any combination of:
+  - **Metrics** (`FilterMetrics`) — gauges, counters, rates
+  - **Service checks** (`FilterCheckRuns`) — health/status signals
+  - **Logs** (`FilterLogs`) — log lines from file tailing, journald, etc.
+  - **Events** (`FilterEvents`) — one-off occurrences
+  - **Traces** (`GetTraces`) — APM spans
+  - **Processes** (`GetProcesses`) / **Connections** (`GetConnections`)
+  - **Container images** (`GetContainerImages`) / **Container lifecycle** (`GetContainerLifecycleEvents`)
+  - **SBOMs** (`GetSBOMs`) — software bill of materials
+  - **Orchestrator resources** (`GetOrchestratorResources`) — K8s objects
+  - **Network paths** (`GetLatestNetpathEvents`) — traceroute data
+  - **Flares** (`GetLatestFlare`) — diagnostic bundles
+
+  See `test/fakeintake/AGENTS.md` for the full list of supported endpoints.
 
 ### 2. Choose the test environment
 
