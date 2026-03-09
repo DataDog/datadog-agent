@@ -17,8 +17,7 @@ import (
 const maxDepsInFlare = 50
 
 func provideRuntimeDebugInfo(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("runtime_debug_info.log", getRuntimeDebugInfo) //nolint:errcheck
-	return nil
+	return fb.AddFileFromFunc("runtime_debug_info.log", getRuntimeDebugInfo)
 }
 
 func getRuntimeDebugInfo() ([]byte, error) {
@@ -80,7 +79,7 @@ func writeGCSettings(buf *bytes.Buffer) {
 	// state and could momentarily disable GC or remove memory limits.
 	gogc := os.Getenv("GOGC")
 	if gogc == "" {
-		gogc = "100 (default)"
+		gogc = "not set (Go default: 100)"
 	}
 	fmt.Fprintf(buf, "GOGC: %s\n", gogc)
 
