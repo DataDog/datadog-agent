@@ -45,17 +45,6 @@ type Hook[T any] interface {
 	Subscribe(consumerName string, callback func(payload T)) (unsubscribe func())
 }
 
-// noopHook is a Hook implementation that discards all published payloads and ignores subscriptions.
-type noopHook[T any] struct{}
-
-func (noopHook[T]) Name() string                                       { return "noop" }
-func (noopHook[T]) Publish(_ string, _ T)                              {}
-func (noopHook[T]) Subscribe(_ string, _ func(T)) (unsubscribe func()) { return func() {} }
-
-// NewNoopHook returns a Hook that silently discards all published payloads.
-// Use this in tests or in code paths where hook observation is optional.
-func NewNoopHook[T any]() Hook[T] { return noopHook[T]{} }
-
 // NewHook creates a new Hook that fans out published payloads to all subscribers.
 // Publish is synchronous: it delivers to each subscriber's buffered channel inline,
 // dropping the payload for any subscriber whose channel is full.
