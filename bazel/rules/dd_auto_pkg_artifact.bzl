@@ -40,6 +40,7 @@ PackageFilegroupInfo:
 The result can be used directly in pkg_filegroup.srcs, pkg_tar, etc.
 """
 
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 
