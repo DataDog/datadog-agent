@@ -10,7 +10,6 @@ package kubeactions
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
@@ -38,12 +37,12 @@ type ActionProcessor struct {
 }
 
 // NewActionProcessor creates a new ActionProcessor with the given store and event platform forwarder
-func NewActionProcessor(ctx context.Context, registry *ExecutorRegistry, store ActionStoreInterface, epForwarder eventplatform.Forwarder) *ActionProcessor {
+func NewActionProcessor(ctx context.Context, registry *ExecutorRegistry, store ActionStoreInterface, epForwarder eventplatform.Forwarder, clusterName, clusterID string) *ActionProcessor {
 	return &ActionProcessor{
 		validator: NewActionValidator(),
 		registry:  registry,
 		store:     store,
-		reporter:  NewResultReporter(epForwarder),
+		reporter:  NewResultReporter(epForwarder, clusterName, clusterID),
 		ctx:       ctx,
 	}
 }
@@ -168,8 +167,7 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 
 	// Report the result to backend via Event Platform
 	log.Infof("[KubeActions] Reporting result to backend...")
-	hostname := getHostname() // Get the hostname for the target field
-	p.reporter.ReportResult(actionKey, action, result, executedAt, hostname)
+	p.reporter.ReportResult(actionKey, action, result, executedAt)
 	log.Infof("[KubeActions] Result reported to backend")
 
 	// Log the result
@@ -188,17 +186,3 @@ func (p *ActionProcessor) GetStore() ActionStoreInterface {
 	return p.store
 }
 
-// getHostname returns the hostname for the current agent
-func getHostname() string {
-	// Try to get from environment variable first (set by DD_HOSTNAME)
-	if hostname := os.Getenv("DD_HOSTNAME"); hostname != "" {
-		return hostname
-	}
-
-	// Fall back to system hostname
-	if hostname, err := os.Hostname(); err == nil {
-		return hostname
-	}
-
-	return "unknown"
-}

@@ -120,13 +120,28 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 		}
 	}
 
-	// TODO: Add more validation logic here as needed:
-	// - Check if namespace is allowed
-	// - Rate limiting checks
-	// - Time-based restrictions
-	// - Custom business logic
+	// Block actions on protected system namespaces
+	if isProtectedNamespace(action.Resource.Namespace) {
+		return &ValidationError{
+			Action:  action,
+			Message: fmt.Sprintf("actions are not allowed on protected namespace %q", action.Resource.Namespace),
+		}
+	}
 
 	return nil
+}
+
+// protectedNamespaces are Kubernetes system namespaces where actions must not be executed
+var protectedNamespaces = map[string]struct{}{
+	"kube-system":     {},
+	"kube-public":     {},
+	"kube-node-lease": {},
+}
+
+// isProtectedNamespace returns true if the namespace is a protected system namespace
+func isProtectedNamespace(namespace string) bool {
+	_, ok := protectedNamespaces[namespace]
+	return ok
 }
 
 // ValidateActions validates a list of actions
