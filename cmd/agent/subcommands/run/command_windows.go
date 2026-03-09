@@ -33,8 +33,8 @@ import (
 
 	// checks implemented as components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
+	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
@@ -244,7 +244,7 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module(),
+		agentcrashdetectfx.Module(),
 		etwtracerimpl.Module,
 		windowseventlogimpl.Module(),
 		winregistryimpl.Module(),

@@ -332,6 +332,8 @@ type ProcessSerializer struct {
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
 	// Tags from an APM tracer instrumentation
 	Tracer map[string]string `json:"tracer,omitempty"`
+	// Variable values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -1184,7 +1186,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent, nil),
 	}
 }
 
@@ -1209,7 +1211,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e),
+		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
 	}
 	return ses
 }
@@ -1378,7 +1380,7 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -1386,6 +1388,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
+
+	ps.Variables = newVariablesContext(e, rule, "process.")
 
 	// add the syscalls from the event only for the top level parent
 	if e.GetEventType() == model.SyscallsEventType {
@@ -1402,9 +1406,17 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	first := true
 
+	originalPCE := e.ProcessCacheEntry
+
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 		s := newProcessSerializer(&pce.Process, e)
+
+		// evaluate variables scoped to this ancestor
+		e.ProcessCacheEntry = pce
+		s.Variables = newVariablesContext(e, rule, "process.")
+		e.ProcessCacheEntry = originalPCE
+
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -1544,7 +1556,7 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Resource: model.RlimitResource(e.Setrlimit.Resource).String(),
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
-		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent),
+		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
 	}
 }
 

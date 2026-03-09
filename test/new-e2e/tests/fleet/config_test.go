@@ -282,18 +282,68 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NoError(s.T(), err)
 
 	// Check agent is alive during experiment
-	status, err := s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running during experiment")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running during experiment")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	// Promote the experiment
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
 	// Check agent is alive after promotion to stable
-	status, err = s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running after promotion to stable")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running after promotion to stable")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	}, 60*time.Second, 5*time.Second)
+}
+
+// TestExperimentIntegrationLoaded verifies that an integration config deployed
+// via the config experiment flow is picked up by the experiment agent before promotion.
+func (s *configSuite) TestExperimentIntegrationLoaded() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
+	}
+
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	nginxConfig := `{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "integration-loaded-test",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{}`),
+			},
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/conf.d/nginx.yaml",
+				Patch:             []byte(nginxConfig),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+	}, 60*time.Second, 5*time.Second)
+
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should still be loaded after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment

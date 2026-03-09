@@ -803,12 +803,6 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				}
 				in.Delim(']')
 			}
-		case "variables":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				(out.Variables).UnmarshalEasyJSON(in)
-			}
 		case "truncated_ancestors":
 			if in.IsNull() {
 				in.Skip()
@@ -1267,6 +1261,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				}
 				in.Delim('}')
 			}
+		case "variables":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Variables).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1309,16 +1309,6 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 			}
 			out.RawByte(']')
 		}
-	}
-	if len(in.Variables) != 0 {
-		const prefix string = ",\"variables\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		(in.Variables).MarshalEasyJSON(out)
 	}
 	if in.TruncatedAncestors {
 		const prefix string = ",\"truncated_ancestors\":"
@@ -1598,6 +1588,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 			}
 			out.RawByte('}')
 		}
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
