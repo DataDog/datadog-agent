@@ -1,0 +1,21 @@
+aggregations:
+  relative_activity:
+    description: "Relative measure of load/activity at a given point in time"
+    time_aggregator: "avg"
+    group-aggregator: "avg"
+    granularity_aggregator: "avg"
+  absolute_usage:
+    description: "Absolute measure of load/activity at a given point in time"
+    time_aggregator: "avg"
+    group-aggregator: "sum"
+    granularity_aggregator: "avg"
+  lifetime_error:
+    description: "Consistently increasing lifetime error counters"
+    time_aggregator: "max/last"
+    group-aggregator: "sum"
+    granularity_aggregator: "max"
+  sensor_data:
+    description: "GPU sensor readings"
+    time_aggregator: "avg"
+    group-aggregator: "avg"
+    granularity_aggregator: "avg"

@@ -21,6 +21,8 @@ metrics:
       description: Current clock speed for the graphics domain
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -34,6 +36,8 @@ metrics:
       description: Maximum clock speed for the graphics domain
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -47,6 +51,8 @@ metrics:
       description: Current clock speed for the memory
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -60,6 +66,8 @@ metrics:
       description: Maximum clock speed for the memory
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -73,6 +81,8 @@ metrics:
       description: Current clock speed for the Streaming Multiprocessor
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -86,6 +96,8 @@ metrics:
       description: Maximum clock speed for the Streaming Multiprocessor
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -99,6 +111,8 @@ metrics:
       description: Current clock speed for the video encoder/decoder
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures:
         - fermi
@@ -113,6 +127,8 @@ metrics:
       description: Maximum clock speed for the video encoder/decoder
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures:
         - fermi
@@ -124,6 +140,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to application settings
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -139,6 +157,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to display clock settings
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -154,6 +174,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled due to the GPU being idle
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -169,6 +191,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are not throttled
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -184,6 +208,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled to avoid exceeding power limits
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -199,6 +225,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled to avoid exceeding temperature limits
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -214,6 +242,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: GPU clocks that are throttled to match clock speed of another GPU in the current sync boost group
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -230,6 +260,8 @@ metrics:
       metric_type: gauge
       unit: core
       description: Number of GPU cores that the process/container/device has available
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
       - process
@@ -251,6 +283,8 @@ metrics:
       description: Percentage of time the decoder was active
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -262,6 +296,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of GPU devices found in the host
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -276,6 +312,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Whether the GPU device is unhealthy
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -293,6 +331,8 @@ metrics:
       description: Percentage of time the DRAM was active
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -307,6 +347,8 @@ metrics:
       description: Percentage of time the encoder was active
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -327,6 +369,8 @@ metrics:
       - device
     custom_tags:
       - memory_location
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures: []
       device_modes:
@@ -345,6 +389,8 @@ metrics:
       - device
     custom_tags:
       - memory_location
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures: []
       device_modes:
@@ -394,6 +440,8 @@ metrics:
     custom_tags:
       - origin
       - type
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures: []
       device_modes:
@@ -407,6 +455,8 @@ metrics:
       description: Configured fan speed as a percentage of its maximum
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -420,6 +470,8 @@ metrics:
       description: Percentage of the time that the 16-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -441,6 +493,8 @@ metrics:
       description: Percentage of the time that the 32-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -462,6 +516,8 @@ metrics:
       description: Percentage of the time that the 64-bit floating point calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -483,6 +539,8 @@ metrics:
       description: Percentage of time that the graphics engine was active
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -497,6 +555,8 @@ metrics:
       description: Percentage of the time that the integer calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -518,6 +578,8 @@ metrics:
       description: Unallocated BAR1 memory (in bytes)
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -532,6 +594,8 @@ metrics:
       description: Total BAR1 memory (in bytes).
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -546,6 +610,8 @@ metrics:
       description: Allocated used memory (in bytes)
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -560,6 +626,8 @@ metrics:
       description: Unallocated device memory (in bytes).
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -574,6 +642,8 @@ metrics:
       metric_type: gauge
       unit: byte
       description: The maximum amount of memory a process/container/device could allocate
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
       - process
@@ -595,6 +665,8 @@ metrics:
       description: Device memory (in bytes) reserved for system use (driver or firmware)..
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -611,6 +683,8 @@ metrics:
       description: Temperature of the memory chip
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures:
         - fermi
@@ -630,6 +704,8 @@ metrics:
       description: Number of active nvlinks for the device
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -645,6 +721,8 @@ metrics:
       description: Number of inactive nvlinks for the device
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -660,6 +738,8 @@ metrics:
       description: Number of total nvlinks for the device
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -675,6 +755,8 @@ metrics:
       description: Effective bit error rate for all NVLINK links
     tagsets:
       - device
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures:
         - fermi
@@ -757,6 +839,8 @@ metrics:
       description: NVLink buffer overrun error counter total for all links
     tagsets:
       - device
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures:
         - fermi
@@ -776,6 +860,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: NVLink ECC error counter total for all links
+      aggregation:
+        type: lifetime_error
     tagsets:
       - device
     validator:
@@ -798,6 +884,8 @@ metrics:
       description: NVLink effective error counter total for all links
     tagsets:
       - device
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures:
         - fermi
@@ -879,6 +967,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: NVLink replay error counter total for all links
+      aggregation:
+        type: lifetime_error
     tagsets:
       - device
     validator:
@@ -985,6 +1075,8 @@ metrics:
       description: Number of NVLinks connected to the NVSwitch
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -999,6 +1091,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: NVLink PLR codes loss counter for the port
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     custom_tags:
@@ -1207,6 +1301,8 @@ metrics:
       metric_type: gauge
       unit: megabit/second
       description: common speed of all NVLINK links
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -1229,6 +1325,8 @@ metrics:
       description: Failed NVLink recovery events total for all links
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
@@ -1312,6 +1410,8 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total TX data throughput of all NVLINK links
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1333,6 +1433,8 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total RX of all NVLINK links
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1354,6 +1456,8 @@ metrics:
       metric_type: gauge
       unit: kilobyte/second
       description: Total TX of all NVLINK links
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1376,6 +1480,8 @@ metrics:
       description: NVLink transmitted discard counter total for all links
     tagsets:
       - device
+    aggregation:
+      type: lifetime_error
     support:
       unsupported_architectures:
         - fermi
@@ -1500,6 +1606,8 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes received through PCI to the GPU device per second
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1518,6 +1626,8 @@ metrics:
       metric_type: gauge
       unit: byte/second
       description: Bytes transmitted through PCI from the GPU device per second
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1537,6 +1647,8 @@ metrics:
       description: Returns the current performance state of the device
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures: []
       device_modes:
@@ -1550,6 +1662,8 @@ metrics:
       description: Upper boundary for the device power draw.
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures: []
       device_modes:
@@ -1566,6 +1680,8 @@ metrics:
         the average power draw over one second
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures: []
       device_modes:
@@ -1577,6 +1693,8 @@ metrics:
       metric_type: gauge
       unit: core
       description: Average number of GPU cores that a process was using in the interval. Only emitted when processes are active.
+      aggregation:
+        type: absolute_usage
     workload_only: true
     tagsets:
       - device
@@ -1602,6 +1720,8 @@ metrics:
       - device
       - process
       - container
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1619,6 +1739,8 @@ metrics:
       - device
       - process
       - container
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1636,6 +1758,8 @@ metrics:
       - device
       - process
       - container
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1648,6 +1772,8 @@ metrics:
       metric_type: gauge
       unit: byte
       description: The memory used by this process at the point the metric was given. Only emitted when processes are active.
+      aggregation:
+        type: absolute_usage
     workload_only: true
     tagsets:
       - device
@@ -1668,6 +1794,8 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the streaming multiprocessor was active for a specific process
+      aggregation:
+        type: relative_activity
     workload_only: true
     tagsets:
       - device
@@ -1687,6 +1815,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of rows remapped due to correctable errors
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1709,6 +1839,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of rows that failed remapping
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1729,6 +1861,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of rows pending remapping
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1749,6 +1883,8 @@ metrics:
     metadata:
       metric_type: gauge
       description: Number of rows remapped due to uncorrectable errors
+      aggregation:
+        type: absolute_usage
     tagsets:
       - device
     validator:
@@ -1774,6 +1910,8 @@ metrics:
       description: Slowdown temperature
     tagsets:
       - device
+    aggregation:
+      type: sensor_data
     support:
       unsupported_architectures:
         - fermi
@@ -1786,6 +1924,8 @@ metrics:
       metric_type: gauge
       unit: percent
       description: Percentage of time the streaming multiprocessor was active
+      aggregation:
+        type: relative_activity
     tagsets:
       - device
     validator:
@@ -1805,6 +1945,8 @@ metrics:
       description: Percentage of the Streaming Multiprocessors that were active in the interval
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1826,6 +1968,8 @@ metrics:
       description: Percentage of the Streaming Multiprocessors that were in use in the interval
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1845,6 +1989,8 @@ metrics:
       metric_type: gauge
       unit: degree celsius
       description: Temperature of the GPU device
+      aggregation:
+        type: sensor_data
     tagsets:
       - device
     validator:
@@ -1864,6 +2010,8 @@ metrics:
       description: Percentage of the time that the tensor calculation engine was active. Only for Hopper and newer GPUs
     tagsets:
       - device
+    aggregation:
+      type: relative_activity
     support:
       unsupported_architectures:
         - fermi
@@ -1885,6 +2033,8 @@ metrics:
       description: Total energy consumed by the device since the driver was reloaded
     tagsets:
       - device
+    aggregation:
+      type: absolute_usage
     support:
       unsupported_architectures:
         - fermi
