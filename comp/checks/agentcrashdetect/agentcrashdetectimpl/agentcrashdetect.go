@@ -14,19 +14,20 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/fx"
 	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows/registry"
 
-	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -77,6 +78,12 @@ type AgentBSOD struct {
 	AgentVersion string                `json:"agentversion"`
 }
 
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentCrashComponent))
+}
+
 // WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type WinCrashConfig struct {
@@ -97,16 +104,13 @@ type AgentCrashDetect struct {
 type agentCrashComponent struct {
 }
 
-// Requires defines the dependencies for the agentcrashdetect component.
-type Requires struct {
-	Config    compsysconfig.Component
-	Atel      agenttelemetry.Component
-	Lifecycle compdef.Lifecycle
-}
+type dependencies struct {
+	fx.In
 
-// Provides defines the output of the agentcrashdetect component.
-type Provides struct {
-	Comp agentcrashdetect.Component
+	Config compsysconfig.Component
+	Atel   agenttelemetry.Component
+
+	Lifecycle fx.Lifecycle
 }
 
 // Parse parses the check configuration
@@ -232,24 +236,23 @@ func (wcd *AgentCrashDetect) Run() error {
 	return nil
 }
 
-// NewComponent creates a new agentcrashdetect component.
-func NewComponent(reqs Requires) Provides {
+func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance := &agentCrashComponent{}
-	reqs.Lifecycle.Append(compdef.Hook{
+	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(CheckName, option.New(func() check.Check {
 				checkInstance := &AgentCrashDetect{
 					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
-					probeconfig: reqs.Config,
-					atel:        reqs.Atel,
+					probeconfig: deps.Config,
+					atel:        deps.Atel,
 				}
 				return checkInstance
 			}))
 			return nil
 		},
 	})
-	return Provides{Comp: instance}
+	return instance
 }
 
 func formatText(c *probe.WinCrashStatus) string {

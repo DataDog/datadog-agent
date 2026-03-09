@@ -33,10 +33,10 @@ checks:
       # When updating this, update the memory_allotment in the target section to 20% higher
       upper_bound: "220 MiB"
 
-  - name: missed_bytes
+  - name: lost_bytes
     description: "Allowable bytes not polled by log Agent"
     bounds:
-      series: missed_bytes
+      series: lost_bytes
       upper_bound: 0KiB
 
   - name: intake_connections

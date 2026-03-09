@@ -91,7 +91,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                           collectorID,
 			resourceTags:                 make(map[string]resourceTags),
 			seen:                         make(map[workloadmeta.EntityID]struct{}),
-			catalog:                      workloadmeta.NodeAgent,
+			catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			config:                       deps.Config,
 			taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
 			taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),

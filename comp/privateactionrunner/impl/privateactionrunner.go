@@ -35,8 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 // Configuration keys for the private action runner.
@@ -129,7 +127,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
-		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
@@ -303,18 +300,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 
-	runnerNamePrefix := runnerHostname
-	// For cluster agent, use cluster name instead of hostname for better identification
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		clusterName := clustername.GetClusterName(ctx, runnerHostname)
-		if clusterName != "" {
-			runnerNamePrefix = clusterName
-		} else {
-			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
-		}
-	}
-
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}

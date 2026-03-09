@@ -162,5 +162,5 @@ const char *get_version_shared_library(version_function_t *version_ptr, const ch
     }
 
     // retrieve the version of the shared library check and put any errors string in the `error` variable
-    return (version_ptr)();
+    return (version_ptr)(error);
 }

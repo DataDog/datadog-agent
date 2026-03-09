@@ -897,7 +897,6 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if shouldObfuscate {
 				a.obfuscateStatsGroup(b)
 			}
-			b.Resource, _ = a.TruncateResource(b.Resource)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++

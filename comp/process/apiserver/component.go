@@ -4,22 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package apiserver initializes the api server that powers many subcommands.
+// Deprecated: import from comp/process/apiserver/def, comp/process/apiserver/fx,
+// or comp/process/apiserver/mock instead.
 package apiserver
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	apiserverdef "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 )
 
 // team: container-experiences
 
+// Component is the component type.
+// Deprecated: Use comp/process/apiserver/def.Component directly.
+//
 //nolint:revive // TODO(PROC) Fix revive linter
-type Component interface {
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newApiServer))
-}
+type Component = apiserverdef.Component

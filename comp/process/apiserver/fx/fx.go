@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fx provides the fx module for the updater local api component.
+// Package fx provides the fx module for the apiserver component.
 package fx
 
 import (
-	localapiimpl "github.com/DataDog/datadog-agent/comp/updater/localapi/impl"
+	apiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			localapiimpl.NewComponent,
+			apiserverimpl.NewComponent,
 		),
 	)
 }

@@ -455,6 +455,7 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
+	b.Resource, _ = a.TruncateResource(b.Resource)
 }
 
 func isValidStatusCode(sc string) bool {

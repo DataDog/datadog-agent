@@ -32,8 +32,8 @@ checks:
       # The machine has 12GiB free.
       upper_bound: 1.2GiB
 
-  - name: missed_bytes
+  - name: lost_bytes
     description: "Available bytes not polled by log Agent"
     bounds:
-      series: missed_bytes
+      series: lost_bytes
       upper_bound: 0KiB

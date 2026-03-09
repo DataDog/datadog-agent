@@ -164,7 +164,7 @@ func ensureGroup(ctx context.Context, groupName string) (err error) {
 	if err == nil {
 		return nil
 	}
-	var unknownGroupError user.UnknownGroupError
+	var unknownGroupError *user.UnknownGroupError
 	if !errors.As(err, &unknownGroupError) {
 		log.Warnf("error looking up %s group: %v", groupName, err)
 	}
@@ -184,7 +184,7 @@ func ensureUser(ctx context.Context, userName string, installPath string) (err e
 	if err == nil {
 		return nil
 	}
-	var unknownUserError user.UnknownUserError
+	var unknownUserError *user.UnknownUserError
 	if !errors.As(err, &unknownUserError) {
 		log.Warnf("error looking up %s user: %v", userName, err)
 	}

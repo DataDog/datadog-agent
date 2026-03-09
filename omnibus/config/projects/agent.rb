@@ -227,6 +227,11 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
+  # This depends on the agent and must be added after it
+  unless heroku_target? || osx_target?
+    dependency 'datadog-security-agent-policies'
+  end
+
   # this dependency puts few files out of the omnibus install dir and move them
   # in the final destination. This way such files will be listed in the packages
   # manifest and owned by the package manager. This is the only point in the build

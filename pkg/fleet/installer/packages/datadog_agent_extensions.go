@@ -73,14 +73,9 @@ func setRegistryConfig(env *env.Env) {
 		return
 	}
 
-	// Update env with values from config if not already set.
-	// DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE takes precedence over installer.registry.url.
-	if env.RegistryOverride == "" {
-		if agentPackageURL := os.Getenv("DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"); agentPackageURL != "" {
-			env.RegistryOverride = agentPackageURL
-		} else if config.Installer.Registry.URL != "" {
-			env.RegistryOverride = config.Installer.Registry.URL
-		}
+	// Update env with values from config if not already set
+	if config.Installer.Registry.URL != "" && env.RegistryOverride == "" {
+		env.RegistryOverride = config.Installer.Registry.URL
 	}
 	if config.Installer.Registry.Auth != "" && env.RegistryAuthOverride == "" {
 		env.RegistryAuthOverride = config.Installer.Registry.Auth

@@ -54,7 +54,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:             collectorID,
 			seenContainers: make(map[workloadmeta.EntityID]struct{}),
 			seenImages:     make(map[workloadmeta.EntityID]struct{}),
-			catalog:        workloadmeta.NodeAgent,
+			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			sbomFilter:     deps.Filter.GetContainerSBOMFilters(),
 		},
 	}, nil

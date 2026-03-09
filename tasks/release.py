@@ -856,14 +856,9 @@ def create_release_branches(
         with open(".gitlab-ci.yml") as f:
             content = f.read()
         with open(".gitlab-ci.yml", "w") as f:
-            updated_content = content.replace(
-                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
             )
-            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
-            updated_content = updated_content.replace(
-                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
-            )
-            f.write(updated_content)
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")

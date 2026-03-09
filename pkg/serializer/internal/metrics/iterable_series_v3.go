@@ -520,10 +520,9 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 	// without loss of precision
 	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
-		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
-		pointKind = pointKind.unionOf(bSum)
-		pointKind = pointKind.unionOf(bMin)
-		pointKind = pointKind.unionOf(bMax)
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Sum)
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Min)
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Max)
 	}
 	valueType := pointKind.toValueType()
 
@@ -536,36 +535,35 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
-		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
 
 		switch valueType {
 		case valueZero:
 			pb.stats.valuesZero += 3
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(bSum))
-			pb.txn.Sint64(columnValueSint64, int64(bMin))
-			pb.txn.Sint64(columnValueSint64, int64(bMax))
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
 			pb.stats.valuesSint64 += 3
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(bSum))
-			pb.txn.Float32(columnValueFloat32, float32(bMin))
-			pb.txn.Float32(columnValueFloat32, float32(bMax))
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
 			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, bSum)
-			pb.txn.Float64(columnValueFloat64, bMin)
-			pb.txn.Float64(columnValueFloat64, bMax)
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
 			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
-		pb.txn.Sint64(columnValueSint64, bCnt)
+		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
 		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
-		kDelta := deltaEncoder{}
+		deltaEncode(k)
 		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
+			pb.txn.Sint64(columnSketchBinKeys, int64(k[i]))
 			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
 		}
 		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
