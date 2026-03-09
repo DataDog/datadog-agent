@@ -739,6 +739,9 @@ cc_shared_library(
     additional_linker_inputs = [
         "src/libgcrypt.vers",
     ],
+    dynamic_deps = [
+        "@gpg-error//:gpg-error",
+    ],
     user_link_flags = [
         "-Wl,--version-script=$(location src/libgcrypt.vers)",
     ],
