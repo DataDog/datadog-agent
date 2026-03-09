@@ -5,8 +5,12 @@
 
 // Package tagisolation contains e2e tests that verify custom tags assigned to
 // one check instance do not leak into another instance of the same check.
-// This class of bug has occurred in production (e.g. diskv2 tag leaking when
-// BuildID was missing, causing instances to share a sender).
+//
+// This validates the end-to-end pipeline from multi-instance check config
+// through the aggregator and serializer to fakeintake. It uses a custom Python
+// check for simplicity and determinism. Note that Go-specific regressions
+// (e.g. missing BuildID causing shared senders) require a Go check to reproduce
+// and are covered by unit tests in the respective check packages.
 package tagisolation
 
 import (
