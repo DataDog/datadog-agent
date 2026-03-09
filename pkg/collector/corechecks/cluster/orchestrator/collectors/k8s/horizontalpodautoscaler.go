@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -23,9 +24,9 @@ import (
 )
 
 // NewHorizontalPodAutoscalerCollectorVersions builds the group of collector versions.
-func NewHorizontalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
+func NewHorizontalPodAutoscalerCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewHorizontalPodAutoscalerCollector(),
+		NewHorizontalPodAutoscalerCollector(tagger),
 	)
 }
 
@@ -39,7 +40,7 @@ type HorizontalPodAutoscalerCollector struct {
 
 // NewHorizontalPodAutoscalerCollector creates a new collector for the Kubernetes
 // HorizontalPodAutoscaler resource.
-func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
+func NewHorizontalPodAutoscalerCollector(tagger tagger.Component) *HorizontalPodAutoscalerCollector {
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,7 +55,7 @@ func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 			Version:                              utilTypes.HpaVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewHorizontalPodAutoscalerHandlers(tagger)),
 	}
 }
 

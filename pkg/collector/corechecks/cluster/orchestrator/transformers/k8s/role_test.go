@@ -88,7 +88,6 @@ func TestExtractRole(t *testing.T) {
 						Verbs:     []string{"create"},
 					},
 				},
-				Tags: nil,
 			},
 		},
 	}

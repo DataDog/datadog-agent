@@ -106,7 +106,6 @@ func TestExtractJob(t *testing.T) {
 					Active:    1,
 					StartTime: startTime.Unix(),
 				},
-				Tags: nil,
 			},
 		},
 		"job started by cronjob (completed)": {

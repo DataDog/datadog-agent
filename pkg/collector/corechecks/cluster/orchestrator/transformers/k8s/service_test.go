@@ -90,7 +90,6 @@ func TestExtractService(t *testing.T) {
 					Type:            "ClusterIP",
 				},
 				Status: &model.ServiceStatus{},
-				Tags: nil,
 			},
 		},
 		"ExternalName": {

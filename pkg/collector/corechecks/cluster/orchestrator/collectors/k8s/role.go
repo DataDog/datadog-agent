@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewRoleCollectorVersions builds the group of collector versions.
-func NewRoleCollectorVersions() collectors.CollectorVersions {
+func NewRoleCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleCollector(),
+		NewRoleCollector(tagger),
 	)
 }
 
@@ -37,7 +38,7 @@ type RoleCollector struct {
 }
 
 // NewRoleCollector creates a new collector for the Kubernetes Role resource.
-func NewRoleCollector() *RoleCollector {
+func NewRoleCollector(tagger tagger.Component) *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -52,7 +53,7 @@ func NewRoleCollector() *RoleCollector {
 			Version:                              utilTypes.RoleVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewRoleHandlers(tagger)),
 	}
 }
 

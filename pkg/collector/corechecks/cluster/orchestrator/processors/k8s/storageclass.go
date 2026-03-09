@@ -10,6 +10,10 @@ package k8s
 import (
 	storagev1 "k8s.io/api/storage/v1"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
@@ -25,6 +29,33 @@ import (
 // StorageClassHandlers implements the Handlers interface for Kubernetes StorageClass.
 type StorageClassHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewStorageClassHandlers creates a new StorageClassHandlers.
+func NewStorageClassHandlers(tagger tagger.Component) *StorageClassHandlers {
+	return &StorageClassHandlers{tagger: tagger}
+}
+
+// BeforeCacheCheck is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *StorageClassHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*storagev1.StorageClass)
+	m := resourceModel.(*model.StorageClass)
+
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), "", r.Name)),
+	)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for storageclass %s: %s", r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

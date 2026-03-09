@@ -17,6 +17,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestStorageClassCollector(t *testing.T) {
@@ -67,7 +68,7 @@ func TestStorageClassCollector(t *testing.T) {
 		VolumeBindingMode: pointer.Ptr(storagev1.VolumeBindingWaitForFirstConsumer),
 	}
 
-	collector := NewStorageClassCollector()
+	collector := NewStorageClassCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{storageClass},

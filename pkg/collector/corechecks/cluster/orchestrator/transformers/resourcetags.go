@@ -53,10 +53,7 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 
 // RetrieveTeamTag extracts the team tag from labels or annotations when
 // auto_team_tag_collection is enabled. Labels take precedence over annotations.
-func RetrieveTeamTag(
-	labels map[string]string,
-	annotations map[string]string,
-) []string {
+func RetrieveTeamTag(labels map[string]string, annotations map[string]string) []string {
 	if !pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") {
 		return nil
 	}

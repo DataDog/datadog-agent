@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestServiceCollector(t *testing.T) {
@@ -79,7 +80,7 @@ func TestServiceCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewServiceCollector()
+	collector := NewServiceCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{service},

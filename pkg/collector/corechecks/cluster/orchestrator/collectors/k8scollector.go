@@ -71,6 +71,8 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			ClusterID:           rcfg.ClusterID,
 			Kind:                metadata.Kind,
 			APIVersion:          metadata.GroupVersion(),
+			CollectorGroup:      metadata.Group,
+			CollectorName:       metadata.Name,
 			CollectorTags:       metadata.CollectorTags(),
 			TerminatedResources: rcfg.TerminatedResources,
 			AgentVersion:        rcfg.AgentVersion,

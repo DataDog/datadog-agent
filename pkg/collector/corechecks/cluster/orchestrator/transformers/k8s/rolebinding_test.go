@@ -78,7 +78,6 @@ func TestExtractRoleBinding(t *testing.T) {
 						Name:     "firstname.lastname@company.com",
 					},
 				},
-				Tags: nil,
 			},
 		},
 	}

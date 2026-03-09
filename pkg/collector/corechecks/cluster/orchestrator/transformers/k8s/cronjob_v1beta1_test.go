@@ -102,7 +102,6 @@ func TestExtractCronJobV1Beta1(t *testing.T) {
 					},
 					LastScheduleTime: lastScheduleTime.Unix(),
 				},
-				Tags: nil,
 			},
 		},
 		"cronjob with resources": {

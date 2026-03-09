@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -23,9 +24,9 @@ import (
 )
 
 // NewVerticalPodAutoscalerCollectorVersions builds the group of collector versions.
-func NewVerticalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
+func NewVerticalPodAutoscalerCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewVerticalPodAutoscalerCollector(),
+		NewVerticalPodAutoscalerCollector(tagger),
 	)
 }
 
@@ -39,7 +40,7 @@ type VerticalPodAutoscalerCollector struct {
 
 // NewVerticalPodAutoscalerCollector creates a new collector for the Kubernetes
 // VerticalPodAutoscaler resource.
-func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
+func NewVerticalPodAutoscalerCollector(tagger tagger.Component) *VerticalPodAutoscalerCollector {
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,7 +55,7 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 			Version:                              utilTypes.VpaVersion,
 			NodeType:                             orchestrator.K8sVerticalPodAutoscaler,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewVerticalPodAutoscalerHandlers(tagger)),
 	}
 }
 

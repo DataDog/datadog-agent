@@ -13,6 +13,7 @@ import (
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewClusterRoleCollectorVersions builds the group of collector versions.
-func NewClusterRoleCollectorVersions() collectors.CollectorVersions {
+func NewClusterRoleCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewClusterRoleCollector(),
+		NewClusterRoleCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type ClusterRoleCollector struct {
 
 // NewClusterRoleCollector creates a new collector for the Kubernetes
 // ClusterRole resource.
-func NewClusterRoleCollector() *ClusterRoleCollector {
+func NewClusterRoleCollector(tagger tagger.Component) *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewClusterRoleCollector() *ClusterRoleCollector {
 			Version:                              utilTypes.ClusterRoleVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewClusterRoleHandlers(tagger)),
 	}
 }
 

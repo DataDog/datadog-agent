@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestNodeCollector(t *testing.T) {
@@ -84,7 +85,7 @@ func TestNodeCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewNodeCollector()
+	collector := NewNodeCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{node},

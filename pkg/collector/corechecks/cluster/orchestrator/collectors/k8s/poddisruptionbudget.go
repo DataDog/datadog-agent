@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,9 +24,9 @@ import (
 )
 
 // NewPodDisruptionBudgetCollectorVersions builds the group of collector versions.
-func NewPodDisruptionBudgetCollectorVersions() collectors.CollectorVersions {
+func NewPodDisruptionBudgetCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPodDisruptionBudgetCollectorVersion(),
+		NewPodDisruptionBudgetCollectorVersion(tagger),
 	)
 }
 
@@ -39,7 +40,7 @@ type PodDisruptionBudgetCollector struct {
 
 // NewPodDisruptionBudgetCollectorVersion creates a new collector for the Kubernetes Pod Disruption Budget
 // resource.
-func NewPodDisruptionBudgetCollectorVersion() *PodDisruptionBudgetCollector {
+func NewPodDisruptionBudgetCollectorVersion(tagger tagger.Component) *PodDisruptionBudgetCollector {
 	return &PodDisruptionBudgetCollector{
 		informer: nil,
 		lister:   nil,
@@ -56,7 +57,7 @@ func NewPodDisruptionBudgetCollectorVersion() *PodDisruptionBudgetCollector {
 			Version:                              utilTypes.PodDisruptionBudgetVersion,
 			NodeType:                             orchestrator.K8sPodDisruptionBudget,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PodDisruptionBudgetHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPodDisruptionBudgetHandlers(tagger)),
 	}
 }
 

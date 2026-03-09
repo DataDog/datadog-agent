@@ -81,7 +81,6 @@ func TestExtractStorageClass(t *testing.T) {
 			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimDelete),
 			VolumeBindingMode: string(storagev1.VolumeBindingImmediate),
-			Tags: nil,
 		}
 
 		pctx := &processors.K8sProcessorContext{
@@ -166,7 +165,6 @@ func TestExtractStorageClass(t *testing.T) {
 			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimRetain),
 			VolumeBindingMode: string(storagev1.VolumeBindingWaitForFirstConsumer),
-			Tags: nil,
 		}
 
 		pctx := &processors.K8sProcessorContext{

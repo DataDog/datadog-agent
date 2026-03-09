@@ -8,6 +8,10 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
@@ -24,6 +28,33 @@ import (
 // StatefulSetHandlers implements the Handlers interface for Kubernetes StatefulSets.
 type StatefulSetHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewStatefulSetHandlers creates a new StatefulSetHandlers.
+func NewStatefulSetHandlers(tagger tagger.Component) *StatefulSetHandlers {
+	return &StatefulSetHandlers{tagger: tagger}
+}
+
+// BeforeCacheCheck is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *StatefulSetHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*appsv1.StatefulSet)
+	m := resourceModel.(*model.StatefulSet)
+
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), r.Namespace, r.Name)),
+	)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for statefulset %s/%s: %s", r.Namespace, r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

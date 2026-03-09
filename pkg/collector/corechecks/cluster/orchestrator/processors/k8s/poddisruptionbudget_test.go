@@ -20,13 +20,38 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestPodDisruptionBudgetHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.PodDisruptionBudget{}
+	resource := &policyv1.PodDisruptionBudget{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pdb",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("policy", "poddisruptionbudgets")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewPodDisruptionBudgetHandlers(tagger)
+
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestPodDisruptionBudgetHandlers_ExtractResource(t *testing.T) {
 	handlers := &PodDisruptionBudgetHandlers{}
@@ -294,7 +319,7 @@ func TestPodDisruptionBudgetProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process pod disruption budgets
-	processor := processors.NewProcessor(&PodDisruptionBudgetHandlers{})
+	processor := processors.NewProcessor(&PodDisruptionBudgetHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*policyv1.PodDisruptionBudget{pdb1, pdb2})
 
 	assert.Equal(t, 2, listed)

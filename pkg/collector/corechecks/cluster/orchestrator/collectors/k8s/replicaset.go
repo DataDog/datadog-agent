@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewReplicaSetCollectorVersions builds the group of collector versions.
-func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
+func NewReplicaSetCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewReplicaSetCollector(),
+		NewReplicaSetCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type ReplicaSetCollector struct {
 
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
-func NewReplicaSetCollector() *ReplicaSetCollector {
+func NewReplicaSetCollector(tagger tagger.Component) *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewReplicaSetCollector() *ReplicaSetCollector {
 			Version:                              utilTypes.ReplicaSetVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewReplicaSetHandlers(tagger)),
 	}
 }
 

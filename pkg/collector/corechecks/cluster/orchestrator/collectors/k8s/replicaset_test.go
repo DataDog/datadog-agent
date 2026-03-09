@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestReplicaSetCollector(t *testing.T) {
@@ -70,7 +71,7 @@ func TestReplicaSetCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewReplicaSetCollector()
+	collector := NewReplicaSetCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{replicaSet},

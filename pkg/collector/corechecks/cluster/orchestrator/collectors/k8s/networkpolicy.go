@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,9 +24,9 @@ import (
 )
 
 // NewNetworkPolicyCollectorVersions builds the group of collector versions.
-func NewNetworkPolicyCollectorVersions() collectors.CollectorVersions {
+func NewNetworkPolicyCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNetworkPolicyCollector(),
+		NewNetworkPolicyCollector(tagger),
 	)
 }
 
@@ -39,7 +40,7 @@ type NetworkPolicyCollector struct {
 
 // NewNetworkPolicyCollector creates a new collector for the Kubernetes
 // NetworkPolicy resource.
-func NewNetworkPolicyCollector() *NetworkPolicyCollector {
+func NewNetworkPolicyCollector(tagger tagger.Component) *NetworkPolicyCollector {
 	return &NetworkPolicyCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,7 +55,7 @@ func NewNetworkPolicyCollector() *NetworkPolicyCollector {
 			Version:                              utilTypes.NetworkPolicyVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NetworkPolicyHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewNetworkPolicyHandlers(tagger)),
 	}
 }
 

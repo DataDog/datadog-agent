@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewStorageClassCollectorVersions builds the group of collector versions.
-func NewStorageClassCollectorVersions() collectors.CollectorVersions {
+func NewStorageClassCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewStorageClassCollector(),
+		NewStorageClassCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type StorageClassCollector struct {
 
 // NewStorageClassCollector creates a new collector for the Kubernetes
 // StorageClass resource.
-func NewStorageClassCollector() *StorageClassCollector {
+func NewStorageClassCollector(tagger tagger.Component) *StorageClassCollector {
 	return &StorageClassCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewStorageClassCollector() *StorageClassCollector {
 			Version:                              utilTypes.StorageClassVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.StorageClassHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewStorageClassHandlers(tagger)),
 	}
 }
 

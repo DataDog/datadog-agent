@@ -17,6 +17,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestIngressCollector(t *testing.T) {
@@ -78,7 +79,7 @@ func TestIngressCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewIngressCollector()
+	collector := NewIngressCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{ingress},

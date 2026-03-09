@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestStatefulSetCollector(t *testing.T) {
@@ -77,7 +78,7 @@ func TestStatefulSetCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewStatefulSetCollector()
+	collector := NewStatefulSetCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{statefulSet},

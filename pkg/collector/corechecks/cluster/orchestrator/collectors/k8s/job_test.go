@@ -18,6 +18,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestJobCollector(t *testing.T) {
@@ -63,7 +64,7 @@ func TestJobCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewJobCollector()
+	collector := NewJobCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{job},

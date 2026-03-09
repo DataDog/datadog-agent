@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestDeploymentCollector(t *testing.T) {
@@ -80,7 +81,7 @@ func TestDeploymentCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewDeploymentCollector()
+	collector := NewDeploymentCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{deployment},

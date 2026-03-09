@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestNetworkPolicyCollector(t *testing.T) {
@@ -56,7 +57,7 @@ func TestNetworkPolicyCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewNetworkPolicyCollector()
+	collector := NewNetworkPolicyCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{networkPolicy},

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestHorizontalPodAutoscalerCollector(t *testing.T) {
@@ -254,7 +255,7 @@ func TestHorizontalPodAutoscalerCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewHorizontalPodAutoscalerCollector()
+	collector := NewHorizontalPodAutoscalerCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{horizontalPodAutoscaler},

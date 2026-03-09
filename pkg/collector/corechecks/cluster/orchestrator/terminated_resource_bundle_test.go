@@ -41,7 +41,7 @@ func TestToTypedSlice(t *testing.T) {
 				return toInterface(rs)
 			},
 			setupCollector: func(t *testing.T) collectors.K8sCollector {
-				return k8s.NewReplicaSetCollector()
+				return k8s.NewReplicaSetCollector(nil)
 			},
 			expectedType: func(result interface{}) bool {
 				_, ok := result.([]*appsv1.ReplicaSet)

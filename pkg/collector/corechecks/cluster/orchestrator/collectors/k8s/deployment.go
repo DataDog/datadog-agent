@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewDeploymentCollectorVersions builds the group of collector versions.
-func NewDeploymentCollectorVersions() collectors.CollectorVersions {
+func NewDeploymentCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDeploymentCollector(),
+		NewDeploymentCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type DeploymentCollector struct {
 
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
-func NewDeploymentCollector() *DeploymentCollector {
+func NewDeploymentCollector(tagger tagger.Component) *DeploymentCollector {
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewDeploymentCollector() *DeploymentCollector {
 			Version:                              utilTypes.DeploymentVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewDeploymentHandlers(tagger)),
 	}
 }
 

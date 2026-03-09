@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewRoleBindingCollectorVersions builds the group of collector versions.
-func NewRoleBindingCollectorVersions() collectors.CollectorVersions {
+func NewRoleBindingCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleBindingCollector(),
+		NewRoleBindingCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type RoleBindingCollector struct {
 
 // NewRoleBindingCollector creates a new collector for the Kubernetes
 // RoleBinding resource.
-func NewRoleBindingCollector() *RoleBindingCollector {
+func NewRoleBindingCollector(tagger tagger.Component) *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewRoleBindingCollector() *RoleBindingCollector {
 			Version:                              utilTypes.RoleBindingVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewRoleBindingHandlers(tagger)),
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestCronJobV1Collector(t *testing.T) {
@@ -64,7 +65,7 @@ func TestCronJobV1Collector(t *testing.T) {
 		},
 	}
 
-	collector := NewCronJobV1Collector()
+	collector := NewCronJobV1Collector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{cronJob},

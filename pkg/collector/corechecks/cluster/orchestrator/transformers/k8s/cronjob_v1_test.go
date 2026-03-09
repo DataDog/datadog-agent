@@ -104,7 +104,6 @@ func TestExtractCronJobV1(t *testing.T) {
 					LastScheduleTime:   lastScheduleTime.Unix(),
 					LastSuccessfulTime: lastSuccessfulTime.Unix(),
 				},
-				Tags: nil,
 			},
 		},
 	}

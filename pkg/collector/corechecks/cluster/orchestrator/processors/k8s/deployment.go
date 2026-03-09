@@ -8,6 +8,9 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
@@ -24,6 +27,30 @@ import (
 // DeploymentHandlers implements the Handlers interface for Kubernetes Deployments.
 type DeploymentHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewDeploymentHandlers creates a new DeploymentHandlers.
+func NewDeploymentHandlers(tagger tagger.Component) *DeploymentHandlers {
+	return &DeploymentHandlers{tagger: tagger}
+}
+
+// BeforeCacheCheck is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *DeploymentHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*appsv1.Deployment)
+	m := resourceModel.(*model.Deployment)
+
+	entityID := taggertypes.NewEntityID(taggertypes.KubernetesDeployment, r.Namespace+"/"+r.Name)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for deployment %s/%s: %s", r.Namespace, r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

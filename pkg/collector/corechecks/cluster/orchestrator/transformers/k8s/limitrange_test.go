@@ -89,7 +89,6 @@ func TestExtractResourceLimit(t *testing.T) {
 				},
 			},
 		},
-		Tags: nil,
 	}
 	pctx := &processors.K8sProcessorContext{
 	}

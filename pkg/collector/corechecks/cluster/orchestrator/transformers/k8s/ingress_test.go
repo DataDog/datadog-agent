@@ -126,7 +126,6 @@ func TestExtractIngress(t *testing.T) {
 						{Hostname: "foo.us-east-1.elb.amazonaws.com"},
 					},
 				},
-				Tags: nil,
 			},
 		},
 	}

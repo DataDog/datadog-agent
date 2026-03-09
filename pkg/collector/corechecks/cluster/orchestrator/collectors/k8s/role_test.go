@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestRoleCollector(t *testing.T) {
@@ -54,7 +55,7 @@ func TestRoleCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewRoleCollector()
+	collector := NewRoleCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{role},

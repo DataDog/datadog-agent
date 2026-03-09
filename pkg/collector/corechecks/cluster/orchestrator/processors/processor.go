@@ -40,6 +40,8 @@ type ProcessorContext interface {
 	GetKind() string
 	GetAPIVersion() string
 	IsTerminatedResources() bool
+	GetCollectorGroup() string
+	GetCollectorName() string
 	GetCollectorTags() []string
 	GetAgentVersion() *model.AgentVersion
 	GetClock() clock.Clock
@@ -54,6 +56,8 @@ type BaseProcessorContext struct {
 	ManifestProducer    bool
 	Kind                string
 	APIVersion          string
+	CollectorGroup      string
+	CollectorName       string
 	CollectorTags       []string
 	TerminatedResources bool
 	AgentVersion        *model.AgentVersion
@@ -93,6 +97,16 @@ func (c *BaseProcessorContext) GetKind() string {
 // GetAPIVersion returns the version
 func (c *BaseProcessorContext) GetAPIVersion() string {
 	return c.APIVersion
+}
+
+// GetCollectorGroup returns the collector group
+func (c *BaseProcessorContext) GetCollectorGroup() string {
+	return c.CollectorGroup
+}
+
+// GetCollectorName returns the collector name
+func (c *BaseProcessorContext) GetCollectorName() string {
+	return c.CollectorName
 }
 
 // GetCollectorTags returns the CollectorTags

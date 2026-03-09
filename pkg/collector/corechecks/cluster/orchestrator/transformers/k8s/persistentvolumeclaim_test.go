@@ -116,7 +116,6 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 						Reason: "OfflineResize",
 					}},
 				},
-				Tags: nil,
 			},
 		},
 	}

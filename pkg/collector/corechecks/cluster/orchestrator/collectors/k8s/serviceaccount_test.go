@@ -17,6 +17,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestServiceAccountCollector(t *testing.T) {
@@ -49,7 +50,7 @@ func TestServiceAccountCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewServiceAccountCollector()
+	collector := NewServiceAccountCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{serviceAccount},

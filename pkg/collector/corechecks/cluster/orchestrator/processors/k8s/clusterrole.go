@@ -8,6 +8,10 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -23,6 +27,33 @@ import (
 // ClusterRoleHandlers implements the Handlers interface for Kubernetes ClusterRoles.
 type ClusterRoleHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewClusterRoleHandlers creates a new ClusterRoleHandlers.
+func NewClusterRoleHandlers(tagger tagger.Component) *ClusterRoleHandlers {
+	return &ClusterRoleHandlers{tagger: tagger}
+}
+
+// BeforeCacheCheck is a handler called before cache lookup.
+//
+//nolint:revive
+func (h *ClusterRoleHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*rbacv1.ClusterRole)
+	m := resourceModel.(*model.ClusterRole)
+
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), "", r.Name)),
+	)
+	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for clusterrole %s: %s", r.Name, err)
+		return
+	}
+
+	m.Tags = append(m.Tags, taggerTags...)
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.

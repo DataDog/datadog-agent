@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewServiceAccountCollectorVersions builds the group of collector versions.
-func NewServiceAccountCollectorVersions() collectors.CollectorVersions {
+func NewServiceAccountCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewServiceAccountCollector(),
+		NewServiceAccountCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type ServiceAccountCollector struct {
 
 // NewServiceAccountCollector creates a new collector for the Kubernetes
 // ServiceAccount resource.
-func NewServiceAccountCollector() *ServiceAccountCollector {
+func NewServiceAccountCollector(tagger tagger.Component) *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewServiceAccountCollector() *ServiceAccountCollector {
 			Version:                              utilTypes.ServiceAccountVersion,
 			NodeType:                             orchestrator.K8sServiceAccount,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewServiceAccountHandlers(tagger)),
 	}
 }
 

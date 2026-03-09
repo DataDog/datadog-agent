@@ -77,7 +77,6 @@ func TestExtractServiceAccount(t *testing.T) {
 						Name: "default-token-uudge",
 					},
 				},
-				Tags: nil,
 			},
 		},
 		"missing service account token automount": {
@@ -127,7 +126,6 @@ func TestExtractServiceAccount(t *testing.T) {
 						Name: "default-token-uudge",
 					},
 				},
-				Tags: nil,
 			},
 		},
 	}

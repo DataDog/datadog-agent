@@ -18,6 +18,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestPersistentVolumeClaimCollector(t *testing.T) {
@@ -71,7 +72,7 @@ func TestPersistentVolumeClaimCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewPersistentVolumeClaimCollector()
+	collector := NewPersistentVolumeClaimCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{persistentVolumeClaim},

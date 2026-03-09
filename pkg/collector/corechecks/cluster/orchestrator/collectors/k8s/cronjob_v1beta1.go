@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -30,7 +31,7 @@ type CronJobV1Beta1Collector struct {
 }
 
 // NewCronJobV1Beta1Collector creates a new collector for the Kubernetes Job resource.
-func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
+func NewCronJobV1Beta1Collector(tagger tagger.Component) *CronJobV1Beta1Collector {
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
 			IsStable:                             true,
@@ -44,7 +45,7 @@ func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
 			Version:                              utilTypes.CronJobVersionV1Beta1,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewCronJobV1Beta1Handlers(tagger)),
 	}
 }
 

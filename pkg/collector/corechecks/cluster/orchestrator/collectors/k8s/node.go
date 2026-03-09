@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewNodeCollectorVersions builds the group of collector versions.
-func NewNodeCollectorVersions() collectors.CollectorVersions {
+func NewNodeCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNodeCollector(),
+		NewNodeCollector(tagger),
 	)
 }
 
@@ -37,7 +38,7 @@ type NodeCollector struct {
 }
 
 // NewNodeCollector creates a new collector for the Kubernetes Node resource.
-func NewNodeCollector() *NodeCollector {
+func NewNodeCollector(tagger tagger.Component) *NodeCollector {
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -52,7 +53,7 @@ func NewNodeCollector() *NodeCollector {
 			Version:                              utilTypes.NodeVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewNodeHandlers(tagger)),
 	}
 }
 

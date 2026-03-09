@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewNamespaceCollectorVersions builds the group of collector versions.
-func NewNamespaceCollectorVersions() collectors.CollectorVersions {
+func NewNamespaceCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNamespaceCollector(),
+		NewNamespaceCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type NamespaceCollector struct {
 
 // NewNamespaceCollector creates a new collector for the Kubernetes
 // Namespace resource.
-func NewNamespaceCollector() *NamespaceCollector {
+func NewNamespaceCollector(tagger tagger.Component) *NamespaceCollector {
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewNamespaceCollector() *NamespaceCollector {
 			Version:                              utilTypes.NamespaceVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewNamespaceHandlers(tagger)),
 	}
 }
 

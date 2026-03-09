@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewPersistentVolumeCollectorVersions builds the group of collector versions.
-func NewPersistentVolumeCollectorVersions() collectors.CollectorVersions {
+func NewPersistentVolumeCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPersistentVolumeCollector(),
+		NewPersistentVolumeCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type PersistentVolumeCollector struct {
 
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
 // PersistentVolume resource.
-func NewPersistentVolumeCollector() *PersistentVolumeCollector {
+func NewPersistentVolumeCollector(tagger tagger.Component) *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 			Version:                              utilTypes.PersistentVolumeVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPersistentVolumeHandlers(tagger)),
 	}
 }
 

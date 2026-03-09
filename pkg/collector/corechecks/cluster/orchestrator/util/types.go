@@ -186,10 +186,6 @@ const (
 
 	// TerminatedPodName is the resource name for Kubernetes Pods that have been terminated
 	TerminatedPodName = "terminated-pods"
-	// TerminatedPodGroup is the API group for terminated Pod resources (same as [PodGroup])
-	TerminatedPodGroup = PodGroup
-	// TerminatedPodVersion is the API version for terminated Pod resources (same as [PodVersion])
-	TerminatedPodVersion = PodVersion
 
 	// VpaName is the resource name for Kubernetes VerticalPodAutoscalers
 	VpaName = "verticalpodautoscalers"

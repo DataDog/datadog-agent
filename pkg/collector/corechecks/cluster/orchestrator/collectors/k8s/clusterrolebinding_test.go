@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestClusterRoleBindingCollector(t *testing.T) {
@@ -48,7 +49,7 @@ func TestClusterRoleBindingCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewClusterRoleBindingCollector()
+	collector := NewClusterRoleBindingCollector(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{clusterRoleBinding},

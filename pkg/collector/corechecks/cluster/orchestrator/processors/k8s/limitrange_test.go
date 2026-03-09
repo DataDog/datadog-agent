@@ -20,13 +20,38 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+func TestLimitRangeHandlers_BeforeCacheCheck(t *testing.T) {
+	resourceModel := &model.LimitRange{}
+	resource := &corev1.LimitRange{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-limitrange",
+			Namespace: "test-ns",
+		},
+	}
+
+	ctx := processorstest.NewProcessorContextBeforeCacheCheck("", "limitranges")
+	entityID := taggertypes.NewEntityID(
+		taggertypes.KubernetesMetadata,
+		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), resource.Namespace, resource.Name)),
+	)
+	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
+	handlers := NewLimitRangeHandlers(tagger)
+
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
+	assert.False(t, skip)
+	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
+}
 
 func TestLimitRangeHandlers_ExtractResource(t *testing.T) {
 	handlers := &LimitRangeHandlers{}
@@ -298,7 +323,7 @@ func TestLimitRangeProcessor_Process(t *testing.T) {
 	}
 
 	// Create processor and process limit ranges
-	processor := processors.NewProcessor(&LimitRangeHandlers{})
+	processor := processors.NewProcessor(&LimitRangeHandlers{tagger: processorstest.NewEmptyFakeTagger()})
 	result, listed, processed := processor.Process(ctx, []*corev1.LimitRange{limitRange1, limitRange2})
 
 	assert.Equal(t, 2, listed)

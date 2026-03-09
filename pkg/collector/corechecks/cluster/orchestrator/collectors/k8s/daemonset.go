@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewDaemonSetCollectorVersions builds the group of collector versions.
-func NewDaemonSetCollectorVersions() collectors.CollectorVersions {
+func NewDaemonSetCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDaemonSetCollector(),
+		NewDaemonSetCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type DaemonSetCollector struct {
 
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
 // resource.
-func NewDaemonSetCollector() *DaemonSetCollector {
+func NewDaemonSetCollector(tagger tagger.Component) *DaemonSetCollector {
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewDaemonSetCollector() *DaemonSetCollector {
 			Version:                              utilTypes.DaemonSetVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewDaemonSetHandlers(tagger)),
 	}
 }
 

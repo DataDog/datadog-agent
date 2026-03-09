@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewLimitRangeCollectorVersions builds the group of collector versions.
-func NewLimitRangeCollectorVersions() collectors.CollectorVersions {
+func NewLimitRangeCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewLimitRangeCollector(),
+		NewLimitRangeCollector(tagger),
 	)
 }
 
@@ -38,7 +39,7 @@ type LimitRangeCollector struct {
 
 // NewLimitRangeCollector creates a new collector for the Kubernetes
 // LimitRange resource.
-func NewLimitRangeCollector() *LimitRangeCollector {
+func NewLimitRangeCollector(tagger tagger.Component) *LimitRangeCollector {
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,7 +54,7 @@ func NewLimitRangeCollector() *LimitRangeCollector {
 			Version:                              utilTypes.LimitRangeVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.LimitRangeHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewLimitRangeHandlers(tagger)),
 	}
 }
 

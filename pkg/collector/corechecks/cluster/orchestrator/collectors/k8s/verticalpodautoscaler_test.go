@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestVerticalPodAutoscalerCollector(t *testing.T) {
@@ -144,7 +145,7 @@ func TestVerticalPodAutoscalerCollector(t *testing.T) {
 		MsgGroupRef: atomic.NewInt32(0),
 	}
 
-	collector := NewVerticalPodAutoscalerCollector()
+	collector := NewVerticalPodAutoscalerCollector(processorstest.NewEmptyFakeTagger())
 
 	collector.Init(runCfg)
 

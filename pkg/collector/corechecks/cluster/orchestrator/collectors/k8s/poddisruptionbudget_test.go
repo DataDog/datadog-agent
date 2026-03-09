@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processorstest"
 )
 
 func TestPodDisruptionBudgetCollector(t *testing.T) {
@@ -70,7 +71,7 @@ func TestPodDisruptionBudgetCollector(t *testing.T) {
 		},
 	}
 
-	collector := NewPodDisruptionBudgetCollectorVersion()
+	collector := NewPodDisruptionBudgetCollectorVersion(processorstest.NewEmptyFakeTagger())
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{podDisruptionBudget},
