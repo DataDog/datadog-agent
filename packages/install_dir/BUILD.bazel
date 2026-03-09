@@ -33,8 +33,8 @@ filegroup(
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
             "//deps/nfsiostat:all_files",
-            "//deps/openscap:all_deps",
             "@freetds//:all_files",
+            "@openscap//:all_deps",
         ],
         "//conditions:default": [
             # This will become "//deps/openscap:all_deps" in the future

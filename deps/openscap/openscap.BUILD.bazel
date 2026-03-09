@@ -694,7 +694,7 @@ pkg_filegroup(
 
 # Temporary rule until we start using it directly in the bazel packaging rules
 collect_dd_auto_pkg_artifacts(
-    name = "all_openscap_deps",
+    name = "all_deps",
     srcs = [
         "@openscap//:openscap_sce_pkg",
         "@openscap//:oscap_io_pkg",
@@ -709,7 +709,7 @@ collect_dd_auto_pkg_artifacts(
 pkg_install(
     name = "install",
     srcs = [
+        ":all_deps",
         ":all_files",
-        ":all_openscap_deps",
     ],
 )
