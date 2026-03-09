@@ -329,16 +329,16 @@ func TestHistogramBucketMismatch(t *testing.T) {
 		defer lc.Stop(context.Background())
 		component := provides.Comp
 
-		// This histogram has the same name as the internal RAR metric "remote_agent.registry_action_duration_seconds"
+		// This histogram has the same name as the internal RAR metric "remote_agent_registry_action_duration_seconds"
 		// but with completely different bucket boundaries (1, 10, +Inf vs prometheus.DefBuckets)
 		promText := `
-# HELP remote_agent.registry_action_duration_seconds Conflicting histogram - same name as internal metric
-# TYPE remote_agent.registry_action_duration_seconds histogram
-remote_agent.registry_action_duration_seconds_bucket{le="1"} 5
-remote_agent.registry_action_duration_seconds_bucket{le="10"} 15
-remote_agent.registry_action_duration_seconds_bucket{le="+Inf"} 20
-remote_agent.registry_action_duration_seconds_sum 50.0
-remote_agent.registry_action_duration_seconds_count 20
+# HELP remote_agent_registry_action_duration_seconds Conflicting histogram - same name as internal metric
+# TYPE remote_agent_registry_action_duration_seconds histogram
+remote_agent_registry_action_duration_seconds_bucket{le="1"} 5
+remote_agent_registry_action_duration_seconds_bucket{le="10"} 15
+remote_agent_registry_action_duration_seconds_bucket{le="+Inf"} 20
+remote_agent_registry_action_duration_seconds_sum 50.0
+remote_agent_registry_action_duration_seconds_count 20
 `
 
 		_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
@@ -350,10 +350,10 @@ remote_agent.registry_action_duration_seconds_count 20
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
-		// Find all metrics with the name "remote_agent.registry_action_duration_seconds"
+		// Find all metrics with the name "remote_agent_registry_action_duration_seconds"
 		var foundRemoteAgentHistogram bool
 		for _, mf := range metrics {
-			if mf.GetName() == "remote_agent.registry_action_duration_seconds" {
+			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
 					// Check if this metric has the remote_agent label (from the remote agent)
 					for _, label := range m.GetLabel() {
@@ -445,13 +445,13 @@ my_shared_histogram_count 300
 		// This histogram tries to use the same labels ("name", "action") as the internal metric
 		// but the remote_agent label will still be injected, making them distinct
 		promText := `
-# HELP remote_agent.registry_action_duration_seconds Histogram trying to match internal labels
-# TYPE remote_agent.registry_action_duration_seconds histogram
-remote_agent.registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="0.5"} 10
-remote_agent.registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="2.0"} 25
-remote_agent.registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="+Inf"} 30
-remote_agent.registry_action_duration_seconds_sum{name="fake-agent",action="query"} 12.5
-remote_agent.registry_action_duration_seconds_count{name="fake-agent",action="query"} 30
+# HELP remote_agent_registry_action_duration_seconds Histogram trying to match internal labels
+# TYPE remote_agent_registry_action_duration_seconds histogram
+remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="0.5"} 10
+remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="2.0"} 25
+remote_agent_registry_action_duration_seconds_bucket{name="fake-agent",action="query",le="+Inf"} 30
+remote_agent_registry_action_duration_seconds_sum{name="fake-agent",action="query"} 12.5
+remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="query"} 30
 `
 
 		_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "sneaky-agent", "Sneaky Agent", "999",
@@ -464,7 +464,7 @@ remote_agent.registry_action_duration_seconds_count{name="fake-agent",action="qu
 
 		var foundSneakyHistogram bool
 		for _, mf := range metrics {
-			if mf.GetName() == "remote_agent.registry_action_duration_seconds" {
+			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
 					labels := m.GetLabel()
 					// Check for remote_agent label being present and find it among all labels

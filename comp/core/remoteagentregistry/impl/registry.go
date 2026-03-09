@@ -106,7 +106,7 @@ type telemetryStore struct {
 }
 
 const (
-	internalTelemetryNamespace = "remote_agent.registry"
+	internalTelemetryNamespace = "remote_agent_registry"
 	sessionIDMismatch          = "SESSION_ID_MISMATCH"
 )
 
