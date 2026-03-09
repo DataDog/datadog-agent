@@ -31,7 +31,7 @@ import (
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
@@ -91,7 +91,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		}),
 		logtracefx.Module(),
 		autoexitfx.Module(),
-		statsd.Module(),
+		statsdFx.Module(),
 		optionalRemoteTaggerfx.Module(
 			tagger.OptionalRemoteParams{
 				// We disable the remote tagger *only* if we detect that the
