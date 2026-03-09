@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
