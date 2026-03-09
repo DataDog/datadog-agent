@@ -12,6 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// AutoLogsAgentProfile enables runtime auto-tuning via the logs Watchdog.
+	// It is handled by the logs agent and intentionally does not map to a static profile override.
+	AutoLogsAgentProfile = "auto"
+)
+
 // logsAgentProfile holds optional overrides for logs agent tuning settings.
 // A nil pointer field means "no override; use the system default."
 type logsAgentProfile struct {
@@ -72,12 +78,20 @@ func getActiveProfile(cfg pkgconfigmodel.Reader) *logsAgentProfile {
 	if name == "" {
 		return nil
 	}
+	if name == AutoLogsAgentProfile {
+		return nil
+	}
 	p, ok := profiles[name]
 	if !ok {
-		log.Warnf("Unknown logs_agent_profile %q; ignoring. Valid values: balanced, wan_optimized, max_throughput, low_resource, bandwidth_saver, performance", name)
+		log.Warnf("Unknown logs_agent_profile %q; ignoring. Valid values: auto, balanced, wan_optimized, max_throughput, low_resource, bandwidth_saver, performance", name)
 		return nil
 	}
 	return p
+}
+
+// IsAutoProfileEnabled returns whether runtime auto-tuning is enabled.
+func IsAutoProfileEnabled(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetString("logs_config.logs_agent_profile") == AutoLogsAgentProfile
 }
 
 // PipelinesCount returns the number of log processing pipelines to use.

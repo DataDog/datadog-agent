@@ -65,6 +65,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	}
 	if s.IsRunning {
 		s.PipelineHealth = metrics.SaturationInfoProvider{}.Info()
+		s.AutoProfile = metrics.AutoProfileInfoProvider{}.Info()
 	}
 	return s
 }

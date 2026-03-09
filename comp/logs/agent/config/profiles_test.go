@@ -78,6 +78,25 @@ func TestUnknownProfile_FallsThrough(t *testing.T) {
 	assert.Equal(t, cfg.GetInt("logs_config.payload_channel_size"), PayloadChannelSize(cfg))
 }
 
+// auto is a runtime mode and should not apply static profile overrides.
+func TestAutoProfile_FallsThrough(t *testing.T) {
+	cfg := newMockCfg(t)
+	cfg.SetWithoutSource("logs_config.logs_agent_profile", AutoLogsAgentProfile)
+
+	assert.True(t, IsAutoProfileEnabled(cfg))
+	assert.Equal(t, cfg.GetInt("logs_config.pipelines"), PipelinesCount(cfg))
+	assert.Equal(t, cfg.GetInt("logs_config.message_channel_size"), MessageChannelSize(cfg))
+	assert.Equal(t, cfg.GetInt("logs_config.payload_channel_size"), PayloadChannelSize(cfg))
+}
+
+func TestIsAutoProfileEnabled(t *testing.T) {
+	cfg := newMockCfg(t)
+	assert.False(t, IsAutoProfileEnabled(cfg))
+
+	cfg.SetWithoutSource("logs_config.logs_agent_profile", AutoLogsAgentProfile)
+	assert.True(t, IsAutoProfileEnabled(cfg))
+}
+
 // 7. bandwidth_saver → gzip kind, level 9.
 func TestBandwidthSaver_CompressionKindAndLevel(t *testing.T) {
 	cfg := newMockCfg(t)

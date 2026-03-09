@@ -107,6 +107,15 @@ var (
 	// Tagged with the current and suggested profile names.
 	TlmProfileRecommendationActive = telemetry.NewGauge("logs", "profile_recommendation_active", []string{"current_profile", "suggested_profile"}, "1 when a profile change is recommended based on observed pipeline bottlenecks")
 
+	// TlmAutoProfileEnabled is 1 when logs auto profile mode is enabled, 0 otherwise.
+	TlmAutoProfileEnabled = telemetry.NewGauge("logs", "auto_profile_enabled", nil, "1 when logs auto profile mode is enabled, 0 otherwise")
+	// TlmAutoProfileDecision tracks Watchdog decisions by action and reason.
+	TlmAutoProfileDecision = telemetry.NewCounter("logs", "auto_profile_decision", []string{"action", "reason"}, "Count of logs auto profile Watchdog decisions")
+	// TlmAutoProfileApply tracks Watchdog apply attempts by status and reason.
+	TlmAutoProfileApply = telemetry.NewCounter("logs", "auto_profile_apply", []string{"status", "reason"}, "Count of logs auto profile Watchdog apply attempts")
+	// TlmAutoProfileSkipped tracks Watchdog evaluations skipped due to guardrails or no-op.
+	TlmAutoProfileSkipped = telemetry.NewCounter("logs", "auto_profile_skipped", []string{"reason"}, "Count of logs auto profile Watchdog skipped evaluations")
+
 	// TlmDestNumWorkers is the number of destination workers in use.
 	TlmDestNumWorkers = telemetry.NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
 	// TlmDestVirtualLatency is a moving average of the destination's latency.
