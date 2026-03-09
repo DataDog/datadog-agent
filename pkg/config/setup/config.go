@@ -1481,6 +1481,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"ntp",
 		"process",
 		"service_discovery",
+		"snmp",
+		"cisco-sdwan",
+		"versa",
+		"cisco-aci",
 		"system",
 		"system_core",
 		"system_swap",
@@ -1491,6 +1495,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"windows_service",
 	})
 	// integration.basic.excluded: checks to exclude (user configured)
 	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
@@ -1530,6 +1535,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
+	// Logon Duration (EUDM)
+	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
@@ -2208,6 +2216,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
+	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", false)    // Not exposed yet
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
@@ -2910,7 +2919,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
 		return nil
 	}
 
@@ -3024,7 +3033,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
 	return nil
 }
 

@@ -8,10 +8,9 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
-
-	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -73,7 +72,7 @@ func GetKubeletConnectionInfo(payload **C.char) {
 			return
 		}
 
-		data, err := yaml.Marshal(connections)
+		data, err := json.Marshal(connections)
 		if err != nil {
 			log.Errorf("could not serialized kubelet connections (%s): %s", connections, err)
 			return

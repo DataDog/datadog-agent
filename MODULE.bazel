@@ -88,11 +88,12 @@ http_archive(
         "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
         "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
     ],
-    sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
-    strip_prefix = "buildtools-8.2.1",
+    sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
+    strip_prefix = "buildtools-8.5.1",
+    type = "tar.gz",
     urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/buildtools-8.2.1.tar.gz",
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz",
+        "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
+        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
     ],
 )
 
@@ -266,6 +267,9 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/secret_connector:secret_connector.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")

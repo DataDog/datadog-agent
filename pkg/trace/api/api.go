@@ -142,7 +142,8 @@ func NewHTTPReceiver(
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *HTTPReceiver {
+	timing timing.Reporter,
+) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -283,6 +284,10 @@ func (r *HTTPReceiver) Start() {
 		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:     r.buildMux(),
 		ConnContext: connContext,
+	}
+
+	if r.conf.ReceiverIdleTimeout > r.server.ReadTimeout {
+		r.server.IdleTimeout = r.conf.ReceiverIdleTimeout
 	}
 
 	if r.conf.ReceiverPort > 0 {
