@@ -109,8 +109,15 @@ func (r *parquetMetricReader) EndTime() int64 {
 // minParquetFileSize is the minimum valid size for a parquet file
 const minParquetFileSize = 20
 
+// observerResultsPrefix is the filename prefix shared by all observer result artifacts
+// (virtual/telemetry metrics, telemetry logs, correlations). Files with this prefix are
+// written by EnableResultsSaving and must never be read back as scenario inputs.
+const observerResultsPrefix = "observer-results"
+
 // findParquetFiles recursively finds all .parquet files in a directory,
-// skipping files that are too small to be valid parquet files.
+// skipping files that are too small to be valid parquet files and skipping
+// observer result artifacts (observer-results*.parquet) so they are never
+// ingested as detector inputs on subsequent runs.
 func findParquetFiles(dirPath string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -118,6 +125,11 @@ func findParquetFiles(dirPath string) ([]string, error) {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(path, ".parquet") {
+			baseName := filepath.Base(path)
+			if strings.HasPrefix(baseName, observerResultsPrefix) {
+				fmt.Printf("[parquet-reader] Skipping %s: observer results artifact (not a scenario input)\n", path)
+				return nil
+			}
 			if info.Size() < minParquetFileSize {
 				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", path, info.Size())
 				return nil

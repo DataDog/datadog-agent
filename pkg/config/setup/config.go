@@ -355,6 +355,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.recording.parquet_flush_interval", 60*time.Second)          // File rotation interval
 	config.BindEnvAndSetDefault("observer.recording.parquet_retention", 24*time.Hour)                 // Cleanup after 24 hours
 
+	// Observer results saving: writes computed intermediate data (virtual metrics from log detectors)
+	// Enabled by default whenever recording is on; can be enabled independently of recording.
+	// observer.results.enabled=true enables saving without full raw-observation recording.
+	// observer.results.output_dir defaults to observer.recording.parquet_output_dir when unset.
+	config.BindEnvAndSetDefault("observer.results.enabled", false)
+	config.BindEnvAndSetDefault("observer.results.output_dir", "")
+
 	// Observer component configuration for anomaly detection
 	config.BindEnvAndSetDefault("observer.analysis.enabled", true)
 	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)

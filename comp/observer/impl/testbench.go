@@ -502,7 +502,11 @@ func (tb *TestBench) runLogDetectors() error {
 			result := detector.Process(log)
 			ts := log.GetTimestampMs()
 			for _, m := range result.Metrics {
-				tb.storage.Add("logs", "_virtual."+m.Name, m.Value, ts/1000, m.Tags)
+				virtualName := "_virtual." + m.Name
+				tb.storage.Add("logs", virtualName, m.Value, ts/1000, m.Tags)
+				if tb.config.Recorder != nil {
+					tb.config.Recorder.RecordVirtualMetric("logs", virtualName, m.Value, m.Tags, ts/1000)
+				}
 			}
 			for _, anomaly := range result.Anomalies {
 				// Fill in fields the detector may not have set
@@ -682,6 +686,14 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.handleTelemetry(multiResult.Telemetry, detector.Name(), dataTime)
 	}
 
+	// Flush results (virtual metrics, telemetry metrics, telemetry logs) now that all
+	// sync detector phases are done. This ensures headless runs capture everything
+	// including telemetry from metric detectors, not just from log detectors.
+	if tb.config.Recorder != nil {
+		tb.config.Recorder.FlushResultsMetrics()
+		tb.config.Recorder.FlushResultsLogs()
+	}
+
 	// --- Correlations ---
 	// Mark scenario ready now that detectors are done — anomalies are available
 	tb.ready = true
@@ -762,6 +774,43 @@ func (tb *TestBench) rerunDetectorsLocked() {
 			tb.correlations = append(tb.correlations, corr)
 		}
 
+		// Record finalized correlations to parquet (observer-resultscorrelations-*.parquet).
+		// Flushing is done separately in RunHeadless after this goroutine completes.
+		if recorder := tb.config.Recorder; recorder != nil {
+			for _, corr := range tb.correlations {
+				anomalyTimestamps := make([]int64, len(corr.Anomalies))
+				anomalySources := make([]string, len(corr.Anomalies))
+				anomalySeriesIDs := make([]string, len(corr.Anomalies))
+				anomalyDetectors := make([]string, len(corr.Anomalies))
+				for i, a := range corr.Anomalies {
+					anomalyTimestamps[i] = a.Timestamp
+					anomalySources[i] = string(a.Source)
+					anomalySeriesIDs[i] = string(a.SourceSeriesID)
+					anomalyDetectors[i] = a.DetectorName
+				}
+				memberIDs := make([]string, len(corr.MemberSeriesIDs))
+				for i, id := range corr.MemberSeriesIDs {
+					memberIDs[i] = string(id)
+				}
+				metricNames := make([]string, len(corr.MetricNames))
+				for i, n := range corr.MetricNames {
+					metricNames[i] = string(n)
+				}
+				recorder.RecordCorrelation(recorderdef.CorrelationData{
+					Pattern:           corr.Pattern,
+					Title:             corr.Title,
+					FirstSeen:         corr.FirstSeen,
+					LastUpdated:       corr.LastUpdated,
+					MemberSeriesIDs:   memberIDs,
+					MetricNames:       metricNames,
+					AnomalyTimestamps: anomalyTimestamps,
+					AnomalySources:    anomalySources,
+					AnomalySeriesIDs:  anomalySeriesIDs,
+					AnomalyDetectors:  anomalyDetectors,
+				})
+			}
+		}
+
 		tb.correlatorsProcessing = false
 		tb.correlatorsDone.Broadcast()
 	}()
@@ -771,22 +820,26 @@ func (tb *TestBench) rerunDetectorsLocked() {
 // It includes metrics and logs.
 func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestampMs int64) {
 	for _, telemetryEvent := range telemetry {
-		// Generate missing fields if needed
+		if telemetryEvent.DetectorName == "" {
+			telemetryEvent.DetectorName = detectorName
+		}
+
 		if telemetryEvent.Metric != nil {
-			metric := &metricObs{
-				name:      telemetryEvent.Metric.GetName(),
-				value:     telemetryEvent.Metric.GetValue(),
-				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			ts := int64(telemetryEvent.Metric.GetTimestamp())
+			if ts == 0 {
+				ts = baseTimestampMs / 1000
 			}
-			if metric.timestamp == 0 {
-				metric.timestamp = baseTimestampMs / 1000
+			name := "telemetry." + telemetryEvent.DetectorName + "." + telemetryEvent.Metric.GetName()
+			tags := telemetryEvent.Metric.GetRawTags()
+			value := telemetryEvent.Metric.GetValue()
+
+			// Store for UI display
+			tb.storage.Add("telemetry", name, value, ts, tags)
+
+			// Record to results metrics parquet file (observer-resultsmetrics-*.parquet)
+			if tb.config.Recorder != nil {
+				tb.config.Recorder.RecordTelemetryMetric("telemetry", name, value, tags, ts)
 			}
-			if telemetryEvent.DetectorName == "" {
-				telemetryEvent.DetectorName = detectorName
-			}
-			// Save this for UI
-			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
 		}
 
 		if telemetryEvent.Log != nil {
@@ -809,11 +862,13 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			if log.Status == "" {
 				log.Status = "info"
 			}
-			if telemetryEvent.DetectorName == "" {
-				telemetryEvent.DetectorName = detectorName
-			}
-			// Save this for UI
+			// Store for UI display
 			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
+
+			// Record to results logs parquet file (observer-resultslogs-*.parquet)
+			if tb.config.Recorder != nil {
+				tb.config.Recorder.RecordTelemetryLog("telemetry", log.Content, log.Status, log.Hostname, log.Tags, log.TimestampMs)
+			}
 		}
 	}
 }
@@ -1065,6 +1120,11 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 		tb.correlatorsDone.Wait()
 	}
 	tb.mu.RUnlock()
+
+	// Flush correlation results now that the goroutine has finished recording.
+	if tb.config.Recorder != nil {
+		tb.config.Recorder.FlushResultsCorrelations()
+	}
 
 	// Write structured JSON output.
 	if outputPath != "" {
