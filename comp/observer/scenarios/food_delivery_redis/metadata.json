@@ -1,0 +1,54 @@
+{
+  "episode": "redis-cpu-saturation",
+  "cycle": 1,
+  "scenario": {
+    "app_name": "food-delivery-platform",
+    "description": "Driver GPS update volume increases during dinner rush, saturating Redis CPU and causing order placement latency to spike via dispatch-service geo-queries.",
+    "long_description": "During dinner rush, driver-location-service scales from 2 to 8 replicas, quadrupling GEOADD write volume to the shared Redis instance (from ~10,000 to ~40,000 commands/sec). Redis is CPU-limited to 100m via Kubernetes CFS quotas. At baseline the 10k ops/sec consume roughly 50% of the CPU budget, leaving headroom for dispatch-service GEOSEARCH reads. When 8 replicas push 40k ops/sec the Redis event loop is throttled by CFS to ~1 cycle/sec (vs 55 at baseline), causing command latency to spike from p95 ~2ms to p95 >1s. The growing sorted set (10k to 40k driver entries) compounds the effect since each GEOSEARCH must scan more members. dispatch-service GEOSEARCH queries block for >500ms, which propagates through the synchronous order-gateway call chain (restaurant-service, order-service, dispatch-service, payment-service), pushing end-to-end order placement p95 above 1 second. The root cause is a noisy-neighbor pattern: high-volume GPS writes from driver-location-service saturate the shared Redis CPU, starving latency-sensitive geo-query reads used by dispatch-service. The fix is to separate Redis instances for write-heavy GPS updates and read-heavy geo-queries, or to impose CFS-aware rate limiting on GPS update frequency."
+  },
+  "environment": "gensim-food-delivery-redis-cpu-saturation-5f7194",
+  "execution_id": "gensim-food-delivery-redis-cpu-saturation-5f7194-1",
+  "success": true,
+  "start_time": "2026-03-03T12:42:45Z",
+  "end_time": "2026-03-03T13:14:48Z",
+  "baseline": {
+    "start": "2026-03-03T12:44:48Z",
+    "end": "2026-03-03T12:54:48Z"
+  },
+  "disruption": {
+    "start": "2026-03-03T12:54:48Z",
+    "end": "2026-03-03T13:04:48Z"
+  },
+  "cooldown": {
+    "start": "2026-03-03T13:04:48Z",
+    "end": "2026-03-03T13:14:48Z"
+  },
+  "alert": {
+    "monitor_id": 263076464,
+    "monitor_name": "order_gateway_latency_p95",
+    "timestamp": "2026-03-03T13:04:48Z"
+  },
+  "monitors": {
+    "order_gateway_latency_p95": 263076464
+  },
+  "true_positives": [
+    {
+      "service": "driver-location-service",
+      "metrics": ["trace.http.request.hits"]
+    },
+    {
+      "service": "redis",
+      "metrics": ["redis.cpu.sys", "redis.info.latency_ms"]
+    }
+  ],
+  "false_positives": [
+    {
+      "service": "dispatch-service",
+      "metrics": ["trace.http.request.hits"]
+    },
+    {
+      "service": "redis",
+      "metrics": ["redis.mem.used", "redis.net.clients"]
+    }
+  ]
+}

@@ -101,6 +101,15 @@ var defaultRegistry = []ComponentRegistration{
 			})
 		},
 	},
+	{
+		Name:           "passthrough",
+		DisplayName:    "Passthrough",
+		Category:       "correlator",
+		DefaultEnabled: false,
+		Factory: func(_ *TestBench) interface{} {
+			return NewDetectorPassthroughCorrelator()
+		},
+	},
 }
 
 // enabledDetectors returns all enabled MetricsDetector instances (per-series detectors).

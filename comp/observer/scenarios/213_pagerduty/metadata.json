@@ -1,0 +1,62 @@
+{
+  "episode": "cassandra-repair-degradation",
+  "cycle": 1,
+  "scenario": {
+    "app_name": "pagerduty-notification-pipeline",
+    "description": "Cassandra repair process causes resource saturation leading to notification delivery failures",
+    "long_description": "A scheduled Cassandra repair process started during a period of high workload from multiple services sharing the cluster. The repair process consumed substantial CPU, memory, and disk I/O resources. Combined with elevated workload from integration-api writes and notification-pipeline reads/writes, this pushed the cluster past its capacity threshold. CPU saturation (>80%) caused Cassandra write latency to spike significantly, with p99 latency increasing over 50% from baseline. The elevated latency propagated upstream: the integration-api could not complete writes within timeout thresholds, resulting in HTTP 5xx errors and event rejections. The notification-pipeline experienced read and write timeouts, causing delivery failures (27.5% not delivered) and significant delays. The root cause was insufficient capacity planning for combined operational load (repair) plus production traffic, exacerbated by multi-tenant resource contention on shared infrastructure.\n"
+  },
+  "environment": "gensim-213-pagerduty-june-2014-outage-78229d",
+  "execution_id": "gensim-213-pagerduty-june-2014-outage-78229d-1",
+  "success": true,
+  "start_time": "2026-03-03T12:37:35Z",
+  "end_time": "2026-03-03T13:09:35Z",
+  "baseline": {
+    "start": "2026-03-03T12:39:35Z",
+    "end": "2026-03-03T12:49:35Z"
+  },
+  "disruption": {
+    "start": "2026-03-03T12:49:35Z",
+    "end": "2026-03-03T12:59:35Z"
+  },
+  "cooldown": {
+    "start": "2026-03-03T12:59:35Z",
+    "end": "2026-03-03T13:09:35Z"
+  },
+  "alert": {
+    "monitor_id": 263075123,
+    "monitor_name": "notification_delivery_errors",
+    "timestamp": "2026-03-03T12:52:25Z"
+  },
+  "monitors": {
+    "notification_delivery_errors": 263075123
+  },
+  "true_positives": [
+    {
+      "service": "cassandra-cluster",
+      "metrics": ["system.cpu.user", "cassandra.write_latency.99th_percentile"]
+    },
+    {
+      "service": "integration-api",
+      "metrics": ["trace.flask.request.errors"]
+    },
+    {
+      "service": "notification-pipeline",
+      "metrics": ["trace.notification.delivery.errors"]
+    }
+  ],
+  "false_positives": [
+    {
+      "service": "integration-api",
+      "metrics": ["trace.flask.request.hits"]
+    },
+    {
+      "service": "cassandra-cluster",
+      "metrics": ["cassandra.exceptions.count"]
+    },
+    {
+      "service": "notification-pipeline",
+      "metrics": ["trace.notification.delivery"]
+    }
+  ]
+}
