@@ -143,9 +143,7 @@ func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 			return entry
 		}
 		processCacheTelemetry.rescuedFailed.Inc()
-		log.TraceFunc(func() string {
-			return fmt.Sprintf("process cache: procfs fallback failed for pid %d, dropping event", entry.Pid)
-		})
+		log.Debugf("process cache: procfs fallback failed for pid %d, dropping event", entry.Pid)
 		return nil
 	}
 
@@ -157,16 +155,12 @@ func containerIDFromPID(pid uint32) string {
 	path := fmt.Sprintf("/proc/%d/cgroup", pid)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.TraceFunc(func() string {
-			return fmt.Sprintf("process cache: failed to read %s: %v", path, err)
-		})
+		log.Debugf("process cache: failed to read %s: %v", path, err)
 		return ""
 	}
 	cid := string(containerutils.FindContainerID(containerutils.CGroupID(string(data))))
 	if cid == "" {
-		log.TraceFunc(func() string {
-			return fmt.Sprintf("process cache: no container ID found in %s (content: %q)", path, string(data))
-		})
+		log.Debugf("process cache: no container ID found in %s (content: %q)", path, string(data))
 	}
 	return cid
 }
