@@ -5,8 +5,6 @@ Before=datadog-agent.service datadog-agent-exp.service
 After=network.target sys-kernel-debug.mount
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-sysprobe.service
-ConditionPathExists=|/etc/datadog-agent-exp/system-probe.yaml
-ConditionPathExists=|/etc/datadog-agent-exp/managed/datadog-agent/stable/system-probe.yaml
 
 [Service]
 Type=simple
