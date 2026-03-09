@@ -1161,7 +1161,7 @@ func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
 	return out
 }
 
-// handleAPIRawAnomalies returns all raw anomalies from MetricsDetector implementations.
+// handleAPIRawAnomalies returns all raw anomalies from detector implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
 	rawState := r.rawAnomalyState
