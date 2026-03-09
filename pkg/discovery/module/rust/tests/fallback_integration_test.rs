@@ -49,7 +49,7 @@ fn test_fallback_on_npm_enabled() {
         .arg("--debug")
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
         .expect("Failed to execute system-probe-lite");
 
@@ -134,7 +134,7 @@ fn test_config_file_only() {
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
         .expect("Failed to execute system-probe-lite");
 
@@ -222,7 +222,7 @@ fn test_unknown_yaml_key_triggers_fallback() {
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
         .expect("Failed to execute system-probe-lite");
 
@@ -292,7 +292,7 @@ fn test_discovery_enabled_with_fallback() {
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .env("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
         .output()
         .expect("Failed to execute system-probe-lite");
@@ -341,7 +341,7 @@ fn test_killswitch_disabled_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch disabled, got: {}",
         stdout
     );
@@ -375,7 +375,7 @@ fn test_killswitch_not_set_defaults_to_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch not set, got: {}",
         stdout
     );
@@ -459,7 +459,7 @@ fn test_killswitch_yaml_config() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch disabled in YAML, got: {}",
         stdout
     );
@@ -502,7 +502,7 @@ fn test_killswitch_env_overrides_yaml_enabled() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
+        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch env var override, got: {}",
         stdout
     );
@@ -597,7 +597,7 @@ fn test_env_var_non_boolean_triggers_fallback() {
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "maybe")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
         .expect("Failed to execute system-probe-lite");
 
