@@ -56,27 +56,22 @@ func newScheduler(cfg Config, clk clock.WithTicker, wlm workloadmeta.Component, 
 	}
 }
 
-// WaitSubscribed returns a channel that is closed once Run has subscribed to workloadmeta events.
-func (s *Scheduler) WaitSubscribed() <-chan struct{} {
-	return s.subscribed
-}
-
-// Config returns the scheduler configuration.
-func (s *Scheduler) Config() Config {
-	return s.config
-}
-
-// Run subscribes to workloadmeta pod events and periodically checks for on-demand fallback.
-func (s *Scheduler) Run(ctx context.Context) {
+// Start launches goroutines to track pod updates and check for on-demand fallback and returns immediately.
+func (s *Scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
-	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
+	// Run in separate goroutines so that a slow fallback check (which may make Kubernetes API calls)
+	// does not delay pod updates processing.
+	go s.trackPodUpdates(ctx)
+	go s.checkOnDemandFallback(ctx)
+}
+
+// trackPodUpdates subscribes to workloadmeta pod events and updates the tracker.
+func (s *Scheduler) trackPodUpdates(ctx context.Context) {
+	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(workloadmeta.KindKubernetesPod, s.spotEligibleFilter).Build()
 	ch := s.wlm.Subscribe("spot-scheduler", workloadmeta.NormalPriority, filter)
 	close(s.subscribed)
 	defer s.wlm.Unsubscribe(ch)
-
-	ticker := s.clock.NewTicker(checkOnDemandFallbackInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -95,20 +90,34 @@ func (s *Scheduler) Run(ctx context.Context) {
 				case workloadmeta.EventTypeSet:
 					s.tracker.addedOrUpdated(pod)
 				case workloadmeta.EventTypeUnset:
-					s.tracker.removed(pod)
+					s.tracker.deleted(pod)
 				}
 			}
 			eventBundle.Acknowledge()
+		}
+	}
+}
+
+// checkOnDemandFallback periodically checks for pending spot pods and triggers on-demand fallback if needed.
+func (s *Scheduler) checkOnDemandFallback(ctx context.Context) {
+	ticker := s.clock.NewTicker(checkOnDemandFallbackInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
 		case now := <-ticker.C():
 			if s.isLeader() {
-				s.checkOnDemandFallback(ctx, now)
+				s.checkOnDemandFallbackOnce(ctx, now)
 			}
 		}
 	}
 }
 
-// ApplyRecommendations decides whether a pod should be scheduled on spot and updates it accordingly.
-func (s *Scheduler) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
+// PodCreated is called via admission webhook.
+// It decides whether a pod should be scheduled on spot and updates it accordingly.
+func (s *Scheduler) PodCreated(pod *corev1.Pod) (bool, error) {
 	if !s.isSpotEligible(pod) {
 		return false, nil
 	}
@@ -118,9 +127,11 @@ func (s *Scheduler) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
+	log.Debugf("Pod created via webhook for owner %s", owner)
+
 	spotPercentage, minOnDemand := s.readConfig(pod)
 
-	disabledUntil, disabled := s.IsSpotSchedulingDisabled()
+	disabledUntil, disabled := s.isSpotSchedulingDisabled()
 
 	isSpot := s.tracker.admitNewPod(owner, func(total, spot int) bool {
 		if disabled {
@@ -130,17 +141,17 @@ func (s *Scheduler) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 		onDemand := total - spot
 		if onDemand < minOnDemand {
-			log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d)", owner, onDemand, minOnDemand)
+			log.Debugf("Skipping pod for %s: on-demand minimum not met (%d < %d), total: %d, spot: %d", owner, onDemand, minOnDemand, total, spot)
 			return false
 		}
 
 		desiredSpot := (total + 1) * spotPercentage / 100
 		if spot >= desiredSpot {
-			log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d)", owner, spot, desiredSpot)
+			log.Debugf("Skipping pod for %s: desired spot reached (%d >= %d), total: %d", owner, spot, desiredSpot, total)
 			return false
 		}
 
-		log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand)", owner, spot, desiredSpot, onDemand)
+		log.Debugf("Assigning pod for %s to spot (%d of desired %d spot, %d on-demand), total: %d", owner, spot, desiredSpot, onDemand, total)
 		return true
 	})
 
@@ -151,8 +162,31 @@ func (s *Scheduler) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	return false, nil
 }
 
+// PodDeleted is called via admission webhook.
+// It stops tracking the pod.
+func (s *Scheduler) PodDeleted(pod *corev1.Pod) {
+	if !s.isSpotEligible(pod) {
+		return
+	}
+
+	owner, ok := resolveCoreV1PodOwner(pod)
+	if !ok {
+		return
+	}
+	uid := string(pod.UID)
+
+	log.Debugf("Pod %s (phase=%s) removed via webhook for owner %s", uid, pod.Status.Phase, owner)
+
+	s.tracker.deletePod(owner, uid)
+}
+
 func (s *Scheduler) isSpotEligible(pod *corev1.Pod) bool {
 	return pod.Annotations[SpotEnabledAnnotation] == "true"
+}
+
+func (s *Scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
+	pod, ok := entity.(*workloadmeta.KubernetesPod)
+	return ok && pod.Annotations[SpotEnabledAnnotation] == "true"
 }
 
 func assignToSpot(pod *corev1.Pod) {
@@ -167,15 +201,14 @@ func assignToSpot(pod *corev1.Pod) {
 		Effect:   corev1.TaintEffectNoSchedule,
 	})
 
-	// podTracker needs to know pod assignment via a label.
 	if pod.Labels == nil {
 		pod.Labels = map[string]string{}
 	}
-	pod.Labels[SpotAssignedLabel] = "true"
+	pod.Labels[SpotAssignedLabel] = SpotAssignedSpot
 }
 
-// checkOnDemandFallback checks pending spot-assigned pods, disables spot scheduling and triggers rollout for pending workloads if needed.
-func (s *Scheduler) checkOnDemandFallback(ctx context.Context, now time.Time) {
+// checkOnDemandFallbackOnce checks pending spot-assigned pods, disables spot scheduling and triggers rollout for pending workloads if needed.
+func (s *Scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time) {
 	if s.reEnableSpotScheduling(now) {
 		log.Infof("Spot scheduling re-enabled")
 	}
@@ -209,8 +242,7 @@ func (s *Scheduler) checkOnDemandFallback(ctx context.Context, now time.Time) {
 	}
 }
 
-// IsSpotSchedulingDisabled return true if spot scheduling is disabled and a timestamp until it is disabled.
-func (s *Scheduler) IsSpotSchedulingDisabled() (time.Time, bool) {
+func (s *Scheduler) isSpotSchedulingDisabled() (time.Time, bool) {
 	s.mu.RLock()
 	spotDisabledUntil := s.spotDisabledUntil
 	s.mu.RUnlock()

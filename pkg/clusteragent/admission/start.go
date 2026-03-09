@@ -41,7 +41,7 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, ph *workload.PodHandler, datadogConfig config.Component) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
@@ -95,7 +95,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		notifChanWebhook,
 		webhookConfig,
 		wmeta,
-		pa,
+		ph,
 		datadogConfig,
 		ctx.Demultiplexer,
 	)

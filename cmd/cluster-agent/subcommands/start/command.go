@@ -530,7 +530,7 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
-	var pa workload.PodPatcher
+	var ph *workload.PodHandler
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
@@ -540,8 +540,8 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
-			pa = adapter
+		if handler, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+			ph = handler
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
 		}
@@ -622,7 +622,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, ph, datadogConfig)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {

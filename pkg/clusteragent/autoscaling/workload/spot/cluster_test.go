@@ -9,9 +9,8 @@ package spot_test
 
 import (
 	"context"
-	"fmt"
 	"maps"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"sync"
 	"testing"
@@ -24,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,13 +36,14 @@ import (
 )
 
 // fakeCluster simulates a Kubernetes cluster for testing.
-// It maintains a set of nodes and a workloadmeta store, runs a fake pod scheduler
-// that transitions Pending pods to Running, and supports admission hooks.
+// It maintains a set of nodes and a workloadmeta store,
+// runs a fake pod scheduler and supports admission hooks.
 type fakeCluster struct {
-	t          *testing.T
-	wlm        workloadmetamock.Mock
-	subscribed chan struct{}
-	hooks      []admissionHook
+	t               *testing.T
+	wlm             workloadmetamock.Mock
+	subscribed      chan struct{}
+	podCreatedHooks []admissionHook
+	podDeletedHooks []deletionHook
 
 	mu          sync.Mutex
 	nodes       []*corev1.Node
@@ -54,6 +53,9 @@ type fakeCluster struct {
 // admissionHook is called for each pod during admission and may mutate it.
 // It returns true if the pod was modified, false otherwise.
 type admissionHook func(pod *corev1.Pod) (bool, error)
+
+// deletionHook is called immediately when a pod is deleted.
+type deletionHook func(pod *corev1.Pod)
 
 // newFakeCluster creates a fakeCluster.
 func newFakeCluster(t *testing.T) *fakeCluster {
@@ -100,26 +102,35 @@ func (c *fakeCluster) AddSpotNode(name string) {
 	})
 }
 
-// AddAdmissionHook registers a hook called on every admitted pod.
-func (c *fakeCluster) AddAdmissionHook(hook admissionHook) {
-	c.hooks = append(c.hooks, hook)
+// OnPodCreated registers a hook called for every admitted pod.
+func (c *fakeCluster) OnPodCreated(hook admissionHook) {
+	c.podCreatedHooks = append(c.podCreatedHooks, hook)
+}
+
+// OnPodDeleted registers a hook called for every deleted pod.
+func (c *fakeCluster) OnPodDeleted(hook deletionHook) {
+	c.podDeletedHooks = append(c.podDeletedHooks, hook)
 }
 
 // CreatePod runs all registered admission hooks on the pod then creates it as Pending.
 func (c *fakeCluster) CreatePod(pod *corev1.Pod) {
 	unmodifiedCopy := pod.DeepCopy()
-	for _, hook := range c.hooks {
+	for _, hook := range c.podCreatedHooks {
 		updated, err := hook(pod)
 		require.NoError(c.t, err)
 		if !updated {
 			require.Equal(c.t, unmodifiedCopy, pod)
 		}
 	}
-
 	c.createPending(pod)
 }
 
 func (c *fakeCluster) createPending(pod *corev1.Pod) {
+	require.Empty(c.t, pod.Name)
+	require.NotEmpty(c.t, pod.GenerateName)
+
+	pod.Name = pod.GenerateName + randomSuffix(5)
+
 	uid, err := uuid.NewRandom()
 	require.NoError(c.t, err)
 
@@ -130,52 +141,44 @@ func (c *fakeCluster) createPending(pod *corev1.Pod) {
 	c.pendingPods[pod.UID] = pod
 	c.mu.Unlock()
 
-	c.setPod(pod)
-}
-
-func (c *fakeCluster) setPod(pod *corev1.Pod) {
-	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
-	for _, ref := range pod.OwnerReferences {
-		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: ref.Kind, Name: ref.Name})
-	}
-	c.wlm.Set(&workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   string(pod.UID),
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Namespace:   pod.Namespace,
-			Name:        pod.Name,
-			Annotations: pod.Annotations,
-			Labels:      pod.Labels,
-		},
-		Owners:   owners,
-		Phase:    string(pod.Status.Phase),
-		NodeName: pod.Spec.NodeName,
-	})
+	async(c.wlm.Set, corePodToWlmPod(pod))
 }
 
 // DeleteOwnerPods deletes all pods owned by the given ownerKind/namespace/ownerName.
 func (c *fakeCluster) DeleteOwnerPods(ownerKind, namespace, ownerName string) {
+	for _, pod := range c.ListOwnerPods(ownerKind, namespace, ownerName) {
+		c.DeletePod(pod)
+	}
+}
+
+// ListOwnerPods returns all pods owned by the given ownerKind/namespace/ownerName.
+func (c *fakeCluster) ListOwnerPods(ownerKind, namespace, ownerName string) []*workloadmeta.KubernetesPod {
+	var pods []*workloadmeta.KubernetesPod
 	for _, pod := range c.wlm.ListKubernetesPods() {
 		if pod.Namespace != namespace {
 			continue
 		}
 		for _, owner := range pod.Owners {
 			if owner.Kind == ownerKind && owner.Name == ownerName {
-				c.deletePod(pod.ID)
+				pods = append(pods, pod)
 				break
 			}
 		}
 	}
+	return pods
 }
 
-// deletePod removes a pod from the cluster and unsets it in the WLM store.
-func (c *fakeCluster) deletePod(uid string) {
-	pod, err := c.wlm.GetKubernetesPod(uid)
-	if err == nil {
-		c.wlm.Unset(pod)
+// DeletePod removes a pod from the cluster.
+func (c *fakeCluster) DeletePod(pod *workloadmeta.KubernetesPod) {
+	corePod := wlmPodToCorePod(pod)
+	for _, hook := range c.podDeletedHooks {
+		hook(corePod)
 	}
+
+	podCopy := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podCopy.Phase = string(corev1.PodSucceeded)
+
+	async(c.wlm.Set, podCopy)
 }
 
 // WLM returns the underlying workloadmeta mock store.
@@ -183,32 +186,15 @@ func (c *fakeCluster) WLM() workloadmetamock.Mock {
 	return c.wlm
 }
 
-const (
-	assertWaitFor = 1 * time.Second
-	assertTick    = 50 * time.Millisecond
-)
-
-// AssertOwnerPods waits until all pods owned by ownerKind/namespace/ownerName satisfy check.
+// AssertOwnerPods checks that all pods owned by ownerKind/namespace/ownerName eventually satisfy check.
 func (c *fakeCluster) AssertOwnerPods(ownerKind, namespace, ownerName string, check func(wlm []*workloadmeta.KubernetesPod) bool) {
-	assert.Eventually(c.t, func() bool {
-		var filtered []*workloadmeta.KubernetesPod
-		for _, pod := range c.wlm.ListKubernetesPods() {
-			if pod.Namespace != namespace {
-				continue
-			}
-			for _, owner := range pod.Owners {
-				if owner.Kind == ownerKind && owner.Name == ownerName {
-					filtered = append(filtered, pod)
-					break
-				}
-			}
-		}
-		return check(filtered)
-	}, assertWaitFor, assertTick)
+	const assertWaitFor = 1 * time.Second
+	require.Eventuallyf(c.t, func() bool {
+		return check(c.ListOwnerPods(ownerKind, namespace, ownerName))
+	}, assertWaitFor, assertWaitFor/10, "%s %s/%s", ownerKind, namespace, ownerName)
 }
 
 // runPodScheduler simulates a Kubernetes scheduler for testing.
-// It watches for Pending pods and transitions them to Running after a short delay.
 func (c *fakeCluster) runPodScheduler() {
 	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
 	ch := c.wlm.Subscribe("fake-scheduler", workloadmeta.NormalPriority, filter)
@@ -231,13 +217,12 @@ func (c *fakeCluster) runPodScheduler() {
 				}
 				switch event.Type {
 				case workloadmeta.EventTypeSet:
-					if pod.Phase == string(corev1.PodPending) {
+					switch corev1.PodPhase(pod.Phase) {
+					case corev1.PodPending:
 						c.trySchedule(pod.ID)
+					case corev1.PodSucceeded, corev1.PodFailed:
+						async(c.wlm.Unset, pod)
 					}
-				case workloadmeta.EventTypeUnset:
-					c.mu.Lock()
-					delete(c.pendingPods, types.UID(pod.ID))
-					c.mu.Unlock()
 				}
 			}
 			bundle.Acknowledge()
@@ -274,9 +259,13 @@ func (c *fakeCluster) trySchedule(uid string) {
 	pod.Spec.NodeName = nodeName
 	pod.Status.Phase = corev1.PodRunning
 
+	async(c.wlm.Set, corePodToWlmPod(pod))
+}
+
+func async(f func(workloadmeta.Entity), e workloadmeta.Entity) {
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		c.setPod(pod)
+		time.Sleep(time.Duration(10+rand.N(40)) * time.Millisecond)
+		f(e)
 	}()
 }
 
@@ -301,38 +290,75 @@ func podToleratesNode(pod *corev1.Pod, node *corev1.Node) bool {
 }
 
 // replicaSetName returns a valid ReplicaSet name for the given deployment name with a random suffix.
-// The suffix uses KubeAllowedEncodeStringAlphaNums characters so that
-// ParseDeploymentForReplicaSet correctly resolves the name back to the deployment.
 func replicaSetName(deployment string) string {
+	return deployment + "-" + randomSuffix(10)
+}
+
+// randomSuffix adds suffix that uses [kubernetes.KubeAllowedEncodeStringAlphaNums] characters so that
+// ParseDeploymentForReplicaSet and ParseDeploymentForPodName correctly resolve the name back to the deployment.
+func randomSuffix(n int) string {
 	var b strings.Builder
-	b.WriteString(deployment)
-	b.WriteByte('-')
 	const chars = "bcdfghjklmnpqrstvwxz2456789"
-	for range 5 {
-		b.WriteByte(chars[rand.Intn(len(chars))])
+	for range n {
+		b.WriteByte(chars[rand.N(len(chars))])
 	}
 	return b.String()
 }
 
-// newPods returns n pods owned by the given kind/namespace/name, each with a cloned copy of annotations.
-func newPods(ownerKind, namespace, ownerName string, replicas int, annotations map[string]string) []*corev1.Pod {
-	pods := make([]*corev1.Pod, replicas)
-	for i := range replicas {
-		pods[i] = newPod(namespace, fmt.Sprintf("%s-%d", ownerName, i+1), ownerKind, ownerName, maps.Clone(annotations))
-	}
-	return pods
-}
-
 // newPod builds a corev1.Pod with the given owner and annotations.
-func newPod(namespace, name, ownerKind, ownerName string, annotations map[string]string) *corev1.Pod {
+func newPod(namespace, ownerKind, ownerName string, annotations map[string]string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   namespace,
-			Name:        name,
-			Annotations: annotations,
+			Namespace:    namespace,
+			GenerateName: ownerName + "-",
+			Annotations:  maps.Clone(annotations),
 			OwnerReferences: []metav1.OwnerReference{
 				{Kind: ownerKind, Name: ownerName},
 			},
 		},
+	}
+}
+
+// wlmPodToCorePod reconstructs a minimal corev1.Pod from a workloadmeta KubernetesPod.
+func wlmPodToCorePod(pod *workloadmeta.KubernetesPod) *corev1.Pod {
+	owners := make([]metav1.OwnerReference, 0, len(pod.Owners))
+	for _, owner := range pod.Owners {
+		owners = append(owners, metav1.OwnerReference{Kind: owner.Kind, Name: owner.Name})
+	}
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            pod.Name,
+			Namespace:       pod.Namespace,
+			UID:             types.UID(pod.ID),
+			Annotations:     maps.Clone(pod.Annotations),
+			Labels:          maps.Clone(pod.Labels),
+			OwnerReferences: owners,
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPhase(pod.Phase),
+		},
+	}
+}
+
+func corePodToWlmPod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
+	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
+	for _, owner := range pod.OwnerReferences {
+		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: owner.Kind, Name: owner.Name})
+	}
+	return &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   string(pod.UID),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace:   pod.Namespace,
+			Name:        pod.Name,
+			Annotations: maps.Clone(pod.Annotations),
+			Labels:      maps.Clone(pod.Labels),
+		},
+		Owners: owners,
+		Phase:  string(pod.Status.Phase),
+		// Use [*workloadmeta.KubernetesPod].NodeName for testing only as normally it is not set.
+		NodeName: pod.Spec.NodeName,
 	}
 }

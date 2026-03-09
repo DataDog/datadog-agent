@@ -57,7 +57,7 @@ func NewControllerV1beta1(
 	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PodPatcher,
+	ph *workload.PodHandler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) *ControllerV1beta1 {
@@ -77,7 +77,7 @@ func NewControllerV1beta1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer)
+	controller.webhooks = controller.generateWebhooks(wmeta, ph, datadogConfig, demultiplexer)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

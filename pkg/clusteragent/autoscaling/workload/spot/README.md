@@ -44,9 +44,11 @@ Cluster Agent re-enables spot scheduling after the spot disabled interval elapse
 
 ### TODO
 
+- [ ] Move spot configuration to the Deployment/StatefulSet annotations
+- [ ] Add StatefulSet tests
+- [ ] Implement Argo Rollout support
 - [ ] Emit Kubernetes events
 - [ ] Add metrics and observability
-- [ ] Refactor pod admission subscription to not depend on PodPatcher (currently via workload.PodPatcherDelegate)
 - [ ] Downscaling behaviour (similar to https://github.com/kubernetes/kubernetes/issues/124149): consider adding annotation
       `controller.kubernetes.io/pod-deletion-cost` to Deployment pods to keep on-demand/spot ratio during downscaling (see https://kubernetes.io/docs/reference/labels-annotations-taints/#pod-deletion-cost)
 
@@ -99,8 +101,8 @@ spec:
         autoscaling.datadoghq.com/spot-min-on-demand-replicas: "1" # schedule at least one pod onto on-demand node
       labels:
         app: nginx
-        # Set automatically on spot-assigned pods by Cluster Agent (not user-configurable):
-        # autoscaling.datadoghq.com/spot-assigned: "true"
+        # Set automatically by Cluster Agent on spot-assigned pods (not user-configurable):
+        # autoscaling.datadoghq.com/spot-assigned: "true" # spot-assigned pods
     spec:
       containers:
       - name: nginx

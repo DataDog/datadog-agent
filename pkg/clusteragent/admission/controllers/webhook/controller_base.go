@@ -58,14 +58,14 @@ func NewController(
 	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PodPatcher,
+	ph *workload.PodHandler,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, ph, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, ph, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -103,7 +103,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, ph *workload.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -142,7 +142,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	webhooks = append(webhooks, agentsWebhook)
 
 	// Setup autoscaling webhook.
-	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
+	autoscalingWebhook := autoscaling.NewWebhook(ph, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup appsec proxy webhook.

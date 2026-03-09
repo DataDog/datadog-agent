@@ -16,8 +16,10 @@ const (
 	// SpotMinOnDemandReplicasAnnotation is the annotation key for the minimum number of on-demand replicas
 	SpotMinOnDemandReplicasAnnotation = "autoscaling.datadoghq.com/spot-min-on-demand-replicas"
 
-	// SpotAssignedLabel is the label key used to mark a pod as assigned to spot
+	// SpotAssignedLabel is the label key set by the admission webhook on pods assigned to spot instances.
 	SpotAssignedLabel = "autoscaling.datadoghq.com/spot-assigned"
+	// SpotAssignedSpot is the SpotAssignedLabel value for pods assigned to spot instances.
+	SpotAssignedSpot = "true"
 
 	// SpotDisabledUntilAnnotation is the annotation key added to the workload pod template to trigger a
 	// rollout restart during on-demand fallback. Its value is the timestamp until which spot scheduling is disabled.

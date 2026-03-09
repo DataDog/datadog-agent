@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -22,27 +23,29 @@ type pendingSpotPod struct {
 	createdAt time.Time
 }
 
+// pods tracks spot and on-demand pods and in-flight admission counts for the same owner.
+type pods struct {
+	spotUIDs               map[string]struct{}
+	onDemandUIDs           map[string]struct{}
+	admissionSpotCount     int
+	admissionOnDemandCount int
+}
+
 // podTracker keeps track of pods per owner.
 type podTracker struct {
 	mu    sync.RWMutex
 	clock clock.Clock
-	// podsPerOwner indexes running pods by owner
-	podsPerOwner map[ownerKey]map[string]*workloadmeta.KubernetesPod
-	// admissionSpotCount and admissionOnDemandCount track pods whose spot/on-demand decision
-	// was recorded at admission time but have not yet appeared in podsPerOwner
-	admissionSpotCount     map[ownerKey]int
-	admissionOnDemandCount map[ownerKey]int
+	// podsPerOwner groups pods and in-flight admission counts by owner.
+	podsPerOwner map[ownerKey]*pods
 	// pendingSpotPods tracks spot-assigned pods that are pending scheduling, keyed by pod UID.
 	pendingSpotPods map[string]pendingSpotPod
 }
 
 func newPodTracker(clk clock.Clock) *podTracker {
 	return &podTracker{
-		clock:                  clk,
-		podsPerOwner:           make(map[ownerKey]map[string]*workloadmeta.KubernetesPod),
-		admissionSpotCount:     make(map[ownerKey]int),
-		admissionOnDemandCount: make(map[ownerKey]int),
-		pendingSpotPods:        make(map[string]pendingSpotPod),
+		clock:           clk,
+		podsPerOwner:    make(map[ownerKey]*pods),
+		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
 }
 
@@ -56,16 +59,12 @@ func (t *podTracker) admitNewPod(owner ownerKey, decideSpot func(total, spot int
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	pods := t.podsPerOwner[owner]
-	existingPods := len(pods) + t.admissionSpotCount[owner] + t.admissionOnDemandCount[owner]
-	existingSpot := countSpotAssigned(pods) + t.admissionSpotCount[owner]
+	pods := t.getPodsLocked(owner)
 
-	isSpot := decideSpot(existingPods, existingSpot)
-	if isSpot {
-		t.admissionSpotCount[owner]++
-	} else {
-		t.admissionOnDemandCount[owner]++
-	}
+	isSpot := decideSpot(pods.totalCount(), pods.spotCount())
+
+	pods.admit(isSpot)
+
 	return isSpot
 }
 
@@ -77,22 +76,27 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 
+	isSpot := isSpotAssigned(pod)
+
+	log.Debugf("Pod %s added/updated for owner %s (phase=%s, spot=%v)", pod.ID, owner, pod.Phase, isSpot)
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	seenBefore := false
-	if ownerPods, exists := t.podsPerOwner[owner]; exists {
-		_, seenBefore = ownerPods[pod.ID]
-	} else {
-		t.podsPerOwner[owner] = make(map[string]*workloadmeta.KubernetesPod)
+	// Terminal pods are treated as removed to free their spot/on-demand slot
+	// before replacement pods are admitted.
+	if pod.Phase == string(corev1.PodSucceeded) || pod.Phase == string(corev1.PodFailed) {
+		t.deletePodLocked(owner, pod.ID)
+		return
 	}
-	t.podsPerOwner[owner][pod.ID] = pod
 
-	if isSpotAssigned(pod) {
+	t.getPodsLocked(owner).track(pod.ID, isSpot)
+
+	if isSpot {
 		// Note: we can not use CreationTimestamp or NodeName of [workloadmeta.KubernetesPod]
 		// as they are not populated by comp/core/workloadmeta/collectors/internal/kubeapiserver/pod.go
 		// so only check the Phase and use now for createdAt.
-		if pod.Phase == "Pending" {
+		if pod.Phase == string(corev1.PodPending) {
 			if _, exists := t.pendingSpotPods[pod.ID]; !exists {
 				t.pendingSpotPods[pod.ID] = pendingSpotPod{owner: owner, createdAt: t.clock.Now()}
 				log.Debugf("Tracking pending spot pod %s", pod.ID)
@@ -100,36 +104,49 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		} else {
 			delete(t.pendingSpotPods, pod.ID)
 		}
-
-		if !seenBefore && t.admissionSpotCount[owner] > 0 {
-			t.admissionSpotCount[owner]--
-		}
-	} else {
-		if !seenBefore && t.admissionOnDemandCount[owner] > 0 {
-			t.admissionOnDemandCount[owner]--
-		}
 	}
 }
 
-// removed updates tracking state when a pod is removed.
-func (t *podTracker) removed(pod *workloadmeta.KubernetesPod) {
+// deleted updates tracking state when a pod is deleted.
+func (t *podTracker) deleted(pod *workloadmeta.KubernetesPod) {
 	owner, hasOwner := resolveWLMPodOwner(pod)
 	if !hasOwner {
 		log.Debugf("Ignoring pod %s without owner", pod.ID)
 		return
 	}
 
+	log.Debugf("Pod %s deleted for owner %s (spot=%v)", pod.ID, owner, isSpotAssigned(pod))
+
+	t.deletePod(owner, pod.ID)
+}
+
+// deletePod deletes pod by owner and uid.
+func (t *podTracker) deletePod(owner ownerKey, uid string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if ownerPods, exists := t.podsPerOwner[owner]; exists {
-		if len(ownerPods) == 1 {
+	t.deletePodLocked(owner, uid)
+}
+
+// deletePodLocked deletes a pod from podsPerOwner. Must be called with t.mu held.
+func (t *podTracker) deletePodLocked(owner ownerKey, uid string) {
+	if pods, ok := t.podsPerOwner[owner]; ok {
+		if pods.delete(uid) {
 			delete(t.podsPerOwner, owner)
-		} else {
-			delete(ownerPods, pod.ID)
 		}
 	}
-	delete(t.pendingSpotPods, pod.ID)
+	delete(t.pendingSpotPods, uid)
+}
+
+// getPodsLocked returns the pods for owner, creating it if absent.
+// Must be called with t.mu held.
+func (t *podTracker) getPodsLocked(owner ownerKey) *pods {
+	if pods, ok := t.podsPerOwner[owner]; ok {
+		return pods
+	}
+	pods := newPods()
+	t.podsPerOwner[owner] = pods
+	return pods
 }
 
 // getPendingSpotPods returns spot-assigned pods created before since, grouped by rollout owner.
@@ -164,16 +181,58 @@ func (t *podTracker) removePendingSpotPods(uids []string) {
 	}
 }
 
-func countSpotAssigned(pods map[string]*workloadmeta.KubernetesPod) int {
-	spotAssigned := 0
-	for _, pods := range pods {
-		if isSpotAssigned(pods) {
-			spotAssigned++
+func newPods() *pods {
+	return &pods{
+		spotUIDs:     make(map[string]struct{}),
+		onDemandUIDs: make(map[string]struct{}),
+	}
+}
+
+// admit increments the in-flight admission count for the given spot/on-demand decision.
+func (p *pods) admit(isSpot bool) {
+	if isSpot {
+		p.admissionSpotCount++
+	} else {
+		p.admissionOnDemandCount++
+	}
+}
+
+// track upserts the pod UID and decrements the corresponding in-flight admission count on first appearance.
+func (p *pods) track(uid string, isSpot bool) {
+	if isSpot {
+		if _, exists := p.spotUIDs[uid]; !exists {
+			p.spotUIDs[uid] = struct{}{}
+			if p.admissionSpotCount > 0 {
+				p.admissionSpotCount--
+			}
+		}
+	} else {
+		if _, exists := p.onDemandUIDs[uid]; !exists {
+			p.onDemandUIDs[uid] = struct{}{}
+			if p.admissionOnDemandCount > 0 {
+				p.admissionOnDemandCount--
+			}
 		}
 	}
-	return spotAssigned
+}
+
+// delete removes pod by uid and returns true if it tracks no more pods including in-flight admissions.
+func (p *pods) delete(uid string) bool {
+	delete(p.spotUIDs, uid)
+	delete(p.onDemandUIDs, uid)
+	return len(p.spotUIDs) == 0 && len(p.onDemandUIDs) == 0 && p.admissionSpotCount == 0 && p.admissionOnDemandCount == 0
+}
+
+// totalCount returns the total number of pods including in-flight admissions.
+func (p *pods) totalCount() int {
+	return len(p.spotUIDs) + len(p.onDemandUIDs) + p.admissionSpotCount + p.admissionOnDemandCount
+}
+
+// spotCount returns the number of spot-assigned pods including in-flight spot admissions.
+func (p *pods) spotCount() int {
+	return len(p.spotUIDs) + p.admissionSpotCount
 }
 
 func isSpotAssigned(pod *workloadmeta.KubernetesPod) bool {
-	return pod.Labels[SpotAssignedLabel] == "true"
+	return pod.Labels[SpotAssignedLabel] == SpotAssignedSpot
 }
