@@ -40,7 +40,7 @@ const (
 type KubeServiceConfigProvider struct {
 	lister         listersv1.ServiceLister
 	upToDate       *atomic.Bool
-	mu             sync.RWMutex
+	configErrorsMu sync.RWMutex
 	configErrors   map[string]types.ErrorMsgSet
 	telemetryStore *telemetry.Store
 }
@@ -201,20 +201,20 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		configs = append(configs, svcConf...)
 	}
 
-	k.mu.Lock()
+	k.configErrorsMu.Lock()
 	k.configErrors = newErrors
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
 	}
-	k.mu.Unlock()
+	k.configErrorsMu.Unlock()
 
 	return configs, nil
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes service
 func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
+	k.configErrorsMu.RLock()
+	defer k.configErrorsMu.RUnlock()
 
 	return maps.Clone(k.configErrors)
 }
