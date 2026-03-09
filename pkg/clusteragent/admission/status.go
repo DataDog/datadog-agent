@@ -15,6 +15,7 @@ import (
 	"hash/fnv"
 	"io"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
@@ -28,17 +29,18 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-var currentProbe *admprobe.Probe
+var currentProbe atomic.Pointer[admprobe.Probe]
 
 func setProbe(p *admprobe.Probe) {
-	currentProbe = p
+	currentProbe.Store(p)
 }
 
 func getProbeStats() map[string]interface{} {
-	if currentProbe == nil {
+	p := currentProbe.Load()
+	if p == nil {
 		return nil
 	}
-	return currentProbe.GetStatsForStatus()
+	return p.GetStatsForStatus()
 }
 
 // GetStatus returns status info for the secret and webhook controllers.
