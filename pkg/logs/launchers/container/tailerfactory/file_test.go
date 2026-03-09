@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -248,6 +249,63 @@ func TestMakeFileSource_podman_with_multiple_db_paths_success(t *testing.T) {
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
 		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, userLogPath, child.Config.Path)
+}
+
+// TestMakeFileSource_podman_autodiscovery_home_user verifies that when podman_db_path is empty
+// (auto-discovery mode), log collection uses the root dir stored by the collector in workloadmeta.
+func TestMakeFileSource_podman_autodiscovery_home_user(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
+	tmp := t.TempDir()
+
+	// Simulate a rootless user's storage root and log file.
+	userContainersRoot := filepath.Join(tmp, "home", "testuser", ".local", "share", "containers")
+	userLogPath := filepath.Join(userContainersRoot, "storage", "overlay-containers", "abc", "userdata", "ctr.log")
+	require.NoError(t, os.MkdirAll(filepath.Dir(userLogPath), 0o777))
+	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	// podman_db_path is intentionally left empty (auto-discovery mode)
+
+	// Populate a workloadmeta store with the container annotated with its root dir,
+	// as the Podman collector would have done at collection time.
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	wmeta.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "abc",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{
+				pkglog.ContainerRootDirAnnotationKey: userContainersRoot,
+			},
+		},
+		Runtime: workloadmeta.ContainerRuntimePodman,
+	})
+
+	tf := &factory{
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "podman",

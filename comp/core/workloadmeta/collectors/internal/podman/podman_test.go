@@ -265,12 +265,12 @@ func TestPull(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		clients        []podmanClient
+		clients        []podmanDBClient
 		expectedEvents []workloadmeta.CollectorEvent
 	}{
 		{
 			name:           "expected events from single client",
-			clients:        []podmanClient{&client},
+			clients:        []podmanDBClient{{client: &client}},
 			expectedEvents: expectedEvents,
 		},
 	}
@@ -339,7 +339,7 @@ func TestPullMultipleClients(t *testing.T) {
 
 	workloadmetaStore := fakeWorkloadmetaStore{}
 	podmanCollector := collector{
-		clients: []podmanClient{client1, client2},
+		clients: []podmanDBClient{{client: client1}, {client: client2}},
 		store:   &workloadmetaStore,
 		seen:    make(map[workloadmeta.EntityID]struct{}),
 	}

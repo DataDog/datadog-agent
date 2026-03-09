@@ -175,22 +175,36 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
 			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
-			// User provided one or more custom podman DB paths (comma-separated). Try each derived
-			// root dir in order and return the first log file that exists on disk.
+
+			var rootDirs []string
 			if len(podmanDBPath) > 0 {
+				// Explicit paths configured: derive root dirs from each DB path.
 				for _, singlePath := range strings.Split(podmanDBPath, ",") {
 					singlePath = strings.TrimSpace(singlePath)
 					rootDir := log.ExtractPodmanRootDirFromDBPath(singlePath)
-					if rootDir == "" {
-						continue
+					if rootDir != "" {
+						rootDirs = append(rootDirs, rootDir)
 					}
-					logPath := filepath.Join(rootDir, "storage/overlay-containers", containerID, "userdata/ctr.log")
-					if _, err := os.Stat(logPath); err == nil {
-						return logPath
+				}
+			} else if wmeta, ok := tf.workloadmetaStore.Get(); ok {
+				// Auto-discovery mode: ask workloadmeta for the root dir that the
+				// Podman collector stored on this container when it was discovered.
+				if ctr, err := wmeta.GetContainer(containerID); err == nil {
+					if rootDir := ctr.Annotations[log.ContainerRootDirAnnotationKey]; rootDir != "" {
+						rootDirs = append(rootDirs, rootDir)
 					}
 				}
 			}
-			// Default path for podman rootfull containers (no podman_db_path configured, or no match found above).
+
+			// Return the first log file found on disk across all candidate root dirs.
+			for _, rootDir := range rootDirs {
+				logPath := filepath.Join(rootDir, "storage/overlay-containers", containerID, "userdata/ctr.log")
+				if _, err := os.Stat(logPath); err == nil {
+					return logPath
+				}
+			}
+
+			// Fallback: return the rootfull path even if it doesn't exist yet.
 			return filepath.Join(podmanRootfullLogsBasePath, "storage/overlay-containers", containerID, "userdata/ctr.log")
 		}
 		return filepath.Join(

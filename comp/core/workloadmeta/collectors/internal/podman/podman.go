@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -43,9 +44,16 @@ type podmanClient interface {
 	GetAllContainers() ([]podman.Container, error)
 }
 
+// podmanDBClient couples a DB client with the Podman storage root dir derived
+// from the DB path so that Pull can tag each container with its origin.
+type podmanDBClient struct {
+	client  podmanClient
+	rootDir string
+}
+
 type collector struct {
 	id      string
-	clients []podmanClient
+	clients []podmanDBClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
@@ -86,7 +94,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		}
 	}
 
-	var clients []podmanClient
+	var clients []podmanDBClient
 	for _, dbPath := range dbPaths {
 		if !dbIsAccessible(dbPath) {
 			log.Warnf("Podman DB path %q is not accessible, skipping", dbPath)
@@ -97,8 +105,9 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 			log.Warnf("Could not create Podman client for path %q: %v, skipping", dbPath, err)
 			continue
 		}
-		log.Infof("Using Podman DB at %q", dbPath)
-		clients = append(clients, client)
+		rootDir := log.ExtractPodmanRootDirFromDBPath(dbPath)
+		log.Infof("Using Podman DB at %q (root dir: %q)", dbPath, rootDir)
+		clients = append(clients, podmanDBClient{client: client, rootDir: rootDir})
 	}
 
 	if len(clients) == 0 {
@@ -115,14 +124,14 @@ func (c *collector) Pull(_ context.Context) error {
 	seen := make(map[workloadmeta.EntityID]struct{})
 	events := []workloadmeta.CollectorEvent{}
 
-	for _, client := range c.clients {
-		containers, err := client.GetAllContainers()
+	for _, dbc := range c.clients {
+		containers, err := dbc.client.GetAllContainers()
 		if err != nil {
 			log.Warnf("Error fetching Podman containers from one of the configured databases: %v", err)
 			continue
 		}
 		for _, container := range containers {
-			event := convertToEvent(&container)
+			event := convertToEvent(&container, dbc.rootDir)
 			seen[event.Entity.GetID()] = struct{}{}
 			events = append(events, event)
 		}
@@ -157,12 +166,16 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
+func convertToEvent(container *podman.Container, rootDir string) workloadmeta.CollectorEvent {
 	containerID := container.Config.ID
 
-	var annotations map[string]string
+	// Start from the OCI spec annotations and add our own metadata.
+	annotations := make(map[string]string)
 	if spec := container.Config.Spec; spec != nil {
-		annotations = spec.Annotations
+		maps.Copy(annotations, spec.Annotations)
+	}
+	if rootDir != "" {
+		annotations[log.ContainerRootDirAnnotationKey] = rootDir
 	}
 
 	envs, err := envVars(container)
