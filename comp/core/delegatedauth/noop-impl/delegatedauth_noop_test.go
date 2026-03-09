@@ -7,7 +7,6 @@ package delegatedauthimpl
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,7 @@ import (
 
 func TestNoopAddInstance(t *testing.T) {
 	noop := &delegatedAuthNoop{}
-	err := noop.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	err := noop.AddInstance(delegatedauth.InstanceParams{
 		OrgUUID:         "test-org-uuid",
 		RefreshInterval: 60,
 		APIKeyConfigKey: "api_key",

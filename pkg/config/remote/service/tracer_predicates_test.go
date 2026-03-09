@@ -6,12 +6,9 @@
 package service
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/go-tuf/data"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -156,36 +153,4 @@ func TestTracerPredicates(t *testing.T) {
 			},
 		},
 	)
-}
-
-// TestExecuteTracerPredicatesEmptyProducts verifies that a client with no
-// requested products receives no configs, regardless of what targets exist.
-func TestExecuteTracerPredicatesEmptyProducts(t *testing.T) {
-	client := &pbgo.Client{
-		Id:       "client-id",
-		IsTracer: true,
-		ClientTracer: &pbgo.ClientTracer{
-			RuntimeId: "runtime-id",
-			Language:  "go",
-		},
-		Products: []string{}, // empty — no products requested
-	}
-
-	matchClient, err := json.Marshal(ConfigFileMetaCustom{
-		Predicates: &pbgo.TracerPredicates{
-			TracerPredicatesV1: []*pbgo.TracerPredicateV1{{ClientID: "client-id"}},
-		},
-	})
-	require.NoError(t, err)
-	raw := json.RawMessage(matchClient)
-
-	targets := data.TargetFiles{
-		"datadog/2/APM_SAMPLING/id/1":   {Custom: &raw},
-		"datadog/2/APPSEC/id/1":         {Custom: &raw},
-		"datadog/2/LIVE_DEBUGGING/id/1": {Custom: &raw},
-	}
-
-	configs, err := executeTracerPredicates(client, targets)
-	require.NoError(t, err)
-	assert.Empty(t, configs, "expected no configs when client has an empty products list")
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package extensions
 
 import (
@@ -26,7 +28,7 @@ func (m *mockHooks) PreInstallExtension(_ context.Context, _ string, _ string) e
 	return m.preInstallErr
 }
 
-func (m *mockHooks) PostInstallExtension(_ context.Context, _ string, _ string, _ bool) error {
+func (m *mockHooks) PostInstallExtension(_ context.Context, _ string, _ string) error {
 	return m.postInstallErr
 }
 
@@ -80,55 +82,6 @@ func TestPackageKeyDifferentiation(t *testing.T) {
 	assert.Equal(t, "7.51.0", experiment.Version, "experiment package should have its own version")
 	assert.Contains(t, experiment.Extensions, "ruby", "experiment extensions should be preserved")
 	assert.NotContains(t, experiment.Extensions, "python", "experiment should not have stable extensions")
-}
-
-// TestSetPackageVersionIdempotent verifies that calling SetPackageVersion with the same
-// pkg, version, and isExperiment does not wipe the extensions list.
-func TestSetPackageVersionIdempotent(t *testing.T) {
-	tmpDir := t.TempDir()
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-	defer db.Close()
-
-	pkg := dbPackage{
-		Name:       "datadog-agent",
-		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"python": {}, "ruby": {}},
-	}
-	err = db.SetPackage(pkg, false)
-	require.NoError(t, err)
-
-	err = db.SetPackageVersion("datadog-agent", "7.50.0", false)
-	require.NoError(t, err)
-
-	got, err := db.GetPackage("datadog-agent", false)
-	require.NoError(t, err)
-	assert.Equal(t, map[string]struct{}{"python": {}, "ruby": {}}, got.Extensions, "extensions should be preserved after idempotent SetPackageVersion")
-}
-
-// TestSetPackageVersionWipesExtensionsOnVersionChange verifies that calling SetPackageVersion
-// with a new version resets the extensions list (intentional behavior).
-func TestSetPackageVersionWipesExtensionsOnVersionChange(t *testing.T) {
-	tmpDir := t.TempDir()
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-	defer db.Close()
-
-	pkg := dbPackage{
-		Name:       "datadog-agent",
-		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"python": {}},
-	}
-	err = db.SetPackage(pkg, false)
-	require.NoError(t, err)
-
-	err = db.SetPackageVersion("datadog-agent", "7.51.0", false)
-	require.NoError(t, err)
-
-	got, err := db.GetPackage("datadog-agent", false)
-	require.NoError(t, err)
-	assert.Equal(t, "7.51.0", got.Version)
-	assert.Empty(t, got.Extensions, "extensions should be wiped on version change")
 }
 
 // TestHookErrorPropagation verifies that hook failures are properly propagated

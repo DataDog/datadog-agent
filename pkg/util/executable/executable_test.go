@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolvePath(t *testing.T) {
@@ -24,9 +23,13 @@ func TestResolvePath(t *testing.T) {
 	}
 
 	actualPath, err := ResolvePath(testProgram)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
-	require.NotEmpty(t, actualPath)
+	if !assert.NotEmpty(t, actualPath) {
+		return
+	}
 
 	if _, err := os.Stat(actualPath); os.IsNotExist(err) {
 		assert.FailNowf(t, "Resolved path '%s' does not exist!", actualPath)
@@ -40,10 +43,14 @@ func TestResolvePathIsAbsolute(t *testing.T) {
 	}
 
 	actualPath, err := ResolvePath(testProgram)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	absPath, err := filepath.Abs(actualPath)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	assert.Equal(t, absPath, actualPath)
 }
@@ -52,5 +59,7 @@ func TestResolvePathFailure(t *testing.T) {
 	testProgram := "badprogramname"
 
 	_, err := ResolvePath(testProgram)
-	require.NotNil(t, err)
+	if !assert.NotNil(t, err) {
+		return
+	}
 }

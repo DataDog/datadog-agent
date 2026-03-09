@@ -177,7 +177,9 @@ func TestMissingTypeRecompilation(t *testing.T) {
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			stats := m.GetStats()
 			actuatorStats, ok := stats["actuator"].(map[string]any)
-			require.True(c, ok, "actuator stats missing")
+			if !assert.True(c, ok, "actuator stats missing") {
+				return
+			}
 			assert.Equal(c, uint64(0), actuatorStats["numPrograms"],
 				"expected numPrograms == 0 after cleanup")
 			assert.Equal(c, uint64(0), actuatorStats["numProcesses"],

@@ -693,7 +693,7 @@ tag_by_label: true
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
 }
 
-func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenFallsBackToLsblk(t *testing.T) {
+func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturnsError_ThenBlkidLabelsAreNotReportedAsTags(t *testing.T) {
 	setupDefaultMocks()
 	diskv2.BlkidCommand = func() (string, error) {
 		return "", errors.New("error calling blkid")
@@ -703,45 +703,6 @@ func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturn
 tag_by_label: true
 `))
 	m := configureCheck(t, diskCheck, config, nil)
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-}
-
-func TestGivenADiskCheckWithDefaultConfig_WhenBlkidReturnsNoLabels_ThenFallsBackToLsblk(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.BlkidCommand = func() (string, error) {
-		return "", nil
-	}
-	diskCheck := createDiskCheck(t)
-	m := configureCheck(t, diskCheck, nil, nil)
-	err := diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda1", "device_name:sda1", "label:MYLABEL1", "device_label:MYLABEL1"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.used", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.free", []string{"device:/dev/sda2", "device_name:sda2", "label:MYLABEL2", "device_label:MYLABEL2"})
-}
-
-func TestGivenADiskCheckWithDefaultConfig_WhenBlkidAndLsblkBothFail_ThenLabelsAreNotReportedAsTags(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.BlkidCommand = func() (string, error) {
-		return "", errors.New("error calling blkid")
-	}
-	diskv2.LsblkCommand = func() (string, error) {
-		return "", errors.New("error calling lsblk")
-	}
-	diskCheck := createDiskCheck(t)
-	m := configureCheck(t, diskCheck, nil, nil)
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)

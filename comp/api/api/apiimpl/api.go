@@ -9,7 +9,6 @@ package apiimpl
 import (
 	"context"
 	"net"
-	"net/http"
 
 	"go.uber.org/fx"
 
@@ -30,10 +29,8 @@ func Module() fxutil.Module {
 type apiServer struct {
 	cfg               config.Component
 	ipc               ipc.Component
-	cmdAddr           *net.TCPAddr
-	ipcAddr           *net.TCPAddr
-	cmdServer         *http.Server
-	ipcServer         *http.Server
+	cmdListener       net.Listener
+	ipcListener       net.Listener
 	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 	grpcComponent     grpc.Component
@@ -73,12 +70,12 @@ func newAPIServer(deps dependencies) api.Component {
 	return &server
 }
 
-// CMDServerAddress returns the CMD server address.
+// ServerAddress returns the server address.
 func (server *apiServer) CMDServerAddress() *net.TCPAddr {
-	return server.cmdAddr
+	return server.cmdListener.Addr().(*net.TCPAddr)
 }
 
-// IPCServerAddress returns the IPC server address.
+// ServerAddress returns the server address.
 func (server *apiServer) IPCServerAddress() *net.TCPAddr {
-	return server.ipcAddr
+	return server.ipcListener.Addr().(*net.TCPAddr)
 }

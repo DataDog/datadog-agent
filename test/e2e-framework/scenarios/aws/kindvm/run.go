@@ -114,11 +114,6 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	// If InitOnly is set, return after creating the cluster.
-	if awsEnv.InitOnly() {
-		return nil
-	}
-
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.Bool(true),
 		Kubeconfig:            kindCluster.KubeConfig,
@@ -161,11 +156,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if len(params.agentOptions) > 0 && !params.deployOperator {
-		newOpts := []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(agentHelmValues),
-			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
-		}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {

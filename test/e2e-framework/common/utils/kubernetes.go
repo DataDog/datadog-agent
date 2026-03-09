@@ -6,7 +6,6 @@
 package utils
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -51,18 +50,9 @@ func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceO
 
 		authMap := make(map[string]map[string]string)
 		for i := range registries {
-			pwd := passwords[i]
-			if strings.HasPrefix(pwd, "b64=") {
-				decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
-				if err != nil {
-					return "", fmt.Errorf("failed to base64 decode password for registry %s: %w", registries[i], err)
-				}
-				pwd = string(decoded)
-			}
 			authMap[registries[i]] = map[string]string{
 				"username": usernames[i],
-				"password": pwd,
-				"auth":     base64.StdEncoding.EncodeToString([]byte(usernames[i] + ":" + pwd)),
+				"password": passwords[i],
 			}
 		}
 		dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{

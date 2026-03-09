@@ -16,8 +16,7 @@ nix = { workspace = true, features = ["signal", "process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 simple_logger = { workspace = true, features = ["timestamps"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time"] }
 
 [dev-dependencies]
-nix = { workspace = true, features = ["signal", "process", "user"] }
 tempfile.workspace = true

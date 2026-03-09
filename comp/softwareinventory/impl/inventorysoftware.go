@@ -61,21 +61,14 @@ type sysProbeClientWrapper struct {
 	clientFn func() *sysprobeclient.CheckClient
 }
 
-// GetCheck implements sysProbeClient.GetCheck by delegating to the wrapped client.
-// It unmarshals the wire format (SoftwareInventoryWireEntry) and converts to []software.Entry.
+// GetCheck implements mockSysProbeClient.GetCheck by delegating to the wrapped client.
+// This method uses the generic GetCheck function to retrieve software inventory data
+// from the System Probe with proper type safety.
 func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	if w.client == nil {
 		w.client = w.clientFn()
 	}
-	responses, err := sysprobeclient.GetCheck[[]software.SoftwareInventoryWireEntry](w.client, module)
-	if err != nil {
-		return nil, err
-	}
-	entries := make([]software.Entry, len(responses))
-	for i := range responses {
-		entries[i] = software.WireToEntry(&responses[i])
-	}
-	return entries, nil
+	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
 }
 
 // softwareInventory is the implementation of the Component interface.

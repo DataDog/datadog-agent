@@ -390,10 +390,6 @@ modules:
     - ./system-probe/
   test/otel:
     used_by_otel: true
-  tools/build-ddot-byoc:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   tools/retry_file_dump:
     independent: false
     should_tag: false

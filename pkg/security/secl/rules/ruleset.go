@@ -392,11 +392,6 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	return &report, nil
 }
 
-func appendRuleLoadError(errs *multierror.Error, rule *PolicyRule, err error) *multierror.Error {
-	err = &ErrRuleLoad{Rule: rule, Err: err}
-	return multierror.Append(errs, err)
-}
-
 // PopulateFieldsWithRuleActionsData populates the fields with the data from the rule actions
 func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
@@ -404,7 +399,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 	for _, rule := range policyRules {
 		for _, actionDef := range rule.Def.Actions {
 			if err := actionDef.PreCheck(opts); err != nil {
-				errs = appendRuleLoadError(errs, rule, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
+				errs = multierror.Append(errs, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
 				continue
 			}
 
@@ -412,7 +407,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 			case actionDef.Set != nil:
 				varName := actionDef.Set.Name
 				if !validators.CheckRuleID(varName) {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("invalid variable name '%s'", varName))
+					errs = multierror.Append(errs, fmt.Errorf("invalid variable name '%s'", varName))
 					continue
 				}
 				if actionDef.Set.Scope != "" {
@@ -420,12 +415,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				}
 
 				if _, err := rs.eventCtor().GetFieldValue(varName); err == nil {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("variable '%s' conflicts with field", varName))
+					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with field", varName))
 					continue
 				}
 
 				if _, found := rs.evalOpts.Constants[varName]; found {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("variable '%s' conflicts with constant", varName))
+					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with constant", varName))
 					continue
 				}
 
@@ -446,7 +441,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 					case []interface{}:
 						if len(value) == 0 {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("unable to infer item type for '%s'", actionDef.Set.Name))
+							errs = multierror.Append(errs, fmt.Errorf("unable to infer item type for '%s'", actionDef.Set.Name))
 							continue
 						}
 
@@ -456,7 +451,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						case string:
 							variableValue = cast.ToStringSlice(value)
 						default:
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("unsupported item type '%s' for array '%s'", reflect.TypeOf(arrayType), actionDef.Set.Name))
+							errs = multierror.Append(errs, fmt.Errorf("unsupported item type '%s' for array '%s'", reflect.TypeOf(arrayType), actionDef.Set.Name))
 							continue
 						}
 
@@ -473,7 +468,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 						if err != nil {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
+							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 							continue
 						}
 
@@ -489,12 +484,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 							valueIsArray = true
 						}
 						if variableValueKind != kind {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("value and field have different types for variable '%s' (%s != %s)", actionDef.Set.Name, variableValueKind.String(), kind.String()))
+							errs = multierror.Append(errs, fmt.Errorf("value and field have different types for variable '%s' (%s != %s)", actionDef.Set.Name, variableValueKind.String(), kind.String()))
 							continue
 						}
 
 						if fieldIsArray != valueIsArray && !actionDef.Set.Append {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("value and field cardinality mismatch for variable '%s': field '%s' is an array, but append is not set for variable '%s' with value '%v'", actionDef.Set.Name, actionDef.Set.Field, actionDef.Set.Name, variableValue))
+							errs = multierror.Append(errs, fmt.Errorf("value and field cardinality mismatch for variable '%s': field '%s' is an array, but append is not set for variable '%s' with value '%v'", actionDef.Set.Name, actionDef.Set.Field, actionDef.Set.Name, variableValue))
 							continue
 						}
 					}
@@ -508,21 +503,21 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 					if err != nil {
-						errs = appendRuleLoadError(errs, rule, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
+						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 						continue
 					}
 
 					// If accessing array by index, validate that the base field is actually an array
 					if isArrayAccess {
 						if !isArray {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
 							continue
 						}
 						// When accessing by index, we treat it as a scalar value (no further validation needed)
 					} else {
 						// Check if the field is an array and append is not set
 						if isArray && !actionDef.Set.Append {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 							continue
 						}
 					}
@@ -549,12 +544,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 						fallthrough
 					default:
-						errs = appendRuleLoadError(errs, rule, fmt.Errorf("unsupported field type '%s (%s)' for variable '%s'", kind, goType, actionDef.Set.Name))
+						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s (%s)' for variable '%s'", kind, goType, actionDef.Set.Name))
 						continue
 					}
 
 					if defaultValueKind := reflect.TypeOf(actionDef.Set.DefaultValue); actionDef.Set.DefaultValue != nil && defaultValueKind != nil && defaultValueKind.Kind() != kind {
-						errs = appendRuleLoadError(errs, rule, fmt.Errorf("value and default_value have different types for variable '%s' (%s != %s)", kind, defaultValueKind, actionDef.Set.Name))
+						errs = multierror.Append(errs, fmt.Errorf("value and default_value have different types for variable '%s' (%s != %s)", kind, defaultValueKind, actionDef.Set.Name))
 						continue
 					}
 				}
@@ -566,7 +561,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					if _, found := rs.scopedVariables[actionDef.Set.Scope]; !found {
 						stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
 						if stateScopeBuilder == nil {
-							errs = appendRuleLoadError(errs, rule, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
+							errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
 							continue
 						}
 
@@ -588,17 +583,17 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, string(actionDef.Set.Scope), opts)
 				if err != nil {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
+					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
 				}
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
+					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
 					continue
 				}
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && existingVariable.GetVariableOpts().Private != variable.GetVariableOpts().Private {
-					errs = appendRuleLoadError(errs, rule, fmt.Errorf("conflicting private flag for variable '%s'", varName))
+					errs = multierror.Append(errs, fmt.Errorf("conflicting private flag for variable '%s'", varName))
 					continue
 				}
 

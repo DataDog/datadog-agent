@@ -100,8 +100,3 @@ func GetDistPath() string {
 	}
 	return distPath
 }
-
-// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
-func GetEmbeddedBinPath() string {
-	return filepath.Join(GetInstallPath(), "bin")
-}

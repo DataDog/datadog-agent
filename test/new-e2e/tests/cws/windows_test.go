@@ -202,14 +202,24 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		signal, err := a.apiClient.GetSignal(fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
-		require.NoError(c, err)
-		require.NotNil(c, signal)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotNil(c, signal) {
+			return
+		}
 		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
-		require.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal")
+		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+			return
+		}
 		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
-		require.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes")
+		if !assert.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
+			return
+		}
 		agentContext := attributes["agent"].(map[string]interface{})
-		require.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context")
+		if !assert.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
+			return
+		}
 		assert.Contains(c, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
 	}, 4*time.Minute, 10*time.Second)
 }

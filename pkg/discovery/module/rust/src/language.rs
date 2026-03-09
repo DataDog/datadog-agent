@@ -664,7 +664,6 @@ mod tests {
                 logs: vec![],
                 tracer_memfd: None,
                 memfd_path: Some(tmpfile.path().to_path_buf()),
-                has_gpu_device: false,
             };
 
             let result = Language::from_injector(&open_files_info);
@@ -696,7 +695,6 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(tmpfile.path().to_path_buf()),
-            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -712,7 +710,6 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: None,
-            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -730,7 +727,6 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(PathBuf::from("/dev/null")),
-            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);
@@ -750,7 +746,6 @@ mod tests {
             logs: vec![],
             tracer_memfd: None,
             memfd_path: Some(PathBuf::from("/nonexistent/file/path")),
-            has_gpu_device: false,
         };
 
         let result = Language::from_injector(&open_files_info);

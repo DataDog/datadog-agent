@@ -19,7 +19,7 @@ buildifier(
 
 # PROS of `buildifier_test` over `buildifier`:
 # - renders diffs without having to provide `tkdiff`
-# - also works as a `test` action: `bazel test //bazel/buildifier:test`
+# - also works as a `test` action: `bazel test //bazel/buildifier:test` as well as `bazel test //...`
 # CONS:
 # - requires additional arguments: `no_sandbox` and `workspace`
 buildifier_test(
@@ -30,6 +30,5 @@ buildifier_test(
     lint_warnings = ["-module-docstring"],
     mode = "diff",
     no_sandbox = True,
-    tags = ["manual"],  # not cacheable
     workspace = "//:BUILD.bazel",
 )

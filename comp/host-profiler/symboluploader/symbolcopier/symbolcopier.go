@@ -15,7 +15,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"

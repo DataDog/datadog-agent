@@ -10,7 +10,6 @@ package externalmetrics
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 )
 
@@ -20,8 +19,7 @@ const (
 )
 
 // DatadogMetricInternalObserverFunc represents observer functions of the datadog metrics store
-// First parameter is the key, second parameter is the sender identifier, third parameter is the object (or nil for delete operations)
-type DatadogMetricInternalObserverFunc func(string, autoscaling.SenderID, interface{})
+type DatadogMetricInternalObserverFunc func(string, string)
 
 // DatadogMetricInternalObserver allows to define functions to watch changes in Store
 type DatadogMetricInternalObserver struct {
@@ -110,23 +108,23 @@ func (ds *DatadogMetricsInternalStore) Count() int {
 }
 
 // Set `DatadogMetricInternal` for id
-func (ds *DatadogMetricsInternalStore) Set(id string, datadogMetric model.DatadogMetricInternal, sender autoscaling.SenderID) {
+func (ds *DatadogMetricsInternalStore) Set(id string, datadogMetric model.DatadogMetricInternal, sender string) {
 	ds.lock.Lock()
 	ds.store[id] = datadogMetric
 	ds.lock.Unlock()
 
-	ds.notify(setOperation, id, sender, datadogMetric)
+	ds.notify(setOperation, id, sender)
 }
 
 // Delete `DatadogMetricInternal` corresponding to id if present
-func (ds *DatadogMetricsInternalStore) Delete(id string, sender autoscaling.SenderID) {
+func (ds *DatadogMetricsInternalStore) Delete(id, sender string) {
 	ds.lock.Lock()
-	obj, exists := ds.store[id]
+	_, exists := ds.store[id]
 	delete(ds.store, id)
 	ds.lock.Unlock()
 
 	if exists {
-		ds.notify(deleteOperation, id, sender, obj)
+		ds.notify(deleteOperation, id, sender)
 	}
 }
 
@@ -154,31 +152,31 @@ func (ds *DatadogMetricsInternalStore) Unlock(string) {
 }
 
 // UnlockSet sets the new DatadogMetricInternal value and releases the lock (previously acquired by `LockRead`)
-func (ds *DatadogMetricsInternalStore) UnlockSet(id string, datadogMetric model.DatadogMetricInternal, sender autoscaling.SenderID) {
+func (ds *DatadogMetricsInternalStore) UnlockSet(id string, datadogMetric model.DatadogMetricInternal, sender string) {
 	ds.store[id] = datadogMetric
 	ds.lock.Unlock()
 
-	ds.notify(setOperation, id, sender, datadogMetric)
+	ds.notify(setOperation, id, sender)
 }
 
 // UnlockDelete deletes a DatadogMetricInternal and releases the lock (previously acquired by `LockRead`)
-func (ds *DatadogMetricsInternalStore) UnlockDelete(id string, sender autoscaling.SenderID) {
-	obj, exists := ds.store[id]
+func (ds *DatadogMetricsInternalStore) UnlockDelete(id, sender string) {
+	_, exists := ds.store[id]
 
 	delete(ds.store, id)
 	ds.lock.Unlock()
 
 	if exists {
-		ds.notify(deleteOperation, id, sender, obj)
+		ds.notify(deleteOperation, id, sender)
 	}
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (ds *DatadogMetricsInternalStore) notify(operationType storeOperation, key string, sender autoscaling.SenderID, obj interface{}) {
+func (ds *DatadogMetricsInternalStore) notify(operationType storeOperation, key, sender string) {
 	ds.observersLock.RLock()
 	defer ds.observersLock.RUnlock()
 
 	for _, observer := range ds.observers[operationType] {
-		observer(key, sender, obj)
+		observer(key, sender)
 	}
 }

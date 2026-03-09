@@ -2087,14 +2087,10 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
 					"span.kind":            "unspecified",
 				},
-				Metrics: map[string]float64{
-					"http.status_code": 201,
-				},
 				Type: "custom",
 			},
 			topLevelOutMetrics: map[string]float64{
-				"_top_level":       1,
-				"http.status_code": 201,
+				"_top_level": 1,
 			},
 		},
 		{
@@ -2149,14 +2145,10 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
 					"span.kind":            "unspecified",
 				},
-				Metrics: map[string]float64{
-					"http.status_code": 201,
-				},
 				Type: "custom",
 			},
 			topLevelOutMetrics: map[string]float64{
-				"_top_level":       1,
-				"http.status_code": 201,
+				"_top_level": 1,
 			},
 		},
 		{

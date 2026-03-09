@@ -7,7 +7,6 @@ package apiimpl
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
 	"time"
 
@@ -21,12 +20,9 @@ const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
 func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
-	ipcListener, err := listener.GetListener(ipcServerAddr)
+	server.ipcListener, err = listener.GetListener(ipcServerAddr)
 	if err != nil {
 		return err
-	}
-	if tcpAddr, ok := ipcListener.Addr().(*net.TCPAddr); ok {
-		server.ipcAddr = tcpAddr
 	}
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
@@ -49,8 +45,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		TLSConfig: serverTLSConfig,
 	}
 
-	server.ipcServer = ipcServer
-	startServer(ipcListener, ipcServer, ipcServerName)
+	startServer(server.ipcListener, ipcServer, ipcServerName)
 
 	return nil
 }

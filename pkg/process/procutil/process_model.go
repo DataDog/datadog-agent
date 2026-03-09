@@ -56,7 +56,6 @@ type Process struct {
 	Stats          *Stats
 	Service        *Service
 	InjectionState InjectionState // APM auto-injector detection status
-	ContainerID    string
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

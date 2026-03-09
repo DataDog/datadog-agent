@@ -5,48 +5,38 @@
 
 package eval
 
-import "strings"
-
 var (
-	extensionSanitizer = func(kind FieldValueType, pattern string) (string, error) {
-		if kind == RegexpValueType || strings.HasPrefix(pattern, ".") {
-			return pattern, nil
-		}
-
-		return "." + pattern, nil
-	}
-
 	// ExtensionCmp normalizes file extension values by stripping a leading dot,
 	// allowing rules to use either ".txt" or "txt" to match the same extension.
 	ExtensionCmp = &OpOverrides{
 		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
+				a.StringCmpOpts.TrimLeadingDot = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.Sanitize = extensionSanitizer
+				b.StringCmpOpts.TrimLeadingDot = true
 			}
 
 			return StringEquals(a, b, state)
 		},
 		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
+				a.StringCmpOpts.TrimLeadingDot = true
 			}
 
 			return StringValuesContains(a, b, state)
 		},
 		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
+				a.StringCmpOpts.TrimLeadingDot = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.Sanitize = extensionSanitizer
+				b.StringCmpOpts.TrimLeadingDot = true
 			}
 
 			return StringArrayContains(a, b, state)
 		},
 		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
+				a.StringCmpOpts.TrimLeadingDot = true
 			}
 
 			return StringArrayMatches(a, b, state)

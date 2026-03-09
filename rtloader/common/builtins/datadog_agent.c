@@ -203,8 +203,19 @@ PyObject *get_version(PyObject *self, PyObject *args)
     uses the`cb_get_config()` callback to retrieve the element in the agent configuration
     associated with the key passed in with the args argument. The value returned
     will depend on the element type found for the key, and is a python object
-    unmarshaled by `json.loads` when calling `from_json()` with the payload returned
-    by the callback. If no callback is set, `None` will be returned.
+    unmarshaled by the `yaml.safe_load` function when calling `from_yaml()` with
+    the payload returned by callback. If no callback is set, `None` will be returned.
+
+    Before RtLoader the Agent used reflection to inspect the contents of a configuration
+    value and the CPython API to perform conversion to a Python equivalent. Such
+    a conversion wouldn't be possible in a Python-agnostic way so we use YAML to
+    pass the data from Go to Python. The configuration value is loaded in the Agent,
+    marshalled into YAML and passed as a `char*` to RtLoader, where the string is
+    decoded back to Python and passed to the caller. YAML usage is transparent to
+    the caller, who would receive a Python object as returned from `yaml.safe_load`.
+    YAML is used instead of JSON since the `json.load` return unicode for
+    string, for python2, which would be a breaking change from the previous
+    version of the agent.
 */
 PyObject *get_config(PyObject *self, PyObject *args)
 {
@@ -224,10 +235,10 @@ PyObject *get_config(PyObject *self, PyObject *args)
     cb_get_config(key, &data);
 
     // new ref
-    PyObject *value = from_json(data);
+    PyObject *value = from_yaml(data);
     cgo_free(data);
     if (value == NULL) {
-        // clear error set by `from_json`
+        // clear error set by `from_yaml`
         PyErr_Clear();
         Py_RETURN_NONE;
     }
@@ -263,10 +274,10 @@ PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     cb_headers(&data);
 
     // new ref
-    PyObject *headers_dict = from_json(data);
+    PyObject *headers_dict = from_yaml(data);
     cgo_free(data);
     if (headers_dict == NULL || !PyDict_Check(headers_dict)) {
-        // clear error set by `from_json`
+        // clear error set by `from_yaml`
         PyErr_Clear();
         // if headers_dict is not a dict we don't need to hold a ref to it
         Py_XDECREF(headers_dict);

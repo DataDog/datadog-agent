@@ -248,7 +248,7 @@ func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
 
 	// Agent version
 	version := os.Getenv(versionVar)
-	s.Require().NotEmpty(version, "%s is required but not set", versionVar)
+	s.Require().NotEmpty(versionVar, "%s is required but not set", versionVar)
 
 	// Package version
 	versionPackage := os.Getenv(versionPackageVar)

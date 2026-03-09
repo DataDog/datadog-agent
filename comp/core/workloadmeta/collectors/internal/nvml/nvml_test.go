@@ -56,8 +56,8 @@ func TestPull(t *testing.T) {
 		require.Equal(t, "hopper", gpu.Architecture)
 		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
-		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_SM], gpu.MaxClockRates[workloadmeta.GPUSM])
-		require.Equal(t, testutil.DefaultMaxClockRates[nvml.CLOCK_MEM], gpu.MaxClockRates[workloadmeta.GPUMemory])
+		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUSM], gpu.MaxClockRates[workloadmeta.GPUSM])
+		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUMemory], gpu.MaxClockRates[workloadmeta.GPUMemory])
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
 	}

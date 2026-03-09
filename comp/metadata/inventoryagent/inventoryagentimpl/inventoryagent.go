@@ -179,13 +179,12 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
-	ia.data["package_version"] = version.AgentPackageVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
 	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
 	// agent-configuration: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "none"}, infraMode) {
+	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
 		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
 		infraMode = "full"
 	}
@@ -497,7 +496,7 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
 			data["full_configuration"] = yaml
 		}
 	}

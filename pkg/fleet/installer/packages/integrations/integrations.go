@@ -51,17 +51,29 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 // SaveCustomIntegrations saves custom integrations from the previous installation
 // Today it calls pre.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
-func SaveCustomIntegrations(ctx context.Context, installPath string, storagePath string) (err error) {
+//
+// Note: in the OCI installation this fails as the file where integrations are saved
+// is hardcoded to be in the same directory as the agent. This will be fixed in a future PR.
+func SaveCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "save_custom_integrations")
 	defer func() {
 		span.Finish(err)
 	}()
+
+	storagePath := installPath
+	if strings.HasPrefix(installPath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
 	return executePythonScript(ctx, installPath, "pre.py", installPath, storagePath)
 }
 
 // RestoreCustomIntegrations restores custom integrations from the previous installation
 // Today it calls post.py to persist the custom integrations; though we should probably
 // port this to Go in the future.
+//
+// Note: in the OCI installation this fails as the file where integrations are saved
+// is hardcoded to be in the same directory as the agent. This will be fixed in a future PR.
 func RestoreCustomIntegrations(ctx context.Context, installPath string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "restore_custom_integrations")
 	defer func() {

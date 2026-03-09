@@ -17,8 +17,8 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
+      # OpenTelemetry collector packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
@@ -53,8 +53,8 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
+      # OpenTelemetry collector packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/collector/*
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
@@ -74,8 +74,6 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
       day: saturday
@@ -94,8 +92,6 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
       day: saturday
@@ -112,8 +108,6 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
       day: saturday
@@ -136,8 +130,6 @@ updates:
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
@@ -151,8 +143,6 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
       day: saturday
@@ -176,8 +166,6 @@ updates:
       - dependency-name: github.com/pulumi*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
     groups:
       aws-sdk-go-v2:
         patterns:
@@ -206,8 +194,6 @@ updates:
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/*
   - package-ecosystem: docker
     directory: /test/fakeintake
     labels:
@@ -216,6 +202,19 @@ updates:
       - changelog/no-changelog
       - qa/no-code-change
       - dev/testing
+    schedule:
+      interval: weekly
+      day: saturday
+    open-pull-requests-limit: 100
+  - package-ecosystem: github-actions
+    directory: /
+    labels:
+      - dependencies
+      - dependencies-github-actions
+      - team/agent-devx
+      - changelog/no-changelog
+      - qa/no-code-change
+      - dev/tooling
     schedule:
       interval: weekly
       day: saturday

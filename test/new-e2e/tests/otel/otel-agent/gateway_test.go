@@ -76,12 +76,13 @@ func (s *gatewayTestSuite) SetupSuite() {
 func (s *gatewayTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s, gatewayParams)
 
+	// In gateway mode, the agent hostname should be empty (not set)
+	// because the gateway agent acts as a forwarder and doesn't represent a specific host.
 	traces, err := s.Env().FakeIntake.Client().GetTraces()
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), traces)
 	for _, trace := range traces {
-		assert.NotEmpty(s.T(), trace.HostName, "agent hostname should not be empty in gateway mode")
-		assert.Equal(s.T(), "true", trace.Tags["_dd.otel.gateway"], "gateway tag should be set on AgentPayload")
+		assert.Empty(s.T(), trace.HostName, "agent hostname should be empty in gateway mode")
 	}
 }
 

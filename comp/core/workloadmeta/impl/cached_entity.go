@@ -102,11 +102,9 @@ func (e *cachedEntity) computeCache() {
 func (e *cachedEntity) copy() *cachedEntity {
 	newEntity := newCachedEntity()
 
-	if e.cached != nil {
-		newEntity.cached = e.cached.DeepCopy()
-	}
+	newEntity.cached = e.cached.DeepCopy()
 
-	newEntity.sortedSources = append(newEntity.sortedSources, e.sortedSources...)
+	copy(newEntity.sortedSources, e.sortedSources)
 
 	maps.Copy(newEntity.sources, e.sources)
 

@@ -8,7 +8,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/stretchr/testify v1.11.1
 )
@@ -19,6 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

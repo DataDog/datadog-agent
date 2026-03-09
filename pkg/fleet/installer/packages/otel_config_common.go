@@ -94,10 +94,8 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 	if apiKey != "" {
 		content = strings.ReplaceAll(content, "${env:DD_API_KEY}", apiKey)
 	}
-	// Set default site if unset
-	if site == "" {
-		site = "datadoghq.com"
+	if site != "" {
+		content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
 	}
-	content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
 	return os.WriteFile(outPath, []byte(content), mode)
 }

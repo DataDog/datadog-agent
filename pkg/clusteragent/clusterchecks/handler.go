@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -117,26 +115,14 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Leading, start warmup
 		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
-		span := tracer.StartSpan("cluster_checks.handler.leader_warmup",
-			tracer.ResourceName("warmup"),
-			tracer.SpanType("worker"))
-		finishWarmupSpan := func(interrupted string) {
-			if interrupted != "" {
-				span.SetTag("interrupted", interrupted)
-			}
-			span.Finish()
-		}
 		select {
 		case <-ctx.Done():
-			finishWarmupSpan("context_done")
 			return
 		case newState := <-h.leadershipChan:
-			finishWarmupSpan("leadership_lost")
 			if newState != leader {
 				continue
 			}
 		case <-time.After(h.warmupDuration):
-			finishWarmupSpan("")
 			break
 		}
 
@@ -164,10 +150,6 @@ func (h *Handler) Run(ctx context.Context) {
 
 			if newState != leader {
 				log.Info("Lost leadership, reverting to follower")
-				lostSpan := tracer.StartSpan("cluster_checks.handler.leadership_lost",
-					tracer.ResourceName("leadership_lost"),
-					tracer.SpanType("worker"))
-				lostSpan.Finish()
 				dispatchCancel()
 				break // Return back to main loop start
 			}

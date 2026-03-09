@@ -8,8 +8,6 @@
 package tcpqueuelength
 
 import (
-	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -61,15 +59,14 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 
 		err = runTCPLoadTest()
 		require.NoError(t, err)
+		if total != msgLen {
+			require.Equal(t, msgLen, total, "message length")
+		}
 
-		var maxReadUsage uint32
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			afterStats := extractGlobalStats(t, tcpTracer)
-			if afterStats.ReadBufferMaxUsage > maxReadUsage {
-				maxReadUsage = afterStats.ReadBufferMaxUsage
-			}
-			assert.GreaterOrEqual(c, maxReadUsage, uint32(1000), "max usage of read buffer is too low after the stress test")
-		}, 5*time.Second, 500*time.Millisecond)
+		afterStats := extractGlobalStats(t, tcpTracer)
+		if afterStats.ReadBufferMaxUsage < 1000 {
+			t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
+		}
 	})
 }
 
@@ -98,93 +95,94 @@ func extractGlobalStats(t *testing.T, tracer *Tracer) model.TCPQueueLengthStatsV
 }
 
 // TCP test infrastructure
-// The idea here is to setup a server and a client with a tiny RECV buffer,
-// then send enough data to fill the buffer. The eBPF probe captures the
-// buffer usage ratio (per-mille) during tcp_recvmsg calls.
+// The idea here is to setup a server and a client, and to slow the server as much as possible by:
+// - reading slowly (wait between reads)
+// - reading small chunks at a time
+// - reducing the RECV buffer size
 
-var tcpTestAddr = &net.TCPAddr{
+var Addr = &net.TCPAddr{
 	Port: 25568,
 }
 
 const msgLen = 10000
 
-func runTCPLoadTest() error {
-	serverReady := make(chan struct{})
-	bufferConfigured := make(chan struct{})
+var (
+	isInSlowMode = true
+	total        int
+	serverReady  chan struct{}
+)
 
-	g, ctx := errgroup.WithContext(context.Background())
-
-	// Server goroutine: listen, accept, configure a tiny receive buffer, then read.
-	g.Go(func() error {
-		listener, err := net.ListenTCP("tcp", tcpTestAddr)
+func handleRequest(conn *net.TCPConn) error {
+	defer conn.Close()
+outer:
+	for {
+		buf := make([]byte, 10)
+		count, err := conn.Read(buf)
 		if err != nil {
 			return err
 		}
-		defer listener.Close()
 
-		close(serverReady)
+		total += count
 
-		conn, err := listener.AcceptTCP()
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-
-		if err := conn.SetReadBuffer(2); err != nil {
-			return fmt.Errorf("SetReadBuffer: %w", err)
-		}
-		close(bufferConfigured)
-
-		// Read all data in small chunks until the zero-byte terminator.
-		for {
-			buf := make([]byte, 10)
-			count, err := conn.Read(buf)
-			if err != nil {
-				return err
-			}
-
-			for i := 0; i < count; i++ {
-				if buf[i] == 0 {
-					return nil
-				}
+		for i := 0; i < count; i++ {
+			if buf[i] == 0 {
+				break outer
 			}
 		}
-	})
 
-	// Client goroutine: connect, wait for the server to configure its small
-	// buffer, then send data.
-	g.Go(func() error {
-		select {
-		case <-serverReady:
-		case <-ctx.Done():
-			return ctx.Err()
+		if isInSlowMode {
+			time.Sleep(1 * time.Second)
 		}
+	}
 
-		conn, err := net.DialTCP("tcp", nil, tcpTestAddr)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
+	return nil
+}
 
-		// Wait until the server has accepted the connection and configured
-		// a small receive buffer. This ensures that when we send data, the
-		// kernel sk_rcvbuf is already small, so the eBPF probe will see a
-		// high buffer usage ratio.
-		select {
-		case <-bufferConfigured:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-
-		msg := make([]byte, msgLen)
-		for i := 0; i < msgLen-1; i++ {
-			msg[i] = 4
-		}
-		msg[msgLen-1] = 0
-
-		_, err = conn.Write(msg)
+func server() error {
+	listener, err := net.ListenTCP("tcp", Addr)
+	if err != nil {
 		return err
-	})
+	}
+	defer listener.Close()
 
+	close(serverReady)
+
+	conn, err := listener.AcceptTCP()
+	if err != nil {
+		return err
+	}
+	conn.SetReadBuffer(2)
+
+	return handleRequest(conn)
+}
+
+func client() error {
+	<-serverReady
+
+	conn, err := net.DialTCP("tcp", nil, Addr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	msg := make([]byte, msgLen)
+	for i := 0; i < msgLen-1; i++ {
+		msg[i] = 4
+	}
+	msg[msgLen-1] = 0
+
+	conn.Write(msg)
+
+	isInSlowMode = false
+	return nil
+}
+
+func runTCPLoadTest() error {
+	serverReady = make(chan struct{})
+	total = 0
+
+	g := new(errgroup.Group)
+	g.Go(server)
+	g.Go(client)
 	return g.Wait()
 }

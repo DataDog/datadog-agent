@@ -15,7 +15,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -307,7 +306,7 @@ func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
 		"name":                                     p.name,
 		"creation_timestamp":                       p.creationTimestamp,
 		"generation":                               p.generation,
-		"spec":                                     p.Spec(),
+		"spec":                                     p.spec,
 		"settings_timestamp":                       p.settingsTimestamp,
 		"scaling_values":                           p.scalingValues,
 		"scaling_values_error":                     errorToString(p.scalingValues.Error),
@@ -390,17 +389,7 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	p.generation = temp.Generation
 	p.creationTimestamp = temp.CreationTimestamp
 	p.settingsTimestamp = temp.SettingsTimestamp
-	if temp.Spec != nil {
-		if p.upstreamCR == nil {
-			p.upstreamCR = &v1alpha2.DatadogPodAutoscaler{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: p.namespace,
-					Name:      p.name,
-				},
-			}
-		}
-		p.upstreamCR.Spec = *temp.Spec
-	}
+	p.spec = temp.Spec
 	p.deleted = temp.Deleted
 	p.currentReplicas = temp.CurrentReplicas
 	p.scaledReplicas = temp.ScaledReplicas

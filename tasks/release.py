@@ -856,14 +856,9 @@ def create_release_branches(
         with open(".gitlab-ci.yml") as f:
             content = f.read()
         with open(".gitlab-ci.yml", "w") as f:
-            updated_content = content.replace(
-                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
             )
-            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
-            updated_content = updated_content.replace(
-                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
-            )
-            f.write(updated_content)
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")
@@ -1211,15 +1206,7 @@ def chase_for_qa_cards(_, version):
     client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
-        try:
-            team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
-        except StopIteration:
-            client.chat_postMessage(
-                channel="#agent-devx-ops",
-                text=f"Issue in qa_card chase, no team found for project {project} for cards {', '.join([card['key'] for card in cards])}",
-            )
-            print(f"No team found for project {project}")
-            continue
+        team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
         channel = GITHUB_SLACK_MAP[team]
         print(f" - {channel} for {[card['key'] for card in cards]}")
         card_links = ", ".join(

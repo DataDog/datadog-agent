@@ -109,7 +109,7 @@ type State interface {
 	StoreClosedConnection(connection *ConnectionStats)
 
 	// GetStats returns a map of statistics about the current network state
-	GetStats() map[string]any
+	GetStats() map[string]interface{}
 
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
@@ -795,11 +795,11 @@ func (ns *networkState) RemoveConnections(conns []*ConnectionStats) {
 }
 
 // GetStats returns a map of statistics about the current network state
-func (ns *networkState) GetStats() map[string]any {
+func (ns *networkState) GetStats() map[string]interface{} {
 	ns.Lock()
 	defer ns.Unlock()
 
-	clientInfo := map[string]any{}
+	clientInfo := map[string]interface{}{}
 	for id, c := range ns.clients {
 		clientInfo[id] = map[string]int{
 			"stats":              len(c.stats),
@@ -808,7 +808,7 @@ func (ns *networkState) GetStats() map[string]any {
 		}
 	}
 
-	return map[string]any{
+	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
 			"closed_conn_dropped": stateTelemetry.closedConnDropped.Load(),

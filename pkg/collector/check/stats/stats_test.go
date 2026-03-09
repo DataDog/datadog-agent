@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
@@ -96,7 +95,9 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
 	tlmData, err := getTelemetryData()
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return
+	}
 
 	assert.Contains(
 		t,

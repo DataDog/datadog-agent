@@ -103,6 +103,8 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 			openFiles.tracerMemfdFd = fd
 			continue
 		}
+
+		continue
 	}
 
 	return openFiles, nil

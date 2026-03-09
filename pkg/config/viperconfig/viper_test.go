@@ -260,56 +260,6 @@ func TestCheckKnownKey(t *testing.T) {
 	assert.Contains(t, config.unknownKeys, "foobar")
 }
 
-func TestCollectAllLeafKeys(t *testing.T) {
-	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
-
-	config.SetKnown("apm_config.foo")     //nolint:forbidigo // testing behavior
-	config.SetKnown("apm_config.bar.baz") //nolint:forbidigo // testing behavior
-	config.SetKnown("proxy.http")         //nolint:forbidigo // testing behavior
-
-	// Track unknown keys through Get(), which is how unknownKeys is populated.
-	_ = config.Get("unknown_section")
-	_ = config.Get("unknown_section.info")
-
-	config.RLock()
-	keys := config.collectAllLeafKeys()
-	config.RUnlock()
-
-	assert.ElementsMatch(t, []string{
-		"apm_config.foo",
-		"apm_config.bar.baz",
-		"proxy.http",
-		"unknown_section",
-		"unknown_section.info",
-	}, keys)
-	assert.NotContains(t, keys, "apm_config")
-	assert.NotContains(t, keys, "apm_config.bar")
-	assert.NotContains(t, keys, "proxy")
-}
-
-func TestAllKeysVsCollectAllLeafKeys(t *testing.T) {
-	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
-
-	// Known map-valued setting.
-	config.SetKnown("additional_endpoints") //nolint:forbidigo // testing behavior
-	config.Set("additional_endpoints", map[string]interface{}{
-		"https://app.datadoghq.com": []interface{}{"api_key"},
-	}, model.SourceFile)
-
-	allKeys := config.AllKeysLowercased()
-
-	config.RLock()
-	leafKeys := config.collectAllLeafKeys()
-	config.RUnlock()
-
-	// Viper's AllKeys() flattens map keys with dots, creating ambiguous keys.
-	assert.Contains(t, allKeys, "additional_endpoints.https://app.datadoghq.com")
-
-	// collectAllLeafKeys() should keep only the schema leaf key.
-	assert.Contains(t, leafKeys, "additional_endpoints")
-	assert.NotContains(t, leafKeys, "additional_endpoints.https://app.datadoghq.com")
-}
-
 func TestExtraConfig(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 

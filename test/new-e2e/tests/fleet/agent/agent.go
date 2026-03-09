@@ -44,15 +44,6 @@ func (a *Agent) Version() (string, error) {
 	return status.AgentMetadata.AgentVersion, nil
 }
 
-// PackageVersion returns the OCI package version of the agent.
-func (a *Agent) PackageVersion() (string, error) {
-	status, err := a.Status()
-	if err != nil {
-		return "", err
-	}
-	return status.AgentMetadata.PackageVersion, nil
-}
-
 // Status returns the status of the agent.
 func (a *Agent) Status() (Status, error) {
 	rawStatus, err := a.runCommand("status", "--json")
@@ -99,12 +90,6 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		}
 	}
 	return integrations, nil
-}
-
-// InstallIntegration installs a custom integration on the agent (e.g. "datadog-ping==1.0.2").
-func (a *Agent) InstallIntegration(name string) error {
-	_, err := a.runCommand("integration", "install", "-t", name)
-	return err
 }
 
 // runCommand runs a command on the remote host.
@@ -241,7 +226,6 @@ type Status struct {
 		HostnameSource                           string        `json:"hostname_source"`
 		InfrastructureMode                       string        `json:"infrastructure_mode"`
 		InstallMethodInstallerVersion            string        `json:"install_method_installer_version"`
-		PackageVersion                           string        `json:"package_version"`
 		InstallMethodTool                        string        `json:"install_method_tool"`
 		InstallMethodToolVersion                 string        `json:"install_method_tool_version"`
 		SystemProbeCoreEnabled                   bool          `json:"system_probe_core_enabled"`
@@ -1076,10 +1060,12 @@ type Status struct {
 		OrgEnabled   string `json:"orgEnabled"`
 	} `json:"remoteConfiguration"`
 	RunnerStats struct {
-		Checks        map[string]interface{} `json:"Checks"`
-		Running       map[string]interface{} `json:"Running"`
-		RunningChecks int                    `json:"RunningChecks"`
-		Runs          int                    `json:"Runs"`
+		Checks struct {
+		} `json:"Checks"`
+		Running struct {
+		} `json:"Running"`
+		RunningChecks int `json:"RunningChecks"`
+		Runs          int `json:"Runs"`
 		Workers       struct {
 			Count int `json:"Count"`
 		} `json:"Workers"`

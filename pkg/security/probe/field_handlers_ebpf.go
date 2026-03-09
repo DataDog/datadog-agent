@@ -418,12 +418,12 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 }
 
 func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
-	if fh.resolvers.SBOMResolver == nil {
+	// Force the resolution of file path to be able to map to a package provided file
+	if fh.ResolveFilePath(ev, f) == "" {
 		return
 	}
 
-	// Force the resolution of file path to be able to map to a package provided file
-	if fh.ResolveFilePath(ev, f) == "" {
+	if fh.resolvers.SBOMResolver == nil {
 		return
 	}
 

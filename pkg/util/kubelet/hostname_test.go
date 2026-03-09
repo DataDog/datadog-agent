@@ -64,36 +64,6 @@ func TestHostnameProvider(t *testing.T) {
 	assert.Equal(t, "node-name-laika", hostName)
 }
 
-func TestHostnameProviderWillBeValid(t *testing.T) {
-	env.SetFeatures(t, env.Kubernetes)
-
-	ctx := context.Background()
-	mockConfig := configmock.New(t)
-
-	ku := &kubeUtilMock{}
-
-	ku.On("GetNodename").Return("node-name", nil)
-
-	defer ku.AssertExpectations(t)
-
-	kubeUtilGet = func() (k.KubeUtilInterface, error) {
-		return ku, nil
-	}
-
-	// defer a reset of the state so that future hostname fetches are not impacted
-	defer mockConfig.SetWithoutSource("cluster_name", "")
-	defer clustername.ResetClusterName()
-
-	testClusterName := "laika_willbe_valid"
-	mockConfig.SetWithoutSource("cluster_name", testClusterName)
-	clustername.ResetClusterName() // reset state as clustername was already read
-
-	hostName, err := GetHostname(ctx)
-	assert.NoError(t, err)
-	// In this case we make the clustername RFC1123 compliant
-	assert.Equal(t, "node-name-laika-willbe-valid", hostName)
-}
-
 func TestHostnameProviderInvalid(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
@@ -114,7 +84,7 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	defer mockConfig.SetWithoutSource("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	testClusterName := "laika_invalid_"
+	testClusterName := "laika_invalid"
 	mockConfig.SetWithoutSource("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
 
@@ -144,11 +114,6 @@ func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
 			name:        "invalid clustername underscore at the end and middle",
 			clusterName: "cluster_name_",
 			want:        "cluster-name-",
-		},
-		{
-			name:        "laika_invalid becomes laika-invalid",
-			clusterName: "laika_invalid",
-			want:        "laika-invalid",
 		},
 	}
 	for _, tt := range tests {

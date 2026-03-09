@@ -34,7 +34,6 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
@@ -52,9 +51,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
-	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -123,10 +122,10 @@ import (
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
+	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
-	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
+	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
@@ -280,7 +279,7 @@ func run(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
-	_ option.Option[langDetectionCl.Component],
+	_ langDetectionCl.Component,
 	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
@@ -525,7 +524,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		adschedulerfx.Module(),
+		adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -561,7 +560,6 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
-		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
 	)

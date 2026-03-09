@@ -291,8 +291,8 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	}
 
 	for protocol, parser := range map[string]func() (procfs.NetTCP, error){
-		"tcp":  fs.NetTCP,  //nolint:staticcheck // TODO use netlink to collect these statistics
-		"tcp6": fs.NetTCP6, //nolint:staticcheck // TODO use netlink to collect these statistics
+		"tcp":  fs.NetTCP,
+		"tcp6": fs.NetTCP6,
 	} {
 		addrs, err := parser()
 		if err != nil {

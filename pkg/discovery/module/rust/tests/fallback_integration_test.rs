@@ -35,21 +35,15 @@ fn test_fallback_on_npm_enabled() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
-
     // Run sd-agent with network tracer enabled using new -- syntax
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
-        .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_NETWORK_CONFIG_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -63,14 +57,6 @@ fn test_fallback_on_npm_enabled() {
         expected_args,
         content
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(
-            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
-        ),
-        "Expected fallback due to DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
-        stdout
-    );
 }
 
 #[test]
@@ -80,13 +66,14 @@ fn test_no_fallback_on_discovery_only() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
 
     // Run sd-agent with only discovery enabled (should NOT fallback)
     // Note: --config must be after -- to be parsed as system-probe arg
     let mut child = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -126,35 +113,26 @@ fn test_config_file_only() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
     assert!(marker_file.exists(), "Should fallback based on config file");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: YAML key network_config is active"),
-        "Expected fallback due to network_config YAML key, got: {}",
-        stdout
-    );
 }
 
 #[test]
 fn test_missing_fallback_binary() {
     let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg("/nonexistent/system-probe")
         .arg("run")
-        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+        .env("DD_NETWORK_CONFIG_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -180,8 +158,7 @@ fn test_invalid_yaml_triggers_fallback() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -192,12 +169,6 @@ fn test_invalid_yaml_triggers_fallback() {
         .expect("Failed to execute sd-agent");
 
     assert!(marker_file.exists(), "Should fallback on invalid YAML");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Failed to load YAML config. Falling back to system-probe."),
-        "Expected fallback due to invalid YAML, got: {}",
-        stdout
-    );
 }
 
 #[test]
@@ -214,27 +185,19 @@ fn test_unknown_yaml_key_triggers_fallback() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
     assert!(
         marker_file.exists(),
         "Unknown YAML key should trigger fallback"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: YAML key unknown_module is active"),
-        "Expected fallback due to unknown_module YAML key, got: {}",
-        stdout
     );
 }
 
@@ -245,13 +208,14 @@ fn test_discovery_disabled_exits_cleanly() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
 
     // Discovery explicitly disabled should exit cleanly (not call system-probe)
     // Note: --config must be after -- to be parsed as system-probe arg
     let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -280,19 +244,13 @@ fn test_discovery_enabled_with_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
-
-    // Both discovery and DD_RUNTIME_SECURITY_CONFIG_ENABLED should trigger fallback
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    // Both discovery and DD_SERVICE should trigger fallback
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
@@ -300,14 +258,6 @@ fn test_discovery_enabled_with_fallback() {
     assert!(
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(
-            "Falling back to system-probe: env var DD_RUNTIME_SECURITY_CONFIG_ENABLED is set"
-        ),
-        "Expected fallback due to DD_RUNTIME_SECURITY_CONFIG_ENABLED, got: {}",
-        stdout
     );
 }
 
@@ -319,17 +269,12 @@ fn test_killswitch_disabled_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
-
     // Killswitch disabled should trigger fallback even with discovery enabled
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "false")
         .env("DD_DISCOVERY_ENABLED", "true")
         .output()
@@ -338,12 +283,6 @@ fn test_killswitch_disabled_fallback() {
     assert!(
         marker_file.exists(),
         "Killswitch disabled should trigger fallback to system-probe"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
-        "Expected fallback due to killswitch disabled, got: {}",
-        stdout
     );
 }
 
@@ -354,17 +293,12 @@ fn test_killswitch_not_set_defaults_to_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
-
     // Killswitch not set should default to fallback (safe default)
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_ENABLED", "true")
         .output()
         .expect("Failed to execute sd-agent");
@@ -372,12 +306,6 @@ fn test_killswitch_not_set_defaults_to_fallback() {
     assert!(
         marker_file.exists(),
         "Killswitch not set should default to fallback (safe default)"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
-        "Expected fallback due to killswitch not set, got: {}",
-        stdout
     );
 }
 
@@ -388,12 +316,13 @@ fn test_killswitch_enabled_runs_sd_agent() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Create empty config file to avoid picking up system config
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
 
     // Killswitch enabled should allow sd-agent to run
     let mut child = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -443,8 +372,7 @@ fn test_killswitch_yaml_config() {
     config_file.flush().unwrap();
 
     // YAML with killswitch disabled should trigger fallback
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -456,12 +384,6 @@ fn test_killswitch_yaml_config() {
     assert!(
         marker_file.exists(),
         "YAML with killswitch disabled should trigger fallback"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
-        "Expected fallback due to killswitch disabled in YAML, got: {}",
-        stdout
     );
 }
 
@@ -485,8 +407,7 @@ fn test_killswitch_env_overrides_yaml_enabled() {
     config_file.flush().unwrap();
 
     // Env var (false) should override YAML (true)
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -500,12 +421,6 @@ fn test_killswitch_env_overrides_yaml_enabled() {
         marker_file.exists(),
         "Env var should override YAML - fallback should happen"
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Falling back to system-probe: sd-agent killswitch is not enabled"),
-        "Expected fallback due to killswitch env var override, got: {}",
-        stdout
-    );
 }
 
 #[test]
@@ -515,12 +430,13 @@ fn test_env_var_false_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Create empty config file
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
 
     // Env var set to "false" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -528,7 +444,7 @@ fn test_env_var_false_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
+        .env("DD_NETWORK_CONFIG_ENABLED", "false")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -550,12 +466,13 @@ fn test_env_var_zero_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
+    // Create empty config file
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
 
     // Env var set to "0" should NOT trigger fallback
     let mut child = Command::new(SD_AGENT_BIN)
-        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -563,7 +480,7 @@ fn test_env_var_zero_no_fallback() {
         .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "0")
+        .env("DD_NETWORK_CONFIG_ENABLED", "0")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -585,32 +502,18 @@ fn test_env_var_non_boolean_triggers_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
-    let config_file = NamedTempFile::new().unwrap();
-
     // Env var set to a non-boolean value should trigger fallback (safety net)
-    let output = Command::new(SD_AGENT_BIN)
-        .env_clear()
+    let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "maybe")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_NETWORK_CONFIG_ENABLED", "maybe")
         .output()
         .expect("Failed to execute sd-agent");
 
     assert!(
         marker_file.exists(),
         "Env var with non-boolean value should trigger fallback as safety net"
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(
-            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
-        ),
-        "Expected fallback due to non-boolean DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
-        stdout
     );
 }

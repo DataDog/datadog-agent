@@ -79,7 +79,6 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -208,7 +207,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
-				rcstatusimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
@@ -540,7 +538,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, demultiplexer); err == nil {
 			pa = adapter
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -598,7 +596,6 @@ func start(log log.Component,
 			patchCtx := admissionpatch.ControllerContext{
 				LeadershipStateSubscribeFunc: le.Subscribe,
 				K8sClient:                    apiCl.Cl,
-				DynamicClient:                apiCl.DynamicCl,
 				RcClient:                     rcClient,
 				ClusterName:                  clusterName,
 				ClusterID:                    clusterID,

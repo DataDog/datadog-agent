@@ -1,0 +1,30 @@
+# rtloader/include
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("//rtloader:defs.bzl", "COMMON_DEFINES")
+
+package(default_visibility = ["//rtloader:__subpackages__"])
+
+cc_library(
+    name = "include",
+    hdrs = [
+        "datadog_agent_rtloader.h",
+        "rtloader.h",
+        "rtloader_types.h",
+    ],
+    # We do this because they #include them with <x.h>
+    includes = ["."],
+    local_defines = COMMON_DEFINES,
+)
+
+# What to install.
+pkg_files(
+    name = "all_files",
+    srcs = [
+        "datadog_agent_rtloader.h",
+        "rtloader_types.h",
+    ],
+    # relative to {install_dir}
+    prefix = "embedded/include",
+)

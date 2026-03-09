@@ -16,20 +16,6 @@ var (
 	lastJMXStartupErrorMutex sync.RWMutex
 )
 
-// StartupError holds startup status and errors
-type StartupError struct {
-	LastError string
-	Timestamp int64
-}
-
-// GetStartupError retrieves latest JMX startup error
-func GetStartupError() StartupError {
-	lastJMXStartupErrorMutex.RLock()
-	defer lastJMXStartupErrorMutex.RUnlock()
-	errorCopy := StartupError{lastJMXStartupError.LastError, lastJMXStartupError.Timestamp}
-	return errorCopy
-}
-
 // SetStatus sets the last JMX Status
 func SetStatus(s Status) {
 	lastJMXStatusMutex.Lock()
@@ -47,8 +33,8 @@ func ClearStatus() {
 
 // SetStartupError sets the last JMX startup error
 func SetStartupError(s StartupError) {
-	lastJMXStartupErrorMutex.Lock()
-	defer lastJMXStartupErrorMutex.Unlock()
+	lastJMXStatusMutex.Lock()
+	defer lastJMXStatusMutex.Unlock()
 
 	lastJMXStartupError = s
 }

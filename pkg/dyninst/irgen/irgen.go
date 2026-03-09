@@ -39,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"
@@ -149,9 +150,9 @@ func generateIR(
 		switch r := r.(type) {
 		case nil:
 		case error:
-			retErr = fmt.Errorf("GenerateIR: panic: %w", r)
+			retErr = pkgerrors.Wrap(r, "GenerateIR: panic")
 		default:
-			retErr = fmt.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
+			retErr = pkgerrors.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 

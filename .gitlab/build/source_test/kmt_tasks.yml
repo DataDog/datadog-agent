@@ -30,11 +30,6 @@ test_kmt_local_setup_linux:
     # - AWSConfig: no AWS config in the CI yet
     KMT_EXCLUDE_REQUIREMENTS: "Docker,Compiler,UserInDockerGroup,AWSConfig"
 
-    # The `go mod download` step executed during the pulumi plugin install uses a lot of memory.
-    # This can lead to memory thrashing which causes the job to fail.
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
-
 test_kmt_local_setup_macos:
   extends: .test_kmt_local_setup
   before_script:

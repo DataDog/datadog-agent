@@ -8,7 +8,7 @@ from invoke.context import Context
 from tasks.libs.common.color import Color, color_message
 
 
-def is_enabled(ctx: Context, feature: str, verbose: bool = False, default: bool = False) -> bool:  # noqa
+def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:  # noqa
     """
     Performs a dda feature flag check and returns whether a feature is enabled or not.
     """
@@ -20,7 +20,7 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = False, default: bool 
     except Exception:
         if verbose:
             print(f'[{color_message("Warning", Color.BLUE)}] Failed to get feature flag {feature}', file=sys.stderr)
-        enabled = default
+        enabled = False
 
     if enabled or verbose:
         print(

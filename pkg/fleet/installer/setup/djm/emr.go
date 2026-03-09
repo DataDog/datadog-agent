@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.55.0-1"
-	emrJavaTracerVersion = "1.60.0-1"
-	emrAgentVersion      = "7.76.1-1"
+	emrInjectorVersion   = "0.53.0-1"
+	emrJavaTracerVersion = "1.58.0-1"
+	emrAgentVersion      = "7.74.0-1"
 	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
 )
 

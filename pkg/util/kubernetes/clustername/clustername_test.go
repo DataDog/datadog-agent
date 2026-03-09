@@ -44,27 +44,14 @@ func TestGetClusterName(t *testing.T) {
 	data = newClusterNameData()
 	assert.Equal(t, dotsClusterName, getClusterName(ctx, data, "hostname"))
 
-	startsWithNumberName := "1cluster"
-	mockConfig.SetWithoutSource("cluster_name", startsWithNumberName)
-	data = newClusterNameData()
-	assert.Equal(t, startsWithNumberName, getClusterName(ctx, data, "hostname"))
-
-	underscoreClusterName := "cluster_with_underscore"
-	mockConfig.SetWithoutSource("cluster_name", underscoreClusterName)
-	data = newClusterNameData()
-	assert.Equal(t, MakeClusterNameRFC1123Compliant(underscoreClusterName), getClusterName(ctx, data, "hostname"))
-
-	digitLeadingDottedClusterName := "1a.cluster.name"
-	mockConfig.SetWithoutSource("cluster_name", digitLeadingDottedClusterName)
-	data = newClusterNameData()
-	assert.Equal(t, digitLeadingDottedClusterName, getClusterName(ctx, data, "hostname"))
-
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
 		"Capital",
+		"with_underscore",
 		"with_dot._underscore",
 		"toolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoolongtoo",
 		"a..a",
+		"a.1.a",
 		"mx.gmail.com.",
 	} {
 		mockConfig.SetWithoutSource("cluster_name", invalidClusterName)

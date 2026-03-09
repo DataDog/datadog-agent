@@ -11,6 +11,4 @@ package probe
 const (
 	// ServiceEnvVar environment variable used to report service
 	ServiceEnvVar = "DD_SERVICE"
-	// OTELServiceEnvVar environment variable used to report service
-	OTELServiceEnvVar = "OTEL_SERVICE_NAME"
 )

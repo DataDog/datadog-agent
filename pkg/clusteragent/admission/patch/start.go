@@ -12,7 +12,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -20,7 +19,6 @@ import (
 type ControllerContext struct {
 	LeadershipStateSubscribeFunc func() (notifChan <-chan struct{}, isLeader func() bool)
 	K8sClient                    kubernetes.Interface
-	DynamicClient                dynamic.Interface
 	RcClient                     *rcclient.Client
 	ClusterName                  string
 	ClusterID                    string
@@ -39,7 +37,7 @@ func StartControllers(ctx ControllerContext) error {
 	if err != nil {
 		return err
 	}
-	patcher := newPatcher(ctx.K8sClient, ctx.DynamicClient, isLeaderFunc, telemetryCollector, provider)
+	patcher := newPatcher(ctx.K8sClient, isLeaderFunc, telemetryCollector, provider)
 	go provider.start(ctx.StopCh)
 	go patcher.start(ctx.StopCh)
 	return nil

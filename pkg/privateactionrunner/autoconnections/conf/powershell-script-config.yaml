@@ -14,10 +14,3 @@ runPredefinedPowershellScript:
           type: string
       required:
         - name
-
-  # Example showing environment variable
-  showEnv:
-    script: |
-      Write-Output "This vm name is $env:COMPUTERNAME"
-    allowedEnvVars:
-      - COMPUTERNAME

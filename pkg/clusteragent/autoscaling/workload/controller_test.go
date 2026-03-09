@@ -66,7 +66,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap, nil)
+				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, podWatcher, nil, hashHeap)
 				if err != nil {
 					return nil, err
 				}
@@ -141,7 +141,6 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 		Name:                           "dpa-0",
 		Generation:                     1,
 		Spec:                           &dpaSpec,
-		UpstreamCR:                     dpaTyped,
 		CustomRecommenderConfiguration: nil,
 	}
 	dpaInternal, found := f.store.Get("default/dpa-0")

@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixed discovery of Windows processes to identify reused PIDs between process snapshots and correctly track these processes.

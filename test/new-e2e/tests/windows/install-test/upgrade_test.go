@@ -403,7 +403,9 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 	s.Assert().EventuallyWithT(func(t *assert.CollectT) {
 		cmd := fmt.Sprintf(`& "%s\embedded\python.exe" "%s\agent\agent.py" info`, installPath, installPath)
 		out, err := host.Execute(cmd)
-		require.NoError(t, err, "should get agent info")
+		if !assert.NoError(t, err, "should get agent info") {
+			return
+		}
 		s.T().Logf("Agent 5 info:\n%s", out)
 		assert.Contains(t, out, agentPackage.AgentVersion(), "info should have agent 5 version")
 	}, 5*time.Minute, 5*time.Second, "should get agent 5 info")

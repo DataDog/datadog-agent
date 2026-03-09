@@ -53,13 +53,13 @@ PyObject *get_connection_info(PyObject *self, PyObject *args)
     cb_get_connection_info(&data);
 
     // create a new ref
-    PyObject *conn_info_dict = from_json(data);
+    PyObject *conn_info_dict = from_yaml(data);
 
     // free the memory allocated by the Agent
     cgo_free(data);
 
     if (conn_info_dict == NULL || !PyDict_Check(conn_info_dict)) {
-        // clear error set by `from_json` (if any)
+        // clear error set by `from_yaml` (if any)
         PyErr_Clear();
         // create a new ref and drop the other one
         Py_XDECREF(conn_info_dict);

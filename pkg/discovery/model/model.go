@@ -37,5 +37,4 @@ type UST struct {
 type ServicesResponse struct {
 	Services     []Service `json:"services"`
 	InjectedPIDs []int     `json:"injected_pids"`
-	GPUPIDs      []int     `json:"gpu_pids"`
 }

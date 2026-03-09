@@ -349,14 +349,3 @@ func WithTimeout(timeoutSeconds int) func(*Params) error {
 		return nil
 	}
 }
-
-func WithKubernetesUseEndpointSlices() func(*Params) error {
-	return func(p *Params) error {
-		values := `
-datadog:
-  kubernetesUseEndpointSlices: true
-`
-		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
-		return nil
-	}
-}

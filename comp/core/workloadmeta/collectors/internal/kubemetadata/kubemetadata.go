@@ -62,7 +62,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 			id:                collectorID,
 			seen:              make(map[workloadmeta.EntityID]struct{}),
 			namespaceLastSeen: make(map[string]time.Time),
-			catalog:           workloadmeta.NodeAgent,
+			catalog:           workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 		},
 	}, nil
 }

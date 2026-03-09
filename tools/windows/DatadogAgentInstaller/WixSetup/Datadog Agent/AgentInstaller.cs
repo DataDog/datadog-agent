@@ -730,10 +730,6 @@ namespace WixSetup.Datadog_Agent
                        new Files($@"{EtcSource}\runtime-security.d\*.*")
             ));
 
-            appData.AddDir(new Dir("private-action-runner",
-                       new Files($@"{EtcSource}\private-action-runner\*.*")
-            ));
-
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

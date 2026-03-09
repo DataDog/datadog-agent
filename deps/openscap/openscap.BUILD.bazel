@@ -3,7 +3,6 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
@@ -26,7 +25,6 @@ package_metadata(
     name = "package_metadata",
     attributes = [
         ":license",
-        ":ship_source_offer",
     ],
     purl = purl_for_generic(
         package = "openscap",
@@ -41,8 +39,6 @@ license(
     license_text = "COPYING",
     visibility = ["//visibility:public"],
 )
-
-ship_source_offer(name = "ship_source_offer")
 
 # This is temporary. Eventually there will be a cc_library for openscap.
 filegroup(

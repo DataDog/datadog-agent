@@ -7,7 +7,7 @@ dependency 'openssl3'
 if linux_target?
 
   build do
-    command_on_repo_root "bazelisk run -- @unixodbc//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run -- @unixodbc//:install --destdir='#{install_dir}/embedded'"
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libodbc.so" \
     " #{install_dir}/embedded/lib/libodbccr.so" \

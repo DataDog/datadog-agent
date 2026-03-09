@@ -15,9 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -125,7 +123,6 @@ func TestBundleOneShot(t *testing.T) {
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
-		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 		Bundle(),
 	)
 	require.NoError(t, err)

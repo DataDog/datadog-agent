@@ -558,10 +558,6 @@ type AgentConfig struct {
 	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
 
-	// OTelGateway indicates whether the agent is configured as an OTel gateway.
-	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
-	OTelGateway bool
-
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.

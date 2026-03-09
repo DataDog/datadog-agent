@@ -971,9 +971,7 @@ mod tests {
                 if let Some(setup) = test.setup_temp_fs {
                     setup(fs.as_ref());
                 }
-                let mut envs = HashMap::new();
-                envs.insert("PWD".to_string(), "/".to_string());
-                (envs, fs)
+                (HashMap::new(), fs)
             };
             let ctx = DetectionContext::new(1, envs, fs.as_ref());
 

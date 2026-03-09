@@ -149,7 +149,7 @@ func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
 
 	// If we haven't seen this action before, and adding it would probably exceed the limit, deny it
 	if b.countByAction[eventText] == 0 && (b.estimatedSize+estimateEventOverhead(eventText) > maxEstimatedEventTextLength) {
-		return eventText, false
+		return "", false
 	}
 
 	return eventText, true

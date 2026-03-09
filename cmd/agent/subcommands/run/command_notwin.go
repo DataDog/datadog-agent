@@ -7,14 +7,8 @@
 
 package run
 
-import (
-	"go.uber.org/fx"
-
-	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
-)
+import "go.uber.org/fx"
 
 func getPlatformModules() fx.Option {
-	return fx.Options(
-		softwareinventoryfx.Module(),
-	)
+	return fx.Options()
 }

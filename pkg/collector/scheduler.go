@@ -105,9 +105,6 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
 			// skip non check

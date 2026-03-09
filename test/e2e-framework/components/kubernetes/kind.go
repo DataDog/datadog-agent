@@ -6,12 +6,13 @@
 package kubernetes
 
 import (
-	"embed"
+	_ "embed"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -29,14 +30,29 @@ const (
 )
 
 //go:embed kind-cluster.yaml
-var kindClusterConfig embed.FS
+var kindClusterConfigV131 string
+
+//go:embed kind-cluster-v1.35+.yaml
+var kindClusterConfigV132Plus string
 
 //go:embed hosts.toml
 var containerdDockerioHostConfig string
 
+func GetKindConfig(kubeVersion string) string {
+	if index := strings.Index(kubeVersion, "@"); index != -1 {
+		kubeVersion = kubeVersion[:index]
+	}
+
+	if semver.MustParse(kubeVersion).GreaterThanEqual(semver.MustParse("v1.32.0")) {
+		return kindClusterConfigV132Plus
+	}
+
+	return kindClusterConfigV131
+}
+
 // Install Kind on a Linux virtual machine.
 func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, opts ...pulumi.ResourceOption) (*Cluster, error) {
-	return NewKindClusterWithConfig(env, vm, name, kubeVersion, KindConfigFlags{}, opts...)
+	return NewKindClusterWithConfig(env, vm, name, kubeVersion, GetKindConfig(kubeVersion), containerdDockerioHostConfig, opts...)
 }
 
 func validateKubeVersionFormat(kubeVersion string) error {
@@ -53,7 +69,7 @@ func validateKubeVersionFormat(kubeVersion string) error {
 	return nil
 }
 
-func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion string, kindFlags KindConfigFlags, opts ...pulumi.ResourceOption) (*Cluster, error) {
+func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kubeVersion, kindConfig, containerdOverrideConfig string, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -71,10 +87,12 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		}
 		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerManager, curlCommand))
 
-		// 	We'll first try to resolve the kind version and node image from our static map, if we can't find
-		// 	it (ex. 1.34 not in our map yet), we'll continue because we have the ability to pull down arbitrary
-		// 	versions from the mirror - although it should be noted the sha is required. So sometimes the version is
-		// 	just the tag, and sometimes it's the tag with the sha.
+		/*
+			We'll first try to resolve the kind version and node image from our static map, if we can't find
+			it (ex. 1.34 not in our map yet), we'll continue because we have the ability to pull down arbitrary
+			versions from the mirror - although it should be noted the sha is required. So sometimes the version is
+			just the tag, and sometimes it's the tag with the sha.
+		*/
 		kindVersionConfig, err := GetKindVersionConfig(kubeVersion)
 		if err != nil {
 			log.Printf("[WARN] Could not find version %s in our static map, using default kind version and the provided k8s version as node image", kubeVersion)
@@ -91,14 +109,6 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			}
 		}
 
-		// we select if we need to use the new containerd registry config format based on the kubernetes version
-		// and the flag stored in kindVersionConfig
-		kindFlags.NewContainerdRegistryConfig = kindVersionConfig.UseNewContainerdConfig
-		kindConfig, err := generateKindConfig(kindClusterConfig, kindFlags)
-		if err != nil {
-			return fmt.Errorf("could not generate kind cluster config: %w", err)
-		}
-
 		kindInstall, err := InstallKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
 		if err != nil {
 			return err
@@ -112,24 +122,24 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			return err
 		}
 
+		// pre-create the folder architecture for containerd overrides
+		// The kind cluster configuration has a mount point
+		// - host: /tmp/certs.d/
+		// - cluster: /etc/containerd/certs.d/
+		// this way we can place configuration override files in that 'certs.d' folder
+
+		containerdOverrideDir := "/tmp/certs.d/docker.io/"
+		containerdDir, err := vm.OS.FileManager().CreateDirectory(containerdOverrideDir, false, opts...)
+		if err != nil {
+			return err
+		}
+
 		if kindVersionConfig.UseNewContainerdConfig {
-			// pre-create the folder architecture for containerd overrides
-			// The kind cluster configuration has a mount point
-			// - host: /tmp/certs.d/
-			// - cluster: /etc/containerd/certs.d/
-			// this way we can place configuration override files in that 'certs.d' folder
-
-			containerdOverrideDir := "/tmp/certs.d/docker.io/"
-			containerdDir, err := vm.OS.FileManager().CreateDirectory(containerdOverrideDir, false, opts...)
-			if err != nil {
-				return err
-			}
-
 			// for kind versions using containerd > 2.x we need a different config format
 			// kind started using containerd 2.x in kind v0.27.0
 			containerdConfigFilePath := containerdOverrideDir + "hosts.toml"
 			_, err = vm.OS.FileManager().CopyInlineFile(
-				pulumi.String(containerdDockerioHostConfig),
+				pulumi.String(containerdOverrideConfig),
 				containerdConfigFilePath,
 				utils.MergeOptions(opts, utils.PulumiDependsOn(containerdDir))...,
 			)
@@ -197,14 +207,6 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 			return err
 		}
 
-		kindConfigFlags := KindConfigFlags{
-			NewContainerdRegistryConfig: kindVersionConfig.UseNewContainerdConfig,
-		}
-		kindConfig, err := generateKindConfig(kindClusterConfig, kindConfigFlags)
-		if err != nil {
-			return fmt.Errorf("could not generate kind cluster config: %w", err)
-		}
-
 		runner := command.NewLocalRunner(env, command.LocalRunnerArgs{
 			// User:      user.Username,
 			OSCommand: command.NewUnixOSCommand(),
@@ -214,7 +216,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 		clusterConfig, err := runner.Command("kind-config", &command.Args{
 			Create: pulumi.Sprintf("cat - | tee %s > /dev/null", clusterConfigFilePath),
 			Delete: pulumi.Sprintf("rm -f %s", clusterConfigFilePath),
-			Stdin:  pulumi.String(kindConfig),
+			Stdin:  pulumi.String(GetKindConfig(kubeVersion)),
 		}, opts...)
 		if err != nil {
 			return err
@@ -226,7 +228,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 			&command.Args{
 				Create:   pulumi.Sprintf("kind create cluster --name %s --config %s --image %s --wait %s", kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
 				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
-				Triggers: pulumi.Array{pulumi.String(kindConfig)},
+				Triggers: pulumi.Array{pulumi.String(GetKindConfig(kubeVersion))},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig), pulumi.DeleteBeforeReplace(true))...,
 		)

@@ -492,7 +492,6 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 	err := ac.initializeConfiguration(&config)
 	if err != nil {
 		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
-		errorStats.setConfigError(config.Name, err.Error())
 		return integration.ConfigChanges{}
 	}
 

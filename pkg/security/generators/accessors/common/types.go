@@ -93,22 +93,22 @@ func (sf *StructField) GetEvaluatorType() string {
 		evaluatorType = "eval.IntEvaluator"
 	} else if sf.ReturnType == "int" {
 		evaluatorType = "eval.IntEvaluator"
-		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
+		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.IntArrayEvaluator"
 		}
 	} else if sf.ReturnType == "bool" {
 		evaluatorType = "eval.BoolEvaluator"
-		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
+		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.BoolArrayEvaluator"
 		}
 	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
-		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
+		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.CIDRArrayEvaluator"
 		}
 	} else {
 		evaluatorType = "eval.StringEvaluator"
-		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
+		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.StringArrayEvaluator"
 		}
 	}

@@ -14,6 +14,8 @@ import (
 	"time"
 	"unsafe"
 
+	yaml "go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -75,9 +77,9 @@ var (
 )
 
 type message struct {
-	Name string `json:"name"`
-	Body string `json:"body"`
-	Time int64  `json:"time"`
+	Name string `yaml:"name"`
+	Body string `yaml:"body"`
+	Time int64  `yaml:"time"`
 }
 
 func setUp() error {
@@ -156,7 +158,7 @@ func getConfig(key *C.char, in **C.char) {
 		*in = (*C.char)(helpers.TrackedCString("\"warning\""))
 	case "foo":
 		m := message{C.GoString(key), "Hello", 123456}
-		b, _ := json.Marshal(m)
+		b, _ := yaml.Marshal(m)
 		*in = (*C.char)(helpers.TrackedCString(string(b)))
 	default:
 		*in = (*C.char)(helpers.TrackedCString("null"))
@@ -170,7 +172,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := json.Marshal(h)
+	retval, _ := yaml.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }

@@ -9,7 +9,6 @@ package systemd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/dbus"
+	"github.com/pkg/errors"
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -556,7 +556,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	for _, regex := range c.config.instance.UnitRegexes {
 		pattern, err := regexp.Compile(regex)
 		if err != nil {
-			return fmt.Errorf("cannot compile regular expression %q to monitor systemd units: %w", regex, err)
+			return errors.Wrapf(err, "cannot compile regular expression %q to monitor systemd units", regex)
 		}
 		log.Debugf("Compiled regex %q to Regexp %q", regex, pattern)
 		c.unitPatterns = append(c.unitPatterns, pattern)

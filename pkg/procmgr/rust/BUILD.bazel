@@ -1,6 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary")
 
 rust_binary(
     name = "dd-procmgrd",
@@ -22,50 +22,14 @@ rust_binary(
 )
 
 pkg_files(
-    name = "all_files",
+    name = "dd-procmgrd_pkg",
     srcs = [":dd-procmgrd"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
-    prefix = "embedded/bin",
 )
 
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
-)
-
-# ============================================================================
-# Tests
-# ============================================================================
-
-rust_test(
-    name = "dd-procmgrd_test",
-    crate = ":dd-procmgrd",
-    edition = "2024",
-    deps = [
-        "@crates//:tempfile",
-    ],
-)
-
-rust_test(
-    name = "integration_test",
-    srcs = [
-        "tests/helpers/mod.rs",
-        "tests/integration.rs",
-    ],
-    crate_root = "tests/integration.rs",
-    data = [
-        ":dd-procmgrd",
-        "//pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl",
-    ],
-    edition = "2024",
-    rustc_env = {
-        "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
-        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl)",
-    },
-    deps = [
-        "@crates//:nix",
-        "@crates//:tempfile",
-    ],
+    srcs = [":dd-procmgrd_pkg"],
 )

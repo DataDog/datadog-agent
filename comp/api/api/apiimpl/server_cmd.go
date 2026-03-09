@@ -7,7 +7,6 @@ package apiimpl
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -27,13 +26,12 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	cmdListener, err := listener.GetListener(cmdAddr)
+	server.cmdListener, err = listener.GetListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
-	server.cmdAddr = cmdListener.Addr().(*net.TCPAddr)
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
@@ -70,8 +68,7 @@ func (server *apiServer) startCMDServer(
 		srv = helpers.NewMuxedGRPCServer(cmdAddr, tlsConfig, grpcServer, cmdMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second)
 	}
 
-	server.cmdServer = srv
-	startServer(cmdListener, srv, cmdServerName)
+	startServer(server.cmdListener, srv, cmdServerName)
 
 	return nil
 }

@@ -54,9 +54,6 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
 			serviceValues = append(serviceValues, service)
 		}
-		if service := entry.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
-			serviceValues = append(serviceValues, service)
-		}
 	}
 
 	inContainer := entry.ProcessContext.ContainerContext.ContainerID != ""
@@ -69,9 +66,6 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
-				serviceValues = append(serviceValues, service)
-			}
-			if service := ancestor.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
 				serviceValues = append(serviceValues, service)
 			}
 		}
@@ -162,7 +156,7 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 func (bfh *BaseFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
 	if f.Extension == "" {
 		if baseName := ev.FieldHandlers.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
+			f.Extension = strings.TrimPrefix(filepath.Ext(baseName), ".")
 		}
 	}
 	return f.Extension

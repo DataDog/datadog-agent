@@ -7,7 +7,6 @@
 package mock
 
 import (
-	"context"
 	"testing"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -15,7 +14,7 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	AddInstanceFunc func(context.Context, delegatedauth.InstanceParams) error
+	AddInstanceFunc func(delegatedauth.InstanceParams) error
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -31,9 +30,9 @@ func New(_ testing.TB) delegatedauth.Component {
 }
 
 // AddInstance calls the mock function if set, otherwise returns nil
-func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
+func (m *Mock) AddInstance(params delegatedauth.InstanceParams) error {
 	if m.AddInstanceFunc != nil {
-		return m.AddInstanceFunc(ctx, params)
+		return m.AddInstanceFunc(params)
 	}
 	return nil
 }

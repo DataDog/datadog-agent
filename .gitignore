@@ -10,7 +10,6 @@ bin/
 __pycache__
 .pytest_cache
 venv*/
-target
 
 **/*.tmp
 **/debug.test
@@ -233,9 +232,6 @@ CLAUDE_PERSONAL.md
 # Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
-
-# Claude Code worktrees (local development, not for repo)
-.claude/worktrees/
 
 # Zed config
 .zed

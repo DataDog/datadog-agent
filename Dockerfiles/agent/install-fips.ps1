@@ -16,7 +16,7 @@ $maven_version = '3.9.11'
 
 if ("$env:WITH_JMX" -ne "false") {
     cd \fips-build
-    Invoke-WebRequest -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
+    Invoke-WebRequest -Outfile maven.zip https://archive.apache.org/dist/maven/maven-3/${maven_version}/binaries/apache-maven-${maven_version}-bin.zip
     if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
         Write-Host "Maven checksum match"
     } else {
