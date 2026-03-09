@@ -44,6 +44,11 @@ func (h *HashMapNoPreallocModifier) BeforeInit(mgr *manager.Manager, _ names.Mod
 			continue
 		}
 		editor := options.MapSpecEditors[mapName]
+		if editor.EditorFlag&manager.EditType != 0 && editor.Type != ebpf.Hash && editor.Type != ebpf.PerCPUHash {
+			// changing type to something other than supported types
+			continue
+		}
+
 		// do not adjust 1 entry maps
 		if editor.EditorFlag&manager.EditMaxEntries != 0 {
 			if editor.MaxEntries <= 1 {
