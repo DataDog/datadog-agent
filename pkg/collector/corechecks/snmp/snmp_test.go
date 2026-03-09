@@ -1023,14 +1023,15 @@ community_string: public
 	sender.On("Commit").Return()
 
 	err = chk.Run()
-	assert.Error(t, err, "snmp connection error: can't connect")
+	connErrMsg := "snmp connection error: can't connect" + ", see this documentation for troubleshooting: " + devicecheck.SNMPTroubleshootingDocURL
+	assert.EqualError(t, err, connErrMsg)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
 
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, connErrMsg)
 }
 
 func TestCheckID(t *testing.T) {
@@ -1283,7 +1284,8 @@ namespace: '%s'
 			sender.On("Commit").Return()
 
 			err = chk.Run()
-			assert.EqualError(t, err, tt.expectedErr)
+			expectedMsg := tt.expectedErr + ", see this documentation for troubleshooting: " + devicecheck.SNMPTroubleshootingDocURL
+			assert.EqualError(t, err, expectedMsg)
 
 			snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4"}
 
@@ -1291,7 +1293,7 @@ namespace: '%s'
 			sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 			sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
+			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedMsg)
 		})
 		break
 	}
@@ -1678,7 +1680,8 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
+	expectedMsg := "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value" + ", see this documentation for troubleshooting: " + devicecheck.SNMPTroubleshootingDocURL
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedMsg)
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
@@ -1736,9 +1739,10 @@ tags:
 	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, errors.New("device failure"))
 
 	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
+	expectedMsg := expectedErrMsg + ", see this documentation for troubleshooting: " + devicecheck.SNMPTroubleshootingDocURL
 
 	err = chk.Run()
-	assert.EqualError(t, err, expectedErrMsg)
+	assert.EqualError(t, err, expectedMsg)
 
 	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.5", "device_ip:1.2.3.5", "device_id:default:1.2.3.5"}
 
@@ -1801,7 +1805,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedMsg)
 }
 
 func TestDiscovery(t *testing.T) {
