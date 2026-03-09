@@ -107,28 +107,30 @@ pub fn get(
     exe = trim_symbols_from_exe(exe);
     exe = normalize_exe_name(exe);
 
+    let fallback = || {
+        let name = match exe.find('.') {
+            Some(idx) => exe.get(..idx),
+            None => Some(exe),
+        }?;
+        Some(ServiceNameMetadata::new(
+            name,
+            ServiceNameSource::CommandLine,
+        ))
+    };
+
     match exe {
         "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)),
         "puma" => rails::extract_name(cmdline, ctx),
         "beam.smp" | "beam" => erlang::extract_name(cmdline),
         "php" => php::extract_name(cmdline, ctx),
         &_ => match language {
-            Language::Python => python::extract_name(cmdline, ctx),
-            Language::Ruby => ruby::extract_name(cmdline),
-            Language::Java => java::extract_name(cmdline, ctx),
-            Language::NodeJS => nodejs::extract_name(cmdline, ctx),
-            Language::DotNet => dotnet::extract_name(cmdline),
-            Language::PHP => php::extract_name(cmdline, ctx),
-            _ => {
-                if let Some(idx) = exe.find('.') {
-                    exe = exe.get(..idx)?;
-                }
-
-                Some(ServiceNameMetadata::new(
-                    exe,
-                    ServiceNameSource::CommandLine,
-                ))
-            }
+            Language::Python => python::extract_name(cmdline, ctx).or_else(fallback),
+            Language::Ruby => ruby::extract_name(cmdline).or_else(fallback),
+            Language::Java => java::extract_name(cmdline, ctx).or_else(fallback),
+            Language::NodeJS => nodejs::extract_name(cmdline, ctx).or_else(fallback),
+            Language::DotNet => dotnet::extract_name(cmdline).or_else(fallback),
+            Language::PHP => php::extract_name(cmdline, ctx).or_else(fallback),
+            _ => fallback(),
         },
     }
 }
