@@ -133,17 +133,30 @@ func (s *tagIsolationSuite) TestBothInstancesReportServiceChecks() {
 		require.NoError(c, err)
 		require.NotEmpty(c, checks, "no 'tag_check.can_connect' service checks yet")
 
-		// Verify we got service checks from both instances by looking at tags.
+		// Verify per-check-run tag exclusivity: each check run must belong
+		// to exactly one instance, and we must see both instances across all
+		// check runs. A leaked tag (both instance:alpha and instance:beta on
+		// a single check run) must fail the test.
 		hasAlpha := false
 		hasBeta := false
 		for _, cr := range checks {
+			crHasAlpha := false
+			crHasBeta := false
 			for _, tag := range cr.Tags {
 				if tag == "instance:alpha" {
-					hasAlpha = true
+					crHasAlpha = true
 				}
 				if tag == "instance:beta" {
-					hasBeta = true
+					crHasBeta = true
 				}
+			}
+			require.False(c, crHasAlpha && crHasBeta,
+				"service check has both instance:alpha and instance:beta — tag isolation broken")
+			if crHasAlpha {
+				hasAlpha = true
+			}
+			if crHasBeta {
+				hasBeta = true
 			}
 			// Each service check should be OK (status 0).
 			require.EqualValues(c, 0, cr.Status,
