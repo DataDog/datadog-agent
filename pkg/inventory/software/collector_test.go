@@ -6,6 +6,7 @@
 package software
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -182,4 +183,46 @@ func TestWarnings(t *testing.T) {
 
 	warn := Warning{Message: "test warning"}
 	assert.Equal(t, "test warning", warn.Message)
+}
+
+func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
+	// Test that private fields (with json:"-") are excluded from JSON serialization
+	// but still accessible in Go code
+	entry := &Entry{
+		DisplayName:   "TestApp",
+		Version:       "1.0",
+		Source:        "app",
+		ProductCode:   "com.test.app",
+		BrokenReason:  "executable not found",
+		InstallSource: "pkg",
+		PkgID:         "com.test.pkg",
+		InstallPath:   "/Applications/TestApp.app",
+		InstallPaths:  []string{"/Applications", "/Library"},
+	}
+
+	// Verify fields are accessible in Go code
+	assert.Equal(t, "executable not found", entry.BrokenReason)
+	assert.Equal(t, "pkg", entry.InstallSource)
+	assert.Equal(t, "com.test.pkg", entry.PkgID)
+	assert.Equal(t, "/Applications/TestApp.app", entry.InstallPath)
+	assert.Equal(t, []string{"/Applications", "/Library"}, entry.InstallPaths)
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(entry)
+	assert.NoError(t, err)
+
+	jsonStr := string(jsonData)
+
+	// Verify private fields are NOT in JSON
+	assert.NotContains(t, jsonStr, "broken_reason")
+	assert.NotContains(t, jsonStr, "install_source")
+	assert.NotContains(t, jsonStr, "pkg_id")
+	assert.NotContains(t, jsonStr, "install_path")
+	assert.NotContains(t, jsonStr, "install_paths")
+
+	// Verify public fields ARE in JSON
+	assert.Contains(t, jsonStr, "software_type")
+	assert.Contains(t, jsonStr, "name")
+	assert.Contains(t, jsonStr, "version")
+	assert.Contains(t, jsonStr, "product_code")
 }

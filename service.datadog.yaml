@@ -97,6 +97,13 @@ extensions:
           options:
             disable_bia: true
             disable_failure_notifications: true
+        - name: "main-nightly-build"
+          branch: "main"
+          schedule: "0 3 * * 6,0"
+          build_only: true
+          options:
+            disable_bia: true
+            disable_failure_notifications: true
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml

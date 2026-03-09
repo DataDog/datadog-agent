@@ -30,9 +30,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -2659,6 +2659,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
+		},
+		manager.ConstantEditor{
+			Name:  "open_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.OpenSamplingEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "open_sampling_rate",
+			Value: uint64(p.config.RuntimeSecurity.OpenSamplingRate),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",

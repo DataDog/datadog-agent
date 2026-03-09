@@ -1,4 +1,105 @@
 ---
+
+# Condition mixins for simplification of rules, needed in the include rules so must be defined first
+.if_run_all_e2e_tests: &if_run_all_e2e_tests
+  if: $RUN_E2E_TESTS == "on"
+
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "main"
+
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+
+.if_mergequeue: &if_mergequeue
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+# Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
+.windows_path: &windows_path
+  # Windows-specific Go source files (by filename convention)
+  - "**/*_windows.go"
+
+  # Windows-specific packages in pkg/
+  - pkg/util/winutil/**/*
+  - pkg/windowsdriver/**/*
+  - pkg/util/pdhutil/**/*
+  - pkg/util/crashreport/**/*
+  - pkg/collector/corechecks/system/wincrashdetect/**/*
+  - pkg/collector/corechecks/system/windowscertificate/**/*
+  - pkg/collector/corechecks/system/winkmem/**/*
+  - pkg/collector/corechecks/system/winproc/**/*
+  - pkg/collector/corechecks/net/wlan/**/*
+  - pkg/logs/launchers/windowsevent/**/*
+  - pkg/logs/tailers/windowsevent/**/*
+  - pkg/logs/util/windowsevent/**/*
+  - pkg/network/driver/**/*
+
+  # cmd/ 
+  - cmd/agent/**/*
+  - cmd/process-agent/**/*
+  - cmd/security-agent/**/*
+  - cmd/otel-agent/**/*
+  - cmd/privateactionrunner/**/*
+  - cmd/system-probe/**/*
+  - cmd/trace-agent/**/*
+  - cmd/installer/**/*
+  - cmd/systray/**/*
+  - cmd/otel-agent/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
+.windows_path_2: &windows_path_2
+  # Windows-specific comp/ components
+  - comp/systray/**/*
+  - comp/updater/**/*
+  - comp/checks/agentcrashdetect/**/*
+  - comp/checks/windowseventlog/**/*
+  - comp/checks/winregistry/**/*
+  - comp/metadata/hostsysteminfo/**/*
+  - comp/trace/etwtracer/**/*
+  - comp/etw/**/*
+  - comp/notableevents/**/*
+  - comp/publishermetadatacache/**/*
+  - comp/softwareinventory/**/*
+
+  # MSI installer and Windows tooling
+  - tools/windows/**/*
+
+  # Build/packaging
+  - omnibus/**/*
+  - packages/**/*
+  - deps/**/*
+  - rtloader/**/*
+  - bazel/**/*
+
+  # Windows containers
+  - Dockerfiles/agent/windows/**/*
+  - Dockerfiles/agent/entrypoint.ps1
+  - Dockerfiles/agent/entrypoint.d.windows/**/*
+
+  # Chocolatey package
+  - chocolatey/**/*
+
+  # Build and release tasks
+  - tasks/msi.py
+  - tasks/winbuild.py
+  - tasks/winbuildscripts/**/*
+  - tasks/windows_resources.py
+  - tasks/systray.py
+
+  # Cross-cutting: these affect all platforms including Windows
+  - release.json
+  - .gitlab-ci.yml
+  - .gitlab/**/*
+
+# Windows-specific e2e tests
+.windows_path_3: &windows_path_3
+  - test/new-e2e/tests/fleet/**/* # cross platform tests
+  - test/new-e2e/tests/installer/windows/**/*
+  - test/new-e2e/tests/windows/**/*
+  - test/new-e2e/tests/sysprobe-functional/**/*
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -6,6 +107,26 @@ include:
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
   - local: .gitlab/.post/**.yml
+  # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
+  - local: .gitlab/windows/**.yml
+    rules:
+      - if: $SKIP_WINDOWS == "true"
+        when: never
+      - <<: *if_main_branch
+      - <<: *if_release_branch
+      - <<: *if_triggered_pipeline
+      - <<: *if_mergequeue
+      # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
+      - changes:
+          paths: *windows_path
+          compare_to: main
+      - changes:
+          paths: *windows_path_2
+          compare_to: main
+      - changes:
+          paths: *windows_path_3
+          compare_to: main
+      - when: never
 
 default:
   retry:
@@ -234,21 +355,19 @@ variables:
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
+  FF_USE_WINDOWS_JOB_OBJECT: true # Prevent orphaned processes from holding file handles, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4525
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
 
+  SKIP_WINDOWS: "false"
+
 #
 # Condition mixins for simplification of rules
 #
-.if_main_branch: &if_main_branch
-  if: $CI_COMMIT_BRANCH == "main"
 
 .if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "main"
-
-.if_release_branch: &if_release_branch
-  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -270,8 +389,6 @@ variables:
 
 # CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
 # See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
-.if_triggered_pipeline: &if_triggered_pipeline
-  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -295,8 +412,6 @@ variables:
 .if_installer_tests: &if_installer_tests
   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
-.if_run_all_e2e_tests: &if_run_all_e2e_tests
-  if: $RUN_E2E_TESTS == "on"
 
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
@@ -321,10 +436,6 @@ variables:
 # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
   if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
-
-# Rule to trigger jobs only when a branch matches the mergequeue pattern.
-.if_mergequeue: &if_mergequeue
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
 .fakeintake_paths: &fakeintake_paths
   paths:
@@ -368,6 +479,9 @@ variables:
   changes:
     paths:
       - omnibus/**/*
+      - pkg/config/config_template.yaml
+      - pkg/config/security-agent_template.yaml
+      - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
@@ -383,8 +497,27 @@ workflow:
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
+    - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
+    - <<: *if_mergequeue
+    - changes:
+        paths: *windows_path
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_2
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
     - if: $CI_COMMIT_TAG == null
+      variables:
+        SKIP_WINDOWS: "true"
 
 #
 # List of rule blocks used in the pipeline
@@ -479,6 +612,10 @@ workflow:
   - <<: *if_deploy
     when: never
 
+.except_skip_windows:
+  - if: $SKIP_WINDOWS == "true"
+    when: never
+
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: manual
@@ -523,6 +660,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
+
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -665,7 +803,7 @@ workflow:
   changes:
     paths:
       - tools/windows/DatadogAgentInstaller/**/*
-      - .gitlab/test/e2e_install_packages/windows.yml
+      - .gitlab/windows/test/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
       - tasks/msi.py
@@ -1056,6 +1194,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_otel_components_changes:
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
+  - changes:
+      paths:
+        - cmd/otel-agent/**/*
+        - comp/otelcol/**/*
+        - test/otel/testdata/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ssi_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1095,6 +1244,16 @@ workflow:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
         - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *on_build_changes
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1155,6 +1314,20 @@ workflow:
       paths:
         - comp/healthplatform/**/*
         - test/new-e2e/tests/agent-health/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_privateactionrunner_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/privateactionrunner/**/*
+        - comp/privateactionrunner/**/*
+        - pkg/privateactionrunner/**/*
+        - pkg/config/setup/privateactionrunner.go
+        - pkg/proto/datadog/privateactionrunner/**/*
+        - pkg/proto/pbgo/privateactionrunner/**/*
+        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

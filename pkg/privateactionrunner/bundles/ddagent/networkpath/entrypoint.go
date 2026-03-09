@@ -18,7 +18,7 @@ type NetworkPathBundle struct {
 func NewNetworkPath(traceroute traceroute.Component, eventPlatform eventplatform.Component) types.Bundle {
 	return &NetworkPathBundle{
 		actions: map[string]types.Action{
-			"getNetworkPath": NewGetNetworkPathHandler(traceroute, eventPlatform),
+			"runNetworkPath": NewRunNetworkPathHandler(traceroute, eventPlatform),
 		},
 	}
 }

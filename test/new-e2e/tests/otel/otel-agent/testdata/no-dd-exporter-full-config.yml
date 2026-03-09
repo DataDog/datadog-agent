@@ -63,6 +63,7 @@ exporters:
       span_name_remappings: {}
       trace_buffer: 0
   debug:
+    output_paths: []
     sampling_initial: 2
     sampling_thereafter: 1
     use_internal_logger: true
@@ -133,6 +134,7 @@ extensions:
 processors:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: propagate
+    log_conditions: []
     logs:
       exclude: null
       include: null
@@ -153,9 +155,11 @@ processors:
       metric: []
       regexp: null
       resource: []
+    metric_conditions: []
     profiles:
       profile: []
       resource: []
+    profile_conditions: []
     spans:
       exclude: null
       include: null
@@ -163,6 +167,7 @@ processors:
       resource: []
       span: []
       spanevent: []
+    trace_conditions: []
 receivers:
   otlp:
     protocols:

@@ -101,7 +101,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && touch /tmp/.placeholder \
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
-    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
+    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/ \
+    && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so

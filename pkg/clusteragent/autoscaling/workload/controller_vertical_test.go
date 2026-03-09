@@ -30,6 +30,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -54,7 +55,7 @@ func newVerticalControllerFixture(t *testing.T, testTime time.Time) *verticalCon
 		controller: &verticalController{
 			clock:           fakeClock,
 			eventRecorder:   record.NewFakeRecorder(100),
-			dynamicClient:   dynamicClient,
+			patchClient:     workloadpatcher.NewPatcher(dynamicClient, nil),
 			progressTracker: newRolloutProgressTracker(),
 		},
 	}
@@ -109,7 +110,7 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 		if args.patchError {
 			patchErr = assert.AnError
 		}
-		f.controller.dynamicClient.(*dynamicfake.FakeDynamicClient).PrependReactor(
+		f.dynamicClient.PrependReactor(
 			"patch", resourceName, func(action k8stesting.Action) (bool, runtime.Object, error) {
 				patchCalled = true
 				if patchErr != nil {
@@ -225,7 +226,7 @@ func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
 		})
 		gvr = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 	}
-	_, _ = f.controller.dynamicClient.Resource(gvr).Namespace(ns).Create(context.Background(), obj, metav1.CreateOptions{})
+	_, _ = f.dynamicClient.Resource(gvr).Namespace(ns).Create(context.Background(), obj, metav1.CreateOptions{})
 }
 
 // Pod builders
