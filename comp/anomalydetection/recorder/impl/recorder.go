@@ -38,7 +38,11 @@ func NewComponent(req Requires) (Provides, error) {
 	// are written to parquet files as they arrive via the handle middleware.
 	var recordingDir string
 	var flushInterval time.Duration
-	var retentionDuration time.Duration
+
+	retentionDuration := req.Config.GetDuration("observer.recording.parquet_retention")
+	if retentionDuration <= 0 {
+		retentionDuration = 24 * time.Hour
+	}
 
 	if recordingEnabled {
 		recordingDir = req.Config.GetString("observer.recording.parquet_output_dir")
@@ -49,11 +53,6 @@ func NewComponent(req Requires) (Provides, error) {
 		flushInterval = req.Config.GetDuration("observer.recording.parquet_flush_interval")
 		if flushInterval == 0 {
 			flushInterval = 60 * time.Second
-		}
-
-		retentionDuration = req.Config.GetDuration("observer.recording.parquet_retention")
-		if retentionDuration <= 0 {
-			retentionDuration = 24 * time.Hour
 		}
 
 		writer, err := newMetricParquetWriter(recordingDir, flushInterval, retentionDuration)

@@ -78,10 +78,12 @@ func main() {
 	}
 
 	// Resolve results dir early so it's available in CLIParams.
-	// Defaults to the scenario directory so results land alongside the input parquet files.
+	// Defaults to a dedicated subdirectory inside the scenario directory so that output
+	// artifacts (observer-results*.parquet) never land alongside input parquet files and
+	// are not accidentally picked up as inputs on subsequent runs.
 	resolvedResultsDir := *resultsDir
 	if resolvedResultsDir == "" && *headless != "" {
-		resolvedResultsDir = filepath.Join(*scenariosDir, *headless)
+		resolvedResultsDir = filepath.Join(*scenariosDir, *headless, "observer-results")
 	}
 
 	err := fxutil.OneShot(run,
