@@ -31,9 +31,8 @@ var EmptyEnv []string
 type commandType string
 
 const (
-	dockerCommand commandType = "docker"
-	// we are using old v1 docker-compose command because our CI doesn't support docker cli v2 yet
-	composeCommand commandType = "docker-compose"
+	dockerCommand  commandType = "docker"
+	composeCommand commandType = "compose"
 	runCommand     commandType = "run"
 	removeCommand  commandType = "rm"
 )
@@ -158,15 +157,15 @@ type composeConfig struct {
 }
 
 func (c composeConfig) command() string {
-	return string(composeCommand)
+	return string(dockerCommand)
 }
 
 func (c composeConfig) commandArgs(t subCommandType) []string {
 	switch t {
 	case start:
-		return []string{"-f", c.File, "up", "--remove-orphans", "-V"}
+		return []string{string(composeCommand), "-f", c.File, "up", "--remove-orphans", "-V"}
 	case kill:
-		return []string{"-f", c.File, "down", "--remove-orphans", "--volumes"}
+		return []string{string(composeCommand), "-f", c.File, "down", "--remove-orphans", "--volumes"}
 	default:
 		return nil
 	}
