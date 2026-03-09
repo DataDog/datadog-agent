@@ -1,5 +1,5 @@
 ---
-new_features:
+features:
   - |
     Add the ``comp/do/queryactions`` agent component for Data Observability query actions.
     When enabled via ``data_observability.query_actions.enabled: true``, the component

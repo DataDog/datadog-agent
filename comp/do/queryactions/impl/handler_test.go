@@ -320,7 +320,7 @@ func TestBuildCheckConfig_InvalidInstanceYAML(t *testing.T) {
 	require.Error(t, err)
 }
 
-// --- onDebugConfig tests ---
+// --- onRCUpdate tests ---
 
 func newTestComponent(t *testing.T) *component {
 	t.Helper()
@@ -333,7 +333,7 @@ func newTestComponent(t *testing.T) *component {
 
 func collectStatuses(c *component, updates map[string]state.RawConfig) map[string]state.ApplyStatus {
 	statuses := map[string]state.ApplyStatus{}
-	c.onDebugConfig(updates, func(path string, s state.ApplyStatus) {
+	c.onRCUpdate(updates, func(path string, s state.ApplyStatus) {
 		statuses[path] = s
 	})
 	return statuses

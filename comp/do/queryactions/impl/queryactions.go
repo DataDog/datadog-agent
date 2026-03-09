@@ -116,7 +116,7 @@ func (c *component) manageSubscriptionToRC(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if c.hasPostgresIntegration() {
-				c.rcclient.Subscribe(data.ProductDOQueryActions, c.onDebugConfig)
+				c.rcclient.Subscribe(data.ProductDOQueryActions, c.onRCUpdate)
 				c.log.Info("Subscribed to RC DO_QUERY_ACTIONS product for DO query actions")
 				return
 			}

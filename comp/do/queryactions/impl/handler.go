@@ -32,17 +32,16 @@ func isPostgresIntegration(name string) bool {
 	return name == "postgres"
 }
 
-// onDebugConfig handles RC DEBUG product updates with declarative config model.
-// Despite the product name, this is a production data path for DO query actions config delivery.
+// onRCUpdate handles DO_QUERY_ACTIONS RC product updates with a declarative config model.
 // The full updates map is treated as a snapshot: configs absent from the current update are
 // unscheduled. An empty queries list signals removal of all queries for that config.
-func (c *component) onDebugConfig(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 	seenConfigIDs := make(map[string]bool, len(updates))
 
 	for path, rawConfig := range updates {
 		var payload DOQueryPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
-			c.log.Warnf("Failed to unmarshal DEBUG config %s: %v", path, err)
+			c.log.Warnf("Failed to unmarshal DO_QUERY_ACTIONS config %s: %v", path, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
