@@ -1,4 +1,6 @@
 static_quality_gates:
+  inherit:
+    default: false
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
@@ -73,6 +75,7 @@ static_quality_gates:
   variables:
     GIT_DEPTH: 0
     OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
+    KUBERNETES_CPU_REQUEST: 8
 
 manual_gate_threshold_update:
   stage: functional_test
