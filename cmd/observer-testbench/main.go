@@ -34,9 +34,11 @@ type CLIParams struct {
 	EnableOverrides map[string]bool
 
 	// Headless mode: run a scenario and exit (no HTTP server)
-	Headless string // scenario name to run (empty = interactive mode)
-	Output   string // path for observer JSON output
-	Verbose  bool   // include full detail in JSON output (headless mode only)
+	Headless string  // scenario name to run (empty = interactive mode)
+	Output   string  // path for observer JSON output
+	Verbose  bool    // include full detail in JSON output (headless mode only)
+	Score    bool    // include scoring in output (headless mode only)
+	Sigma    float64 // Gaussian width for scoring
 }
 
 func main() {
@@ -47,6 +49,8 @@ func main() {
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
+	score := flag.Bool("score", false, "Score analysis against ground truth (headless mode only)")
+	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds for scoring")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -83,12 +87,14 @@ func main() {
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:      *scenariosDir,
-			HTTPAddr:          *httpAddr,
-			EnableOverrides:   overrides,
-			Headless:          *headless,
-			Output:            *output,
-			Verbose:           *verbose,
+			ScenariosDir:    *scenariosDir,
+			HTTPAddr:        *httpAddr,
+			EnableOverrides: overrides,
+			Headless:        *headless,
+			Output:          *output,
+			Verbose:         *verbose,
+			Score:           *score,
+			Sigma:           *sigma,
 		}),
 	)
 	if err != nil {
@@ -112,7 +118,11 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
-		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
+		if err := tb.RunHeadless(params.Headless, params.Output, observerimpl.HeadlessOptions{
+			Verbose: params.Verbose,
+			Score:   params.Score,
+			Sigma:   params.Sigma,
+		}); err != nil {
 			return err
 		}
 		return nil

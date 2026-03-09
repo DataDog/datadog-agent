@@ -51,6 +51,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
+	mux.HandleFunc("/api/score", api.cors(api.handleScore))
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -642,6 +643,30 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 	}
 	groups := api.tb.GetCompressedCorrelations(threshold)
 	api.writeJSON(w, groups)
+}
+
+// handleScore returns the Gaussian F1 score for the current analysis.
+func (api *TestBenchAPI) handleScore(w http.ResponseWriter, r *http.Request) {
+	sigma := 30.0
+	if s := r.URL.Query().Get("sigma"); s != "" {
+		if parsed, err := strconv.ParseFloat(s, 64); err == nil && parsed > 0 {
+			sigma = parsed
+		}
+	}
+
+	result, err := api.tb.ScoreCurrentAnalysis(sigma)
+	if err != nil {
+		api.writeJSON(w, map[string]interface{}{
+			"available": false,
+			"reason":    err.Error(),
+		})
+		return
+	}
+
+	api.writeJSON(w, map[string]interface{}{
+		"available": true,
+		"score":     result,
+	})
 }
 
 // writeJSON writes a JSON response.

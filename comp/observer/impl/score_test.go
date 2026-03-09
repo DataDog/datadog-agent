@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -155,27 +154,12 @@ func TestGaussianF1_HalfGaussianSymmetry(t *testing.T) {
 		farBefore.F1, after.F1)
 }
 
-func TestScoreOutputFile(t *testing.T) {
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
-			Scenario:      "test",
-			TimelineStart: 0,
-			TimelineEnd:   300,
-		},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "cluster_1", PeriodStart: 102},
-			{Pattern: "cluster_2", PeriodStart: 50},
-		},
+func TestScorePredictions(t *testing.T) {
+	meta := &scoringMetadata{
+		groundTruthTimestamps: []int64{100},
 	}
 
-	data, err := json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
-
-	path := filepath.Join(t.TempDir(), "test_output.json")
-	require.NoError(t, os.WriteFile(path, data, 0644))
-
-	result, err := ScoreOutputFile(path, []int64{100}, "", testSigma)
-	require.NoError(t, err)
+	result := scorePredictions([]int64{102, 50}, meta, testSigma)
 
 	assert.Equal(t, 2, result.NumPredictions)
 	assert.Equal(t, 1, result.NumGroundTruths)
@@ -184,31 +168,13 @@ func TestScoreOutputFile(t *testing.T) {
 	assert.Greater(t, result.F1, 0.0)
 }
 
-func TestScoreOutputFile_PredictionWindowFiltering(t *testing.T) {
+func TestScorePredictions_WindowFiltering(t *testing.T) {
 	// Ground truth at 100, sigma=10 → cutoff = 100 + 2*10 = 120
-	// Predictions at 50 (baseline FP), 102 (good), 130 (cascading, filtered), 200 (cascading, filtered)
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
-			Scenario:      "test",
-			TimelineStart: 0,
-			TimelineEnd:   300,
-		},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "baseline_fp", PeriodStart: 50},
-			{Pattern: "good_detect", PeriodStart: 102},
-			{Pattern: "cascade_1", PeriodStart: 130},
-			{Pattern: "cascade_2", PeriodStart: 200},
-		},
+	meta := &scoringMetadata{
+		groundTruthTimestamps: []int64{100},
 	}
 
-	data, err := json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
-
-	path := filepath.Join(t.TempDir(), "test_output.json")
-	require.NoError(t, os.WriteFile(path, data, 0644))
-
-	result, err := ScoreOutputFile(path, []int64{100}, "", testSigma)
-	require.NoError(t, err)
+	result := scorePredictions([]int64{50, 102, 130, 200}, meta, testSigma)
 
 	// 2 predictions scored (50, 102), 2 cascading filtered (130, 200)
 	assert.Equal(t, 2, result.NumPredictions, "only predictions within window should be scored")
@@ -217,110 +183,66 @@ func TestScoreOutputFile_PredictionWindowFiltering(t *testing.T) {
 	assert.Equal(t, 1, result.NumGroundTruths)
 
 	// Prediction at exactly the cutoff (120) should be included
-	output.AnomalyPeriods = append(output.AnomalyPeriods, ObserverCorrelation{
-		Pattern: "at_cutoff", PeriodStart: 120,
-	})
-	data, err = json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(path, data, 0644))
-
-	result, err = ScoreOutputFile(path, []int64{100}, "", testSigma)
-	require.NoError(t, err)
-
+	result = scorePredictions([]int64{50, 102, 120, 130, 200}, meta, testSigma)
 	assert.Equal(t, 3, result.NumPredictions, "prediction at cutoff should be included")
 	assert.Equal(t, 2, result.NumFilteredCascading)
 }
 
-func TestScoreOutputFile_MetadataInference(t *testing.T) {
-	// Set up a fake scenario dir with metadata.json
-	scenariosDir := t.TempDir()
-	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
-	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
-
-	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
-
-	// Output JSON references "test_scenario"
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
-			Scenario: "test_scenario",
-		},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "cluster_1", PeriodStart: 1772542175}, // exact match with disruption.start
-		},
+func TestScoringMetadataFromEpisode(t *testing.T) {
+	info := &EpisodeInfo{
+		Baseline:   &EpisodePhase{Start: "2026-03-03T12:39:35Z"},
+		Disruption: &EpisodePhase{Start: "2026-03-03T12:49:35Z"},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+
+	meta, err := scoringMetadataFromEpisode(info)
 	require.NoError(t, err)
 
-	outputPath := filepath.Join(t.TempDir(), "output.json")
-	require.NoError(t, os.WriteFile(outputPath, data, 0644))
+	assert.Equal(t, 1, len(meta.groundTruthTimestamps))
+	assert.Equal(t, int64(1772541575), meta.baselineStart)
 
-	// Score with nil ground truth — should infer from metadata
-	result, err := ScoreOutputFile(outputPath, nil, scenariosDir, 30.0)
-	require.NoError(t, err)
-
-	assert.Equal(t, 1, result.NumGroundTruths)
+	// Prediction exactly at disruption.start should score ~1.0
+	result := scorePredictions(meta.groundTruthTimestamps, meta, 30.0)
 	assert.InDelta(t, 1.0, result.F1, 0.05, "exact match should score ~1.0")
 }
 
-func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
-	// Set up metadata — disruption.start is at 12:49:35, but we override GT to 12:45:00
-	scenariosDir := t.TempDir()
-	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
-	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
-
-	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
-
-	// Prediction matches our explicit GT (12:45:00 = 1772541900), not metadata's disruption.start
-	explicitGT := int64(1772541900)
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "cluster_1", PeriodStart: explicitGT},
-		},
+func TestScoringMetadataFromEpisode_NoDisruption(t *testing.T) {
+	info := &EpisodeInfo{
+		Baseline: &EpisodePhase{Start: "2026-03-03T12:39:35Z"},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
 
-	outputPath := filepath.Join(t.TempDir(), "output.json")
-	require.NoError(t, os.WriteFile(outputPath, data, 0644))
-
-	// Explicit ground truth should override metadata's disruption.start
-	result, err := ScoreOutputFile(outputPath, []int64{explicitGT}, scenariosDir, 30.0)
-	require.NoError(t, err)
-
-	assert.InDelta(t, 1.0, result.F1, 0.05, "explicit GT should be used, not metadata")
+	_, err := scoringMetadataFromEpisode(info)
+	assert.Error(t, err, "should fail without disruption")
 }
 
-func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
-	// baseline.start at T=100 (warmup ends), disruption.start at T=200
-	// sigma=10 → cascading cutoff = 200 + 20 = 220
+func TestScoringMetadataFromEpisode_NilInfo(t *testing.T) {
+	_, err := scoringMetadataFromEpisode(nil)
+	assert.Error(t, err, "should fail with nil info")
+}
+
+func TestLoadScoringMetadataFromFile(t *testing.T) {
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
 
-	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
-	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "metadata.json"), []byte(metadata), 0644))
+	episode := `{"baseline": {"start": "1970-01-01T00:01:40Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
+	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(episode), 0644))
 
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "warmup_noise_1", PeriodStart: 50}, // warmup → filtered
-			{Pattern: "warmup_noise_2", PeriodStart: 90}, // warmup → filtered
-			{Pattern: "baseline_fp", PeriodStart: 120},   // baseline FP → scored
-			{Pattern: "good_detect", PeriodStart: 202},   // near onset → scored
-			{Pattern: "cascade", PeriodStart: 250},       // cascading → filtered
-		},
+	meta, err := loadScoringMetadataFromFile(scenariosDir, "test_scenario")
+	require.NoError(t, err)
+
+	assert.Equal(t, []int64{200}, meta.groundTruthTimestamps)
+	assert.Equal(t, int64(100), meta.baselineStart)
+}
+
+func TestScorePredictions_WarmupFiltering(t *testing.T) {
+	// baseline.start at T=100, disruption at T=200
+	// sigma=10 → cascading cutoff = 200 + 20 = 220
+	meta := &scoringMetadata{
+		groundTruthTimestamps: []int64{200},
+		baselineStart:         100,
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
 
-	outputPath := filepath.Join(t.TempDir(), "output.json")
-	require.NoError(t, os.WriteFile(outputPath, data, 0644))
-
-	result, err := ScoreOutputFile(outputPath, nil, scenariosDir, testSigma)
-	require.NoError(t, err)
+	result := scorePredictions([]int64{50, 90, 120, 202, 250}, meta, testSigma)
 
 	assert.Equal(t, 2, result.NumFilteredWarmup, "predictions before baseline.start should be filtered")
 	assert.Equal(t, 1, result.NumFilteredCascading, "predictions beyond 2σ should be filtered")

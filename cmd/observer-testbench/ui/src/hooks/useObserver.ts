@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, Correlation,
-  CompressedGroup, ComponentDataResponse, CorrelatorStats
+  CompressedGroup, ComponentDataResponse, CorrelatorStats, ScoreResponse
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -21,6 +21,7 @@ export interface ObserverState {
   componentData: Map<string, ComponentDataResponse>;
   compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
+  scoreResponse: ScoreResponse | null;
   activeScenario: string | null;
   error: string | null;
 }
@@ -29,6 +30,7 @@ export interface ObserverActions {
   loadScenario: (name: string) => Promise<void>;
   refresh: () => Promise<void>;
   toggleComponent: (name: string) => Promise<void>;
+  fetchScore: (sigma?: number) => Promise<void>;
 }
 
 const POLL_INTERVAL = 2000;
@@ -46,6 +48,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [componentData, setComponentData] = useState<Map<string, ComponentDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
+  const [scoreResponse, setScoreResponse] = useState<ScoreResponse | null>(null);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +69,8 @@ export function useObserver(): [ObserverState, ObserverActions] {
       // First fetch components and basic data
       const [
         statusData, scenariosData, componentsData, seriesData,
-        anomaliesData, logsData, logAnomaliesData, correlationsData, compressedGroupsData, statsData
+        anomaliesData, logsData, logAnomaliesData, correlationsData, compressedGroupsData, statsData,
+        scoreData
       ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
@@ -78,6 +82,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
           api.getCorrelations(),
           api.getCompressedCorrelations(),
           api.getStats(),
+          api.getScore(),
         ]);
 
       // Fetch data for ALL components (any component may provide extra data)
@@ -105,6 +110,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setCompressedGroups(compressedGroupsData);
       setComponentData(new Map(componentDataResults));
       setCorrelatorStats(statsData);
+      setScoreResponse(scoreData);
       setError(null);
 
       if (statusData.ready && statusData.scenario) {
@@ -202,6 +208,15 @@ export function useObserver(): [ObserverState, ObserverActions] {
     }
   }, [fetchAll]);
 
+  const fetchScore = useCallback(async (sigma?: number) => {
+    try {
+      const data = await api.getScore(sigma);
+      setScoreResponse(data);
+    } catch (e) {
+      console.error('Failed to fetch score:', e);
+    }
+  }, []);
+
   return [
     {
       connectionState,
@@ -216,6 +231,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       componentData,
       compressedGroups,
       correlatorStats,
+      scoreResponse,
       activeScenario,
       error,
     },
@@ -223,6 +239,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       loadScenario,
       refresh,
       toggleComponent,
+      fetchScore,
     },
   ];
 }

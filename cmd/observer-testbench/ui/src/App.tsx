@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useObserver } from './hooks/useObserver';
 import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
-import type { EpisodeInfo } from './api/client';
+import type { EpisodeInfo, ScoreResult } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs';
@@ -182,11 +182,69 @@ function EpisodeInfoPanel({ info }: { info: EpisodeInfo }) {
   );
 }
 
+function f1Color(f1: number): string {
+  if (f1 >= 0.7) return 'text-green-400';
+  if (f1 >= 0.4) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+function ScoreDisplay({ score, sigma, onSigmaChange }: {
+  score: ScoreResult;
+  sigma: number;
+  onSigmaChange: (s: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 bg-slate-700/50 rounded px-3 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">F1</span>
+        <span className={`text-sm font-bold font-mono ${f1Color(score.f1)}`}>
+          {score.f1.toFixed(3)}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">P</span>
+        <span className="text-sm font-mono text-slate-200">{score.precision.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">R</span>
+        <span className="text-sm font-mono text-slate-200">{score.recall.toFixed(3)}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">&sigma;</span>
+        <input
+          type="range"
+          min={5}
+          max={60}
+          step={5}
+          value={sigma}
+          onChange={e => onSigmaChange(Number(e.target.value))}
+          className="w-16 h-1 accent-purple-500"
+        />
+        <span className="text-xs font-mono text-slate-400 w-6">{sigma}s</span>
+      </div>
+    </div>
+  );
+}
+
+function ScoreUnavailable({ reason }: { reason: string }) {
+  return (
+    <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
+      <span className="text-xs text-slate-500">Score: {reason}</span>
+    </div>
+  );
+}
+
 function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [smoothLines, setSmoothLines] = useState(true);
+  const [sigma, setSigma] = useState(30);
+
+  const handleSigmaChange = useCallback((newSigma: number) => {
+    setSigma(newSigma);
+    actions.fetchScore(newSigma);
+  }, [actions]);
   const isResizingRef = useRef(false);
 
   // Time range with navigation history
@@ -377,6 +435,17 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            {/* Score display */}
+            {state.scoreResponse?.available && state.scoreResponse.score && (
+              <ScoreDisplay
+                score={state.scoreResponse.score}
+                sigma={sigma}
+                onSigmaChange={handleSigmaChange}
+              />
+            )}
+            {state.scoreResponse && !state.scoreResponse.available && state.connectionState === 'ready' && (
+              <ScoreUnavailable reason={state.scoreResponse.reason || 'no ground truth available'} />
+            )}
             {/* History navigation arrows — always visible when there's history */}
             {(canGoBack || canGoForward) && (
               <div className="flex items-center gap-1">

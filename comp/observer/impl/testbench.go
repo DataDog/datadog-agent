@@ -1050,10 +1050,43 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 	return tb.correlatorsProcessing
 }
 
+// ScoreCurrentAnalysis scores the current correlations against ground truth from episodeInfo.
+// Returns nil if no episode info or no disruption data is available.
+func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
+	if sigma <= 0 {
+		sigma = 30.0
+	}
+
+	tb.mu.RLock()
+	info := tb.episodeInfo
+	correlations := make([]observerdef.ActiveCorrelation, len(tb.correlations))
+	copy(correlations, tb.correlations)
+	tb.mu.RUnlock()
+
+	meta, err := scoringMetadataFromEpisode(info)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract prediction timestamps from correlation FirstSeen.
+	predictions := make([]int64, len(correlations))
+	for i, c := range correlations {
+		predictions[i] = c.FirstSeen
+	}
+
+	result := scorePredictions(predictions, meta, sigma)
+	return result, nil
+}
+
+// HeadlessOptions configures headless mode behavior.
+type HeadlessOptions struct {
+	Verbose bool    // include full detail in JSON output
+	Score   bool    // include scoring in output
+	Sigma   float64 // Gaussian width for scoring (default 30)
+}
+
 // RunHeadless runs a scenario synchronously without the HTTP server and writes output.
-// If verbose is true, the output file includes full correlation detail (title, members, anomalies).
-// If verbose is false, correlations include only the anomalous time span.
-func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) error {
+func (tb *TestBench) RunHeadless(scenario, outputPath string, opts HeadlessOptions) error {
 	// LoadScenario runs detectors synchronously and kicks off correlators async.
 	if err := tb.LoadScenario(scenario); err != nil {
 		return fmt.Errorf("loading scenario %q: %w", scenario, err)
@@ -1066,15 +1099,37 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 	}
 	tb.mu.RUnlock()
 
-	// Write structured JSON output.
+	// Score if requested.
+	var scoreResult *ScoreResult
+	if opts.Score {
+		result, err := tb.ScoreCurrentAnalysis(opts.Sigma)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Scoring unavailable: %v\n", err)
+		} else {
+			scoreResult = result
+			printScoreResult(result)
+		}
+	}
+
+	// Write structured JSON output (includes score if computed).
 	if outputPath != "" {
-		if err := tb.WriteObserverOutput(outputPath, verbose); err != nil {
+		if err := tb.WriteObserverOutput(outputPath, opts.Verbose, scoreResult); err != nil {
 			return fmt.Errorf("writing observer output: %w", err)
 		}
 		fmt.Printf("Observer output written to %s\n", outputPath)
 	}
 
 	return nil
+}
+
+func printScoreResult(r *ScoreResult) {
+	fmt.Printf("\nGaussian F1 Score (sigma=%.1fs)\n", r.Sigma)
+	fmt.Printf("  F1:        %.4f\n", r.F1)
+	fmt.Printf("  Precision: %.4f\n", r.Precision)
+	fmt.Printf("  Recall:    %.4f\n", r.Recall)
+	fmt.Printf("  TP: %.4f  FP: %.4f  FN: %.4f\n", r.TP, r.FP, r.FN)
+	fmt.Printf("  Predictions: %d scored, %d warmup filtered, %d cascading filtered, %d baseline FPs\n",
+		r.NumPredictions, r.NumFilteredWarmup, r.NumFilteredCascading, r.NumBaselineFPs)
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.

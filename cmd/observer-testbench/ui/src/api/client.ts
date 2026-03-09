@@ -207,6 +207,28 @@ export interface CorrelatorStats {
   [key: string]: Record<string, unknown>;
 }
 
+// Score result from Gaussian F1 scoring
+export interface ScoreResult {
+  f1: number;
+  precision: number;
+  recall: number;
+  tp: number;
+  fp: number;
+  fn: number;
+  num_predictions: number;
+  num_ground_truths: number;
+  num_filtered_warmup: number;
+  num_filtered_cascading: number;
+  num_baseline_fps: number;
+  sigma: number;
+}
+
+export interface ScoreResponse {
+  available: boolean;
+  reason?: string;
+  score?: ScoreResult;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -292,6 +314,11 @@ class ApiClient {
 
   async getStats(): Promise<CorrelatorStats> {
     return this.fetch('/stats');
+  }
+
+  async getScore(sigma?: number): Promise<ScoreResponse> {
+    const params = sigma !== undefined ? `?sigma=${sigma}` : '';
+    return this.fetch(`/score${params}`);
   }
 
 }

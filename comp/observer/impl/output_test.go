@@ -58,7 +58,7 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 	tb := newTestBenchForOutput()
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
-	err := tb.WriteObserverOutput(outPath, false)
+	err := tb.WriteObserverOutput(outPath, false, nil)
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(outPath)
@@ -88,7 +88,7 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	}
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
-	require.NoError(t, tb.WriteObserverOutput(outPath, false))
+	require.NoError(t, tb.WriteObserverOutput(outPath, false, nil))
 
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	}
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
-	require.NoError(t, tb.WriteObserverOutput(outPath, true))
+	require.NoError(t, tb.WriteObserverOutput(outPath, true, nil))
 
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	tb.storage.Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
-	require.NoError(t, tb.WriteObserverOutput(outPath, false))
+	require.NoError(t, tb.WriteObserverOutput(outPath, false, nil))
 
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 	// Both modes produce valid JSON
 	for _, verbose := range []bool{false, true} {
 		outPath := filepath.Join(t.TempDir(), "results.json")
-		require.NoError(t, tb.WriteObserverOutput(outPath, verbose))
+		require.NoError(t, tb.WriteObserverOutput(outPath, verbose, nil))
 
 		data, err := os.ReadFile(outPath)
 		require.NoError(t, err)

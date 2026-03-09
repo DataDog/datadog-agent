@@ -209,52 +209,34 @@ func scoreGaussianPDF(x, sigma float64) float64 {
 	return math.Exp(-x*x/(2*sigma*sigma)) / (sigma * math.Sqrt(2*math.Pi))
 }
 
-// scenarioMetadata is the subset of metadata.json fields the scorer needs.
-type scenarioMetadata struct {
-	Baseline struct {
-		Start string `json:"start"`
-	} `json:"baseline"`
-	Disruption struct {
-		Start string `json:"start"`
-	} `json:"disruption"`
-}
-
-// scoringMetadata holds timestamps extracted from a scenario's metadata.json.
+// scoringMetadata holds timestamps needed for scoring.
 type scoringMetadata struct {
 	groundTruthTimestamps []int64
 	baselineStart         int64 // 0 if not available
 }
 
-// loadScoringMetadata reads disruption.start and baseline.start from a scenario's metadata.json.
-func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, error) {
-	path := filepath.Join(scenariosDir, scenarioName, "metadata.json")
-	data, err := os.ReadFile(path)
+// scoringMetadataFromEpisode extracts ground truth and baseline timestamps from an EpisodeInfo.
+func scoringMetadataFromEpisode(info *EpisodeInfo) (*scoringMetadata, error) {
+	if info == nil {
+		return nil, errors.New("no episode info available")
+	}
+	if info.Disruption == nil || info.Disruption.Start == "" {
+		return nil, errors.New("episode info missing disruption.start")
+	}
+
+	dt, err := time.Parse(time.RFC3339, info.Disruption.Start)
 	if err != nil {
-		return nil, fmt.Errorf("reading metadata %s: %w", path, err)
-	}
-
-	var meta scenarioMetadata
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return nil, fmt.Errorf("parsing metadata JSON: %w", err)
-	}
-
-	if meta.Disruption.Start == "" {
-		return nil, errors.New("metadata.json missing disruption.start")
-	}
-
-	dt, err := time.Parse(time.RFC3339, meta.Disruption.Start)
-	if err != nil {
-		return nil, fmt.Errorf("parsing disruption.start %q: %w", meta.Disruption.Start, err)
+		return nil, fmt.Errorf("parsing disruption.start %q: %w", info.Disruption.Start, err)
 	}
 
 	result := &scoringMetadata{
 		groundTruthTimestamps: []int64{dt.Unix()},
 	}
 
-	if meta.Baseline.Start != "" {
-		bt, err := time.Parse(time.RFC3339, meta.Baseline.Start)
+	if info.Baseline != nil && info.Baseline.Start != "" {
+		bt, err := time.Parse(time.RFC3339, info.Baseline.Start)
 		if err != nil {
-			return nil, fmt.Errorf("parsing baseline.start %q: %w", meta.Baseline.Start, err)
+			return nil, fmt.Errorf("parsing baseline.start %q: %w", info.Baseline.Start, err)
 		}
 		result.baselineStart = bt.Unix()
 	}
@@ -262,48 +244,28 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 	return result, nil
 }
 
-// ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
-// and scores them against the given ground truth.
-// If groundTruthTimestamps is nil and scenariosDir is non-empty, ground truth is
-// inferred from the scenario's metadata.json (using the scenario name from the output).
-// Explicit groundTruthTimestamps override metadata inference.
-func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
-	if sigma <= 0 {
-		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
-	}
-	data, err := os.ReadFile(outputPath)
+// loadScoringMetadataFromFile reads disruption.start and baseline.start from a scenario's episode.json.
+func loadScoringMetadataFromFile(scenariosDir, scenarioName string) (*scoringMetadata, error) {
+	path := filepath.Join(scenariosDir, scenarioName, "episode.json")
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading output file: %w", err)
+		return nil, fmt.Errorf("reading episode %s: %w", path, err)
 	}
 
-	var output ObserverOutput
-	if err := json.Unmarshal(data, &output); err != nil {
-		return nil, fmt.Errorf("parsing output JSON: %w", err)
+	var info EpisodeInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, fmt.Errorf("parsing episode JSON: %w", err)
 	}
 
-	// Load metadata if needed (for ground truth and/or baseline start).
-	var baselineStart int64
-	if scenariosDir != "" && output.Metadata.Scenario != "" {
-		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
-		if err != nil {
-			if len(groundTruthTimestamps) == 0 {
-				return nil, fmt.Errorf("inferring ground truth: %w", err)
-			}
-			// Metadata load failed but we have explicit GT — continue without baseline filter.
-		} else {
-			if len(groundTruthTimestamps) == 0 {
-				groundTruthTimestamps = sm.groundTruthTimestamps
-			}
-			baselineStart = sm.baselineStart
-		}
-	}
+	return scoringMetadataFromEpisode(&info)
+}
 
-	if len(groundTruthTimestamps) == 0 {
-		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with metadata.json")
-	}
+// scorePredictions scores prediction timestamps against ground truth with warmup/cascading filtering.
+func scorePredictions(predictionTimestamps []int64, meta *scoringMetadata, sigma float64) *ScoreResult {
+	groundTruthTimestamps := meta.groundTruthTimestamps
+	baselineStart := meta.baselineStart
 
-	// Compute prediction window: filter warmup (before baseline.start) and
-	// cascading effects (beyond max(groundTruth) + 2*sigma).
+	// Filter warmup (before baseline.start) and cascading (beyond max(GT) + 2*sigma).
 	maxGT := groundTruthTimestamps[0]
 	for _, gt := range groundTruthTimestamps[1:] {
 		if gt > maxGT {
@@ -314,16 +276,16 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 
 	var predictions []int64
 	var numFilteredWarmup, numFilteredCascading int
-	for _, period := range output.AnomalyPeriods {
-		if baselineStart > 0 && period.PeriodStart < baselineStart {
+	for _, ts := range predictionTimestamps {
+		if baselineStart > 0 && ts < baselineStart {
 			numFilteredWarmup++
 			continue
 		}
-		if float64(period.PeriodStart) > cutoff {
+		if float64(ts) > cutoff {
 			numFilteredCascading++
 			continue
 		}
-		predictions = append(predictions, period.PeriodStart)
+		predictions = append(predictions, ts)
 	}
 
 	// Count baseline FPs: scored predictions that fire before disruption onset.
@@ -349,5 +311,5 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	result.NumFilteredCascading = numFilteredCascading
 	result.NumBaselineFPs = numBaselineFPs
 
-	return &result, nil
+	return &result
 }

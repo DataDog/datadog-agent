@@ -32,19 +32,11 @@ def build_testbench(ctx):
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench")
 
 
-@task
-def build_scorer(ctx):
-    """
-    Builds the observer-scorer binary.
-    """
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer")
-
-
 # --- Eval ---
 @task
 def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
     """
-    Runs the observer eval: builds binaries, replays scenarios headless, scores against ground truth.
+    Runs the observer eval: builds testbench, replays scenarios headless with scoring.
 
     Output JSONs are saved to /tmp/observer-eval-<scenario>.json for inspection.
 
@@ -55,8 +47,6 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
     """
     print(color_message("Building observer-testbench...", Color.BLUE))
     ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
-    print(color_message("Building observer-scorer...", Color.BLUE))
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 
@@ -78,33 +68,24 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
         print(color_message(f"{'='*60}", Color.BLUE))
 
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}"
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
+            f" --scenarios-dir {shlex.quote(scenarios_dir)} --score --sigma {sigma}"
         )
 
         if not os.path.isfile(output_path):
             print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
             continue
+
         try:
             with open(output_path) as f:
-                json.load(f)
+                output = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             print(color_message(f"Testbench output at {output_path} is not valid JSON: {e}", Color.RED))
             continue
 
-        scorer_result = ctx.run(
-            f"bin/observer-scorer --input {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
-            hide=True,
-            warn=True,
-        )
-
-        if scorer_result.failed:
-            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
-            continue
-
-        try:
-            score = json.loads(scorer_result.stdout.strip())
-        except json.JSONDecodeError:
-            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+        score = output.get("score")
+        if not score:
+            print(color_message(f"No score in output for {name} (missing episode.json?)", Color.ORANGE))
             continue
         results.append({"name": name, **score})
 
@@ -162,7 +143,7 @@ def _ensure_parquets(ctx, name, parquet_dir):
                         with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
                             dst.write(src.read())
                     elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
-                        with zf.open(member) as src, open(os.path.join(scenario_dir, "metadata.json"), "wb") as dst:
+                        with zf.open(member) as src, open(os.path.join(scenario_dir, "episode.json"), "wb") as dst:
                             dst.write(src.read())
         except (zipfile.BadZipFile, OSError) as e:
             print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
