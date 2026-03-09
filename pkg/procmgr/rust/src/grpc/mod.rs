@@ -27,9 +27,7 @@ mod tests {
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
     use crate::command::Command;
-    use crate::config::{
-        ConfigLoader, ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader,
-    };
+    use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
     use crate::manager::ProcessManager;
     use hyper_util::rt::TokioIo;
     use std::sync::Arc;
