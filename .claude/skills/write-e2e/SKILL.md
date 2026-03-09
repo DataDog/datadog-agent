@@ -229,16 +229,18 @@ E2E tests provision real cloud infrastructure on AWS (`agent-sandbox` account). 
 locally, Datadog agent developers can use:
 
 ```bash
-aws-vault exec sso-agent-sandbox-account-admin -- \
-  dda inv new-e2e-tests.run --targets=./tests/<area>/...
+dda inv new-e2e-tests.run --targets=./tests/<area>/...
 ```
+
+The invoke task handles AWS authentication internally (via `aws-vault`) — you do
+**not** need to wrap the command with `aws-vault exec` yourself.
 
 Or use the `/run-e2e` skill which handles this automatically.
 
 **Prerequisites** (see `docs/public/how-to/test/e2e.md` for full setup):
-- `pulumi` CLI installed
-- `~/.test_infra_config.yaml` configured
-- Access to the `agent-sandbox` AWS account (Datadog agent org members)
+- `pulumi` CLI installed and `PULUMI_CONFIG_PASSPHRASE` set
+- `~/.test_infra_config.yaml` configured (run `dda inv e2e.setup`)
+- `aws-vault` installed with access to the `agent-sandbox` AWS account (Datadog agent org members)
 
 ### 11. CI integration (inform the user)
 
