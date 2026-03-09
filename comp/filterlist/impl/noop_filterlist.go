@@ -30,8 +30,13 @@ func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
 	return NewNoopTagMatcher()
 }
 
-// GetTagFilterList does nothing.
+// GetMetricFilterList does nothing.
 func (*noopFilterList) GetMetricFilterList() utilstrings.Matcher {
+	return utilstrings.NewMatcher([]string{}, false)
+}
+
+// GetHistoFilterList does nothing.
+func (*noopFilterList) GetHistoFilterList() utilstrings.Matcher {
 	return utilstrings.NewMatcher([]string{}, false)
 }
 

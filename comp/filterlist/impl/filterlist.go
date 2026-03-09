@@ -177,6 +177,17 @@ func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
 	return fl.filterList
 }
 
+// GetHistoFilterList returns the current histogram-specific metric filterlist.
+// This is a subset of the full metric filterlist containing only entries that
+// match histogram aggregate suffixes. It is used by DogStatsD workers which
+// pre-filter regular metrics in listeners; only histogram-derived names need
+// post-aggregation filtering.
+func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
+	fl.updateMetricMtx.RLock()
+	defer fl.updateMetricMtx.RUnlock()
+	return fl.histoFilterList
+}
+
 // create a list based on all `metricNames` but only containing metric names
 // with histogram aggregates suffixes.
 func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string {

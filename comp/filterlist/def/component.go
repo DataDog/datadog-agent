@@ -17,5 +17,6 @@ type Component interface {
 	OnUpdateMetricFilterList(func(utilstrings.Matcher, utilstrings.Matcher))
 	OnUpdateTagFilterList(func(TagMatcher))
 	GetMetricFilterList() utilstrings.Matcher
+	GetHistoFilterList() utilstrings.Matcher
 	GetTagFilterList() TagMatcher
 }

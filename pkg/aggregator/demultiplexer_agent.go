@@ -189,7 +189,7 @@ func initAgentDemultiplexer(log log.Component,
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
+			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker
