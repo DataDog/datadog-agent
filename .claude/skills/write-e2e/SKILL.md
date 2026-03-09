@@ -5,7 +5,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 argument-hint: "<feature-or-check-name> [--platform linux|windows|both] [--env host|docker|k8s]"
 ---
 
-Write end-to-end tests for the Datadog Agent using the `test/new-e2e/` framework.
+Write end-to-end tests for the Datadog Agent using the `test/e2e-framework/` framework.
 
 ## Before you start — read the reference docs
 
