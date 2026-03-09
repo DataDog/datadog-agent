@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -19,10 +18,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
 	bbolterr "go.etcd.io/bbolt/errors"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 type metaPath struct {

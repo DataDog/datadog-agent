@@ -14,9 +14,6 @@ def pre(install_directory, storage_location):
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
-            if not os.path.exists(post_python_installed_packages_file):
-                # Fallback: use the install directory if the file doesn't exist in the storage location, we might be migrating from deb/rpm to OCI
-                post_python_installed_packages_file = packages.post_python_installed_packages_file(install_directory)
             if os.path.exists(post_python_installed_packages_file):
                 pre_python_installed_packages_file = packages.pre_python_installed_packages_file(storage_location)
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)

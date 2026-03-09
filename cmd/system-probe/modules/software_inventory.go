@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -35,7 +34,7 @@ var _ module.Module = &softwareInventoryModule{}
 type softwareInventoryModule struct{}
 
 func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in software inventory")
 		inventory, warnings, err := software.GetSoftwareInventory()
 		if err != nil {
@@ -50,7 +49,7 @@ func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
 		for i, entry := range inventory {
 			wireEntries[i] = software.EntryToWire(entry)
 		}
-		utils.WriteAsJSON(req, w, wireEntries, utils.CompactOutput)
+		utils.WriteAsJSON(w, wireEntries, utils.CompactOutput)
 	}))
 
 	return nil

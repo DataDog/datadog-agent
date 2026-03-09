@@ -18,6 +18,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -113,7 +114,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func(data []byte, info filter.PacketInfo
 			return false, nil
 		}
 
-		return false, fmt.Errorf("could not get queued completion status: %w", err)
+		return false, errors.Wrap(err, "could not get queued completion status")
 	}
 
 	buf := (*readbuffer)(unsafe.Pointer(ol))
@@ -189,7 +190,7 @@ func createDNSFilters(dnsMonitoringPorts []int) ([]driver.FilterDefinition, erro
 func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle, buffers []*readbuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(h, windows.Handle(0), 0, 0)
 	if err != nil {
-		return windows.Handle(0), nil, fmt.Errorf("error creating IO completion port: %w", err)
+		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
 	}
 
 	buffers = make([]*readbuffer, count)
@@ -201,7 +202,7 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 		err = windows.ReadFile(h, buf.data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			_ = windows.CloseHandle(iocp)
-			return windows.Handle(0), nil, fmt.Errorf("failed to initiate readfile: %w", err)
+			return windows.Handle(0), nil, errors.Wrap(err, "failed to initiate readfile")
 		}
 	}
 

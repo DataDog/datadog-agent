@@ -320,11 +320,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to uninstall filesystem: %s", err)
 		}
 	case true:
-		storagePath := ctx.PackagePath
-		if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-			storagePath = paths.RootTmpDir
-		}
-		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, storagePath); err != nil {
+		if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to save custom integrations: %s", err)
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
@@ -353,7 +349,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove experiment units: %s", err)
 	}
-	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath, paths.RootTmpDir); err != nil {
+	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
 	if err := saveAgentExtensions(ctx, false); err != nil {

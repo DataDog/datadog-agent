@@ -3447,43 +3447,6 @@ func TestConvertStats(t *testing.T) {
 	}
 }
 
-func TestProcessStatsLongSQLResource(t *testing.T) {
-	// A valid SQL resource longer than MaxResourceLen (5000). Using backtick-quoted
-	// identifiers ensures the obfuscator must see the full string to tokenize it
-	// correctly — truncating before obfuscation would leave a mid-token fragment and
-	// produce textNonParsable.
-	longResource := "INSERT INTO `table` (`col1`) VALUES " + strings.Repeat("(?),", 2000)
-
-	cfg := config.New()
-	cfg.DefaultEnv = "agent_env"
-	cfg.Hostname = "agent_hostname"
-	cfg.MaxResourceLen = 5000
-
-	a := Agent{
-		Blacklister:    filters.NewBlacklister([]string{}),
-		obfuscatorConf: &obfuscate.Config{},
-		Replacer:       filters.NewReplacer([]*config.ReplaceRule{}),
-		conf:           cfg,
-	}
-
-	in := &pb.ClientStatsPayload{
-		Stats: []*pb.ClientStatsBucket{{
-			Stats: []*pb.ClientGroupedStats{{
-				Type:     "sql",
-				Resource: longResource,
-			}},
-		}},
-	}
-
-	out := a.processStats(in, "java", "v1", "", "")
-	require.Len(t, out.Stats, 1)
-	require.Len(t, out.Stats[0].Stats, 1)
-	got := out.Stats[0].Stats[0].Resource
-	assert.NotEqual(t, textNonParsable, got, "long SQL resource should be obfuscated, not treated as non-parsable")
-	assert.LessOrEqual(t, len(got), cfg.MaxResourceLen, "obfuscated resource should be truncated to MaxResourceLen")
-	assert.True(t, strings.HasPrefix(got, "INSERT INTO"), "obfuscated resource should start with INSERT INTO, got: %q", got)
-}
-
 func TestMergeDuplicates(t *testing.T) {
 	in := &pb.ClientStatsBucket{
 		Stats: []*pb.ClientGroupedStats{

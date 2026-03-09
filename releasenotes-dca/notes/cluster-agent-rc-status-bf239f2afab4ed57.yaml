@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Add Remote Configuration status section to ``datadog-cluster-agent status`` output and flares.
-    This displays whether RC is enabled for the organization, whether the API key is authorized
-    for Remote Configuration, and any last errors, matching the node agent's existing behavior.

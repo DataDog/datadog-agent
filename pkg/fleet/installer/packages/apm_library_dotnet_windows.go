@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -143,13 +142,7 @@ func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	if markerErr := ssi.SetIISInstrumentedMarker(true); markerErr != nil {
-		log.Warnf("Failed to set IIS instrumentation registry marker: %v", markerErr)
-	}
-	return nil
+	return err
 }
 
 func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
@@ -162,13 +155,7 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 	}
 	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
-	if err != nil {
-		return err
-	}
-	if markerErr := ssi.SetIISInstrumentedMarker(false); markerErr != nil {
-		log.Warnf("Failed to clear IIS instrumentation registry marker: %v", markerErr)
-	}
-	return nil
+	return err
 }
 
 func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {

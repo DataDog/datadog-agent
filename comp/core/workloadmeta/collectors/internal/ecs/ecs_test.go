@@ -135,7 +135,7 @@ func TestGetID(t *testing.T) {
 
 // TestGetTargetCatalog tests the GetTargetCatalog method
 func TestGetTargetCatalog(t *testing.T) {
-	catalog := workloadmeta.NodeAgent
+	catalog := workloadmeta.NodeAgent | workloadmeta.ProcessAgent
 	collector := &collector{
 		catalog: catalog,
 	}

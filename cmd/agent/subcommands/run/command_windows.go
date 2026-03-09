@@ -16,7 +16,7 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -33,8 +33,8 @@ import (
 
 	// checks implemented as components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"
-	agentcrashdetectfx "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/fx"
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
@@ -244,7 +244,7 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectfx.Module(),
+		agentcrashdetectimpl.Module(),
 		etwtracerimpl.Module,
 		windowseventlogimpl.Module(),
 		winregistryimpl.Module(),

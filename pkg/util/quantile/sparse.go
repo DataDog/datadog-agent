@@ -177,12 +177,6 @@ func (s *Sketch) Equals(o *Sketch) bool {
 	return true
 }
 
-// BasicStats returns the five summary fields used by the serializer.
-// It implements the metrics.SketchData interface.
-func (s *Sketch) BasicStats() (cnt int64, min, max, sum, avg float64) {
-	return s.Basic.Cnt, s.Basic.Min, s.Basic.Max, s.Basic.Sum, s.Basic.Avg
-}
-
 // ApproxEquals checks if s and o are equivalent, with e error allowed for Sum and Average
 func (s *Sketch) ApproxEquals(o *Sketch, e float64) bool {
 	if math.Abs(s.Basic.Sum-o.Basic.Sum) > e {

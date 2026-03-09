@@ -467,27 +467,6 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
-// AllSettingsWithoutSecrets returns all settings from the config without the secret backend layer
-func (t *teeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
-	base := t.baseline.AllSettingsWithoutSecrets()
-	compare := t.compare.AllSettingsWithoutSecrets()
-	t.compareResult("", "AllSettingsWithoutSecrets", base, compare)
-	return base
-}
-
-// AllSettingsWithoutDefaultOrSecrets returns all non-default settings without the secret backend layer
-func (t *teeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
-	base := t.baseline.AllSettingsWithoutDefaultOrSecrets()
-	compare := t.compare.AllSettingsWithoutDefaultOrSecrets()
-	t.compareResult("", "AllSettingsWithoutDefaultOrSecrets", base, compare)
-	return base
-}
-
-// GetSecretSettingPaths returns the flattened key paths that exist in the secrets layer
-func (t *teeConfig) GetSecretSettingPaths() []string {
-	return t.baseline.GetSecretSettingPaths()
-}
-
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
 // along with the sequence ID.
 func (t *teeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {

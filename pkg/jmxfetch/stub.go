@@ -8,7 +8,7 @@
 package jmxfetch
 
 import (
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

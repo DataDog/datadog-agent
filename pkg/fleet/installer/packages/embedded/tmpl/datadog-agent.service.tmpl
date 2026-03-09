@@ -22,7 +22,6 @@ Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"
-Environment="DD_CONFD_PATH={{.EtcDir}}/conf.d"
 {{- end}}
 RuntimeDirectory=datadog
 StartLimitInterval=10
