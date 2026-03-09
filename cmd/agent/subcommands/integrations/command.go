@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"go.uber.org/fx"
 
@@ -575,8 +576,11 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	if err := downloaderCmd.Start(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
+	var wg sync.WaitGroup
 	lastLine := ""
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
 			lastLine = in.Text()
@@ -587,6 +591,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	if err := downloaderCmd.Wait(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
+	wg.Wait()
 
 	// The path to the wheel will be at the last line of the output
 	wheelPath := lastLine
