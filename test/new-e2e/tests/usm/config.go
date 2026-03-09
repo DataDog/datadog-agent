@@ -8,7 +8,14 @@ package usm
 
 import _ "embed"
 
-// systemProbeConfigIIS defines the system-probe configuration for IIS HTTP monitoring
+// systemProbeConfig defines the system-probe configuration for USM HTTP monitoring.
+// Used by both IIS and Python/process-context test suites.
 //
-//go:embed config/usm-iis.yaml
-var systemProbeConfigIIS string
+//go:embed config/usm.yaml
+var systemProbeConfig string
+
+// Aliases for backwards compatibility and readability in test provisioners.
+var (
+	systemProbeConfigIIS    = systemProbeConfig
+	systemProbeConfigPython = systemProbeConfig
+)
