@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
@@ -69,7 +69,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }),
 		rdnsquerier.MockModule(),
 		npcollectorimpl.MockModule(),
-		statsd.MockModule(),
+		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
@@ -115,7 +115,7 @@ func TestBundleOneShot(t *testing.T) {
 		rdnsquerier.MockModule(),
 		remotetraceroute.Module(),
 		npcollectorimpl.Module(),
-		statsd.MockModule(),
+		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
