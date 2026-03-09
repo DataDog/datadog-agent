@@ -24,16 +24,23 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	eksscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
@@ -127,6 +134,37 @@ func Run(ctx *pulumi.Context) error {
 		)
 		if err != nil {
 			return err
+		}
+	}
+
+	// ── Build VM (for episodes with custom service images) ──────────────
+	// If any episode has a docker-compose.yaml, provision a build VM to
+	// build and push images to ECR. This runs before the orchestrator Job
+	// so images are available when helm installs the episode chart.
+	if imageRegistry != "" && episodeDataDir != "" {
+		var buildVM *remote.Host
+		var installDep command.Command
+
+		pairs := strings.Split(episodes, ",")
+		for _, p := range pairs {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			episode := strings.SplitN(p, ":", 2)[0]
+			episodePath := filepath.Join(episodeDataDir, episode)
+			dockerComposePath := filepath.Join(episodePath, "docker-compose.yaml")
+			if _, statErr := os.Stat(dockerComposePath); statErr == nil {
+				if buildVM == nil {
+					buildVM, installDep, err = provisionBuildVM(ctx, awsEnv)
+					if err != nil {
+						return err
+					}
+				}
+				if err = buildEpisodeImages(ctx, awsEnv, buildVM, installDep, episode, episodePath, imageRegistry); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -773,4 +811,245 @@ func createTarGz(dir string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// provisionBuildVM creates a single EC2 build VM with Docker pre-installed
+// (Amazon Linux ECS AMI) and installs the AWS CLI. The VM is shared across
+// all episodes that need image building.
+func provisionBuildVM(ctx *pulumi.Context, awsEnv resAws.Environment) (*remote.Host, command.Command, error) {
+	// Grant the build VM's instance role permission to push images to ECR.
+	// GetAuthorizationToken is account-level and must use "*" as the resource.
+	_, err := awsIam.NewRolePolicy(ctx, awsEnv.Namer.ResourceName("gensim-ecr-push"),
+		&awsIam.RolePolicyArgs{
+			Role: pulumi.String(awsEnv.DefaultInstanceProfileName()),
+			Policy: pulumi.String(`{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ecr:GetAuthorizationToken",
+      "ecr:CreateRepository",
+      "ecr:DescribeImages",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload"
+    ],
+    "Resource": "*"
+  }]
+}`),
+		},
+		awsEnv.WithProviders(e2econfig.ProviderAWS),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Use the Amazon Linux ECS AMI — Docker 25 (including buildx) is pre-installed
+	// and the daemon is already running. Only AWS CLI needs to be added (~30s via yum).
+	buildHost, err := ec2.NewVM(awsEnv, "gensim-builder", ec2.WithOS(osComp.AmazonLinuxECSDefault))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Install AWS CLI — Docker 25 (including buildx) is pre-installed on the ECS AMI,
+	// but AWS CLI is not. This is the only setup step needed (~30s vs ~4 min on Ubuntu).
+	installToolsCmd, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("install-build-tools"),
+		&command.Args{
+			Create: pulumi.String(`yum install -y awscli`),
+			Sudo:   true,
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return buildHost, installToolsCmd, nil
+}
+
+// buildEpisodeImages copies a single episode's service source code to the build VM,
+// builds Docker images via docker buildx bake, and pushes them to ECR.
+//
+// Each episode gets unique Pulumi resource names (suffixed with episodeName) so
+// multiple episodes can have their images built on the same VM without collisions.
+func buildEpisodeImages(
+	ctx *pulumi.Context,
+	awsEnv resAws.Environment,
+	buildHost *remote.Host,
+	installDep command.Command,
+	episodeName string,
+	episodePath string,
+	ecrRegistry string,
+) error {
+	buildDir := "/tmp/gensim-build-" + episodeName
+
+	// Copy the episode's docker-compose.yaml and services/ directory to the build VM.
+	servicesCopy, err := buildHost.OS.FileManager().CopyAbsoluteFolder(
+		filepath.Join(episodePath, "services"), buildDir+"/",
+	)
+	if err != nil {
+		return err
+	}
+
+	dockerComposeCopy, err := buildHost.OS.FileManager().CopyFile(
+		"docker-compose-yaml-"+episodeName,
+		pulumi.String(filepath.Join(episodePath, "docker-compose.yaml")),
+		pulumi.String(buildDir+"/docker-compose.yaml"),
+		utils.PulumiDependsOn(servicesCopy...),
+	)
+	if err != nil {
+		return err
+	}
+
+	// Fix ownership so the build directory is writable by the SSH user.
+	fixPermsCmd, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("fix-build-dir-perms-"+episodeName),
+		&command.Args{
+			Create: pulumi.Sprintf(`chown -R $(id -un):$(id -gn) %s/`, buildDir),
+			Sudo:   true,
+		},
+		utils.PulumiDependsOn(append(servicesCopy, dockerComposeCopy)...),
+	)
+	if err != nil {
+		return err
+	}
+
+	// Compute a hash of the local services directory so Pulumi can detect when
+	// source files change. Without this Trigger, DependsOn only controls ordering
+	// and the build command would never re-run after the initial create, even if
+	// app.py or a Dockerfile changed.
+	servicesHash, err := hashDir(filepath.Join(episodePath, "services"))
+	if err != nil {
+		return fmt.Errorf("hashing services directory for %s: %w", episodeName, err)
+	}
+
+	// Build all images and push to ECR.
+	//
+	// Caching: images are also tagged with the first 12 chars of servicesHash
+	// (e.g. "abc123def456"). On re-runs — including fresh cluster recreations with
+	// unchanged source — we check ECR for this hash tag first. If all images are
+	// already present, we skip the docker-compose build entirely (saves 5-10 min).
+	//
+	// The :latest tag is always pushed so the Helm chart's imageRegistry prefix works
+	// without any changes to chart values.
+	_, err = buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("build-push-images-"+episodeName),
+		&command.Args{
+			// Triggers forces this command to re-run whenever the source files change.
+			// Pulumi replaces the resource when any trigger value differs from state.
+			Triggers: pulumi.Array{pulumi.String(servicesHash)},
+			Create: pulumi.Sprintf(
+				`set -euo pipefail
+
+# AWS CLI is installed on the ECS AMI but not in the default SSH PATH.
+export PATH=$PATH:/usr/bin:/usr/local/bin
+
+cd %s
+
+REGION="%s"
+ECR_REGISTRY="%s"
+CACHE_TAG="%s"  # first 12 chars of services hash — stable cache key
+
+# Authenticate Docker with ECR using the instance IAM role.
+# --password-stdin works without a TTY, which is how Pulumi executes remote commands.
+aws ecr get-login-password --region "$REGION" \
+  | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+# Parse image names from docker-compose.yaml using grep+awk.
+# Avoids python3 yaml module which is not available on Amazon Linux ECS Python 3.7.
+# grep without ^ anchor matches 4-space-indented image: lines correctly.
+IMAGES=$(grep '  image:' docker-compose.yaml | awk '{print $2}')
+
+# Check if all images are already cached in ECR under the hash tag.
+# On a fresh cluster with unchanged source code this saves the full build.
+ALL_CACHED=true
+for IMAGE in $IMAGES; do
+  REPO="${IMAGE%%:*}"
+  if ! aws ecr describe-images \
+      --repository-name "$REPO" \
+      --image-ids "imageTag=$CACHE_TAG" \
+      --region "$REGION" >/dev/null 2>&1; then
+    ALL_CACHED=false
+    break
+  fi
+done
+
+if [ "$ALL_CACHED" = "true" ]; then
+  echo "[cache hit] All images cached at $CACHE_TAG — pulling and retagging as :latest"
+  for IMAGE in $IMAGES; do
+    REPO="${IMAGE%%:*}"
+    docker pull "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+    docker tag  "$ECR_REGISTRY/$REPO:$CACHE_TAG" "$ECR_REGISTRY/$IMAGE"
+    docker push "$ECR_REGISTRY/$IMAGE"
+  done
+else
+  echo "[cache miss] Building images with docker buildx bake..."
+  # buildx bake understands docker-compose.yaml natively, builds all images
+  # in parallel, and deduplicates shared base layers.
+  docker buildx bake -f docker-compose.yaml
+
+  for IMAGE in $IMAGES; do
+    REPO="${IMAGE%%:*}"
+    aws ecr create-repository --repository-name "$REPO" --region "$REGION" 2>/dev/null || true
+    # :latest — consumed by the Helm chart via imageRegistry
+    docker tag  "$IMAGE" "$ECR_REGISTRY/$IMAGE"
+    docker push "$ECR_REGISTRY/$IMAGE"
+    # :hash — cache key for future cluster recreations
+    docker tag  "$IMAGE" "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+    docker push "$ECR_REGISTRY/$REPO:$CACHE_TAG"
+  done
+fi`,
+				buildDir,
+				awsEnv.Region(),
+				ecrRegistry,
+				servicesHash[:12],
+			),
+		},
+		utils.PulumiDependsOn(installDep, fixPermsCmd),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// hashDir computes a deterministic SHA256 hash of all files under a directory.
+// It walks the tree, sorts paths for determinism, and hashes each file's
+// contents. The result changes whenever any file is added, removed, or modified.
+func hashDir(root string) (string, error) {
+	var paths []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	sort.Strings(paths)
+
+	h := sha256.New()
+	for _, path := range paths {
+		// Include the relative path so renames/moves are detected.
+		rel, _ := filepath.Rel(root, path)
+		fmt.Fprintf(h, "%s\n", rel)
+
+		f, err := os.Open(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(h, f); err != nil {
+			f.Close()
+			return "", err
+		}
+		f.Close()
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
