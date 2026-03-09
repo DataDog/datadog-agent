@@ -293,6 +293,27 @@ to see if a job already targets your test directory.
 Refer to the Confluence E2E docs for the full CI setup guide:
 https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3492282740/Automated+E2E+Test
 
+### 12. When to modify framework or fakeintake
+
+Some E2E tests require changes beyond the test file itself. Check whether your
+test needs any of these:
+
+**Fakeintake** (`test/fakeintake/`) — needs changes when:
+- The agent sends a new payload type to a new endpoint (add aggregator + client method)
+- You need a new filter option (e.g., filter metrics by resource type)
+- You need to override intake responses (e.g., simulate 403 for API key tests)
+- See `test/fakeintake/AGENTS.md` for the full extension guide
+
+**E2E framework** (`test/e2e-framework/`) — needs changes when:
+- You need a new environment type (e.g., a multi-host setup)
+- You need a new provisioner option (e.g., GPU instances, specific AMIs)
+- You need a new agent configuration option in `agentparams`
+- You need a new cloud resource (e.g., S3 bucket, RDS instance)
+- See `test/e2e-framework/AGENTS.md` for the framework architecture
+
+Both sub-projects have their own `AGENTS.md` and `CLAUDE.md` for context when
+working inside them.
+
 ## Key patterns from the codebase
 
 ### Naming conventions
