@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import shlex
@@ -62,11 +63,14 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
     results = []
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        scenario_root = os.path.join(scenarios_dir, name)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             _ensure_parquets(ctx, name, parquet_dir)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
-            print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
-            continue
+            # Fallback: check for *.parquet files directly in scenario root
+            if not glob.glob(os.path.join(scenario_root, "*.parquet")):
+                print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+                continue
 
         output_path = f"/tmp/observer-eval-{name}.json"
         print(color_message(f"\n{'='*60}", Color.BLUE))
