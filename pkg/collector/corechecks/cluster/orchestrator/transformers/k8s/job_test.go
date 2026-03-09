@@ -30,10 +30,8 @@ func TestExtractJob(t *testing.T) {
 	lastTransitionTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 35, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             batchv1.Job
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Job
+		input    batchv1.Job
+		expected model.Job
 	}{
 		"job started by cronjob (in progress)": {
 			input: batchv1.Job{
@@ -75,12 +73,6 @@ func TestExtractJob(t *testing.T) {
 					StartTime: &startTime,
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Job{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -114,10 +106,7 @@ func TestExtractJob(t *testing.T) {
 					Active:    1,
 					StartTime: startTime.Unix(),
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 		"job started by cronjob (completed)": {
@@ -325,8 +314,6 @@ func TestExtractJob(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractJob(pctx, &tc.input)
 			sort.Strings(actual.Tags)

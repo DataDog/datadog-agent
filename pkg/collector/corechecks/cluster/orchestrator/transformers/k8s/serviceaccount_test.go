@@ -26,10 +26,8 @@ func TestExtractServiceAccount(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             corev1.ServiceAccount
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.ServiceAccount
+		input    corev1.ServiceAccount
+		expected model.ServiceAccount
 	}{
 		"standard": {
 			input: corev1.ServiceAccount{
@@ -58,12 +56,6 @@ func TestExtractServiceAccount(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.ServiceAccount{
 				AutomountServiceAccountToken: false,
 				ImagePullSecrets: []*model.TypedLocalObjectReference{
@@ -85,10 +77,7 @@ func TestExtractServiceAccount(t *testing.T) {
 						Name: "default-token-uudge",
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 		"missing service account token automount": {
@@ -117,12 +106,6 @@ func TestExtractServiceAccount(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.ServiceAccount{
 				AutomountServiceAccountToken: true,
 				ImagePullSecrets: []*model.TypedLocalObjectReference{
@@ -144,18 +127,13 @@ func TestExtractServiceAccount(t *testing.T) {
 						Name: "default-token-uudge",
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractServiceAccount(pctx, &tc.input)
 			sort.Strings(actual.Tags)

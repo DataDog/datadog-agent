@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewNamespaceCollectorVersions builds the group of collector versions.
-func NewNamespaceCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewNamespaceCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNamespaceCollector(metadataAsTags),
+		NewNamespaceCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type NamespaceCollector struct {
 
 // NewNamespaceCollector creates a new collector for the Kubernetes
 // Namespace resource.
-func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.NamespaceName, utilTypes.NamespaceVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewNamespaceCollector() *NamespaceCollector {
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollec
 			Name:                                 utilTypes.NamespaceName,
 			Kind:                                 kubernetes.NamespaceKind,
 			NodeType:                             orchestrator.K8sNamespace,
+			Group:                                utilTypes.NamespaceGroup,
 			Version:                              utilTypes.NamespaceVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),

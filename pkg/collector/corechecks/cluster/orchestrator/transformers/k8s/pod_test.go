@@ -76,10 +76,8 @@ func TestExtractPod(t *testing.T) {
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
-		input             v1.Pod
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Pod
+		input    v1.Pod
+		expected model.Pod
 	}{
 		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
@@ -172,12 +170,6 @@ func TestExtractPod(t *testing.T) {
 					PriorityClassName: "high-priority",
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Pod{
 				Metadata: &model.Metadata{
 					Name:              "pod",
@@ -246,8 +238,6 @@ func TestExtractPod(t *testing.T) {
 				Tags: []string{
 					"kube_condition_ready:true",
 					"kube_condition_podscheduled:true",
-					"application:my-app",
-					"annotation_key:my-annotation",
 				},
 				ResourceRequirements: []*model.ResourceRequirements{
 					{
@@ -594,8 +584,6 @@ func TestExtractPod(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractPod(pctx, &tc.input)
 			sort.Strings(actual.Tags)

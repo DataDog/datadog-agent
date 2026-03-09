@@ -80,9 +80,8 @@ func ExtractService(ctx processors.ProcessorContext, s *corev1.Service) *model.S
 		})
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(s.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(s.ObjectMeta.Labels, s.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(s.ObjectMeta.Labels, s.ObjectMeta.Annotations)...)
 
 	return message
 }

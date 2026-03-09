@@ -25,10 +25,8 @@ func TestExtractIngress(t *testing.T) {
 	pathType := netv1.PathTypeImplementationSpecific
 
 	tests := map[string]struct {
-		input             netv1.Ingress
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Ingress
+		input    netv1.Ingress
+		expected model.Ingress
 	}{
 		"empty": {input: netv1.Ingress{}, expected: model.Ingress{Metadata: &model.Metadata{}, Spec: &model.IngressSpec{}, Status: &model.IngressStatus{}}},
 		"with spec and status": {
@@ -85,12 +83,6 @@ func TestExtractIngress(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Ingress{
 				Metadata: &model.Metadata{
 					Name:        "ingress",
@@ -134,18 +126,13 @@ func TestExtractIngress(t *testing.T) {
 						{Hostname: "foo.us-east-1.elb.amazonaws.com"},
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractIngress(pctx, &tc.input)
 			sort.Strings(actual.Tags)

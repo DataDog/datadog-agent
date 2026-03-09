@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewReplicaSetCollectorVersions builds the group of collector versions.
-func NewReplicaSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewReplicaSetCollector(metadataAsTags),
+		NewReplicaSetCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type ReplicaSetCollector struct {
 
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
-func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.ReplicaSetName, utilTypes.ReplicaSetVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetColl
 			Name:                                 utilTypes.ReplicaSetName,
 			Kind:                                 kubernetes.ReplicaSetKind,
 			NodeType:                             orchestrator.K8sReplicaSet,
+			Group:                                utilTypes.ReplicaSetGroup,
 			Version:                              utilTypes.ReplicaSetVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),

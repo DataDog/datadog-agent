@@ -16,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestRoleBindingCollector(t *testing.T) {
@@ -51,8 +49,7 @@ func TestRoleBindingCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewRoleBindingCollector(metadataAsTags)
+	collector := NewRoleBindingCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{roleBinding},

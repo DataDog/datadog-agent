@@ -90,9 +90,8 @@ func ExtractNode(ctx processors.ProcessorContext, n *corev1.Node) *model.Node {
 
 	addAdditionalNodeTags(msg)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(n.ObjectMeta.Labels)...)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(n.ObjectMeta.Labels, n.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(n.ObjectMeta.Labels, n.ObjectMeta.Annotations)...)
 
 	return msg
 }

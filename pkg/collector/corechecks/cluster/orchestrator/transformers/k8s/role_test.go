@@ -25,10 +25,8 @@ func TestExtractRole(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             rbacv1.Role
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Role
+		input    rbacv1.Role
+		expected model.Role
 	}{
 		"standard": {
 			input: rbacv1.Role{
@@ -63,12 +61,6 @@ func TestExtractRole(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Role{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -96,18 +88,13 @@ func TestExtractRole(t *testing.T) {
 						Verbs:     []string{"create"},
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractRole(pctx, &tc.input)
 			sort.Strings(actual.Tags)

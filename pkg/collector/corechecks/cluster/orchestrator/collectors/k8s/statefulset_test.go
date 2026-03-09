@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestStatefulSetCollector(t *testing.T) {
@@ -79,8 +77,7 @@ func TestStatefulSetCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewStatefulSetCollector(metadataAsTags)
+	collector := NewStatefulSetCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{statefulSet},

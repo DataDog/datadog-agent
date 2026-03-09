@@ -29,10 +29,8 @@ func TestExtractDaemonset(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
 	tests := map[string]struct {
-		input             v1.DaemonSet
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.DaemonSet
+		input    v1.DaemonSet
+		expected model.DaemonSet
 	}{
 		"empty ds": {input: v1.DaemonSet{}, expected: model.DaemonSet{Metadata: &model.Metadata{}, Spec: &model.DaemonSetSpec{}, Status: &model.DaemonSetStatus{}}},
 		"ds with resources": {
@@ -94,12 +92,6 @@ func TestExtractDaemonset(t *testing.T) {
 					NumberReady:            1,
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.DaemonSet{
 				Metadata: &model.Metadata{
 					Name:        "daemonset",
@@ -118,8 +110,6 @@ func TestExtractDaemonset(t *testing.T) {
 				},
 				Tags: []string{
 					"kube_condition_test:false",
-					"application:my-app",
-					"annotation_key:my-annotation",
 				},
 				Spec: &model.DaemonSetSpec{
 					DeploymentStrategy: "RollingUpdate",
@@ -135,8 +125,6 @@ func TestExtractDaemonset(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractDaemonSet(pctx, &tc.input)
 			sort.Strings(actual.Tags)

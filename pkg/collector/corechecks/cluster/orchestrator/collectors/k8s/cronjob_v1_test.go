@@ -18,8 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -66,8 +64,7 @@ func TestCronJobV1Collector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewCronJobV1Collector(metadataAsTags)
+	collector := NewCronJobV1Collector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{cronJob},

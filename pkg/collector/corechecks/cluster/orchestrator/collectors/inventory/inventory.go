@@ -16,18 +16,17 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultGenericResource is a list of generic resources that are collected by default.
 var defaultGenericResource = []k8sCollectors.GenericResource{
 	{
-		Name:         "endpointslices",
-		GroupVersion: "discovery.k8s.io/v1",
-		NodeType:     orchestrator.K8sEndpointSlice,
-		Stable:       true,
+		Name:     "endpointslices",
+		Group:    "discovery.k8s.io",
+		Version:  "v1",
+		NodeType: orchestrator.K8sEndpointSlice,
+		Stable:   true,
 	},
 }
 
@@ -35,11 +34,7 @@ var defaultGenericResource = []k8sCollectors.GenericResource{
 func getGenericCollectorVersions() []collectors.CollectorVersions {
 	cvs := make([]collectors.CollectorVersions, 0, len(defaultGenericResource))
 	for _, resource := range defaultGenericResource {
-		cv, err := resource.NewCollectorVersions()
-		if err != nil {
-			log.Warnf("failed to create collector for resource %s: %s", resource.Name, err)
-		}
-		cvs = append(cvs, cv)
+		cvs = append(cvs, resource.NewCollectorVersions())
 	}
 	return cvs
 }
@@ -52,36 +47,35 @@ type CollectorInventory struct {
 // NewCollectorInventory returns a new inventory containing all known
 // collectors.
 func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *CollectorInventory {
-	metadataAsTags := utils.GetMetadataAsTags(cfg)
 	return &CollectorInventory{
 		collectors: append([]collectors.CollectorVersions{
 			k8sCollectors.NewCRDCollectorVersions(),
 			k8sCollectors.NewClusterCollectorVersions(),
-			k8sCollectors.NewClusterRoleBindingCollectorVersions(metadataAsTags),
-			k8sCollectors.NewClusterRoleCollectorVersions(metadataAsTags),
-			k8sCollectors.NewCronJobCollectorVersions(metadataAsTags),
-			k8sCollectors.NewDaemonSetCollectorVersions(metadataAsTags),
-			k8sCollectors.NewDeploymentCollectorVersions(metadataAsTags),
-			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(metadataAsTags),
-			k8sCollectors.NewIngressCollectorVersions(metadataAsTags),
-			k8sCollectors.NewJobCollectorVersions(metadataAsTags),
-			k8sCollectors.NewLimitRangeCollectorVersions(metadataAsTags),
-			k8sCollectors.NewNamespaceCollectorVersions(metadataAsTags),
-			k8sCollectors.NewNetworkPolicyCollectorVersions(metadataAsTags),
-			k8sCollectors.NewNodeCollectorVersions(metadataAsTags),
-			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(metadataAsTags),
-			k8sCollectors.NewPersistentVolumeCollectorVersions(metadataAsTags),
-			k8sCollectors.NewPodDisruptionBudgetCollectorVersions(metadataAsTags),
-			k8sCollectors.NewReplicaSetCollectorVersions(metadataAsTags),
-			k8sCollectors.NewRoleBindingCollectorVersions(metadataAsTags),
-			k8sCollectors.NewRoleCollectorVersions(metadataAsTags),
-			k8sCollectors.NewServiceAccountCollectorVersions(metadataAsTags),
-			k8sCollectors.NewServiceCollectorVersions(metadataAsTags),
-			k8sCollectors.NewStatefulSetCollectorVersions(metadataAsTags),
-			k8sCollectors.NewStorageClassCollectorVersions(metadataAsTags),
-			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
-			k8sCollectors.NewTerminatedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
-			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(metadataAsTags),
+			k8sCollectors.NewClusterRoleBindingCollectorVersions(),
+			k8sCollectors.NewClusterRoleCollectorVersions(),
+			k8sCollectors.NewCronJobCollectorVersions(),
+			k8sCollectors.NewDaemonSetCollectorVersions(),
+			k8sCollectors.NewDeploymentCollectorVersions(),
+			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
+			k8sCollectors.NewIngressCollectorVersions(),
+			k8sCollectors.NewJobCollectorVersions(),
+			k8sCollectors.NewLimitRangeCollectorVersions(),
+			k8sCollectors.NewNamespaceCollectorVersions(),
+			k8sCollectors.NewNetworkPolicyCollectorVersions(),
+			k8sCollectors.NewNodeCollectorVersions(),
+			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
+			k8sCollectors.NewPersistentVolumeCollectorVersions(),
+			k8sCollectors.NewPodDisruptionBudgetCollectorVersions(),
+			k8sCollectors.NewReplicaSetCollectorVersions(),
+			k8sCollectors.NewRoleBindingCollectorVersions(),
+			k8sCollectors.NewRoleCollectorVersions(),
+			k8sCollectors.NewServiceAccountCollectorVersions(),
+			k8sCollectors.NewServiceCollectorVersions(),
+			k8sCollectors.NewStatefulSetCollectorVersions(),
+			k8sCollectors.NewStorageClassCollectorVersions(),
+			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store, tagger),
+			k8sCollectors.NewTerminatedPodCollectorVersions(cfg, store, tagger),
+			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
 		}, getGenericCollectorVersions()...),
 	}
 }
@@ -101,15 +95,15 @@ func (ci *CollectorInventory) CollectorForDefaultVersion(collectorName string) (
 
 // CollectorForVersion gets a collector given its name and version. It returns
 // an error if the collector name or version is not known.
-func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorVersion string) (collectors.K8sCollector, error) {
+func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorGroupVersion string) (collectors.K8sCollector, error) {
 	for _, cv := range ci.collectors {
 		for _, c := range cv.Collectors {
-			if c.Metadata().Name == collectorName && c.Metadata().Version == collectorVersion {
+			if c.Metadata().Name == collectorName && c.Metadata().GroupVersion() == collectorGroupVersion {
 				return c, nil
 			}
 		}
 	}
-	return nil, fmt.Errorf("no collector found for name %s and version %s", collectorName, collectorVersion)
+	return nil, fmt.Errorf("no collector found for name %s and version %s", collectorName, collectorGroupVersion)
 }
 
 // StableCollectors get a list of all stable collectors in the inventory.

@@ -26,10 +26,8 @@ func TestExtractReplicaSet(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)
 	tests := map[string]struct {
-		input             appsv1.ReplicaSet
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.ReplicaSet
+		input    appsv1.ReplicaSet
+		expected model.ReplicaSet
 	}{
 		"full rs": {
 			input: appsv1.ReplicaSet{
@@ -77,12 +75,6 @@ func TestExtractReplicaSet(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"label": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.ReplicaSet{
 				Metadata: &model.Metadata{
 					Name:              "replicaset",
@@ -104,8 +96,6 @@ func TestExtractReplicaSet(t *testing.T) {
 				},
 				Tags: []string{
 					"kube_condition_replicafailure:false",
-					"application:foo",
-					"annotation_key:bar",
 				},
 				Selectors: []*model.LabelSelectorRequirement{
 					{
@@ -160,8 +150,6 @@ func TestExtractReplicaSet(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractReplicaSet(pctx, &tc.input)
 			sort.Strings(actual.Tags)

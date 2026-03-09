@@ -24,10 +24,8 @@ import (
 func TestExtractNetworkPolicy(t *testing.T) {
 	protocol := v1.Protocol("TCP")
 	tests := map[string]struct {
-		input             networkingv1.NetworkPolicy
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          *model.NetworkPolicy
+		input    networkingv1.NetworkPolicy
+		expected *model.NetworkPolicy
 	}{
 		"standard": {
 			input: networkingv1.NetworkPolicy{
@@ -59,12 +57,6 @@ func TestExtractNetworkPolicy(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: &model.NetworkPolicy{
 				Metadata: &model.Metadata{
 					Annotations: []string{"annotation:my-annotation"},
@@ -89,10 +81,6 @@ func TestExtractNetworkPolicy(t *testing.T) {
 						},
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
 			},
 		},
 		"nil-safety": {
@@ -109,8 +97,6 @@ func TestExtractNetworkPolicy(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractNetworkPolicy(pctx, &tc.input)
 			sort.Strings(actual.Tags)

@@ -8,7 +8,6 @@
 package k8s
 
 import (
-	"sort"
 	"testing"
 	"time"
 
@@ -82,15 +81,10 @@ func TestExtractStorageClass(t *testing.T) {
 			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimDelete),
 			VolumeBindingMode: string(storagev1.VolumeBindingImmediate),
-			Tags: []string{
-				"application:my-app",
-				"annotation_key:my-annotation",
-			},
+			Tags: nil,
 		}
 
 		pctx := &processors.K8sProcessorContext{
-			LabelsAsTags:      map[string]string{"app": "application"},
-			AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
 		}
 		actual := ExtractStorageClass(pctx, sc)
 		assert.Equal(t, expected, actual)
@@ -172,19 +166,12 @@ func TestExtractStorageClass(t *testing.T) {
 			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimRetain),
 			VolumeBindingMode: string(storagev1.VolumeBindingWaitForFirstConsumer),
-			Tags: []string{
-				"application:my-app",
-				"annotation_key:my-annotation",
-			},
+			Tags: nil,
 		}
 
 		pctx := &processors.K8sProcessorContext{
-			LabelsAsTags:      map[string]string{"app": "application"},
-			AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
 		}
 		actual := ExtractStorageClass(pctx, sc)
-		sort.Strings(actual.Tags)
-		sort.Strings(expected.Tags)
 		assert.Equal(t, expected, actual)
 	})
 }

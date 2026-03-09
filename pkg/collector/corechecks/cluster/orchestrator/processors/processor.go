@@ -118,13 +118,10 @@ func (c *BaseProcessorContext) GetClock() clock.Clock {
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
-	APIClient         *apiserver.APIClient
-	HostName          string
-	SystemInfo        *model.SystemInfo
-	ResourceType      string
-	LabelsAsTags      map[string]string
-	AnnotationsAsTags map[string]string
-	NodeName          string
+	APIClient  *apiserver.APIClient
+	HostName   string
+	SystemInfo *model.SystemInfo
+	NodeName   string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes

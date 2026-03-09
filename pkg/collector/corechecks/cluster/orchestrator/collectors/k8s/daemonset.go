@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewDaemonSetCollectorVersions builds the group of collector versions.
-func NewDaemonSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewDaemonSetCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDaemonSetCollector(metadataAsTags),
+		NewDaemonSetCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type DaemonSetCollector struct {
 
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
 // resource.
-func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.DaemonSetName, utilTypes.DaemonSetVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewDaemonSetCollector() *DaemonSetCollector {
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 			Name:                                 utilTypes.DaemonSetName,
 			Kind:                                 kubernetes.DaemonSetKind,
 			NodeType:                             orchestrator.K8sDaemonSet,
+			Group:                                utilTypes.DaemonSetGroup,
 			Version:                              utilTypes.DaemonSetVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),

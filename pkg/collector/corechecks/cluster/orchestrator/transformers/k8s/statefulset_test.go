@@ -26,10 +26,8 @@ func TestExtractStatefulSet(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)
 	tests := map[string]struct {
-		input             appsv1.StatefulSet
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.StatefulSet
+		input    appsv1.StatefulSet
+		expected model.StatefulSet
 	}{
 		"full sts": {
 			input: appsv1.StatefulSet{
@@ -77,12 +75,6 @@ func TestExtractStatefulSet(t *testing.T) {
 					UpdatedReplicas:    2,
 				},
 			},
-			labelsAsTags: map[string]string{
-				"label": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.StatefulSet{
 				Metadata: &model.Metadata{
 					Name:              "sts",
@@ -104,8 +96,6 @@ func TestExtractStatefulSet(t *testing.T) {
 				},
 				Tags: []string{
 					"kube_condition_test:false",
-					"application:foo",
-					"annotation_key:bar",
 				},
 				Spec: &model.StatefulSetSpec{
 					DesiredReplicas: 2,
@@ -160,8 +150,6 @@ func TestExtractStatefulSet(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractStatefulSet(pctx, &tc.input)
 			sort.Strings(actual.Tags)

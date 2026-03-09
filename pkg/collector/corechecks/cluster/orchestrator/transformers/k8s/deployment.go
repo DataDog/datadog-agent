@@ -58,9 +58,8 @@ func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *m
 
 	deploy.ResourceRequirements = ExtractPodTemplateResourceRequirements(d.Spec.Template)
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	deploy.Tags = append(deploy.Tags, transformers.RetrieveUnifiedServiceTags(d.ObjectMeta.Labels)...)
-	deploy.Tags = append(deploy.Tags, transformers.RetrieveMetadataTags(d.ObjectMeta.Labels, d.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	deploy.Tags = append(deploy.Tags, transformers.RetrieveMetadataTags(d.ObjectMeta.Labels, d.ObjectMeta.Annotations)...)
 
 	return &deploy
 }

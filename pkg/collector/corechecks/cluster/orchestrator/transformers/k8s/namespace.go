@@ -29,9 +29,8 @@ func ExtractNamespace(ctx processors.ProcessorContext, ns *corev1.Namespace) *mo
 		n.Tags = append(n.Tags, conditionTags...)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	n.Tags = append(n.Tags, transformers.RetrieveUnifiedServiceTags(ns.ObjectMeta.Labels)...)
-	n.Tags = append(n.Tags, transformers.RetrieveMetadataTags(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	n.Tags = append(n.Tags, transformers.RetrieveMetadataTags(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations)...)
 
 	return n
 }

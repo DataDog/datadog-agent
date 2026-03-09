@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewStorageClassCollectorVersions builds the group of collector versions.
-func NewStorageClassCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewStorageClassCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewStorageClassCollector(metadataAsTags),
+		NewStorageClassCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type StorageClassCollector struct {
 
 // NewStorageClassCollector creates a new collector for the Kubernetes
 // StorageClass resource.
-func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClassCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.StorageClassName, utilTypes.StorageClassVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewStorageClassCollector() *StorageClassCollector {
 	return &StorageClassCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			Name:                                 utilTypes.StorageClassName,
 			Kind:                                 kubernetes.StorageClassKind,
 			NodeType:                             orchestrator.K8sStorageClass,
+			Group:                                utilTypes.StorageClassGroup,
 			Version:                              utilTypes.StorageClassVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StorageClassHandlers)),

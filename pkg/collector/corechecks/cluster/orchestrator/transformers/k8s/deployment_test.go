@@ -31,10 +31,8 @@ func TestExtractDeployment(t *testing.T) {
 	testIntOrStrNumber := intstr.FromInt(1)
 	testInt32 := int32(2)
 	tests := map[string]struct {
-		input             appsv1.Deployment
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Deployment
+		input    appsv1.Deployment
+		expected model.Deployment
 	}{
 		"full deploy": {
 			input: appsv1.Deployment{
@@ -91,12 +89,6 @@ func TestExtractDeployment(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"label": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Deployment{
 				Metadata: &model.Metadata{
 					Name:              "deploy",
@@ -142,8 +134,6 @@ func TestExtractDeployment(t *testing.T) {
 				Tags: []string{
 					"kube_condition_available:false",
 					"kube_condition_progressing:false",
-					"application:foo",
-					"annotation_key:bar",
 				},
 			},
 		},
@@ -226,8 +216,6 @@ func TestExtractDeployment(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractDeployment(pctx, &tc.input)
 			sort.Strings(actual.Tags)

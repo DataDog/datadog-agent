@@ -16,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -80,8 +78,7 @@ func TestIngressCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewIngressCollector(metadataAsTags)
+	collector := NewIngressCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{ingress},

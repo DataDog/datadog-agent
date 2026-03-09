@@ -23,9 +23,8 @@ func ExtractNetworkPolicy(ctx processors.ProcessorContext, n *networkingv1.Netwo
 		Spec:     extractNetworkPolicySpec(&n.Spec),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	networkPolicy.Tags = append(networkPolicy.Tags, transformers.RetrieveUnifiedServiceTags(n.ObjectMeta.Labels)...)
-	networkPolicy.Tags = append(networkPolicy.Tags, transformers.RetrieveMetadataTags(n.ObjectMeta.Labels, n.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	networkPolicy.Tags = append(networkPolicy.Tags, transformers.RetrieveMetadataTags(n.ObjectMeta.Labels, n.ObjectMeta.Annotations)...)
 
 	return &networkPolicy
 }

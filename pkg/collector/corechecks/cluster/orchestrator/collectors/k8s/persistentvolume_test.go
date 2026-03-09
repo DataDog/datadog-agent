@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestPersistentVolumeCollector(t *testing.T) {
@@ -98,8 +96,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewPersistentVolumeCollector(metadataAsTags)
+	collector := NewPersistentVolumeCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{persistentVolume},

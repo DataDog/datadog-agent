@@ -43,15 +43,14 @@ func NewCRDCollector() *CRDCollector {
 	return &CRDCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
-			IsStable:                             true,
 			IsManifestProducer:                   true,
-			IsMetadataProducer:                   false,
-			SupportsManifestBuffering:            false,
-			Name:                                 utilTypes.CrdName,
-			Kind:                                 kubernetes.CustomResourceDefinitionKind,
-			NodeType:                             orchestrator.K8sCRD,
-			Version:                              utilTypes.CrdVersion,
+			IsStable:                             true,
 			SupportsTerminatedResourceCollection: true,
+			Group:                                utilTypes.CrdGroup,
+			Kind:                                 kubernetes.CustomResourceDefinitionKind,
+			Name:                                 utilTypes.CrdName,
+			Version:                              utilTypes.CrdVersion,
+			NodeType:                             orchestrator.K8sCRD,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}

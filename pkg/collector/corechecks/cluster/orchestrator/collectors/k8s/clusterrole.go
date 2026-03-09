@@ -17,15 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // NewClusterRoleCollectorVersions builds the group of collector versions.
-func NewClusterRoleCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewClusterRoleCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewClusterRoleCollector(metadataAsTags),
+		NewClusterRoleCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type ClusterRoleCollector struct {
 
 // NewClusterRoleCollector creates a new collector for the Kubernetes
 // ClusterRole resource.
-func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.ClusterRoleName, utilTypes.ClusterRoleVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewClusterRoleCollector() *ClusterRoleCollector {
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 			Name:                                 utilTypes.ClusterRoleName,
 			Kind:                                 kubernetes.ClusterRoleKind,
 			NodeType:                             orchestrator.K8sClusterRole,
+			Group:                                utilTypes.ClusterRoleGroup,
 			Version:                              utilTypes.ClusterRoleVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),

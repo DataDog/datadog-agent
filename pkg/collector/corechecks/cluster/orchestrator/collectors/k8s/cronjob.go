@@ -9,13 +9,12 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // NewCronJobCollectorVersions builds the group of collector versions for
-func NewCronJobCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewCronJobCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewCronJobV1Collector(metadataAsTags),
-		NewCronJobV1Beta1Collector(metadataAsTags),
+		NewCronJobV1Collector(),
+		NewCronJobV1Beta1Collector(),
 	)
 }

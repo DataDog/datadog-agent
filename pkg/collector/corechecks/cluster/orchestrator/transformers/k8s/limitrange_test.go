@@ -8,7 +8,6 @@
 package k8s
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,17 +89,10 @@ func TestExtractResourceLimit(t *testing.T) {
 				},
 			},
 		},
-		Tags: []string{
-			"application:my-app",
-			"annotation_key:my-annotation",
-		},
+		Tags: nil,
 	}
 	pctx := &processors.K8sProcessorContext{
-		LabelsAsTags:      map[string]string{"app": "application"},
-		AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
 	}
 	actual := ExtractLimitRange(pctx, &input)
-	sort.Strings(actual.Tags)
-	sort.Strings(expected.Tags)
 	assert.Equal(t, expected, actual)
 }

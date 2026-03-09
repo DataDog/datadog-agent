@@ -53,185 +53,55 @@ func TestRetrieveMetadataTags(t *testing.T) {
 		name                  string
 		labels                map[string]string
 		annotations           map[string]string
-		labelsAsTags          map[string]string
-		annotationsAsTags     map[string]string
 		autoTeamTagCollection bool
 		want                  []string
 	}{
 		{
-			name: "labels and annotations have matching tags",
-			labels: map[string]string{
-				"app":  "my-app",
-				"team": "my-team",
-			},
+			name:   "no team in labels or annotations",
+			labels: map[string]string{},
 			annotations: map[string]string{
 				"annotation-key": "annotation-value",
 			},
-			labelsAsTags: map[string]string{
-				"app":  "application",
-				"team": "team-name",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation-key": "annotation_key",
-			},
-			want: []string{"application:my-app", "team-name:my-team", "annotation_key:annotation-value"},
-		},
-		{
-			name: "no matching labels or annotations",
-			labels: map[string]string{
-				"random": "value",
-			},
-			annotations: map[string]string{
-				"another-random": "value",
-			},
-			labelsAsTags:      map[string]string{"app": "application"},
-			annotationsAsTags: map[string]string{"annotation-key": "annotation_key"},
-			want:              []string{},
-		},
-		{
-			name: "only annotations match",
-			labels: map[string]string{
-				"random": "value",
-			},
-			annotations: map[string]string{
-				"annotation-key": "annotation-value",
-			},
-			labelsAsTags:      map[string]string{"app": "application"},
-			annotationsAsTags: map[string]string{"annotation-key": "annotation_key"},
-			want:              []string{"annotation_key:annotation-value"},
-		},
-		{
-			name: "only labels match",
-			labels: map[string]string{
-				"app": "my-app",
-			},
-			annotations: map[string]string{
-				"random-annotation": "value",
-			},
-			labelsAsTags:      map[string]string{"app": "application"},
-			annotationsAsTags: map[string]string{"annotation-key": "annotation_key"},
-			want:              []string{"application:my-app"},
+			autoTeamTagCollection: true,
+			want:                  []string{},
 		},
 		{
 			name: "auto team tag collection enabled - team in labels",
 			labels: map[string]string{
-				"app":  "my-app",
 				"team": "platform",
 			},
-			annotations: map[string]string{
-				"annotation-key": "annotation-value",
-			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags:     map[string]string{},
+			annotations:           map[string]string{},
 			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "team:platform"},
+			want:                  []string{"team:platform"},
 		},
 		{
-			name: "auto team tag collection enabled - team in annotations",
-			labels: map[string]string{
-				"app": "my-app",
-			},
+			name:   "auto team tag collection enabled - team in annotations",
+			labels: map[string]string{},
 			annotations: map[string]string{
 				"team": "platform",
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags:     map[string]string{},
 			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "team:platform"},
+			want:                  []string{"team:platform"},
 		},
 		{
 			name: "auto team tag collection enabled - team in both labels and annotations, prefer label",
 			labels: map[string]string{
-				"app":  "my-app",
 				"team": "platform-label",
 			},
 			annotations: map[string]string{
 				"team": "platform-annotation",
 			},
-			labelsAsTags:          map[string]string{"app": "application"},
-			annotationsAsTags:     map[string]string{},
 			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "team:platform-label"},
-		},
-		{
-			name: "auto team tag collection enabled - no team in labels or annotations",
-			labels: map[string]string{
-				"app": "my-app",
-			},
-			annotations: map[string]string{
-				"annotation-key": "annotation-value",
-			},
-			labelsAsTags:          map[string]string{"app": "application"},
-			annotationsAsTags:     map[string]string{},
-			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app"},
+			want:                  []string{"team:platform-label"},
 		},
 		{
 			name: "auto team tag collection disabled - team in labels",
 			labels: map[string]string{
-				"app":  "my-app",
 				"team": "platform",
 			},
-			annotations: map[string]string{},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags:     map[string]string{},
+			annotations:           map[string]string{},
 			autoTeamTagCollection: false,
-			want:                  []string{"application:my-app"},
-		},
-		{
-			name: "auto team tag collection enabled - but team tag already collected from labels",
-			labels: map[string]string{
-				"app":          "my-app",
-				"datadog/team": "platform-custom",
-				"team":         "platform-default",
-			},
-			annotations: map[string]string{},
-			labelsAsTags: map[string]string{
-				"app":          "application",
-				"datadog/team": "team",
-			},
-			annotationsAsTags:     map[string]string{},
-			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "team:platform-custom"},
-		},
-		{
-			name: "auto team tag collection enabled - but team tag already collected from annotations",
-			labels: map[string]string{
-				"app": "my-app",
-			},
-			annotations: map[string]string{
-				"datadog.com/team": "platform-custom",
-				"team":             "platform-default",
-			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"datadog.com/team": "team",
-			},
-			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "team:platform-custom"},
-		},
-		{
-			name: "auto team tag collection enabled - team label mapped to different tag key",
-			labels: map[string]string{
-				"app":  "my-app",
-				"team": "platform",
-			},
-			annotations: map[string]string{},
-			labelsAsTags: map[string]string{
-				"app":  "application",
-				"team": "squad",
-			},
-			annotationsAsTags:     map[string]string{},
-			autoTeamTagCollection: true,
-			want:                  []string{"application:my-app", "squad:platform", "team:platform"},
+			want:                  []string{},
 		},
 	}
 	for _, tt := range tests {
@@ -239,7 +109,7 @@ func TestRetrieveMetadataTags(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("auto_team_tag_collection", tt.autoTeamTagCollection)
 
-			got := RetrieveMetadataTags(tt.labels, tt.annotations, tt.labelsAsTags, tt.annotationsAsTags)
+			got := RetrieveMetadataTags(tt.labels, tt.annotations)
 			assert.ElementsMatch(t, tt.want, got)
 		})
 	}

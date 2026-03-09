@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewStatefulSetCollectorVersions builds the group of collector versions.
-func NewStatefulSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewStatefulSetCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewStatefulSetCollector(metadataAsTags),
+		NewStatefulSetCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type StatefulSetCollector struct {
 
 // NewStatefulSetCollector creates a new collector for the Kubernetes
 // StatefulSet resource.
-func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.StatefulSetName, utilTypes.StatefulSetVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewStatefulSetCollector() *StatefulSetCollector {
 	return &StatefulSetCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCo
 			Name:                                 utilTypes.StatefulSetName,
 			Kind:                                 kubernetes.StatefulSetKind,
 			NodeType:                             orchestrator.K8sStatefulSet,
+			Group:                                utilTypes.StatefulSetGroup,
 			Version:                              utilTypes.StatefulSetVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),

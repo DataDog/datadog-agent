@@ -39,11 +39,11 @@ func NewCollectorVersions(versions ...K8sCollector) CollectorVersions {
 	}
 }
 
-// CollectorForVersion retrieves the collector implementing a given version. If
-// no collector is known for that version, returns (nil, false).
-func (cv *CollectorVersions) CollectorForVersion(version string) (K8sCollector, bool) {
+// CollectorForVersion retrieves the collector implementing a given group/version. If
+// no collector is known for that group/version, returns (nil, false).
+func (cv *CollectorVersions) CollectorForVersion(groupVersion string) (K8sCollector, bool) {
 	for _, collector := range cv.Collectors {
-		if collector.Metadata().Version == version {
+		if collector.Metadata().GroupVersion() == groupVersion {
 			return collector, true
 		}
 	}
@@ -70,15 +70,13 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			ManifestProducer:    true,
 			ClusterID:           rcfg.ClusterID,
 			Kind:                metadata.Kind,
-			APIVersion:          metadata.Version,
+			APIVersion:          metadata.GroupVersion(),
 			CollectorTags:       metadata.CollectorTags(),
 			TerminatedResources: rcfg.TerminatedResources,
 			AgentVersion:        rcfg.AgentVersion,
 			Clock:               clock.New(),
 		},
-		APIClient:         rcfg.APIClient,
-		LabelsAsTags:      metadata.LabelsAsTags,
-		AnnotationsAsTags: metadata.AnnotationsAsTags,
-		HostName:          rcfg.HostName,
+		APIClient: rcfg.APIClient,
+		HostName:  rcfg.HostName,
 	}
 }

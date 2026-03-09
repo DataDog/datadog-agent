@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewLimitRangeCollectorVersions builds the group of collector versions.
-func NewLimitRangeCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewLimitRangeCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewLimitRangeCollector(metadataAsTags),
+		NewLimitRangeCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type LimitRangeCollector struct {
 
 // NewLimitRangeCollector creates a new collector for the Kubernetes
 // LimitRange resource.
-func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.LimitRangeName, utilTypes.LimitRangeVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewLimitRangeCollector() *LimitRangeCollector {
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeColl
 			Name:                                 utilTypes.LimitRangeName,
 			Kind:                                 kubernetes.LimitRangeKind,
 			NodeType:                             orchestrator.K8sLimitRange,
+			Group:                                utilTypes.LimitRangeGroup,
 			Version:                              utilTypes.LimitRangeVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.LimitRangeHandlers)),

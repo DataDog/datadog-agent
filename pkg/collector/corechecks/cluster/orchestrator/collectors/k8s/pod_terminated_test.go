@@ -26,7 +26,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -70,8 +69,6 @@ func TestTerminatedPodCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-
 	// Create dependencies using fxutil.Test with proper modules
 	mockCfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -80,7 +77,7 @@ func TestTerminatedPodCollector(t *testing.T) {
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 
-	collector := NewTerminatedPodCollector(mockCfg, mockStore, mockTagger, metadataAsTags)
+	collector := NewTerminatedPodCollector(mockCfg, mockStore, mockTagger)
 
 	// Test basic collector setup with RunCollectorTest
 	config := CollectorTestConfig{

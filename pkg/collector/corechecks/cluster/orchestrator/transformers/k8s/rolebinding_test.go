@@ -25,10 +25,8 @@ func TestExtractRoleBinding(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             rbacv1.RoleBinding
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.RoleBinding
+		input    rbacv1.RoleBinding
+		expected model.RoleBinding
 	}{
 		"standard": {
 			input: rbacv1.RoleBinding{
@@ -58,12 +56,6 @@ func TestExtractRoleBinding(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.RoleBinding{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -86,18 +78,13 @@ func TestExtractRoleBinding(t *testing.T) {
 						Name:     "firstname.lastname@company.com",
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractRoleBinding(pctx, &tc.input)
 			sort.Strings(actual.Tags)

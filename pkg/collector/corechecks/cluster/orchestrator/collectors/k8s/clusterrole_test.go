@@ -16,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestClusterRoleCollector(t *testing.T) {
@@ -70,8 +68,7 @@ func TestClusterRoleCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewClusterRoleCollector(metadataAsTags)
+	collector := NewClusterRoleCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{clusterRole},

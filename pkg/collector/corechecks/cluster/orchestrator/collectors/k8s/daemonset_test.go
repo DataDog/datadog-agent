@@ -18,8 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestDaemonSetCollector(t *testing.T) {
@@ -58,8 +56,7 @@ func TestDaemonSetCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewDaemonSetCollector(metadataAsTags)
+	collector := NewDaemonSetCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{daemonSet},

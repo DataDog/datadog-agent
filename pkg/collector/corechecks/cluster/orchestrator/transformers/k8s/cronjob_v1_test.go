@@ -29,10 +29,8 @@ func TestExtractCronJobV1(t *testing.T) {
 	lastSuccessfulTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             batchv1.CronJob
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.CronJob
+		input    batchv1.CronJob
+		expected model.CronJob
 	}{
 		"full cron job (active)": {
 			input: batchv1.CronJob{
@@ -73,12 +71,6 @@ func TestExtractCronJobV1(t *testing.T) {
 					LastSuccessfulTime: &lastSuccessfulTime,
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.CronJob{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -112,18 +104,13 @@ func TestExtractCronJobV1(t *testing.T) {
 					LastScheduleTime:   lastScheduleTime.Unix(),
 					LastSuccessfulTime: lastSuccessfulTime.Unix(),
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractCronJobV1(pctx, &tc.input)
 			sort.Strings(actual.Tags)

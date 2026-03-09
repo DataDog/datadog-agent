@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestNetworkPolicyCollector(t *testing.T) {
@@ -58,8 +56,7 @@ func TestNetworkPolicyCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewNetworkPolicyCollector(metadataAsTags)
+	collector := NewNetworkPolicyCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{networkPolicy},

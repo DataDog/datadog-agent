@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +22,9 @@ import (
 )
 
 // NewPersistentVolumeCollectorVersions builds the group of collector versions.
-func NewPersistentVolumeCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewPersistentVolumeCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPersistentVolumeCollector(metadataAsTags),
+		NewPersistentVolumeCollector(),
 	)
 }
 
@@ -39,11 +38,7 @@ type PersistentVolumeCollector struct {
 
 // NewPersistentVolumeCollector creates a new collector for the Kubernetes
 // PersistentVolume resource.
-func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *PersistentVolumeCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.PersistentVolumeName, utilTypes.PersistentVolumeVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -54,9 +49,8 @@ func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *Persiste
 			Name:                                 utilTypes.PersistentVolumeName,
 			Kind:                                 kubernetes.PersistentVolumeKind,
 			NodeType:                             orchestrator.K8sPersistentVolume,
+			Group:                                utilTypes.PersistentVolumeGroup,
 			Version:                              utilTypes.PersistentVolumeVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),

@@ -137,7 +137,7 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 
 func (d *DiscoveryCollector) isSupportCollector(collector collectors.K8sCollector) (collectors.K8sCollector, error) {
 	if _, ok := d.cache.CollectorForVersion[CollectorVersion{
-		GroupVersion: collector.Metadata().Version,
+		GroupVersion: collector.Metadata().GroupVersion(),
 		Kind:         collector.Metadata().Name,
 	}]; ok {
 		return collector, nil

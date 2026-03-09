@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -65,8 +63,7 @@ func TestJobCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewJobCollector(metadataAsTags)
+	collector := NewJobCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{job},

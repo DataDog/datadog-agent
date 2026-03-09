@@ -54,32 +54,10 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 func RetrieveMetadataTags(
 	labels map[string]string,
 	annotations map[string]string,
-	labelsAsTags map[string]string,
-	annotationsAsTags map[string]string,
 ) []string {
 	tags := []string{}
 
-	teamLabelCollected := false
-	for name, value := range labels {
-		if tagKey, ok := labelsAsTags[name]; ok {
-			if tagKey == tagKeyTeam {
-				teamLabelCollected = true
-			}
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
-	}
-
-	teamAnnotationCollected := false
-	for name, value := range annotations {
-		if tagKey, ok := annotationsAsTags[name]; ok {
-			if tagKey == tagKeyTeam {
-				teamAnnotationCollected = true
-			}
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") && !teamLabelCollected && !teamAnnotationCollected {
+	if pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") {
 		// try to collect team tag from labels first
 		if teamLabel, ok := labels[tagKeyTeam]; ok {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyTeam, teamLabel))

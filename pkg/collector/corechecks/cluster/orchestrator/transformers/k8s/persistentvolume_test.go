@@ -170,8 +170,6 @@ func TestExtractPersistentVolume(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      map[string]string{"app": "application"},
-				AnnotationsAsTags: map[string]string{"annotation": "annotation_key"},
 			}
 			tc.basicInputPV.Spec.PersistentVolumeSource = tc.inputSource
 			tc.basicExpectedPV.Spec.PersistentVolumeType = tc.expectedType
@@ -318,8 +316,6 @@ func newExpectedPV() model.PersistentVolume {
 		},
 		Tags: []string{
 			"pv_phase:pending",
-			"application:my-app",
-			"annotation_key:my-annotation",
 		},
 	}
 }

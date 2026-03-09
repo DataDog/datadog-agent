@@ -44,9 +44,8 @@ func ExtractIngress(ctx processors.ProcessorContext, in *netv1.Ingress) *model.I
 		ingress.Status = extractIngressStatus(in.Status)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	ingress.Tags = append(ingress.Tags, transformers.RetrieveUnifiedServiceTags(in.ObjectMeta.Labels)...)
-	ingress.Tags = append(ingress.Tags, transformers.RetrieveMetadataTags(in.ObjectMeta.Labels, in.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	ingress.Tags = append(ingress.Tags, transformers.RetrieveMetadataTags(in.ObjectMeta.Labels, in.ObjectMeta.Annotations)...)
 
 	return &ingress
 }

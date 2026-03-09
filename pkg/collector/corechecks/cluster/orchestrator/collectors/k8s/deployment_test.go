@@ -18,8 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func TestDeploymentCollector(t *testing.T) {
@@ -82,8 +80,7 @@ func TestDeploymentCollector(t *testing.T) {
 		},
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewDeploymentCollector(metadataAsTags)
+	collector := NewDeploymentCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{deployment},

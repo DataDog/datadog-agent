@@ -16,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -69,8 +67,7 @@ func TestStorageClassCollector(t *testing.T) {
 		VolumeBindingMode: pointer.Ptr(storagev1.VolumeBindingWaitForFirstConsumer),
 	}
 
-	metadataAsTags := utils.GetMetadataAsTags(mockconfig.New(t))
-	collector := NewStorageClassCollector(metadataAsTags)
+	collector := NewStorageClassCollector()
 
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{storageClass},

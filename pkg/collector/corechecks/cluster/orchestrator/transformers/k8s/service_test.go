@@ -23,10 +23,8 @@ import (
 
 func TestExtractService(t *testing.T) {
 	tests := map[string]struct {
-		input             corev1.Service
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Service
+		input    corev1.Service
+		expected model.Service
 	}{
 		"ClusterIP": {
 			input: corev1.Service{
@@ -60,12 +58,6 @@ func TestExtractService(t *testing.T) {
 				},
 				Status: corev1.ServiceStatus{},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"prefix/name": "annotation_key",
-			},
 			expected: model.Service{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"prefix/name:annotation-value"},
@@ -98,10 +90,7 @@ func TestExtractService(t *testing.T) {
 					Type:            "ClusterIP",
 				},
 				Status: &model.ServiceStatus{},
-				Tags: []string{
-					"application:app-1",
-					"annotation_key:annotation-value",
-				},
+				Tags: nil,
 			},
 		},
 		"ExternalName": {
@@ -307,8 +296,6 @@ func TestExtractService(t *testing.T) {
 	}
 	for _, test := range tests {
 		pctx := &processors.K8sProcessorContext{
-			LabelsAsTags:      test.labelsAsTags,
-			AnnotationsAsTags: test.annotationsAsTags,
 		}
 		actual := ExtractService(pctx, &test.input)
 		sort.Strings(actual.Tags)

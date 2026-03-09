@@ -24,9 +24,8 @@ func ExtractClusterRoleBinding(ctx processors.ProcessorContext, crb *rbacv1.Clus
 		Subjects: extractSubjects(crb.Subjects),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	c.Tags = append(c.Tags, transformers.RetrieveUnifiedServiceTags(crb.ObjectMeta.Labels)...)
-	c.Tags = append(c.Tags, transformers.RetrieveMetadataTags(crb.ObjectMeta.Labels, crb.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	c.Tags = append(c.Tags, transformers.RetrieveMetadataTags(crb.ObjectMeta.Labels, crb.ObjectMeta.Annotations)...)
 
 	return c
 }

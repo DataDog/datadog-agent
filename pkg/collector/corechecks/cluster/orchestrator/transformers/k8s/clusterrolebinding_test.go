@@ -25,10 +25,8 @@ func TestExtractClusterRoleBinding(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             rbacv1.ClusterRoleBinding
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.ClusterRoleBinding
+		input    rbacv1.ClusterRoleBinding
+		expected model.ClusterRoleBinding
 	}{
 		"standard": {
 			input: rbacv1.ClusterRoleBinding{
@@ -58,12 +56,6 @@ func TestExtractClusterRoleBinding(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.ClusterRoleBinding{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -86,18 +78,13 @@ func TestExtractClusterRoleBinding(t *testing.T) {
 						Name:     "firstname.lastname@company.com",
 					},
 				},
-				Tags: []string{
-					"application:my-app",
-					"annotation_key:my-annotation",
-				},
+				Tags: nil,
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractClusterRoleBinding(pctx, &tc.input)
 			sort.Strings(actual.Tags)

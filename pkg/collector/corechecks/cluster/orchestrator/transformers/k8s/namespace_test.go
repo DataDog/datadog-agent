@@ -26,10 +26,8 @@ func TestExtractNamespace(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		input             corev1.Namespace
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Namespace
+		input    corev1.Namespace
+		expected model.Namespace
 	}{
 		"standard": {
 			input: corev1.Namespace{
@@ -68,12 +66,6 @@ func TestExtractNamespace(t *testing.T) {
 					},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Namespace{
 				Metadata: &model.Metadata{
 					Annotations:       []string{"annotation:my-annotation"},
@@ -108,8 +100,6 @@ func TestExtractNamespace(t *testing.T) {
 					"kube_condition_namespacefinalizersremaining:false",
 					"kube_condition_namespacedeletioncontentfailure:true",
 					"kube_condition_namespacedeletiondiscoveryfailure:true",
-					"application:my-app",
-					"annotation_key:my-annotation",
 				},
 			},
 		},
@@ -128,8 +118,6 @@ func TestExtractNamespace(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractNamespace(pctx, &tc.input)
 			sort.Strings(tc.expected.Tags)

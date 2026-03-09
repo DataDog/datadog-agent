@@ -25,10 +25,8 @@ import (
 func TestExtractNode(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	tests := map[string]struct {
-		input             corev1.Node
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		expected          model.Node
+		input    corev1.Node
+		expected model.Node
 	}{
 		"full node": {
 			input: corev1.Node{
@@ -92,12 +90,6 @@ func TestExtractNode(t *testing.T) {
 					}},
 				},
 			},
-			labelsAsTags: map[string]string{
-				"app": "application",
-			},
-			annotationsAsTags: map[string]string{
-				"annotation": "annotation_key",
-			},
 			expected: model.Node{
 				Metadata: &model.Metadata{
 					Name:              "node",
@@ -144,8 +136,6 @@ func TestExtractNode(t *testing.T) {
 					"node_status:ready",
 					"node_schedulable:false",
 					"kube_node_role:data",
-					"application:my-app",
-					"annotation_key:my-annotation",
 				},
 				Taints: []*model.Taint{{
 					Key:    "taint2NoTimeStamp",
@@ -228,8 +218,6 @@ func TestExtractNode(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			pctx := &processors.K8sProcessorContext{
-				LabelsAsTags:      tc.labelsAsTags,
-				AnnotationsAsTags: tc.annotationsAsTags,
 			}
 			actual := ExtractNode(pctx, &tc.input)
 			sort.Strings(actual.Tags)

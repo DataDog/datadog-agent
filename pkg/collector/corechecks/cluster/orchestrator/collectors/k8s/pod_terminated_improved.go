@@ -18,7 +18,6 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	ddkubernetes "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -36,11 +35,7 @@ type ImprovedTerminatedPodCollector struct {
 }
 
 // NewImprovedTerminatedPodCollector creates a new collector for terminated pods.
-func NewImprovedTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *ImprovedTerminatedPodCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewImprovedTerminatedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *ImprovedTerminatedPodCollector {
 	return &ImprovedTerminatedPodCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -51,9 +46,8 @@ func NewImprovedTerminatedPodCollector(cfg config.Component, store workloadmeta.
 			Name:                                 utilTypes.TerminatedPodName,
 			Kind:                                 ddkubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
-			Version:                              utilTypes.PodVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
+			Group:                                utilTypes.TerminatedPodGroup,
+			Version:                              utilTypes.TerminatedPodVersion,
 			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),

@@ -20,8 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 )
 
@@ -43,7 +41,7 @@ func TestToTypedSlice(t *testing.T) {
 				return toInterface(rs)
 			},
 			setupCollector: func(t *testing.T) collectors.K8sCollector {
-				return k8s.NewReplicaSetCollector(utils.GetMetadataAsTags(mockconfig.New(t)))
+				return k8s.NewReplicaSetCollector()
 			},
 			expectedType: func(result interface{}) bool {
 				_, ok := result.([]*appsv1.ReplicaSet)
@@ -104,12 +102,12 @@ func TestToTypedSlice(t *testing.T) {
 				return toInterface(es)
 			},
 			setupCollector: func(t *testing.T) collectors.K8sCollector {
-				collector, err := k8s.GenericResource{
-					Name:         "endpointSlice",
-					GroupVersion: "discovery.k8s.io/v1",
-					NodeType:     pkgorchestratormodel.K8sEndpointSlice,
+				collector := k8s.GenericResource{
+					Group:    "discovery.k8s.io",
+					Name:     "endpointSlice",
+					Version:  "v1",
+					NodeType: pkgorchestratormodel.K8sEndpointSlice,
 				}.NewGenericCollector()
-				require.NoError(t, err)
 				return collector
 			},
 			expectedType: func(result interface{}) bool {

@@ -47,9 +47,8 @@ func ExtractServiceAccount(ctx processors.ProcessorContext, sa *corev1.ServiceAc
 		})
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveUnifiedServiceTags(sa.ObjectMeta.Labels)...)
-	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveMetadataTags(sa.ObjectMeta.Labels, sa.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveMetadataTags(sa.ObjectMeta.Labels, sa.ObjectMeta.Annotations)...)
 
 	return serviceAccount
 }

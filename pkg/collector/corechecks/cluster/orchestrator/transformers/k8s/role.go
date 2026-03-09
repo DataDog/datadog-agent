@@ -23,8 +23,7 @@ func ExtractRole(ctx processors.ProcessorContext, r *rbacv1.Role) *model.Role {
 		Rules:    extractPolicyRules(r.Rules),
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
 	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(r.ObjectMeta.Labels)...)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(r.ObjectMeta.Labels, r.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(r.ObjectMeta.Labels, r.ObjectMeta.Annotations)...)
 	return msg
 }

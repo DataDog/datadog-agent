@@ -36,8 +36,7 @@ func ExtractLimitRange(ctx processors.ProcessorContext, lr *corev1.LimitRange) *
 		msg.Spec.Limits = append(msg.Spec.Limits, limit)
 	}
 
-	pctx := ctx.(*processors.K8sProcessorContext)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(lr.ObjectMeta.Labels, lr.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(lr.ObjectMeta.Labels, lr.ObjectMeta.Annotations)...)
 
 	return msg
 }
