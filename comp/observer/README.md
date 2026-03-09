@@ -28,7 +28,7 @@ The observer watches data flowing through the agent — metrics, logs, traces, p
                       └─────────────────────────────────────────────────────────────────────┘
 ```
 
-Data enters through lightweight **Handles** that copy and send observations over a channel. The framework handles scheduling, threading, and data flow — individual components (detectors, extractors, correlators) are just functions that receive data and return results, with no need to worry about concurrency or how they get called.
+Data enters through lightweight **Handles** that copy and send observations over a channel. The framework handles scheduling, threading, and data flow — individual components (detectors, extractors, correlators) currently run sequentially in a single goroutine, so they don't need to be thread-safe or manage shared state. This may evolve (e.g. parallelizing independent detectors), but component implementations should not depend on the threading model.
 
 ## Pipeline Stages
 
@@ -52,7 +52,11 @@ Each method copies the data synchronously, then does a **non-blocking send** to 
 
 ### 2. Store
 
-**Storage** accumulates metrics into per-second buckets. Each bucket tracks sum, count, min, and max for the series. Aggregation (average, sum, count, min, max) is chosen at **read time**, not write time — storage always keeps the full summary.
+**Storage** accumulates metrics into a sketch-like (but simplified) summary representation. Each metric series is bucketed into **one-second intervals**, and each bucket records four values: sum, count, min, and max. Multiple samples arriving within the same second are merged into a single bucket. This is lossy — we discard individual sample values — but it's compact and gives us five useful aggregation options at read time: **average** (sum/count), **sum**, **count**, **min**, and **max**.
+
+Aggregation is chosen at **read time**, not write time. Storage always keeps the full summary, so detectors and queries can pick whichever aggregation is appropriate without needing to re-ingest data.
+
+The observer is currently **metric-type agnostic** — it does not distinguish between Count, Gauge, Rate, etc. All metrics are treated uniformly as samples to be summarized. This is a bet on a simpler unified model; we'll see over time whether there's a good reason to introduce type-specific logic.
 
 Metrics from logs are stored with a `_virtual.` prefix (e.g. `_virtual.log.field.duration`) to distinguish them from directly observed metrics.
 
@@ -68,13 +72,13 @@ There are two detector interfaces, from simple to flexible:
 ```
 Detect(Series) → DetectionResult{Anomalies[]}
 ```
-Receives aggregated points for one series. Implementations should be stateless — just do math on the points. Examples: CUSUM (change-point detection), BOCPD (Bayesian changepoint detection).
+Called once per series per detection cycle. Currently receives the **full accumulated history** for that series — all points from the beginning up to the current data time. We will need to develop a windowing strategy so this doesn't grow unboundedly; that's an open question. Each point is one second (matching the storage buckets), with timestamps in Unix seconds. There may be gaps where no data arrived — we currently do no fill (zero-fill, last-value hold, etc.). This could become important for metrics like monotonic counts that are reported at wider intervals than our one-second bucket size. Implementations should be stateless — just do math on the points you're given. Examples: CUSUM (change-point detection), BOCPD (Bayesian changepoint detection).
 
 **Detector** pulls whatever it needs from storage:
 ```
 Detect(StorageReader, dataTime int64) → DetectionResult{Anomalies[]}
 ```
-Supports multivariate detection across multiple series. Example: RRCF (Robust Random Cut Forest) reads several metrics, aligns them by timestamp, and scores the combined signal.
+`dataTime` is the current detection time in Unix seconds. The detector can query storage for any series and any time range it needs. Supports multivariate detection across multiple series. Example: RRCF (Robust Random Cut Forest) reads several metrics, aligns them by timestamp, and scores the combined signal.
 
 **How they connect:** SeriesDetector implementations are automatically wrapped into Detectors via `seriesDetectorAdapter`. The adapter iterates all series in storage × a set of aggregations (avg, count by default), runs the SeriesDetector on each, and appends an aggregation suffix (`:avg`, `:count`) to the metric name. If you need per-series detection, implement SeriesDetector. If you need cross-series detection, implement Detector directly.
 
@@ -132,11 +136,11 @@ The observer separates **framework concerns** from **component logic**. If you'r
 - Do your math or logic on the data you're given
 - Return results — the framework takes it from there
 
-Currently the framework runs everything in a single dispatch goroutine, but this is an implementation detail that could evolve (e.g. parallelizing independent detectors). Component implementations shouldn't depend on or worry about the threading model.
+Currently the framework runs everything in a single dispatch goroutine, but this is an implementation detail that could evolve (e.g. parallelizing independent detectors). Component implementations shouldn't depend on or worry about the threading model, but they are expected not to block — detectors should be doing local computation on the data points they're given, not making network calls or similar.
 
 ### Threading Details (for framework contributors)
 
-Handles are the only concurrent part. They copy data and do a **non-blocking send** to a buffered channel (capacity 1000). If the buffer is full, observations are silently dropped — analysis should never back-pressure data ingestion.
+Handles are the only concurrent part. They copy data and do a **non-blocking send** to a buffered channel (capacity 1000). If the buffer is full, observations are dropped — analysis should never back-pressure data ingestion. Drops are not yet tracked; we should add telemetry for this so we have visibility into when it happens. The buffer capacity could also become a useful knob for controlling resource usage.
 
 Everything after the channel — storage, extractors, detectors, correlators, reporters — currently runs in a single dispatch goroutine:
 ```go
