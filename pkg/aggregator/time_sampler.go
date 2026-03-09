@@ -245,11 +245,15 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		if keepTag, strip := tagFilter.ShouldStripTags(ctx.Name); strip {
 			if ctx.strippedValid {
 				strippedKey = ctx.strippedKey
-				ctxTags = ctx.strippedTags
+				if strippedKey != ck {
+					ctxTags = ctx.strippedTags
+				}
 			} else {
 				strippedKey, ctxTags = s.computeStrippedKey(ctx, ck, keepTag)
 				ctx.strippedKey = strippedKey
-				ctx.strippedTags = ctxTags
+				if strippedKey != ck {
+					ctx.strippedTags = ctxTags
+				}
 				ctx.strippedValid = true
 			}
 		}
