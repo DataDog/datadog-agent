@@ -93,7 +93,25 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithIntegration(name, yaml)` — add check config under `conf.d/`
 - `WithLogs()` — enable log collection
 - `WithSystemProbeConfig(yaml)` — system-probe config
-- `WithFile(path, content, executable)` — place arbitrary files
+- `WithFile(path, content, useSudo)` — place arbitrary files on the host
+
+## Beyond stock environments
+
+Not all tests fit the four stock environments. Common advanced patterns:
+
+- **Custom environment structs** — define your own struct with extra components
+  (e.g., a second `RemoteHost`, multiple fakeintakes, an HTTPBin service).
+  Use `e2e.WithPulumiProvisioner()` to wire it up with inline Pulumi code.
+  See `test/new-e2e/tests/npm/` and `test/new-e2e/tests/ha-agent/` for examples.
+- **`e2e.WithUntypedPulumiProvisioner()`** — escape hatch for fully custom Pulumi
+  programs when no typed environment fits.
+- **`s.UpdateEnv(provisioner)`** — re-provision the agent mid-suite (e.g., change
+  config, toggle features) without destroying the underlying infra. Widely used.
+- **`e2e.WithDevMode()`** — keep infrastructure alive after test for faster iteration.
+- **`e2e.WithStackName(name)`** — custom Pulumi stack naming for parameterized tests.
+
+When you need a pattern that isn't documented here, search `test/new-e2e/tests/`
+for real examples — they're the best reference.
 
 ## Adding a new provisioner or component
 
