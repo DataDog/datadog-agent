@@ -30,5 +30,33 @@
   },
   "monitors": {
     "smtp_gateway_latency_p95": 263075702
-  }
+  },
+  "true_positives": [
+    {
+      "service": "dns-resolver-service",
+      "metrics": ["trace.dns.lookup.errors"]
+    },
+    {
+      "service": "outbound-delivery-service",
+      "metrics": ["trace.http.request"]
+    },
+    {
+      "service": "queue-manager",
+      "metrics": ["redis.net.commands"]
+    }
+  ],
+  "false_positives": [
+    {
+      "service": "queue-manager",
+      "metrics": ["redis.mem.used"]
+    },
+    {
+      "service": "smtp-gateway",
+      "metrics": ["trace.http.request.hits"]
+    },
+    {
+      "service": "outbound-delivery-service",
+      "metrics": ["trace.http.request.errors"]
+    }
+  ]
 }

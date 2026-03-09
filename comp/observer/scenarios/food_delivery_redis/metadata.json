@@ -30,5 +30,25 @@
   },
   "monitors": {
     "order_gateway_latency_p95": 263076464
-  }
+  },
+  "true_positives": [
+    {
+      "service": "driver-location-service",
+      "metrics": ["trace.http.request.hits"]
+    },
+    {
+      "service": "redis",
+      "metrics": ["redis.cpu.sys", "redis.info.latency_ms"]
+    }
+  ],
+  "false_positives": [
+    {
+      "service": "dispatch-service",
+      "metrics": ["trace.http.request.hits"]
+    },
+    {
+      "service": "redis",
+      "metrics": ["redis.mem.used", "redis.net.clients"]
+    }
+  ]
 }

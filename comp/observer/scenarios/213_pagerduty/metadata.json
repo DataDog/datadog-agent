@@ -30,5 +30,33 @@
   },
   "monitors": {
     "notification_delivery_errors": 263075123
-  }
+  },
+  "true_positives": [
+    {
+      "service": "cassandra-cluster",
+      "metrics": ["system.cpu.user", "cassandra.write_latency.99th_percentile"]
+    },
+    {
+      "service": "integration-api",
+      "metrics": ["trace.flask.request.errors"]
+    },
+    {
+      "service": "notification-pipeline",
+      "metrics": ["trace.notification.delivery.errors"]
+    }
+  ],
+  "false_positives": [
+    {
+      "service": "integration-api",
+      "metrics": ["trace.flask.request.hits"]
+    },
+    {
+      "service": "cassandra-cluster",
+      "metrics": ["cassandra.exceptions.count"]
+    },
+    {
+      "service": "notification-pipeline",
+      "metrics": ["trace.notification.delivery"]
+    }
+  ]
 }

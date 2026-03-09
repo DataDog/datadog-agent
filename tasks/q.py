@@ -1,11 +1,15 @@
 import json
 import os
+import sys
 
 from invoke import task
 
 from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+DETECTORS = ["cusum", "bocpd", "rrcf"]
+CORRELATOR_PASSTHROUGH = "passthrough"
+CORRELATOR_TIMECLUSTER = "time_cluster"
 
 
 # --- Build ---
@@ -92,6 +96,136 @@ def eval(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenario
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+
+@task
+def eval_detectors(
+    ctx,
+    scenario: str = "",
+    detector: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+):
+    """
+    Runs per-detector eval: each detector x each scenario x both correlators (passthrough + time_cluster).
+
+    Produces a comparison matrix showing Level 1 (passthrough) and Level 2 (time_cluster) scores.
+
+    Args:
+        scenario: Run a single scenario. Default: all.
+        detector: Run a single detector. Default: all.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for scoring.
+    """
+    print(color_message("Building observer-testbench...", Color.BLUE))
+    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    print(color_message("Building observer-scorer...", Color.BLUE))
+    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+
+    scenarios_to_run = [scenario] if scenario else SCENARIOS
+    detectors_to_run = [detector] if detector else DETECTORS
+
+    # Validate scenarios have parquet data
+    valid_scenarios = []
+    for name in scenarios_to_run:
+        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        if not os.path.isdir(parquet_dir):
+            print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+            continue
+        valid_scenarios.append(name)
+
+    if not valid_scenarios:
+        print(color_message("No scenarios with parquet data found.", Color.RED))
+        sys.exit(1)
+
+    results = []  # list of dicts: {scenario, detector, level, f1, precision, recall, scored, warmup, cascading}
+
+    for scn in valid_scenarios:
+        for det in detectors_to_run:
+            for correlator, level_name in [
+                (CORRELATOR_PASSTHROUGH, "L1"),
+                (CORRELATOR_TIMECLUSTER, "L2"),
+            ]:
+                output_path = f"/tmp/observer-eval-{scn}-{det}-{correlator}.json"
+
+                # Build enable/disable flags: enable only this detector + this correlator
+                # Disable all other detectors and all other correlators
+                all_detectors = set(DETECTORS)
+                disable_others = (all_detectors - {det})
+                # Enable the target detector + target correlator; disable everything else
+                enable_list = f"{det},{correlator}"
+                disable_list = ",".join(disable_others)
+                # Also disable correlators we don't want
+                other_correlators = {CORRELATOR_PASSTHROUGH, CORRELATOR_TIMECLUSTER} - {correlator}
+                disable_list += "," + ",".join(other_correlators) if other_correlators else ""
+
+                label = f"{scn} / {det} / {level_name}({correlator})"
+                print(color_message(f"  Running {label}...", Color.BLUE))
+
+                try:
+                    ctx.run(
+                        f"bin/observer-testbench --headless {scn}"
+                        f" --output {output_path}"
+                        f" --scenarios-dir {scenarios_dir}"
+                        f" --enable {enable_list}"
+                        f" --disable {disable_list}",
+                        hide=True,
+                    )
+                except Exception as e:
+                    print(color_message(f"    FAILED: {e}", Color.RED))
+                    continue
+
+                try:
+                    scorer_result = ctx.run(
+                        f"bin/observer-scorer --output {output_path}"
+                        f" --scenarios-dir {scenarios_dir} --sigma {sigma} --json",
+                        hide=True,
+                    )
+                    score = json.loads(scorer_result.stdout.strip())
+                except Exception as e:
+                    print(color_message(f"    Scoring failed: {e}", Color.RED))
+                    continue
+
+                results.append({
+                    "scenario": scn,
+                    "detector": det,
+                    "level": level_name,
+                    "correlator": correlator,
+                    "f1": score.get("f1", 0),
+                    "precision": score.get("precision", 0),
+                    "recall": score.get("recall", 0),
+                    "scored": score.get("num_predictions", 0),
+                    "warmup": score.get("num_filtered_warmup", 0),
+                    "cascading": score.get("num_filtered_cascading", 0),
+                })
+
+    # Print comparison matrix
+    if not results:
+        print(color_message("No results collected.", Color.RED))
+        return
+
+    print(color_message(f"\n{'='*90}", Color.GREEN))
+    print(color_message("  Detector Eval Matrix", Color.GREEN))
+    print(color_message(f"{'='*90}\n", Color.GREEN))
+
+    header = f"{'Scenario':<22} {'Detector':<10} {'Level':<5} {'F1':>6} {'Prec':>6} {'Rec':>6} {'Scored':>6} {'Warmup':>6} {'Casc':>6}"
+    print(header)
+    print("-" * len(header))
+
+    for r in results:
+        print(
+            f"{r['scenario']:<22} {r['detector']:<10} {r['level']:<5}"
+            f" {r['f1']:>6.4f} {r['precision']:>6.4f} {r['recall']:>6.4f}"
+            f" {r['scored']:>6} {r['warmup']:>6} {r['cascading']:>6}"
+        )
+
+    print(f"\nOutput JSONs: /tmp/observer-eval-*-*.json (sigma={sigma}s)")
+
+    # Write results as JSON for programmatic consumption
+    results_path = "/tmp/observer-eval-detectors-matrix.json"
+    with open(results_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Full results: {results_path}")
 
 
 def _count_baseline_fps(output_path, metadata_path, sigma):
