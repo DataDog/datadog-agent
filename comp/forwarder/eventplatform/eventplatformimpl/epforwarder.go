@@ -286,7 +286,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			contentType:                   logshttp.JSONContentType,
 			endpointsConfigPrefix:         "data_observability.forwarder.",
 			hostnameEndpointPrefix:        "data-obs-intake.",
-			intakeTrackType:               "doqueryactions",
+			intakeTrackType:               "query_actions",
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,

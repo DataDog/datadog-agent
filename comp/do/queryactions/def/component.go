@@ -9,7 +9,7 @@ package queryactions
 // team: data-observability
 
 // Component is the DO query actions component interface.
-// This component subscribes to RC DEBUG product to receive declarative query configs,
+// This component subscribes to RC DO_QUERY_ACTIONS product to receive declarative query configs,
 // each containing the full set of active monitor queries for a DB instance.
 // It schedules long-lived checks that manage query scheduling internally.
 // Gated by the data_observability.query_actions.enabled feature flag (default: false).
