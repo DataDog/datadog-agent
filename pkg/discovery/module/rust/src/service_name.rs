@@ -107,10 +107,13 @@ pub fn get(
     exe = trim_symbols_from_exe(exe);
     exe = normalize_exe_name(exe);
 
+    // Fallback: use the exe basename, stripping the trailing file extension.
+    // Matches the Go fallback in usm.ExtractServiceMetadata
+    // (pkg/discovery/usm/service.go) which uses strings.LastIndex(exe, ".").
     let fallback = || {
-        let name = match exe.find('.') {
-            Some(idx) => exe.get(..idx),
-            None => Some(exe),
+        let name = match exe.rfind('.') {
+            Some(idx) if idx > 0 => exe.get(..idx),
+            _ => Some(exe),
         }?;
         Some(ServiceNameMetadata::new(
             name,
@@ -528,6 +531,93 @@ mod tests {
             Some(ServiceNameMetadata::new(
                 "myapp.asgi",
                 ServiceNameSource::CommandLine
+            ))
+        );
+    }
+
+    // Tests for fallback behavior: when a language-specific detector returns
+    // None, we fall back to using the exe basename (matching Go's
+    // usm.ExtractServiceMetadata fallback in pkg/discovery/usm/service.go).
+
+    #[test]
+    fn fallback_when_python_detector_fails() {
+        // A non-Python exe (sleep) with Language::Python should fall back to
+        // the exe name when the Python detector can't extract a name.
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(&Language::Python, &cmdline!["sleep", "1000"], &mut ctx),
+            Some(ServiceNameMetadata::new(
+                "sleep",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_when_java_detector_fails() {
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Java,
+                &cmdline!["my-daemon", "--config", "/etc/foo.conf"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "my-daemon",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_strips_last_extension() {
+        // Go uses strings.LastIndex(exe, ".") so "server.x86_64.bin"
+        // becomes "server.x86_64", not "server".
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Unknown,
+                &cmdline!["./server.x86_64.bin"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "server.x86_64",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_no_extension() {
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(
+                &Language::Unknown,
+                &cmdline!["my-service", "--flag"],
+                &mut ctx
+            ),
+            Some(ServiceNameMetadata::new(
+                "my-service",
+                ServiceNameSource::CommandLine,
+            ))
+        );
+    }
+
+    #[test]
+    fn fallback_dotfile_exe() {
+        // An exe starting with '.' like ".hidden" should not be trimmed to
+        // empty — matches Go's `i > 0` guard.
+        let (envs, fs) = test_ctx();
+        let mut ctx = DetectionContext::new(0, envs, &fs);
+        assert_eq!(
+            get_name(&Language::Unknown, &cmdline![".hidden"], &mut ctx),
+            Some(ServiceNameMetadata::new(
+                ".hidden",
+                ServiceNameSource::CommandLine,
             ))
         );
     }
