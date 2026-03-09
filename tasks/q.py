@@ -162,23 +162,30 @@ def eval_detectors(
                 label = f"{scn} / {det} / {level_name}({correlator})"
                 print(color_message(f"  Running {label}...", Color.BLUE))
 
+                # Use --verbose for passthrough so anomaly Source is in the JSON
+                verbose_flag = " --verbose" if level_name == "L1" else ""
+
                 try:
                     ctx.run(
                         f"bin/observer-testbench --headless {scn}"
                         f" --output {output_path}"
                         f" --scenarios-dir {scenarios_dir}"
                         f" --enable {enable_list}"
-                        f" --disable {disable_list}",
+                        f" --disable {disable_list}"
+                        f"{verbose_flag}",
                         hide=True,
                     )
                 except Exception as e:
                     print(color_message(f"    FAILED: {e}", Color.RED))
                     continue
 
+                # Score: always do timestamp scoring; add --score-metrics for L1
+                score_metrics_flag = " --score-metrics" if level_name == "L1" else ""
                 try:
                     scorer_result = ctx.run(
                         f"bin/observer-scorer --output {output_path}"
-                        f" --scenarios-dir {scenarios_dir} --sigma {sigma} --json",
+                        f" --scenarios-dir {scenarios_dir} --sigma {sigma} --json"
+                        f"{score_metrics_flag}",
                         hide=True,
                     )
                     score = json.loads(scorer_result.stdout.strip())
@@ -186,6 +193,7 @@ def eval_detectors(
                     print(color_message(f"    Scoring failed: {e}", Color.RED))
                     continue
 
+                metrics = score.get("metrics") or {}
                 results.append({
                     "scenario": scn,
                     "detector": det,
@@ -197,6 +205,11 @@ def eval_detectors(
                     "scored": score.get("num_predictions", 0),
                     "warmup": score.get("num_filtered_warmup", 0),
                     "cascading": score.get("num_filtered_cascading", 0),
+                    "m_tp": metrics.get("tp_count", ""),
+                    "m_fp": metrics.get("fp_count", ""),
+                    "m_unk": metrics.get("unknown_count", ""),
+                    "m_prec": metrics.get("metric_precision", ""),
+                    "m_rec": metrics.get("metric_recall", ""),
                 })
 
     # Print comparison matrix
@@ -208,15 +221,27 @@ def eval_detectors(
     print(color_message("  Detector Eval Matrix", Color.GREEN))
     print(color_message(f"{'='*90}\n", Color.GREEN))
 
-    header = f"{'Scenario':<22} {'Detector':<10} {'Level':<5} {'F1':>6} {'Prec':>6} {'Rec':>6} {'Scored':>6} {'Warmup':>6} {'Casc':>6}"
+    header = (
+        f"{'Scenario':<22} {'Detector':<10} {'Level':<5}"
+        f" {'F1':>6} {'Prec':>6} {'Rec':>6} {'Scored':>6}"
+        f" {'mTP':>5} {'mFP':>5} {'mUnk':>5} {'mPrec':>6} {'mRec':>6}"
+    )
     print(header)
     print("-" * len(header))
 
     for r in results:
+        # Metric columns: show values for L1, blank for L2
+        m_tp = f"{r['m_tp']:>5}" if r['m_tp'] != "" else "    -"
+        m_fp = f"{r['m_fp']:>5}" if r['m_fp'] != "" else "    -"
+        m_unk = f"{r['m_unk']:>5}" if r['m_unk'] != "" else "    -"
+        m_prec = f"{r['m_prec']:>6.4f}" if r['m_prec'] != "" else "     -"
+        m_rec = f"{r['m_rec']:>6.4f}" if r['m_rec'] != "" else "     -"
+
         print(
             f"{r['scenario']:<22} {r['detector']:<10} {r['level']:<5}"
             f" {r['f1']:>6.4f} {r['precision']:>6.4f} {r['recall']:>6.4f}"
-            f" {r['scored']:>6} {r['warmup']:>6} {r['cascading']:>6}"
+            f" {r['scored']:>6}"
+            f" {m_tp} {m_fp} {m_unk} {m_prec} {m_rec}"
         )
 
     print(f"\nOutput JSONs: /tmp/observer-eval-*-*.json (sigma={sigma}s)")
