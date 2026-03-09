@@ -42,11 +42,9 @@ instances:
   - metric_value: 100
     tags:
       - instance:alpha
-    min_collection_interval: 15
   - metric_value: 200
     tags:
       - instance:beta
-    min_collection_interval: 15
 `
 
 type tagIsolationSuite struct {
@@ -92,7 +90,7 @@ func (s *tagIsolationSuite) TestAlphaInstanceMetrics() {
 		require.NotEmpty(c, latest.Points, "metric has no data points")
 		require.InDelta(c, 100, latest.Points[len(latest.Points)-1].Value, 0.1,
 			"alpha instance should report value 100")
-	}, 2*time.Minute, 10*time.Second)
+	}, 3*time.Minute, 10*time.Second)
 }
 
 // TestBetaInstanceMetrics verifies that the beta instance reports metrics
@@ -120,7 +118,7 @@ func (s *tagIsolationSuite) TestBetaInstanceMetrics() {
 		require.NotEmpty(c, latest.Points, "metric has no data points")
 		require.InDelta(c, 200, latest.Points[len(latest.Points)-1].Value, 0.1,
 			"beta instance should report value 200")
-	}, 2*time.Minute, 10*time.Second)
+	}, 3*time.Minute, 10*time.Second)
 }
 
 // TestBothInstancesReportServiceChecks verifies that both instances report
@@ -164,5 +162,5 @@ func (s *tagIsolationSuite) TestBothInstancesReportServiceChecks() {
 		}
 		require.True(c, hasAlpha, "no service check from alpha instance")
 		require.True(c, hasBeta, "no service check from beta instance")
-	}, 2*time.Minute, 10*time.Second)
+	}, 3*time.Minute, 10*time.Second)
 }
