@@ -6,11 +6,8 @@
 package usm
 
 import (
-	"strings"
 	"testing"
 	"time"
-
-	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -49,7 +46,10 @@ func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.Wind
 			return err
 		}
 		opts := []ec2windows.RunOption{
-			ec2windows.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigIIS)),
+			ec2windows.WithAgentOptions(
+				agentparams.WithAgentConfig("log_level: debug"),
+				agentparams.WithSystemProbeConfig(systemProbeConfigIIS),
+			),
 		}
 		params := ec2windows.GetRunParams(opts...)
 		return ec2windows.RunWithEnv(ctx, awsEnv, env, params)
@@ -62,6 +62,8 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 
 	host := s.Env().RemoteHost
 
+	// Install IIS BEFORE deploying binaries so system-probe's IIS ETW provider
+	// initializes correctly when the agent services restart.
 	err := windows.InstallIIS(host)
 	require.NoError(s.T(), err, "failed to install IIS")
 
@@ -77,6 +79,17 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 	}
 	err = windows.CreateIISSite(host, sites)
 	require.NoError(s.T(), err, "failed to create IIS sites")
+
+	// Write a default document so IIS returns 200 instead of 403.14
+	for _, site := range sites {
+		sitePath := "c:/tmp/inetpub/" + site.Name + "/index.html"
+		_, err = host.WriteFile(sitePath, []byte("<html><body>ok</body></html>"))
+		require.NoError(s.T(), err, "failed to write default document for %s", site.Name)
+	}
+
+	// Deploy locally-built binaries from the branch.
+	// The nightly agent doesn't have the IIS tag caching / remote service tag code.
+	deployWindowsBinaries(s.T(), host)
 }
 
 func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
@@ -89,63 +102,50 @@ func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
 
 // TestIISRemoteServiceTags verifies that connections to IIS sites have
 // RemoteServiceTagsIdx >= 0 with tags containing http.iis.sitename: prefix.
+// It sends two batches of 1000 connections each (500 per port) to exercise
+// cache key replacement in the IIS ETW tag cache when ephemeral ports are reused.
 func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
+	const requestsPerPort = 1000
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// Generate traffic each poll to ensure connections exist in the current collection window
-		for i := 0; i < 5; i++ {
-			host.MustExecute("Invoke-WebRequest -UseBasicParsing http://localhost:8081/")
-			host.MustExecute("Invoke-WebRequest -UseBasicParsing http://localhost:8082/")
-		}
+	// Batch 1: send 1000 keep-alive connections per port, hold open 40s, then verify.
+	sendWindowsKeepAliveRequests(host, requestsPerPort, 40)
+	time.Sleep(30 * time.Second)
 
-		cnx, err := s.Env().FakeIntake.Client().GetConnections()
-		if !assert.NoError(c, err, "GetConnections() error") {
-			return
-		}
-		if !assert.NotNil(c, cnx, "GetConnections() returned nil") {
-			return
-		}
-		if !assert.NotEmpty(c, cnx.GetNames(), "no connections yet") {
-			return
-		}
+	cnx, err := s.Env().FakeIntake.Client().GetConnections()
+	require.NoError(t, err, "GetConnections() error")
+	require.NotNil(t, cnx, "GetConnections() returned nil")
 
-		totalIISConns := 0
-		untaggedConns := 0
-		sitesByPort := make(map[int32]map[string]bool) // port -> set of sitenames seen
-		cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			if conn.Raddr.Port != 8081 && conn.Raddr.Port != 8082 {
-				return
-			}
-			totalIISConns++
-			if conn.RemoteServiceTagsIdx < 0 {
-				untaggedConns++
-				t.Logf("untagged IIS connection: port=%d pid=%d", conn.Raddr.Port, conn.Pid)
-				return
-			}
-			remoteTags := cc.GetTags(int(conn.RemoteServiceTagsIdx))
-			for _, tag := range remoteTags {
-				if strings.HasPrefix(tag, "http.iis.sitename:") {
-					siteName := strings.TrimPrefix(tag, "http.iis.sitename:")
-					if sitesByPort[conn.Raddr.Port] == nil {
-						sitesByPort[conn.Raddr.Port] = make(map[string]bool)
-					}
-					sitesByPort[conn.Raddr.Port][siteName] = true
-				}
-			}
-		})
+	stats := getConnectionStats(t, cnx, "http.iis.sitename:")
+	assertTaggedConnections(t, stats, "batch1", requestsPerPort)
+	assert.True(t, stats.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
+		"batch1: port 8081 should be tagged with DatadogTestSiteA")
+	assert.True(t, stats.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
+		"batch1: port 8082 should be tagged with DatadogTestSiteB")
 
-		t.Logf("IIS connections: total=%d untagged=%d sitesByPort=%v", totalIISConns, untaggedConns, sitesByPort)
+	// Batch 2: send another 1000 connections per port. Ephemeral ports from batch 1
+	// are recycled by the OS, exercising IIS ETW cache key replacement.
+	//
+	// FakeIntake connection data is cumulative: batch2 sees connections from both batches.
+	// However, batch1 connections whose IIS ETW cache entries expired (2-minute TTL) will
+	// fall back to process_context:System instead of http.iis.sitename:. We therefore do
+	// NOT require http.iis.sitename: on every connection — only verify the tag appears in
+	// aggregate and that enough total connections were captured.
+	sendWindowsKeepAliveRequests(host, requestsPerPort, 40)
+	time.Sleep(30 * time.Second)
 
-		if !assert.Greater(c, totalIISConns, 0, "no connections to IIS ports found") {
-			return
-		}
-		assert.Equal(c, 0, untaggedConns,
-			"all connections to IIS ports should have remote service tags")
-		assert.True(c, sitesByPort[8081]["DatadogTestSiteA"],
-			"port 8081 should be tagged with DatadogTestSiteA")
-		assert.True(c, sitesByPort[8082]["DatadogTestSiteB"],
-			"port 8082 should be tagged with DatadogTestSiteB")
-	}, 3*time.Minute, 10*time.Second, "IIS remote service tags not found in connections")
+	cnx, err = s.Env().FakeIntake.Client().GetConnections()
+	require.NoError(t, err, "GetConnections() error")
+	require.NotNil(t, cnx, "GetConnections() returned nil")
+
+	stats = getConnectionStats(t, cnx)
+	assert.GreaterOrEqual(t, stats.connsByPort[8081], requestsPerPort,
+		"batch2: port 8081 should have at least %d connections", requestsPerPort)
+	assert.GreaterOrEqual(t, stats.connsByPort[8082], requestsPerPort,
+		"batch2: port 8082 should have at least %d connections", requestsPerPort)
+	assert.True(t, stats.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
+		"batch2: port 8081 should be tagged with DatadogTestSiteA")
+	assert.True(t, stats.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
+		"batch2: port 8082 should be tagged with DatadogTestSiteB")
 }
