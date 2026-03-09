@@ -208,7 +208,8 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
         return
 
     try:
-        from tasks.libs.testing.utof import convert_unit_test_results, format_report, generate_metadata
+        from tasks.libs.testing.utof import format_report
+        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
 
         result_json = ResultJson.from_file(test_result.result_json_path)
         metadata = generate_metadata(test_system="unit", flavor=flavor.name)

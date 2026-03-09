@@ -72,7 +72,7 @@ class UTOFFlaky:
 
 @dataclass
 class UTOFAttempt:
-    """A single execution attempt of a test. Present only when the test was retried."""
+    """A single execution attempt of a test."""
 
     attempt: int = 1
     status: str = "pass"  # pass, fail
@@ -93,7 +93,7 @@ class UTOFTestResult:
     retry_count: int = 0
     failure: UTOFFailure | None = None
     flaky: UTOFFlaky | None = None
-    attempts: list[UTOFAttempt] | None = None
+    attempts: list[UTOFAttempt] = field(default_factory=list)
     subtests: list[UTOFTestResult] | None = None
     tags: list[str] = field(default_factory=list)
 
@@ -123,17 +123,9 @@ class UTOFDocument:
 
 
 def _strip_none(obj):
-    """Recursively remove keys with None values from dicts."""
+    """Recursively remove keys with None or empty-list values from dicts."""
     if isinstance(obj, dict):
-        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None and v != []}
     if isinstance(obj, list):
         return [_strip_none(item) for item in obj]
     return obj
-
-
-@dataclass
-class _AssertionBlock:
-    """One assertion failure parsed from raw Go test output."""
-
-    trace: str  # file:line location (may be full path)
-    error_lines: list[str]  # error message parts

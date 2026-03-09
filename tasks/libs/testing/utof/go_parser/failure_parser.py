@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ActionType
-from tasks.libs.testing.utof.models import UTOFFailure, _AssertionBlock
+from tasks.libs.testing.utof.models import UTOFFailure
 
 if TYPE_CHECKING:
     from tasks.libs.testing.result_json import ResultJsonLine
@@ -26,6 +27,22 @@ _RE_GO_TEST_ERROR = re.compile(r'^\s+\w[\w./]*\.go:\d+:\s*(.+)')
 
 # Regex for testify "Error Trace:" lines to extract file:line for stacktrace
 _RE_TESTIFY_TRACE = re.compile(r'^\s+Error Trace:\s+(.+)')
+
+# Regex for testify "Messages:" lines — extra context attached to an assertion, e.g.:
+#   \tMessages:   \t'diskspd.exe' process not found in payloads
+_RE_TESTIFY_MESSAGES = re.compile(r'^\s+Messages:\s+(.+)')
+
+# Error texts emitted by testify wrapper constructs (e.g. EventuallyWithT).
+# These blocks don't add information when an inner assertion already explains the failure.
+_EVENTUALLY_WRAPPER_ERRORS = {"Condition never satisfied"}
+
+
+@dataclass
+class _AssertionBlock:
+    """One assertion failure parsed from raw Go test output."""
+
+    trace: str  # file:line location (may be full path)
+    error_lines: list[str]  # error message parts
 
 
 def _parse_assertion_blocks(raw_output_lines: list[str]) -> list[_AssertionBlock]:
@@ -59,6 +76,20 @@ def _parse_assertion_blocks(raw_output_lines: list[str]) -> list[_AssertionBlock
             in_error = True
             continue
 
+        # "Messages:" provides extra context attached to the current assertion, e.g.:
+        #   'diskspd.exe' process not found in payloads
+        # Truncate to avoid pulling in huge data dumps (e.g. full process payloads).
+        m_msg = _RE_TESTIFY_MESSAGES.match(raw_line)
+        if m_msg and current_trace:
+            content = m_msg.group(1).strip()
+            if len(content) > 120:
+                content = content[:120] + "…"
+            current_error.append(content)
+            # Stop continuation capture — Messages: values can be multi-line
+            # data dumps (e.g. full process payload JSON) that we don't want.
+            in_error = False
+            continue
+
         # Continuation lines (indented values like "expected: 5")
         if in_error:
             m_cont = _RE_TESTIFY_CONTINUATION.match(raw_line)
@@ -79,6 +110,18 @@ def _short_location(trace: str) -> str:
     return re.sub(r'^.*/', '', trace) if trace else ""
 
 
+def _drop_eventually_wrappers(blocks: list[_AssertionBlock]) -> list[_AssertionBlock]:
+    """Remove trailing EventuallyWithT wrapper blocks when inner failures exist.
+
+    testify's EventuallyWithT emits a "Condition never satisfied" block after
+    the real assertion failure(s). That wrapper adds no information — the
+    earlier blocks already explain what went wrong — so we strip it.
+    """
+    if len(blocks) > 1 and blocks[-1].error_lines and blocks[-1].error_lines[0] in _EVENTUALLY_WRAPPER_ERRORS:
+        return blocks[:-1]
+    return blocks
+
+
 def _extract_message_from_raw_output(raw_output_lines: list[str]) -> str:
     """Parse raw Go test output lines to extract a meaningful error message.
 
@@ -89,7 +132,7 @@ def _extract_message_from_raw_output(raw_output_lines: list[str]) -> str:
     4. Falls back to empty string
     """
     # Try testify assertion blocks first
-    blocks = _parse_assertion_blocks(raw_output_lines)
+    blocks = _drop_eventually_wrappers(_parse_assertion_blocks(raw_output_lines))
     if blocks:
         if len(blocks) == 1:
             b = blocks[0]
