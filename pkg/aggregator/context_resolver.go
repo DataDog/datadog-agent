@@ -33,10 +33,10 @@ type Context struct {
 	// strippedTaggerEntry/strippedMetricEntry are only set when strippedKey != the
 	// original context key (i.e. tags were actually removed); they are inserted into
 	// the shared tags.Store so contexts with the same filtered tag set share backing arrays.
-	strippedKey          ckey.ContextKey
-	strippedTaggerEntry  *tags.Entry
-	strippedMetricEntry  *tags.Entry
-	strippedValid        bool
+	strippedKey         ckey.ContextKey
+	strippedTaggerEntry *tags.Entry
+	strippedMetricEntry *tags.Entry
+	strippedValid       bool
 }
 
 type resolverEntry struct {
