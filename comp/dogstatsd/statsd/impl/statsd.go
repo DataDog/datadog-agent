@@ -56,20 +56,24 @@ func (hs *service) Create(options ...ddgostatsd.Option) (ddgostatsd.ClientInterf
 	return createClient("", options...)
 }
 
-// CreateForAddr returns a pre-configured statsd client that defaults to addr if no env var is set
+// CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
 func (hs *service) CreateForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return createClient(addr, options...)
 }
 
-// CreateForHostPort returns a pre-configured statsd client that defaults to host:port if no env var is set
+// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
 func (hs *service) CreateForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return createClient(net.JoinHostPort(host, strconv.Itoa(port)), options...)
 }
 
 var _ statsd.Component = (*service)(nil)
 
-// createClient returns a pre-configured statsd client that defaults to addr if no env var is set
+// createClient returns a pre-configured statsd client that defaults to `addr` if no env var is set
+// It is exported for callers that might not support components.
 func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	// We default to STATSD_URL because it's more likely to be what the user wants, the provided
+	// address if often a fallback using UDP.
+
 	if envAddr, ok := os.LookupEnv("STATSD_URL"); ok {
 		addr = envAddr
 	}
@@ -80,10 +84,14 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 
 	options = append(
 		[]ddgostatsd.Option{
+			// Create a separate client for the telemetry to be sure we don't lose it.
 			ddgostatsd.WithTelemetryAddr(addr),
+			// Enable recommended settings to reduce the number of packets sent and reduce
+			// potential lock contention on the critical path.
 			ddgostatsd.WithChannelMode(),
 			ddgostatsd.WithClientSideAggregation(),
 			ddgostatsd.WithExtendedClientSideAggregation(),
+			// Increase timeouts to avoid dropping packets that could have waited a bit more.
 			ddgostatsd.WithWriteTimeout(500 * time.Millisecond),
 			ddgostatsd.WithConnectTimeout(3 * time.Second),
 		},
