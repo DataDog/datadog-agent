@@ -341,7 +341,8 @@ fn test_killswitch_disabled_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch disabled, got: {}",
         stdout
     );
@@ -375,7 +376,8 @@ fn test_killswitch_not_set_defaults_to_fallback() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch not set, got: {}",
         stdout
     );
@@ -459,7 +461,8 @@ fn test_killswitch_yaml_config() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch disabled in YAML, got: {}",
         stdout
     );
@@ -502,7 +505,8 @@ fn test_killswitch_env_overrides_yaml_enabled() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
         "Expected fallback due to killswitch env var override, got: {}",
         stdout
     );
