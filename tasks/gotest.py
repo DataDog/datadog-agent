@@ -263,6 +263,7 @@ def test(
     test_washer=False,
     extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    host: str = "unix",
 ):
     """
     Run go tests on the given module and targets.
@@ -278,6 +279,20 @@ def test(
         dda inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         dda inv test --module=. --race
     """
+    if host == "windows":
+        print("Running tests on Windows dev environment")
+        from tasks.windows_dev_env import run as windows_run
+
+        if only_modified_packages:
+            modified_packages = ",".join(find_modified_packages(ctx))
+            windows_run(ctx, command=f"dda inv test --only-modified-packages --targets={modified_packages}")
+        elif only_impacted_packages:
+            impacted_packages = ",".join(format_packages(ctx, find_impacted_packages(ctx)))
+            windows_run(ctx, command=f"dda inv test --only-impacted-packages --targets={impacted_packages}")
+        else:
+            windows_run(ctx, command="dda inv test")
+        return
+
     sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
@@ -440,26 +455,22 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 @task
 def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
-    modified_files = get_go_modified_files(ctx)
-
-    modified_go_files = [f"./{file}" for file in modified_files]
-
     if build_tags is None:
         build_tags = []
 
     modules_to_test = {}
-    go_mod_modified_modules = set()
 
-    for modified_file in modified_go_files:
-        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+    for pkg_import_path in find_modified_packages(ctx):
+        # Convert import path to local path (e.g. github.com/DataDog/datadog-agent/pkg/foo -> ./pkg/foo)
+        pkg_path = "./" + pkg_import_path.replace("github.com/DataDog/datadog-agent/", "")
+
+        # If the package has been deleted we do not try to run tests
+        if not os.path.exists(pkg_path):
             continue
 
-        best_module_path = Path(get_go_module(modified_file))
+        best_module_path = Path(get_go_module(pkg_path))
 
-        # Check if the package is in the target list of the module we want to test
-        targeted = False
-
-        assert best_module_path, f"No module found for {modified_file}"
+        assert best_module_path, f"No module found for {pkg_path}"
         module = get_module_by_path(best_module_path)
 
         if not module.should_test():
@@ -467,34 +478,22 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         targets = module.lint_targets if lint else module.test_targets
 
-        for target in targets:
-            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
-                targeted = True
-                break
+        # Check if the package is in the target list of the module we want to test
+        targeted = any(os.path.normpath(os.path.join(best_module_path, target)) in pkg_path for target in targets)
         if not targeted:
             continue
 
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
-            continue
-
-        # If the package has been deleted we do not try to run tests
-        if not os.path.exists(os.path.dirname(modified_file)):
-            continue
-
-        # If there are go file matching the build tags in the folder we do not try to run tests
-        res = ctx.run(
-            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
-        )
+        # If there are no go files matching the build tags in the folder we do not try to run tests
+        res = ctx.run(f'go list -tags "{" ".join(build_tags)}" {pkg_path}/...', hide=True, warn=True)
         if res.stderr is not None and "matched no packages" in res.stderr:
             continue
 
-        relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
+        relative_target = "./" + os.path.relpath(pkg_path, best_module_path)
 
         if best_module_path in modules_to_test:
             if (
                 modules_to_test[best_module_path].test_targets is not None
-                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].test_targets
+                and pkg_path not in modules_to_test[best_module_path].test_targets
             ):
                 modules_to_test[best_module_path].test_targets.append(relative_target)
         else:
@@ -654,32 +653,7 @@ def get_impacted_packages(ctx, build_tags=None):
 
     if build_tags is None:
         build_tags = []
-    dependencies = create_dependencies(ctx, build_tags)
-    files = get_go_modified_files(ctx)
-
-    modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
-
-    # Modification to go.mod and go.sum should force the tests of the whole module to run
-    for file in files:
-        if file.endswith("go.mod") or file.endswith("go.sum"):
-            with ctx.cd(os.path.dirname(file)):
-                all_packages = ctx.run(
-                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
-                ).stdout.splitlines()
-                modified_packages.update(set(all_packages))
-
-    # Modification to fixture folders count as modification to their parent package
-    for file in files:
-        if not file.endswith(".go"):
-            formatted_path = Path(os.path.dirname(file)).as_posix()
-            while len(formatted_path) > 0:
-                if glob.glob(f"{formatted_path}/*.go"):
-                    print(f"Found {file} belonging to package {formatted_path}")
-                    modified_packages.add(f"github.com/DataDog/datadog-agent/{formatted_path}")
-                    break
-                formatted_path = "/".join(formatted_path.split("/")[:-1])
-
-    imp = find_impacted_packages(dependencies, modified_packages)
+    imp = find_impacted_packages(ctx, build_tags)
     return format_packages(ctx, impacted_packages=imp, build_tags=build_tags)
 
 
@@ -739,23 +713,32 @@ def create_dependencies(ctx, build_tags=None):
     return modules_deps
 
 
-def find_impacted_packages(dependencies, modified_modules, cache=None):
-    if cache is None:
-        cache = {}
-    impacted_modules = set()
-    for modified_module in modified_modules:
-        if modified_module in cache:
-            impacted_modules.update(cache[modified_module])
+def find_impacted_packages(ctx: Context, build_tags=None) -> set:
+    """
+    Returns the set of Go package import paths that are transitively impacted
+    by local modifications, by expanding find_modified_packages through the
+    dependency graph.
+    """
+    if build_tags is None:
+        build_tags = []
+    dependencies = create_dependencies(ctx, build_tags)
+    modified = find_modified_packages(ctx)
+
+    impacted = set()
+    cache = {}
+    for pkg in modified:
+        if pkg in cache:
+            impacted.update(cache[pkg])
         else:
-            stack = [modified_module]
+            stack = [pkg]
             while stack:
                 module = stack.pop()
-                if module in impacted_modules:
+                if module in impacted:
                     continue
-                impacted_modules.add(module)
+                impacted.add(module)
                 stack.extend(dependencies[module])
-            cache[modified_module] = impacted_modules
-    return impacted_modules
+            cache[pkg] = impacted
+    return impacted
 
 
 def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] | None = None):
@@ -847,6 +830,43 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         return get_default_modules().values()
 
     return modules_to_test.values()
+
+
+def find_modified_packages(ctx: Context) -> set:
+    """
+    Returns the set of Go package import paths that were directly modified,
+    without expanding to transitively impacted packages.
+    """
+    files = get_go_modified_files(ctx)
+
+    modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
+
+    # Modification to go.mod and go.sum should include all packages in that module
+    for file in files:
+        if file.endswith("go.mod") or file.endswith("go.sum"):
+            with ctx.cd(os.path.dirname(file)):
+                all_packages = ctx.run('go list ./...', hide=True, warn=True).stdout.splitlines()
+                modified_packages.update(set(all_packages))
+
+    # Modification to fixture folders count as modification to their parent package
+    for file in files:
+        if not file.endswith(".go"):
+            formatted_path = Path(os.path.dirname(file)).as_posix()
+            while len(formatted_path) > 0:
+                if glob.glob(f"{formatted_path}/*.go"):
+                    print(f"Found {file} belonging to package {formatted_path}")
+                    modified_packages.add(f"github.com/DataDog/datadog-agent/{formatted_path}")
+                    break
+                formatted_path = "/".join(formatted_path.split("/")[:-1])
+
+    if not modified_packages:
+        print("No modified packages")
+    else:
+        print("Modified packages:")
+        for pkg in sorted(modified_packages):
+            print(f"  {pkg}")
+
+    return modified_packages
 
 
 def normpath(path):  # Normpath with forward slashes to avoid issues on Windows
