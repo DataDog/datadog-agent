@@ -31,10 +31,14 @@ var testGVR = schema.GroupVersionResource{
 	Resource: "datadogpodchecks",
 }
 
-func newUnstructuredPodCheck(namespace, name, image, checkName string, instances []map[string]interface{}) *unstructured.Unstructured {
-	instancesList := make([]interface{}, len(instances))
-	for i, inst := range instances {
-		instancesList[i] = inst
+func newUnstructuredPodCheck(namespace, name string, labels map[string]string, checks []interface{}) *unstructured.Unstructured {
+	selector := map[string]interface{}{}
+	if labels != nil {
+		matchLabels := make(map[string]interface{}, len(labels))
+		for k, v := range labels {
+			matchLabels[k] = v
+		}
+		selector["matchLabels"] = matchLabels
 	}
 
 	return &unstructured.Unstructured{
@@ -46,15 +50,23 @@ func newUnstructuredPodCheck(namespace, name, image, checkName string, instances
 				"namespace": namespace,
 			},
 			"spec": map[string]interface{}{
-				"containerImage": image,
-				"check": map[string]interface{}{
-					"name":       checkName,
-					"initConfig": map[string]interface{}{},
-					"instances":  instancesList,
-				},
+				"selector": selector,
+				"checks":   checks,
 			},
 		},
 	}
+}
+
+func makeCheck(name string, adIDs []interface{}, instances []interface{}) map[string]interface{} {
+	check := map[string]interface{}{
+		"name":       name,
+		"initConfig": map[string]interface{}{},
+		"instances":  instances,
+	}
+	if adIDs != nil {
+		check["adIdentifiers"] = adIDs
+	}
+	return check
 }
 
 func setupTestController(t *testing.T, configMapName, configMapNamespace string, existingCRs []*unstructured.Unstructured) (*PodCheckController, *k8sfake.Clientset) {
@@ -62,7 +74,6 @@ func setupTestController(t *testing.T, configMapName, configMapNamespace string,
 
 	scheme := runtime.NewScheme()
 
-	// Create dynamic client with existing CRs
 	objs := make([]runtime.Object, len(existingCRs))
 	for i, cr := range existingCRs {
 		objs[i] = cr
@@ -74,10 +85,8 @@ func setupTestController(t *testing.T, configMapName, configMapNamespace string,
 		objs...,
 	)
 
-	// Create informer factory
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 
-	// Create kube client with empty ConfigMap
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
@@ -90,13 +99,12 @@ func setupTestController(t *testing.T, configMapName, configMapNamespace string,
 	controller, err := NewPodCheckController(
 		informerFactory,
 		kubeClient,
-		func() bool { return true }, // always leader
+		func() bool { return true },
 		configMapName,
 		configMapNamespace,
 	)
 	require.NoError(t, err)
 
-	// Start informers and wait for sync
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	informerFactory.Start(ctx.Done())
@@ -106,9 +114,12 @@ func setupTestController(t *testing.T, configMapName, configMapNamespace string,
 }
 
 func TestReconcile_SingleCR(t *testing.T) {
-	cr := newUnstructuredPodCheck("web-team", "nginx-check", "nginx:latest", "nginx",
-		[]map[string]interface{}{
-			{"nginx_status_url": "http://%%host%%:81/status/"},
+	cr := newUnstructuredPodCheck("web-team", "nginx-check",
+		map[string]string{"app": "nginx"},
+		[]interface{}{
+			makeCheck("nginx", []interface{}{"nginx:latest"}, []interface{}{
+				map[string]interface{}{"nginx_status_url": "http://%%host%%:81/status/"},
+			}),
 		})
 
 	controller, kubeClient := setupTestController(t, "dda-podcheck-config", "datadog", []*unstructured.Unstructured{cr})
@@ -127,11 +138,38 @@ func TestReconcile_SingleCR(t *testing.T) {
 	assert.Contains(t, yaml, "nginx_status_url")
 }
 
+func TestReconcile_CRWithMultipleChecks(t *testing.T) {
+	cr := newUnstructuredPodCheck("default", "multi",
+		map[string]string{"app": "myapp"},
+		[]interface{}{
+			makeCheck("http_check", []interface{}{"myapp:v1"}, []interface{}{map[string]interface{}{"url": "http://%%host%%"}}),
+			makeCheck("redisdb", []interface{}{"redis:7"}, []interface{}{map[string]interface{}{"host": "%%host%%"}}),
+		})
+
+	controller, kubeClient := setupTestController(t, "dda-podcheck-config", "datadog", []*unstructured.Unstructured{cr})
+
+	err := controller.reconcile()
+	require.NoError(t, err)
+
+	cm, err := kubeClient.CoreV1().ConfigMaps("datadog").Get(context.TODO(), "dda-podcheck-config", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	assert.Len(t, cm.Data, 2)
+	assert.Contains(t, cm.Data, "default_multi_http_check.yaml")
+	assert.Contains(t, cm.Data, "default_multi_redisdb.yaml")
+}
+
 func TestReconcile_MultipleCRs(t *testing.T) {
-	cr1 := newUnstructuredPodCheck("web-team", "nginx-check", "nginx:latest", "nginx",
-		[]map[string]interface{}{{"url": "http://%%host%%/status/"}})
-	cr2 := newUnstructuredPodCheck("data-team", "redis-check", "redis:7", "redisdb",
-		[]map[string]interface{}{{"host": "%%host%%", "port": "6379"}})
+	cr1 := newUnstructuredPodCheck("web-team", "nginx-check",
+		map[string]string{"app": "nginx"},
+		[]interface{}{
+			makeCheck("nginx", []interface{}{"nginx:latest"}, []interface{}{map[string]interface{}{"url": "http://%%host%%/status/"}}),
+		})
+	cr2 := newUnstructuredPodCheck("data-team", "redis-check",
+		map[string]string{"app": "redis"},
+		[]interface{}{
+			makeCheck("redisdb", []interface{}{"redis:7"}, []interface{}{map[string]interface{}{"host": "%%host%%", "port": "6379"}}),
+		})
 
 	controller, kubeClient := setupTestController(t, "dda-podcheck-config", "datadog",
 		[]*unstructured.Unstructured{cr1, cr2})
@@ -160,46 +198,46 @@ func TestReconcile_EmptyCRList(t *testing.T) {
 }
 
 func TestReconcile_NonLeaderSkips(t *testing.T) {
-	cr := newUnstructuredPodCheck("web-team", "nginx-check", "nginx:latest", "nginx",
-		[]map[string]interface{}{{"url": "http://%%host%%/status/"}})
+	cr := newUnstructuredPodCheck("web-team", "nginx-check",
+		map[string]string{"app": "nginx"},
+		[]interface{}{
+			makeCheck("nginx", []interface{}{"nginx:latest"}, []interface{}{map[string]interface{}{"url": "http://%%host%%/status/"}}),
+		})
 
 	controller, kubeClient := setupTestController(t, "dda-podcheck-config", "datadog",
 		[]*unstructured.Unstructured{cr})
 
-	// Override to non-leader
 	controller.isLeader = func() bool { return false }
 
 	err := controller.reconcile()
 	require.NoError(t, err)
 
-	// ConfigMap should remain empty since we're not leader
 	cm, err := kubeClient.CoreV1().ConfigMaps("datadog").Get(context.TODO(), "dda-podcheck-config", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Empty(t, cm.Data)
 }
 
 func TestReconcile_NoUpdateWhenUnchanged(t *testing.T) {
-	cr := newUnstructuredPodCheck("web-team", "nginx-check", "nginx:latest", "nginx",
-		[]map[string]interface{}{{"url": "http://%%host%%/status/"}})
+	cr := newUnstructuredPodCheck("web-team", "nginx-check",
+		map[string]string{"app": "nginx"},
+		[]interface{}{
+			makeCheck("nginx", []interface{}{"nginx:latest"}, []interface{}{map[string]interface{}{"url": "http://%%host%%/status/"}}),
+		})
 
 	controller, kubeClient := setupTestController(t, "dda-podcheck-config", "datadog",
 		[]*unstructured.Unstructured{cr})
 
-	// First reconcile
 	err := controller.reconcile()
 	require.NoError(t, err)
 
-	// Get the ConfigMap state after first reconcile
 	cm1, err := kubeClient.CoreV1().ConfigMaps("datadog").Get(context.TODO(), "dda-podcheck-config", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	// Second reconcile - should be a no-op
 	err = controller.reconcile()
 	require.NoError(t, err)
 
 	cm2, err := kubeClient.CoreV1().ConfigMaps("datadog").Get(context.TODO(), "dda-podcheck-config", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	// ResourceVersion shouldn't change since data is the same
 	assert.Equal(t, cm1.ResourceVersion, cm2.ResourceVersion)
 }

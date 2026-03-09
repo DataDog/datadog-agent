@@ -75,6 +75,7 @@ func NewPodCheckController(
 		return nil, fmt.Errorf("cannot add event handler to podcheck informer: %w", err)
 	}
 
+	log.Info("PodCheck Controller started")
 	return c, nil
 }
 
@@ -137,7 +138,7 @@ func (c *PodCheckController) reconcile() error {
 		return fmt.Errorf("failed to list DatadogPodChecks: %w", err)
 	}
 
-	data := make(map[string]string, len(objects))
+	data := make(map[string]string)
 	for _, obj := range objects {
 		dpc, err := unstructuredToPodCheck(obj)
 		if err != nil {
@@ -145,13 +146,15 @@ func (c *PodCheckController) reconcile() error {
 			continue
 		}
 
-		yamlBytes, err := convertToADConfig(dpc)
+		entries, err := convertCR(dpc)
 		if err != nil {
 			log.Warnf("Skipping DatadogPodCheck %s/%s: %v", dpc.Namespace, dpc.Name, err)
 			continue
 		}
 
-		data[configMapKey(dpc)] = string(yamlBytes)
+		for k, v := range entries {
+			data[k] = v
+		}
 	}
 
 	return c.updateConfigMap(data)

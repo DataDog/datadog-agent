@@ -41,6 +41,7 @@ message FilterPod {
   string name = 2;
   string namespace = 3;
   map<string, string> annotations = 4;
+  map<string, string> labels = 5;
 }
 
 message FilterProcess {

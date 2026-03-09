@@ -25,35 +25,51 @@ import (
 // adConfig represents an autodiscovery-compatible check configuration YAML.
 // The fields match the configFormat struct in comp/core/autodiscovery/providers/config_reader.go.
 type adConfig struct {
-	ADIdentifiers []string             `yaml:"ad_identifiers"`
+	ADIdentifiers []string             `yaml:"ad_identifiers,omitempty"`
 	CELSelector   workloadfilter.Rules `yaml:"cel_selector,omitempty"`
 	InitConfig    interface{}          `yaml:"init_config"`
 	Instances     []interface{}        `yaml:"instances"`
-	Logs          []interface{}        `yaml:"logs,omitempty"`
+	Logs          interface{}          `yaml:"logs,omitempty"`
 }
 
-// configMapKey returns the ConfigMap data key for a DatadogPodCheck.
-func configMapKey(dpc *datadoghq.DatadogPodCheck) string {
-	return fmt.Sprintf("%s_%s_%s.yaml", dpc.Namespace, dpc.Name, dpc.Spec.Check.Name)
+// configMapKey returns the ConfigMap data key for a check within a DatadogPodCheck CR.
+func configMapKey(namespace, crName, checkName string) string {
+	return fmt.Sprintf("%s_%s_%s.yaml", namespace, crName, checkName)
 }
 
-// convertToADConfig converts a DatadogPodCheck into an AD-compatible YAML config.
-func convertToADConfig(dpc *datadoghq.DatadogPodCheck) ([]byte, error) {
+// convertCR converts a DatadogPodCheck CR into a set of ConfigMap entries (key -> YAML).
+// Each CheckConfig in the CR produces one entry.
+func convertCR(dpc *datadoghq.DatadogPodCheck) (map[string]string, error) {
+	celRules := buildCELSelector(dpc)
+
+	entries := make(map[string]string, len(dpc.Spec.Checks))
+	for i, check := range dpc.Spec.Checks {
+		yamlBytes, err := convertCheckToADConfig(check, celRules)
+		if err != nil {
+			return nil, fmt.Errorf("check[%d] %q: %w", i, check.Name, err)
+		}
+		key := configMapKey(dpc.Namespace, dpc.Name, check.Name)
+		entries[key] = string(yamlBytes)
+	}
+	return entries, nil
+}
+
+// convertCheckToADConfig converts a single CheckConfig into AD-compatible YAML.
+func convertCheckToADConfig(check datadoghq.CheckConfig, celRules workloadfilter.Rules) ([]byte, error) {
 	cfg := adConfig{
-		ADIdentifiers: []string{dpc.Spec.ContainerImage},
+		ADIdentifiers: check.ADIdentifiers,
+		CELSelector:   celRules,
 	}
 
-	// init_config
-	if dpc.Spec.Check.InitConfig != nil && dpc.Spec.Check.InitConfig.Raw != nil {
+	if check.InitConfig != nil && check.InitConfig.Raw != nil {
 		var initConfig interface{}
-		if err := json.Unmarshal(dpc.Spec.Check.InitConfig.Raw, &initConfig); err != nil {
+		if err := json.Unmarshal(check.InitConfig.Raw, &initConfig); err != nil {
 			return nil, fmt.Errorf("failed to parse initConfig: %w", err)
 		}
 		cfg.InitConfig = initConfig
 	}
 
-	// instances
-	for i, inst := range dpc.Spec.Check.Instances {
+	for i, inst := range check.Instances {
 		var instance interface{}
 		if err := json.Unmarshal(inst.Raw, &instance); err != nil {
 			return nil, fmt.Errorf("failed to parse instance[%d]: %w", i, err)
@@ -61,39 +77,49 @@ func convertToADConfig(dpc *datadoghq.DatadogPodCheck) ([]byte, error) {
 		cfg.Instances = append(cfg.Instances, instance)
 	}
 
-	// logs
-	for i, logEntry := range dpc.Spec.Logs {
-		var entry interface{}
-		if err := json.Unmarshal(logEntry.Raw, &entry); err != nil {
-			return nil, fmt.Errorf("failed to parse logs[%d]: %w", i, err)
+	if check.Logs != nil && check.Logs.Raw != nil {
+		var logs interface{}
+		if err := json.Unmarshal(check.Logs.Raw, &logs); err != nil {
+			return nil, fmt.Errorf("failed to parse logs: %w", err)
 		}
-		cfg.Logs = append(cfg.Logs, entry)
-	}
-
-	// cel_selector from matchAnnotations
-	if dpc.Spec.Selector != nil && len(dpc.Spec.Selector.MatchAnnotations) > 0 {
-		rule := buildAnnotationCELRules(dpc.Spec.Selector.MatchAnnotations)
-		rule = append(rule, fmt.Sprintf("container.pod.namespace == '%s'", dpc.Namespace))
-		combinedRules := strings.Join(rule, " && ")
-		cfg.CELSelector = workloadfilter.Rules{Containers: []string{combinedRules}}
+		cfg.Logs = logs
 	}
 
 	return yaml.Marshal(cfg)
 }
 
-// buildAnnotationCELRules generates CEL expressions that match pod annotations.
-// Each annotation key-value pair becomes a CEL rule like: pod.annotations["key"] == "value"
-func buildAnnotationCELRules(annotations map[string]string) []string {
-	rules := make([]string, 0, len(annotations))
-	// Sort keys for deterministic output
-	keys := make([]string, 0, len(annotations))
-	for k := range annotations {
+// buildCELSelector builds a CEL selector from a DatadogPodCheck's Selector and namespace.
+func buildCELSelector(dpc *datadoghq.DatadogPodCheck) workloadfilter.Rules {
+	hasAnnotations := len(dpc.Spec.Selector.MatchAnnotations) > 0
+	hasLabels := len(dpc.Spec.Selector.MatchLabels) > 0
+	var rules []string
+	if hasAnnotations {
+		rules = append(rules, buildMapCELRules("container.pod.annotations", dpc.Spec.Selector.MatchAnnotations)...)
+	}
+	if hasLabels {
+		rules = append(rules, buildMapCELRules("container.pod.labels", dpc.Spec.Selector.MatchLabels)...)
+	}
+	rules = append(rules, fmt.Sprintf("container.pod.namespace == '%s'", dpc.Namespace))
+	combinedRules := strings.Join(rules, " && ")
+	return workloadfilter.Rules{Containers: []string{combinedRules}}
+}
+
+// buildMapCELRules generates CEL equality expressions for a map field.
+// Each key-value pair becomes: fieldPath["key"] == "value".
+// Keys are sorted for deterministic output.
+func buildMapCELRules(fieldPath string, m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
+	rules := make([]string, 0, len(m))
 	for _, k := range keys {
-		rules = append(rules, fmt.Sprintf(`container.pod.annotations["%s"] == "%s"`, k, annotations[k]))
+		rules = append(rules, fmt.Sprintf(`%s["%s"] == "%s"`, fieldPath, k, m[k]))
 	}
 	return rules
 }

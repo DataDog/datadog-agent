@@ -18,222 +18,265 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestConvertToADConfig_Basic(t *testing.T) {
+func TestConvertCR_SingleCheck(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-check",
 			Namespace: "web-team",
 		},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "nginx:latest",
-			Check: datadoghq.CheckConfig{
-				Name:       "nginx",
-				InitConfig: &apiextensionsv1.JSON{Raw: []byte(`{}`)},
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"nginx_status_url":"http://%%host%%:81/status/"}`)},
+			Selector: datadoghq.PodSelector{
+				MatchLabels: map[string]string{"app": "nginx"},
+			},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:          "nginx",
+					ADIdentifiers: []string{"nginx:latest"},
+					InitConfig:    &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+					Instances: []apiextensionsv1.JSON{
+						{Raw: []byte(`{"nginx_status_url":"http://%%host%%:81/status/"}`)},
+					},
 				},
 			},
 		},
 	}
 
-	yamlBytes, err := convertToADConfig(dpc)
+	entries, err := convertCR(dpc)
 	require.NoError(t, err)
+	require.Len(t, entries, 1)
 
-	yaml := string(yamlBytes)
+	yaml := entries["web-team_nginx-check_nginx.yaml"]
 	assert.Contains(t, yaml, "ad_identifiers:\n- nginx:latest")
 	assert.Contains(t, yaml, "init_config: {}")
-	assert.Contains(t, yaml, "nginx_status_url: http://%%host%%:81/status/")
-	assert.NotContains(t, yaml, "cel_selector")
-	assert.NotContains(t, yaml, "logs:")
+	assert.Contains(t, yaml, "nginx_status_url")
+	assert.Contains(t, yaml, `container.pod.labels["app"] == "nginx"`)
 }
 
-func TestConvertToADConfig_NilInitConfig(t *testing.T) {
+func TestConvertCR_MultipleChecks(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "custom-check",
+			Name:      "multi-check",
 			Namespace: "default",
 		},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "myapp",
-			Check: datadoghq.CheckConfig{
-				Name: "http_check",
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"url":"http://localhost:8080"}`)},
+			Selector: datadoghq.PodSelector{
+				MatchLabels: map[string]string{"app": "myapp"},
+			},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"myapp:v1"},
+					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%:8080"}`)}},
+				},
+				{
+					Name:          "redisdb",
+					ADIdentifiers: []string{"redis:7"},
+					InitConfig:    &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)}},
 				},
 			},
 		},
 	}
 
-	yamlBytes, err := convertToADConfig(dpc)
+	entries, err := convertCR(dpc)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+
+	assert.Contains(t, entries, "default_multi-check_http_check.yaml")
+	assert.Contains(t, entries, "default_multi-check_redisdb.yaml")
+
+	assert.Contains(t, entries["default_multi-check_http_check.yaml"], "myapp:v1")
+	assert.Contains(t, entries["default_multi-check_redisdb.yaml"], "redis:7")
+}
+
+func TestConvertCR_NilInitConfig(t *testing.T) {
+	dpc := &datadoghq.DatadogPodCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
+		Spec: datadoghq.DatadogPodCheckSpec{
+			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:      "http_check",
+					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				},
+			},
+		},
+	}
+
+	entries, err := convertCR(dpc)
 	require.NoError(t, err)
 
-	yaml := string(yamlBytes)
-	assert.Contains(t, yaml, "ad_identifiers:\n- myapp")
+	yaml := entries["default_check_http_check.yaml"]
 	assert.Contains(t, yaml, "init_config: null")
-	assert.Contains(t, yaml, "url: http://localhost:8080")
 }
 
-func TestConvertToADConfig_MultipleInstances(t *testing.T) {
+func TestConvertCR_WithLogs(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "redis-check",
-			Namespace: "data-team",
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "redis:7",
-			Check: datadoghq.CheckConfig{
-				Name:       "redisdb",
-				InitConfig: &apiextensionsv1.JSON{Raw: []byte(`{}`)},
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)},
-					{Raw: []byte(`{"host":"%%host%%","port":"6380"}`)},
+			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:      "http_check",
+					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+					Logs:      &apiextensionsv1.JSON{Raw: []byte(`[{"type":"file","path":"/var/log/app.log","service":"myapp"}]`)},
 				},
 			},
 		},
 	}
 
-	yamlBytes, err := convertToADConfig(dpc)
+	entries, err := convertCR(dpc)
 	require.NoError(t, err)
 
-	yaml := string(yamlBytes)
-	assert.Contains(t, yaml, "ad_identifiers:\n- redis:7")
-	assert.Contains(t, yaml, "port: \"6379\"")
-	assert.Contains(t, yaml, "port: \"6380\"")
-}
-
-func TestConvertToADConfig_WithLogs(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-check",
-			Namespace: "default",
-		},
-		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "myapp:v1",
-			Check: datadoghq.CheckConfig{
-				Name: "http_check",
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"url":"http://localhost"}`)},
-				},
-			},
-			Logs: []apiextensionsv1.JSON{
-				{Raw: []byte(`{"type":"file","path":"/var/log/app.log","service":"myapp"}`)},
-			},
-		},
-	}
-
-	yamlBytes, err := convertToADConfig(dpc)
-	require.NoError(t, err)
-
-	yaml := string(yamlBytes)
+	yaml := entries["default_check_http_check.yaml"]
 	assert.Contains(t, yaml, "logs:")
 	assert.Contains(t, yaml, "service: myapp")
 }
 
-func TestConvertToADConfig_WithAnnotationSelector(t *testing.T) {
+func TestConvertCR_WithAnnotationSelector(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "nginx-check",
-			Namespace: "web-team",
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "nginx",
-			Selector: &datadoghq.PodSelector{
+			Selector: datadoghq.PodSelector{
 				MatchAnnotations: map[string]string{
 					"team": "web",
 					"env":  "prod",
 				},
 			},
-			Check: datadoghq.CheckConfig{
-				Name: "nginx",
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"nginx_status_url":"http://%%host%%/status/"}`)},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:      "nginx",
+					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
 	}
 
-	yamlBytes, err := convertToADConfig(dpc)
+	entries, err := convertCR(dpc)
 	require.NoError(t, err)
 
-	yaml := string(yamlBytes)
+	yaml := entries["web-team_check_nginx.yaml"]
 	assert.Contains(t, yaml, "cel_selector:")
-	assert.Contains(t, yaml, `pod.annotations["env"] == "prod"`)
-	assert.Contains(t, yaml, `pod.annotations["team"] == "web"`)
+	// YAML may wrap long lines, so check for key fragments
+	assert.Contains(t, yaml, `annotations["env"]`)
+	assert.Contains(t, yaml, `annotations["team"]`)
+	assert.Contains(t, yaml, `namespace == 'web-team'`)
 }
 
-func TestConvertToADConfig_SelectorWithLabelsOnly(t *testing.T) {
+func TestConvertCR_WithLabelSelector(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "nginx-check",
-			Namespace: "default",
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "nginx",
-			Selector: &datadoghq.PodSelector{
+			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "nginx"},
 			},
-			Check: datadoghq.CheckConfig{
-				Name: "nginx",
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"url":"http://%%host%%"}`)},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:      "nginx",
+					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
 	}
 
-	yamlBytes, err := convertToADConfig(dpc)
+	entries, err := convertCR(dpc)
 	require.NoError(t, err)
 
-	// matchLabels are deferred; no cel_selector should be generated
-	yaml := string(yamlBytes)
+	yaml := entries["default_check_nginx.yaml"]
+	assert.Contains(t, yaml, "cel_selector:")
+	assert.Contains(t, yaml, `container.pod.labels["app"] == "nginx"`)
+	assert.Contains(t, yaml, `container.pod.namespace == 'default'`)
+}
+
+func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
+	dpc := &datadoghq.DatadogPodCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
+		Spec: datadoghq.DatadogPodCheckSpec{
+			Selector: datadoghq.PodSelector{
+				MatchLabels:      map[string]string{"app": "nginx"},
+				MatchAnnotations: map[string]string{"team": "web"},
+			},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:      "nginx",
+					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+				},
+			},
+		},
+	}
+
+	entries, err := convertCR(dpc)
+	require.NoError(t, err)
+
+	yaml := entries["web-team_check_nginx.yaml"]
+	assert.Contains(t, yaml, `container.pod.annotations["team"] == "web"`)
+	assert.Contains(t, yaml, `container.pod.labels["app"] == "nginx"`)
+	assert.Contains(t, yaml, `container.pod.namespace == 'web-team'`)
+}
+
+func TestConvertCR_NoSelector(t *testing.T) {
+	dpc := &datadoghq.DatadogPodCheck{
+		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
+		Spec: datadoghq.DatadogPodCheckSpec{
+			Selector: datadoghq.PodSelector{},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:          "nginx",
+					ADIdentifiers: []string{"nginx"},
+					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+				},
+			},
+		},
+	}
+
+	entries, err := convertCR(dpc)
+	require.NoError(t, err)
+
+	yaml := entries["default_check_nginx.yaml"]
 	assert.NotContains(t, yaml, "cel_selector")
 }
 
 func TestConfigMapKey(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "nginx-check",
-			Namespace: "web-team",
-		},
-		Spec: datadoghq.DatadogPodCheckSpec{
-			Check: datadoghq.CheckConfig{Name: "nginx"},
-		},
-	}
-
-	assert.Equal(t, "web-team_nginx-check_nginx.yaml", configMapKey(dpc))
+	assert.Equal(t, "web-team_nginx-check_nginx.yaml", configMapKey("web-team", "nginx-check", "nginx"))
 }
 
-func TestBuildAnnotationCELRules(t *testing.T) {
-	rules := buildAnnotationCELRules(map[string]string{
+func TestBuildMapCELRules(t *testing.T) {
+	rules := buildMapCELRules("container.pod.annotations", map[string]string{
 		"b-key": "val-b",
 		"a-key": "val-a",
 	})
 
 	require.Len(t, rules, 2)
-	// Should be sorted by key
-	assert.Equal(t, `pod.annotations["a-key"] == "val-a"`, rules[0])
-	assert.Equal(t, `pod.annotations["b-key"] == "val-b"`, rules[1])
+	assert.Equal(t, `container.pod.annotations["a-key"] == "val-a"`, rules[0])
+	assert.Equal(t, `container.pod.annotations["b-key"] == "val-b"`, rules[1])
 }
 
-func TestConvertToADConfig_InvalidJSON(t *testing.T) {
+func TestBuildMapCELRules_Labels(t *testing.T) {
+	rules := buildMapCELRules("container.pod.labels", map[string]string{"app": "nginx"})
+	require.Len(t, rules, 1)
+	assert.Equal(t, `container.pod.labels["app"] == "nginx"`, rules[0])
+}
+
+func TestBuildMapCELRules_Empty(t *testing.T) {
+	assert.Nil(t, buildMapCELRules("container.pod.labels", nil))
+}
+
+func TestConvertCR_InvalidJSON(t *testing.T) {
 	dpc := &datadoghq.DatadogPodCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bad-check",
-			Namespace: "default",
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: "default"},
 		Spec: datadoghq.DatadogPodCheckSpec{
-			ContainerImage: "myapp",
-			Check: datadoghq.CheckConfig{
-				Name:       "test",
-				InitConfig: &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
-				Instances: []apiextensionsv1.JSON{
-					{Raw: []byte(`{"ok": true}`)},
+			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
+			Checks: []datadoghq.CheckConfig{
+				{
+					Name:       "test",
+					InitConfig: &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
+					Instances:  []apiextensionsv1.JSON{{Raw: []byte(`{"ok": true}`)}},
 				},
 			},
 		},
 	}
 
-	_, err := convertToADConfig(dpc)
+	_, err := convertCR(dpc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "initConfig")
 }

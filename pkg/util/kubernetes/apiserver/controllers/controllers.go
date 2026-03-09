@@ -255,5 +255,9 @@ func startPodCheckController(ctx *ControllerContext, errChan chan error) {
 		return
 	}
 
+	if ctx.DynamicInformerFactory != nil {
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}
+
 	go controller.Run(ctx.StopCh)
 }

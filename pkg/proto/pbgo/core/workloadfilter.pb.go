@@ -372,6 +372,7 @@ type FilterPod struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Namespace     string                 `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Annotations   map[string]string      `protobuf:"bytes,4,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Labels        map[string]string      `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -430,6 +431,13 @@ func (x *FilterPod) GetNamespace() string {
 func (x *FilterPod) GetAnnotations() map[string]string {
 	if x != nil {
 		return x.Annotations
+	}
+	return nil
+}
+
+func (x *FilterPod) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
 	}
 	return nil
 }
@@ -742,13 +750,17 @@ const file_datadog_workloadfilter_workloadfilter_proto_rawDesc = "" +
 	"\x05image\x18\x03 \x01(\v2#.datadog.workloadfilter.FilterImageR\x05image\x125\n" +
 	"\x03pod\x18\x04 \x01(\v2!.datadog.workloadfilter.FilterPodH\x00R\x03pod\x12B\n" +
 	"\becs_task\x18\x05 \x01(\v2%.datadog.workloadfilter.FilterECSTaskH\x00R\aecsTaskB\a\n" +
-	"\x05owner\"\xe3\x01\n" +
+	"\x05owner\"\xe5\x02\n" +
 	"\tFilterPod\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1c\n" +
 	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12T\n" +
-	"\vannotations\x18\x04 \x03(\v22.datadog.workloadfilter.FilterPod.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\vannotations\x18\x04 \x03(\v22.datadog.workloadfilter.FilterPod.AnnotationsEntryR\vannotations\x12E\n" +
+	"\x06labels\x18\x05 \x03(\v2-.datadog.workloadfilter.FilterPod.LabelsEntryR\x06labels\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"l\n" +
 	"\rFilterProcess\x12\x12\n" +
@@ -793,7 +805,7 @@ func file_datadog_workloadfilter_workloadfilter_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_workloadfilter_workloadfilter_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_workloadfilter_workloadfilter_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_datadog_workloadfilter_workloadfilter_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_datadog_workloadfilter_workloadfilter_proto_goTypes = []any{
 	(WorkloadFilterResult)(0),              // 0: datadog.workloadfilter.WorkloadFilterResult
 	(*WorkloadFilterEvaluateRequest)(nil),  // 1: datadog.workloadfilter.WorkloadFilterEvaluateRequest
@@ -806,8 +818,9 @@ var file_datadog_workloadfilter_workloadfilter_proto_goTypes = []any{
 	(*FilterKubeEndpoint)(nil),             // 8: datadog.workloadfilter.FilterKubeEndpoint
 	(*FilterImage)(nil),                    // 9: datadog.workloadfilter.FilterImage
 	nil,                                    // 10: datadog.workloadfilter.FilterPod.AnnotationsEntry
-	nil,                                    // 11: datadog.workloadfilter.FilterKubeService.AnnotationsEntry
-	nil,                                    // 12: datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
+	nil,                                    // 11: datadog.workloadfilter.FilterPod.LabelsEntry
+	nil,                                    // 12: datadog.workloadfilter.FilterKubeService.AnnotationsEntry
+	nil,                                    // 13: datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
 }
 var file_datadog_workloadfilter_workloadfilter_proto_depIdxs = []int32{
 	3,  // 0: datadog.workloadfilter.WorkloadFilterEvaluateRequest.container:type_name -> datadog.workloadfilter.FilterContainer
@@ -820,13 +833,14 @@ var file_datadog_workloadfilter_workloadfilter_proto_depIdxs = []int32{
 	4,  // 7: datadog.workloadfilter.FilterContainer.pod:type_name -> datadog.workloadfilter.FilterPod
 	6,  // 8: datadog.workloadfilter.FilterContainer.ecs_task:type_name -> datadog.workloadfilter.FilterECSTask
 	10, // 9: datadog.workloadfilter.FilterPod.annotations:type_name -> datadog.workloadfilter.FilterPod.AnnotationsEntry
-	11, // 10: datadog.workloadfilter.FilterKubeService.annotations:type_name -> datadog.workloadfilter.FilterKubeService.AnnotationsEntry
-	12, // 11: datadog.workloadfilter.FilterKubeEndpoint.annotations:type_name -> datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 10: datadog.workloadfilter.FilterPod.labels:type_name -> datadog.workloadfilter.FilterPod.LabelsEntry
+	12, // 11: datadog.workloadfilter.FilterKubeService.annotations:type_name -> datadog.workloadfilter.FilterKubeService.AnnotationsEntry
+	13, // 12: datadog.workloadfilter.FilterKubeEndpoint.annotations:type_name -> datadog.workloadfilter.FilterKubeEndpoint.AnnotationsEntry
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_datadog_workloadfilter_workloadfilter_proto_init() }
@@ -851,7 +865,7 @@ func file_datadog_workloadfilter_workloadfilter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_workloadfilter_workloadfilter_proto_rawDesc), len(file_datadog_workloadfilter_workloadfilter_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
