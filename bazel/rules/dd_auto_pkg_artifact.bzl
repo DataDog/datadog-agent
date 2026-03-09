@@ -9,14 +9,9 @@ outputs, pkg_files, …) that describe exactly what gets installed.
 
 At the dependency level the typical pattern is:
 
-    rewrite_rpath(
-        name   = "mylib_rpath_patched",
-        inputs = [":mylib"],
-    )
-
     so_symlink(
         name    = "lib_files",
-        src     = ":mylib_rpath_patched",
+        src     = ":mylib",
         libname = "libmylib",
         version = VERSION,
         prefix  = "embedded",
@@ -28,9 +23,10 @@ At the dependency level the typical pattern is:
         install_files = [":lib_files"],
     )
 
-rpath patching must be applied explicitly at the dep level (via rewrite_rpath)
-before files are passed to so_symlink or pkg_files — collect_dd_auto_pkg_artifacts
-does not patch anything.
+so_symlink handles rpath patching automatically (patch_rpath=True by default).
+For non-so_symlink targets (binaries, pkg_files), rpath patching must be applied
+explicitly via rewrite_rpath before the files are passed here.
+collect_dd_auto_pkg_artifacts does not patch anything itself directly.
 
 At the packaging level a single collect_dd_auto_pkg_artifacts rule crawls the
 transitive dependency graph starting from the declared srcs and returns a merged
