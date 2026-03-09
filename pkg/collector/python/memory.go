@@ -64,6 +64,13 @@ var TrackedCString = func(str string) *C.char {
 }
 
 var memoryTrackerInitializer sync.Once
+var memoryTrackerStop = make(chan struct{})
+
+// StopMemoryTracker stops the background memory tracking goroutine started by
+// InitMemoryTracker. It is a no-op if InitMemoryTracker was never called.
+func StopMemoryTracker() {
+	close(memoryTrackerStop)
+}
 
 func InitMemoryTracker() {
 	memoryTrackerInitializer.Do(func() {
@@ -85,13 +92,17 @@ func InitMemoryTracker() {
 			defer ticker.Stop()
 
 			for {
-				<-ticker.C
-				memoryStats := C.get_and_reset_memory_stats()
-				tlmAllocations.Add(float64(memoryStats.allocations))
-				tlmAllocatedBytes.Add(float64(memoryStats.allocated_bytes))
-				tlmFrees.Add(float64(memoryStats.frees))
-				tlmFreedBytes.Add(float64(memoryStats.freed_bytes))
-				tlmInuseBytes.Add(float64(memoryStats.inuse_bytes))
+				select {
+				case <-ticker.C:
+					memoryStats := C.get_and_reset_memory_stats()
+					tlmAllocations.Add(float64(memoryStats.allocations))
+					tlmAllocatedBytes.Add(float64(memoryStats.allocated_bytes))
+					tlmFrees.Add(float64(memoryStats.frees))
+					tlmFreedBytes.Add(float64(memoryStats.freed_bytes))
+					tlmInuseBytes.Add(float64(memoryStats.inuse_bytes))
+				case <-memoryTrackerStop:
+					return
+				}
 			}
 		}()
 	})

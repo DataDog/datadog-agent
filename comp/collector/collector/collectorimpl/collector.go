@@ -212,6 +212,7 @@ func (c *collectorImpl) stop(_ context.Context) error {
 		c.runner.Stop()
 		c.runner = nil
 	}
+	python.StopMemoryTracker()
 	c.state.Store(stopped)
 	return nil
 }
