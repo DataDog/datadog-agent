@@ -177,6 +177,10 @@ func (v *verifier) verifyCallExpr(c *syntax.CallExpr) {
 
 	v.verifyFlags(cmdWord.Pos(), cmdName, c.Args[1:], allowedFlags)
 
+	// Special handling: sed scripts need content analysis.
+	if cmdName == "sed" {
+		v.verifySedArgs(c.Args[1:])
+	}
 }
 
 // verifyFlags checks that all flags used in a command are in the allowlist.

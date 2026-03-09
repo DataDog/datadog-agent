@@ -35,6 +35,13 @@ func TestVerify_AllowedScripts(t *testing.T) {
 		{name: "true", script: `true`},
 		{name: "false", script: `false`},
 
+		// Sed
+		{name: "sed basic", script: `echo "hello" | sed 's/hello/world/'`},
+		{name: "sed with -n", script: `echo "hello" | sed -n 's/hello/world/p'`},
+		{name: "sed with -e", script: `echo "hello" | sed -e 's/hello/world/' -e 's/world/earth/'`},
+		{name: "sed delete lines", script: `sed '/^$/d'`},
+		{name: "sed print lines", script: `sed -n '1,10p'`},
+
 		// Pipes
 		{name: "pipe chain", script: `cat /var/log/syslog | grep ERROR | sort | uniq -c | sort -rn | head -n 10`},
 		{name: "simple pipe", script: `echo hello | grep hello`},
@@ -230,8 +237,8 @@ func TestVerify_BlockedScripts(t *testing.T) {
 			wantSubstr: "not allowed",
 		},
 		{
-			name:       "sed",
-			script:     `sed 's/a/b/'`,
+			name:       "sed -i",
+			script:     `sed -i 's/a/b/' file.txt`,
 			wantSubstr: "not allowed",
 		},
 		{
@@ -496,4 +503,68 @@ func TestVerify_BraceExpansion(t *testing.T) {
 	// Brace expansion in allowed commands
 	err := Verify(`echo {a,b,c}`)
 	assert.NoError(t, err, "brace expansion should be allowed")
+}
+
+// --- Sed security tests ---
+
+func TestVerify_SedScriptWithVariableExpansion(t *testing.T) {
+	// sed script that includes variable expansion cannot be verified
+	err := Verify(`sed "s/$FOO/bar/"`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "variable expansion")
+}
+
+func TestVerify_SedCombinedEFlag(t *testing.T) {
+	// sed -es/a/b/e — the -e flag combined with script containing execute flag
+	err := Verify(`echo test | sed -es/a/b/e`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sed")
+}
+
+func TestVerify_SedYCommandBypass(t *testing.T) {
+	// sed 'y/a/b/e' — the y command must not cause the scanner to miss the trailing 'e'
+	err := Verify(`sed 'y/a/b/;e'`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sed")
+}
+
+func TestVerify_SedEFlagWithExtendedRegex(t *testing.T) {
+	// sed -E with dangerous script — -E is extended regex, not -e
+	err := Verify(`sed -E 'e'`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sed")
+}
+
+func TestVerify_SedBranchLabel(t *testing.T) {
+	// sed with branch and label — should not false-positive on label characters
+	err := Verify(`sed ':loop; b loop'`)
+	assert.NoError(t, err, "sed branch with label should be allowed")
+}
+
+func TestVerify_SedBranchDangerousAfter(t *testing.T) {
+	// sed branch followed by dangerous command
+	err := Verify(`sed ':loop; b loop; e'`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sed")
+}
+
+func TestVerify_SedDangerousCommands(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+	}{
+		{name: "sed e command", script: `sed 'e'`},
+		{name: "sed s///e flag", script: `echo test | sed 's/a/b/e'`},
+		{name: "sed w command", script: `sed 'w /tmp/output'`},
+		{name: "sed s///w flag", script: `echo test | sed 's/a/b/w /tmp/out'`},
+		{name: "sed r command", script: `sed 'r /etc/passwd'`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Verify(tt.script)
+			require.Error(t, err, "script should be blocked: %s", tt.script)
+			assert.Contains(t, err.Error(), "sed")
+		})
+	}
 }

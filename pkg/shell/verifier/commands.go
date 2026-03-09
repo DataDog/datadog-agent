@@ -25,6 +25,7 @@ var commandDescriptions = map[string]string{
 	"wc":       "Print newline, word, and byte counts",
 	"sort":     "Sort lines of text files",
 	"uniq":     "Report or omit repeated lines",
+	"sed":      "Stream editor for filtering and transforming text",
 	"true":     "Do nothing, successfully",
 	"false":    "Do nothing, return failure",
 	"break":    "Exit from a loop",
@@ -207,6 +208,16 @@ var flagDescriptions = map[string]map[string]string{
 		"--unique":                "unique (long form)",
 		"--ignore-leading-blanks": "ignore leading blanks (long form)",
 	},
+	"sed": {
+		"-n":                  "suppress automatic printing of pattern space",
+		"-e":                  "add script expression",
+		"-E":                  "use extended regular expressions",
+		"-r":                  "use extended regular expressions (GNU alias)",
+		"--quiet":             "suppress automatic printing (long form)",
+		"--silent":            "suppress automatic printing (long form)",
+		"--regexp-extended":   "extended regex (long form)",
+		"--posix":             "disable GNU extensions",
+	},
 	"uniq": {
 		"-c":            "prefix lines by occurrence count",
 		"-d":            "only print duplicate lines",
@@ -268,6 +279,10 @@ var allowedCommands = map[string]map[string]bool{
 		"-M", "-V", "-d", "-i", "-R", "-z",
 		"--stable", "--reverse", "--numeric-sort", "--unique",
 		"--ignore-leading-blanks",
+	),
+	"sed": toSet(
+		"-n", "-e", "-E", "-r",
+		"--quiet", "--silent", "--regexp-extended", "--posix",
 	),
 	"uniq": toSet(
 		"-c", "-d", "-u", "-f", "-s", "-i", "-w",
