@@ -61,16 +61,7 @@ var defaultRegistry = []ComponentRegistration{
 			return NewRRCFDetector(config)
 		},
 	},
-	{
-		Name:           "pelt",
-		DisplayName:    "PELT",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewPELTDetector()
-		},
-	},
-	{
+{
 		Name:           "mannwhitney",
 		DisplayName:    "Mann-Whitney",
 		Category:       "detector",
@@ -79,25 +70,7 @@ var defaultRegistry = []ComponentRegistration{
 			return NewMannWhitneyDetector()
 		},
 	},
-	{
-		Name:           "cusum_adaptive",
-		DisplayName:    "Adaptive CUSUM",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewAdaptiveCUSUMDetector()
-		},
-	},
-	{
-		Name:           "edivisive",
-		DisplayName:    "E-Divisive",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewEDivisiveDetector()
-		},
-	},
-	{
+{
 		Name:           "correlation",
 		DisplayName:    "Correlation",
 		Category:       "detector",
@@ -113,24 +86,6 @@ var defaultRegistry = []ComponentRegistration{
 		DefaultEnabled: false,
 		Factory: func(_ *TestBench) interface{} {
 			return NewTopKDetector()
-		},
-	},
-	{
-		Name:           "ensemble",
-		DisplayName:    "Ensemble",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewEnsembleDetector()
-		},
-	},
-	{
-		Name:           "cusum_hardened",
-		DisplayName:    "Hardened CUSUM",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewHardenedCUSUMDetector()
 		},
 	},
 	// Correlators
