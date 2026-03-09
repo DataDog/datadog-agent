@@ -223,7 +223,24 @@ cd test/new-e2e && go vet ./tests/<area>/...
 
 Do NOT run the test (it provisions real cloud infrastructure). Just verify compilation.
 
-### 10. CI integration (inform the user)
+### 10. Running locally
+
+E2E tests provision real cloud infrastructure on AWS (`agent-sandbox` account). To run
+locally, Datadog agent developers can use:
+
+```bash
+aws-vault exec sso-agent-sandbox-account-admin -- \
+  dda inv new-e2e-tests.run --targets=./tests/<area>/...
+```
+
+Or use the `/run-e2e` skill which handles this automatically.
+
+**Prerequisites** (see `docs/public/how-to/test/e2e.md` for full setup):
+- `pulumi` CLI installed
+- `~/.test_infra_config.yaml` configured
+- Access to the `agent-sandbox` AWS account (Datadog agent org members)
+
+### 11. CI integration (inform the user)
 
 Remind the user that E2E tests need a CI job definition to run automatically. Point them to:
 - `.gitlab-ci.yml` for rule definitions
