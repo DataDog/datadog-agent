@@ -37,6 +37,9 @@ type PublicClient interface {
 		runnerName string,
 		runnerModes []modes.Mode,
 		publicJwk *jose.JSONWebKey,
+		agentHostname string,
+		orchClusterID string,
+		agentFlavor string,
 	) (*par.CreateRunnerResponse, error)
 }
 
@@ -62,6 +65,9 @@ func (p *publicClient) EnrollWithApiKey(
 	runnerName string,
 	runnerModes []modes.Mode,
 	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
 ) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
@@ -75,9 +81,12 @@ func (p *publicClient) EnrollWithApiKey(
 	}
 
 	request := par.CreateRunnerRequest{
-		RunnerName:   runnerName,
-		RunnerModes:  runnerModes,
-		PublicKeyPEM: publicKeyPEM,
+		RunnerName:    runnerName,
+		RunnerModes:   runnerModes,
+		PublicKeyPEM:  publicKeyPEM,
+		AgentHostname: agentHostname,
+		OrchClusterID: orchClusterID,
+		AgentFlavor:   agentFlavor,
 	}
 
 	requestBodyJSON, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())

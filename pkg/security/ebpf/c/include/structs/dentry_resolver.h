@@ -9,10 +9,22 @@ struct path_key_t {
     u32 path_id;
 };
 
+struct pid_path_key_t {
+    u32 pid;
+    struct path_key_t path_key;
+};
+
 struct path_leaf_t {
     struct path_key_t parent;
     char name[DR_MAX_SEGMENT_LENGTH + 1];
     u16 len;
+};
+
+struct process_path_key_t {
+    u32 ppid;
+    u32 padding;
+    struct path_key_t process_path_key;
+    struct path_key_t file_path_key;
 };
 
 struct dr_erpc_state_t {

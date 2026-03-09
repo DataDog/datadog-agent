@@ -44,9 +44,7 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
         IntegrationTest(dir=".", prefix="./pkg/logs/tailers/windowsevent/...", extra_args="-evtapi Windows"),
         # Run eventlog check tests with the Windows API, which depend on the EventLog service
         # Don't include submodules, since the `-evtapi` flag is not defined in them
-        IntegrationTest(
-            dir=".", prefix="./comp/checks/windowseventlog/windowseventlogimpl/check", extra_args="-evtapi Windows"
-        ),
+        IntegrationTest(dir=".", prefix="./comp/checks/windowseventlog/impl/check", extra_args="-evtapi Windows"),
         # Run software inventory integration tests that compare against PowerShell Get-Package
         IntegrationTest(dir=".", prefix="./pkg/inventory/software", extra_args=""),
     ],

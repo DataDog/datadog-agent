@@ -171,7 +171,7 @@ linters:
             - "!**/comp/process/apiserver/apiserver.go"
             - "!**/comp/process/expvars/expvarsimpl/expvars.go"
             - "!**/comp/process/forwarders/forwardersimpl/forwarders.go"
-            - "!**/comp/process/profiler/profilerimpl/profiler.go"
+            - "!**/comp/process/profiler/impl/profiler.go"
             - "!**/comp/process/status/statusimpl/status.go"
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient.go"
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient_test.go"

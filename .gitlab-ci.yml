@@ -93,6 +93,13 @@
   - .gitlab-ci.yml
   - .gitlab/**/*
 
+# Windows-specific e2e tests
+.windows_path_3: &windows_path_3
+  - test/new-e2e/tests/fleet/**/* # cross platform tests
+  - test/new-e2e/tests/installer/windows/**/*
+  - test/new-e2e/tests/windows/**/*
+  - test/new-e2e/tests/sysprobe-functional/**/*
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -115,6 +122,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_2
+          compare_to: main
+      - changes:
+          paths: *windows_path_3
           compare_to: main
       - when: never
 
@@ -497,6 +507,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_2
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_3
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"

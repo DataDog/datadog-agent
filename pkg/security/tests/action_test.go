@@ -1823,10 +1823,11 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
-				return errors.New("should not find remediation_status message, got event : " + string(msg.Data))
+				t.Error("should not find remediation_status message, got event : " + string(msg.Data))
+				return nil
 			}
-			return nil
+			return errors.New("retry")
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
-		assert.NoError(t, err)
+		assert.NotNil(t, err, "expected all retry attempts to complete without finding remediation_status")
 	})
 }
