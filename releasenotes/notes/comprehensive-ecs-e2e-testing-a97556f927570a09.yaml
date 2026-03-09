@@ -8,10 +8,8 @@
 ---
 other:
   - |
-    Added comprehensive ECS E2E testing framework in test/new-e2e/tests/ecs/
-    with 7 test suites covering APM, logs, configuration, resilience, managed
-    instances, check autodiscovery, and platform-specific features (52 total tests).
-    Includes dedicated test applications (ecs-multiservice for distributed tracing,
-    ecs-log-generator for log collection, ecs-chaos for resilience testing) and
-    support for all ECS deployment types (Fargate, EC2, Managed Instances).
-    Test suite includes reusable helper methods and comprehensive documentation.
+    Migrated ECS E2E tests into a dedicated test/new-e2e/tests/ecs/ package
+    with 4 test suites (18 tests) covering APM/DogStatsD, check autodiscovery,
+    platform features, and managed instances. All tests validate specific
+    metrics, tags, and traces against regex patterns across Fargate, EC2,
+    and Managed Instance deployment types.
