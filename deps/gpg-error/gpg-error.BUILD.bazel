@@ -1,7 +1,7 @@
 load("@@//bazel/rules:preprocessor.bzl", "c_preprocessor")
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -277,14 +277,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "gpg_error_rpath_patched",
-    inputs = [":gpg-error"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":gpg_error_rpath_patched",
+    src = ":gpg-error",
     libname = "libgpg-error",
     version = "0.34.0",
     prefix = "embedded",

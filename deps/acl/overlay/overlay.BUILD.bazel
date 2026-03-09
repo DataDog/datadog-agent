@@ -2,7 +2,7 @@
 
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
@@ -178,14 +178,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "acl_rpath_patched",
-    inputs = [":acl"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":acl_rpath_patched",
+    src = ":acl",
     libname = "libacl",
     version = "1.1.2301",
     prefix = "embedded",

@@ -236,11 +236,6 @@ cc_shared_library(
 )
 
 rewrite_rpath(
-    name = "curl_rpath_patched",
-    inputs = [":curl"],
-)
-
-rewrite_rpath(
     name = "curl_bin_rpath_patched",
     inputs = [":curl_bin"],
 )
@@ -257,7 +252,7 @@ pkg_files(
 
 so_symlink(
     name = "lib_files",
-    src = ":curl_rpath_patched",
+    src = ":curl",
     attributes = pkg_attributes(mode = "0755"),
     libname = "libcurl",
     prefix = "embedded",

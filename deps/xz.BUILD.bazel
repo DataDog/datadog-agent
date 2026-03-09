@@ -2,7 +2,7 @@
 
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -118,14 +118,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "lzma_rpath_patched",
-    inputs = [":lzma"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":lzma_rpath_patched",
+    src = ":lzma",
     libname = "liblzma",
     version = VERSION,
     prefix = "embedded",

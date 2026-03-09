@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -76,14 +76,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "popt_rpath_patched",
-    inputs = [":popt"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":popt_rpath_patched",
+    src = ":popt",
     libname = "libpopt",
     version = "0.0.2",
     prefix = "embedded",

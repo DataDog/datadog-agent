@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -102,14 +102,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "blkid_rpath_patched",
-    inputs = [":blkid"],
-)
-
 so_symlink(
     name = "libblkid_libfiles",
-    src = ":blkid_rpath_patched",
+    src = ":blkid",
     libname = "libblkid",
     version = "1.1.0",
     prefix = "embedded",

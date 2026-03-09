@@ -1,7 +1,7 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
@@ -267,19 +267,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "rpmio_rpath_patched",
-    inputs = [":rpmio"],
-)
-
-rewrite_rpath(
-    name = "rpm_rpath_patched",
-    inputs = [":rpm"],
-)
-
 so_symlink(
     name = "librpmio_files",
-    src = ":rpmio_rpath_patched",
+    src = ":rpmio",
     libname = "librpmio",
     version = "9.4.0",
     prefix = "embedded",
@@ -287,7 +277,7 @@ so_symlink(
 
 so_symlink(
     name = "librpm_files",
-    src = ":rpm_rpath_patched",
+    src = ":rpm",
     libname = "librpm",
     version = "9.4.0",
     prefix = "embedded",

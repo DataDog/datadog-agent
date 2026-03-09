@@ -2,7 +2,7 @@
 
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
@@ -136,14 +136,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "bz2_rpath_patched",
-    inputs = [":bz2"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":bz2_rpath_patched",
+    src = ":bz2",
     libname = "libbz2",
     version = VERSION,
     prefix = "embedded",

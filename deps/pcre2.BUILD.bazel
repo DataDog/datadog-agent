@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:native_binary.bzl", "native_test")
@@ -221,19 +221,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "pcre2_8_rpath_patched",
-    inputs = [":pcre2-8"],
-)
-
-rewrite_rpath(
-    name = "pcre2_posix_rpath_patched",
-    inputs = [":pcre2-posix"],
-)
-
 so_symlink(
     name = "pcre2_libfiles",
-    src = ":pcre2_8_rpath_patched",
+    src = ":pcre2-8",
     libname = "libpcre2-8",
     version = "0.11.2",
     prefix = "embedded",
@@ -241,7 +231,7 @@ so_symlink(
 
 so_symlink(
     name = "pcre2posix_libfiles",
-    src = ":pcre2_posix_rpath_patched",
+    src = ":pcre2-posix",
     libname = "libpcre2-posix",
     version = "3.0.4",
     prefix = "embedded",

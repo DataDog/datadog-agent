@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -745,14 +745,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "gcrypt_rpath_patched",
-    inputs = [":gcrypt"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":gcrypt_rpath_patched",
+    src = ":gcrypt",
     libname = "libgcrypt",
     version = "20.4.2",
     prefix = "embedded",

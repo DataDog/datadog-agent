@@ -2,7 +2,7 @@
 
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
@@ -50,14 +50,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "yaml_rpath_patched",
-    inputs = [":yaml"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":yaml_rpath_patched",
+    src = ":yaml",
     libname = "libyaml",
     version = VERSION,
     prefix = "embedded",

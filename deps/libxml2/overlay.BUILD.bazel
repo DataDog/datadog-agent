@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -156,14 +156,9 @@ cc_shared_library(
     ],
 )
 
-rewrite_rpath(
-    name = "xml2_rpath_patched",
-    inputs = [":xml2"],
-)
-
 so_symlink(
     name = "lib_files",
-    src = ":xml2_rpath_patched",
+    src = ":xml2",
     libname = "libxml2",
     version = "16.0.5",
     prefix = "embedded",

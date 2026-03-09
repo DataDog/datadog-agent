@@ -1,6 +1,6 @@
 load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -120,14 +120,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "xslt_rpath_patched",
-    inputs = [":xslt"],
-)
-
 so_symlink(
     name = "xslt_lib_files",
-    src = ":xslt_rpath_patched",
+    src = ":xslt",
     libname = "libxslt",
     version = "1.1.43",
     prefix = "embedded",
@@ -197,14 +192,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-rewrite_rpath(
-    name = "exslt_rpath_patched",
-    inputs = [":exslt"],
-)
-
 so_symlink(
     name = "exslt_lib_files",
-    src = ":exslt_rpath_patched",
+    src = ":exslt",
     libname = "libexslt",
     version = "0.8.24",
     prefix = "embedded",
