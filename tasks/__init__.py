@@ -40,6 +40,7 @@ from tasks import (
     go,
     go_deps,
     installer,
+    integration,
     invoke_unit_tests,
     issue,
     k8s_versions,
@@ -251,6 +252,7 @@ ns.add_collection(kmt)
 ns.add_collection(k8s_versions)
 ns.add_collection(kind_node_image)
 ns.add_collection(diff)
+ns.add_collection(integration)
 ns.add_collection(installer)
 ns.add_collection(owners)
 ns.add_collection(modules)
