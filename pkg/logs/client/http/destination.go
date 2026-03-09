@@ -260,6 +260,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.RetryTimeSpent.Add(int64(backoffDuration))
 			metrics.RetryCount.Add(1)
 			metrics.TlmRetryCount.Add(1)
+			metrics.GlobalSaturationHistory.RecordRetry()
 		}
 
 		start := time.Now()

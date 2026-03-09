@@ -27,7 +27,7 @@ func (m mockPayload) Count() int64 {
 func TestCapacityMonitor(t *testing.T) {
 
 	tickChan := make(chan time.Time, 1)
-	m := newCapacityMonitorWithTick("test", "test", tickChan)
+	m := newCapacityMonitorWithTick("test", "test", 0, tickChan)
 
 	assert.Equal(t, m.avgItems, 0.0)
 	assert.Equal(t, m.avgBytes, 0.0)

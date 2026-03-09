@@ -37,6 +37,9 @@ type PipelineMonitor interface {
 	ReportComponentIngress(size MeasurablePayload, name string, instanceID string)
 	ReportComponentEgress(size MeasurablePayload, name string, instanceID string)
 	MakeUtilizationMonitor(name string, instanceID string) UtilizationMonitor
+	// SetStageCapacity registers the channel capacity for a named stage so that
+	// fill-percentage metrics and saturation history can be computed.
+	SetStageCapacity(name string, capacity int)
 }
 
 // NoopPipelineMonitor is a no-op implementation of PipelineMonitor.
@@ -70,18 +73,32 @@ func (n *NoopPipelineMonitor) MakeUtilizationMonitor(_ string, _ string) Utiliza
 	return &NoopUtilizationMonitor{}
 }
 
+// SetStageCapacity does nothing.
+func (n *NoopPipelineMonitor) SetStageCapacity(_ string, _ int) {}
+
 // TelemetryPipelineMonitor is a PipelineMonitor that reports capacity metrics to telemetry
 type TelemetryPipelineMonitor struct {
-	monitors map[string]*CapacityMonitor
-	lock     sync.RWMutex
+	monitors   map[string]*CapacityMonitor
+	capacities map[string]int // keyed by stage name; set via SetStageCapacity
+	lock       sync.RWMutex
 }
 
-// NewTelemetryPipelineMonitor creates a new pipeline monitort that reports capacity and utiilization metrics as telemetry
+// NewTelemetryPipelineMonitor creates a new pipeline monitor that reports capacity and utilization metrics as telemetry
 func NewTelemetryPipelineMonitor() *TelemetryPipelineMonitor {
 	return &TelemetryPipelineMonitor{
-		monitors: make(map[string]*CapacityMonitor),
-		lock:     sync.RWMutex{},
+		monitors:   make(map[string]*CapacityMonitor),
+		capacities: make(map[string]int),
+		lock:       sync.RWMutex{},
 	}
+}
+
+// SetStageCapacity registers the channel capacity for a named pipeline stage so that
+// fill-percentage metrics and saturation history can be computed.
+// Must be called before the stage's CapacityMonitor is first used.
+func (c *TelemetryPipelineMonitor) SetStageCapacity(name string, capacity int) {
+	c.lock.Lock()
+	c.capacities[name] = capacity
+	c.lock.Unlock()
 }
 
 func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *CapacityMonitor {
@@ -94,7 +111,8 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string, instanceID string) *C
 	if !exists {
 		c.lock.Lock()
 		if c.monitors[key] == nil {
-			c.monitors[key] = NewCapacityMonitor(name, instanceID)
+			capacity := c.capacities[name] // 0 if not registered — fill % won't be computed
+			c.monitors[key] = NewCapacityMonitor(name, instanceID, capacity)
 		}
 		monitor = c.monitors[key]
 		c.lock.Unlock()

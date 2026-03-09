@@ -218,6 +218,9 @@ func newProvider(
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
 ) Provider {
+	// Register the active profile so saturation history can tag recommendation metrics.
+	metrics.SetCurrentProfile(cfg.GetString("logs_config.logs_agent_profile"))
+
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,

@@ -42,7 +42,13 @@ func NewPipeline(
 	compression logscompression.Component,
 	instanceID string,
 ) *Pipeline {
-	strategyInput := make(chan *message.Message, config.MessageChannelSize(cfg))
+	msgChanSize := config.MessageChannelSize(cfg)
+	// Register channel capacities so CapacityMonitor can compute fill percentages
+	// and feed SaturationHistory for bottleneck detection.
+	senderImpl.PipelineMonitor().SetStageCapacity(metrics.ProcessorTlmName, msgChanSize)
+	senderImpl.PipelineMonitor().SetStageCapacity(metrics.StrategyTlmName, msgChanSize)
+
+	strategyInput := make(chan *message.Message, msgChanSize)
 	flushChan := make(chan struct{})
 
 	var encoder processor.Encoder
@@ -57,7 +63,7 @@ func NewPipeline(
 	}
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
 
-	inputChan := make(chan *message.Message, config.MessageChannelSize(cfg))
+	inputChan := make(chan *message.Message, msgChanSize)
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)

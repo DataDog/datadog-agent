@@ -96,6 +96,17 @@ var (
 	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and its buffers")
 	// TlmUtilizationBytes is the capacity of a component by number of bytes
 	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and its buffers")
+	// TlmUtilizationFillPct is the fill percentage of a component's input queue (0-100).
+	// Only emitted for stages where channel capacity is known (processor, strategy).
+	TlmUtilizationFillPct = telemetry.NewGauge("logs_component_utilization", "fill_pct", []string{"name", "instance"}, "Fill percentage (0-100) of the component's input queue")
+
+	// TlmStageSaturation is 1 when a pipeline stage is currently saturated (fill > 70% or high retry rate), 0 otherwise.
+	TlmStageSaturation = telemetry.NewGauge("logs", "stage_saturation", []string{"stage"}, "1 when a pipeline stage is saturated, 0 otherwise")
+
+	// TlmProfileRecommendationActive is 1 when a profile change is recommended based on observed bottlenecks.
+	// Tagged with the current and suggested profile names.
+	TlmProfileRecommendationActive = telemetry.NewGauge("logs", "profile_recommendation_active", []string{"current_profile", "suggested_profile"}, "1 when a profile change is recommended based on observed pipeline bottlenecks")
+
 	// TlmDestNumWorkers is the number of destination workers in use.
 	TlmDestNumWorkers = telemetry.NewGauge("logs_destination", "destination_workers", []string{"instance"}, "Gauge of the number of destination workers in use")
 	// TlmDestVirtualLatency is a moving average of the destination's latency.
