@@ -18,16 +18,13 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 )
 
-// Requires defines the dependencies for the statsd component.
-type Requires struct{}
-
 // Provides defines the output of the statsd component.
 type Provides struct {
 	Comp statsd.Component
 }
 
 // NewComponent creates a new statsd component.
-func NewComponent(_ Requires) (Provides, error) {
+func NewComponent() (Provides, error) {
 	return Provides{
 		Comp: &service{},
 	}, nil
