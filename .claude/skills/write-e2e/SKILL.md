@@ -242,12 +242,56 @@ Or use the `/run-e2e` skill which handles this automatically.
 - `~/.test_infra_config.yaml` configured (run `dda inv e2e.setup`)
 - `aws-vault` installed with access to the `agent-sandbox` AWS account (Datadog agent org members)
 
-### 11. CI integration (inform the user)
+### 11. CI integration
 
-Remind the user that E2E tests need a CI job definition to run automatically. Point them to:
-- `.gitlab-ci.yml` for rule definitions
-- `.gitlab/e2e/e2e.yml` for job definitions
-- The `run-e2e` skill (`/run-e2e`) for local execution
+E2E tests must be wired into GitLab CI so they run automatically when related
+source code changes. This involves two things:
+
+**A. Trigger rules** (`.gitlab-ci.yml`):
+Each E2E job has a rule that lists the source paths that should trigger it.
+Look for the existing rule pattern (e.g., `.on_arun_or_e2e_changes`,
+`.on_container_or_e2e_changes`) and check if the source code your test covers
+is already listed. If not, either add your paths to an existing rule or create
+a new one:
+
+```yaml
+# .gitlab-ci.yml
+.on_<feature>_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]   # always run on main/release/RC
+  - changes:
+      paths:
+        - pkg/collector/corechecks/<feature>/**/*   # source code paths
+        - comp/<feature>/**/*
+        - test/new-e2e/tests/<area>/**/*            # the test itself
+      compare_to: $COMPARE_TO_BRANCH
+```
+
+**B. Job definition** (`.gitlab/test/e2e/e2e.yml` or `.gitlab/windows/test/e2e/windows.yml`):
+If the test lives under an existing `TARGETS` directory (e.g., `./tests/agent-runtimes`),
+the existing job already picks it up — no changes needed. If you created a new
+top-level directory under `test/new-e2e/tests/`, add a job:
+
+```yaml
+# .gitlab/test/e2e/e2e.yml
+new-e2e-<feature>:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_<feature>_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/<feature>
+    TEAM: <team-name>
+    EXTRA_PARAMS: --skip "Windows"
+```
+
+**Check existing coverage first.** Run:
+```bash
+grep -n 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml .gitlab/windows/test/e2e/windows.yml
+```
+to see if a job already targets your test directory.
+
+Refer to the Confluence E2E docs for the full CI setup guide:
+https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3492282740/Automated+E2E+Test
 
 ## Key patterns from the codebase
 
