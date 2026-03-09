@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -173,16 +174,24 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
-			// Default path for podman rootfull containers
-			podmanLogsBasePath := podmanRootfullLogsBasePath
 			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
-			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
+			// User provided one or more custom podman DB paths (comma-separated). Try each derived
+			// root dir in order and return the first log file that exists on disk.
 			if len(podmanDBPath) > 0 {
-				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)
+				for _, singlePath := range strings.Split(podmanDBPath, ",") {
+					singlePath = strings.TrimSpace(singlePath)
+					rootDir := log.ExtractPodmanRootDirFromDBPath(singlePath)
+					if rootDir == "" {
+						continue
+					}
+					logPath := filepath.Join(rootDir, "storage/overlay-containers", containerID, "userdata/ctr.log")
+					if _, err := os.Stat(logPath); err == nil {
+						return logPath
+					}
+				}
 			}
-			return filepath.Join(
-				podmanLogsBasePath, "storage/overlay-containers", containerID,
-				"userdata/ctr.log")
+			// Default path for podman rootfull containers (no podman_db_path configured, or no match found above).
+			return filepath.Join(podmanRootfullLogsBasePath, "storage/overlay-containers", containerID, "userdata/ctr.log")
 		}
 		return filepath.Join(
 			dockerLogsBasePathNix, "containers", containerID,

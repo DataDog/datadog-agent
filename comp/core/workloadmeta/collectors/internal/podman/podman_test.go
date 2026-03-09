@@ -265,12 +265,12 @@ func TestPull(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		client         podmanClient
+		clients        []podmanClient
 		expectedEvents []workloadmeta.CollectorEvent
 	}{
 		{
-			name:           "expected events",
-			client:         &client,
+			name:           "expected events from single client",
+			clients:        []podmanClient{&client},
 			expectedEvents: expectedEvents,
 		},
 	}
@@ -279,14 +279,117 @@ func TestPull(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			workloadmetaStore := fakeWorkloadmetaStore{}
 			podmanCollector := collector{
-				client: test.client,
-				store:  &workloadmetaStore,
+				clients: test.clients,
+				store:   &workloadmetaStore,
+				seen:    make(map[workloadmeta.EntityID]struct{}),
 			}
 
 			err := podmanCollector.Pull(context.TODO())
 
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectedEvents, workloadmetaStore.notifiedEvents)
+		})
+	}
+}
+
+// TestPullMultipleClients verifies that Pull merges containers from multiple DB clients.
+func TestPullMultipleClients(t *testing.T) {
+	startTime := time.Now()
+
+	containerFromClient1 := podman.Container{
+		Config: &podman.ContainerConfig{
+			Spec: &specs.Spec{
+				Process:  &specs.Process{Env: []string{}},
+				Hostname: "host-root",
+			},
+			ID:   "aaa",
+			Name: "root-container",
+		},
+		State: &podman.ContainerState{
+			State:       podman.ContainerStateRunning,
+			StartedTime: startTime,
+		},
+	}
+
+	containerFromClient2 := podman.Container{
+		Config: &podman.ContainerConfig{
+			Spec: &specs.Spec{
+				Process:  &specs.Process{Env: []string{}},
+				Hostname: "host-user",
+			},
+			ID:   "bbb",
+			Name: "user-container",
+		},
+		State: &podman.ContainerState{
+			State:       podman.ContainerStateRunning,
+			StartedTime: startTime,
+		},
+	}
+
+	client1 := &fakePodmanClient{
+		mockGetAllContainers: func() ([]podman.Container, error) {
+			return []podman.Container{containerFromClient1}, nil
+		},
+	}
+	client2 := &fakePodmanClient{
+		mockGetAllContainers: func() ([]podman.Container, error) {
+			return []podman.Container{containerFromClient2}, nil
+		},
+	}
+
+	workloadmetaStore := fakeWorkloadmetaStore{}
+	podmanCollector := collector{
+		clients: []podmanClient{client1, client2},
+		store:   &workloadmetaStore,
+		seen:    make(map[workloadmeta.EntityID]struct{}),
+	}
+
+	err := podmanCollector.Pull(context.TODO())
+	assert.NoError(t, err)
+
+	// Should get events for both containers
+	assert.Len(t, workloadmetaStore.notifiedEvents, 2)
+
+	ids := make(map[string]bool)
+	for _, event := range workloadmetaStore.notifiedEvents {
+		ids[event.Entity.GetID().ID] = true
+	}
+	assert.True(t, ids["aaa"], "expected container aaa from client1")
+	assert.True(t, ids["bbb"], "expected container bbb from client2")
+}
+
+func TestParsePaths(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "single path",
+			input:    "/var/lib/containers/storage/db.sql",
+			expected: []string{"/var/lib/containers/storage/db.sql"},
+		},
+		{
+			name:     "two paths",
+			input:    "/var/lib/containers/storage/db.sql,/home/user/.local/share/containers/storage/db.sql",
+			expected: []string{"/var/lib/containers/storage/db.sql", "/home/user/.local/share/containers/storage/db.sql"},
+		},
+		{
+			name:     "paths with whitespace",
+			input:    " /path/a , /path/b ",
+			expected: []string{"/path/a", "/path/b"},
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := parsePaths(test.input)
+			assert.Equal(t, test.expected, result)
 		})
 	}
 }

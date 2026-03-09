@@ -11,6 +11,7 @@ package podman
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -31,6 +32,11 @@ const (
 	componentName     = "workloadmeta-podman"
 	defaultBoltDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
 	defaultSqlitePath = "/var/lib/containers/storage/db.sql"
+
+	// defaultHomePodmanBoltDBSuffix and defaultHomePodmanSQLiteSuffix are appended to a user's
+	// home directory to find their rootless Podman database.
+	defaultHomePodmanBoltDBSuffix = "/.local/share/containers/storage/libpod/bolt_state.db"
+	defaultHomePodmanSQLiteSuffix = "/.local/share/containers/storage/db.sql"
 )
 
 type podmanClient interface {
@@ -39,7 +45,7 @@ type podmanClient interface {
 
 type collector struct {
 	id      string
-	client  podmanClient
+	clients []podmanClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
@@ -67,56 +73,59 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	var dbPath string
-	dbPath = pkgconfigsetup.Datadog().GetString("podman_db_path")
+	rawDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
 
-	// We verify the user-provided path exists to prevent the collector entering a failing loop.
-	if dbPath != "" && !dbIsAccessible(dbPath) {
-		return dderrors.NewDisabled(componentName, "podman_db_path is misconfigured/not accessible")
-	}
-
-	// If dbPath is empty (default value of `podman_db_path`), attempts to use the default rootfull database (BoltDB first, then SQLite) as podman feature was detected (existence of /var/lib/containers/storage)
-	if dbPath == "" {
-		if dbIsAccessible(defaultBoltDBPath) {
-			log.Infof("Podman feature detected and podman_db_path not configured, defaulting to: %s", defaultBoltDBPath)
-			dbPath = defaultBoltDBPath
-		} else if dbIsAccessible(defaultSqlitePath) {
-			log.Infof("Podman feature detected and podman_db_path not configured, defaulting to: %s", defaultSqlitePath)
-			dbPath = defaultSqlitePath
-		} else {
-			// `/var/lib/containers/storage` exists but the Agent cannot list out its content.
-			return dderrors.NewDisabled(componentName, "Podman feature detected but the default location for the containers DB is not accessible")
+	var dbPaths []string
+	if rawDBPath != "" {
+		dbPaths = parsePaths(rawDBPath)
+	} else {
+		// Auto-discover DB paths for root and all users under /home/.
+		dbPaths = discoverDefaultDBPaths()
+		if len(dbPaths) == 0 {
+			return dderrors.NewDisabled(componentName, "Podman feature detected but no accessible container database found")
 		}
 	}
 
-	// As the containers database file is hard-coded in Podman (non-user customizable), the client to use is determined thanks to the file extension.
-	if strings.HasSuffix(dbPath, ".sql") {
-		log.Debugf("Using SQLite client for Podman DB as provided path ends with .sql")
-		c.client = podman.NewSQLDBClient(dbPath)
-	} else if strings.HasSuffix(dbPath, ".db") {
-		log.Debugf("Using BoltDB client for Podman DB as provided path ends with .db")
-		c.client = podman.NewDBClient(dbPath)
-	} else {
-		return dderrors.NewDisabled(componentName, "Podman detected but podman_db_path does not end in a known-format (.db or .sql)")
+	var clients []podmanClient
+	for _, dbPath := range dbPaths {
+		if !dbIsAccessible(dbPath) {
+			log.Warnf("Podman DB path %q is not accessible, skipping", dbPath)
+			continue
+		}
+		client, err := clientForPath(dbPath)
+		if err != nil {
+			log.Warnf("Could not create Podman client for path %q: %v, skipping", dbPath, err)
+			continue
+		}
+		log.Infof("Using Podman DB at %q", dbPath)
+		clients = append(clients, client)
 	}
+
+	if len(clients) == 0 {
+		return dderrors.NewDisabled(componentName, "podman_db_path is misconfigured/not accessible")
+	}
+
+	c.clients = clients
 	c.store = store
 
 	return nil
 }
 
 func (c *collector) Pull(_ context.Context) error {
-	containers, err := c.client.GetAllContainers()
-	if err != nil {
-		return err
-	}
-
 	seen := make(map[workloadmeta.EntityID]struct{})
-	events := make([]workloadmeta.CollectorEvent, 0, len(containers))
+	events := []workloadmeta.CollectorEvent{}
 
-	for _, container := range containers {
-		event := convertToEvent(&container)
-		seen[event.Entity.GetID()] = struct{}{}
-		events = append(events, event)
+	for _, client := range c.clients {
+		containers, err := client.GetAllContainers()
+		if err != nil {
+			log.Warnf("Error fetching Podman containers from one of the configured databases: %v", err)
+			continue
+		}
+		for _, container := range containers {
+			event := convertToEvent(&container)
+			seen[event.Entity.GetID()] = struct{}{}
+			events = append(events, event)
+		}
 	}
 
 	for seenID := range c.seen {
@@ -309,6 +318,70 @@ func status(state podman.ContainerStatus) workloadmeta.ContainerStatus {
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+// parsePaths splits a comma-separated list of DB paths and trims whitespace from each entry.
+func parsePaths(raw string) []string {
+	parts := strings.Split(raw, ",")
+	paths := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
+}
+
+// clientForPath creates the appropriate Podman DB client based on the file extension of dbPath.
+func clientForPath(dbPath string) (podmanClient, error) {
+	if strings.HasSuffix(dbPath, ".sql") {
+		log.Debugf("Using SQLite client for Podman DB at %q", dbPath)
+		return podman.NewSQLDBClient(dbPath), nil
+	} else if strings.HasSuffix(dbPath, ".db") {
+		log.Debugf("Using BoltDB client for Podman DB at %q", dbPath)
+		return podman.NewDBClient(dbPath), nil
+	}
+	return nil, fmt.Errorf("path %q does not end in a known format (.db or .sql)", dbPath)
+}
+
+// discoverDefaultDBPaths finds all accessible Podman database files: the rootfull database and
+// rootless databases for all users under /home/.
+func discoverDefaultDBPaths() []string {
+	var paths []string
+
+	// Rootfull databases
+	for _, p := range []string{defaultSqlitePath, defaultBoltDBPath} {
+		if dbIsAccessible(p) {
+			log.Infof("Auto-discovered Podman DB at %q", p)
+			paths = append(paths, p)
+			break
+		}
+	}
+
+	// Rootless databases: scan /home/ for users with Podman installed
+	homeEntries, err := os.ReadDir("/home")
+	if err != nil {
+		log.Debugf("Could not scan /home/ for Podman databases: %v", err)
+		return paths
+	}
+
+	for _, entry := range homeEntries {
+		if !entry.IsDir() {
+			continue
+		}
+		homeDir := "/home/" + entry.Name()
+		for _, suffix := range []string{defaultHomePodmanSQLiteSuffix, defaultHomePodmanBoltDBSuffix} {
+			p := homeDir + suffix
+			if dbIsAccessible(p) {
+				log.Infof("Auto-discovered Podman DB at %q", p)
+				paths = append(paths, p)
+				break
+			}
+		}
+	}
+
+	return paths
 }
 
 // dbIsAccessible verifies whether or not the provided file is accessible by the Agent

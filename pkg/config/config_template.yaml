@@ -2746,7 +2746,11 @@ api_key:
 
 ## @param podman_db_path - string - optional - default: ""
 ## @env DD_PODMAN_DB_PATH - string - optional - default: ""
-## Settings for Podman DB that Datadog Agent collects container metrics.
+## Path(s) to Podman container database file(s) used by the Datadog Agent to collect container metrics.
+## Accepts a comma-separated list of paths to support monitoring containers from multiple users
+## (e.g. root and rootless users).
+## Example: "/var/lib/containers/storage/db.sql,/home/myuser/.local/share/containers/storage/db.sql"
+## When left empty, the Agent auto-discovers accessible Podman databases for root and all users under /home/.
 #
 # podman_db_path: ""
 {{ end -}}
