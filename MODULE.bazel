@@ -87,6 +87,7 @@ http_archive(
         "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
         "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
         "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
+        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
     ],
     sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
     strip_prefix = "buildtools-8.5.1",
