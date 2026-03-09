@@ -75,6 +75,16 @@ impl RestartTracker {
 }
 
 // ---------------------------------------------------------------------------
+// ProcessOrigin
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessOrigin {
+    Config,
+    Runtime,
+}
+
+// ---------------------------------------------------------------------------
 // ManagedProcess
 // ---------------------------------------------------------------------------
 
@@ -87,21 +97,21 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
-    runtime_created: bool,
+    origin: ProcessOrigin,
 }
 
 impl ManagedProcess {
     const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
 
-    pub fn new(name: String, config: ProcessConfig) -> Self {
-        Self::new_inner(name, config, false)
+    pub fn new_config(name: String, config: ProcessConfig) -> Self {
+        Self::new_inner(name, config, ProcessOrigin::Config)
     }
 
     pub fn new_runtime(name: String, config: ProcessConfig) -> Self {
-        Self::new_inner(name, config, true)
+        Self::new_inner(name, config, ProcessOrigin::Runtime)
     }
 
-    fn new_inner(name: String, config: ProcessConfig, runtime_created: bool) -> Self {
+    fn new_inner(name: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
@@ -112,12 +122,12 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
-            runtime_created,
+            origin,
         }
     }
 
-    pub fn is_runtime_created(&self) -> bool {
-        self.runtime_created
+    pub fn origin(&self) -> ProcessOrigin {
+        self.origin
     }
 
     pub fn name(&self) -> &str {
@@ -457,7 +467,7 @@ pub mod tests {
 
     #[test]
     fn test_initial_state_is_created() {
-        let proc = ManagedProcess::new("test".into(), make_config("/bin/true", vec![]));
+        let proc = ManagedProcess::new_config("test".into(), make_config("/bin/true", vec![]));
         assert_eq!(proc.state(), ProcessState::Created);
         assert!(!proc.is_running());
     }
@@ -465,7 +475,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_success() {
         let mut proc =
-            ManagedProcess::new("t".into(), make_config("/bin/sh", vec!["-c", "exit 0"]));
+            ManagedProcess::new_config("t".into(), make_config("/bin/sh", vec!["-c", "exit 0"]));
         assert_eq!(proc.state(), ProcessState::Created);
 
         proc.spawn().unwrap();
@@ -482,7 +492,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_failure() {
         let mut proc =
-            ManagedProcess::new("t".into(), make_config("/bin/sh", vec!["-c", "exit 1"]));
+            ManagedProcess::new_config("t".into(), make_config("/bin/sh", vec!["-c", "exit 1"]));
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
@@ -494,7 +504,8 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_take_child_still_running() {
-        let mut proc = ManagedProcess::new("t".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut proc =
+            ManagedProcess::new_config("t".into(), make_config("/bin/sleep", vec!["60"]));
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
@@ -515,7 +526,8 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_send_signal_works_after_take_child() {
-        let mut proc = ManagedProcess::new("t".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut proc =
+            ManagedProcess::new_config("t".into(), make_config("/bin/sleep", vec!["60"]));
         proc.spawn().unwrap();
         let mut child = proc.take_child().unwrap();
 
@@ -531,7 +543,7 @@ pub mod tests {
 
     #[test]
     fn test_should_start_auto_start_true_no_condition() {
-        let proc = ManagedProcess::new("test".into(), make_config("/usr/bin/true", vec![]));
+        let proc = ManagedProcess::new_config("test".into(), make_config("/usr/bin/true", vec![]));
         assert!(proc.should_start());
     }
 
@@ -539,7 +551,7 @@ pub mod tests {
     fn test_should_start_auto_start_false() {
         let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.auto_start = false;
-        let proc = ManagedProcess::new("test".into(), cfg);
+        let proc = ManagedProcess::new_config("test".into(), cfg);
         assert!(!proc.should_start());
     }
 
@@ -547,7 +559,7 @@ pub mod tests {
     fn test_should_start_condition_path_exists_met() {
         let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.condition_path_exists = Some("/usr/bin/true".to_string());
-        let proc = ManagedProcess::new("test".into(), cfg);
+        let proc = ManagedProcess::new_config("test".into(), cfg);
         assert!(proc.should_start());
     }
 
@@ -555,7 +567,7 @@ pub mod tests {
     fn test_should_start_condition_path_exists_not_met() {
         let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
-        let proc = ManagedProcess::new("test".into(), cfg);
+        let proc = ManagedProcess::new_config("test".into(), cfg);
         assert!(!proc.should_start());
     }
 
@@ -564,7 +576,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_spawn_and_is_running() {
         let cfg = make_config("/bin/sleep", vec!["60"]);
-        let mut proc = ManagedProcess::new("sleeper".into(), cfg);
+        let mut proc = ManagedProcess::new_config("sleeper".into(), cfg);
 
         assert!(!proc.is_running());
         proc.spawn().unwrap();
@@ -578,7 +590,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_spawn_nonexistent_binary() {
         let cfg = make_config("/nonexistent/binary", vec![]);
-        let mut proc = ManagedProcess::new("bad".into(), cfg);
+        let mut proc = ManagedProcess::new_config("bad".into(), cfg);
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
         assert_eq!(proc.state(), ProcessState::Created);
@@ -589,7 +601,7 @@ pub mod tests {
         let mut cfg = make_config("/bin/sh", vec!["-c", "exit $MY_EXIT_CODE"]);
         cfg.env.insert("MY_EXIT_CODE".to_string(), "42".to_string());
 
-        let mut proc = ManagedProcess::new("env-test".into(), cfg);
+        let mut proc = ManagedProcess::new_config("env-test".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(42));
@@ -598,7 +610,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_spawn_with_args() {
         let cfg = make_config("/bin/sh", vec!["-c", "exit 7"]);
-        let mut proc = ManagedProcess::new("args-test".into(), cfg);
+        let mut proc = ManagedProcess::new_config("args-test".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(7));
@@ -609,7 +621,7 @@ pub mod tests {
     #[tokio::test]
     async fn test_send_signal_sigterm() {
         let cfg = make_config("/bin/sleep", vec!["60"]);
-        let mut proc = ManagedProcess::new("sig-test".into(), cfg);
+        let mut proc = ManagedProcess::new_config("sig-test".into(), cfg);
         proc.spawn().unwrap();
 
         proc.send_signal(Signal::SIGTERM);
@@ -619,7 +631,8 @@ pub mod tests {
 
     #[test]
     fn test_send_signal_no_child_does_not_panic() {
-        let proc = ManagedProcess::new("no-child".into(), make_config("/usr/bin/true", vec![]));
+        let proc =
+            ManagedProcess::new_config("no-child".into(), make_config("/usr/bin/true", vec![]));
         proc.send_signal(Signal::SIGTERM);
     }
 
@@ -636,7 +649,7 @@ pub mod tests {
                 "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1",
             ],
         );
-        let mut proc = ManagedProcess::new("clean-env".into(), cfg);
+        let mut proc = ManagedProcess::new_config("clean-env".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -659,7 +672,7 @@ pub mod tests {
         );
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
-        let mut proc = ManagedProcess::new("envfile".into(), cfg);
+        let mut proc = ManagedProcess::new_config("envfile".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -686,7 +699,7 @@ pub mod tests {
         cfg.env
             .insert("MY_VAR".to_string(), "overridden".to_string());
 
-        let mut proc = ManagedProcess::new("override".into(), cfg);
+        let mut proc = ManagedProcess::new_config("override".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -700,7 +713,7 @@ pub mod tests {
     async fn test_spawn_fails_on_missing_environment_file() {
         let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.environment_file = Some("/nonexistent/env".to_string());
-        let mut proc = ManagedProcess::new("bad-envfile".into(), cfg);
+        let mut proc = ManagedProcess::new_config("bad-envfile".into(), cfg);
         assert!(
             proc.spawn().is_err(),
             "spawn should fail if environment_file is missing without - prefix"
@@ -712,7 +725,7 @@ pub mod tests {
     async fn test_spawn_skips_missing_optional_environment_file() {
         let mut cfg = make_config("/usr/bin/true", vec![]);
         cfg.environment_file = Some("-/nonexistent/env".to_string());
-        let mut proc = ManagedProcess::new("optional-envfile".into(), cfg);
+        let mut proc = ManagedProcess::new_config("optional-envfile".into(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert!(
@@ -726,7 +739,7 @@ pub mod tests {
     #[test]
     fn test_should_restart_never() {
         let cfg = make_config("/bin/sh", vec![]);
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(!proc.should_restart(&exit_status(1)));
     }
 
@@ -734,7 +747,7 @@ pub mod tests {
     fn test_should_restart_always_on_success() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::Always;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(proc.should_restart(&exit_status(0)));
     }
 
@@ -742,7 +755,7 @@ pub mod tests {
     fn test_should_restart_always_on_failure() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::Always;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(proc.should_restart(&exit_status(1)));
     }
 
@@ -750,7 +763,7 @@ pub mod tests {
     fn test_should_restart_on_failure_with_failure() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::OnFailure;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(proc.should_restart(&exit_status(1)));
     }
 
@@ -758,7 +771,7 @@ pub mod tests {
     fn test_should_restart_on_failure_with_success() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::OnFailure;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(!proc.should_restart(&exit_status(0)));
     }
 
@@ -766,7 +779,7 @@ pub mod tests {
     fn test_should_restart_on_success_with_success() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::OnSuccess;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(proc.should_restart(&exit_status(0)));
     }
 
@@ -774,7 +787,7 @@ pub mod tests {
     fn test_should_restart_on_success_with_failure() {
         let mut cfg = make_config("/bin/sh", vec![]);
         cfg.restart = RestartPolicy::OnSuccess;
-        let proc = ManagedProcess::new("t".into(), cfg);
+        let proc = ManagedProcess::new_config("t".into(), cfg);
         assert!(!proc.should_restart(&exit_status(1)));
     }
 
@@ -784,7 +797,7 @@ pub mod tests {
         cfg.restart = RestartPolicy::Always;
         cfg.start_limit_burst = Some(3);
         cfg.start_limit_interval_sec = Some(60);
-        let mut proc = ManagedProcess::new("burst".into(), cfg);
+        let mut proc = ManagedProcess::new_config("burst".into(), cfg);
 
         let burst = proc.config.burst_limit();
         let interval = proc.config.burst_interval();
@@ -810,7 +823,7 @@ pub mod tests {
         cfg.restart = RestartPolicy::Always;
         cfg.restart_sec = Some(1.0);
         cfg.restart_max_delay_sec = Some(10.0);
-        let mut proc = ManagedProcess::new("backoff".into(), cfg);
+        let mut proc = ManagedProcess::new_config("backoff".into(), cfg);
 
         assert!((proc.restarts.current_delay - 1.0).abs() < 0.001);
         proc.restarts.advance_backoff(10.0);
@@ -832,7 +845,7 @@ pub mod tests {
         cfg.restart = RestartPolicy::Always;
         cfg.restart_sec = Some(1.0);
         cfg.runtime_success_sec = Some(0);
-        let mut proc = ManagedProcess::new("reset".into(), cfg);
+        let mut proc = ManagedProcess::new_config("reset".into(), cfg);
 
         proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(5));
         proc.restarts.current_delay = 16.0;
@@ -850,7 +863,7 @@ pub mod tests {
     #[test]
     fn test_restart_config_defaults() {
         let cfg = make_config("/bin/true", vec![]);
-        let proc = ManagedProcess::new("defaults".into(), cfg);
+        let proc = ManagedProcess::new_config("defaults".into(), cfg);
         assert_eq!(*proc.restart_policy(), RestartPolicy::Never);
         assert!((proc.restarts.current_delay - 1.0).abs() < 0.001);
         assert_eq!(proc.restarts.count, 0);
@@ -879,7 +892,8 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_transitions_to_stopped() {
-        let mut proc = ManagedProcess::new("svc".into(), make_config("/bin/sleep", vec!["60"]));
+        let mut proc =
+            ManagedProcess::new_config("svc".into(), make_config("/bin/sleep", vec!["60"]));
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
 
@@ -895,7 +909,7 @@ runtime_success_sec: 5
     async fn test_stop_requested_skips_restart() {
         let mut cfg = make_config("/bin/sleep", vec!["60"]);
         cfg.restart = RestartPolicy::Always;
-        let mut proc = ManagedProcess::new("svc".into(), cfg);
+        let mut proc = ManagedProcess::new_config("svc".into(), cfg);
         proc.spawn().unwrap();
 
         proc.request_stop();
@@ -913,7 +927,7 @@ runtime_success_sec: 5
     #[tokio::test]
     async fn test_normal_exit_not_affected_by_stop_flag() {
         let mut proc =
-            ManagedProcess::new("svc".into(), make_config("/bin/sh", vec!["-c", "exit 1"]));
+            ManagedProcess::new_config("svc".into(), make_config("/bin/sh", vec!["-c", "exit 1"]));
         proc.spawn().unwrap();
 
         let mut child = proc.take_child().unwrap();

@@ -7,7 +7,7 @@ use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
-use crate::process::ManagedProcess;
+use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use std::time::Instant;
 use tokio::sync::{mpsc, oneshot};
@@ -35,7 +35,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::ListRequest>,
     ) -> Result<Response<proto::ListResponse>, Status> {
-        let procs = self.mgr.read().await;
+        let procs = self.mgr.processes().await;
         let processes = procs.iter().map(process_to_proto).collect();
         Ok(Response::new(proto::ListResponse { processes }))
     }
@@ -45,7 +45,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name = request.into_inner().name;
-        let procs = self.mgr.read().await;
+        let procs = self.mgr.processes().await;
         let proc = procs
             .iter()
             .find(|p| p.name() == name)
@@ -60,7 +60,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::GetStatusRequest>,
     ) -> Result<Response<proto::GetStatusResponse>, Status> {
-        let procs = self.mgr.read().await;
+        let procs = self.mgr.processes().await;
         let total = procs.len() as u32;
         let (mut created, mut starting, mut running, mut stopping) = (0u32, 0, 0, 0);
         let (mut stopped, mut failed, mut exited) = (0u32, 0, 0);
@@ -173,8 +173,11 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         _request: Request<proto::GetConfigRequest>,
     ) -> Result<Response<proto::GetConfigResponse>, Status> {
-        let procs = self.mgr.read().await;
-        let runtime = procs.iter().filter(|p| p.is_runtime_created()).count() as u32;
+        let procs = self.mgr.processes().await;
+        let runtime = procs
+            .iter()
+            .filter(|p| p.origin() == ProcessOrigin::Runtime)
+            .count() as u32;
         let loaded = procs.len() as u32 - runtime;
         Ok(Response::new(proto::GetConfigResponse {
             source: self.mgr.config_source().to_string(),
@@ -328,7 +331,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new("test-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("test-proc".to_string(), cfg);
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "test-proc");
         assert_eq!(proto.command, "/usr/bin/sleep");
@@ -348,7 +351,7 @@ mod tests {
             before: vec!["dep-b".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new("detail-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("detail-proc".to_string(), cfg);
         let detail = process_detail(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
@@ -365,7 +368,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new("sleeper".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("sleeper".to_string(), cfg);
         proc.spawn().unwrap();
 
         let proto = process_to_proto(&proc);
@@ -389,7 +392,7 @@ mod tests {
             args: vec!["-c".to_string(), "exit 1".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new("fail-proc".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), cfg);
         proc.spawn().unwrap();
 
         let mut child = proc.take_child().unwrap();

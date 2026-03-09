@@ -7,7 +7,7 @@ use crate::command::{Command, ReloadResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
-use crate::process::ManagedProcess;
+use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use anyhow::Result;
 use log::{info, warn};
@@ -34,7 +34,7 @@ impl ProcessManager {
         let startup_order = resolve_startup_order(&configs);
         let processes: Vec<ManagedProcess> = configs
             .into_iter()
-            .map(|pd| ManagedProcess::new(pd.name, pd.config))
+            .map(|pd| ManagedProcess::new_config(pd.name, pd.config))
             .collect();
         Self {
             processes: Arc::new(RwLock::new(processes)),
@@ -118,7 +118,7 @@ impl ProcessManager {
         Ok(())
     }
 
-    pub(crate) async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
+    pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
         self.processes.read().await
     }
 
@@ -259,7 +259,9 @@ impl ProcessManager {
             removed_procs = Vec::new();
             let mut i = 0;
             while i < procs.len() {
-                if !procs[i].is_runtime_created() && !new_names.contains(procs[i].name()) {
+                if procs[i].origin() == ProcessOrigin::Config
+                    && !new_names.contains(procs[i].name())
+                {
                     let mut proc = procs.remove(i);
                     info!("[{}] config removed, stopping", proc.name());
                     if proc.is_running() {
@@ -287,7 +289,7 @@ impl ProcessManager {
                 } else {
                     let name = np.name;
                     info!("[{name}] new config found, adding");
-                    let mut proc = ManagedProcess::new(name.clone(), np.config);
+                    let mut proc = ManagedProcess::new_config(name.clone(), np.config);
                     if proc.should_start() {
                         if let Err(e) = proc.spawn() {
                             warn!("[{name}] failed to start: {e:#}");
@@ -393,13 +395,13 @@ mod tests {
 
         mgr.handle_start("svc", &exit_tx).await.unwrap();
         {
-            let procs = mgr.read().await;
+            let procs = mgr.processes().await;
             assert!(procs[0].is_running());
         }
 
         mgr.complete_restart("svc", &exit_tx).await;
 
-        let procs = mgr.read().await;
+        let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
         assert!(procs[0].is_running());
 
@@ -429,7 +431,7 @@ mod tests {
             "runtime-created process should not be removed by reload"
         );
 
-        let procs = mgr.read().await;
+        let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
         assert_eq!(procs[0].name(), "runtime-svc");
     }
