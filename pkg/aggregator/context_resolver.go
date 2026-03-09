@@ -30,9 +30,13 @@ type Context struct {
 
 	// Cached result of computeStrippedKey. The tag filter is process-lifetime
 	// config and ctx.Name is immutable, so this result is stable once computed.
-	strippedKey   ckey.ContextKey
-	strippedTags  tagset.CompositeTags
-	strippedValid bool
+	// strippedTaggerEntry/strippedMetricEntry are only set when strippedKey != the
+	// original context key (i.e. tags were actually removed); they are inserted into
+	// the shared tags.Store so contexts with the same filtered tag set share backing arrays.
+	strippedKey          ckey.ContextKey
+	strippedTaggerEntry  *tags.Entry
+	strippedMetricEntry  *tags.Entry
+	strippedValid        bool
 }
 
 type resolverEntry struct {
@@ -54,6 +58,10 @@ func (c *Context) Tags() tagset.CompositeTags {
 func (c *Context) release() {
 	c.taggerTags.Release()
 	c.metricTags.Release()
+	if c.strippedTaggerEntry != nil {
+		c.strippedTaggerEntry.Release()
+		c.strippedMetricEntry.Release()
+	}
 }
 
 // SizeInBytes returns the size of the context in bytes

@@ -246,13 +246,19 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 			if ctx.strippedValid {
 				strippedKey = ctx.strippedKey
 				if strippedKey != ck {
-					ctxTags = ctx.strippedTags
+					ctxTags = tagset.NewCompositeTags(
+						ctx.strippedTaggerEntry.Tags(),
+						ctx.strippedMetricEntry.Tags(),
+					)
 				}
 			} else {
-				strippedKey, ctxTags = s.computeStrippedKey(ctx, ck, keepTag)
+				var taggerEntry, metricEntry *tags.Entry
+				strippedKey, taggerEntry, metricEntry = s.computeStrippedKey(ctx, ck, keepTag)
 				ctx.strippedKey = strippedKey
 				if strippedKey != ck {
-					ctx.strippedTags = ctxTags
+					ctx.strippedTaggerEntry = taggerEntry
+					ctx.strippedMetricEntry = metricEntry
+					ctxTags = tagset.NewCompositeTags(taggerEntry.Tags(), metricEntry.Tags())
 				}
 				ctx.strippedValid = true
 			}
@@ -309,11 +315,13 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-// computeStrippedKey generates a context key and filtered tags for the given context,
+// computeStrippedKey generates a context key and filtered tag entries for the given context,
 // applying the keepTag filter to both tagger and metric tags.
 // Reuses the contextResolver's shared buffers and key generator (same pattern as trackContext).
-// ck is the original context key, returned unchanged when no tags are stripped (fast-path).
-func (s *TimeSampler) computeStrippedKey(ctx *Context, ck ckey.ContextKey, keepTag func(string) bool) (ckey.ContextKey, tagset.CompositeTags) {
+// ck is the original context key; when no tags are stripped the fast-path returns (ck, nil, nil).
+// Otherwise the filtered tags are inserted into the shared tags.Store so that contexts with
+// identical filtered tag sets share backing arrays rather than holding independent copies.
+func (s *TimeSampler) computeStrippedKey(ctx *Context, ck ckey.ContextKey, keepTag func(string) bool) (ckey.ContextKey, *tags.Entry, *tags.Entry) {
 	cr := s.contextResolver.resolver
 	cr.taggerBuffer.IncludeAll = false
 	cr.taggerBuffer.IncludeTag = keepTag
@@ -328,22 +336,21 @@ func (s *TimeSampler) computeStrippedKey(ctx *Context, ck ckey.ContextKey, keepT
 
 	tlmFilteredTags.Add(float64(len(ctx.metricTags.Tags()) - metricFiltered))
 
-	// Fast-path: no tags were stripped — return the original key and tags without copying.
+	// Fast-path: no tags were stripped — return the original key without allocating.
 	if taggerFiltered == len(ctx.taggerTags.Tags()) && metricFiltered == len(ctx.metricTags.Tags()) {
 		cr.taggerBuffer.Reset()
 		cr.metricBuffer.Reset()
-		return ck, ctx.Tags()
+		return ck, nil, nil
 	}
 
-	key, _, _ := cr.keyGenerator.GenerateWithTags2(ctx.Name, ctx.Host, cr.taggerBuffer, cr.metricBuffer)
-	// Capture tags after GenerateWithTags2 deduplication
-	filteredTags := tagset.NewCompositeTags(
-		append([]string(nil), cr.taggerBuffer.Get()...),
-		append([]string(nil), cr.metricBuffer.Get()...),
-	)
+	key, filteredTaggerKey, filteredMetricKey := cr.keyGenerator.GenerateWithTags2(ctx.Name, ctx.Host, cr.taggerBuffer, cr.metricBuffer)
+	// Insert filtered tags into the shared cache so contexts with the same filtered
+	// tag set share a single backing array instead of holding independent copies.
+	filteredTaggerEntry := cr.tagsCache.Insert(filteredTaggerKey, cr.taggerBuffer)
+	filteredMetricEntry := cr.tagsCache.Insert(filteredMetricKey, cr.metricBuffer)
 	cr.taggerBuffer.Reset()
 	cr.metricBuffer.Reset()
-	return key, filteredTags
+	return key, filteredTaggerEntry, filteredMetricEntry
 }
 
 func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool, tagFilter filterlist.TagMatcher) {
