@@ -20,7 +20,9 @@ type LabelSelectorsConfig struct {
 	Enabled            bool
 	MutateUnlabelled   bool
 	AddAksSelectors    bool
-	DisabledNamespaces []string
+	EnabledNamespaces              []string
+	EnabledNamespacesWebhookFilter bool
+	DisabledNamespaces             []string
 }
 
 // NewLabelSelectorsConfig initializes a config object from the datadog config.
@@ -29,7 +31,9 @@ func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConf
 		Enabled:            datadogConfig.GetBool("apm_config.instrumentation.enabled"),
 		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
 		AddAksSelectors:    datadogConfig.GetBool("admission_controller.add_aks_selectors"),
-		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
+		EnabledNamespaces:              datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
+		EnabledNamespacesWebhookFilter: datadogConfig.GetBool("admission_controller.auto_instrumentation.webhook_filter_namespaces"),
+		DisabledNamespaces:             datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
 	}
 }
 
@@ -70,6 +74,19 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 		Operator: metav1.LabelSelectorOpNotIn,
 		Values:   disabledNamespaces,
 	})
+
+	// Apply enabled namespaces so we only receive mutation requests for them.
+	// This is gated behind a config flag because it changes behavior for pods that use per-pod opt-in
+	// (admission.datadoghq.com/enabled=true) outside of enabled namespaces. Without this flag, those pods
+	// are still mutated at the application level; with this flag, the API server drops the request before
+	// it reaches the webhook.
+	if ls.config.EnabledNamespacesWebhookFilter && len(ls.config.EnabledNamespaces) > 0 {
+		namespaceSelector.MatchExpressions = append(namespaceSelector.MatchExpressions, metav1.LabelSelectorRequirement{
+			Key:      common.NamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   ls.config.EnabledNamespaces,
+		})
+	}
 
 	// AKS automatically adds some selector requirements if we don't so we need to add them to avoid conflicts when
 	// updating the webhook. Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
