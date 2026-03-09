@@ -10,6 +10,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 
@@ -215,9 +216,5 @@ func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]types.ErrorMsgS
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	errors := make(map[string]types.ErrorMsgSet, len(k.configErrors))
-	for k2, v := range k.configErrors {
-		errors[k2] = v
-	}
-	return errors
+	return maps.Clone(k.configErrors)
 }
