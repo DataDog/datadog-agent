@@ -475,6 +475,7 @@ cc_shared_library(
         "@curl//:curl_pkg",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg_error_pkg",
         "@libselinux//:selinux_pkg",
         "@libsepol//:sepol_pkg",
         "@libxslt//:exslt_pkg",
@@ -519,6 +520,7 @@ cc_binary(
         "@curl//:curl_pkg",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg_error_pkg",
         "@libselinux//:selinux_pkg",
         "@libsepol//:sepol_pkg",
         "@libxslt//:xslt_pkg",
@@ -564,6 +566,7 @@ cc_binary(
         "@bzip2//:bz2_pkg",
         "@curl//:curl_pkg",
         "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg_error_pkg",
         "@libselinux//:selinux_pkg",
         "@libsepol//:sepol_pkg",
         "@libxslt//:xslt_pkg",
