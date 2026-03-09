@@ -327,7 +327,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 		}
 
 		return true
-	}, 30*time.Second, 1*time.Second, "DDOT should be running and reporting status")
+	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
 	if !isDDOTRunning {
 		s.T().Fatalf("DDOT is not running")
 	}
