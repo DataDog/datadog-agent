@@ -211,6 +211,17 @@ func getTagsFromRule(rule *rules.Rule) RuleTags {
 	return ruleTags
 }
 
+// tagsToRuleTags converts a slice of "key:value" tags into RuleTags map.
+func tagsToRuleTags(tags []string) RuleTags {
+	ruleTags := make(RuleTags)
+	for _, tag := range tags {
+		if before, after, ok := strings.Cut(tag, ":"); ok {
+			ruleTags[before] = after
+		}
+	}
+	return ruleTags
+}
+
 // HandleRemediationStatus is called when a new ruleset is loaded
 // It cleans up the activeRemediations map from the kill actions and network isolation actions that are not persistent
 func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
@@ -278,7 +289,37 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 	}
 }
 
-func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, report *KillActionReport, action *rules.Action) {
+// SendCustomEventKillAction sends a custom remediation event for a resolved kill action report
+func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []string) {
+	killReport, ok := report.(*KillActionReport)
+	if !ok {
+		return
+	}
+	killReport.RLock()
+	status := string(killReport.Status)
+	scope := killReport.Scope
+	pid := killReport.Pid
+	killReport.RUnlock()
+
+	containerContext := RemediationContainerContext{}
+	if containerID, containerCreatedAt := killReport.GetContainerContext(); containerID != "" {
+		containerContext.ID = containerID
+		containerContext.CreatedAt = containerCreatedAt
+	}
+
+	remediation := &Remediation{
+		actionType:       RemediationTypeKill,
+		triggered:        true,
+		scope:            scope,
+		containerContext: containerContext,
+		processContext:   RemediationProcessContext{PID: pid},
+		ruleTags:         tagsToRuleTags(tags),
+	}
+	re := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
+	p.SendRemediationEvent(re)
+}
+
+func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, action *rules.Action) {
 	remediationKey := getRemediationKeyFromAction(rule, action)
 	p.activeRemediationsLock.Lock()
 	defer p.activeRemediationsLock.Unlock()
@@ -292,30 +333,9 @@ func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, rep
 		remediation.policy = ""
 		remediation.ruleTags = getTagsFromRule(rule)
 
-	} else {
-		// Don't create a new entry for kill actions that are not from the remediation feature
-		// It will only be used to send an event
-		remediation = &Remediation{
-			actionType: RemediationTypeKill,
-			triggered:  true,
-			processContext: RemediationProcessContext{
-				PID: ev.ProcessContext.Process.Pid,
-			},
-			containerContext: RemediationContainerContext{
-				ID:        string(ev.ProcessContext.Process.ContainerContext.ContainerID),
-				CreatedAt: ev.ProcessContext.Process.ContainerContext.CreatedAt,
-			},
-			scope: action.Def.Kill.Scope,
-		}
 	}
-
-	// Get kill status
-	report.RLock()
-	status := string(report.Status)
-	report.RUnlock()
-	// Send custom event
-	killActionEvent := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
-	p.SendRemediationEvent(killActionEvent)
+	// Don't send an event for kill action here
+	// The event will be sent when the report is resolved to handle the cases where disarmers are used
 }
 
 func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, report *RawPacketActionReport, action *rules.Action) {

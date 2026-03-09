@@ -55,9 +55,11 @@ type KillActionReport struct {
 	DisarmerType string
 
 	// internal
-	Pid      uint32
-	resolved bool
-	rule     *rules.Rule
+	Pid                uint32
+	resolved           bool
+	rule               *rules.Rule
+	containerID        string
+	containerCreatedAt uint64
 }
 
 // JKillActionReport used to serialize date
@@ -127,4 +129,11 @@ func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
 	defer k.RUnlock()
 
 	return k.rule.ID == ruleID
+}
+
+// GetContainerContext returns the container ID and created_at when the process was in a container, otherwise empty/zero.
+func (k *KillActionReport) GetContainerContext() (containerID string, createdAt uint64) {
+	k.RLock()
+	defer k.RUnlock()
+	return k.containerID, k.containerCreatedAt
 }

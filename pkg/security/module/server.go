@@ -328,6 +328,15 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 	}
 }
 
+// SendCustomEventKillAction sends a custom remediation event for each resolved kill action report
+func SendCustomEventKillAction(probe *sprobe.Probe, tags []string, actionReports []model.ActionReport) {
+	for _, report := range actionReports {
+		if _, ok := report.(*sprobe.KillActionReport); ok {
+			probe.SendCustomEventKillAction(report, tags)
+		}
+	}
+}
+
 func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -359,6 +368,8 @@ func (a *APIServer) start(ctx context.Context) {
 					return false
 				}
 
+				// For kill actions, send a custom remediation event per resolved kill report
+				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
 					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {

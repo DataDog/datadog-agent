@@ -324,6 +324,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
 			}
+			if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+				report.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+				report.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+			}
 			if dismantled {
 				report.Status = KillActionStatusRuleDismantled
 				seclog.Warnf("skipping kill action of rule `%s` because it has been dismantled", rule.ID)
@@ -422,6 +426,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		DetectedAt: ev.ResolveEventTime(),
 		Pid:        ev.ProcessContext.Pid,
 		rule:       rule,
+	}
+	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+		report.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		report.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 	}
 
 	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {
