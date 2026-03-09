@@ -262,7 +262,7 @@ func (v *tracerPayloadView) GetService() string          { return "" } // Servic
 func (v *tracerPayloadView) GetHostname() string         { return v.payload.Hostname }
 func (v *tracerPayloadView) GetContainerID() string      { return v.payload.ContainerID }
 func (v *tracerPayloadView) GetTimestampUnixNano() int64 { return v.receivedAt }
-func (v *tracerPayloadView) GetDurationNano() int64      { return 0 } // Would need to calculate
+func (v *tracerPayloadView) GetDurationNano() int64      { return 0 } // TODO(agent-q-anomaly-detection): Would need to calculate
 func (v *tracerPayloadView) GetPriority() int32 {
 	if len(v.payload.Chunks) > 0 {
 		return v.payload.Chunks[0].Priority
