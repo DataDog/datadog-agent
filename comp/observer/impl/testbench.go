@@ -637,7 +637,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 					for _, anomaly := range result.Anomalies {
 						anomaly.Type = observerdef.AnomalyTypeMetric
 						anomaly.DetectorName = detector.Name()
-						anomaly.Source = observerdef.MetricName(seriesCopy.Name)
+						anomaly.Source = observerdef.MetricName(adapterMetricID(seriesCopy.Name, seriesCopy.Tags))
 						anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags))
 						if anomaly.DetectorName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
 							fmt.Printf("  Warning: dropping invalid anomaly (detector=%q source=%q ts=%d)\n",

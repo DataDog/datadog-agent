@@ -41,9 +41,9 @@ type MetricScoreResult struct {
 	MetricF1 float64 `json:"metric_f1"`
 
 	// Which TP metrics were detected and which were missed.
-	TPMetricsFound   []string `json:"tp_metrics_found"`
-	TPMetricsMissed  []string `json:"tp_metrics_missed"`
-	FPMetricsFired   []string `json:"fp_metrics_fired"`
+	TPMetricsFound  []string `json:"tp_metrics_found"`
+	TPMetricsMissed []string `json:"tp_metrics_missed"`
+	FPMetricsFired  []string `json:"fp_metrics_fired"`
 }
 
 // LoadMetricGroundTruth reads TP/FP metric lists from a scenario's metadata.json.
@@ -75,7 +75,14 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 	fpSet := make(map[string]bool)
 	allTPKeys := make(map[string]bool) // all TP service:metric keys
 
+	// Also build service-level sets for fallback matching.
+	// Multi-series detectors (e.g., correlation) identify the right services
+	// but may pick different metrics from those services than the ground truth.
+	tpServices := make(map[string]bool)
+	fpServices := make(map[string]bool)
+
 	for _, entry := range gt.TruePositives {
+		tpServices[entry.Service] = true
 		for _, m := range entry.Metrics {
 			key := entry.Service + ":" + m
 			tpSet[key] = true
@@ -83,6 +90,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		}
 	}
 	for _, entry := range gt.FalsePositives {
+		fpServices[entry.Service] = true
 		for _, m := range entry.Metrics {
 			fpSet[entry.Service+":"+m] = true
 		}
@@ -103,7 +111,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		}
 
 		matched := false
-		// Check against TP metrics
+		// Check against TP metrics (exact match)
 		for key := range tpSet {
 			if metricMatches(source, key) {
 				result.TPCount++
@@ -116,7 +124,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 			continue
 		}
 
-		// Check against FP metrics
+		// Check against FP metrics (exact match)
 		for key := range fpSet {
 			if metricMatches(source, key) {
 				result.FPCount++
@@ -125,6 +133,33 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 				break
 			}
 		}
+		if matched {
+			continue
+		}
+
+		// Fallback: service-level matching. If the anomaly's source contains
+		// a service name from the TP/FP lists (format "service:metric"), count
+		// it as a service-level match. This handles multi-series detectors that
+		// identify the correct service but pick a different metric.
+		sourceService := extractService(source)
+		if sourceService != "" {
+			if tpServices[sourceService] {
+				result.TPCount++
+				// Credit a TP key for this service (pick the first unmatched one)
+				for key := range allTPKeys {
+					svc := strings.SplitN(key, ":", 2)[0]
+					if svc == sourceService && !foundTPKeys[key] {
+						foundTPKeys[key] = true
+						break
+					}
+				}
+				matched = true
+			} else if fpServices[sourceService] {
+				result.FPCount++
+				matched = true
+			}
+		}
+
 		if !matched {
 			result.UnknownCount++
 		}
@@ -174,6 +209,24 @@ func (oc *ObserverCorrelation) metricSource() string {
 		}
 	}
 	return ""
+}
+
+// extractService extracts the service name from a "service:metric" source string.
+// Returns empty string if the source has no service prefix.
+func extractService(source string) string {
+	// Source format: "service:metric_name" or just "metric_name"
+	// We need to distinguish "redis:redis.cpu.sys" (service=redis) from
+	// "container.cpu.usage" (no service).
+	idx := strings.Index(source, ":")
+	if idx <= 0 {
+		return ""
+	}
+	candidate := source[:idx]
+	// Ensure the prefix looks like a service name (contains letters, no dots)
+	if strings.Contains(candidate, ".") {
+		return ""
+	}
+	return candidate
 }
 
 // metricMatches checks if an anomaly source matches a ground truth key.

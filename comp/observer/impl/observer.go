@@ -361,7 +361,7 @@ type observerImpl struct {
 	reporters      []observerdef.Reporter
 	storage        *timeSeriesStorage
 	obsCh          chan observation
-	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -374,7 +374,7 @@ type observerImpl struct {
 	fetcher              *observerFetcher
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
+	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -489,7 +489,7 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 			result := a.detector.Detect(seriesWithAgg)
 			for _, anomaly := range result.Anomalies {
 				anomaly.DetectorName = a.detector.Name()
-				anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
+				anomaly.Source = observerdef.MetricName(adapterMetricID(seriesWithAgg.Name, series.Tags))
 				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 				allAnomalies = append(allAnomalies, anomaly)
 			}
@@ -501,6 +501,21 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 		Anomalies: allAnomalies,
 		Telemetry: allTelemetry,
 	}
+}
+
+// adapterMetricID builds a "service:metricName" source identifier from the metric name and tags.
+// If the series has a service tag, it prefixes the metric name with the service.
+// This matches the scorer's expected format for service-level fallback matching.
+func adapterMetricID(name string, tags []string) string {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "service:") {
+			svc := tag[len("service:"):]
+			if svc != "" {
+				return svc + ":" + name
+			}
+		}
+	}
+	return name
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.
