@@ -57,7 +57,7 @@ func ExtractDaemonSet(ctx processors.ProcessorContext, ds *appsv1.DaemonSet) *mo
 	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
 
 	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveUnifiedServiceTags(ds.ObjectMeta.Labels)...)
-	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveMetadataTags(ds.ObjectMeta.Labels, ds.ObjectMeta.Annotations)...)
+	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveTeamTag(ds.ObjectMeta.Labels, ds.ObjectMeta.Annotations)...)
 
 	return &daemonSet
 }

@@ -55,7 +55,7 @@ func ExtractStatefulSet(ctx processors.ProcessorContext, sts *v1.StatefulSet) *m
 	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
 
 	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveUnifiedServiceTags(sts.ObjectMeta.Labels)...)
-	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveMetadataTags(sts.ObjectMeta.Labels, sts.ObjectMeta.Annotations)...)
+	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveTeamTag(sts.ObjectMeta.Labels, sts.ObjectMeta.Annotations)...)
 
 	return &statefulSet
 }

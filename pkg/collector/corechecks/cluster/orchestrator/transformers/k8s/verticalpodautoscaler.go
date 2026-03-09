@@ -37,7 +37,7 @@ func ExtractVerticalPodAutoscaler(ctx processors.ProcessorContext, v *v1.Vertica
 	}
 
 	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
-	m.Tags = append(m.Tags, transformers.RetrieveMetadataTags(v.ObjectMeta.Labels, v.ObjectMeta.Annotations)...)
+	m.Tags = append(m.Tags, transformers.RetrieveTeamTag(v.ObjectMeta.Labels, v.ObjectMeta.Annotations)...)
 
 	return m
 }

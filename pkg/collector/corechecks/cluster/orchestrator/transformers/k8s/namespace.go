@@ -30,7 +30,7 @@ func ExtractNamespace(ctx processors.ProcessorContext, ns *corev1.Namespace) *mo
 	}
 
 	n.Tags = append(n.Tags, transformers.RetrieveUnifiedServiceTags(ns.ObjectMeta.Labels)...)
-	n.Tags = append(n.Tags, transformers.RetrieveMetadataTags(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations)...)
+	n.Tags = append(n.Tags, transformers.RetrieveTeamTag(ns.ObjectMeta.Labels, ns.ObjectMeta.Annotations)...)
 
 	return n
 }

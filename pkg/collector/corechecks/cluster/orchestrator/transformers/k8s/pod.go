@@ -85,7 +85,7 @@ func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	}
 
 	podModel.Tags = append(podModel.Tags, transformers.RetrieveUnifiedServiceTags(p.ObjectMeta.Labels)...)
-	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations)...)
+	podModel.Tags = append(podModel.Tags, transformers.RetrieveTeamTag(p.ObjectMeta.Labels, p.ObjectMeta.Annotations)...)
 
 	return &podModel
 }

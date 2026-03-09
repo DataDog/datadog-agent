@@ -48,7 +48,7 @@ func ExtractServiceAccount(ctx processors.ProcessorContext, sa *corev1.ServiceAc
 	}
 
 	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveUnifiedServiceTags(sa.ObjectMeta.Labels)...)
-	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveMetadataTags(sa.ObjectMeta.Labels, sa.ObjectMeta.Annotations)...)
+	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveTeamTag(sa.ObjectMeta.Labels, sa.ObjectMeta.Annotations)...)
 
 	return serviceAccount
 }

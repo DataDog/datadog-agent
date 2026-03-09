@@ -48,7 +48,7 @@ func TestRetrieveUST(t *testing.T) {
 	}
 }
 
-func TestRetrieveMetadataTags(t *testing.T) {
+func TestRetrieveTeamTag(t *testing.T) {
 	tests := []struct {
 		name                  string
 		labels                map[string]string
@@ -63,7 +63,7 @@ func TestRetrieveMetadataTags(t *testing.T) {
 				"annotation-key": "annotation-value",
 			},
 			autoTeamTagCollection: true,
-			want:                  []string{},
+			want:                  nil,
 		},
 		{
 			name: "auto team tag collection enabled - team in labels",
@@ -101,7 +101,7 @@ func TestRetrieveMetadataTags(t *testing.T) {
 			},
 			annotations:           map[string]string{},
 			autoTeamTagCollection: false,
-			want:                  []string{},
+			want:                  nil,
 		},
 	}
 	for _, tt := range tests {
@@ -109,7 +109,7 @@ func TestRetrieveMetadataTags(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("auto_team_tag_collection", tt.autoTeamTagCollection)
 
-			got := RetrieveMetadataTags(tt.labels, tt.annotations)
+			got := RetrieveTeamTag(tt.labels, tt.annotations)
 			assert.ElementsMatch(t, tt.want, got)
 		})
 	}

@@ -41,7 +41,7 @@ func ExtractStorageClass(ctx processors.ProcessorContext, sc *storagev1.StorageC
 		msg.VolumeBindingMode = string(*sc.VolumeBindingMode)
 	}
 
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(sc.ObjectMeta.Labels, sc.ObjectMeta.Annotations)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveTeamTag(sc.ObjectMeta.Labels, sc.ObjectMeta.Annotations)...)
 
 	return msg
 }

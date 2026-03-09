@@ -27,7 +27,7 @@ func ExtractPodDisruptionBudget(ctx processors.ProcessorContext, pdb *policyv1.P
 		Status:   extractPodDisruptionBudgetStatus(&pdb.Status),
 	}
 	result.Tags = append(result.Tags, transformers.RetrieveUnifiedServiceTags(pdb.ObjectMeta.Labels)...)
-	result.Tags = append(result.Tags, transformers.RetrieveMetadataTags(pdb.ObjectMeta.Labels, pdb.ObjectMeta.Annotations)...)
+	result.Tags = append(result.Tags, transformers.RetrieveTeamTag(pdb.ObjectMeta.Labels, pdb.ObjectMeta.Annotations)...)
 	return &result
 }
 

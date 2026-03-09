@@ -25,7 +25,7 @@ func ExtractRoleBinding(ctx processors.ProcessorContext, rb *rbacv1.RoleBinding)
 	}
 
 	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(rb.ObjectMeta.Labels)...)
-	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(rb.ObjectMeta.Labels, rb.ObjectMeta.Annotations)...)
+	msg.Tags = append(msg.Tags, transformers.RetrieveTeamTag(rb.ObjectMeta.Labels, rb.ObjectMeta.Annotations)...)
 
 	return msg
 }

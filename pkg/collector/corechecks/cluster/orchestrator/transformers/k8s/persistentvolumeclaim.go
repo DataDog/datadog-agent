@@ -33,7 +33,7 @@ func ExtractPersistentVolumeClaim(ctx processors.ProcessorContext, pvc *corev1.P
 	extractStatus(pvc, message)
 
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pvc.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(pvc.ObjectMeta.Labels, pvc.ObjectMeta.Annotations)...)
+	message.Tags = append(message.Tags, transformers.RetrieveTeamTag(pvc.ObjectMeta.Labels, pvc.ObjectMeta.Annotations)...)
 
 	return message
 }

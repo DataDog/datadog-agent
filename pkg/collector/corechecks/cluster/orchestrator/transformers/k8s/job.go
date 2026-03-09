@@ -63,7 +63,7 @@ func ExtractJob(ctx processors.ProcessorContext, j *batchv1.Job) *model.Job {
 	job.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(j.Spec.Template)
 
 	job.Tags = append(job.Tags, transformers.RetrieveUnifiedServiceTags(j.ObjectMeta.Labels)...)
-	job.Tags = append(job.Tags, transformers.RetrieveMetadataTags(j.ObjectMeta.Labels, j.ObjectMeta.Annotations)...)
+	job.Tags = append(job.Tags, transformers.RetrieveTeamTag(j.ObjectMeta.Labels, j.ObjectMeta.Annotations)...)
 
 	return &job
 }

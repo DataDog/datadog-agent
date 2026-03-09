@@ -29,7 +29,7 @@ func ExtractClusterRole(ctx processors.ProcessorContext, cr *rbacv1.ClusterRole)
 	}
 
 	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveUnifiedServiceTags(cr.ObjectMeta.Labels)...)
-	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveMetadataTags(cr.ObjectMeta.Labels, cr.ObjectMeta.Annotations)...)
+	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveTeamTag(cr.ObjectMeta.Labels, cr.ObjectMeta.Annotations)...)
 
 	return clusterRole
 }

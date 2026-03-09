@@ -84,7 +84,7 @@ func ExtractPersistentVolume(ctx processors.ProcessorContext, pv *corev1.Persist
 	addAdditionalPersistentVolumeTags(message)
 
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pv.ObjectMeta.Labels)...)
-	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(pv.ObjectMeta.Labels, pv.ObjectMeta.Annotations)...)
+	message.Tags = append(message.Tags, transformers.RetrieveTeamTag(pv.ObjectMeta.Labels, pv.ObjectMeta.Annotations)...)
 
 	return message
 }

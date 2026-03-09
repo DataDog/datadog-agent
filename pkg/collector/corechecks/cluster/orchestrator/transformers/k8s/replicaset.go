@@ -45,7 +45,7 @@ func ExtractReplicaSet(ctx processors.ProcessorContext, rs *appsv1.ReplicaSet) *
 	replicaSet.ResourceRequirements = ExtractPodTemplateResourceRequirements(rs.Spec.Template)
 
 	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveUnifiedServiceTags(rs.ObjectMeta.Labels)...)
-	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveMetadataTags(rs.ObjectMeta.Labels, rs.ObjectMeta.Annotations)...)
+	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveTeamTag(rs.ObjectMeta.Labels, rs.ObjectMeta.Annotations)...)
 
 	return &replicaSet
 }
