@@ -168,7 +168,7 @@ func valuesDiffer(first, second map[string]string, prefix string) bool {
 func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Service, ddConf model.Config) ([]integration.Config, error) {
 	var configs []integration.Config
 
-	newErrors := make(map[string]types.ErrorMsgSet)
+	setServiceIDs := map[string]struct{}{}
 
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
@@ -177,6 +177,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		}
 
 		serviceID := apiserver.EntityForService(svc)
+		setServiceIDs[serviceID] = struct{}{}
 		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
 			errMsgSet := make(types.ErrorMsgSet)
@@ -184,7 +185,13 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 				log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
 			}
-			newErrors[serviceID] = errMsgSet
+			k.mu.Lock()
+			k.configErrors[serviceID] = errMsgSet
+			k.mu.Unlock()
+		} else {
+			k.mu.Lock()
+			delete(k.configErrors, serviceID)
+			k.mu.Unlock()
 		}
 
 		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
@@ -201,14 +208,33 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		configs = append(configs, svcConf...)
 	}
 
-	k.mu.Lock()
-	k.configErrors = newErrors
+	k.cleanErrorsOfDeletedServices(setServiceIDs)
+
 	if k.telemetryStore != nil {
-		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+		k.mu.RLock()
+		n := len(k.configErrors)
+		k.mu.RUnlock()
+		k.telemetryStore.Errors.Set(float64(n), names.KubeServices)
 	}
-	k.mu.Unlock()
 
 	return configs, nil
+}
+
+func (k *KubeServiceConfigProvider) cleanErrorsOfDeletedServices(setCurrentServiceIDs map[string]struct{}) {
+	setServiceIDsWithErrors := map[string]struct{}{}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	for serviceID := range k.configErrors {
+		setServiceIDsWithErrors[serviceID] = struct{}{}
+	}
+
+	for serviceID := range setServiceIDsWithErrors {
+		if _, exists := setCurrentServiceIDs[serviceID]; !exists {
+			delete(k.configErrors, serviceID)
+		}
+	}
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes service
