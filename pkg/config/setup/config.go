@@ -1485,6 +1485,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"ntp",
 		"process",
 		"service_discovery",
+		"snmp",
+		"cisco-sdwan",
+		"versa",
+		"cisco-aci",
 		"system",
 		"system_core",
 		"system_swap",
@@ -1495,6 +1499,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"wincrashdetect",
 		"winkmem",
 		"winproc",
+		"windows_service",
 	})
 	// integration.basic.excluded: checks to exclude (user configured)
 	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
@@ -1534,6 +1539,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
+
+	// Logon Duration (EUDM)
+	config.BindEnvAndSetDefault("logon_duration.enabled", false)
 
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
@@ -2914,7 +2922,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
 		return nil
 	}
 
@@ -3028,7 +3036,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
 	return nil
 }
 

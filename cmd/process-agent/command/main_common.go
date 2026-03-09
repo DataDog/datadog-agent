@@ -15,8 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -52,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
-	"github.com/DataDog/datadog-agent/comp/process/profiler"
+	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
@@ -163,7 +163,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 
 		// Provide autoexit module
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		wmcatalogremote.GetCatalog(),

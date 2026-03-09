@@ -2602,6 +2602,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 				}
 				in.Delim('}')
 			}
+		case "variables":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Variables).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2880,6 +2886,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			}
 			out.RawByte('}')
 		}
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
