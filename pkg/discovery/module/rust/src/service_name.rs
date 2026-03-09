@@ -107,35 +107,34 @@ pub fn get(
     exe = trim_symbols_from_exe(exe);
     exe = normalize_exe_name(exe);
 
-    // Fallback: use the exe basename, stripping the trailing file extension.
-    // Matches the Go fallback in usm.ExtractServiceMetadata
-    // (pkg/discovery/usm/service.go) which uses strings.LastIndex(exe, ".").
-    let fallback = || {
-        let name = match exe.rfind('.') {
-            Some(idx) if idx > 0 => exe.get(..idx),
-            _ => Some(exe),
-        }?;
-        Some(ServiceNameMetadata::new(
-            name,
-            ServiceNameSource::CommandLine,
-        ))
-    };
-
-    match exe {
-        "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)).or_else(fallback),
-        "puma" => rails::extract_name(cmdline, ctx).or_else(fallback),
-        "beam.smp" | "beam" => erlang::extract_name(cmdline).or_else(fallback),
-        "php" => php::extract_name(cmdline, ctx).or_else(fallback),
+    let metadata = match exe {
+        "gunicorn" => Some(gunicorn::extract_name(cmdline, &ctx.envs)),
+        "puma" => rails::extract_name(cmdline, ctx),
+        "beam.smp" | "beam" => erlang::extract_name(cmdline),
+        "php" => php::extract_name(cmdline, ctx),
         &_ => match language {
-            Language::Python => python::extract_name(cmdline, ctx).or_else(fallback),
-            Language::Ruby => ruby::extract_name(cmdline).or_else(fallback),
-            Language::Java => java::extract_name(cmdline, ctx).or_else(fallback),
-            Language::NodeJS => nodejs::extract_name(cmdline, ctx).or_else(fallback),
-            Language::DotNet => dotnet::extract_name(cmdline).or_else(fallback),
-            Language::PHP => php::extract_name(cmdline, ctx).or_else(fallback),
-            _ => fallback(),
+            Language::Python => python::extract_name(cmdline, ctx),
+            Language::Ruby => ruby::extract_name(cmdline),
+            Language::Java => java::extract_name(cmdline, ctx),
+            Language::NodeJS => nodejs::extract_name(cmdline, ctx),
+            Language::DotNet => dotnet::extract_name(cmdline),
+            Language::PHP => php::extract_name(cmdline, ctx),
+            _ => None,
         },
+    };
+    if metadata.is_some() {
+        return metadata;
     }
+
+    // Fallback: use the exe basename, stripping the trailing file extension.
+    let name = match exe.rfind('.') {
+        Some(idx) if idx > 0 => exe.get(..idx)?,
+        _ => exe,
+    };
+    Some(ServiceNameMetadata::new(
+        name,
+        ServiceNameSource::CommandLine,
+    ))
 }
 
 fn trim_at_sep_end(s: &str, sep: char) -> &str {
@@ -543,10 +542,6 @@ mod tests {
             ))
         );
     }
-
-    // Tests for fallback behavior: when a language-specific detector returns
-    // None, we fall back to using the exe basename (matching Go's
-    // usm.ExtractServiceMetadata fallback in pkg/discovery/usm/service.go).
 
     #[test]
     fn fallback_when_python_detector_fails() {
