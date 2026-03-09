@@ -42,7 +42,7 @@ func NewPipeline(
 	compression logscompression.Component,
 	instanceID string,
 ) *Pipeline {
-	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
+	strategyInput := make(chan *message.Message, config.MessageChannelSize(cfg))
 	flushChan := make(chan struct{})
 
 	var encoder processor.Encoder
@@ -57,7 +57,7 @@ func NewPipeline(
 	}
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
 
-	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
+	inputChan := make(chan *message.Message, config.MessageChannelSize(cfg))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)

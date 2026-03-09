@@ -133,6 +133,12 @@ func (l *LogsConfigKeys) compressionKind() string {
 		}
 	}
 
+	if !l.config.IsConfigured(configKey) {
+		if p := getActiveProfile(l.config); p != nil && p.compressionKind != nil {
+			return *p.compressionKind
+		}
+	}
+
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
 		return compressionKind
 	}
@@ -143,14 +149,26 @@ func (l *LogsConfigKeys) compressionKind() string {
 
 func (l *LogsConfigKeys) compressionLevel() int {
 	if l.compressionKind() == ZstdCompressionKind {
-		level := l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+		key := l.getConfigKey("zstd_compression_level")
+		if !l.config.IsConfigured(key) {
+			if p := getActiveProfile(l.config); p != nil && p.zstdCompressionLevel != nil {
+				return *p.zstdCompressionLevel
+			}
+		}
+		level := l.getConfig().GetInt(key)
 		if strings.HasPrefix(l.prefix, "logs_config.") {
 			log.Debugf("Logs pipeline is using compression zstd at level: %d", level)
 		}
 		return level
 	}
 
-	level := l.getConfig().GetInt(l.getConfigKey("compression_level"))
+	key := l.getConfigKey("compression_level")
+	if !l.config.IsConfigured(key) {
+		if p := getActiveProfile(l.config); p != nil && p.gzipCompressionLevel != nil {
+			return *p.gzipCompressionLevel
+		}
+	}
+	level := l.getConfig().GetInt(key)
 	if strings.HasPrefix(l.prefix, "logs_config.") {
 		log.Debugf("Logs pipeline is using compression gzip atlevel: %d", level)
 	}
@@ -158,7 +176,14 @@ func (l *LogsConfigKeys) compressionLevel() int {
 }
 
 func (l *LogsConfigKeys) useCompression() bool {
-	return l.getConfig().GetBool(l.getConfigKey("use_compression"))
+	key := l.getConfigKey("use_compression")
+	if l.config.IsConfigured(key) {
+		return l.config.GetBool(key)
+	}
+	if p := getActiveProfile(l.config); p != nil && p.useCompression != nil {
+		return *p.useCompression
+	}
+	return l.config.GetBool(key)
 }
 
 func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
@@ -225,6 +250,11 @@ func (l *LogsConfigKeys) batchMaxConcurrentSend() int {
 	if batchMaxConcurrentSend < 0 {
 		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxConcurrentSend)
 		return pkgconfigsetup.DefaultBatchMaxConcurrentSend
+	}
+	if !l.config.IsConfigured(key) {
+		if p := getActiveProfile(l.config); p != nil && p.batchMaxConcurrentSend != nil {
+			return *p.batchMaxConcurrentSend
+		}
 	}
 	return batchMaxConcurrentSend
 }

@@ -141,7 +141,7 @@ func tcpSender(
 	return tcpSenderFactory(
 		cfg,
 		sink,
-		cfg.GetInt("logs_config.payload_channel_size"),
+		config.PayloadChannelSize(cfg),
 		serverlessMeta,
 		endpoints,
 		destinationsContext,
@@ -193,7 +193,7 @@ func httpSender(
 	return httpSenderFactory(
 		cfg,
 		sink,
-		cfg.GetInt("logs_config.payload_channel_size"),
+		config.PayloadChannelSize(cfg),
 		serverlessMeta,
 		endpoints,
 		destinationsContext,

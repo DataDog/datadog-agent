@@ -103,7 +103,7 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
 	pipelineProvider := pipeline.NewProvider(
-		a.config.GetInt("logs_config.pipelines"),
+		config.PipelinesCount(a.config),
 		a.auditor,
 		diagnosticMessageReceiver,
 		processingRules,
