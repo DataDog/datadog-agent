@@ -64,7 +64,7 @@ func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]s
 	}
 
 	highCardinalityTags := map[string]string{
-		"instance_id": tags["aas.environment.instance_id"],
+		"instance": tags["aas.environment.instance_name"],
 	}
 
 	return baseTags, highCardinalityTags
