@@ -234,6 +234,10 @@ CLAUDE_PERSONAL.md
 **/.claude/settings.local.json
 **/CLAUDE.local.md
 
+# Claude Code auto-jira work tracking (local only, never commit)
+AUTO_JIRA.md
+.claude/skills/auto-jira/SKILL.notes.md
+
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
