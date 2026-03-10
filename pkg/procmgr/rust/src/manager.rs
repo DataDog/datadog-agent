@@ -438,8 +438,7 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        mgr.handle_create("runtime-svc".to_string(), config)
-            .await?;
+        mgr.handle_create("runtime-svc".to_string(), config).await?;
 
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
@@ -489,11 +488,11 @@ mod tests {
         let mgr = ProcessManager::new(config_loader.clone());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-        mgr.handle_start("svc-a", &exit_tx).await.unwrap();
+        mgr.handle_start("svc-a", &exit_tx).await?;
 
         // Reload adds svc-b
         config_loader.set(vec![sleep_def("svc-a"), sleep_def("svc-b")]);
-        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.added.contains(&"svc-b".to_string()));
 
         // svc-b auto-started by reload; start svc-a again is already running
@@ -504,15 +503,16 @@ mod tests {
             procs.iter().all(|p| !p.is_running()),
             "all processes (including reload-added) should be stopped"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_shutdown_after_reload_with_runtime_process() {
+    async fn test_shutdown_after_reload_with_runtime_process() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-        mgr.handle_start("svc-a", &exit_tx).await.unwrap();
+        mgr.handle_start("svc-a", &exit_tx).await?;
 
         // Create a runtime process
         mgr.handle_create(
@@ -523,13 +523,12 @@ mod tests {
                 ..Default::default()
             },
         )
-        .await
-        .unwrap();
-        mgr.handle_start("runtime-svc", &exit_tx).await.unwrap();
+        .await?;
+        mgr.handle_start("runtime-svc", &exit_tx).await?;
 
         // Reload removes svc-a but preserves runtime-svc
         config_loader.set(vec![]);
-        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.removed.contains(&"svc-a".to_string()));
 
         mgr.shutdown().await;
@@ -539,6 +538,7 @@ mod tests {
             procs.iter().all(|p| !p.is_running()),
             "runtime-created process should also be shut down"
         );
+        Ok(())
     }
 
     #[tokio::test]
@@ -556,7 +556,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_includes_runtime_process_in_startup_order() {
+    async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]));
         mgr.handle_create(
             "svc-b".to_string(),
@@ -567,8 +567,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .await
-        .unwrap();
+        .await?;
 
         let order = mgr.startup_order.read().await;
         let procs = mgr.processes().await;
@@ -578,10 +577,11 @@ mod tests {
             vec!["svc-a", "svc-b"],
             "runtime process with after-dep should appear in startup order"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reload_recomputes_startup_order() {
+    async fn test_reload_recomputes_startup_order() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -605,7 +605,7 @@ mod tests {
             },
             sleep_def("svc-b"),
         ]);
-        mgr.handle_reload_config(&exit_tx).await.unwrap();
+        mgr.handle_reload_config(&exit_tx).await?;
 
         let order = mgr.startup_order.read().await;
         let procs = mgr.processes().await;
@@ -615,5 +615,6 @@ mod tests {
             vec!["svc-b", "svc-api"],
             "startup order should be recomputed with dependency constraints"
         );
+        Ok(())
     }
 }
