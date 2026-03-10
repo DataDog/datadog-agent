@@ -191,6 +191,82 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 	require.Equal(t, "tag_value", rt.containerInstanceTags["tag_key"])
 }
 
+// TestParseTasksFromV4TasksEndpoint tests that parseTasksFromV4TasksEndpoint correctly parses
+// all tasks returned by the v4 /tasks endpoint, including DaemonName for daemon-scheduled tasks.
+func TestParseTasksFromV4TasksEndpoint(t *testing.T) {
+	// Serve the /tasks endpoint from the daemon agent's own v4 URI
+	dummyECS, err := testutil.NewDummyECS(
+		testutil.FileHandlerOption("/v4/daemon/tasks", "./testdata/tasks_v4.json"),
+	)
+	require.NoError(t, err)
+	ts := dummyECS.Start()
+	defer ts.Close()
+
+	c := &collector{
+		metaV4:       v3or4.NewClient(ts.URL+"/v4/daemon", "v4"),
+		resourceTags: make(map[string]resourceTags),
+		seen:         make(map[workloadmeta.EntityID]struct{}),
+	}
+	c.taskCollectionParser = c.parseTasksFromV4TasksEndpoint
+
+	events, err := c.parseTasksFromV4TasksEndpoint(context.Background())
+	require.NoError(t, err)
+
+	// expect 2 task events + 2 container events
+	require.Len(t, events, 4)
+
+	var serviceTask, daemonTask *workloadmeta.ECSTask
+	for _, event := range events {
+		require.Equal(t, workloadmeta.EventTypeSet, event.Type)
+		if task, ok := event.Entity.(*workloadmeta.ECSTask); ok {
+			if task.Family == "my-service" {
+				serviceTask = task
+			} else if task.Family == "my-daemon" {
+				daemonTask = task
+			}
+		}
+	}
+
+	require.NotNil(t, serviceTask, "service task should be parsed")
+	require.Equal(t, "my-service", serviceTask.ServiceName)
+	require.Empty(t, serviceTask.DaemonName)
+
+	require.NotNil(t, daemonTask, "daemon task should be parsed")
+	require.Equal(t, "my-daemon", daemonTask.DaemonName)
+	require.Empty(t, daemonTask.ServiceName)
+}
+
+// TestParseTasksFromV4TasksEndpointUnsetsStaleTasks verifies that tasks present in a
+// previous pull but absent from the current /tasks response are emitted as unset events.
+func TestParseTasksFromV4TasksEndpointUnsetsStaleTasks(t *testing.T) {
+	dummyECS, err := testutil.NewDummyECS(
+		testutil.FileHandlerOption("/v4/daemon/tasks", "./testdata/tasks_v4.json"),
+	)
+	require.NoError(t, err)
+	ts := dummyECS.Start()
+	defer ts.Close()
+
+	staleID := workloadmeta.EntityID{Kind: workloadmeta.KindECSTask, ID: "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/stale000"}
+
+	c := &collector{
+		metaV4:       v3or4.NewClient(ts.URL+"/v4/daemon", "v4"),
+		resourceTags: make(map[string]resourceTags),
+		seen:         map[workloadmeta.EntityID]struct{}{staleID: {}},
+	}
+
+	events, err := c.parseTasksFromV4TasksEndpoint(context.Background())
+	require.NoError(t, err)
+
+	var unsetEvents []workloadmeta.CollectorEvent
+	for _, e := range events {
+		if e.Type == workloadmeta.EventTypeUnset {
+			unsetEvents = append(unsetEvents, e)
+		}
+	}
+	require.Len(t, unsetEvents, 1)
+	require.Equal(t, staleID, unsetEvents[0].Entity.GetID())
+}
+
 func getDummyECS() (*httptest.Server, error) {
 	dummyECS, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", "./testdata/datadog-agent.json"),

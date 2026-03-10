@@ -69,6 +69,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		KnownStatus:             task.KnownStatus,
 		VPCID:                   task.VPCID,
 		ServiceName:             task.ServiceName,
+		DaemonName:              task.DaemonName,
 		ServiceARN:              serviceARN,
 		TaskDefinitionARN:       taskDefinitionARN,
 		EphemeralStorageMetrics: task.EphemeralStorageMetrics,
