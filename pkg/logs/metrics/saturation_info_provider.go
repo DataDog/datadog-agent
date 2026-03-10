@@ -14,12 +14,13 @@ import (
 // pipelineStages defines the three bottleneck stages in pipeline order,
 // from first-to-process to last-to-send. Backpressure propagates in reverse.
 var pipelineStages = []struct {
-	key   string // TlmName constant
-	label string // human-readable label for status display
+	key          string // TlmName constant
+	label        string // human-readable label for status display
+	utilRatioHint string // hint shown when fill-based tracking is not valid for this stage
 }{
-	{ProcessorTlmName, "Processor (rules)"},
-	{StrategyTlmName, "Compression"},
-	{SenderTlmName, "Transport"},
+	{ProcessorTlmName, "Processor (rules)", ""},
+	{StrategyTlmName, "Compression", "monitor: logs_component_utilization.ratio{name:strategy}"},
+	{SenderTlmName, "Transport", "monitor: logs_component_utilization.ratio{name:worker}"},
 }
 
 // profileRationale describes the effect of each recommended profile in one line.
@@ -72,8 +73,20 @@ func (s SaturationInfoProvider) Info() []string {
 	out = append(out, strings.Repeat("-", divLen))
 
 	// One row per stage in pipeline order.
+	// Processor uses channel fill %. Compression and Transport use CPU utilization
+	// ratio (logs_component_utilization.ratio) which is not yet fed into this display —
+	// those rows show placeholder data only.
 	anySaturated := false
 	for _, st := range pipelineStages {
+		if st.key == StrategyTlmName || st.key == SenderTlmName {
+			// Fill-based tracking is not valid for these stages (see pipeline.go comment).
+			// Direct the user to the utilization ratio metric instead.
+			note := st.utilRatioHint
+			out = append(out, fmt.Sprintf("%-*s  %5s  %-*s  %5s  %6s  %6s  %s",
+				labelW, st.label, "--", barW+2, "(channel fill n/a)", "--", "--", "--", note))
+			continue
+		}
+
 		curr := sum.CurrentFill[st.key]
 		m5 := sum.MaxFill5m[st.key]
 		m30 := sum.MaxFill30m[st.key]
@@ -81,15 +94,11 @@ func (s SaturationInfoProvider) Info() []string {
 
 		bar := fillBar(curr, barW)
 
-		// Mark the stage as saturated if the 5-minute max is above the threshold —
-		// this catches stages that were saturated recently, not just right now.
 		saturatedRecently := m5 >= saturationHighThreshold
 		if saturatedRecently {
 			anySaturated = true
 		}
 
-		// Replace the last bar char with '!' when currently saturated so the bar
-		// itself signals urgency without relying on colour.
 		if curr >= saturationHighThreshold {
 			bar = bar[:len(bar)-2] + "!]"
 		}
@@ -104,8 +113,6 @@ func (s SaturationInfoProvider) Info() []string {
 	}
 
 	out = append(out, strings.Repeat("-", divLen))
-
-	// Backpressure direction note — helps users understand which direction to look.
 	out = append(out, "Backpressure flows upstream:  Transport -> Compression -> Processor")
 
 	// Suggestion block.

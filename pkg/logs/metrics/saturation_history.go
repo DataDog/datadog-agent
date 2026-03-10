@@ -260,12 +260,12 @@ func (h *SaturationHistory) appendEvent(e SaturationEvent) {
 }
 
 // emitTelemetry fires stage-saturation and profile-recommendation metrics.
-// Only stages driven by CapacityMonitor (processor, strategy) participate in
-// the saturation state machine; the sender stage is excluded until a reliable
-// utilization-based signal replaces the retry-count proxy.
+// Only the processor stage uses channel-fill-based saturation detection.
+// Strategy and sender are excluded: strategy egress is per-batch (not per-message),
+// making fill% meaningless; sender relies on utilization ratio (not yet wired).
 // Must be called with h.mu held.
 func (h *SaturationHistory) emitTelemetry() {
-	for _, stage := range []string{ProcessorTlmName, StrategyTlmName} {
+	for _, stage := range []string{ProcessorTlmName} {
 		v := 0.0
 		if s, ok := h.states[stage]; ok && s.saturated {
 			v = 1.0
@@ -287,24 +287,18 @@ func (h *SaturationHistory) emitTelemetry() {
 
 // computeSuggestion returns the recommended profile based on the 30-minute rolling max.
 //
-// Using the 30-minute window means a profile change is only suggested when a
-// bottleneck has been sustained long enough to warrant a permanent configuration
-// change — brief spikes don't count. Transport (sender) is intentionally excluded
-// until a reliable non-retry-based signal (sender worker utilization ratio) is wired
-// into SaturationHistory.
+// Only the processor stage uses channel-fill-based detection (ingress and egress are
+// both per-message, so fill% is accurate). Strategy (compression) and sender
+// (transport) require CPU utilization ratio signals that are not yet wired into
+// SaturationHistory — see TODO in pipeline.go and utilization_monitor.go.
 // Must be called with h.mu held.
 func (h *SaturationHistory) computeSuggestion() string {
-	strategyFill := h.windows[1].max(StrategyTlmName)
 	processorFill := h.windows[1].max(ProcessorTlmName)
 
-	switch {
-	case strategyFill >= saturationHighThreshold:
-		return "max_throughput"
-	case processorFill >= saturationHighThreshold:
+	if processorFill >= saturationHighThreshold {
 		return "performance"
-	default:
-		return ""
 	}
+	return ""
 }
 
 // Summary returns a snapshot of the current saturation state for the status page.

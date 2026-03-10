@@ -43,10 +43,14 @@ func NewPipeline(
 	instanceID string,
 ) *Pipeline {
 	msgChanSize := config.MessageChannelSize(cfg)
-	// Register channel capacities so CapacityMonitor can compute fill percentages
-	// and feed SaturationHistory for bottleneck detection.
+	// Register the processor channel capacity so CapacityMonitor can compute fill %
+	// and feed SaturationHistory. The strategy (compression) stage is intentionally
+	// excluded: its CapacityMonitor egress is per-payload (batch_max_size messages at
+	// once) while ingress is per-message, so (ingress-egress) grows to ~batch_max_size/2
+	// during normal operation and always saturates against the channel capacity (100).
+	// Strategy saturation should be detected via logs_component_utilization.ratio{name=strategy}
+	// (CPU utilization) — wired in a follow-up via SaturationHistory.RecordUtilization.
 	senderImpl.PipelineMonitor().SetStageCapacity(metrics.ProcessorTlmName, msgChanSize)
-	senderImpl.PipelineMonitor().SetStageCapacity(metrics.StrategyTlmName, msgChanSize)
 
 	strategyInput := make(chan *message.Message, msgChanSize)
 	flushChan := make(chan struct{})
