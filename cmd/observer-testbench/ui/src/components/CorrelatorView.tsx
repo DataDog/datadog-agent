@@ -9,15 +9,21 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
+interface SigmaWindow {
+  center: number;
+  sigma: number;
+}
+
 interface CorrelatorViewProps {
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
   timeRange: TimeRange | null;
   phaseMarkers?: PhaseMarker[];
+  sigmaWindow?: SigmaWindow | null;
 }
 
-export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseMarkers }: CorrelatorViewProps) {
+export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseMarkers, sigmaWindow }: CorrelatorViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const allCorrelations = state.correlations ?? [];
@@ -151,6 +157,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
               correlations={correlations}
               timeRange={timeRange}
               phaseMarkers={phaseMarkers}
+              sigmaWindow={sigmaWindow}
             />
 
             {/* 2. Compressed Groups */}

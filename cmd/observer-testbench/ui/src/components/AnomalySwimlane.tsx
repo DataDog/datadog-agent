@@ -39,12 +39,18 @@ const ANNOTATION_BAR_HEIGHT = 14;
 const ANNOTATION_GAP = 2;
 const ANNOTATION_SECTION_GAP = 8;
 
+interface SigmaWindow {
+  center: number; // unix seconds
+  sigma: number;  // seconds
+}
+
 interface AnomalySwimlaneProps {
   anomalies: Anomaly[];
   compressedGroups: CompressedGroup[];
   correlations?: Correlation[];
   timeRange?: TimeRange | null;
   phaseMarkers?: PhaseMarker[];
+  sigmaWindow?: SigmaWindow | null;
 }
 
 // Assign groups to stacked lanes so overlapping time ranges don't collide.
@@ -73,6 +79,7 @@ export function AnomalySwimlane({
   correlations = [],
   timeRange = null,
   phaseMarkers = [],
+  sigmaWindow = null,
 }: AnomalySwimlaneProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +166,30 @@ export function AnomalySwimlane({
       }
       return false;
     };
+
+    // Sigma window band: right Gaussian — reward zone extends 2σ *after* disruption start
+    if (sigmaWindow) {
+      const bx1 = xScale(sigmaWindow.center * 1000);
+      const bx2 = xScale((sigmaWindow.center + 2 * sigmaWindow.sigma) * 1000);
+      g.append('rect')
+        .attr('x', bx1)
+        .attr('y', 0)
+        .attr('width', Math.max(bx2 - bx1, 1))
+        .attr('height', totalInnerHeight)
+        .attr('fill', '#a855f7')
+        .attr('opacity', 0.12)
+        .attr('pointer-events', 'none');
+      // Center line at disruption start
+      const cx = xScale(sigmaWindow.center * 1000);
+      g.append('line')
+        .attr('x1', cx).attr('x2', cx)
+        .attr('y1', 0).attr('y2', totalInnerHeight)
+        .attr('stroke', '#a855f7')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '3,3')
+        .attr('opacity', 0.6)
+        .attr('pointer-events', 'none');
+    }
 
     // Draw anomaly marks (always dense), tagged for hover highlighting
     for (const anomaly of anomalies) {
@@ -344,7 +375,7 @@ export function AnomalySwimlane({
         .text(marker.label);
     });
 
-  }, [anomalies, compressedGroups, correlations, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom, timeRange, phaseMarkers]);
+  }, [anomalies, compressedGroups, correlations, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom, timeRange, phaseMarkers, sigmaWindow]);
 
   // Track container width so the drawing effect re-runs on resize/tab switch
   useEffect(() => {

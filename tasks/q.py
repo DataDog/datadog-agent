@@ -21,6 +21,7 @@ SCENARIO_ZIPS = {
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
+SCENARIOS_DIR = "./comp/observer/scenarios"
 
 
 # --- Build ---
@@ -34,7 +35,7 @@ def build_testbench(ctx):
 
 # --- Eval ---
 @task
-def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0):
+def eval_scenarios(ctx, scenario: str = "", sigma: float = 30.0):
     """
     Runs the observer eval: builds testbench, replays scenarios headless with scoring.
 
@@ -42,7 +43,6 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
-        scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
     """
     print(color_message("Building observer-testbench...", Color.BLUE))
@@ -52,8 +52,8 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
 
     results = []
     for name in scenarios_to_run:
-        parquet_dir = os.path.join(scenarios_dir, name, "parquet")
-        scenario_root = os.path.join(scenarios_dir, name)
+        parquet_dir = os.path.join(SCENARIOS_DIR, name, "parquet")
+        scenario_root = os.path.join(SCENARIOS_DIR, name)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             _ensure_parquets(ctx, name, parquet_dir)
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
@@ -69,7 +69,7 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
 
         ctx.run(
             f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
-            f" --scenarios-dir {shlex.quote(scenarios_dir)} --score --sigma {sigma}"
+            f" --scenarios-dir {shlex.quote(SCENARIOS_DIR)} --score --sigma {sigma}"
         )
 
         if not os.path.isfile(output_path):
@@ -107,6 +107,23 @@ def eval_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observe
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+
+@task
+def pull_scenarios(ctx, scenario: str = ""):
+    """
+    Downloads scenario data (parquet + episode.json) from S3.
+
+    Args:
+        scenario: Pull a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
+    """
+    scenarios_to_pull = [scenario] if scenario else SCENARIOS
+    for name in scenarios_to_pull:
+        parquet_dir = os.path.join(SCENARIOS_DIR, name, "parquet")
+        if os.path.isdir(parquet_dir) and os.listdir(parquet_dir):
+            print(color_message(f"Skipping {name} — already present at {parquet_dir}", Color.GREEN))
+            continue
+        _ensure_parquets(ctx, name, parquet_dir)
 
 
 def _ensure_parquets(ctx, name, parquet_dir):
@@ -156,12 +173,11 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
 
 @task
-def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/scenarios", build: bool = False):
+def launch_testbench(ctx, build: bool = False):
     """
     Will launch both the observer-testbench backend and UI.
 
     Args:
-        scenarios_dir: The directory containing the scenarios to load.
         build: Whether to build the observer-testbench binary.
     """
     if build:
@@ -170,7 +186,7 @@ def launch_testbench(ctx, scenarios_dir: str = "./comp/observer/scenarios", buil
 
     print("Launching observer-testbench backend and UI, use ^C to exit")
     ctx.run(
-        f"bin/observer-testbench --scenarios-dir {scenarios_dir} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+        f"bin/observer-testbench --scenarios-dir {SCENARIOS_DIR} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
     )
 
 
