@@ -37,9 +37,9 @@ test/fakeintake/
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMs()` |
 | `/api/v2/orch` | OrchestratorAggregator | `GetOrchestratorResources()` |
-| `/api/v2/ndmflow` | NDMFlowAggregator | — |
+| `/api/v2/ndmflow` | NDMFlowAggregator | GetNDMFlows() |
 | `/api/v2/netpath` | NetpathAggregator | `GetLatestNetpathEvents()` |
-| `/api/v2/agenthealth` | AgentHealthAggregator | — |
+| `/api/v2/agenthealth` | AgentHealthAggregator | GetAgentHealth() |
 | `/support/flare` | Flare parser | `GetLatestFlare()` |
 
 ## Client usage

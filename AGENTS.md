@@ -117,8 +117,8 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
-- Tests provision real AWS infrastructure, deploy the agent, and assert payloads
-  arrive in **fakeintake** (a mock Datadog intake)
+- Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
+  arrive in **fakeintake** (a mock Datadog intake). By default the fakeintake forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
   (intake mock), `docs/public/how-to/test/e2e.md` (setup & running)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests

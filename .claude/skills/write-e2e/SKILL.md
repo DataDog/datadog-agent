@@ -20,8 +20,9 @@ Parse `$ARGUMENTS` to determine what to test.
 | Test placement / team ownership | `CODEOWNERS` |
 | CI job definitions | `.gitlab/test/e2e/e2e.yml`, `.gitlab/windows/test/e2e/windows.yml` |
 | CI trigger rules | `.gitlab-ci.yml` (search for `.on_*_or_e2e_changes`) |
+| Examples | `test/new-e2e/examples/` |
 
-Read the first two files before writing any test. Browse a few real tests
+Read the first two files before writing any test. Browse examples and a few real tests
 that match your use case.
 
 ## Checklist

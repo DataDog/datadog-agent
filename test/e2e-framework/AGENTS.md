@@ -116,7 +116,7 @@ When that's not enough, common advanced patterns:
   Start from the examples in `test/new-e2e/examples/customenv_*` and see
   `test/new-e2e/tests/npm/` and `test/new-e2e/tests/ha-agent/` for real usage.
 - **Custom provisioners** — environments also support custom provisioners beyond
-  the stock AWS ones. Implement the `provisioners.Provisioner` interface to
+  the stock ones. Implement the `provisioners.Provisioner` interface to
   target different infrastructure.
 - **`e2e.WithUntypedPulumiProvisioner()`** — escape hatch for fully custom Pulumi
   programs when no typed environment fits.
