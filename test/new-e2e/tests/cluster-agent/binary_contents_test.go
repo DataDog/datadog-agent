@@ -33,6 +33,7 @@ func TestClusterAgentBinarySuite(t *testing.T) {
 			awskindvm.Provisioner(
 				awskindvm.WithRunOptions(
 					scenariokindvm.WithoutFakeIntake(),
+					scenariokindvm.WithAgentOptions(),
 				),
 			),
 		),
