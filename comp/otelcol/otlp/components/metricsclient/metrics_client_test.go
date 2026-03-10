@@ -234,7 +234,7 @@ func TestTiming(t *testing.T) {
 
 func TestGaugeMalformedTag(t *testing.T) {
 	// A tag without a colon is valid in Datadog statsd format (standalone tag).
-	// Without the fix, attributeFromTags would panic with an out-of-bounds index.
+	// Such tags should be silently skipped rather than panicking.
 	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Gauge("test_gauge", 1, []string{"malformed", "service:otelcol"}, 1)
