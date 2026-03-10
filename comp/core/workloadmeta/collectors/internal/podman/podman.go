@@ -106,6 +106,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 			continue
 		}
 		rootDir := log.ExtractPodmanRootDirFromDBPath(dbPath)
+		if rootDir == "" {
+			log.Warnf("Could not derive Podman storage root dir from DB path %q, skipping", dbPath)
+			continue
+		}
 		log.Infof("Using Podman DB at %q (root dir: %q)", dbPath, rootDir)
 		clients = append(clients, podmanDBClient{client: client, rootDir: rootDir})
 	}
