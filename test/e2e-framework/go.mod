@@ -7,8 +7,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/test/new-e2e v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-api-client-go/v2 v2.55.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/alessio/shellescape v1.4.2
@@ -62,7 +60,7 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
