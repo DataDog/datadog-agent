@@ -41,7 +41,7 @@ _BALOUM_FLAGS = _SECURITY_FLAGS + ["-D__BALOUM__"]
 
 # Baloum (eBPF unit test) variants — include test sections in the object files.
 # These are only built for `run_ebpf_unit_tests` and never shipped.
-# TODO{agent-build}: Find a better way to deal with Baloum unit tests 
+# TODO{agent-build}: Find a better way to deal with Baloum unit tests
 # and build them in the same way as the other eBPF programs.
 ebpf_prog(
     name = "runtime-security-baloum",

@@ -64,7 +64,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 pkg_files(
-    name = "bin_files",
+    name = "all_files",
     srcs = glob(["bin/*"]),
     prefix = "embedded/bin",
     attributes = pkg_attributes(mode = "0755"),
@@ -72,7 +72,7 @@ pkg_files(
 
 pkg_install(
     name = "install",
-    srcs = [":bin_files"],
+    srcs = [":all_files"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 """
