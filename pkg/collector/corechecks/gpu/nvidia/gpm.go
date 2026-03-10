@@ -80,17 +80,7 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 		return nil, errors.New("MIG device has no parent physical device")
 	}
 
-	var support nvml.GpmSupport
-	// The query for device support needs to be made on the physical device always
-	if isMig {
-		support, err = migDevice.Parent.GpmQueryDeviceSupport()
-	} else {
-		support, err = device.GpmQueryDeviceSupport()
-	}
-
-	if support.IsSupportedDevice == 0 {
-		return nil, errUnsupportedDevice
-	}
+    // We don't query for device support because the API is broken in go-nvml 0.13.0
 
 	// Clone the global allGpmMetrics map to avoid mutating global state
 	clonedMetrics := maps.Clone(allGpmMetrics)
@@ -125,7 +115,13 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 		collector.samples[i] = sample
 	}
 
-	collector.removeUnsupportedMetrics()
+	err = collector.removeUnsupportedMetrics()
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return nil, errUnsupportedDevice
+		}
+		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
+	}
 
 	if len(collector.metricsToCollect) == 0 {
 		return nil, errUnsupportedDevice
@@ -134,27 +130,30 @@ func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collecto
 	return collector, nil
 }
 
-func (c *gpmCollector) removeUnsupportedMetrics() {
+func (c *gpmCollector) removeUnsupportedMetrics() error {
 	// Now collect two samples and try to get the metrics, to discard any unsupported ones
 	// It's a best-effort approach, so any errors in the process are ignored. If they are not temporary,
 	// the collector will fail to collect metrics later and that will show in the logs.
 	for i := 0; i < 2; i++ {
-		err := c.collectSample()
+		err := c.collectSample();
 		if err != nil {
-			return
+			return err
 		}
 	}
 
 	metrics, err := c.calculateGpmMetrics()
 	if err != nil {
-		return
+		return err
 	}
 
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
 		if metrics.Metrics[i].NvmlReturn != uint32(nvml.SUCCESS) {
+			fmt.Printf("failed to get GPM metric %d: %s\n", metrics.Metrics[i].MetricId, nvml.ErrorString(nvml.Return(metrics.Metrics[i].NvmlReturn)))
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
 		}
 	}
+
+	return nil
 }
 
 func (c *gpmCollector) collectSample() error {
