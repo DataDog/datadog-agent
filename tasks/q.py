@@ -12,7 +12,7 @@ from invoke import task
 from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
-DETECTORS = ["cusum", "bocpd", "rrcf", "mannwhitney", "correlation", "topk"]
+DETECTORS = ["cusum", "bocpd", "rrcf", "mannwhitney", "corrshift", "topk"]
 CORRELATOR_PASSTHROUGH = "passthrough"
 CORRELATOR_TIMECLUSTER = "time_cluster"
 

@@ -71,12 +71,12 @@ var defaultRegistry = []ComponentRegistration{
 		},
 	},
 	{
-		Name:           "correlation",
-		DisplayName:    "Correlation",
+		Name:           "corrshift",
+		DisplayName:    "CorrShift",
 		Category:       "detector",
 		DefaultEnabled: false,
 		Factory: func(_ *TestBench) interface{} {
-			return NewCorrelationDetector()
+			return NewCorrShiftDetector()
 		},
 	},
 	{

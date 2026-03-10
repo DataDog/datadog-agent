@@ -15,8 +15,8 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// CorrelationConfig holds configuration for the cross-correlation changepoint detector.
-type CorrelationConfig struct {
+// CorrShiftConfig holds configuration for the cross-correlation changepoint detector.
+type CorrShiftConfig struct {
 	// MinPoints is the minimum number of data points a series must have to be considered.
 	MinPoints int
 	// MaxSeries caps how many series we analyze (top-K by variance).
@@ -66,9 +66,9 @@ var defaultCorrExcludePrefixes = []string{
 	"system.io.",
 }
 
-// DefaultCorrelationConfig returns sensible defaults.
-func DefaultCorrelationConfig() CorrelationConfig {
-	return CorrelationConfig{
+// DefaultCorrShiftConfig returns sensible defaults.
+func DefaultCorrShiftConfig() CorrShiftConfig {
+	return CorrShiftConfig{
 		MinPoints:                 40,
 		MaxSeries:                 80,
 		WindowSize:                15,
@@ -84,11 +84,11 @@ func DefaultCorrelationConfig() CorrelationConfig {
 	}
 }
 
-// CorrelationDetector implements MultiSeriesDetector using cross-correlation changepoint detection.
+// CorrShiftDetector implements MultiSeriesDetector using cross-correlation changepoint detection.
 // It tracks the pairwise correlation matrix across sliding windows and flags when
 // the correlation structure changes significantly (Lung-Yut-Fong et al., 2015).
-type CorrelationDetector struct {
-	config CorrelationConfig
+type CorrShiftDetector struct {
+	config CorrShiftConfig
 
 	// lastProcessedTime tracks the latest data timestamp we've analyzed.
 	lastProcessedTime int64
@@ -100,14 +100,14 @@ type CorrelationDetector struct {
 	firedSeries map[string]bool
 }
 
-// NewCorrelationDetector creates a new cross-correlation changepoint detector.
-func NewCorrelationDetector() *CorrelationDetector {
-	return NewCorrelationDetectorWithConfig(DefaultCorrelationConfig())
+// NewCorrShiftDetector creates a new cross-correlation changepoint detector.
+func NewCorrShiftDetector() *CorrShiftDetector {
+	return NewCorrShiftDetectorWithConfig(DefaultCorrShiftConfig())
 }
 
-// NewCorrelationDetectorWithConfig creates a new detector with the given config.
-func NewCorrelationDetectorWithConfig(config CorrelationConfig) *CorrelationDetector {
-	return &CorrelationDetector{
+// NewCorrShiftDetectorWithConfig creates a new detector with the given config.
+func NewCorrShiftDetectorWithConfig(config CorrShiftConfig) *CorrShiftDetector {
+	return &CorrShiftDetector{
 		config:      config,
 		recentNorms: make([]float64, 0, 200),
 		firedSeries: make(map[string]bool),
@@ -115,8 +115,8 @@ func NewCorrelationDetectorWithConfig(config CorrelationConfig) *CorrelationDete
 }
 
 // Name returns the detector name.
-func (d *CorrelationDetector) Name() string {
-	return "correlation"
+func (d *CorrShiftDetector) Name() string {
+	return "corrshift"
 }
 
 // corrSeriesInfo holds a resolved series with its data for correlation analysis.
@@ -131,7 +131,7 @@ type corrSeriesInfo struct {
 // Detect implements MultiSeriesDetector. It queries storage for all metric series,
 // selects the most variable ones, computes correlation matrices in sliding windows,
 // and flags when the correlation structure changes.
-func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *CorrShiftDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	// Step 1: Discover all series
 	allKeys := storage.ListSeries(observer.SeriesFilter{})
 
@@ -220,7 +220,7 @@ type corrAlignedData struct {
 }
 
 // corrAlignSeries aligns multiple series to a common timestamp grid using forward-fill.
-func (d *CorrelationDetector) corrAlignSeries(series []corrSeriesInfo) corrAlignedData {
+func (d *CorrShiftDetector) corrAlignSeries(series []corrSeriesInfo) corrAlignedData {
 	// Collect all unique timestamps
 	tsSet := make(map[int64]struct{})
 	for _, s := range series {
@@ -274,7 +274,7 @@ type corrPairChange struct {
 // detectChanges computes correlation matrices in sliding windows and detects changes.
 // Uses a dual approach: consecutive window comparison (catches sudden shifts) and
 // baseline comparison (catches gradual drift from normal correlation structure).
-func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrSeriesInfo) observer.DetectionResult {
+func (d *CorrShiftDetector) detectChanges(data corrAlignedData, series []corrSeriesInfo) observer.DetectionResult {
 	var anomalies []observer.Anomaly
 	var telemetry []observer.ObserverTelemetry
 
@@ -599,7 +599,7 @@ func corrFrobeniusNorm(a, b [][]float64, n int) float64 {
 // corrFindTopPairs returns the pairs whose correlation changed the most.
 // If no pairs meet PairDeltaMin but the Frobenius norm was significant,
 // falls back to returning the top pairs by raw delta regardless of minimum.
-func (d *CorrelationDetector) corrFindTopPairs(before, after [][]float64, n int) []corrPairChange {
+func (d *CorrShiftDetector) corrFindTopPairs(before, after [][]float64, n int) []corrPairChange {
 	var pairs []corrPairChange
 	var allPairs []corrPairChange
 	for i := 0; i < n; i++ {
@@ -694,7 +694,7 @@ func corrComputeVariance(points []observer.Point) float64 {
 }
 
 // corrIsExcluded checks whether a metric name matches any of the configured exclude prefixes.
-func (d *CorrelationDetector) corrIsExcluded(name string) bool {
+func (d *CorrShiftDetector) corrIsExcluded(name string) bool {
 	for _, prefix := range d.config.ExcludePrefixes {
 		if strings.HasPrefix(name, prefix) {
 			return true
