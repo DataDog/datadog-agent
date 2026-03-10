@@ -186,7 +186,12 @@ func (h *autoscalersController) addAutoscaler(obj interface{}) {
 		return
 	}
 	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.GetNamespace(), newAutoscaler.GetName())
-	h.eventRecorder.Event(obj.(runtime.Object), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
+	runtimeObj, ok := obj.(runtime.Object)
+	if !ok {
+		log.Errorf("Expected a runtime.Object type, got: %v", obj)
+		return
+	}
+	h.eventRecorder.Event(runtimeObj, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueue(newAutoscaler)
 }
 
