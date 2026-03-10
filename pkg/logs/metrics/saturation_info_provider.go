@@ -14,8 +14,8 @@ import (
 // pipelineStages defines the three bottleneck stages in pipeline order,
 // from first-to-process to last-to-send. Backpressure propagates in reverse.
 var pipelineStages = []struct {
-	key          string // TlmName constant
-	label        string // human-readable label for status display
+	key           string // TlmName constant
+	label         string // human-readable label for status display
 	utilRatioHint string // hint shown when fill-based tracking is not valid for this stage
 }{
 	{ProcessorTlmName, "Processor (rules)", ""},
