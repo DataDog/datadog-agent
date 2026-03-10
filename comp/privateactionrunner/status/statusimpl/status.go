@@ -9,6 +9,7 @@ package statusimpl
 import (
 	"embed"
 	"io"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -96,7 +97,7 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		}
 		parStatus["URN"] = urn
 		parStatus["SelfEnroll"] = s.config.GetBool(pkgconfigsetup.PARSelfEnroll)
-		parStatus["ActionsAllowlist"] = s.config.GetStringSlice(pkgconfigsetup.PARActionsAllowlist)
+		parStatus["ActionsAllowlist"] = strings.Join(s.config.GetStringSlice(pkgconfigsetup.PARActionsAllowlist), ", ")
 	}
 
 	stats["privateActionRunnerStatus"] = parStatus
