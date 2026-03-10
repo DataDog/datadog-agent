@@ -144,6 +144,23 @@ func sendWindowsKeepAliveRequests(host *components.RemoteHost, requestsPerPort, 
 		connLimit, requestsPerPort, requestsPerPort, holdSeconds))
 }
 
+// sendWindowsKeepAliveRequestsToPort opens count keep-alive connections to
+// localhost:<port>, holds them open for holdSeconds, then closes them.
+func sendWindowsKeepAliveRequestsToPort(host *components.RemoteHost, port, count, holdSeconds int) {
+	connLimit := count + 100
+	host.MustExecute(fmt.Sprintf(
+		`[System.Net.ServicePointManager]::DefaultConnectionLimit = %d; `+
+			`$resps = [System.Collections.ArrayList]::new(); `+
+			`1..%d | ForEach-Object { `+
+			`$r = [System.Net.HttpWebRequest]::Create("http://localhost:%d/"); `+
+			`$r.KeepAlive = $true; `+
+			`$r.ConnectionGroupName = [guid]::NewGuid().ToString(); `+
+			`[void]$resps.Add($r.GetResponse()) }; `+
+			`Start-Sleep -Seconds %d; `+
+			`$resps | ForEach-Object { $_.Close() }`,
+		connLimit, count, port, holdSeconds))
+}
+
 // connectionStats holds the results of counting connections on test ports from FakeIntake.
 type connectionStats struct {
 	connsByPort    map[int32]int
@@ -218,6 +235,31 @@ func assertTaggedConnections(t *testing.T, stats connectionStats, label string, 
 	// conditions at agent startup (process context may not be resolved yet for the
 	// first few connections after a restart).
 	total := stats.connsByPort[8081] + stats.connsByPort[8082]
+	maxMissing := total / 100 // allow up to 1% missing
+	if maxMissing < 5 {
+		maxMissing = 5
+	}
+	for prefix, count := range stats.missingByTag {
+		assert.LessOrEqual(t, count, maxMissing,
+			"%s: too many connections (%d/%d) missing required tag prefix %q", label, count, total, prefix)
+	}
+}
+
+// assertTaggedConnectionsOnPort asserts that at least minConns connections were captured
+// on a specific port, that none are untagged, and that no connections are missing any
+// required tag prefix.
+func assertTaggedConnectionsOnPort(t *testing.T, stats connectionStats, label string, port int32, minConns int) {
+	t.Helper()
+
+	t.Logf("%s: port%d=%d untagged=%d missingByTag=%v tags=%v",
+		label, port, stats.connsByPort[port], stats.untagged,
+		stats.missingByTag, stats.tagsByPort[port])
+
+	assert.GreaterOrEqual(t, stats.connsByPort[port], minConns,
+		"%s: port %d should have at least %d connections", label, port, minConns)
+	assert.Equal(t, 0, stats.untagged,
+		"%s: all connections to test ports should have remote service tags", label)
+	total := stats.connsByPort[port]
 	maxMissing := total / 100 // allow up to 1% missing
 	if maxMissing < 5 {
 		maxMissing = 5
