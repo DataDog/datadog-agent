@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"io"
 	"testing"
 	"unsafe"
 
@@ -16,6 +17,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Run locally with `go test -fuzz=FuzzConsumerHandleEvent -run=FuzzConsumerHandleEvent`
@@ -30,6 +32,16 @@ func FuzzConsumerHandleEvent(f *testing.F) {
 	// Set up visible devices cache for a test PID
 	testPID := 1234
 	ctx.visibleDevicesCache[testPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(f, 0, 1)
+
+	// Replace the logger installed by the mock setup (which writes to f.Log())
+	// with one that writes to io.Discard, since Go forbids calling f.Log() inside
+	// the fuzz target.
+	discardLogger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(io.Discard, pkglog.CriticalLvl)
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Cleanup(func() { discardLogger.Close() })
+	pkglog.SetupLogger(discardLogger, "off")
 
 	// Add seed corpus with valid event types
 	// Seed with a minimal kernel launch event
