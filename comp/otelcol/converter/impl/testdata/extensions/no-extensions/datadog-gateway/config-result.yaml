@@ -13,7 +13,7 @@ extensions:
     api:
       key: ggggg77777
       site: "datadoghq.com"
-    deployment_type: daemonset
+    deployment_type: gateway
 
 service:
   extensions:
