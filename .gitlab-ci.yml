@@ -116,6 +116,8 @@ include:
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
       - <<: *if_mergequeue
+      - <<: *if_deploy
+      - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
