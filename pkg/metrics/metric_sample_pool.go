@@ -69,3 +69,26 @@ func (m *MetricSamplePool) PutBatch(batch MetricSampleBatch) {
 	}
 	m.pool.Put(batch[:cap(batch)])
 }
+
+// singleMetricSamplePool pools individual *MetricSample pointers for code paths
+// that need a single heap-allocated MetricSample rather than a batch slot.
+// The batch-level MetricSamplePool covers the hot DogStatsD parsing path;
+// this pool serves auxiliary paths (e.g. late/synthetic samples, testing).
+var singleMetricSamplePool = sync.Pool{
+	New: func() interface{} { return &MetricSample{} },
+}
+
+// GetMetricSample returns a *MetricSample from the per-struct pool.
+// The returned struct is zeroed. Call PutMetricSample to return it.
+func GetMetricSample() *MetricSample {
+	return singleMetricSamplePool.Get().(*MetricSample)
+}
+
+// PutMetricSample zeros s and returns it to the per-struct pool.
+// The caller must not use s after this call.
+func PutMetricSample(s *MetricSample) {
+	// Zero the struct so the pool does not hold references to Tags slices,
+	// strings, or OriginInfo that would prevent timely GC.
+	*s = MetricSample{}
+	singleMetricSamplePool.Put(s)
+}

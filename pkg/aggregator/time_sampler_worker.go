@@ -110,6 +110,13 @@ func (w *timeSamplerWorker) run() {
 
 			for i := 0; i < len(ms); i++ {
 				w.sampler.sample(&ms[i], t, w.tagFilterList)
+				// Nil out the Tags reference immediately after sample() has
+				// consumed it. trackContext() copies all tag strings into its
+				// own interned store, so the []string slice backing array is
+				// no longer reachable from the Context. Clearing here lets
+				// the GC reclaim tag slices without waiting for PutBatch to
+				// be called, which reduces GC pause time under high load.
+				ms[i].Tags = nil
 			}
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
