@@ -44,7 +44,7 @@ After this pipeline, the agent fans the trace out to the sampler subsystem and t
 
 ### Sampler Subsystem (`sampler/`, `event/`)
 
-Sampling determines which traces are forwarded to the backend. Multiple samplers run independently, and a trace is kept if any sampler decides to keep it.
+Sampling determines which traces are forwarded to the backend. Multiple samplers run independently, and a trace is kept if any sampler decides to keep it. Not all samplers are enabled by default.
 
 **Priority Sampler** is the primary mechanism. It maintains per-service-and-environment target throughput (traces per second) and adjusts sampling rates accordingly. Clients embed a sampling priority in each trace; the priority sampler respects user-set priorities (keep/drop) and uses a rate-based decision for auto-sampled traces. Computed rates are returned to clients via the receiver so they can pre-sample at the source.
 
