@@ -32,6 +32,7 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
+	// The ignore comms feature is currently only supported for the Go discovery module.
 	discovery := setupGoDiscoveryModule(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
