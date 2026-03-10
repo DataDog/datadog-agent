@@ -1,6 +1,7 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile", "docker-compose", "cargo", "bazel-module"],
+    "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
