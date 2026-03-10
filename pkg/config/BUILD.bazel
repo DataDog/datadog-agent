@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary")
+
+# keep: Config generator
+go_binary(
+    name = "render_config",
+    srcs = ["render_config.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_pmezard_go_difflib//difflib:go_default_library",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+filegroup(
+    name = "template",
+    srcs = ["config_template.yaml"],
+    visibility = ["//visibility:public"],
+)

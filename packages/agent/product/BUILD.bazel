@@ -1,0 +1,99 @@
+"""The Agent 'Product' bundle.
+
+Gathering spot for all the components shipped as part of the product.
+This replaces datadog-agent.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+    "strip_prefix",
+)
+load("//pkg/config:agent_config.bzl", "agent_config")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+CONF_DIR_PREFIX_SELECT = {
+    "@platforms//os:macos": "etc",
+    "//conditions:default": "etc/datadog-agent",
+}
+
+# All the components to be installed in {install_dir}
+# This list is probably too long because it includes transitive deps of some
+# of the components. It serves as a checklist of what we need to account for.
+pkg_filegroup(
+    name = "all_install_dir_files",
+    srcs = [
+        # TODO: dependency "python3"
+        # TODO: dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target?
+        "//packages/agent/dependencies:all_files",
+
+        # TODO: rtloader
+        # TODO: sysprobe - windows
+        # TODO: systray - windows
+        # TODO: agent main binary
+        # TODO: trace-loader
+        # TODO: trace-agent
+        # TODO: installer
+        # TODO: process-agent
+        # TODO: private-action-runner
+        # TODO: system-probe
+        # TODO: system-probe - selinux policy
+        # TODO: system-probe - eBPF
+
+        # TODO: //pkg/discovery/module/rust
+        # TODO: //pkg/procmgr/rust
+        # TODO: security-agent
+        # TODO: cws-instrumentation
+        # TODO: secret-generic-connector
+        # TODO:  cacerts
+        # TODO: dependency 'datadog-agent-integrations-py3'
+    ],
+)
+
+# Temporary during migration, to call from omnibus build after we have built the agent with dda.
+# That leaves files in bin/..., and the BUILD file there exports them.
+# As we build the pieces with bazel rules, we can point to the targets here instead.
+pkg_install(
+    name = "post_build_install",
+    srcs = [
+        ":dirs",
+        ":example_yaml",
+    ],
+    destdir_flag = "//:install_dir",
+)
+
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "bin",
+    ] + select({
+        # The {conf_dir} changes, but both are based off {install_dir}, so this is not
+        # really /etc.
+        "@platforms//os:macos": ["etc"],
+        "//conditions:default": ["etc/datadog-agent"],
+    }) + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "run",
+            "scripts",
+        ],
+    }),
+)
+
+agent_config(
+    name = "datadog_yaml_example",
+    out = "datadog.yaml.example",
+    build_type = "agent-py3",
+)
+
+pkg_files(
+    name = "example_yaml",
+    srcs = [":datadog_yaml_example"],
+    prefix = select(CONF_DIR_PREFIX_SELECT),
+)
