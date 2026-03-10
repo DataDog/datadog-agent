@@ -132,6 +132,20 @@ register_toolchains(
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 ######################################
+## LLVM BPF toolchain for eBPF    ##
+####################################
+
+llvm_bpf_ext = use_extension("//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl", "llvm_bpf_extension")
+llvm_bpf_ext.configure(
+    clang_build_version = "v60409452-ee70de70",
+    clang_version = "12.0.1",
+    s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
+)
+use_repo(llvm_bpf_ext, "llvm_bpf")
+
+register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
+
+######################################
 ## Compilers and toolchains        ##
 ####################################
 
