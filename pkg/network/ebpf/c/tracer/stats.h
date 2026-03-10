@@ -248,16 +248,18 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 
 // update_tcp_stats update rtt, retransmission and state on of a TCP connection
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // initialize-if-no-exist the connection state, and load it
-    tcp_stats_t empty = {};
-
-    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-    // and do not provide any useful signal since the key is expected to be present sometimes.
-    bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
-
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
-    if (val == NULL) {
-        return;
+    if (!val) {
+        // initialize-if-no-exist the connection state, and load it
+        tcp_stats_t empty = {};
+
+        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+        // and do not provide any useful signal since the key is expected to be present sometimes.
+        bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+        tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+        if (!val) {
+            return;
+        }
     }
 
     if (stats.rtt > 0) {
@@ -290,19 +292,21 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
         return 0;
     }
 
-    // initialize-if-no-exist the connection state, and load it
-    u32 u32_zero = 0;
-
-    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-    // and do not provide any useful signal since the key is expected to be present sometimes.
-    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
     u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
-    if (val == NULL) {
-        return 0;
+    if (!val) {
+        // initialize-if-no-exist the connection state, and load it
+        u32 u32_zero = 0;
+
+        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+        // and do not provide any useful signal since the key is expected to be present sometimes.
+        bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST, -EEXIST);
+        val = bpf_map_lookup_elem(&tcp_retransmits, &t);
+        if (!val) {
+            return 0;
+        }
     }
 
     __sync_fetch_and_add(val, count);
-
     return 0;
 }
 
@@ -407,13 +411,18 @@ static __always_inline bool is_tcp_failure_recognized(int err) {
 }
 
 static __always_inline void report_unrecognized_tcp_failure(int err) {
-    // initialize if no-exist
     __u64 one = 1;
-    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
     __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
-    if (count != NULL) {
-        __sync_fetch_and_add(count, one);
+    if (!count) {
+        // initialize if no-exist
+        bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
+        count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+        if (!count) {
+            return;
+        }
     }
+
+    __sync_fetch_and_add(count, one);
 }
 
 // handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple

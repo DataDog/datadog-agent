@@ -47,8 +47,9 @@ static __always_inline void check_sock(struct sock *sk) {
     if (!v) {
         bpf_map_update_elem(&tcp_queue_stats, &k, &zero, BPF_NOEXIST);
         v = bpf_map_lookup_elem(&tcp_queue_stats, &k);
-        if (!v)
+        if (!v) {
             return;
+        }
     }
 
     int rqueue_size = BPF_CORE_READ(sk, sk_rcvbuf);
