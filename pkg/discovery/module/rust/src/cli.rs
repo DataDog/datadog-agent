@@ -21,26 +21,35 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn parse(mut args: impl Iterator<Item = String>) -> Self {
-        // Find the -- separator
-        let Some(_) = args.find(|arg| arg == "--") else {
-            // No -- separator, standalone mode
-            return Args::default();
-        };
+    pub fn parse(args: impl Iterator<Item = String>) -> Self {
+        let all_args: Vec<String> = args.collect();
 
-        // First arg after -- is the binary path
-        let Some(next_arg) = args.next() else {
-            // -- was provided but no args after it
-            return Args::default();
-        };
-        let binary = PathBuf::from(next_arg);
+        // Check if there's a -- separator (legacy mode: sd-agent -- /path/to/system-probe [args])
+        if let Some(sep_pos) = all_args.iter().position(|arg| arg == "--") {
+            let after_sep: Vec<String> = all_args.into_iter().skip(sep_pos + 1).collect();
 
-        let rest: Vec<String> = args.collect();
-        let (config, pid) = extract_paths(&rest);
+            let Some(binary) = after_sep.first().cloned() else {
+                // -- was provided but no args after it
+                return Args::default();
+            };
 
+            let rest: Vec<String> = after_sep.into_iter().skip(1).collect();
+            let (config, pid) = extract_paths(&rest);
+
+            return Args {
+                fallback_binary: Some(PathBuf::from(binary)),
+                system_probe_args: rest,
+                config_path: config,
+                pid_path: pid,
+            };
+        }
+
+        // Direct mode: sd-agent run --config=... --pid=...
+        // (used when system-probe execs into sd-agent)
+        let (config, pid) = extract_paths(&all_args);
         Args {
-            fallback_binary: Some(binary),
-            system_probe_args: rest,
+            fallback_binary: None,
+            system_probe_args: Vec::new(),
             config_path: config,
             pid_path: pid,
         }
@@ -373,5 +382,44 @@ mod tests {
             parsed.pid_path,
             Some(PathBuf::from("/var/run/system-probe-lite.pid"))
         );
+    }
+
+    #[test]
+    fn test_parse_direct_mode_with_config_and_pid() {
+        // Direct mode: system-probe execs into sd-agent with args directly
+        let args = vec![
+            "sd-agent".to_string(),
+            "run".to_string(),
+            "--config".to_string(),
+            "/etc/datadog-agent/system-probe.yaml".to_string(),
+            "--pid".to_string(),
+            "/opt/datadog-agent/run/system-probe.pid".to_string(),
+        ];
+        let parsed = Args::parse(args.into_iter());
+        assert_eq!(parsed.fallback_binary, None);
+        assert!(parsed.system_probe_args.is_empty());
+        assert_eq!(
+            parsed.config_path,
+            Some(PathBuf::from("/etc/datadog-agent/system-probe.yaml"))
+        );
+        assert_eq!(
+            parsed.pid_path,
+            Some(PathBuf::from("/opt/datadog-agent/run/system-probe.pid"))
+        );
+    }
+
+    #[test]
+    fn test_parse_direct_mode_with_equals_form() {
+        let args = vec![
+            "sd-agent".to_string(),
+            "run".to_string(),
+            "--config=/etc/config.yaml".to_string(),
+            "--pid=/var/run/sp.pid".to_string(),
+        ];
+        let parsed = Args::parse(args.into_iter());
+        assert_eq!(parsed.fallback_binary, None);
+        assert!(parsed.system_probe_args.is_empty());
+        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
+        assert_eq!(parsed.pid_path, Some(PathBuf::from("/var/run/sp.pid")));
     }
 }

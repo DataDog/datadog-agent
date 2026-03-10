@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -74,6 +75,7 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -84,6 +86,9 @@ import (
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
+
+// ErrExecSdAgent represents the case in which system-probe should exec into sd-agent
+var ErrExecSdAgent = errors.New("exec sd-agent")
 
 const configPrefix = systemprobeconfig.Namespace + "."
 
@@ -193,6 +198,7 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
+	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
 	defer stopSystemProbe()
@@ -238,6 +244,9 @@ func run(
 	}()
 
 	if err := startSystemProbe(rcclient, settings, deps); err != nil {
+		if errors.Is(err, ErrExecSdAgent) {
+			return execSdAgent(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
+		}
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -258,6 +267,14 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 	deps.Log.Infof("starting system-probe v%v", version.AgentVersion)
 
 	logUserAndGroupID(deps.Log)
+
+	// Check if we should exec into sd-agent before checking if system-probe is enabled,
+	// since sd-agent should also handle the case where no modules are enabled.
+	if shouldExecSdAgent(deps.SysprobeConfig, cfg) {
+		deps.Log.Info("only discovery module enabled with use_sd_agent=true, will exec into sd-agent")
+		return ErrExecSdAgent
+	}
+
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		deps.Log.Info("system probe not enabled. exiting")
@@ -353,6 +370,63 @@ func setupInternalProfiling(settings settings.Component, cfg model.Reader, confi
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
+}
+
+// shouldExecSdAgent returns true if system-probe should exec into sd-agent.
+// This is the case when use_sd_agent is enabled and the full system-probe is not needed
+// (either no modules are enabled, or only the discovery module is enabled).
+func shouldExecSdAgent(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
+	if !sysprobeConfig.GetBool("discovery.use_sd_agent") {
+		return false
+	}
+
+	// Don't exec sd-agent if an external system-probe is managing things
+	if cfg.ExternalSystemProbe {
+		return false
+	}
+
+	// If discovery is explicitly disabled and nothing else is enabled, just exit cleanly
+	if sysprobeConfig.IsConfigured("discovery.enabled") && !sysprobeConfig.GetBool("discovery.enabled") && !cfg.Enabled {
+		return false
+	}
+
+	// Exec sd-agent if no modules are enabled, or only discovery is enabled
+	return !cfg.Enabled || (len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule))
+}
+
+// execSdAgent replaces the current process with sd-agent.
+// If the sd-agent binary is not found, it returns nil to allow system-probe
+// to fall back to running the Go discovery module natively.
+func execSdAgent(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) error {
+	sdAgentPath := sysprobeConfig.GetString("discovery.sd_agent_binary_path")
+	if sdAgentPath == "" {
+		// Default: sd-agent binary in the same directory as system-probe
+		execPath, err := os.Executable()
+		if err != nil {
+			log.Warnf("cannot determine system-probe executable path: %s, falling back to running discovery in system-probe", err)
+			return nil
+		}
+		sdAgentPath = filepath.Join(filepath.Dir(execPath), "sd-agent")
+	}
+
+	if _, err := os.Stat(sdAgentPath); err != nil {
+		log.Warnf("sd-agent binary not found at %s: %s, falling back to running discovery in system-probe", sdAgentPath, err)
+		return nil
+	}
+
+	// Build sd-agent arguments
+	args := []string{"sd-agent", "run"}
+	if configPath := sysprobeConfig.ConfigFileUsed(); configPath != "" {
+		args = append(args, "--config", configPath)
+	}
+	if pidFilePath != "" {
+		args = append(args, "--pid", pidFilePath)
+	}
+
+	log.Infof("execing into sd-agent: %s %v", sdAgentPath, args)
+
+	// Replace the current process with sd-agent
+	return syscall.Exec(sdAgentPath, args, os.Environ())
 }
 
 func logUserAndGroupID(log log.Component) {
