@@ -31,8 +31,10 @@ func GetRtLoader() *C.rtloader_t {
 	// Specific setup for when we're running the tests with bazel
 	if os.Getenv("BAZEL_TEST") == "1" {
 		if runtime.GOOS == "windows" {
-			// Add the path to where the "three" dll is available to PATH
+			// Temporarily add the path to where the "three" dll is available to PATH
 			// so that it can be found by `LoadLibrary`
+			oldPath := os.Getenv("PATH")
+			defer os.Setenv("PATH", oldPath)
 			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
 			// On Windows, the python library file sits at the root of the Python Home
 			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
