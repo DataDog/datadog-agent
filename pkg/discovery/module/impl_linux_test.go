@@ -80,7 +80,7 @@ func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	}
 }
 
-func setupSdAgentDiscoveryModule(t *testing.T) *testDiscoveryModule {
+func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 
 	// Skip on CentOS 7 due to Rust binary not being statically linked
@@ -146,8 +146,8 @@ func TestDiscovery(t *testing.T) {
 	t.Run("go", func(t *testing.T) {
 		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
 	})
-	t.Run("sd-agent", func(t *testing.T) {
-		suite.Run(t, &discoveryTestSuite{setupModule: setupSdAgentDiscoveryModule})
+	t.Run("rust", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})
 	})
 }
 
