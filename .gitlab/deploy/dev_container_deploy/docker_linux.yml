@@ -290,4 +290,4 @@ deploy_host_profiler_to_reliability_env_devtest:
   needs:
     - dev_deploy-host-profiler-devtest
   trigger:
-    branch: theomagellan/add-host-profiler
+    branch: master
