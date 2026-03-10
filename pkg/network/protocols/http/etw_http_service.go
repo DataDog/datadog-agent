@@ -337,19 +337,18 @@ func buildIISTags(h *WinHttpTransaction) []string {
 }
 
 // storeIISTagsCache stores an IIS tags entry with a TTL.
-// If the cache is at capacity and the key is new, a single expired entry is
-// evicted to make room. If no expired entry is found the new entry is dropped.
-// This keeps the write path O(1) amortised, avoiding full-map sweeps under the
-// mutex in the hot ETW callback path.
+// If the cache is at capacity and the key is new, an expired entry is evicted
+// first. If no expired entry exists, the entry with the earliest expiry (oldest)
+// is evicted to make room for the new entry.
 func storeIISTagsCache(key [2]uint16, tags []string) {
 	iisTagsCacheMu.Lock()
 	defer iisTagsCacheMu.Unlock()
 
 	// Allow updates to existing keys regardless of capacity
 	if _, exists := iisTagsCacheMap[key]; !exists && len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
-		// Evict one expired entry to make room
 		now := time.Now()
 		evicted := false
+		// First pass: try to evict an expired entry (cheap)
 		for k, entry := range iisTagsCacheMap {
 			if now.After(entry.expiry) {
 				delete(iisTagsCacheMap, k)
@@ -357,8 +356,19 @@ func storeIISTagsCache(key [2]uint16, tags []string) {
 				break
 			}
 		}
+		// Second pass: evict the oldest (earliest expiry) entry
 		if !evicted {
-			return
+			var oldestKey [2]uint16
+			var oldestExpiry time.Time
+			first := true
+			for k, entry := range iisTagsCacheMap {
+				if first || entry.expiry.Before(oldestExpiry) {
+					oldestKey = k
+					oldestExpiry = entry.expiry
+					first = false
+				}
+			}
+			delete(iisTagsCacheMap, oldestKey)
 		}
 	}
 

@@ -45,22 +45,22 @@ func TestStoreIISTagsCache(t *testing.T) {
 		assert.Equal(t, []string{"service:new"}, result["80-5000"])
 	})
 
-	t.Run("capacity limit drops new entries", func(t *testing.T) {
+	t.Run("capacity limit evicts oldest entry", func(t *testing.T) {
 		resetIISTagsCache()
 
-		// Fill cache to capacity with non-expired entries
+		// Fill cache to capacity; the first entry (key {0,0}) will have the earliest expiry.
 		for i := 0; i < iisTagsCacheMaxSize; i++ {
 			key := [2]uint16{uint16(i), 0}
 			storeIISTagsCache(key, []string{"tag"})
 		}
 
-		// Try to add one more — should be dropped since nothing is expired
+		// Add one more — should evict the oldest (earliest expiry) entry
 		key := [2]uint16{65535, 65535}
-		storeIISTagsCache(key, []string{"should-be-dropped"})
+		storeIISTagsCache(key, []string{"new-entry"})
 
 		result := GetIISTagsCache()
-		_, exists := result["65535-65535"]
-		assert.False(t, exists, "entry should have been dropped at capacity")
+		assert.Contains(t, result, "65535-65535", "new entry should have been inserted after evicting oldest")
+		assert.Equal(t, iisTagsCacheMaxSize, len(result), "cache size should remain at max capacity")
 	})
 
 	t.Run("evicts expired entry at capacity", func(t *testing.T) {
