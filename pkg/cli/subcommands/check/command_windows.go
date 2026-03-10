@@ -10,8 +10,8 @@ package check
 import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
-	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
-	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
+	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
+	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"go.uber.org/fx"
 )
@@ -20,7 +20,7 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		windowseventlogfx.Module(),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
-		winregistryimpl.Module(),
+		winregistryfx.Module(),
 		fx.Invoke(func(_ winregistry.Component) {}),
 		publishermetadatacachefx.Module(),
 	)
