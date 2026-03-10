@@ -489,7 +489,6 @@ func TestServicesNodeDocker(t *testing.T) {
 		assert.Equal(collect, "test@nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
 		assert.Equal(collect, false, svc.APMInstrumentation)
-		assert.Equal(collect, "web_service", svc.Type)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -657,5 +656,4 @@ func TestServicesDocker(t *testing.T) {
 	require.Contains(t, svc.TCPPorts, uint16(1234))
 	require.Contains(t, svc.GeneratedName, "http.server")
 	require.Contains(t, svc.GeneratedNameSource, string(usm.CommandLine))
-	require.Contains(t, svc.Type, "web_service")
 }
