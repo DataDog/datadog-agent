@@ -98,8 +98,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added jsonPayloadBuffers struct (header/footer bytes.Buffer + jsoniter.Stream) pooled via sync.Pool in JSONPayloadBuilder. Added bufferContextPool (sync.Pool) in iterable_series.go for *marshaler.BufferContext reuse. Added package-level jsonItemSeparator to avoid per-call []byte allocation. Pooled buffers returned via defer after compressor.Close() copies payload bytes - safe lifecycle. BenchmarkJSONPayloadBuilderServiceCheck1-10: 20→13 allocs/op (35%). BenchmarkSeries/json: 21→14 allocs/op (33%). BenchmarkSeries/pb: 46→33 allocs/op (28%). All exceed ≥20% target. Race detector passes."
     },
     {
       "id": "US-007",

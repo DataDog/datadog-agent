@@ -54,3 +54,19 @@ Started: Tue 10 Mar 14:36:46 GMT 2026
   - All quantile accuracy tests pass: `go test ./pkg/util/quantile/...`
   - Race detector passes: `go test -race -tags test ./pkg/aggregator/...`
 ---
+
+## 2026-03-10 - US-006
+- Reduced buffer allocations in the JSON serialisation streaming path
+- Files changed:
+  - `pkg/serializer/internal/stream/json_payload_builder.go`: Added `jsonPayloadBuffers` struct containing `header bytes.Buffer`, `footer bytes.Buffer`, `jsonStream *jsoniter.Stream`. Added `bufPool sync.Pool` field to `JSONPayloadBuilder`. Refactored `NewJSONPayloadBuilder` to a single code path. `BuildWithOnErrItemTooBigPolicy` now gets bufs from pool, resets, and returns via defer. Added package-level `jsonItemSeparator = []byte(",")` to avoid per-call allocation.
+  - `pkg/serializer/internal/metrics/iterable_series.go`: Added package-level `bufferContextPool = sync.Pool` for `*marshaler.BufferContext` reuse in `MarshalSplitCompressPipelines`. Replaces `marshaler.NewBufferContext()` with pool get; defers put after finishPayload() copies payload bytes.
+- **Learnings for future iterations:**
+  - `var header, footer bytes.Buffer` declared as local values still escape to heap when `&header` is passed to `jsoniter.NewStream(...)` as `io.Writer`. Pooling avoids this.
+  - jsoniter.Stream.Reset(writer) is safe to call on a pooled stream — it just sets the output writer, discarding any unsent buffered data. Pool the stream with `Reset(nil)` initial state.
+  - `defer bufPool.Put(bufs)` inside `BuildWithOnErrItemTooBigPolicy` is safe because: (1) compressor.Close() copies payload bytes before returning, so the pool's buffers are not referenced by the returned payloads; (2) the mutex unlock defer (if present) runs AFTER bufPool.Put due to LIFO order — this is safe because pool.Get from another goroutine only happens after lock is released.
+  - `defer` inside a `for range` loop is acceptable when the loop has bounded small iterations (e.g. number of pipeline configs ~1-3). All deferred puts run at function exit, which is after finishPayload() for all pipelines.
+  - BenchmarkJSONPayloadBuilderServiceCheck1-10: 20 → 13 allocs/op (35% reduction, target ≥20%).
+  - BenchmarkSeries/000100-items/json: 21 → 14 allocs/op (33% reduction).
+  - BenchmarkSeries/000100-items/pb: 46 → 33 allocs/op (28% reduction).
+  - TestAgentPayloadVersion is a pre-existing failure requiring linker flags; not caused by our changes.
+---
