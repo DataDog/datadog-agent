@@ -100,7 +100,7 @@ remote_agent:
   registry:
     enabled: true  # Required for RAR-gated authorization
   configstream:
-    enabled: true
+    enabled: true # Required to use the configstreamconsumer
     sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
 ```
 
