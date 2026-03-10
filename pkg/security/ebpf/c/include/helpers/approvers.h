@@ -78,6 +78,8 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
         return 0;
     }
 
+    monitor_event_sample_total(EVENT_BIND);
+
     struct bind_sample_key_t key = {
         .pid = pid,
         .family = family,
@@ -97,14 +99,18 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
     }
 
     bpf_printk("bind_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
+    monitor_event_sample_sampled(EVENT_BIND);
     return 1;
 }
 
 int __attribute__((always_inline)) approve_dns_sample(u32 pid) {
+    monitor_event_sample_total(EVENT_DNS);
+
     if (!global_limiter_allow(DNS_SAMPLE_LIMITER, 500, 1)) {
         return 0;
     }
 
+    monitor_event_sample_sampled(EVENT_DNS);
     return 1;
 }
 
@@ -112,6 +118,8 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
     if (family != AF_INET && family != AF_INET6) {
         return 0;
     }
+
+    monitor_event_sample_total(EVENT_CONNECT);
 
     struct bind_sample_key_t key = {
         .pid = pid,
@@ -129,6 +137,7 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
         return 0;
     }
 
+    monitor_event_sample_sampled(EVENT_CONNECT);
     return 1;
 }
 

@@ -20,6 +20,7 @@ var bpfMapNames = []string{
 	"bb_discarder_st",
 	"bb_dns_stats",
 	"bb_event_sample",
+	"bind_samples",
 	"bpf_cmd_approve",
 	"bpf_maps",
 	"bpf_progs",
