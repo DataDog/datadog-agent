@@ -1455,6 +1455,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"versa",
 		"cisco_aci",
 		"system",
+		"systemd",
 		"system_core",
 		"system_swap",
 		"telemetry",
