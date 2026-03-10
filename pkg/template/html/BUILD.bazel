@@ -1,4 +1,47 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_stringer(
+    name = "attr_string",
+    src = "context.go",
+    output = "attr_string.go",
+    types = ["attr"],
+)
+
+go_stringer(
+    name = "delim_string",
+    src = "context.go",
+    output = "delim_string.go",
+    types = ["delim"],
+)
+
+go_stringer(
+    name = "element_string",
+    src = "context.go",
+    output = "element_string.go",
+    types = ["element"],
+)
+
+go_stringer(
+    name = "jsctx_string",
+    src = "context.go",
+    output = "jsctx_string.go",
+    types = ["jsCtx"],
+)
+
+go_stringer(
+    name = "state_string",
+    src = "context.go",
+    output = "state_string.go",
+    types = ["state"],
+)
+
+go_stringer(
+    name = "urlpart_string",
+    src = "context.go",
+    output = "urlpart_string.go",
+    types = ["urlPart"],
+)
 
 go_library(
     name = "html",
