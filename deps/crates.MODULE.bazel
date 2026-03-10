@@ -9,4 +9,12 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
+crate.annotation(
+    crate = "protoc-gen-prost",
+    gen_binaries = ["protoc-gen-prost"],
+)
+crate.annotation(
+    crate = "protoc-gen-tonic",
+    gen_binaries = ["protoc-gen-tonic"],
+)
 use_repo(crate, "crates")
