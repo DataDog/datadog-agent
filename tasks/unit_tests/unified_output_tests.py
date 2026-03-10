@@ -14,6 +14,7 @@ from tasks.libs.testing.utof.go_parser.failure_parser import (
     _extract_stacktrace_from_raw_output,
     _parse_assertion_blocks,
 )
+from tasks.libs.testing.utof.go_parser.run_parser import count_leaves
 from tasks.libs.testing.utof.go_unit import convert_unit_test_results
 from tasks.libs.testing.utof.models import (
     UTOFAttempt,
@@ -808,11 +809,18 @@ class TestSubtestHierarchy(unittest.TestCase):
         metric = cpu.subtests[0]
         self.assertTrue(metric.full_name.startswith("TestEKSSuite/TestCPU/"))
 
-    def test_summary_counts_leaves_only(self):
-        """Summary should count only leaf tests to avoid double-counting."""
-        # The tree has 2 leaves: the metric under TestCPU and TestMemory
-        self.assertEqual(self.doc.summary.total, 2)
-        self.assertEqual(self.doc.summary.failed, 2)
+    def test_summary_counts_nodes_with_failures(self):
+        """Parent nodes with their own failure (e.g. setup panic) are counted.
+
+        The tree here is:
+          TestEKSSuite (fail, has own failure)
+            TestCPU (fail, has own failure)
+              metric_... (fail, leaf)
+            TestMemory (fail, leaf)
+        All four nodes have their own failure, so total=4, failed=4.
+        """
+        self.assertEqual(self.doc.summary.total, 4)
+        self.assertEqual(self.doc.summary.failed, 4)
 
     def test_subtests_stripped_from_json_when_empty(self):
         """subtests: None should be stripped from JSON output (like other optional fields)."""
