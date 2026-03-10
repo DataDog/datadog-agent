@@ -394,10 +394,28 @@ func shouldExecSystemProbeLite(sysprobeConfig sysprobeconfig.Component, cfg *sys
 	return !cfg.Enabled || (len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule))
 }
 
-// execSystemProbeLite replaces the current process with system-probe-lite.
-// If the system-probe-lite binary is not found, it returns nil to allow system-probe
-// to fall back to running the Go discovery module natively.
-func execSystemProbeLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) error {
+// systemProbeLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
+type systemProbeLiteExecCmd struct {
+	Path string
+	Args []string
+	Env  []string
+}
+
+// buildSystemProbeLiteArgs builds the command-line arguments for the system-probe-lite binary.
+func buildSystemProbeLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string) []string {
+	args := []string{"system-probe-lite", "run"}
+	if configPath := sysprobeConfig.ConfigFileUsed(); configPath != "" {
+		args = append(args, "--config", configPath)
+	}
+	if pidFilePath != "" {
+		args = append(args, "--pid", pidFilePath)
+	}
+	return args
+}
+
+// resolveSystemProbeLiteExecCmd resolves the system-probe-lite binary path and builds the exec arguments.
+// Returns nil if the binary cannot be found (graceful fallback).
+func resolveSystemProbeLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) *systemProbeLiteExecCmd {
 	// system-probe-lite binary is expected in the same directory as system-probe
 	execPath, err := os.Executable()
 	if err != nil {
@@ -411,19 +429,25 @@ func execSystemProbeLite(sysprobeConfig sysprobeconfig.Component, pidFilePath st
 		return nil
 	}
 
-	// Build system-probe-lite arguments
-	args := []string{"system-probe-lite", "run"}
-	if configPath := sysprobeConfig.ConfigFileUsed(); configPath != "" {
-		args = append(args, "--config", configPath)
+	return &systemProbeLiteExecCmd{
+		Path: systemProbeLitePath,
+		Args: buildSystemProbeLiteArgs(sysprobeConfig, pidFilePath),
+		Env:  os.Environ(),
 	}
-	if pidFilePath != "" {
-		args = append(args, "--pid", pidFilePath)
+}
+
+// execSystemProbeLite replaces the current process with system-probe-lite.
+// If the system-probe-lite binary is not found, it returns nil to allow system-probe
+// to fall back to running the Go discovery module natively.
+func execSystemProbeLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) error {
+	cmd := resolveSystemProbeLiteExecCmd(sysprobeConfig, pidFilePath, log)
+	if cmd == nil {
+		return nil
 	}
 
-	log.Infof("execing into system-probe-lite: %s %v", systemProbeLitePath, args)
-
-	// Replace the current process with system-probe-lite
-	return syscall.Exec(systemProbeLitePath, args, os.Environ())
+	log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+	log.Flush()
+	return syscall.Exec(cmd.Path, cmd.Args, cmd.Env)
 }
 
 func logUserAndGroupID(log log.Component) {
