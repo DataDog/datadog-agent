@@ -20,9 +20,21 @@ pub enum FallbackDecision {
     ExitCleanly,
 }
 
+/// Resolves the system-probe config file path from a user-supplied `--config` argument.
+///
+/// Mirrors Go's `newSysprobeConfig`: if the supplied path is a directory, look for
+/// `system-probe.yaml` inside it; otherwise use the path as-is.
+fn resolve_sysprobe_config_path(config_path: Option<PathBuf>) -> PathBuf {
+    match config_path {
+        None => PathBuf::from("/etc/datadog-agent/system-probe.yaml"),
+        Some(path) if path.is_dir() => path.join("system-probe.yaml"),
+        Some(path) => path,
+    }
+}
+
 /// Loads the YAML config file if it exists
 pub fn load_config(config_path: Option<PathBuf>) -> Result<Option<Yaml>> {
-    let path = config_path.unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/system-probe.yaml"));
+    let path = resolve_sysprobe_config_path(config_path);
 
     // Try to load YAML, but don't fail if file doesn't exist
     // (env vars might be sufficient)
@@ -1114,6 +1126,26 @@ log_level: 12345
                 );
             },
         );
+    }
+
+    #[test]
+    fn test_load_config_from_directory() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let sp_path = dir.path().join("system-probe.yaml");
+        std::fs::write(
+            &sp_path,
+            "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+        )
+        .unwrap();
+
+        let config = load_config(Some(dir.path().to_path_buf())).unwrap();
+        assert!(
+            config.is_some(),
+            "should load system-probe.yaml from directory"
+        );
+        let enabled = get_yaml_bool_option(config.as_ref().unwrap(), "discovery.enabled");
+        assert_eq!(enabled, Some(true));
     }
 
     // Helm chart scenario tests

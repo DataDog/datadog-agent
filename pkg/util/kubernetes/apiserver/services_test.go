@@ -28,11 +28,13 @@ func TestNamespacesPodsStringsSet(t *testing.T) {
 	require.Equal(t, 3, len(mapper["default"]))
 	assert.Equal(t, sets.New("svc1"), mapper["default"]["pod1"])
 
-	mapper.Delete("default", "svc1")
+	modified := mapper.Delete("default", "svc1")
+	assert.True(t, modified)
 	require.Equal(t, 1, len(mapper["default"]))
 	assert.Equal(t, sets.New("svc2"), mapper["default"]["pod3"])
 
-	mapper.Delete("default", "svc2")
+	modified = mapper.Delete("default", "svc2")
+	assert.True(t, modified)
 
 	// No more pods in default namespace.
 	_, ok := mapper["default"]
