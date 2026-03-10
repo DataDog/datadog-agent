@@ -102,7 +102,11 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 
 ## Beyond out of the box environments
 
-Not all tests fit the four out of the box environments. Common advanced patterns:
+The stock environments are highly customizable via provisioner options (OS,
+agent config, with/without fakeintake, etc.) — explore the `With*` options on
+each provisioner before creating a custom environment.
+
+When that's not enough, common advanced patterns:
 
 - **Custom environment structs** — define your own struct with extra components
   (e.g., a second `RemoteHost`, multiple fakeintakes, an HTTPBin service).
