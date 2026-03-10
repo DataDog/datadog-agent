@@ -352,12 +352,10 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
                     }
                 }
             };
-            let _ = tx
-                .send(ExitEvent {
-                    name: name.clone(),
-                    status,
-                })
-                .await;
+            let _ = tx.try_send(ExitEvent {
+                name: name.clone(),
+                status,
+            });
         });
         proc.set_watcher_handle(handle);
     }
