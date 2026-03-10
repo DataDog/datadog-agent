@@ -829,11 +829,7 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 		opts = append(opts, fx.Decorate(func(log.Component) log.Component { return logslog.Disabled() }))
 	}
 
-	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Decorate(func(log.Component) log.Component { return logslog.Disabled() }),
-	))
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(opts...))
 }
 
 // GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs
