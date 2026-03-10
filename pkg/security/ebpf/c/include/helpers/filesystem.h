@@ -14,7 +14,7 @@
 // the bump revision value is used to increase the mount id part of the path id when the mount is updated
 // this means that two different mount id can be considered as the same if the difference is less than the bump revision value
 // see the userspace equality check in the model_unix.go file
-#define MOUNT_REVISION_BUMP_VALUE 30
+#define MOUNT_REVISION_BUMP_VALUE 64
 
 static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
     u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
