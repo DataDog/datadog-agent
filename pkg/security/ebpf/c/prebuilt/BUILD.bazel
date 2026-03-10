@@ -37,6 +37,36 @@ ebpf_prog(
     deps = _COMMON_DEPS,
 )
 
+_BALOUM_FLAGS = _SECURITY_FLAGS + ["-D__BALOUM__"]
+
+# Baloum (eBPF unit test) variants — include test sections in the object files.
+# These are only built for `run_ebpf_unit_tests` and never shipped.
+# TODO{agent-build}: Find a better way to deal with Baloum unit tests 
+# and build them in the same way as the other eBPF programs.
+ebpf_prog(
+    name = "runtime-security-baloum",
+    src = "probe.c",
+    extra_flags = _BALOUM_FLAGS,
+    deps = _COMMON_DEPS,
+)
+
+ebpf_prog(
+    name = "runtime-security-syscall-wrapper-baloum",
+    src = "probe.c",
+    extra_flags = _BALOUM_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
+    deps = _COMMON_DEPS,
+)
+
+ebpf_prog(
+    name = "runtime-security-fentry-baloum",
+    src = "probe.c",
+    extra_flags = _BALOUM_FLAGS + [
+        "-DUSE_SYSCALL_WRAPPER",
+        "-DUSE_FENTRY",
+    ],
+    deps = _COMMON_DEPS,
+)
+
 # offset guesser
 ebpf_prog(
     name = "runtime-security-offset-guesser",

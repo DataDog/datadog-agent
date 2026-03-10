@@ -94,8 +94,18 @@ def _is_dir(rctx, path):
     result = rctx.execute(["test", "-d", path], timeout = 5)
     return result.return_code == 0
 
-def _discover_header_dirs(rctx, kernel_arch):
-    """Discover kernel header directories, mirroring get_linux_header_dirs() from tasks/system_probe.py."""
+def _version_at_least(version, minimum):
+    """Return True if version >= minimum. Both are (major, minor, patch) tuples."""
+    return version >= minimum
+
+def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None):
+    """Discover kernel header directories, mirroring get_linux_header_dirs() from tasks/system_probe.py.
+
+    Args:
+        rctx: repository context
+        kernel_arch: target kernel architecture (e.g. "x86", "arm64")
+        min_kernel_version: optional (major, minor, patch) tuple; headers older than this are discarded
+    """
 
     candidates = {}  # resolved_path -> name
 
@@ -129,9 +139,14 @@ def _discover_header_dirs(rctx, kernel_arch):
     # Therefore, prioritization is done based on the architecture match and then the version match.
     # TODO{agent-build}: kernel headers should be a hermetic package instead of a host lookup.
     scored = []  # list of (priority, sort_order, resolved_path)
+    rejected_by_version = []  # names rejected by min_kernel_version filter
     for resolved, name in candidates.items():
         version = _parse_kernel_version(name)
         if version == None:
+            continue
+
+        if min_kernel_version and not _version_at_least(version, min_kernel_version):
+            rejected_by_version.append("{} ({}.{}.{})".format(name, version[0], version[1], version[2]))
             continue
 
         priority = 0
@@ -147,7 +162,15 @@ def _discover_header_dirs(rctx, kernel_arch):
         scored.append((priority, sort_order, resolved, name))
 
     if not scored:
-        fail("No kernel header directories found. Searched /usr/src/kernels, /usr/src/linux-*, /lib/modules/*/build|source")
+        msg = "No kernel header directories found. Searched /usr/src/kernels, /usr/src/linux-*, /lib/modules/*/build|source."
+        if rejected_by_version:
+            msg += " Rejected (below min_kernel_version {}.{}.{}): {}".format(
+                min_kernel_version[0],
+                min_kernel_version[1],
+                min_kernel_version[2],
+                ", ".join(sorted(rejected_by_version)),
+            )
+        fail(msg)
 
     max_priority = max([s[0] for s in scored])
     best = [(s[2], s[1], s[3]) for s in scored if s[0] == max_priority]
@@ -171,7 +194,13 @@ def _linux_headers_impl(rctx):
     if not kernel_arch:
         fail("Unsupported architecture for kernel headers: " + arch)
 
-    header_roots = _discover_header_dirs(rctx, kernel_arch)
+    min_ver = None
+    if rctx.attr.min_kernel_version:
+        min_ver = _parse_kernel_version(rctx.attr.min_kernel_version)
+        if min_ver == None:
+            fail("Invalid min_kernel_version: " + rctx.attr.min_kernel_version)
+
+    header_roots = _discover_header_dirs(rctx, kernel_arch, min_kernel_version = min_ver)
 
     arch_subdirs = [
         "arch/{}/include".format(kernel_arch),
@@ -223,7 +252,13 @@ linux_headers_repo = repository_rule(
     doc = "Discover host kernel headers for eBPF prebuilt compilation.",
     local = True,
     environ = ["KERNEL_RELEASE"],
-    attrs = {},
+    attrs = {
+        "min_kernel_version": attr.string(
+            default = "5.8.0",
+            doc = "Minimum kernel version for header discovery (e.g. '5.8.0'). " +
+                  "Headers older than this are discarded. Set to empty string to disable.",
+        ),
+    },
 )
 
 linux_headers_extension = module_extension(

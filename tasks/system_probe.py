@@ -1415,6 +1415,13 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
+_BAZEL_CWS_BALOUM_TARGETS = {
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-baloum": "runtime-security.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-baloum": "runtime-security-syscall-wrapper.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-baloum": "runtime-security-fentry.o",
+}
+
+
 def build_cws_object_files(
     ctx,
     arch: str | Arch = CURRENT_ARCH,
@@ -1424,9 +1431,25 @@ def build_cws_object_files(
     with_unit_test=False,
     bundle_ebpf=False,
 ):
+    import shutil
+
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     bazel_build_ebpf(ctx, arch_obj, str(build_dir))
+
+    if with_unit_test:
+        targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
+        ctx.run(f"bazelisk build {' '.join(targets)}")
+
+        result = ctx.run("bazelisk info bazel-bin", hide=True)
+        bazel_bin = result.stdout.strip()
+
+        for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
+            label_path, name = target.lstrip("/").rsplit(":", 1)
+            src = os.path.join(bazel_bin, label_path, f"{name}.o")
+            dst = os.path.join(str(build_dir), dest_name)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o444)
 
 
 def clean_object_files(ctx):
