@@ -278,7 +278,10 @@ func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime 
 		return -1
 	}
 
-	return valueDiff / timeDiff
+	usage := valueDiff / timeDiff
+	log.Debugf("CPU usage: %.3f cores", usage/1e9)
+
+	return usage
 }
 
 // sendMetrics sends the enhanced metrics to the metric agent

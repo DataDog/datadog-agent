@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TraceAgent represents a trace agent that can process trace payloads, be flushed, and stopped.
@@ -150,6 +151,7 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		if isCloudRunFunction() {
+			log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 			return &CloudRun{spanNamespace: cloudRunFunction}
 		}
 		return &CloudRun{spanNamespace: cloudRunService}

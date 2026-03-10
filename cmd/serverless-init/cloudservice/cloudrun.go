@@ -119,10 +119,11 @@ func (c *CloudRun) GetTags() map[string]string {
 
 func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
-		"location":     tags["location"],
-		"project_id":   tags["project_id"],
-		"service_name": tags["service_name"],
-		"origin":       tags["origin"],
+		"location":      tags["location"],
+		"project_id":    tags["project_id"],
+		"revision_name": tags["revision_name"],
+		"service_name":  tags["service_name"],
+		"origin":        tags["origin"],
 	}
 
 	if c.spanNamespace == cloudRunFunction {
@@ -132,7 +133,7 @@ func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]str
 	}
 
 	highCardinalityTags := map[string]string{
-		"container_id": tags["container_id"],
+		"instance": tags["container_id"],
 	}
 
 	return baseTags, highCardinalityTags
@@ -208,7 +209,6 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 	return cloudRunFunctionMode
 }
 
