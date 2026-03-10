@@ -520,6 +520,40 @@ func TestConversions(t *testing.T) {
 			expectsError: false,
 		},
 		{
+			name: "event with an ECS task (managed instances launch type)",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ECSTask{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindECSTask,
+						ID:   "456",
+					},
+					Tags:                  map[string]string{},
+					ContainerInstanceTags: map[string]string{},
+					Family:                "some_family",
+					Version:               "1",
+					LaunchType:            workloadmeta.ECSLaunchTypeManagedInstances,
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				EcsTask: &pb.ECSTask{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_ECS_TASK,
+						Id:   "456",
+					},
+					EntityMeta:            &pb.EntityMeta{},
+					Tags:                  map[string]string{},
+					ContainerInstanceTags: map[string]string{},
+					Family:                "some_family",
+					Version:               "1",
+					LaunchType:            pb.ECSLaunchType_MANAGED_INSTANCES,
+					Containers:            []*pb.OrchestratorContainer{},
+				},
+			},
+			expectsError: false,
+		},
+		{
 			name: "event with a process (minimal)",
 			workloadmetaEvent: workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,

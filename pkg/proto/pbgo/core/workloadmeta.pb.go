@@ -348,8 +348,9 @@ func (ContainerHealth) EnumDescriptor() ([]byte, []int) {
 type ECSLaunchType int32
 
 const (
-	ECSLaunchType_EC2     ECSLaunchType = 0
-	ECSLaunchType_FARGATE ECSLaunchType = 1
+	ECSLaunchType_EC2               ECSLaunchType = 0
+	ECSLaunchType_FARGATE           ECSLaunchType = 1
+	ECSLaunchType_MANAGED_INSTANCES ECSLaunchType = 2
 )
 
 // Enum value maps for ECSLaunchType.
@@ -357,10 +358,12 @@ var (
 	ECSLaunchType_name = map[int32]string{
 		0: "EC2",
 		1: "FARGATE",
+		2: "MANAGED_INSTANCES",
 	}
 	ECSLaunchType_value = map[string]int32{
-		"EC2":     0,
-		"FARGATE": 1,
+		"EC2":               0,
+		"FARGATE":           1,
+		"MANAGED_INSTANCES": 2,
 	}
 )
 
@@ -2464,10 +2467,11 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x0fContainerHealth\x12\x1c\n" +
 	"\x18CONTAINER_HEALTH_UNKNOWN\x10\x00\x12\x1c\n" +
 	"\x18CONTAINER_HEALTH_HEALTHY\x10\x01\x12\x1e\n" +
-	"\x1aCONTAINER_HEALTH_UNHEALTHY\x10\x02*%\n" +
+	"\x1aCONTAINER_HEALTH_UNHEALTHY\x10\x02*<\n" +
 	"\rECSLaunchType\x12\a\n" +
 	"\x03EC2\x10\x00\x12\v\n" +
-	"\aFARGATE\x10\x01*[\n" +
+	"\aFARGATE\x10\x01\x12\x15\n" +
+	"\x11MANAGED_INSTANCES\x10\x02*[\n" +
 	"\x0eInjectionState\x12\x15\n" +
 	"\x11INJECTION_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12INJECTION_INJECTED\x10\x01\x12\x1a\n" +

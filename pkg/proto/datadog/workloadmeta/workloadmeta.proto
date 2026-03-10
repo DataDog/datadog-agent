@@ -160,6 +160,7 @@ message KubernetesPod {
 enum ECSLaunchType {
   EC2 = 0;
   FARGATE = 1;
+  MANAGED_INSTANCES = 2;
 }
 
 message ECSTask {
