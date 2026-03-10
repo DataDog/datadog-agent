@@ -757,7 +757,7 @@ func testFlushSketchesTagStripBasic(t *testing.T, store *tags.Store) {
 
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1.0)
-	assert.True(t, expSketch.Equals(s.Points[0].Sketch), "sketch should contain the original value")
+	assert.True(t, expSketch.Equals(s.Points[0].Sketch.(*quantile.Sketch)), "sketch should contain the original value")
 }
 
 // testFlushSketchesTagStripMerge verifies that two distribution contexts that
@@ -784,7 +784,7 @@ func testFlushSketchesTagStripMerge(t *testing.T, store *tags.Store) {
 	// The merged sketch must contain both values.
 	expMerged := &quantile.Sketch{}
 	expMerged.Insert(quantile.Default(), 1.0, 2.0)
-	assert.True(t, expMerged.Equals(s.Points[0].Sketch), "merged sketch should contain all values from both contexts")
+	assert.True(t, expMerged.Equals(s.Points[0].Sketch.(*quantile.Sketch)), "merged sketch should contain all values from both contexts")
 }
 
 // testFlushSketchesTagStripNoMerge verifies that two distribution contexts that
@@ -871,13 +871,13 @@ func testFlushSketchesTagStripMultipleBuckets(t *testing.T, store *tags.Store) {
 	// Bucket 1: sketch must contain both 1.0 and 2.0.
 	expBucket1 := &quantile.Sketch{}
 	expBucket1.Insert(quantile.Default(), 1.0, 2.0)
-	assert.True(t, expBucket1.Equals(s.Points[0].Sketch),
+	assert.True(t, expBucket1.Equals(s.Points[0].Sketch.(*quantile.Sketch)),
 		"bucket 1 sketch should be the merge of context A and B values")
 
 	// Bucket 2: sketch must contain both 3.0 and 4.0.
 	expBucket2 := &quantile.Sketch{}
 	expBucket2.Insert(quantile.Default(), 3.0, 4.0)
-	assert.True(t, expBucket2.Equals(s.Points[1].Sketch),
+	assert.True(t, expBucket2.Equals(s.Points[1].Sketch.(*quantile.Sketch)),
 		"bucket 2 sketch should be the merge of context A and B values")
 }
 
@@ -917,14 +917,14 @@ func testFlushSketchesTagStripMixedContexts(t *testing.T, store *tags.Store) {
 	expGroupA := &quantile.Sketch{}
 	expGroupA.Insert(quantile.Default(), 1.0, 2.0)
 	require.Len(t, groupA.Points, 1)
-	assert.True(t, expGroupA.Equals(groupA.Points[0].Sketch),
+	assert.True(t, expGroupA.Equals(groupA.Points[0].Sketch.(*quantile.Sketch)),
 		"group A sketch should be the merge of the two keep:1 contexts")
 
 	// Group B sketch should contain only 10.0 (no merge).
 	expGroupB := &quantile.Sketch{}
 	expGroupB.Insert(quantile.Default(), 10.0)
 	require.Len(t, groupB.Points, 1)
-	assert.True(t, expGroupB.Equals(groupB.Points[0].Sketch),
+	assert.True(t, expGroupB.Equals(groupB.Points[0].Sketch.(*quantile.Sketch)),
 		"group B sketch should contain only the keep:2 context value")
 }
 

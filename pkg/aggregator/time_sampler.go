@@ -278,7 +278,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 			merged := false
 			for i := range pts {
 				if pts[i].Ts == p.Ts {
-					pts[i].Sketch.Merge(quantile.Default(), p.Sketch)
+					pts[i].Sketch.Merge(quantile.Default(), p.Sketch.(*quantile.Sketch))
 					merged = true
 					break
 				}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -45,6 +46,8 @@ type SketchData interface {
 	Cols() (k []int32, n []uint32)
 	// BasicStats returns the five summary fields used in the wire format.
 	BasicStats() (cnt int64, min, max, sum, avg float64)
+
+	Merge(c *quantile.Config, o *quantile.Sketch)
 }
 
 // A SketchPoint represents a quantile sketch at a specific time
