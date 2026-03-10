@@ -13,7 +13,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/processor v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.61.0
@@ -26,7 +25,7 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1 // indirect

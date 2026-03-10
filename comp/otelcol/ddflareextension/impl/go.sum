@@ -36,6 +36,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
+github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda h1:DsmZ1AeuDLNaX8ehnKRWNx1huqQv5pbQ48RK0x8hD6w=
+github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad h1:Ex/s6WrxMmlX4MavyE9hTQHjwXPBekP6dCkSQKpLPmc=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/datadog-api-client-go/v2 v2.55.0 h1:wRwBJJpNRoyBJXdKtInfHXeXIo+nTn5DSIayaovRYVY=
@@ -580,6 +582,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.146.0/go.mod h1:iarU6UmdtWrM4VxGAtoIBM+wDhqwRYtDrXh/mJ+ZATQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.146.0 h1:SI0QiUAI9/Upt8jPE+ltTGJHiJg8heQYkJGCQXS5x2M=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.146.0/go.mod h1:mx1hfmqHpCNPXJSOc2we3VcSrgz4SeOm1tOcw/4K/sQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.119.0 h1:dit5qDsbc1UQjoBswdK6XaxSvDiltteUqK1EYxfaZIM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.119.0/go.mod h1:9NO7zx3H/Kh80BxyaKsD0TiCYAgxmyh4wxopW/8BPr0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.146.0 h1:BqGP0K7CgF+wAVQfX3VkTvQpsEqRCWgnUjUxlf4Hbfs=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.146.0/go.mod h1:U897JmwGZy9Jxaj1cRkSdiA1K40KQYifr/0ItxEYX4Y=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.146.0 h1:A6gmea4ARyLw+5q+ErPnBGWDrKbTiUPbH1WYKBoiVNs=

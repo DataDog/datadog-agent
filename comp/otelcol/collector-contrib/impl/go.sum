@@ -35,6 +35,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
+github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda h1:DsmZ1AeuDLNaX8ehnKRWNx1huqQv5pbQ48RK0x8hD6w=
+github.com/DataDog/agent-payload/v5 v5.0.183-0.20260310231722-c920d9307bda/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad h1:Ex/s6WrxMmlX4MavyE9hTQHjwXPBekP6dCkSQKpLPmc=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/datadog-api-client-go/v2 v2.55.0 h1:wRwBJJpNRoyBJXdKtInfHXeXIo+nTn5DSIayaovRYVY=
@@ -603,6 +605,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.146
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.146.0/go.mod h1:eGrGLstyHjcvZUcvwIHozDw2HQoeGDU/p9RSV+A3cN4=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.146.0 h1:kE2ftRFmsorf3fK4JQS6rEq2h6yTLhV+QmzO46xI8ck=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.146.0/go.mod h1:+3Bt6ZyvHjlviCDgvvn8COjIdHRn88+lpGQSgE51uvs=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.134.0 h1:6VdXwfHM4noFJIpg6cXzeTkt2+FGvc979hPibeQWOzo=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.134.0/go.mod h1:FqU3VquS/BrBc4d3lEjhKP5Ao6G6hAq9KM49qoPl8Og=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.146.0 h1:Sz9DgWNvnwcp9/a0DE216tTQlXxWKOUylE+Ef+SCb64=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.146.0/go.mod h1:vXQeqBMS0tuJlX9sTML9miD6a6BoppP7RiZh2cEqPKk=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.146.0 h1:SQxl8wRw2+nBQsnw084C4gIl+bsVvGDFGxv0F/K7CxQ=
@@ -631,6 +635,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.146.0/go.mod h1:PYzKJx5+lWQD4SQiZ/uZbUm+KG5wS4uYjDZopCRym/U=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.146.0 h1:rnj4N1uZrJwuYtOBYorj6d4I/UXJNskx1O8ZzgB+qLY=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.146.0/go.mod h1:hvc0yE25Nf5Cy6Pp3bAKohqjiJNqfk0E2N5nPughXWo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.128.0 h1:zO+Xc0fTouPqUoyTDJtRCSjLofsyMPI/ktaa+QDuaiU=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.128.0/go.mod h1:m1pHzJunAWEIFVlLup6yGJnPOKlxyxPs6akXgpuNT3o=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.146.0 h1:BqGP0K7CgF+wAVQfX3VkTvQpsEqRCWgnUjUxlf4Hbfs=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.146.0/go.mod h1:U897JmwGZy9Jxaj1cRkSdiA1K40KQYifr/0ItxEYX4Y=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata v0.146.0 h1:daZyQbQ3czZtrO9CG0lQJROj4wC6VNY3Eyt9A3GATSw=
