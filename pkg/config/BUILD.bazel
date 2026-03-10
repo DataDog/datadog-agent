@@ -4,6 +4,7 @@ load("@rules_go//go:def.bzl", "go_binary")
 go_binary(
     name = "render_config",
     srcs = ["render_config.go"],
+    tags = ["render_config"],
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_pmezard_go_difflib//difflib:go_default_library",
