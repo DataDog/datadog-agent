@@ -71,15 +71,13 @@ void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type)
 
 
 int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
-    bpf_printk("bind_sample enter: port=%d pid=%d family=%d", port, pid, family);
-    bpf_printk("bind_sample enter: addr=%llx addr1=%llx", addr[0], addr[1]);
-
     if (family != AF_INET && family != AF_INET6) {
-        bpf_printk("bind_sample family_skip: pid=%d family=%d", pid, family);
         return 0;
     }
 
     monitor_event_sample_total(EVENT_BIND);
+    bpf_printk("bind_sample total: pid=%d port=%d family=%d", pid, port, family);
+    bpf_printk("bind_sample total: addr=%llx addr1=%llx", addr[0], addr[1]);
 
     struct bind_sample_key_t key;
     __builtin_memset(&key, 0, sizeof(key));
@@ -92,14 +90,10 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
 
     u8 value = 0;
     if (bpf_map_update_elem(&bind_samples, &key, &value, BPF_NOEXIST) < 0) {
-        bpf_printk("bind_sample dedup: pid=%d port=%d family=%d", pid, port, family);
-        bpf_printk("bind_sample dedup: addr=%llx addr1=%llx", addr[0], addr[1]);
         return 0;
     }
 
     if (!global_limiter_allow(BIND_SAMPLE_LIMITER, 500, 1)) {
-        bpf_printk("bind_sample rate_limited: pid=%d port=%d family=%d", pid, port, family);
-        bpf_printk("bind_sample rate_limited: addr=%llx addr1=%llx", addr[0], addr[1]);
         return 0;
     }
 
