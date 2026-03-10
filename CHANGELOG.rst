@@ -1,3 +1,5 @@
+.. NOTE: This file is frozen. New release notes are in CHANGELOG.md.
+
 =============
 Release Notes
 =============

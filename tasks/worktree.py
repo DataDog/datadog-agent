@@ -62,7 +62,7 @@ def run(ctx, branch: str, command: str, skip_checkout: bool = False):
     """Runs a command in the target worktree environment.
 
     Usage:
-        $ dda inv worktree.run 6.53.x "head CHANGELOG.rst"  # Displays the changelog of the target branch
+        $ dda inv worktree.run 6.53.x "head CHANGELOG.md"  # Displays the changelog of the target branch
     """
 
     with agent_context(ctx, branch, skip_checkout=skip_checkout):

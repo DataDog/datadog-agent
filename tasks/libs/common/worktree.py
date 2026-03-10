@@ -127,7 +127,7 @@ def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: s
 
     Usage:
         > with agent_context(ctx, branch):
-        >    ctx.run("head CHANGELOG.rst")  # Displays the changelog of the target branch
+        >    ctx.run("head CHANGELOG.md")  # Displays the changelog of the target branch
     """
 
     # Do not stack two environments
