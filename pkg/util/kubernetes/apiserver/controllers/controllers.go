@@ -233,15 +233,11 @@ func registerCRDInformer(ctx *ControllerContext, _ chan error) {
 // startPodCheckController starts the PodCheck controller that watches DatadogPodCheck CRDs
 // and writes AD-compatible check configs to a ConfigMap.
 func startPodCheckController(ctx *ControllerContext, errChan chan error) {
+	configMapNamespace := namespace.GetResourcesNamespace()
 	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
 	if configMapName == "" {
 		errChan <- errors.New("podcheck.configmap_name must be set when podcheck.enabled is true")
 		return
-	}
-
-	configMapNamespace := pkgconfigsetup.Datadog().GetString("podcheck.configmap_namespace")
-	if configMapNamespace == "" {
-		configMapNamespace = namespace.GetResourcesNamespace()
 	}
 
 	le, err := leaderelection.GetLeaderEngine()

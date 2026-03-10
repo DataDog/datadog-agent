@@ -911,7 +911,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Pod check CRD controller
 	config.BindEnvAndSetDefault("podcheck.enabled", true)
 	config.BindEnvAndSetDefault("podcheck.configmap_name", "datadog-crd-check-conf")
-	config.BindEnvAndSetDefault("podcheck.configmap_namespace", "")
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1617,6 +1616,11 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
+
+	// CRD-driven check configuration provider
+	config.BindEnvAndSetDefault("autoconf_crd_checks_dir", "/etc/datadog-agent/crd-conf.d")
+	config.BindEnvAndSetDefault("autoconf_crd_checks_poll_interval", 10)
+
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})

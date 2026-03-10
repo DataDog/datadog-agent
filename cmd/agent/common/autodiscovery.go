@@ -59,6 +59,15 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
+	if crdCheckEnabled := pkgconfigsetup.Datadog().GetBool("podcheck.enabled"); crdCheckEnabled {
+		pollInterval := time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_crd_checks_poll_interval")) * time.Second
+		ac.AddConfigProvider(
+			providers.NewCRDFileConfigProvider(pkgconfigsetup.Datadog().GetString("autoconf_crd_checks_dir"), providers.DefaultCRDNameExtractor, acTelemetryStore),
+			true, // polling always enabled when the feature is active
+			pollInterval,
+		)
+	}
+
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 
