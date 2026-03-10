@@ -114,24 +114,21 @@ rust_binary(
     name = "system-probe-lite",
     srcs = [
         "src/cli.rs",
-        "src/config.rs",
         "src/main.rs",
     ],
     edition = "2024",
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
-        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:simple_logger",
         "@crates//:anyhow",
         "@crates//:http-body-util",
         "@crates//:hyper",
         "@crates//:hyper-util",
         "@crates//:log",
-        "@crates//:phf",
         "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:yaml-rust2",
     ],
 )
 

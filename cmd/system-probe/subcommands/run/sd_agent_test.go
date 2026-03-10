@@ -17,19 +17,20 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func TestShouldExecSystemProbeLite(t *testing.T) {
 	tests := []struct {
-		name                   string
-		useSystemProbeLite     bool
-		discoveryEnabled       *bool // nil = not configured
-		externalSystemProbe    bool
-		enabledModules         map[sysconfigtypes.ModuleName]struct{}
-		enabled                bool
-		expected               bool
+		name                string
+		useSystemProbeLite  bool
+		discoveryEnabled    *bool // nil = not configured
+		externalSystemProbe bool
+		enabledModules      map[sysconfigtypes.ModuleName]struct{}
+		enabled             bool
+		expected            bool
 	}{
 		{
 			name:               "use_system_probe_lite disabled (default)",
@@ -73,7 +74,7 @@ func TestShouldExecSystemProbeLite(t *testing.T) {
 		},
 		{
 			name:                "external system-probe",
-			useSystemProbeLite: true,
+			useSystemProbeLite:  true,
 			externalSystemProbe: true,
 			enabledModules:      map[sysconfigtypes.ModuleName]struct{}{systemprobeconfig.DiscoveryModule: {}},
 			enabled:             true,
@@ -116,16 +117,37 @@ func TestShouldExecSystemProbeLite(t *testing.T) {
 }
 
 func TestBuildSystemProbeLiteArgs(t *testing.T) {
-	t.Run("no config no pid", func(t *testing.T) {
+	t.Run("no pid", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		args := buildSystemProbeLiteArgs(sysprobeConfig, "")
-		assert.Equal(t, []string{"system-probe-lite", "run"}, args)
+		assert.Equal(t, []string{
+			"system-probe-lite", "run",
+			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+			"--log-level", sysprobeConfig.GetString("log_level"),
+		}, args)
 	})
 
-	t.Run("with pid only", func(t *testing.T) {
+	t.Run("with pid", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		args := buildSystemProbeLiteArgs(sysprobeConfig, "/opt/datadog-agent/run/system-probe.pid")
-		assert.Equal(t, []string{"system-probe-lite", "run", "--pid", "/opt/datadog-agent/run/system-probe.pid"}, args)
+		assert.Equal(t, []string{
+			"system-probe-lite", "run",
+			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+			"--log-level", sysprobeConfig.GetString("log_level"),
+			"--pid", "/opt/datadog-agent/run/system-probe.pid",
+		}, args)
+	})
+
+	t.Run("with custom socket and log level", func(t *testing.T) {
+		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
+		sysprobeConfig.Set("system_probe_config.sysprobe_socket", "/custom/path.sock", model.SourceCLI)
+		sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
+		args := buildSystemProbeLiteArgs(sysprobeConfig, "")
+		assert.Equal(t, []string{
+			"system-probe-lite", "run",
+			"--socket", "/custom/path.sock",
+			"--log-level", "debug",
+		}, args)
 	})
 }
 
@@ -153,7 +175,12 @@ func TestResolveSystemProbeLiteExecCmd(t *testing.T) {
 		cmd := resolveSystemProbeLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
 		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
 		assert.Equal(t, testBinary, cmd.Path)
-		assert.Equal(t, []string{"system-probe-lite", "run", "--pid", "/var/run/sp.pid"}, cmd.Args)
+		assert.Equal(t, []string{
+			"system-probe-lite", "run",
+			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+			"--log-level", sysprobeConfig.GetString("log_level"),
+			"--pid", "/var/run/sp.pid",
+		}, cmd.Args)
 		assert.NotEmpty(t, cmd.Env)
 	})
 

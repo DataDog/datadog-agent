@@ -23,12 +23,11 @@ use std::env;
 use std::fs::{DirBuilder, OpenOptions, Permissions};
 use std::io::{ErrorKind, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt, chown};
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services};
+
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
@@ -37,18 +36,29 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
 
 mod cli;
-mod config;
 
 use cli::Args;
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
+
+fn parse_log_level(level: &str) -> log::Level {
+    match level.to_lowercase().as_str() {
+        "trace" => log::Level::Trace,
+        "debug" => log::Level::Debug,
+        "info" => log::Level::Info,
+        "warn" | "warning" => log::Level::Warn,
+        "error" | "critical" => log::Level::Error,
+        "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
+        _ => log::Level::Info,
+    }
+}
 
 fn write_pid_file(path: &Path) -> Result<()> {
     // Create parent directories if needed
@@ -214,23 +224,9 @@ async fn handle_request(
     }
 }
 
-fn fallback_to_system_probe(binary_path: &Path, args: &[String]) -> Result<()> {
-    // Build command with all system-probe args
-    let mut cmd = Command::new(binary_path);
-    cmd.args(args);
-
-    info!("Executing system-probe: {:?}", cmd);
-    let err = cmd.exec(); // Replaces current process, never returns
-    Err(anyhow!("Failed to exec: {}", err))
-}
-
-async fn run_system_probe_lite(
-    config: Option<yaml_rust2::Yaml>,
-    pid_path: Option<PathBuf>,
-) -> Result<()> {
-    let socket_path = config::get_sysprobe_socket_path(&config);
+async fn run_system_probe_lite(socket_path: &str, pid_path: Option<PathBuf>) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
-    let sock = setup_socket(&socket_path).context("Failed to setup Unix socket")?;
+    let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
 
     // Write PID file if needed
     if let Some(ref path) = pid_path {
@@ -301,51 +297,12 @@ async fn run_system_probe_lite(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::parse(env::args());
-    let config = config::load_config(args.config_path);
-    let log_level = config::get_log_level(&config);
-    let log_file_path = config::get_log_file(&config);
-    dd_agent_log::init(dd_agent_log::LogConfig {
-        logger_name: "SYS-PROBE-LITE",
-        level: log_level,
-        log_file: Some(std::path::PathBuf::from(log_file_path)),
-    })?;
-    info!("Log level set to: {:?}", log_level);
-
-    // Handle fallback decision if fallback binary is configured
-    if let Some(fallback_binary) = &args.fallback_binary {
-        // Do this check regardless of whether we're running system-probe-lite or not
-        // since we may need it at some point if we fallback to system-probe and
-        // we don't want to fail startup during another invocation.
-        if !fallback_binary.exists() {
-            bail!(
-                "Fallback binary does not exist: {}",
-                fallback_binary.display()
-            );
-        }
-
-        match config::determine_action(&config) {
-            config::FallbackDecision::FallbackToSystemProbe => {
-                info!("Unsupported configuration detected. Falling back to system-probe.");
-                fallback_to_system_probe(fallback_binary, &args.system_probe_args)?;
-                unreachable!() // exec never returns
-            }
-            config::FallbackDecision::ExitCleanly => {
-                info!("Discovery is disabled and no other configuration is present. Exiting.");
-                return Ok(());
-            }
-            config::FallbackDecision::RunSystemProbeLite => {
-                info!("Only discovery module enabled. Running system-probe-lite.");
-            }
-        }
-    }
-
-    // Convert Result<Option<Yaml>> to Option<Yaml> for run_system_probe_lite.
-    let config = config.ok().flatten();
-
-    // Run system-probe-lite server
+    let args = Args::parse(env::args())?;
+    let log_level = parse_log_level(&args.log_level);
+    simple_logger::init_with_level(log_level)?;
     info!("Starting system-probe-lite");
-    let result = run_system_probe_lite(config, args.pid_path.clone()).await;
+
+    let result = run_system_probe_lite(&args.socket_path, args.pid_path.clone()).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
@@ -362,6 +319,20 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_log_level() {
+        assert_eq!(parse_log_level("trace"), log::Level::Trace);
+        assert_eq!(parse_log_level("debug"), log::Level::Debug);
+        assert_eq!(parse_log_level("info"), log::Level::Info);
+        assert_eq!(parse_log_level("warn"), log::Level::Warn);
+        assert_eq!(parse_log_level("warning"), log::Level::Warn);
+        assert_eq!(parse_log_level("error"), log::Level::Error);
+        assert_eq!(parse_log_level("critical"), log::Level::Error);
+        assert_eq!(parse_log_level("off"), log::Level::Error);
+        assert_eq!(parse_log_level("INFO"), log::Level::Info);
+        assert_eq!(parse_log_level("unknown"), log::Level::Info);
+    }
 
     #[test]
     fn test_write_pid_file_creates_file_with_correct_pid() {

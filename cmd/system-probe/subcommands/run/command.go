@@ -403,9 +403,9 @@ type systemProbeLiteExecCmd struct {
 
 // buildSystemProbeLiteArgs builds the command-line arguments for the system-probe-lite binary.
 func buildSystemProbeLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string) []string {
-	args := []string{"system-probe-lite", "run"}
-	if configPath := sysprobeConfig.ConfigFileUsed(); configPath != "" {
-		args = append(args, "--config", configPath)
+	args := []string{"system-probe-lite", "run",
+		"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		"--log-level", sysprobeConfig.GetString("log_level"),
 	}
 	if pidFilePath != "" {
 		args = append(args, "--pid", pidFilePath)
