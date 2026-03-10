@@ -8,18 +8,22 @@
 package hashicorp
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/awsutil"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/approle"
-	"github.com/hashicorp/vault/api/auth/aws"
 	"github.com/hashicorp/vault/api/auth/ldap"
 	"github.com/hashicorp/vault/api/auth/userpass"
 	"github.com/mitchellh/mapstructure"
@@ -131,18 +135,9 @@ func newAuthenticationFromBackendConfig(bc VaultBackendConfig, client *api.Clien
 	}
 
 	if sessionConfig.VaultAuthType == "aws" && sessionConfig.VaultAWSRole != "" {
-		opts := []aws.LoginOption{
-			aws.WithIAMAuth(),
-			aws.WithRole(sessionConfig.VaultAWSRole),
-		}
-
-		if sessionConfig.AWSRegion != "" {
-			opts = append(opts, aws.WithRegion(sessionConfig.AWSRegion))
-		}
-
-		auth, err = aws.NewAWSAuth(opts...)
-		if err != nil {
-			return nil, "", err
+		auth = &vaultAWSAuth{
+			role:   sessionConfig.VaultAWSRole,
+			region: sessionConfig.AWSRegion,
 		}
 		return auth, "", nil
 	}
@@ -477,4 +472,54 @@ func insertDataPath(secretPath, mountPrefix string) string {
 		return trimmedMount + "data"
 	}
 	return trimmedMount + "data/" + relative
+}
+
+// vaultAWSAuth implements api.AuthMethod using raw STS GetCallerIdentity
+// signed with AWS SigV4, avoiding the vault/api/auth/aws dependency (which
+// transitively pulls in the entire AWS SDK).
+type vaultAWSAuth struct {
+	role   string
+	region string
+}
+
+func (a *vaultAWSAuth) Login(ctx context.Context, client *api.Client) (*api.Secret, error) {
+	// Resolve AWS credentials from the environment (env vars, shared creds, IMDS, etc.)
+	cfg, err := awsutil.ResolveConfig(ctx, awsutil.SessionConfig{
+		Region: a.region,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve AWS credentials for Vault auth: %w", err)
+	}
+
+	stsRegion := cfg.Region
+	if stsRegion == "" {
+		stsRegion = "us-east-1"
+	}
+
+	// Build and sign a GetCallerIdentity request.
+	body := []byte("Action=GetCallerIdentity&Version=2011-06-15")
+	endpoint := fmt.Sprintf("https://sts.%s.amazonaws.com/", stsRegion)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	awsutil.SignRequest(req, cfg.Credentials, stsRegion, "sts", body)
+
+	// Encode the signed request for Vault.
+	headersJSON, err := json.Marshal(req.Header)
+	if err != nil {
+		return nil, err
+	}
+
+	loginData := map[string]interface{}{
+		"role":                    a.role,
+		"iam_http_request_method": "POST",
+		"iam_request_url":         base64.StdEncoding.EncodeToString([]byte(endpoint)),
+		"iam_request_body":        base64.StdEncoding.EncodeToString(body),
+		"iam_request_headers":     base64.StdEncoding.EncodeToString(headersJSON),
+	}
+
+	return client.Logical().WriteWithContext(ctx, "auth/aws/login", loginData)
 }

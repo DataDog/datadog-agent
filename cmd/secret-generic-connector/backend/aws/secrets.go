@@ -8,29 +8,30 @@
 package aws
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/awsutil"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 )
 
-// secretsManagerClient is an interface that defines the methods we use from the ssm client
-// As the AWS SDK doesn't provide a real mock, we'll have to make our own that
-// matches this interface
+// secretsManagerClient is an interface that defines the methods we use from the
+// Secrets Manager client. Tests provide a mock implementation.
 type secretsManagerClient interface {
-	GetSecretValue(ctx context.Context, params *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+	GetSecretValue(ctx context.Context, secretID string) (secretString *string, err error)
 }
 
-// getSecretsManagerClient is a variable that holds the function to create a new secretsManagerClient
-// it will be overwritten in tests
-var getSecretsManagerClient = func(cfg aws.Config) secretsManagerClient {
-	return secretsmanager.NewFromConfig(cfg)
+// getSecretsManagerClient is a variable that holds the function to create a new
+// secretsManagerClient. It is overwritten in tests.
+var getSecretsManagerClient = func(cfg *awsutil.AWSConfig) secretsManagerClient {
+	return &secretsManagerHTTPClient{cfg: cfg}
 }
 
 // SecretsManagerBackendConfig is the configuration for a AWS Secret Manager backend
@@ -59,7 +60,7 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
 	}
-	client := getSecretsManagerClient(*cfg)
+	client := getSecretsManagerClient(cfg)
 
 	backend := &SecretsManagerBackend{
 		Config: backendConfig,
@@ -78,32 +79,28 @@ func (b *SecretsManagerBackend) GetSecretOutput(ctx context.Context, secretStrin
 	secretID := segments[0]
 	secretKey := segments[1]
 
-	input := &secretsmanager.GetSecretValueInput{
-		SecretId: &secretID,
-	}
-
-	out, err := b.Client.GetSecretValue(ctx, input)
+	out, err := b.Client.GetSecretValue(ctx, secretID)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
 	}
 
-	if out.SecretString == nil {
+	if out == nil {
 		es := "secret string is nil"
 		return secret.Output{Value: nil, Error: &es}
 	}
 
 	var secretValue string
 	if b.Config.ForceString {
-		secretValue = *out.SecretString
+		secretValue = *out
 	} else {
-		decoder := json.NewDecoder(strings.NewReader(*out.SecretString))
+		decoder := json.NewDecoder(strings.NewReader(*out))
 		decoder.UseNumber()
 		// Try to parse as JSON first
 		var jsonSecrets map[string]interface{}
 		if err := decoder.Decode(&jsonSecrets); err != nil {
 			// If JSON parsing fails, treat the entire string as the value
-			secretValue = *out.SecretString
+			secretValue = *out
 		} else {
 			// If JSON parsing succeeds, look for the specific key
 			if val, ok := jsonSecrets[secretKey]; ok {
@@ -131,4 +128,63 @@ func (b *SecretsManagerBackend) GetSecretOutput(ctx context.Context, secretStrin
 	}
 
 	return secret.Output{Value: &secretValue, Error: nil}
+}
+
+// --- Raw HTTP implementation of SecretsManager ---
+
+type secretsManagerHTTPClient struct {
+	cfg *awsutil.AWSConfig
+}
+
+type smGetSecretValueRequest struct {
+	SecretID string `json:"SecretId"`
+}
+
+type smGetSecretValueResponse struct {
+	SecretString *string `json:"SecretString"`
+	Name         *string `json:"Name"`
+}
+
+func (c *secretsManagerHTTPClient) GetSecretValue(ctx context.Context, secretID string) (*string, error) {
+	if c.cfg.Region == "" {
+		return nil, fmt.Errorf("AWS region is required for Secrets Manager")
+	}
+
+	endpoint := awsutil.ServiceEndpoint("secretsmanager", c.cfg.Region)
+
+	reqBody, err := json.Marshal(smGetSecretValueRequest{SecretID: secretID})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-amz-json-1.1")
+	req.Header.Set("X-Amz-Target", "secretsmanager.GetSecretValue")
+
+	awsutil.SignRequest(req, c.cfg.Credentials, c.cfg.Region, "secretsmanager", reqBody)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SecretsManager GetSecretValue returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result smGetSecretValueResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse SecretsManager response: %w", err)
+	}
+
+	return result.SecretString, nil
 }
