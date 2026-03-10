@@ -12,7 +12,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//pkg/config:agent_config.bzl", "agent_config")
+load("//pkg/config/render_config:agent_config.bzl", "agent_config")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
