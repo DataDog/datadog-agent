@@ -205,6 +205,12 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 	metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
+	if b.logsExpVars.Get("MemoryBudgetEnabled").(*expvar.Int).Value() != 0 {
+		metrics["MemoryBudgetEnabled"] = "true"
+		metrics["MemoryBudgetMaxBytes"] = strconv.FormatInt(b.logsExpVars.Get("MemoryBudgetMaxBytes").(*expvar.Int).Value(), 10)
+		metrics["MemoryBudgetBytesInUse"] = strconv.FormatInt(b.logsExpVars.Get("MemoryBudgetBytesInUse").(*expvar.Int).Value(), 10)
+		metrics["MemoryBudgetOverflowCount"] = strconv.FormatInt(b.logsExpVars.Get("MemoryBudgetOverflowCount").(*expvar.Int).Value(), 10)
+	}
 	return metrics
 }
 

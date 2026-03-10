@@ -157,6 +157,10 @@ func init() {
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
+	LogsExpvars.Set("MemoryBudgetEnabled", &LogsMemoryBudgetEnabled)
+	LogsExpvars.Set("MemoryBudgetBytesInUse", &LogsMemoryBudgetBytesInUse)
+	LogsExpvars.Set("MemoryBudgetMaxBytes", &LogsMemoryBudgetMaxBytes)
+	LogsExpvars.Set("MemoryBudgetOverflowCount", &LogsMemoryBudgetOverflowCount)
 }
 
 // agentIdentityTag holds the remote_agent tag value for this agent process.

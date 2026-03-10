@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	logsmemory "github.com/DataDog/datadog-agent/pkg/logs/memory"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -122,6 +123,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	memoryBudget              *logsmemory.Budget
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -227,6 +229,14 @@ func (a *logAgent) setupAgent() error {
 	processingRules, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
 		return err
+	}
+	a.memoryBudget = logsmemory.NewFromConfig(a.config)
+	if a.memoryBudget.Config().Enabled {
+		a.log.Infof(
+			"Logs memory budget enabled with max_bytes=%d overflow_policy=%s",
+			a.memoryBudget.Config().MaxBytes,
+			a.memoryBudget.Config().OverflowPolicy,
+		)
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)

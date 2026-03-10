@@ -2046,6 +2046,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
 	config.BindEnvAndSetDefault("logs_config.payload_channel_size", 10)
+	config.BindEnvAndSetDefault("logs_config.memory_budget.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.memory_budget.max_bytes", 0)
+	config.BindEnvAndSetDefault("logs_config.memory_budget.overflow_policy", "block")
 
 	// maximum time that the unix tailer will hold a log file open after it has been rotated
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
