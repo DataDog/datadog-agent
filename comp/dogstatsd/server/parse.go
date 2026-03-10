@@ -116,12 +116,12 @@ func (p *parser) parseTags(rawTags []byte) []string {
 
 	i := 0
 	for i < tagsCount {
-		tagPos := bytes.Index(rawTags, commaSeparator)
+		tagPos := bytes.IndexByte(rawTags, ',')
 		if tagPos < 0 {
 			break
 		}
 		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos])
-		rawTags = rawTags[tagPos+len(commaSeparator):]
+		rawTags = rawTags[tagPos+1:]
 		i++
 	}
 	tagsList[i] = p.interner.LoadOrStore(rawTags)
