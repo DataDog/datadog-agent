@@ -47,6 +47,7 @@ def _download_llvm_bpf_impl(rctx):
             downloaded[binary] = output
 
     binary_attrs = ""
+    install_target = ""
     if downloaded:
         binary_attrs = """    clang_bpf = "{clang}",
     llc_bpf = "{llc}",
@@ -55,9 +56,6 @@ def _download_llvm_bpf_impl(rctx):
             llc = downloaded["llc-bpf"],
             strip = downloaded["llvm-strip"],
         )
-
-    install_target = ""
-    if downloaded:
         install_target = """
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")

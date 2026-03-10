@@ -243,7 +243,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "SZmn/14pk+7D7XznYkKH56mNIMXg+zSchvcQuYDAwdE=",
+        "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
         "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
