@@ -64,7 +64,7 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
-	// deployLinuxBinaries(s.T(), host)
+	deployLinuxBinaries(s.T(), host)
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
