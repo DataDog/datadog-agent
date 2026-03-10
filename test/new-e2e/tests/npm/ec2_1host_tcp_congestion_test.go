@@ -48,7 +48,8 @@ func tcpCongestionEnvProvisioner() provisioners.PulumiEnvRunFunc[environments.Ho
 			return err
 		}
 		params := ec2.GetParams(
-			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+			// JMWTODO remove debug log level
+			ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"), agentparams.WithSystemProbeConfig(systemProbeConfigNPM+"\nlog_level: debug")),
 			ec2.WithDocker(),
 		)
 		return ec2.Run(ctx, awsEnv, env, params)
@@ -129,12 +130,12 @@ func (v *ec2TCPCongestionSuite) pollForTCPCongestionSignal(description string, p
 				return
 			}
 			if predicate(conn) {
-				t.Logf("%s: %s:%d -> %s:%d retransmits=%d rto=%d recovery=%d probe0=%d ce=%d reord=%d ecn=%v",
+				t.Logf("%s: %s:%d -> %s:%d retransmits=%d rto=%d recovery=%d probe0=%d ce=%d reord=%d rcvooo=%d ecn=%v",
 					description,
 					conn.Laddr.Ip, conn.Laddr.Port, conn.Raddr.Ip, conn.Raddr.Port,
 					conn.LastRetransmits, conn.LastTcpRtoCount, conn.LastTcpRecoveryCount,
 					conn.LastTcpProbe0Count, conn.LastTcpDeliveredCe, conn.LastTcpReordSeen,
-					conn.TcpEcnNegotiated)
+					conn.LastTcpRcvOooPack, conn.TcpEcnNegotiated)
 				found = true
 			}
 		})
@@ -244,5 +245,23 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 	})
 	v.pollForTCPCongestionSignal("LastTcpDeliveredCe > 0", func(conn *agentmodel.Connection) bool {
 		return conn.LastTcpDeliveredCe > 0
+	})
+}
+
+// TestTCPCongestion_RcvOOOPack applies packet reordering on the server's egress so that
+// data sent by the server arrives out-of-order at the client. iperf3 reverse mode (-R)
+// makes the server the sender, causing the client socket to accumulate rcv_ooopack.
+func (v *ec2TCPCongestionSuite) TestTCPCongestion_RcvOOOPack() {
+	host := v.Env().RemoteHost
+	// Reorder on server egress → data arrives OOO at the client receiver.
+	host.MustExecute("docker exec tcp-lab-server tc qdisc add dev eth0 root netem delay 10ms reorder 50% 50%")
+	v.T().Cleanup(func() {
+		host.MustExecute("docker exec tcp-lab-server tc qdisc del dev eth0 root 2>/dev/null || true")
+	})
+	// -R: server sends data to client; client accumulates rcv_ooopack on its receiving socket.
+	host.MustExecute("docker exec -d tcp-lab-client iperf3 -c 172.28.0.10 -p 5201 -t 60 -R")
+
+	v.pollForTCPCongestionSignal("LastTcpRcvOooPack > 0", func(conn *agentmodel.Connection) bool {
+		return conn.LastTcpRcvOooPack > 0
 	})
 }
