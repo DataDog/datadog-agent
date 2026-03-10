@@ -1647,6 +1647,7 @@ def _bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str) -> None:
         dst = os.path.join(dest_dir, f"{name}.o")
         if os.path.exists(src):
             shutil.copy2(src, dst)
+            os.chmod(dst, 0o444)
         else:
             print(f"Warning: expected output {src} not found")
 

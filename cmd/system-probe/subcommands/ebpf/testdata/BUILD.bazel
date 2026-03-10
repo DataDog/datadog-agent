@@ -8,6 +8,5 @@ ebpf_prog(
         "-g",
         "-DDEBUG=1",
     ],
-    strip = False,
     deps = ["//pkg/ebpf/c:ebpf_c_headers"],
 )
