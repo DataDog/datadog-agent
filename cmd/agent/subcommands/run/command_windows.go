@@ -246,13 +246,8 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectfx.Module(),
 		etwtracerimpl.Module,
-<<<<<<< louis-cqrl/comp-v2-checks-winregistry
-		windowseventlogimpl.Module(),
-		winregistryfx.Module(),
-=======
 		windowseventlogfx.Module(),
-		winregistryimpl.Module(),
->>>>>>> main
+		winregistryfx.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
