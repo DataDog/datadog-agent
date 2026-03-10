@@ -28,6 +28,7 @@ type ProxyConstructor func(
 var proxyConstructorMap = map[appsecconfig.ProxyType]ProxyConstructor{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.New,
 	appsecconfig.ProxyTypeIstio:        istio.New,
+	appsecconfig.ProxyTypeIstioGateway: istio.NewGateway,
 }
 
 // ProxyDetector is the type of function that detects if a given proxy is installed in the cluster
@@ -40,4 +41,5 @@ type ProxyDetector func(
 var proxyDetectionMap = map[appsecconfig.ProxyType]ProxyDetector{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.Detect,
 	appsecconfig.ProxyTypeIstio:        istio.Detect,
+	appsecconfig.ProxyTypeIstioGateway: istio.Detect,
 }
