@@ -106,6 +106,10 @@ print('done')
 
 	time.Sleep(30 * time.Second)
 
+	// Dump process-agent diagnostic logs
+	diagLogs, _ := host.Execute("sudo grep 'remote-svc-diag' /var/log/datadog/process-agent.log | tail -50")
+	t.Logf("process-agent remote-svc-diag logs:\n%s", diagLogs)
+
 	cnx, err := s.Env().FakeIntake.Client().GetConnections()
 	require.NoError(t, err, "GetConnections() error")
 	require.NotNil(t, cnx, "GetConnections() returned nil")
