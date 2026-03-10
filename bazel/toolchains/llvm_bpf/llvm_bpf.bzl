@@ -28,14 +28,17 @@ llvm_bpf_toolchain = rule(
         "clang_bpf": attr.label(
             doc = "clang-bpf executable",
             allow_single_file = True,
+            executable = True,
         ),
         "llc_bpf": attr.label(
             doc = "llc-bpf executable",
             allow_single_file = True,
+            executable = True,
         ),
         "llvm_strip": attr.label(
             doc = "llvm-strip executable",
             allow_single_file = True,
+            executable = True,
         ),
         "version": attr.string(default = "unknown"),
     },
