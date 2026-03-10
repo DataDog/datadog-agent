@@ -232,6 +232,30 @@ func TestTiming(t *testing.T) {
 	metricdatatest.AssertEqual(t, want, got, metricdatatest.IgnoreTimestamp())
 }
 
+func TestGaugeMalformedTag(t *testing.T) {
+	// A tag without a colon is valid in Datadog statsd format (standalone tag).
+	// Without the fix, attributeFromTags would panic with an out-of-bounds index.
+	reader, metricClient, _ := setupMetricClient(t)
+
+	err := metricClient.Gauge("test_gauge", 1, []string{"malformed", "service:otelcol"}, 1)
+	assert.NoError(t, err)
+	rm := metricdata.ResourceMetrics{}
+	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	require.Len(t, rm.ScopeMetrics, 1)
+	sm := rm.ScopeMetrics[0]
+	require.Len(t, sm.Metrics, 1)
+	got := sm.Metrics[0]
+	want := metricdata.Metrics{
+		Name: "test_gauge",
+		Data: metricdata.Gauge[float64]{
+			DataPoints: []metricdata.DataPoint[float64]{
+				{Value: 1, Attributes: attribute.NewSet(attribute.String("service", "otelcol"), attribute.String("source", ExporterSourceTag))},
+			},
+		},
+	}
+	metricdatatest.AssertEqual(t, want, got, metricdatatest.IgnoreTimestamp())
+}
+
 // nilMeterProvider implements the MeterProvider interface and always returns nil Meters
 type nilMeterProvider struct {
 	embedded.MeterProvider
