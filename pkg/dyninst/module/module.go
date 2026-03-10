@@ -105,6 +105,7 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
+		actuator:                 deps.Actuator,
 		decoderFactory:           deps.DecoderFactory,
 		irGenerator:              deps.IRGenerator,
 		programCompiler:          deps.ProgramCompiler,
@@ -207,7 +208,9 @@ func makeRealDependencies(
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
+	ret.logUploader = uploader.NewLogsUploaderFactory(
+		uploader.WithURL(logUploaderURL),
+	)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
@@ -223,7 +226,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
+	ret.actuator = actuator.NewActuator(config.ActuatorConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
@@ -288,9 +291,9 @@ func (m *Module) Register(router *module.Router) error {
 		"/check",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				utils.WriteAsJSON(
-					w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
+					req, w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
 				)
 			},
 		),
@@ -302,14 +305,14 @@ func (m *Module) Register(router *module.Router) error {
 		"/debug/goprocs",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				if m.shutdown.realDependencies.procSubscriber == nil {
-					utils.WriteAsJSON(w, nil, utils.PrettyPrint)
+					utils.WriteAsJSON(req, w, nil, utils.PrettyPrint)
 					return
 				}
 
 				report := m.shutdown.realDependencies.procSubscriber.GetReport()
-				utils.WriteAsJSON(w, report, utils.PrettyPrint)
+				utils.WriteAsJSON(req, w, report, utils.PrettyPrint)
 			},
 		),
 	)

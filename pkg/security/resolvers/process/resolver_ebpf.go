@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -70,16 +71,18 @@ type EBPFResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *utils.Scrubber
 
-	mountResolver     mount.ResolverInterface
-	cgroupResolver    *cgroup.Resolver
-	userGroupResolver *usergroup.Resolver
-	timeResolver      *stime.Resolver
-	pathResolver      spath.ResolverInterface
-	envVarsResolver   *envvars.Resolver
+	mountResolver       mount.ResolverInterface
+	cgroupResolver      *cgroup.Resolver
+	userGroupResolver   *usergroup.Resolver
+	timeResolver        *stime.Resolver
+	pathResolver        spath.ResolverInterface
+	envVarsResolver     *envvars.Resolver
+	userSessionResolver *usersessions.Resolver
 
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
 	pidCacheMap  ebpf.Map
+	pathIDMap    ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -736,7 +739,7 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
+func (p *EBPFResolver) resolveFullFilePath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
 		pathnameStr, mountPath string
 		source                 model.MountSource
@@ -745,7 +748,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry          = 3
 	)
 	for maxDepthRetry > 0 {
-		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFullFilePath(e, &pce.PIDContext)
 		if err == nil {
 			return pathnameStr, mountPath, source, origin, nil
 		}
@@ -775,7 +778,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce)
+	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -1266,6 +1269,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.pathIDMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1347,6 +1354,15 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
 		}
 	}
+
+	if !entry.FileEvent.PathKey.IsNull() {
+		buffer, err := entry.FileEvent.PathKey.MarshalBinary()
+		if err != nil {
+			seclog.Errorf("couldn't marshal path key: %s", err)
+		} else if err = p.pathIDMap.Put(entry.PIDContext.Pid, buffer); err != nil {
+			seclog.Errorf("couldn't push path_id entry to kernel space: %s", err)
+		}
+	}
 }
 
 // newEntryFromProcfs creates a new process cache entry by snapshotting /proc for the provided pid
@@ -1388,6 +1404,11 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		entry.SetAsExec()
 	} else {
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
+	}
+
+	// snapshot SSH session
+	if p.userSessionResolver != nil {
+		p.userSessionResolver.HandleSSHUserSessionFromPCE(entry)
 	}
 
 	// use an empty cgroup context to force the fallback to resolve the cgroup
@@ -1457,7 +1478,7 @@ func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 
 func (p *EBPFResolver) toDot(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
-		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		label := entry.Comm + ":" + strconv.FormatUint(uint64(entry.Pid), 10)
 		if _, exists := already[label]; !exists {
 			if !entry.ExitTime.IsZero() {
 				label = "[" + label + "]"
@@ -1568,7 +1589,7 @@ func allInodeErrTags() []string {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *utils.Scrubber, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, userSessionResolver *usersessions.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1603,6 +1624,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
+		userSessionResolver:       userSessionResolver,
 	}
 
 	for _, t := range metrics.AllTypesTags {

@@ -9,6 +9,7 @@ package host
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -57,4 +58,18 @@ func (h *Host) GetFilePermissions(filePath string) (*FilePermissions, error) {
 	default:
 		return nil, fmt.Errorf("unsupported OS family: %v", h.RemoteHost.OSFamily)
 	}
+}
+
+// DirExists checks if a directory exists on the remote host.
+// Returns true if the path exists and is a directory, false if it doesn't exist or isn't a directory.
+// Only returns an error for actual failures (e.g., permission issues).
+func (h *Host) DirExists(path string) (bool, error) {
+	info, err := h.RemoteHost.Lstat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return info.IsDir(), nil
 }

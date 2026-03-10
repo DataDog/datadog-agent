@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	pollingInterval           = 30 * time.Second
-	localRecommenderID string = "lr"
+	pollingInterval                         = 30 * time.Second
+	localRecommenderID autoscaling.SenderID = "lr"
 )
 
 // Recommender is the interface used to generate local recommendations
@@ -105,17 +105,17 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 	recommendation := model.ScalingValues{}
 
 	if err != nil {
-		recommendation.HorizontalError = err
+		recommendation.HorizontalError = autoscaling.NewConditionError(autoscaling.ConditionReasonLocalRecommenderError, err)
 	}
 
 	if horizontalRecommendation != nil {
 		recommendation.Horizontal = horizontalRecommendation
 	}
 
-	podAutoscalerInternal, found := r.store.LockRead(key, true)
+	podAutoscalerInternal, found, unlock := r.store.LockRead(key, true)
 	if !found { // In case the object is deleted in between when we start calculating
 		log.Debugf("Object %s not found in store; local recommendation values not updated", key)
-		r.store.Unlock(key)
+		unlock()
 		return
 	}
 	podAutoscalerInternal.UpdateFromLocalValues(recommendation)

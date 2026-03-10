@@ -40,7 +40,6 @@ func (s *serviceExtractor) process(event *process) {
 	})
 }
 
-//nolint:unused // will be used once direct send loop is added in future PR
 func (s *serviceExtractor) handleDeadProcess(pid uint32) {
 	s.Remove(int32(pid))
 }

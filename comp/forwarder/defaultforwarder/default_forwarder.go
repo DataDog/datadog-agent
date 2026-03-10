@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -216,10 +217,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
 	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
 
-	retryQueuePayloadsTotalMaxSize := 15 * 1024 * 1024
-	if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
-		retryQueuePayloadsTotalMaxSize = config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
-	}
+	retryQueuePayloadsTotalMaxSize := config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 
 	option := &Options{
 		NumberOfWorkers:                config.GetInt("forwarder_num_workers"),
@@ -228,10 +226,11 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
+		Secrets:                        &secretnooptypes.SecretNoop{}, // will get overwritten with actual secrets if needed
 	}
 
-	if config.IsSet(forwarderRetryQueueMaxSizeKey) {
-		if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
+		if config.IsConfigured(forwarderRetryQueuePayloadsMaxSizeKey) {
 			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
 			forwarderRetryQueueMaxSize := config.GetInt(forwarderRetryQueueMaxSizeKey)

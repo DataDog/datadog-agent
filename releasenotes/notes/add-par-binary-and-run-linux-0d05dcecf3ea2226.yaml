@@ -10,4 +10,4 @@ features:
   - |
     Add ``privateactionrunner`` binary in Agent artifacts to allow running actions using the Agent,
     and enable running it on Linux. The binary is disabled by default. To enable it, set
-    ``privateactionrunner.enabled: true`` in your configuration file.
+    ``private_action_runner.enabled: true`` in your configuration file.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The ``infra_mode`` tag is now correctly added to ``system.cpu.user`` on Windows when
+    ``infrastructure_mode`` is not set to ``"full"``, matching the behavior of the Linux cpu check.

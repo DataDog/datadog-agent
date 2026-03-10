@@ -53,6 +53,7 @@ const (
 	sslShutdownProbe            = "uprobe__SSL_shutdown"
 	bioNewSocketProbe           = "uprobe__BIO_new_socket"
 	bioNewSocketRetprobe        = "uretprobe__BIO_new_socket"
+	bioFreeProbe                = "uprobe__BIO_free"
 	gnutlsHandshakeProbe        = "uprobe__gnutls_handshake"
 	gnutlsHandshakeRetprobe     = "uretprobe__gnutls_handshake"
 	gnutlsTransportSetInt2Probe = "uprobe__gnutls_transport_set_int2"
@@ -220,6 +221,11 @@ var cryptoProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: bioNewSocketRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: bioFreeProbe,
 				},
 			},
 		},
@@ -413,6 +419,11 @@ var opensslSpec = &protocols.ProtocolSpec{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: bioNewSocketRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioFreeProbe,
 			},
 		},
 		{

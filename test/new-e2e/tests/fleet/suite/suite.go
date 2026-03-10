@@ -7,6 +7,7 @@
 package suite
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"testing"
@@ -17,9 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/installer"
 )
 
 var (
@@ -43,13 +47,27 @@ var (
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
 )
 
+// Platforms returns the list of platforms to test, excluding Windows platforms
+// when the E2E_SKIP_WINDOWS parameter is set to "true".
+func Platforms() []e2eos.Descriptor {
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	if err != nil {
+		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.SkipWindows, err))
+	}
+	if skipWindows {
+		return LinuxPlatforms
+	}
+	return AllPlatforms
+}
+
 // FleetSuite is a base suite for fleet tests.
 type FleetSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	Agent   *agent.Agent
-	Backend *backend.Backend
-	Host    *fleethost.Host
+	Agent     *agent.Agent
+	Backend   *backend.Backend
+	Host      *fleethost.Host
+	Installer *installer.Installer
 }
 
 // SetupSuite sets up the fleet suite.
@@ -61,6 +79,7 @@ func (s *FleetSuite) SetupSuite() {
 	s.Agent = agent.New(s.T, s.Env())
 	s.Backend = backend.New(s.T, s.Env())
 	s.Host = fleethost.New(s.Env())
+	s.Installer = installer.New(s.T, s.Env())
 }
 
 // Run runs the fleet suite for the given platforms.

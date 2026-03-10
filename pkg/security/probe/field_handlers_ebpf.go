@@ -94,7 +94,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
+		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFullFilePath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -418,12 +418,12 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 }
 
 func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
-	// Force the resolution of file path to be able to map to a package provided file
-	if fh.ResolveFilePath(ev, f) == "" {
+	if fh.resolvers.SBOMResolver == nil {
 		return
 	}
 
-	if fh.resolvers.SBOMResolver == nil {
+	// Force the resolution of file path to be able to map to a package provided file
+	if fh.ResolveFilePath(ev, f) == "" {
 		return
 	}
 
@@ -1029,7 +1029,7 @@ func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *mode
 	if evtCtx.K8SUsername != "" {
 		sessionIdentity = evtCtx.K8SUsername
 	} else if evtCtx.SSHClientPort != 0 {
-		sessionIdentity = fmt.Sprintf("%s:%d", evtCtx.SSHClientIP.String(), evtCtx.SSHClientPort)
+		sessionIdentity = evtCtx.SSHClientIP.String() + ":" + strconv.Itoa(evtCtx.SSHClientPort)
 	} else {
 		sessionIdentity = e.ProcessContext.User
 	}

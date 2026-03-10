@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
@@ -44,8 +45,9 @@ var createPdhQuery = func() (PdhQueryInterface, error) {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	nbCPU    float64
-	pdhQuery PdhQueryInterface
+	nbCPU             float64
+	pdhQuery          PdhQueryInterface
+	systemCPUUserTags []string
 	// maps metric to counter object
 	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
@@ -67,7 +69,11 @@ func (c *Check) Run() error {
 			var val float64
 			val, err = counter.GetValue()
 			if err == nil {
-				sender.Gauge(metricname, val, "", nil)
+				var tags []string
+				if metricname == "system.cpu.user" {
+					tags = c.systemCPUUserTags
+				}
+				sender.Gauge(metricname, val, "", tags)
 			} else {
 				c.Warnf("cpu.Check: Could not retrieve value for %v: %v", metricname, err)
 			}
@@ -190,7 +196,13 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	var systemCPUUserTags []string
+	infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
+	if infraMode != "full" {
+		systemCPUUserTags = []string{"infra_mode:" + infraMode}
+	}
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
+		CheckBase:         core.NewCheckBase(CheckName),
+		systemCPUUserTags: systemCPUUserTags,
 	}
 }

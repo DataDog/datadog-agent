@@ -10,6 +10,13 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# Flavor flag for bazel actions
+if heroku_target?
+  flavor_flag = "--//packages/agent:flavor=heroku"
+else
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+end
+
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
 unless do_repackage?
@@ -119,7 +126,7 @@ build do
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -213,9 +220,18 @@ build do
 
   end
 
+  # sd-agent (service discovery agent)
+  if linux_target? and !heroku_target?
+    command_on_repo_root "bazel run --config=release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
+  # dd-procmgrd (process manager daemon)
+  if ENV['WITH_DD_PROCMGRD'] == 'true'
+    command_on_repo_root "bazel run --config=release #{flavor_flag} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
   # Security agent
-  secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
-  if secagent_support
+  unless heroku_target?
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
@@ -245,30 +261,7 @@ build do
   end
 
   if osx_target?
-    # Launchd service definition
-    erb source: "launchd.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
-        mode: 0644,
-        vars: { install_dir: install_dir }
-
-    erb source: "launchd.sysprobe.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
-        mode: 0644,
-        vars: {
-          # Due to how install_dir actually matches where the Agent is built rather than
-          # its actual final destination, we hardcode here the currently sole supported install location
-          install_dir: "/opt/datadog-agent",
-          conf_dir: "/opt/datadog-agent/etc",
-        }
-
-    erb source: "gui.launchd.plist.erb",
-        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644,
-        vars: {
-          # Due to how install_dir actually matches where the Agent is built rather than
-          # its actual final destination, we hardcode here the currently sole supported install location
-          install_dir: "/opt/datadog-agent",
-        }
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -283,8 +276,7 @@ build do
 
   # APM Hands Off config file
   if linux_target?
-    command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
-    move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+    copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # Allows the agent to be installed in a custom location

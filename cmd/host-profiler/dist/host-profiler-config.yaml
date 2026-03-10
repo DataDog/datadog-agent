@@ -9,10 +9,6 @@ receivers:
   hostprofiler:
     symbol_uploader:
       enabled: true
-      symbol_endpoints:
-        - site: ${env:DD_SITE}
-          api_key: ${env:DD_API_KEY}
-
 processors:
 # infraattributes/default is automatically removed when the Agent Core is not available
   infraattributes/default:
@@ -35,9 +31,8 @@ processors:
 
 exporters:
   debug: {}
-  otlphttp:
+  otlphttp/metrics:
     metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
     headers:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
@@ -49,9 +44,9 @@ service:
       # infraattributes/default is automatically removed when the Agent Core is not available
       # resourcedetection is automatically removed when the Agent Core is available
       processors: [infraattributes/default, resourcedetection]
-      exporters: [otlphttp, debug]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
       # infraattributes/default is automatically removed when the Agent Core is not available
       processors: [cumulativetodelta, infraattributes/default]
-      exporters: [otlphttp]
+      exporters: [otlphttp/metrics]

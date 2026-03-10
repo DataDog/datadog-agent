@@ -135,7 +135,7 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, nil, nil, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, nil, nil, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, nil, NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}

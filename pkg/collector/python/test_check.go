@@ -248,11 +248,7 @@ func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
 	rtloader = nil
 
 	err = check.runCheck(false)
-	assert.EqualError(
-		t,
-		err,
-		"error acquiring the GIL: rtloader is not initialized",
-	)
+	assert.ErrorIs(t, err, ErrNotInitialized)
 }
 
 func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
@@ -265,11 +261,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 		return
 	}
 
-	assert.EqualError(
-		t,
-		err,
-		"error acquiring the GIL: rtloader is not initialized",
-	)
+	assert.ErrorIs(t, err, ErrNotInitialized)
 
 	assert.Equal(t, C.int(0), C.gil_locked_calls)
 	assert.Equal(t, C.int(0), C.gil_unlocked_calls)

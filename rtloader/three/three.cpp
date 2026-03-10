@@ -1109,9 +1109,9 @@ char *Three::getIntegrationList()
         goto done;
     }
 
-    wheels = as_yaml(packages);
+    wheels = as_json(packages);
     if (wheels == NULL) {
-        setError("'packages' could not be serialized to yaml: " + _fetchPythonError());
+        setError("'packages' could not be serialized to json: " + _fetchPythonError());
         goto done;
     }
 
@@ -1161,7 +1161,7 @@ char *Three::getInterpreterMemoryUsage()
         goto done;
     }
 
-    memUsage = as_yaml(summary);
+    memUsage = as_json(summary);
 
 done:
     Py_XDECREF(summary);

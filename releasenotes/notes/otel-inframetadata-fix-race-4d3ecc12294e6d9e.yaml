@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix data race in opentelemetry-mapping-go/inframetadata.Reporter
+    which could cause a crash with error message "concurrent map iteration and map write".

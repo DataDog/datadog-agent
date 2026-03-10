@@ -36,8 +36,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "gopkg.in/yaml.v2"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv2 "go.yaml.in/yaml/v2"
+	yamlv3 "go.yaml.in/yaml/v3"
 )
 
 // inputsResolveTimeout is the timeout that is applied for inputs resolution of one
@@ -125,7 +125,7 @@ type fileMeta struct {
 
 // NewResolver returns the default inputs resolver that is able to resolve any
 // kind of supported inputs. It holds a small cache for loaded file metadata
-// and different client connexions that may be used for inputs resolution.
+// and different client connections that may be used for inputs resolution.
 func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 	r := &defaultResolver{
 		opts: opts,
