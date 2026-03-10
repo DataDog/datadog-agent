@@ -22,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -29,8 +30,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
@@ -128,7 +130,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-			pidimpl.Module(),
+			pidfx.Module(),
 			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
@@ -143,6 +145,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
+			delegatedauthnoopfx.Module(),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 			fxinstrumentation.Module(),
@@ -175,14 +178,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component, cfg coreconfig.Component) (serializerexporter.SourceProviderFunc, error) {
-			if cfg.GetBool("otelcollector.gateway.mode") {
-				// In gateway mode the agent does not represent a specific host, so return an empty
-				// hostname without error instead of failing when hostname resolution is not available.
-				return func(_ context.Context) (string, error) {
-					return "", nil
-				}, nil
-			}
+		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
 		remotehostnameimpl.Module(),
@@ -216,7 +212,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return hn, nil
 		}),
 
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
@@ -256,6 +252,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
+		delegatedauthnoopfx.Module(),
 		fxinstrumentation.Module(),
 	)
 }

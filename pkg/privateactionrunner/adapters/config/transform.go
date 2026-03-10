@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -22,7 +23,9 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -81,8 +84,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
-		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
+		DDHost:                    ddHost,
+		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -112,23 +115,38 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
-	for _, specialAction := range BundleInheritedAllowedActions {
-		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
-		specialBundleID = strings.ToLower(specialBundleID)
-		specialActionName = strings.ToLower(specialActionName)
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
 
-		actionsSet, ok := actionsAllowlist[specialBundleID]
-		if !ok || actionsSet.Len() == 0 {
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
 			continue
 		}
 
-		if _, exists := result[specialBundleID]; !exists {
-			result[specialBundleID] = sets.New[string]()
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
 		}
-		result[specialBundleID].Insert(specialActionName)
+		result[actionBundleID].Insert(actionName)
 	}
 
 	return result

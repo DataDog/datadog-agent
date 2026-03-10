@@ -12,10 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 var resourceDetectionDefaultConfig = confMap{
@@ -35,9 +37,6 @@ var resourceDetectionDefaultConfig = confMap{
 	},
 }
 
-// TODO: currently converter helpers use datadog-agent's logger which isn't setup when in Standalone mode
-var standaloneLogger = zap.L().Sugar()
-
 // converterWithoutAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one resourcedetection processor declared and used with required defaults
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
@@ -50,12 +49,14 @@ var standaloneLogger = zap.L().Sugar()
 //   - remove ddprofiling & hpflare extensions
 type converterWithoutAgent struct{}
 
-func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
+func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
+	logger := convSettings.Logger
+	slog.SetDefault(slog.New(zapslog.NewHandler(logger.Core())))
 	return &converterWithoutAgent{}
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
+	confStringMap := xconfmap.ToStringMapRaw(conf)
 
 	profilesPipeline, err := Ensure[confMap](confStringMap, "service::pipelines::profiles")
 	if err != nil {
@@ -208,7 +209,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		if err := Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
-		standaloneLogger.Warn("Added minimal resourcedetection processor to user configuration")
+		slog.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
 	}
 
@@ -243,7 +244,7 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 		return err
 	}
 	if !ddDefaultValue {
-		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
+		slog.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
 	}
 
 	// Only set these defaults if we added the system detector
@@ -292,7 +293,7 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 		return nil, err
 	}
 
-	standaloneLogger.Warn("Added minimal hostprofiler receiver to user configuration")
+	slog.Warn("Added minimal hostprofiler receiver to user configuration")
 	return append(receiverNames, defaultHostProfilerName), nil
 }
 

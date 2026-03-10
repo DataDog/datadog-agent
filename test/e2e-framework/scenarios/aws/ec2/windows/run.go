@@ -34,10 +34,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 
 	// Use InfraOSDescriptor when set (e.g. -c ddinfra:osDescriptor=...), otherwise pick a Windows Server version (2016–2025) for e2e coverage.
 	// In CI, CI_PIPELINE_ID + CI_JOB_NAME are used as seed so retries get the same version.
-	var osDesc compos.Descriptor
+	osDesc := compos.WindowsServerDefault
 	if descStr := awsEnv.InfraOSDescriptor(); descStr != "" {
 		osDesc = compos.DescriptorFromString(descStr, compos.WindowsServerDefault)
-	} else {
+	} else if os.Getenv("CI_PIPELINE_ID") != "" && os.Getenv("CI_JOB_NAME") != "" {
 		versions := compos.WindowsServerVersionsForE2E
 		seed := os.Getenv("CI_PIPELINE_ID") + os.Getenv("CI_JOB_NAME")
 		idx := pickVersionIndex(versions, seed)

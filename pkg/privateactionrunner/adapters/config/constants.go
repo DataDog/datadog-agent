@@ -27,12 +27,19 @@ const (
 	defaultHTTPClientTimeout      = 30 * time.Second
 )
 
+// BundleInheritedAllowedAction represents an action that is automatically allowed
+// if at least one other action matching the expected prefix is allowed
+type BundleInheritedAllowedAction struct {
+	ActionFQN      string
+	ExpectedPrefix string
+}
+
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
-// if at least one other action from the same bundle is allowed
-var BundleInheritedAllowedActions = []string{
-	"com.datadoghq.gitlab.users.testConnection",
-	"com.datadoghq.kubernetes.core.testConnection",
-	"com.datadoghq.script.testConnection",
-	"com.datadoghq.script.enrichScript",
-	"com.datadoghq.ddagent.testConnection",
+// if at least one other action matching their expected prefix is allowed
+var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{
+	{ActionFQN: "com.datadoghq.gitlab.users.testConnection", ExpectedPrefix: "com.datadoghq.gitlab"},
+	{ActionFQN: "com.datadoghq.kubernetes.core.testConnection", ExpectedPrefix: "com.datadoghq.kubernetes"},
+	{ActionFQN: "com.datadoghq.script.testConnection", ExpectedPrefix: "com.datadoghq.script"},
+	{ActionFQN: "com.datadoghq.script.enrichScript", ExpectedPrefix: "com.datadoghq.script"},
+	{ActionFQN: "com.datadoghq.ddagent.testConnection", ExpectedPrefix: "com.datadoghq.ddagent"},
 }

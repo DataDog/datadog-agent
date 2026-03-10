@@ -214,6 +214,25 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 	return cachedTags, nil
 }
 
+func (t *localTagger) getTagsWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, bool, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
+	}
+	if entityID.Empty() {
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		return tagset.HashedTags{}, false, errors.New("empty entity ID")
+	}
+
+	cachedTags, isComplete, err := t.tagStore.LookupHashedWithCompleteness(entityID, cardinality)
+	if err != nil {
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
+		return tagset.HashedTags{}, false, err
+	}
+
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+	return cachedTags, isComplete, nil
+}
+
 // accumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
 func (t *localTagger) accumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entityID, cardinality)
@@ -229,6 +248,17 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 		return nil, err
 	}
 	return tags.Copy(), nil
+}
+
+// TagWithCompleteness returns tags for an entity along with a boolean
+// indicating whether the entity's tags are complete.
+func (t *localTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	// Do not throw an error if the entity is not found in the tagger
+	tags, isComplete, err := t.getTagsWithCompleteness(entityID, cardinality)
+	if err != nil && !errors.Is(err, tagstore.ErrNotFound) {
+		return nil, false, err
+	}
+	return tags.Copy(), isComplete, nil
 }
 
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
@@ -354,9 +384,6 @@ func (t *localTagger) GlobalTags(cardinality types.TagCardinality) ([]string, er
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-// This function is dupliacted in the remote tagger `impl-remote`.
-// When modifying this function make sure to update the copy `impl-remote` as well.
-// TODO: extract this function to a share function so it can be used in both implementations
 func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.datadogConfig.dogstatsdCardinality, t.log)
 

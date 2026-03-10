@@ -99,8 +99,9 @@ The config stream is automatically enabled when the component is loaded. No expl
 config_stream:
   sleep_interval: 10ms  # Backoff on non-terminal errors (default: 10ms)
 
-remote_agent_registry:
-  enabled: true  # Required for RAR-gated authorization
+remote_agent:
+  registry:
+    enabled: true  # Required for RAR-gated authorization
 ```
 
 ## Telemetry
@@ -156,10 +157,11 @@ Build and run the standalone test client:
 # Build
 go build -o bin/config-stream-client ./cmd/config-stream-client
 
-# Run (requires running core-agent with RAR enabled)
+# Run (requires running core-agent with RAR enabled and mTLS; use agent's IPC cert and auth token)
 ./bin/config-stream-client \
+  --agent-cert-file /etc/datadog-agent/ipc_cert.pem \
+  --agent-auth-token-file /etc/datadog-agent/auth_token \
   --ipc-address localhost:5001 \
-  --auth-token $(cat /etc/datadog-agent/auth_token) \
   --name my-test-client \
   --duration 60s
 ```
@@ -178,7 +180,7 @@ rpc error: code = Unauthenticated desc = session_id required in metadata
 **Solution:**
 1. Ensure remote agent registers with RAR first using `RegisterRemoteAgent()`
 2. Pass `session_id` from RAR registration via gRPC metadata (not in request body)
-3. Check RAR is enabled: `remote_agent_registry.enabled: true`
+3. Check RAR is enabled: `remote_agent.registry.enabled: true`
 
 Example:
 ```go
