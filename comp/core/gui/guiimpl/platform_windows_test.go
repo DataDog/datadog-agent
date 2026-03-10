@@ -20,6 +20,9 @@ const expectedBody = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Datadog Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;600;700&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="view/css/font-awesome.min.css">
     <link rel="stylesheet" href="view/css/codemirror.css">
     <link rel="stylesheet" href="view/css/stylesheet.css">
@@ -77,7 +80,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="title">Datadog Agent Manager</div>
     <div id="agent_info">
       <div id="restart_status">Restart Agent to apply changes.</div>
-      <div id="agent_status" class="disconnected">Not Connected to Agent</div>
+      <div id="agent_status" class="disconnected">Disconnected from agent</div>
       <div id="version">Version: </div>
       <div id="hostname">Hostname: </div>
     </div>
