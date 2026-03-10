@@ -88,23 +88,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			return err
 		}
 
-		// Build the role mappings slice; Fargate entry is appended conditionally below.
-		// Add account-admin role mapping to the cluster, which make investigations on cluster created in the CI easier.
-		roleMappings := eks.RoleMappingArray{
-			eks.RoleMappingArgs{
-				RoleArn: pulumi.String(e.EKSAccountAdminSSORole()),
-				Groups: pulumi.StringArray{
-					pulumi.String("system:masters"),
-				},
-			},
-			eks.RoleMappingArgs{
-				RoleArn: pulumi.String(e.EKSReadOnlySSORole()),
-				Groups: pulumi.StringArray{
-					pulumi.String("read-only"),
-				},
-			},
-		}
-
+		// Create an EKS cluster with the default configuration.
 		clusterArgs := &eks.ClusterArgs{
 			Name:                         e.CommonNamer().DisplayName(100),
 			Version:                      pulumi.StringPtr(e.KubernetesVersion()),
@@ -123,22 +107,25 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			ProviderCredentialOpts: &eks.KubeconfigOptionsArgs{
 				ProfileName: pulumi.String(e.Profile()),
 			},
-			RoleMappings: roleMappings,
+			// Add account-admin role mapping to the cluster, which make investigations on cluster created in the CI easier.
+			RoleMappings: eks.RoleMappingArray{
+				eks.RoleMappingArgs{
+					RoleArn: pulumi.String(e.EKSAccountAdminSSORole()),
+					Groups: pulumi.StringArray{
+						pulumi.String("system:masters"),
+					},
+				},
+				eks.RoleMappingArgs{
+					RoleArn: pulumi.String(e.EKSReadOnlySSORole()),
+					Groups: pulumi.StringArray{
+						pulumi.String("read-only"),
+					},
+				},
+			},
 		}
 
+		// Fargate Configuration (enabled by default)
 		if !params.DisableFargate {
-			// Pre-create the Fargate pod execution role so its ARN is known before
-			// eks.NewCluster runs. pulumi-eks manages aws-auth with patchForce:true,
-			// overwriting the entire mapRoles list with only the roles in RoleMappings.
-			// If we let pulumi-eks auto-create the Fargate role internally, it never
-			// appears in RoleMappings and gets silently dropped from aws-auth on every
-			// update — causing CoreDNS and other kube-system Fargate pods to fail with
-			// "Pod execution role is not found in auth config".
-			fargatePodExecutionRole, err := localEks.GetFargatePodExecutionRole(e, "eks-fargate-pod-execution-role")
-			if err != nil {
-				return err
-			}
-
 			var fargateProfileSelectors awsEks.FargateProfileSelectorArray
 			if fargateNamespace := e.EKSFargateNamespace(); fargateNamespace != "" {
 				fargateProfileSelectors = awsEks.FargateProfileSelectorArray{
@@ -149,7 +136,6 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			}
 
 			clusterArgs.Fargate = eks.FargateProfileArgs{
-				PodExecutionRoleArn: fargatePodExecutionRole.Arn,
 				Selectors: append(awsEks.FargateProfileSelectorArray{
 					// Put CoreDNS pods on Fargate because this addon needs to be deployed
 					// before the node groups are created.
@@ -167,19 +153,8 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 				}, fargateProfileSelectors...),
 				SubnetIds: pulumi.ToStringArray(lo.Map(e.EKSPODSubnets(), func(subnet aws.DDInfraEKSPodSubnets, _ int) string { return subnet.SubnetID })),
 			}
-
-			roleMappings = append(roleMappings, eks.RoleMappingArgs{
-				RoleArn:  fargatePodExecutionRole.Arn,
-				Username: pulumi.String("system:node:{{SessionName}}"),
-				Groups: pulumi.StringArray{
-					pulumi.String("system:bootstrappers"),
-					pulumi.String("system:nodes"),
-				},
-			})
-			clusterArgs.RoleMappings = roleMappings
 		}
 
-		// Create an EKS cluster with the default configuration.
 		cluster, err := eks.NewCluster(e.Ctx(), e.Namer.ResourceName("eks"), clusterArgs, pulumi.Timeouts(&pulumi.CustomTimeouts{
 			Create: "30m",
 			Update: "30m",
