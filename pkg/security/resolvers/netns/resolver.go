@@ -51,9 +51,6 @@ type Resolver struct {
 	tcRequestsActive  map[tcDeviceKey]bool
 	ctx               context.Context
 	wg                sync.WaitGroup
-	tcRequests        chan TcClassifierRequest
-	ctx               context.Context
-	wg                sync.WaitGroup
 }
 
 // NewResolver returns a new instance of Resolver
