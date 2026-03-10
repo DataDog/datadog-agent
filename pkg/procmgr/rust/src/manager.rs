@@ -45,29 +45,28 @@ impl ProcessManager {
         }
     }
 
-    async fn start(&self) {
+    async fn start(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
-            if proc.should_start()
-                && let Err(e) = proc.spawn()
-            {
-                warn!("{e:#}");
+            if proc.should_start() {
+                match proc.spawn() {
+                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
+                    Err(e) => warn!("{e:#}"),
+                }
             }
         }
     }
 
     pub(crate) async fn run(&self) -> Result<()> {
-        self.start().await;
-
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
         let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-        self.wire_watchers(&exit_tx).await;
+        self.start(&exit_tx).await;
 
         let mut sigterm = signal(SignalKind::terminate())?;
         let mut sigint = signal(SignalKind::interrupt())?;
@@ -131,15 +130,6 @@ impl ProcessManager {
 
     pub(crate) fn config_location(&self) -> String {
         self.config_loader.location()
-    }
-
-    async fn wire_watchers(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
-        let mut procs = self.processes.write().await;
-        for proc in procs.iter_mut() {
-            if proc.is_running() {
-                spawn_watcher(proc, exit_tx.clone());
-            }
-        }
     }
 
     pub(crate) async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::Sender<String>) {
