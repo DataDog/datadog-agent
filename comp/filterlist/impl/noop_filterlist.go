@@ -20,10 +20,8 @@ func NewNoopFilterList() filterlist.Component {
 // OnUpdateMetricFilterList does nothing.
 func (*noopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {}
 
-// OnUpdateTagFilterList calls the callback with a noop tag matcher.
-func (*noopFilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)) {
-	onUpdate(NewNoopTagMatcher())
-}
+// OnUpdateTagFilterList does nothing.
+func (*noopFilterList) OnUpdateTagFilterList(_ func(filterlist.TagMatcher)) {}
 
 // GetTagFilterList does nothing.
 func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {

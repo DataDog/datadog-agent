@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func setupHostname(t *testing.T) {
@@ -39,7 +40,7 @@ func TestConfigurations(t *testing.T) {
 	setupHostname(t)
 
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -351,7 +352,7 @@ profiles:
 func TestInlineProfileConfiguration(t *testing.T) {
 	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

@@ -297,7 +297,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -359,7 +359,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan:    make(chan utilstrings.Matcher),
+		flushFilterList:   flushFilterList,
 		tagfilterListChan: make(chan filterlist.TagMatcher),
+		tagFilterList:     tagFilterList,
 	}
 
 	return aggregator

@@ -321,11 +321,6 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 	fl.updateMetricMtx.Lock()
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
 	fl.updateMetricMtx.Unlock()
-
-	fl.updateMetricMtx.RLock()
-	defer fl.updateMetricMtx.RUnlock()
-
-	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
 // OnUpdateTagFilterList is called to register a callback to be called when the
@@ -334,11 +329,6 @@ func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)
 	fl.updateTagMtx.Lock()
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
 	fl.updateTagMtx.Unlock()
-
-	fl.updateTagMtx.RLock()
-	defer fl.updateTagMtx.RUnlock()
-
-	onUpdate(fl.tagFilterList)
 }
 
 func NewFilterListReq(req Requires) Provides {

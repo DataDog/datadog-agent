@@ -167,7 +167,8 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval,
+		filterList.GetMetricFilterList(), filterList.GetTagFilterList())
 
 	// statsd samplers
 	// ---------------
@@ -298,9 +299,8 @@ func (d *AgentDemultiplexer) run() {
 		go d.noAggStreamWorker.run()
 	}
 
-	// It is important to set this up after the statsd workers have been started
-	// to make sure they are running to receive the initial filter list and any
-	// updates
+	// It is important to register callbacks after the statsd workers have been started
+	// to make sure they are running to receive any filter list updates
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
 	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 

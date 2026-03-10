@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -34,7 +35,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	setupHostname(t)
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -805,7 +806,7 @@ profiles:
 func TestTopologyPayload_CDP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -1566,7 +1567,7 @@ profiles:
 func TestTopologyPayload_CDPSecondaryIP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
@@ -2328,7 +2329,7 @@ profiles:
 func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	mockConfig.SetWithoutSource("confd_path", invalidPath)
 
