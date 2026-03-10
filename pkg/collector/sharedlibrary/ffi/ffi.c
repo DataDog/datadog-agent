@@ -29,7 +29,7 @@ void *get_symbol(void *lib_handle, const char *symbol_name, char **lib_error) {
     if (!symbol) {
         char error_msg[256];
         int error_code = GetLastError();
-        snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Run' symbol, error code: %d", error_code);
+        snprintf(error_msg, sizeof(error_msg), "unable to get shared library '%s' symbol, error code: %d", symbol_name, error_code);
 		*lib_error = strdup(error_msg);
     }
 
@@ -110,10 +110,10 @@ library_t load_shared_library(const char *lib_path, const char **error) {
         return lib;
     }
 
-    // get pointer of 'Run' symbol
-    lib.run = (run_function_t *)get_symbol(lib.handle, "Run", &lib_error);
+    // get pointer of 'check_run' symbol
+    lib.check_run = (check_run_function_t *)get_symbol(lib.handle, "check_run", &lib_error);
     if (lib_error) {
-		*error = strdup("can't find 'Run' symbol");
+		*error = strdup("can't find 'check_run' symbol");
         close_lib(lib.handle, &lib_error);
         return lib;
     }
@@ -143,15 +143,15 @@ void close_shared_library(void *lib_handle, const char **error) {
     }
 }
 
-void run_shared_library(run_function_t *run_ptr, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error) {
-    // verify `Run` pointer
-    if (!run_ptr) {
-        *error = strdup("pointer to 'Run' symbol of the shared library is NULL");
+void run_check_shared_library(check_run_function_t *check_run_ptr, const char *init_config, const char *instance_config, const char *enrichment, const callback_t *callback, void *ctx, const char **error) {
+    // verify `check_run` pointer
+    if (!check_run_ptr) {
+        *error = strdup("pointer to 'check_run' symbol of the shared library is NULL");
         return;
     }
 
     // run the shared library check and put any errors string in the `error` variable
-    (run_ptr)(check_id, init_config, instance_config, aggregator, error);
+    (check_run_ptr)(init_config, instance_config, enrichment, callback, ctx, error);
 }
 
 const char *get_version_shared_library(version_function_t *version_ptr, const char **error) {
