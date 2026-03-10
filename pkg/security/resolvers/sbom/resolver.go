@@ -52,7 +52,16 @@ const (
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
+	maxPendingFileEvents     = 256
 )
+
+// pendingFileEvent holds the minimal information needed to re-process a file
+// access once the SBOM for its container becomes available.
+type pendingFileEvent struct {
+	filePath string
+	fileMode uint16
+	uid      uint32
+}
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
 
@@ -86,6 +95,8 @@ type SBOM struct {
 
 	refresher *debouncer.Debouncer
 	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+
+	invalidated bool
 }
 
 type workloadKey string
@@ -151,6 +162,10 @@ type Resolver struct {
 	pendingScanLock sync.Mutex
 	pendingScan     []containerutils.ContainerID
 
+	// pending file events: file accesses received before the SBOM was ready
+	pendingFileEventsLock sync.Mutex
+	pendingFileEvents     map[containerutils.ContainerID][]pendingFileEvent
+
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
 	hostRootDevice uint64
@@ -199,6 +214,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		sbomsCacheMiss:        atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
 		wmeta:                 wmeta,
+		pendingFileEvents:     make(map[containerutils.ContainerID][]pendingFileEvent),
 	}
 
 	sboms, err := simplelru.NewLRU(maxSBOMEntries, func(_ containerutils.ContainerID, sbom *SBOM) {
@@ -608,6 +624,10 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
 
+	// replay any file accesses that arrived before the SBOM was ready
+	r.processPendingFileEvents(sb)
+	r.triggerForwarding(sb)
+
 	// NOTE: Don't forward SBOM to remote collector immediately, since LastAccess is not yet populated.
 	// The SBOM will be forwarded later when packages are accessed at runtime (via the forwarder debouncer).
 
@@ -645,17 +665,28 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		return nil
 	}
 
+	if pc.Process.ContainerContext.IsNull() {
+		return nil
+	}
+
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
+		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
 		return nil
 	}
 
 	sbom.Lock()
 	defer sbom.Unlock()
 
+	// replay any file accesses that arrived before the SBOM was ready
+	r.processPendingFileEvents(sbom)
+
+	seclog.Debugf("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
-		seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+		seclog.Debugf("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
 		oldLastAccess := pkg.LastAccess
 		oldSuidBit := pkg.SuidBit
@@ -669,11 +700,67 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
 		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute ||
 			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
-			r.triggerForwarding(sbom)
+			sbom.invalidated = true
 		}
 	}
 
+	if sbom.invalidated {
+		r.triggerForwarding(sbom)
+		sbom.invalidated = false
+	}
+
 	return pkg
+}
+
+// queuePendingFileEvent stores a file access that arrived before the SBOM for
+// the given container was ready. The queue keeps the last maxPendingFileEvents
+// entries per container, dropping the oldest when full.
+func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
+	if containerID == "" {
+		return
+	}
+	r.pendingFileEventsLock.Lock()
+	defer r.pendingFileEventsLock.Unlock()
+
+	events := r.pendingFileEvents[containerID]
+	event := pendingFileEvent{filePath: filePath, fileMode: fileMode, uid: uid}
+	if len(events) >= maxPendingFileEvents {
+		// drop the oldest entry to keep the last N
+		events = append(events[1:], event)
+	} else {
+		events = append(events, event)
+	}
+	r.pendingFileEvents[containerID] = events
+}
+
+// processPendingFileEvents drains the pending file-event queue for the given
+// SBOM and applies the file accesses against the now-available data.
+// Must be called with sbom.Lock() already held.
+func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
+	r.pendingFileEventsLock.Lock()
+	events, ok := r.pendingFileEvents[sbom.ContainerID]
+	if ok {
+		delete(r.pendingFileEvents, sbom.ContainerID)
+	}
+	r.pendingFileEventsLock.Unlock()
+
+	if !ok || len(events) == 0 {
+		return
+	}
+
+	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
+
+	for _, event := range events {
+		pkg := sbom.data.files.queryFile(event.filePath)
+		if pkg == nil {
+			continue
+		}
+		pkg.LastAccess = time.Now()
+		pkg.SuidBit = fs.FileMode(event.fileMode)&04000 != 0
+		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
+
+		sbom.invalidated = true
+	}
 }
 
 // newSBOM (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
@@ -789,6 +876,11 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	defer r.sbomsLock.Unlock()
 
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
+
+	// discard any pending file events for this container
+	r.pendingFileEventsLock.Lock()
+	delete(r.pendingFileEvents, sbom.ContainerID)
+	r.pendingFileEventsLock.Unlock()
 
 	// should be called under sbom.Lock
 	r.sboms.Remove(sbom.ContainerID)
