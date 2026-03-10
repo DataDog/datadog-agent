@@ -126,6 +126,26 @@ Started: Tue 10 Mar 14:38:21 GMT 2026
   - BenchmarkContextResolver1000 baseline was 108 ns/op; removing defer brings it to ~63 ns/op
 ---
 
+## 2026-03-10 20:30 - US-008 (dogstatsd-to-forwarder PRD)
+- Ran count=5 benchmarks across all pipeline packages (dogstatsd, aggregator, forwarder, serializer)
+- Created plans/bench-final-forwarder.txt with raw results + human-readable benchstat comparison
+- Updated plans/profiling-baseline.md with final summary table and optimisation attribution
+- Cumulative allocs/op reduction: 81.0% (437,094→83,031) — ≥25% target exceeded by 3.2×
+- BenchmarkTimeSamplerSampleThenFlushCycle/1000: 201µs→192µs (-4.5%), no regression
+- BenchmarkTimeSamplerSampleThenFlushCycle/15000: 24568→3075 allocs/op (-87.5%)
+- BenchmarkTimeSamplerSampleThenFlushCycle/100000: 153744→4781 allocs/op (-96.9%)
+- Race detector passes for dogstatsd/aggregator/forwarder/serializer
+- TestAgentPayloadVersion failure is pre-existing (build-env version linking issue, not our code)
+- Files changed: plans/bench-final-forwarder.txt (new), plans/profiling-baseline.md, prd.json
+- **Learnings:**
+  - The SampleThenFlushCycle improvement is dramatically larger than the individual Flush benchmarks
+    because the baseline allocated ~1.6 Serie objects per context per cycle (flush overhead), while
+    the pooled path reuses them — giving 87-97% reduction at higher cardinalities
+  - benchstat works fine with extra ReportMetric columns in the final output
+  - TestAgentPayloadVersion always fails without linker flags setting version.AgentPayloadVersion
+  - For final validation, verify pre-existing test failures separately from newly introduced ones
+---
+
 ## 2026-03-10 19:30 - US-007 (dogstatsd-to-forwarder PRD)
 - Added sync.Pool for *HTTPTransaction in transaction/transaction.go with GetHTTPTransaction()/PutHTTPTransaction()
 - poolReturnHandler (package-level var, no closure) set as default CompletionHandler on pooled transactions
