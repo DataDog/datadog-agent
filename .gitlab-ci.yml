@@ -1493,6 +1493,18 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_integration_spec_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - cmd/agent/dist/assets/*/spec.yaml
+        - cmd/agent/dist/conf.d/**/*
+        - pkg/collector/corechecks/**/*.go
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never

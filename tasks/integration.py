@@ -2,7 +2,8 @@
 Invoke tasks for managing agent integrations (checks).
 
 Commands:
-  dda inv integration.spec-generate --check <name>   Parse conf.yaml → spec.yaml
+  dda inv integration.spec-generate --check <name>   Parse conf.yaml → spec.yaml (single check)
+  dda inv integration.spec-generate --all             Bootstrap spec.yaml for all checks missing one
   dda inv integration.spec-sync [--check <name>]     validate drift (default)
   dda inv integration.spec-sync --sync               apply changes from spec.yaml
   dda inv integration.create <name> --path <path>    Scaffold a new integration
@@ -109,7 +110,8 @@ def _render_param_comment(name: str, param_type: str, required: bool, default, d
     req_str = "required" if required else "optional"
     header = f"## @param {name} - {param_type} - {req_str}"
     if default is not None:
-        header += f" - default: {default}"
+        default_str = str(default).lower() if isinstance(default, bool) else str(default)
+        header += f" - default: {default_str}"
     lines = [header]
     for desc_line in description.rstrip().splitlines():
         lines.append(f"## {desc_line}" if desc_line.strip() else "##")
@@ -132,7 +134,7 @@ def _render_param_comment(name: str, param_type: str, required: bool, default, d
             return "\n".join(lines) + f"\n{name}:\n  # ...\n"
         return "\n".join(lines) + f"\n# {name}:\n{indented}\n"
     else:
-        example_str = str(example)
+        example_str = str(example).lower() if isinstance(example, bool) else str(example)
 
     if required:
         return "\n".join(lines) + f"\n{name}: {example_str}\n"
@@ -193,17 +195,35 @@ def _generate_conf_yaml(check_name: str, spec: dict) -> str:
 
 @task(
     help={
-        "check": "Name of the check (e.g. 'ntp'). Looks up conf.d/<check>.d/conf.yaml.default or .example",
-        "overwrite": "Overwrite existing spec.yaml if it exists (default: False)",
+        "check": "Name of the check (e.g. 'ntp'). Mutually exclusive with --all.",
+        "all_checks": "Generate spec.yaml for every check that has a conf.yaml.example but no spec.yaml yet.",
+        "overwrite": "Overwrite existing spec.yaml if it exists (default: False).",
     }
 )
-def spec_generate(_, check, overwrite=False):
+def spec_generate(_, check=None, all_checks=False, overwrite=False):
     """
     Parse @param annotations from an existing conf.yaml and generate spec.yaml.
+
+    Use --check <name> for a single check, or --all to bootstrap every check that
+    has a conf.yaml.example but no spec.yaml yet.
 
     The generated spec.yaml is written to cmd/agent/dist/assets/<check>/spec.yaml.
     Edit it after generation to add descriptions, defaults, and fleet_configurable flags.
     """
+    if check and all_checks:
+        raise Exit("Error: --check and --all are mutually exclusive.", code=1)
+    if not check and not all_checks:
+        raise Exit("Error: provide --check <name> or --all.", code=1)
+
+    if all_checks:
+        _spec_generate_all(overwrite)
+        return
+
+    _spec_generate_one(check, overwrite)
+
+
+def _spec_generate_one(check: str, overwrite: bool):
+    """Generate spec.yaml for a single check."""
     check_dir = CONFD_DIR / f"{check}.d"
     conf_path = None
     for candidate in ("conf.yaml.default", "conf.yaml.example"):
@@ -230,7 +250,6 @@ def spec_generate(_, check, overwrite=False):
 
     print(f"Parsing {conf_path} ...")
     options_by_template = _parse_conf_yaml(conf_path)
-
     spec = _build_spec(check, options_by_template)
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -239,6 +258,43 @@ def spec_generate(_, check, overwrite=False):
 
     print(f"Generated {out_path}")
     print("Review the file and set fleet_configurable: true for options you want to manage via Fleet.")
+
+
+def _spec_generate_all(overwrite: bool):
+    """Generate spec.yaml for every check that has a conf.yaml.example but no spec.yaml."""
+    generated = []
+    skipped = []
+
+    for conf_path in sorted(CONFD_DIR.glob("*.d/conf.yaml.example")):
+        check_name = conf_path.parent.name.removesuffix(".d")
+        out_path = ASSETS_DIR / check_name / "spec.yaml"
+
+        if out_path.exists() and not overwrite:
+            skipped.append(check_name)
+            continue
+
+        options_by_template = _parse_conf_yaml(conf_path)
+        spec = _build_spec(check_name, options_by_template)
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
+            yaml.dump(spec, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+        generated.append(out_path)
+
+    if generated:
+        print(f"Generated {len(generated)} spec.yaml file(s):")
+        for p in generated:
+            print(f"  {p}")
+        print("\nReview each file and set fleet_configurable: true where appropriate.")
+
+    if skipped:
+        print(f"\nSkipped {len(skipped)} check(s) with existing spec.yaml (use --overwrite to replace):")
+        for name in skipped:
+            print(f"  {name}")
+
+    if not generated and not skipped:
+        print(f"No conf.yaml.example files found under {CONFD_DIR}.")
 
 
 def _parse_conf_yaml(conf_path: Path) -> dict:
