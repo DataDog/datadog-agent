@@ -15,8 +15,11 @@ test/e2e-framework/
 ├── testing/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
 │   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
-│   ├── provisioners/     # Provisioner interfaces + Pulumi implementation
-│   │   └── aws/          # AWS provisioners (host, docker, ecs, kubernetes)
+│   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm)
+│   │   ├── azure/        # host (linux, windows), kubernetes (aks)
+│   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
+│   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
 │   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm
@@ -51,8 +54,8 @@ An environment defines what infrastructure a test needs:
 
 ### Provisioners
 
-Provisioners create the environment's infrastructure. All built-in provisioners
-live in `testing/provisioners/aws/` (host, docker, ecs, kubernetes).
+Provisioners create the environment's infrastructure. Built-in provisioners
+live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
 
 ```go
 // Host on AWS EC2
