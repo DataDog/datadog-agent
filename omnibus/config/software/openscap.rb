@@ -17,14 +17,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}'"
 
-  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libselinux.so"
-
-  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libsepol.so"
-
   command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}'"
   sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
