@@ -43,31 +43,6 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
-struct activity_dump_sample_stats_t * __attribute__((always_inline)) get_active_ad_sample_stats(u64 event_type) {
-    struct bpf_map_def *ad_sample_stats = select_buffer(&fb_ad_sample_stats, &bb_ad_sample_stats, AD_SAMPLE_MONITOR_KEY);
-    if (ad_sample_stats == NULL) {
-        return NULL;
-    }
-
-    u32 key = event_type;
-    return bpf_map_lookup_elem(ad_sample_stats, &key);
-}
-
-void __attribute__((always_inline)) monitor_ad_sample_total(u64 event_type) {
-    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
-    if (stats == NULL) {
-        return;
-    }
-    __sync_fetch_and_add(&stats->events_total, 1);
-}
-
-void __attribute__((always_inline)) monitor_ad_sample_sampled(u64 event_type) {
-    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
-    if (stats == NULL) {
-        return;
-    }
-    __sync_fetch_and_add(&stats->events_sampled, 1);
-}
 
 int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol) {
     bpf_printk("bind_sample enter: pid=%d family=%d port=%d", pid, family, port);
@@ -76,8 +51,6 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
         bpf_printk("bind_sample family_skip: pid=%d family=%d", pid, family);
         return 0;
     }
-
-    monitor_ad_sample_total(EVENT_BIND);
 
     struct bind_sample_key_t key = {
         .pid = pid,
@@ -98,18 +71,14 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
     }
 
     bpf_printk("bind_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
-    monitor_ad_sample_sampled(EVENT_BIND);
     return 1;
 }
 
 int __attribute__((always_inline)) approve_dns_sample(u32 pid) {
-    monitor_ad_sample_total(EVENT_DNS);
-
     if (!global_limiter_allow(DNS_SAMPLE_LIMITER, 500, 1)) {
         return 0;
     }
 
-    monitor_ad_sample_sampled(EVENT_DNS);
     return 1;
 }
 
@@ -117,8 +86,6 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
     if (family != AF_INET && family != AF_INET6) {
         return 0;
     }
-
-    monitor_ad_sample_total(EVENT_CONNECT);
 
     struct bind_sample_key_t key = {
         .pid = pid,
@@ -136,7 +103,6 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
         return 0;
     }
 
-    monitor_ad_sample_sampled(EVENT_CONNECT);
     return 1;
 }
 
