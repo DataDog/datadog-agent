@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use log::{debug, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -33,6 +34,17 @@ pub enum RestartPolicy {
     OnFailure,
     OnSuccess,
     Never,
+}
+
+impl fmt::Display for RestartPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RestartPolicy::Always => write!(f, "always"),
+            RestartPolicy::OnFailure => write!(f, "on-failure"),
+            RestartPolicy::OnSuccess => write!(f, "on-success"),
+            RestartPolicy::Never => write!(f, "never"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

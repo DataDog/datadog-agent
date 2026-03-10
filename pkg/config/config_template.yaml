@@ -4578,7 +4578,7 @@ api_key:
 ## @param private_action_runner - custom object - optional
 ## Configuration for the Private Action Runner.
 ## The Private Action Runner allows executing actions within your infrastructure.
-## See https://docs.datadoghq.com/fr/actions/private_actions/ for more information.
+## See https://docs.datadoghq.com/actions/private_actions/ for more information.
 #
 # private_action_runner:
 
