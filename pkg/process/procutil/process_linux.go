@@ -541,7 +541,9 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 	case bytes.Equal(key, keyName):
 		sInfo.name = bytes.Trim(value, " \t")
 	case bytes.Equal(key, keyState):
-		sInfo.status = value[:1]
+		if len(value) >= 1 {
+			sInfo.status = value[:1]
+		}
 	case bytes.Equal(key, keyUID), bytes.Equal(key, keyGid):
 		values := bytes.Fields(value)
 		ints := make([]int32, 0, len(values))
@@ -699,6 +701,9 @@ func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	}
 
 	fields := strings.Fields(string(contents))
+	if len(fields) < 7 {
+		return memInfoEx
+	}
 
 	// the values for the fields are per-page, to get real numbers we multiply by PageSize
 	vms, err := strconv.ParseUint(fields[0], 10, 64)
