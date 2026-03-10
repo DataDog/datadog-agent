@@ -19,12 +19,12 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
     type: method,
     data: data,
     success: function(data, status, xhr) {
-      // cleaning error layout before updating layour 
+      // cleaning error layout before updating layour
       $("#error").hide()
       $("#logged_out").hide();
 
       // Set Agent state to "connected"
-      $("#agent_status").html("Connected<br>to Agent");
+      $("#agent_status").html("Connected to agent");
       $("#agent_status").removeClass("disconnected")
       $("#agent_status").addClass("connected")
 
@@ -42,17 +42,17 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
       }
 
       // Set Agent state to "disconnected"
-      $("#agent_status").html("Not connected<br>to Agent");
+      $("#agent_status").html("Disconnected from agent");
       $("#agent_status").removeClass("connected")
       $("#agent_status").addClass("disconnected")
 
-      // Display error layout 
+      // Display error layout
       setError(requestObject.status, requestObject.responseText)
     }
   })
 }
 
-// setError print the 
+// setError print the
 /**
  * Sets the error message and displays it on the page.
  * @param {number} status - The status code of the error.
@@ -415,7 +415,7 @@ function loadNewChecks() {
 
       // Replace the existing .list content with the new HTML
       $(".list").html(tempList.html());
-      
+
       // Add current item highlighting
       $(".check").click(function(){
         $(".active_check").removeClass("active_check");
@@ -655,7 +655,7 @@ function restartAgent() {
   $(".active").removeClass("active");
   $("#main").append('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center loading_spinner"></i>');
 
-  $("#agent_status").html("Not connected<br>to Agent");
+  $("#agent_status").html("Disconnected from agent");
   $("#agent_status").removeClass("connected")
   $("#agent_status").addClass("disconnected")
 

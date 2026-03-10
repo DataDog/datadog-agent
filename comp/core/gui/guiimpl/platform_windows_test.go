@@ -70,14 +70,14 @@ const expectedBody = `<!DOCTYPE html>
         <i class="fa fa-power-off fa-fw"> </i>&nbsp;
         Restart Agent
       </li>
-      
+
     </ul>
   </div>
   <div class="top_bar">
     <div id="title">Datadog Agent Manager</div>
     <div id="agent_info">
       <div id="restart_status">Restart Agent to apply changes.</div>
-      <div id="agent_status" class="disconnected">Not connected<br>to Agent</div>
+      <div id="agent_status" class="disconnected">Not Connected to Agent</div>
       <div id="version">Version: </div>
       <div id="hostname">Hostname: </div>
     </div>
@@ -86,7 +86,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="error" class="page">
       <div id="error_content"></div>
       <div id="logged_out">
-        
+
 <h3>Refreshing the Session</h3>
 <p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
 <ul>

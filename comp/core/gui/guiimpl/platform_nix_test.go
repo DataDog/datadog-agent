@@ -73,7 +73,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="title">Datadog Agent Manager</div>
     <div id="agent_info">
       <div id="restart_status">Restart Agent to apply changes.</div>
-      <div id="agent_status" class="disconnected">Not connected<br>to Agent</div>
+      <div id="agent_status" class="disconnected">Not Connected to Agent</div>
       <div id="version">Version: </div>
       <div id="hostname">Hostname: </div>
     </div>
@@ -82,7 +82,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="error" class="page">
       <div id="error_content"></div>
       <div id="logged_out">
-        
+
 <h3>Refreshing the Session</h3>
 <p>Please ensure you access the Datadog Agent Manager by running the following terminal command: "<code>datadog-agent launch-gui</code>"</p>
 <p>For more information, please visit: <u><a href="https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux#datadog-agent-manager-gui">https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux#datadog-agent-manager-gui</a></u></p>
