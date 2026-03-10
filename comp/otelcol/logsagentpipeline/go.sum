@@ -1,6 +1,8 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722 h1:O1Mfl6ZL/caIP/rts/Io5cS49MOueOi0oidxQWD/cVk=
 github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad h1:Ex/s6WrxMmlX4MavyE9hTQHjwXPBekP6dCkSQKpLPmc=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310215322-d095e78a85ad/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/viper v1.15.1 h1:kcdFE+qPndlWkhU4iEf/WpWQMCyVYHTv5HqvVf+SYJs=
 github.com/DataDog/viper v1.15.1/go.mod h1:rDLDREOPd+gpEbA8y4Y/5wTvyLqvUiCmDXX0jRZy8mw=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
