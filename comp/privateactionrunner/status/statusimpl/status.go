@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -87,17 +87,17 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
 
-	enabled := s.config.GetBool(pkgconfigsetup.PAREnabled)
+	enabled := s.config.GetBool(par.PAREnabled)
 	parStatus["Enabled"] = enabled
 
 	if enabled {
-		urn := s.config.GetString(pkgconfigsetup.PARUrn)
+		urn := s.config.GetString(par.PARUrn)
 		if urn == "" {
 			urn = "(not set)"
 		}
 		parStatus["URN"] = urn
-		parStatus["SelfEnroll"] = s.config.GetBool(pkgconfigsetup.PARSelfEnroll)
-		parStatus["ActionsAllowlist"] = strings.Join(s.config.GetStringSlice(pkgconfigsetup.PARActionsAllowlist), ", ")
+		parStatus["SelfEnroll"] = s.config.GetBool(par.PARSelfEnroll)
+		parStatus["ActionsAllowlist"] = strings.Join(s.config.GetStringSlice(par.PARActionsAllowlist), ", ")
 	}
 
 	stats["privateActionRunnerStatus"] = parStatus
