@@ -914,26 +914,6 @@ type metricCollectionSetup struct {
 func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
 	t.Helper()
 	opts := gpuspec.BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
-	xidEvents := make(chan nvml.EventData, 1)
-	t.Cleanup(func() { close(xidEvents) })
-	if mode == gpuspec.DeviceModePhysical {
-		opts = append(opts, testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
-			return &nvmlmock.EventSet{
-				FreeFunc: func() nvml.Return {
-					return nvml.SUCCESS
-				},
-				WaitFunc: func(_ uint32) (nvml.EventData, nvml.Return) {
-					select {
-					case evt := <-xidEvents:
-						return evt, nvml.SUCCESS
-					default:
-						time.Sleep(5 * time.Millisecond)
-						return nvml.EventData{}, nvml.ERROR_TIMEOUT
-					}
-				},
-			}, nvml.SUCCESS
-		}))
-	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
@@ -1052,12 +1032,11 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		// XID events are injected between runs, after collectors have registered devices.
 		require.NoError(t, checkGeneric.Run())
 		if mode == gpuspec.DeviceModePhysical {
-			xidEvents <- nvml.EventData{
-				Device:    &nvmlmock.Device{GetUUIDFunc: func() (string, nvml.Return) { return testutil.DefaultGpuUUID, nvml.SUCCESS }},
+			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
+				DeviceUUID: testutil.DefaultGpuUUID,
 				EventType: nvml.EventTypeXidCriticalError,
 				EventData: 31,
-			}
-			time.Sleep(50 * time.Millisecond)
+			}}))
 		}
 		mockSender.ResetCalls()
 		require.NoError(t, checkGeneric.Run())
