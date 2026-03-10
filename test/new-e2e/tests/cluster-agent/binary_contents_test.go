@@ -62,7 +62,7 @@ func (s *clusterAgentBinarySuite) TestSecretGenericConnectorPresenceAndPermissio
 
 	// stat -c '%a %U %G' prints: <octal-perms> <owner> <group>
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
-		PodExec("datadog", clusterAgentPod.Name, "datadog-cluster-agent",
+		PodExec("datadog", clusterAgentPod.Name, "cluster-agent",
 			[]string{"stat", "-c", "%a %U %G", "/opt/datadog-agent/bin/secret-generic-connector"})
 	require.NoError(t, err, "stat failed (binary may be missing): %s", stderr)
 
