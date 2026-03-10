@@ -20,6 +20,7 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 		(s.TCPProbe0Count < other.TCPProbe0Count && s.TCPProbe0Count > 0) ||
 		(s.TCPDeliveredCE < other.TCPDeliveredCE && s.TCPDeliveredCE > 0) ||
 		(s.TCPReordSeen < other.TCPReordSeen && s.TCPReordSeen > 0) ||
+		(s.TCPRcvOOOPack < other.TCPRcvOOOPack && s.TCPRcvOOOPack > 0) ||
 		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
 		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) ||
 		isUnderflow(other.RecvPackets, s.RecvPackets, maxPacketCountChange) ||
@@ -57,6 +58,9 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	}
 	if s.TCPReordSeen > 0 {
 		sc.TCPReordSeen = s.TCPReordSeen - other.TCPReordSeen
+	}
+	if s.TCPRcvOOOPack > 0 {
+		sc.TCPRcvOOOPack = s.TCPRcvOOOPack - other.TCPRcvOOOPack
 	}
 
 	return sc, false

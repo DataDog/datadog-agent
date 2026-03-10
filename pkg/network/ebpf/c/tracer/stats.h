@@ -307,8 +307,8 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 }
 
 // handle_congestion_stats reads TCP congestion fields from tcp_sock into the
-// tcp_congestion_stats map. Counter fields (delivered_ce, reord_seen) are
-// monotonically increasing. ecn_negotiated is a per-connection boolean.
+// tcp_congestion_stats map. Counter fields (delivered_ce, reord_seen, rcv_ooopack)
+// are monotonically increasing. ecn_negotiated is a per-connection boolean.
 // CO-RE/runtime only; prebuilt is a no-op.
 static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
@@ -352,6 +352,10 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
 #endif
+
+    // rcv_ooopack: out-of-order packets received on this socket. Available since
+    // Linux 2.6, so no kernel version guard needed.
+    BPF_CORE_READ_INTO(&val->rcv_ooopack, tcp_sk(sk), rcv_ooopack);
 
     // ECN negotiation: ecn_flags bit 0 (TCP_ECN_OK) indicates ECN was negotiated.
     // Prerequisite for interpreting delivered_ce.

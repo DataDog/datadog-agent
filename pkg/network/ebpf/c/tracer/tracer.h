@@ -101,6 +101,7 @@ typedef struct {
 typedef struct {
     __u32 delivered_ce;     // segments delivered with ECN CE mark (counter, 4.19+)
     __u32 reord_seen;       // reordering events detected (counter, 4.19+)
+    __u32 rcv_ooopack;      // out-of-order packets received on this socket (counter, 2.6+)
     __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
     __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
 } tcp_congestion_stats_t;

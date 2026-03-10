@@ -231,6 +231,7 @@ type StatCounters struct {
 	TCPProbe0Count   uint32 // zero-window probe events (tcp_send_probe0 invocations)
 	TCPDeliveredCE   uint32 // segments delivered with ECN CE mark (4.19+)
 	TCPReordSeen     uint32 // reordering events detected (4.19+)
+	TCPRcvOOOPack    uint32 // out-of-order packets received (2.6+)
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -513,6 +514,7 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 		TCPProbe0Count:   s.TCPProbe0Count + other.TCPProbe0Count,
 		TCPDeliveredCE:   s.TCPDeliveredCE + other.TCPDeliveredCE,
 		TCPReordSeen:     s.TCPReordSeen + other.TCPReordSeen,
+		TCPRcvOOOPack:    s.TCPRcvOOOPack + other.TCPRcvOOOPack,
 	}
 }
 
@@ -531,6 +533,7 @@ func (s StatCounters) Max(other StatCounters) StatCounters {
 		TCPProbe0Count:   max(s.TCPProbe0Count, other.TCPProbe0Count),
 		TCPDeliveredCE:   max(s.TCPDeliveredCE, other.TCPDeliveredCE),
 		TCPReordSeen:     max(s.TCPReordSeen, other.TCPReordSeen),
+		TCPRcvOOOPack:    max(s.TCPRcvOOOPack, other.TCPRcvOOOPack),
 	}
 }
 

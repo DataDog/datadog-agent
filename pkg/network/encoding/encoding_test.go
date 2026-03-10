@@ -118,6 +118,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				LastTcpProbe0Count:   2,
 				LastTcpDeliveredCe:   5,
 				LastTcpReordSeen:     4,
+				LastTcpRcvOooPack:    7,
 				TcpEcnNegotiated:     true,
 			},
 			{
@@ -222,6 +223,7 @@ func TestSerialization(t *testing.T) {
 						TCPProbe0Count:   2,
 						TCPDeliveredCE:   5,
 						TCPReordSeen:     4,
+						TCPRcvOOOPack:    7,
 					},
 					Last: network.StatCounters{
 						SentBytes:        2,
@@ -234,6 +236,7 @@ func TestSerialization(t *testing.T) {
 						TCPProbe0Count:   2,
 						TCPDeliveredCE:   5,
 						TCPReordSeen:     4,
+						TCPRcvOOOPack:    7,
 					},
 					LastUpdateEpoch: 50,
 

@@ -34,6 +34,7 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 		(s.TCPProbe0Count < other.TCPProbe0Count && s.TCPProbe0Count > 0) ||
 		(s.TCPDeliveredCE < other.TCPDeliveredCE && s.TCPDeliveredCE > 0) ||
 		(s.TCPReordSeen < other.TCPReordSeen && s.TCPReordSeen > 0) ||
+		(s.TCPRcvOOOPack < other.TCPRcvOOOPack && s.TCPRcvOOOPack > 0) ||
 		isUnderflow(other.RecvBytes, s.RecvBytes, maxByteCountChange) ||
 		isUnderflow(other.SentBytes, s.SentBytes, maxByteCountChange) {
 		return sc, true
@@ -77,6 +78,9 @@ func (s StatCounters) Sub(other StatCounters) (sc StatCounters, underflow bool) 
 	}
 	if s.TCPReordSeen > 0 {
 		sc.TCPReordSeen = s.TCPReordSeen - other.TCPReordSeen
+	}
+	if s.TCPRcvOOOPack > 0 {
+		sc.TCPRcvOOOPack = s.TCPRcvOOOPack - other.TCPRcvOOOPack
 	}
 
 	return sc, false
@@ -184,6 +188,7 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 
 	c.Monotonic.TCPDeliveredCE = cs.Delivered_ce
 	c.Monotonic.TCPReordSeen = cs.Reord_seen
+	c.Monotonic.TCPRcvOOOPack = cs.Rcv_ooopack
 	c.TCPECNNegotiated = cs.Ecn_negotiated != 0
 }
 

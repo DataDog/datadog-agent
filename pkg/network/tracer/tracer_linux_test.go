@@ -3385,9 +3385,10 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-		t.Logf("Congestion: rto_count=%d recovery_count=%d reord_seen=%d delivered_ce=%d ecn_negotiated=%v probe0_count=%d",
+		t.Logf("Congestion: rto_count=%d recovery_count=%d reord_seen=%d rcv_ooopack=%d delivered_ce=%d ecn_negotiated=%v probe0_count=%d",
 			conn.Last.TCPRTOCount, conn.Last.TCPRecoveryCount, conn.Last.TCPReordSeen,
-			conn.Last.TCPDeliveredCE, conn.TCPECNNegotiated, conn.Last.TCPProbe0Count)
+			conn.Last.TCPRcvOOOPack, conn.Last.TCPDeliveredCE, conn.TCPECNNegotiated,
+			conn.Last.TCPProbe0Count)
 		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
 	}, 5*time.Second, 100*time.Millisecond)
 }
@@ -3469,6 +3470,64 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 		t.Logf("Zero-window signals: probe0_count=%d", conn.Last.TCPProbe0Count)
 		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPRcvOOOPack validates the rcv_ooopack signal by creating a connection
+// where the receiver sees out-of-order TCP segments. tc netem is used to
+// introduce reordering on the loopback interface: half the segments are
+// delivered immediately while the other half are delayed, causing the
+// receiver's rcv_ooopack counter to increment.
+func (s *TracerSuite) TestTCPRcvOOOPack() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tc, err := exec.LookPath("tc")
+	if err != nil {
+		t.Skip("tc not found: required for netem reordering")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	// Add tc netem reordering to loopback BEFORE connecting so the data
+	// transfer is affected. "delay 10ms reorder 50%" sends 50% of packets
+	// immediately and delays the rest by 10ms, causing out-of-order delivery.
+	addNetemCmd := exec.Command(tc, "qdisc", "add", "dev", "lo", "root", "netem", "delay", "10ms", "reorder", "50%")
+	require.NoError(t, addNetemCmd.Run(), "tc qdisc add netem failed")
+	t.Cleanup(func() {
+		exec.Command(tc, "qdisc", "del", "dev", "lo", "root").Run() //nolint:errcheck
+	})
+
+	// Server sends a large burst of data so many TCP segments are produced,
+	// maximising the chance of out-of-order arrival at the client.
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		data := make([]byte, 200*4096)
+		c.Write(data) //nolint:errcheck
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Drain the data — each tcp_recvmsg invocation updates the rcv_ooopack snapshot.
+	io.Copy(io.Discard, c) //nolint:errcheck
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		t.Logf("rcv_ooopack=%d", conn.Last.TCPRcvOOOPack)
+		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
+	}, 10*time.Second, 100*time.Millisecond)
 }
 
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {

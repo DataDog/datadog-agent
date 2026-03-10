@@ -512,12 +512,12 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 		if c.Source.String() == "172.28.0.10" || c.Source.String() == "172.28.0.20" {
 			log.Debugf("\nTCP congestion metrics for connection %s:%d -> %s:%d: "+
 				"\n  loss[rto_count=%d recovery_count=%d] "+
-				"\n  out-of-order[reord_seen=%d] "+
+				"\n  out-of-order[reord_seen=%d rcv_ooopack=%d] "+
 				"\n  ecn[delivered_ce=%d ecn_negotiated=%v] "+
 				"\n  zero-window[probe0_count=%d]",
 				c.Source, c.SPort, c.Dest, c.DPort,
 				c.Last.TCPRTOCount, c.Last.TCPRecoveryCount,
-				c.Last.TCPReordSeen,
+				c.Last.TCPReordSeen, c.Last.TCPRcvOOOPack,
 				c.Last.TCPDeliveredCE, c.TCPECNNegotiated,
 				c.Last.TCPProbe0Count,
 			)
@@ -530,6 +530,7 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", ecnVal, tags, 1)                         //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.Last.TCPDeliveredCE), tags, 1)     //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.Last.TCPReordSeen), tags, 1)         //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.rcv_ooopack", int64(c.Last.TCPRcvOOOPack), tags, 1)       //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.Last.TCPRTOCount), tags, 1)           //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.Last.TCPRecoveryCount), tags, 1) //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.Last.TCPProbe0Count), tags, 1)     //nolint:errcheck
