@@ -5,8 +5,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 argument-hint: "<feature-or-check-name> [--platform linux|windows|both] [--env host|docker|k8s]"
 ---
 
-Write end-to-end tests for the Datadog Agent. Parse `$ARGUMENTS` to
-determine what to test.
+Write end-to-end tests for the Datadog Agent using the `test/e2e-framework/` framework.
+Parse `$ARGUMENTS` to determine what to test.
 
 ## Where to find what you need
 
@@ -29,10 +29,12 @@ that match your use case.
   understand what payloads it sends (not just metrics — could be logs, events,
   traces, SBOMs, container images, etc.)
 - **Check existing coverage**: E2E tests may already exist under `test/new-e2e/tests/`
-- **Place tests correctly**: check `CODEOWNERS` for the right `<area>` directory
+- **Place tests correctly**: check `CODEOWNERS` for the right `<area>` directory;
+  keep one file per platform target (e.g., `disk_nix_test.go`, `disk_win_test.go`)
 - **License header**: every test file needs the Apache 2.0 header
-- **Assertions**: use `require` (not `assert`) inside `EventuallyWithT` callbacks;
-  2 min timeout, 10s interval is the default
+- **Assertions**: use `require` (not `assert`) inside `EventuallyWithT` callbacks
+  so failures short-circuit the current retry iteration; 2 min timeout, 10s
+  interval is the default
 - **Verify compilation**: `cd test/new-e2e && go vet ./tests/<area>/...` —
   do NOT run the test (it provisions real cloud infrastructure)
 - **CI wiring**: check if an existing job already covers your test directory

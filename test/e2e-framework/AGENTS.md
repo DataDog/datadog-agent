@@ -41,12 +41,13 @@ test/e2e-framework/
 
 An environment defines what infrastructure a test needs:
 
-| Type | Components | Use when |
-|------|-----------|----------|
-| `environments.Host` | VM + Agent + FakeIntake | System checks, agent commands, file-based config |
-| `environments.DockerHost` | VM + Docker + FakeIntake | Container checks, Docker integrations |
-| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | K8s checks, DaemonSet, Cluster Agent |
-| `environments.ECS` | ECS cluster + Agent + FakeIntake | ECS-specific tests |
+| Type | Components | Provisioner | Use when |
+|------|-----------|-------------|----------|
+| `environments.Host` | VM + Agent + FakeIntake | `awshost.Provisioner()` | System checks, agent commands, file-based config |
+| `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
+| `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `awskubernetes.Provisioner()` | K8s checks, DaemonSet, Cluster Agent |
+| `environments.ECS` | ECS cluster + Agent + FakeIntake | `awsecs.Provisioner()` | ECS-specific tests |
+| custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
@@ -95,18 +96,26 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
 
-## Beyond stock environments
+## Beyond out of the box environments
 
-Not all tests fit the four stock environments. Common advanced patterns:
+Not all tests fit the four out of the box environments. Common advanced patterns:
 
 - **Custom environment structs** — define your own struct with extra components
   (e.g., a second `RemoteHost`, multiple fakeintakes, an HTTPBin service).
   Use `e2e.WithPulumiProvisioner()` to wire it up with inline Pulumi code.
-  See `test/new-e2e/tests/npm/` and `test/new-e2e/tests/ha-agent/` for examples.
+  Start from the examples in `test/new-e2e/examples/customenv_*` and see
+  `test/new-e2e/tests/npm/` and `test/new-e2e/tests/ha-agent/` for real usage.
+- **Custom provisioners** — environments also support custom provisioners beyond
+  the stock AWS ones. Implement the `provisioners.Provisioner` interface to
+  target different infrastructure.
 - **`e2e.WithUntypedPulumiProvisioner()`** — escape hatch for fully custom Pulumi
   programs when no typed environment fits.
 - **`s.UpdateEnv(provisioner)`** — re-provision the agent mid-suite (e.g., change
-  config, toggle features) without destroying the underlying infra. Widely used.
+  config, toggle features) without destroying the underlying infra. Widely used
+  but error-prone; may be removed in the future.
+
+### Useful suite options
+
 - **`e2e.WithDevMode()`** — keep infrastructure alive after test for faster iteration.
 - **`e2e.WithStackName(name)`** — custom Pulumi stack naming for parameterized tests.
 
@@ -122,26 +131,6 @@ Not all tests fit the four stock environments. Common advanced patterns:
 | Windows | `test/new-e2e/tests/windows/` |
 | Docker Compose | `test/new-e2e/tests/agent-health/` |
 | ECS / Fargate | `test/new-e2e/tests/cws/` |
-
-## Adding a new provisioner or component
-
-### New cloud resource
-
-1. Add Pulumi resource in `resources/<cloud>/`
-2. Wire it into a scenario in `scenarios/<cloud>/`
-3. Export outputs matching the environment type's interface
-
-### New environment type
-
-1. Define struct in `testing/environments/`
-2. Implement `Initializable`, `Diagnosable` interfaces
-3. Create a matching provisioner in `testing/provisioners/`
-
-### New agent deployment method
-
-1. Add component in `components/datadog/`
-2. Create `agentparams` options if needed
-3. Wire into an existing or new scenario
 
 ## Key files
 

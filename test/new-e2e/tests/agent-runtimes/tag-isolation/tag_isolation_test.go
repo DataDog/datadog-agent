@@ -74,11 +74,8 @@ func (s *tagIsolationSuite) Test00_DebugMetricTags() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// Get ALL metrics for tag_check.metric — no tag filter
 		metrics, err := fakeintake.FilterMetrics("tag_check.metric")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no tag_check.metric in fakeintake yet")
-		if len(metrics) == 0 {
-			return
-		}
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics, "no tag_check.metric in fakeintake yet")
 
 		s.T().Logf("Found %d tag_check.metric series", len(metrics))
 		for i, m := range metrics {
@@ -91,7 +88,7 @@ func (s *tagIsolationSuite) Test00_DebugMetricTags() {
 
 		// Also check service checks
 		checks, err := fakeintake.FilterCheckRuns("tag_check.can_connect")
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		s.T().Logf("Found %d tag_check.can_connect check runs", len(checks))
 		for i, cr := range checks {
 			if i < 5 { // only log first 5
@@ -103,11 +100,10 @@ func (s *tagIsolationSuite) Test00_DebugMetricTags() {
 		alphaMetrics, err := fakeintake.FilterMetrics("tag_check.metric",
 			client.WithTags[*aggregator.MetricSeries]([]string{"instance:alpha"}),
 		)
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		s.T().Logf("FilterMetrics with instance:alpha: %d results", len(alphaMetrics))
 
-		// Fail the assertion so we see the logs if tags are missing
-		assert.NotEmpty(c, alphaMetrics, fmt.Sprintf(
+		require.NotEmpty(c, alphaMetrics, fmt.Sprintf(
 			"WithTags filter returned empty; raw series tags: %v",
 			func() [][]string {
 				var all [][]string
