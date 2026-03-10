@@ -10,7 +10,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,26 +17,19 @@ import (
 // keyvaultMockClient is the struct we'll use to mock the Azure KeyVault client
 // for unit tests. E2E tests should be written with the real client.
 type keyvaultMockClient struct {
-	secrets map[string]interface{}
+	secrets map[string]string
 }
 
-func (c *keyvaultMockClient) GetSecret(_ context.Context, secretName string, _ string, _ *azsecrets.GetSecretOptions) (result azsecrets.GetSecretResponse, err error) {
-	if _, ok := c.secrets[secretName]; ok {
-		val := c.secrets[secretName].(string)
-		secretID := azsecrets.ID(secretName)
-		return azsecrets.GetSecretResponse{
-			Secret: azsecrets.Secret{
-				Value: &val,
-				ID:    &secretID,
-			},
-		}, nil
+func (c *keyvaultMockClient) GetSecret(_ context.Context, secretName string, _ string) (*string, error) {
+	if val, ok := c.secrets[secretName]; ok {
+		return &val, nil
 	}
-	return azsecrets.GetSecretResponse{}, secret.ErrKeyNotFound
+	return nil, secret.ErrKeyNotFound
 }
 
 func TestKeyvaultBackend(t *testing.T) {
 	mockClient := &keyvaultMockClient{
-		secrets: map[string]interface{}{
+		secrets: map[string]string{
 			"key1": "{\"user\":\"foo\",\"password\":\"bar\"}",
 			"key2": "{\"foo\":\"bar\"}",
 		},
@@ -70,7 +62,7 @@ func TestKeyvaultBackend(t *testing.T) {
 
 func TestKeyVaultBackend_issue39434(t *testing.T) {
 	mockClient := &keyvaultMockClient{
-		secrets: map[string]interface{}{
+		secrets: map[string]string{
 			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
 		},
 	}
