@@ -189,6 +189,17 @@ impl ProcessManager {
         name: String,
         config: config::ProcessConfig,
     ) -> Result<(), Status> {
+        if name.is_empty() {
+            return Err(Status::invalid_argument("name must not be empty"));
+        }
+        if !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            return Err(Status::invalid_argument(
+                "name must only contain ASCII alphanumeric characters, hyphens, underscores, or dots",
+            ));
+        }
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
@@ -545,6 +556,44 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_rejects_empty_name() {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let config = ProcessConfig {
+            command: "/bin/echo".to_string(),
+            ..Default::default()
+        };
+        let err = mgr.handle_create("".to_string(), config).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_create_rejects_invalid_name() {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let config = ProcessConfig {
+            command: "/bin/echo".to_string(),
+            ..Default::default()
+        };
+        let err = mgr
+            .handle_create("bad name!".to_string(), config)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_create_accepts_valid_name() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let config = ProcessConfig {
+            command: "/bin/echo".to_string(),
+            ..Default::default()
+        };
+        mgr.handle_create("my-svc_v2.0".to_string(), config).await?;
+        let procs = mgr.processes().await;
+        assert_eq!(procs[0].name(), "my-svc_v2.0");
         Ok(())
     }
 
