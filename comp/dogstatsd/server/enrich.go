@@ -57,20 +57,41 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	}
 	origin.LocalData.ProcessID = processID
 
+	// remaining tracks how many distinct metadata field types we still need to
+	// find. Once it reaches zero all special fields are resolved and remaining
+	// tags can be bulk-copied without per-tag prefix checks.
+	remaining := 4 // host, entityID, cardinality, jmxCheckName
+	if cardinality != "" {
+		remaining-- // cardinality already provided from the metric field
+	}
+
 	n := 0
-	for _, tag := range tags {
+	for idx, tag := range tags {
+		if remaining == 0 {
+			// All metadata fields found; bulk-copy the rest and stop.
+			copy(tags[n:], tags[idx:])
+			n += len(tags) - idx
+			break
+		}
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
+			remaining--
 			continue
-		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
+		}
+		if strings.HasPrefix(tag, entityIDTagPrefix) {
 			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
+			remaining--
 			continue
-		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
+		}
+		if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
+			remaining--
 			continue
-		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
+		}
+		if strings.HasPrefix(tag, jmxCheckNamePrefix) {
 			checkName := tag[len(jmxCheckNamePrefix):]
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			remaining--
 			continue
 		}
 		tags[n] = tag
