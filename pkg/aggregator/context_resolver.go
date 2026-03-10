@@ -100,12 +100,13 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 	}
 }
 
-// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
+// trackContext returns the contextKey associated with the context of the metricSample and tracks that context.
+//
+// taggerBuffer and metricBuffer are pre-allocated, per-contextResolver (and therefore per-TimeSampler-worker)
+// HashingTagsAccumulators. They are reused across every trackContext() call to avoid []string allocations in
+// the hot path. GenerateWithTags2 deduplicates tags in-place on these buffers, so no copy is made for sorting.
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64, filterList filterlist.TagMatcher) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
-
-	defer cr.taggerBuffer.Reset()
-	defer cr.metricBuffer.Reset()
 
 	if metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
@@ -147,6 +148,11 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		}
 	}
 
+	// Reset the shared buffers at the end rather than via defer to avoid defer
+	// call overhead in this hot path. There are no early-return paths below the
+	// GetTags call, so explicit resets are safe and cheaper.
+	cr.taggerBuffer.Reset()
+	cr.metricBuffer.Reset()
 	return contextKey
 }
 
