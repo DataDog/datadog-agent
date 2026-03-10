@@ -17,6 +17,8 @@ import (
 
 // ExtractClusterRole returns the protobuf model corresponding to a
 // Kubernetes ClusterRole resource.
+//
+//nolint:revive
 func ExtractClusterRole(ctx processors.ProcessorContext, cr *rbacv1.ClusterRole) *model.ClusterRole {
 	clusterRole := &model.ClusterRole{
 		Metadata: extractMetadata(&cr.ObjectMeta),

@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractPodDisruptionBudget returns the protobuf model corresponding to a Kubernetes
+//
+//nolint:revive
 func ExtractPodDisruptionBudget(ctx processors.ProcessorContext, pdb *policyv1.PodDisruptionBudget) *model.PodDisruptionBudget {
 	if pdb == nil {
 		return nil

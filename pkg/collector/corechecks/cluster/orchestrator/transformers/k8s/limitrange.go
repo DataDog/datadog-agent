@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractLimitRange returns the protobuf model corresponding to a Kubernetes LimitRange resource.
+//
+//nolint:revive
 func ExtractLimitRange(ctx processors.ProcessorContext, lr *corev1.LimitRange) *model.LimitRange {
 	msg := &model.LimitRange{
 		Metadata: extractMetadata(&lr.ObjectMeta),

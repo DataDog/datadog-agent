@@ -17,6 +17,8 @@ import (
 
 // ExtractReplicaSet returns the protobuf model corresponding to a Kubernetes
 // ReplicaSet resource.
+//
+//nolint:revive
 func ExtractReplicaSet(ctx processors.ProcessorContext, rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: extractMetadata(&rs.ObjectMeta),

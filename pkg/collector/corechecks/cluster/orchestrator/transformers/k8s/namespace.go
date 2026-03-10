@@ -16,6 +16,8 @@ import (
 )
 
 // ExtractNamespace returns the protobuf model corresponding to a Kubernetes Namespace resource.
+//
+//nolint:revive
 func ExtractNamespace(ctx processors.ProcessorContext, ns *corev1.Namespace) *model.Namespace {
 	n := &model.Namespace{
 		Metadata: extractMetadata(&ns.ObjectMeta),

@@ -18,6 +18,8 @@ import (
 
 // ExtractServiceAccount returns the protobuf model corresponding to a
 // Kubernetes ServiceAccount resource.
+//
+//nolint:revive
 func ExtractServiceAccount(ctx processors.ProcessorContext, sa *corev1.ServiceAccount) *model.ServiceAccount {
 	serviceAccount := &model.ServiceAccount{
 		Metadata: extractMetadata(&sa.ObjectMeta),

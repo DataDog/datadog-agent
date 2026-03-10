@@ -294,8 +294,7 @@ func TestExtractService(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		pctx := &processors.K8sProcessorContext{
-		}
+		pctx := &processors.K8sProcessorContext{}
 		actual := ExtractService(pctx, &test.input)
 		sort.Strings(actual.Tags)
 		sort.Strings(test.expected.Tags)

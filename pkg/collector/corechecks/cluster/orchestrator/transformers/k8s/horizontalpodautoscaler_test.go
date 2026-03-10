@@ -899,8 +899,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pctx := &processors.K8sProcessorContext{
-			}
+			pctx := &processors.K8sProcessorContext{}
 			actual := ExtractHorizontalPodAutoscaler(pctx, &tc.input)
 			sort.Strings(tc.expected.Tags)
 			sort.Strings(actual.Tags)

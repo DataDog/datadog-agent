@@ -19,6 +19,8 @@ import (
 
 // ExtractService returns the protobuf model corresponding to a Kubernetes
 // Service resource.
+//
+//nolint:revive
 func ExtractService(ctx processors.ProcessorContext, s *corev1.Service) *model.Service {
 	message := &model.Service{
 		Metadata: extractMetadata(&s.ObjectMeta),

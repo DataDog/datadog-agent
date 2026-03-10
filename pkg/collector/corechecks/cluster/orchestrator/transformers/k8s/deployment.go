@@ -19,6 +19,8 @@ import (
 
 // ExtractDeployment returns the protobuf model corresponding to a Kubernetes
 // Deployment resource.
+//
+//nolint:revive
 func ExtractDeployment(ctx processors.ProcessorContext, d *appsv1.Deployment) *model.Deployment {
 	deploy := model.Deployment{
 		Metadata: extractMetadata(&d.ObjectMeta),

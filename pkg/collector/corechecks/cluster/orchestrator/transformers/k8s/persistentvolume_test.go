@@ -169,8 +169,7 @@ func TestExtractPersistentVolume(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pctx := &processors.K8sProcessorContext{
-			}
+			pctx := &processors.K8sProcessorContext{}
 			tc.basicInputPV.Spec.PersistentVolumeSource = tc.inputSource
 			tc.basicExpectedPV.Spec.PersistentVolumeType = tc.expectedType
 			tc.basicExpectedPV.Spec.PersistentVolumeSource = tc.expectedSource

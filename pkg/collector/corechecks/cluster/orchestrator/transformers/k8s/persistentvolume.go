@@ -19,6 +19,8 @@ import (
 
 // ExtractPersistentVolume returns the protobuf model corresponding to a Kubernetes
 // PersistentVolume resource.
+//
+//nolint:revive
 func ExtractPersistentVolume(ctx processors.ProcessorContext, pv *corev1.PersistentVolume) *model.PersistentVolume {
 	message := &model.PersistentVolume{
 		Metadata: extractMetadata(&pv.ObjectMeta),

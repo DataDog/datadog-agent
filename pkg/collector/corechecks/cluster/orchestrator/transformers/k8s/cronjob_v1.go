@@ -17,6 +17,8 @@ import (
 
 // ExtractCronJobV1 returns the protobuf model corresponding to a Kubernetes
 // CronJob resource.
+//
+//nolint:revive
 func ExtractCronJobV1(ctx processors.ProcessorContext, cj *batchv1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
 		Metadata: extractMetadata(&cj.ObjectMeta),

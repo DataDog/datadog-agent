@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractNetworkPolicy returns the protobuf model corresponding to a Kubernetes
+//
+//nolint:revive
 func ExtractNetworkPolicy(ctx processors.ProcessorContext, n *networkingv1.NetworkPolicy) *model.NetworkPolicy {
 	networkPolicy := model.NetworkPolicy{
 		Metadata: extractMetadata(&n.ObjectMeta),

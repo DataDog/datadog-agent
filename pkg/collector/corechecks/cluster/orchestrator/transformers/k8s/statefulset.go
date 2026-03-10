@@ -16,6 +16,8 @@ import (
 
 // ExtractStatefulSet returns the protobuf model corresponding to a
 // Kubernetes StatefulSet resource.
+//
+//nolint:revive
 func ExtractStatefulSet(ctx processors.ProcessorContext, sts *v1.StatefulSet) *model.StatefulSet {
 	statefulSet := model.StatefulSet{
 		Metadata: extractMetadata(&sts.ObjectMeta),

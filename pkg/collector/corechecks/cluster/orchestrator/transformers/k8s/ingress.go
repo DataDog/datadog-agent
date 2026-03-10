@@ -17,6 +17,8 @@ import (
 
 // ExtractIngress returns the protobuf model corresponding to a Kubernetes
 // Ingress resource.
+//
+//nolint:revive
 func ExtractIngress(ctx processors.ProcessorContext, in *netv1.Ingress) *model.Ingress {
 	ingress := model.Ingress{
 		Metadata: extractMetadata(&in.ObjectMeta),

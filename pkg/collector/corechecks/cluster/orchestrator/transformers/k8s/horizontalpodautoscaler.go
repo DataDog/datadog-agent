@@ -18,6 +18,8 @@ import (
 
 // ExtractHorizontalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Horizontal Pod Autoscaler resource.
 // https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L33
+//
+//nolint:revive
 func ExtractHorizontalPodAutoscaler(ctx processors.ProcessorContext, v *v2.HorizontalPodAutoscaler) *model.HorizontalPodAutoscaler {
 	if v == nil {
 		return &model.HorizontalPodAutoscaler{}

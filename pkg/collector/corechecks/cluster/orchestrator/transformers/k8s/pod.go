@@ -33,6 +33,8 @@ const (
 
 // ExtractPod returns the protobuf model corresponding to a Kubernetes Pod
 // resource.
+//
+//nolint:revive
 func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	podModel := model.Pod{
 		Metadata: extractMetadata(&p.ObjectMeta),

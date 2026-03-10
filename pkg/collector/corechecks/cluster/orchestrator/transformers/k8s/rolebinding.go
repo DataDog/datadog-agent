@@ -17,6 +17,8 @@ import (
 
 // ExtractRoleBinding returns the protobuf model corresponding to a Kubernetes
 // RoleBinding resource.
+//
+//nolint:revive
 func ExtractRoleBinding(ctx processors.ProcessorContext, rb *rbacv1.RoleBinding) *model.RoleBinding {
 	msg := &model.RoleBinding{
 		Metadata: extractMetadata(&rb.ObjectMeta),

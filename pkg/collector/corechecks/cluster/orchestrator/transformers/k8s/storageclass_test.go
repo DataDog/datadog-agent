@@ -83,8 +83,7 @@ func TestExtractStorageClass(t *testing.T) {
 			VolumeBindingMode: string(storagev1.VolumeBindingImmediate),
 		}
 
-		pctx := &processors.K8sProcessorContext{
-		}
+		pctx := &processors.K8sProcessorContext{}
 		actual := ExtractStorageClass(pctx, sc)
 		assert.Equal(t, expected, actual)
 	})
@@ -167,8 +166,7 @@ func TestExtractStorageClass(t *testing.T) {
 			VolumeBindingMode: string(storagev1.VolumeBindingWaitForFirstConsumer),
 		}
 
-		pctx := &processors.K8sProcessorContext{
-		}
+		pctx := &processors.K8sProcessorContext{}
 		actual := ExtractStorageClass(pctx, sc)
 		assert.Equal(t, expected, actual)
 	})

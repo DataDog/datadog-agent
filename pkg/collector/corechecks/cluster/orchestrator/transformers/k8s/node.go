@@ -25,6 +25,8 @@ import (
 
 // ExtractNode returns the protobuf model corresponding to a Kubernetes Node
 // resource.
+//
+//nolint:revive
 func ExtractNode(ctx processors.ProcessorContext, n *corev1.Node) *model.Node {
 	msg := &model.Node{
 		Metadata:      extractMetadata(&n.ObjectMeta),

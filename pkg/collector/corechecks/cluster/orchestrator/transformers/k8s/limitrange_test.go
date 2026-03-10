@@ -90,8 +90,7 @@ func TestExtractResourceLimit(t *testing.T) {
 			},
 		},
 	}
-	pctx := &processors.K8sProcessorContext{
-	}
+	pctx := &processors.K8sProcessorContext{}
 	actual := ExtractLimitRange(pctx, &input)
 	assert.Equal(t, expected, actual)
 }

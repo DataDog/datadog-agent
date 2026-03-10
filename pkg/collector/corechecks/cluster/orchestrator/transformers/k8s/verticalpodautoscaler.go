@@ -18,6 +18,8 @@ import (
 )
 
 // ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
+//
+//nolint:revive
 func ExtractVerticalPodAutoscaler(ctx processors.ProcessorContext, v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
 	if v == nil {
 		return &model.VerticalPodAutoscaler{}

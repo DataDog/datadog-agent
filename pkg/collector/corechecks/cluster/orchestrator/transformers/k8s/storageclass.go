@@ -17,6 +17,8 @@ import (
 )
 
 // ExtractStorageClass returns the protobuf model corresponding to a Kubernetes StorageClass resource.
+//
+//nolint:revive
 func ExtractStorageClass(ctx processors.ProcessorContext, sc *storagev1.StorageClass) *model.StorageClass {
 	msg := &model.StorageClass{
 		AllowedTopologies: extractStorageClassTopologies(sc.AllowedTopologies),

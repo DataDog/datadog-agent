@@ -22,9 +22,9 @@ import (
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	autoscaling "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"

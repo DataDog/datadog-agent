@@ -17,6 +17,8 @@ import (
 
 // ExtractRole returns the protobuf model corresponding to a Kubernetes Role
 // resource.
+//
+//nolint:revive
 func ExtractRole(ctx processors.ProcessorContext, r *rbacv1.Role) *model.Role {
 	msg := &model.Role{
 		Metadata: extractMetadata(&r.ObjectMeta),

@@ -16,6 +16,8 @@ import (
 
 // ExtractDaemonSet returns the protobuf model corresponding to a Kubernetes
 // DaemonSet resource.
+//
+//nolint:revive
 func ExtractDaemonSet(ctx processors.ProcessorContext, ds *appsv1.DaemonSet) *model.DaemonSet {
 	daemonSet := model.DaemonSet{
 		Metadata: extractMetadata(&ds.ObjectMeta),

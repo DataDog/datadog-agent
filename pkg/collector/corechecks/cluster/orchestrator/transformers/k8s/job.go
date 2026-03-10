@@ -16,6 +16,8 @@ import (
 
 // ExtractJob returns the protobuf model corresponding to a Kubernetes Job
 // resource.
+//
+//nolint:revive
 func ExtractJob(ctx processors.ProcessorContext, j *batchv1.Job) *model.Job {
 	job := model.Job{
 		Metadata: extractMetadata(&j.ObjectMeta),

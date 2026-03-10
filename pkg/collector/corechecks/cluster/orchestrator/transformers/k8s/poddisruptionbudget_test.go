@@ -300,8 +300,7 @@ func TestExtractPodDisruptionBudget(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			pctx := &processors.K8sProcessorContext{
-			}
+			pctx := &processors.K8sProcessorContext{}
 			got := ExtractPodDisruptionBudget(pctx, tc.in)
 			if tc.expect == nil {
 				assert.Nil(t, got)

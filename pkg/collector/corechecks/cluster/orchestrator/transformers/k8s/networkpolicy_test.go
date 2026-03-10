@@ -96,8 +96,7 @@ func TestExtractNetworkPolicy(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pctx := &processors.K8sProcessorContext{
-			}
+			pctx := &processors.K8sProcessorContext{}
 			actual := ExtractNetworkPolicy(pctx, &tc.input)
 			sort.Strings(actual.Tags)
 			sort.Strings(tc.expected.Tags)
