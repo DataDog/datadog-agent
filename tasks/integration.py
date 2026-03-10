@@ -606,10 +606,9 @@ def _register_in_corechecks(name: str, go_pkg_path: str) -> bool:
     )
 
     # Insert RegisterCheck before registerSystemProbeChecks
-    registration = f'\tcorecheckLoader.RegisterCheck({name}.CheckName, {name}.Factory())\n'
     content = content.replace(
-        '\tregisterSystemProbeChecks(tagger)',
-        f'{registration}\tregisterSystemProbeChecks(tagger)',
+        '\n\n\tregisterSystemProbeChecks(tagger)',
+        f'\n\tcorecheckLoader.RegisterCheck({name}.CheckName, {name}.Factory())\n\n\tregisterSystemProbeChecks(tagger)',
     )
 
     _CORECHECKS_GO.write_text(content)
@@ -690,8 +689,11 @@ def create(_, name, path="pkg/collector/corechecks", windows_only=False, overwri
     go_dir = Path(path) / name
     go_path = go_dir / f"{name}.go"
     test_path = go_dir / f"{name}_test.go"
-    _maybe_write(go_path, _render_check_go(name), overwrite, created)
-    _maybe_write(test_path, _render_check_test_go(name), overwrite, created)
+    if windows_only:
+        stub_path = go_dir / "stub.go"
+        _maybe_write(stub_path, _render_stub_go(name), overwrite, created)
+    _maybe_write(go_path, _render_check_go(name, windows_only), overwrite, created)
+    _maybe_write(test_path, _render_check_test_go(name, windows_only), overwrite, created)
 
     # 4. Register in corechecks.go
     go_pkg_path = str(Path(path) / name)
@@ -761,10 +763,12 @@ def _check_name_to_type(name: str) -> str:
     return "".join(part.capitalize() for part in name.split("_"))
 
 
-def _render_check_go(name: str) -> str:
+def _render_check_go(name: str, windows_only: bool = False) -> str:
     type_name = _check_name_to_type(name)
     copyright = _copyright_header()
+    build_tag = "\n//go:build windows" if windows_only else ""
     return f"""{copyright}
+{build_tag}
 
 // Package {name} implements the {name} check.
 package {name}
@@ -828,10 +832,35 @@ func (c *{type_name}Check) Run() error {{
 """
 
 
-def _render_check_test_go(name: str) -> str:
-    type_name = _check_name_to_type(name)
+def _render_stub_go(name: str) -> str:
     copyright = _copyright_header()
     return f"""{copyright}
+
+//go:build !windows
+
+package {name}
+
+import (
+\t"github.com/DataDog/datadog-agent/pkg/collector/check"
+\t"github.com/DataDog/datadog-agent/pkg/util/option"
+)
+
+// CheckName is the name of the check.
+const CheckName = "{name}"
+
+// Factory returns None on non-Windows platforms.
+func Factory() option.Option[func() check.Check] {{
+\treturn option.None[func() check.Check]()
+}}
+"""
+
+
+def _render_check_test_go(name: str, windows_only: bool = False) -> str:
+    type_name = _check_name_to_type(name)
+    copyright = _copyright_header()
+    build_tag = "\n//go:build windows" if windows_only else ""
+    return f"""{copyright}
+{build_tag}
 
 package {name}
 
