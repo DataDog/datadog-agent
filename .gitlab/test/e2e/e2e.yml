@@ -1036,6 +1036,8 @@ new-e2e-ssi-gke:
     E2E_PROVISIONER: gke
     E2E_STACK_NAME_SUFFIX: gke
     E2E_PRE_INITIALIZED: "true"
+    # Image volume is not supported on GKE in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 .new-e2e_package_signing:
   variables:
