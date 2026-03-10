@@ -48,6 +48,18 @@ var jsonConfig = jsoniter.Config{
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
 
+// jsonItemSeparator is the separator between JSON items in a payload.
+// Defined at package level to avoid a []byte allocation per BuildWithOnErrItemTooBigPolicy call.
+var jsonItemSeparator = []byte(",")
+
+// jsonPayloadBuffers holds the header/footer buffers and jsoniter stream that are
+// reused across calls to BuildWithOnErrItemTooBigPolicy via a sync.Pool.
+type jsonPayloadBuffers struct {
+	header     bytes.Buffer
+	footer     bytes.Buffer
+	jsonStream *jsoniter.Stream
+}
+
 func init() {
 	jsonStreamExpvars.Set("TotalCalls", &expvarsTotalCalls)
 	jsonStreamExpvars.Set("TotalItems", &expvarsTotalItems)
@@ -70,30 +82,31 @@ type JSONPayloadBuilder struct {
 	config                        config.Component
 	compressor                    compression.Component
 	logger                        log.Component
+	// bufPool pools jsonPayloadBuffers to avoid per-call heap allocations for
+	// header/footer bytes.Buffer and the jsoniter.Stream.
+	bufPool sync.Pool
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
 func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component, logger log.Component) *JSONPayloadBuilder {
-	if shareAndLockBuffers {
-		return &JSONPayloadBuilder{
-			inputSizeHint:       4096,
-			outputSizeHint:      4096,
-			shareAndLockBuffers: true,
-			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
-			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
-			config:              config,
-			compressor:          compressor,
-			logger:              logger,
-		}
-	}
-	return &JSONPayloadBuilder{
+	b := &JSONPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
-		shareAndLockBuffers: false,
+		shareAndLockBuffers: shareAndLockBuffers,
 		config:              config,
 		compressor:          compressor,
 		logger:              logger,
 	}
+	b.bufPool.New = func() interface{} {
+		return &jsonPayloadBuffers{
+			jsonStream: jsoniter.NewStream(jsonConfig, nil, 4096),
+		}
+	}
+	if shareAndLockBuffers {
+		b.input = bytes.NewBuffer(make([]byte, 0, 4096))
+		b.output = bytes.NewBuffer(make([]byte, 0, 4096))
+	}
+	return b
 }
 
 // OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
@@ -145,17 +158,20 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	tlmTotalCalls.Inc()
 	start := time.Now()
 
-	// Temporary buffers
-	var header, footer bytes.Buffer
-	jsonStream := jsoniter.NewStream(jsonConfig, &header, 4096)
+	// Get reusable header/footer/stream buffers from pool to avoid per-call allocations.
+	bufs := b.bufPool.Get().(*jsonPayloadBuffers)
+	bufs.header.Reset()
+	bufs.footer.Reset()
+	defer b.bufPool.Put(bufs)
 
-	err := m.WriteHeader(jsonStream)
+	bufs.jsonStream.Reset(&bufs.header)
+	err := m.WriteHeader(bufs.jsonStream)
 	if err != nil {
 		return nil, err
 	}
 
-	jsonStream.Reset(&footer)
-	err = m.WriteFooter(jsonStream)
+	bufs.jsonStream.Reset(&bufs.footer)
+	err = m.WriteFooter(bufs.jsonStream)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +179,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
+		bufs.header.Bytes(), bufs.footer.Bytes(), jsonItemSeparator, b.compressor)
 	if err != nil {
 		return nil, err
 	}
@@ -173,8 +189,8 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	for ok {
 		// We keep reusing the same small buffer in the jsoniter stream. Note that we can do so
 		// because compressor.addItem copies given buffer.
-		jsonStream.Reset(nil)
-		err := m.WriteCurrentItem(jsonStream)
+		bufs.jsonStream.Reset(nil)
+		err := m.WriteCurrentItem(bufs.jsonStream)
 		if err != nil {
 			b.logger.Warnf("error marshalling an item, skipping: %s", err)
 			ok = m.MoveNext()
@@ -183,7 +199,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch err = compressor.AddItem(jsonStream.Buffer()); {
+		switch err = compressor.AddItem(bufs.jsonStream.Buffer()); {
 		case errors.Is(err, ErrPayloadFull):
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
@@ -200,7 +216,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","), b.compressor)
+				bufs.header.Bytes(), bufs.footer.Bytes(), jsonItemSeparator, b.compressor)
 			if err != nil {
 				return nil, err
 			}

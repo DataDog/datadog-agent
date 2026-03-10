@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -20,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
+
+// bufferContextPool recycles *marshaler.BufferContext objects across MarshalSplitCompressPipelines
+// calls to avoid allocating three new bytes.Buffer instances on every invocation.
+var bufferContextPool = sync.Pool{
+	New: func() interface{} { return marshaler.NewBufferContext() },
+}
 
 // IterableSeries is a serializer for metrics.IterableSeries
 type IterableSeries struct {
@@ -121,7 +128,11 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
 		if !pipelineConfig.V3 {
-			bufferContext := marshaler.NewBufferContext()
+			bufferContext := bufferContextPool.Get().(*marshaler.BufferContext)
+			bufferContext.CompressorInput.Reset()
+			bufferContext.CompressorOutput.Reset()
+			bufferContext.PrecompressionBuf.Reset()
+			defer bufferContextPool.Put(bufferContext)
 			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
 				return err
