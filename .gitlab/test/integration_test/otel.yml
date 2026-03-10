@@ -169,6 +169,8 @@ ddot_byoc_binary_build_test_ubuntu2004:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
+      --target builder \
+      --tag otel-builder-tmp \
       --build-arg AGENT_VERSION=$AGENT_VERSION \
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
@@ -178,6 +180,9 @@ ddot_byoc_binary_build_test_ubuntu2004:
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
+    - mkdir -p ddot-byoc
+    - docker run --rm -v "$(pwd)/ddot-byoc:/out" otel-builder-tmp cp /workspace/datadog-agent/bin/otel-agent/otel-agent /out/otel-agent
+    - BIN_PATH=ddot-byoc/otel-agent
     # Check GLIBC compatibility (must be <= 2.31, given we built with Ubuntu 20.04)
     - |
       ALLOWED_GLIBC=2.31
