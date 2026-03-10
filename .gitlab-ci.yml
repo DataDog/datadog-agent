@@ -965,6 +965,7 @@ workflow:
   - changes:
       paths:
         - pkg/trace/**/*
+        - pkg/fleet/**/*
         - cmd/trace-agent/**/*
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
