@@ -3,7 +3,11 @@ use anyhow::{Ok, Result, bail};
 use std::ffi::{CStr, CString, c_char};
 
 /// Convert C-String pointer to Rust String
-pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
+///
+/// # Safety
+/// `ptr` must be a valid, non-null, NUL-terminated C string for the duration of
+/// this call.
+pub unsafe fn to_rust_string(ptr: *const c_char) -> Result<String> {
     if ptr.is_null() {
         bail!("pointer to C-String is null, can't convert to Rust String")
     }
@@ -12,95 +16,53 @@ pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
     Ok(rust_str.to_string())
 }
 
-/// Convert Rust str to C-String pointer
-pub fn to_cstring(string: &str) -> Result<*mut c_char> {
-    let cstring = CString::new(string)?;
-    Ok(cstring.into_raw())
-}
-
-/// Convert Rust vector of Strings to an array of C-String pointers
-pub fn to_cstring_array(arr: &[String]) -> Result<*mut *mut c_char> {
-    let mut c_arr: Vec<*mut c_char> = arr
-        .iter()
-        .map(|s| to_cstring(s))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    c_arr.push(std::ptr::null_mut()); // null-terminate the array
-
-    let vec_ptr = c_arr.as_mut_ptr();
-    std::mem::forget(c_arr); // prevent Rust runtime from freeing the vector
-
-    Ok(vec_ptr)
-}
-
-/// Free a C-String
-pub fn free_cstring(ptr: *mut c_char) {
-    if ptr.is_null() {
-        return;
-    }
-
-    unsafe { drop(CString::from_raw(ptr)) };
-}
-
-/// Free an array of C-Strings
-pub fn free_cstring_array(ptr: *mut *mut c_char) {
-    if ptr.is_null() {
-        return;
-    }
-
-    let mut current = ptr;
-    unsafe {
-        while !(*current).is_null() {
-            drop(CString::from_raw(*current));
-            current = current.add(1);
-        }
-
-        // Free the array itself by reconstructing the Vec
-        let len = (current as usize - ptr as usize) / std::mem::size_of::<*mut c_char>();
-        let capacity = len + 1; // +1 for the null terminator
-        drop(Vec::from_raw_parts(ptr, len, capacity));
-    }
-}
-
-/// CStringGuard follows the RAII idiom to avoid freeing C-Strings manually when it's necessary
+/// CStringGuard follows the RAII idiom to avoid freeing C-Strings manually.
+/// It owns a CString and exposes a `*const c_char` pointer for FFI use.
 pub struct CStringGuard {
-    ptr: *mut c_char,
+    inner: CString,
 }
 
 impl CStringGuard {
     pub fn new(s: &str) -> Result<Self> {
-        let ptr = to_cstring(s)?;
-        Ok(Self { ptr })
+        let inner = CString::new(s)?;
+        Ok(Self { inner })
     }
 
-    pub fn as_ptr(&self) -> *mut c_char {
-        self.ptr
-    }
-}
-
-impl Drop for CStringGuard {
-    fn drop(&mut self) {
-        free_cstring(self.ptr);
+    /// Returns a `*const c_char` pointer to the underlying C string.
+    /// The pointer is valid for the lifetime of this guard.
+    pub fn as_ptr(&self) -> *const c_char {
+        self.inner.as_ptr()
     }
 }
 
+/// CStringArrayGuard owns a null-terminated array of CStrings for FFI use.
+/// It exposes a `*const *const c_char` pointer suitable for the ACR callback ABI.
 pub struct CStringArrayGuard {
-    ptr: *mut *mut c_char,
+    /// Owned CStrings -- kept alive so pointers remain valid
+    _strings: Vec<CString>,
+    /// Null-terminated array of pointers into `_strings`
+    ptrs: Vec<*const c_char>,
 }
 
 impl CStringArrayGuard {
     pub fn new(arr: &[String]) -> Result<Self> {
-        let ptr = to_cstring_array(arr)?;
-        Ok(Self { ptr })
+        let strings: Vec<CString> = arr
+            .iter()
+            .map(|s| CString::new(s.as_str()))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let mut ptrs: Vec<*const c_char> = strings.iter().map(|s| s.as_ptr()).collect();
+        ptrs.push(std::ptr::null()); // null-terminate
+
+        Ok(Self {
+            _strings: strings,
+            ptrs,
+        })
     }
 
-    pub fn as_ptr(&self) -> *mut *mut c_char {
-        self.ptr
-    }
-}
-
-impl Drop for CStringArrayGuard {
-    fn drop(&mut self) {
-        free_cstring_array(self.ptr);
+    /// Returns a `*const *const c_char` pointer to the null-terminated array.
+    /// The pointer is valid for the lifetime of this guard.
+    pub fn as_ptr(&self) -> *const *const c_char {
+        self.ptrs.as_ptr()
     }
 }
