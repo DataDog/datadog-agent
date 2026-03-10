@@ -910,7 +910,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Pod check CRD controller
 	config.BindEnvAndSetDefault("podcheck.enabled", true)
-	config.BindEnvAndSetDefault("podcheck.configmap_name", "datadog-podcheck-config")
+	config.BindEnvAndSetDefault("podcheck.configmap_name", "datadog-crd-check-conf")
 	config.BindEnvAndSetDefault("podcheck.configmap_namespace", "")
 
 	// Cluster check runner
