@@ -929,7 +929,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(3), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
 
 		// init(pid:1)
 		//     |
@@ -973,7 +973,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
 
 		// init(pid:1)
 		//     |
@@ -1004,7 +1004,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathSetProcessContext, nil)
 
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, int64(1), resolver.reparentFailedStats[metrics.ReparentCallpathSetProcessContext].Load())
@@ -1070,7 +1070,7 @@ func TestTryReparentMaxForkDepth(t *testing.T) {
 
 	allEntries[beyondIdx].Ancestor = nil
 
-	resolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext)
+	resolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, nil)
 
 	// The broken ancestor link beyond the depth limit should NOT be resolved
 	// because the walk stops before reaching it.
@@ -1120,7 +1120,7 @@ func TestSubreaperReparenting(t *testing.T) {
 	// tryReparentChildrenFromProcfs reads /proc/realPid/status which returns realPPid,
 	// matching grandparent in the cache.
 	resolver.Lock()
-	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry, metrics.ReparentCallpathDoExit)
+	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry, metrics.ReparentCallpathDoExit, nil)
 	resolver.deleteEntry(fakeParentPid, time.Now())
 	resolver.Unlock()
 
@@ -1161,7 +1161,7 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		assert.Equal(t, uint32(5000001), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
-		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000001)
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000001, nil)
 
 		assert.Equal(t, uint32(5000001), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -1192,7 +1192,7 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
 		// Kernel reports ppid=5000010 (grandparent) — subreaper reparenting
-		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000010)
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5000010, nil)
 
 		assert.Equal(t, uint32(5000010), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, grandparent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -1215,7 +1215,7 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 
 		// Kernel reports ppid=99997 which is not in cache and unresolvable
-		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 99997)
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 99997, nil)
 
 		assert.Equal(t, uint32(5000020), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -1237,7 +1237,7 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
 		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 
-		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 0)
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 0, nil)
 
 		assert.Equal(t, uint32(5000030), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
@@ -1254,7 +1254,7 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		init1 := newFakeForkEvent(0, 1, 100, resolver)
 		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
 
-		resolver.TryReparentFromKernelPPid(init1.ProcessCacheEntry, 999)
+		resolver.TryReparentFromKernelPPid(init1.ProcessCacheEntry, 999, nil)
 
 		assert.Equal(t, int64(0), resolver.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Load())
 		assert.Equal(t, int64(0), resolver.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Load())

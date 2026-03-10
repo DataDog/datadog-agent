@@ -1095,13 +1095,13 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache, the process was reparented (e.g. subreaper). Update
 			// the cache tree immediately using the authoritative kernel value.
 			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid)
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
 			}
 
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext)
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -1237,6 +1237,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
+		if relatedEvent.ProcessCacheEntry != nil {
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(relatedEvent.ProcessCacheEntry, metrics.ReparentCallpathRelatedEvent, newEntryCb)
+		}
 		p.DispatchEvent(relatedEvent, true)
 		p.putBackPoolEvent(relatedEvent)
 	}
