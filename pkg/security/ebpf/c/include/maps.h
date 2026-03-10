@@ -40,7 +40,7 @@ BPF_ARRAY_MAP(setsockopt_level_or_optname_approvers, struct u64_flags_filter_t, 
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 3)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
@@ -99,8 +99,10 @@ BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
-BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
+BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 40000, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_sample_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
@@ -112,6 +114,8 @@ BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DI
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER + 1)
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
 BPF_PERCPU_ARRAY_MAP(bb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)
+BPF_PERCPU_ARRAY_MAP(fb_event_sample_stats, struct event_sample_stats_t, EVENT_MAX)
+BPF_PERCPU_ARRAY_MAP(bb_event_sample_stats, struct event_sample_stats_t, EVENT_MAX)
 BPF_PERCPU_ARRAY_MAP(fb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(bb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, struct str_array_buffer_t, 1)

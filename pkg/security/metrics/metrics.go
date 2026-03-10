@@ -537,6 +537,15 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
+	// Event sampling metrics (kernel-side)
+
+	// MetricEventSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel
+	// Tags: event_type
+	MetricEventSampleTotal = newRuntimeMetric(".event_sample.total")
+
+	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
+	// Tags: event_type
+	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
 )
 
 var (

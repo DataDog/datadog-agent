@@ -16,28 +16,21 @@
 
 name "openssl3"
 
-license "Apache-2.0"
-license_file "LICENSE.txt"
 skip_transitive_dependency_licensing true
 
-dependency "zlib" unless windows?
 dependency "cacerts"
 
 default_version "3.5.5"
-
-source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
-
-version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89" }
 
 relative_path "openssl-#{version}"
 
 build do
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
-  if windows?
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
-  else
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
+  command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
+
+  unless windows?
+    command_on_repo_root "bazelisk run -- @zlib//:install --destdir=#{install_dir}"
     # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
     # This messes up openssl's internal paths. So we have to use another variable
     # so that replace_prefix and fix_openssl_paths set path correctly inside of the
@@ -56,7 +49,7 @@ build do
 
     files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded #{files_to_patch.join(' ')}"
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
 
     command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \

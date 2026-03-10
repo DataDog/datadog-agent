@@ -20,9 +20,21 @@ pub enum FallbackDecision {
     ExitCleanly,
 }
 
+/// Resolves the system-probe config file path from a user-supplied `--config` argument.
+///
+/// Mirrors Go's `newSysprobeConfig`: if the supplied path is a directory, look for
+/// `system-probe.yaml` inside it; otherwise use the path as-is.
+fn resolve_sysprobe_config_path(config_path: Option<PathBuf>) -> PathBuf {
+    match config_path {
+        None => PathBuf::from("/etc/datadog-agent/system-probe.yaml"),
+        Some(path) if path.is_dir() => path.join("system-probe.yaml"),
+        Some(path) => path,
+    }
+}
+
 /// Loads the YAML config file if it exists
 pub fn load_config(config_path: Option<PathBuf>) -> Result<Option<Yaml>> {
-    let path = config_path.unwrap_or_else(|| PathBuf::from("/etc/datadog-agent/system-probe.yaml"));
+    let path = resolve_sysprobe_config_path(config_path);
 
     // Try to load YAML, but don't fail if file doesn't exist
     // (env vars might be sufficient)
@@ -133,28 +145,27 @@ fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
 }
 
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
-  "DD_NETWORK_CONFIG_ENABLED", // Network Performance Monitoring
-  "DD_SERVICE_MONITORING_CONFIG_ENABLED", // Universal Service Monitoring
-  "DD_CCM_NETWORK_CONFIG_ENABLED", // Cloud Cost Management
-  "DD_RUNTIME_SECURITY_CONFIG_ENABLED", // CSM with network monitoring
-  "DD_RUNTIME_SECURITY_CONFIG_NETWORK_MONITORING_ENABLED", // CSM with network monitoring
-  "DD_SYSTEM_PROBE_CONFIG_ENABLE_TCP_QUEUE_LENGTH", // TCP Queue Length Tracer Module
-  "DD_SYSTEM_PROBE_CONFIG_ENABLE_OOM_KILL", // OOM Kill Probe Module
-  "DD_EVENT_MONITORING_CONFIG_PROCESS_ENABLED", // Process event monitoring
-  "DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", // USM with event stream
-  "DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_ENABLED", // Network Tracer Module enabled AND DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_ENABLED=true
-  "DD_GPU_MONITORING_ENABLED", // GPU monitoring
-  "DD_DYNAMIC_INSTRUMENTATION_ENABLED", // Dynamic instrumentation
-  "DD_COMPLIANCE_CONFIG_ENABLED", // Compliance Module
-  "DD_RUNTIME_SECURITY_CONFIG_COMPLIANCE_MODULE_ENABLED", // CSM with compliance module
-  "DD_SYSTEM_PROBE_CONFIG_PROCESS_CONFIG_ENABLED", // Process Module
-  "DD_EBPF_CHECK_ENABLED", // eBPF Module
-  "DD_LANGUAGE_DETECTION_ENABLED", // Language Detection Module
-  "DD_PING_ENABLED", // Ping Module
-  "DD_TRACEROUTE_ENABLED", // Traceroute Module
-  "DD_SOFTWARE_INVENTORY_ENABLED", // Software Inventory Module
-  "DD_PRIVILEGED_LOGS_ENABLED", // Privileged Logs Module
-  "DD_WINDOWS_CRASH_DETECTION_ENABLED", // Windows Crash Detection Module
+  "DD_CCM_NETWORK_CONFIG_ENABLED",
+  "DD_COMPLIANCE_CONFIG_DATABASE_BENCHMARKS_ENABLED",
+  "DD_COMPLIANCE_CONFIG_ENABLED",
+  "DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE",
+  "DD_DYNAMIC_INSTRUMENTATION_ENABLED",
+  "DD_EBPF_CHECK_ENABLED",
+  "DD_GPU_MONITORING_ENABLED",
+  "DD_NOISY_NEIGHBOR_ENABLED",
+  "DD_PING_ENABLED",
+  "DD_PRIVILEGED_LOGS_ENABLED",
+  "DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+  "DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED",
+  "DD_SOFTWARE_INVENTORY_ENABLED",
+  "DD_SYSTEM_PROBE_CONFIG_ENABLE_OOM_KILL",
+  "DD_SYSTEM_PROBE_CONFIG_ENABLE_TCP_QUEUE_LENGTH",
+  "DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED",
+  "DD_SYSTEM_PROBE_NETWORK_ENABLED",
+  "DD_SYSTEM_PROBE_PROCESS_ENABLED",
+  "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED",
+  "DD_TRACEROUTE_ENABLED",
+  "DD_WINDOWS_CRASH_DETECTION_ENABLED",
 };
 
 /// Returns the non-discovery environment variable that is set and not
@@ -162,7 +173,7 @@ static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
 ///
 /// We check the value of each env var rather than just its presence to avoid
 /// unnecessary fallback. This is needed because the Helm chart sets feature
-/// env vars even for disabled features (e.g. `DD_NETWORK_CONFIG_ENABLED=false`).
+/// env vars even for disabled features (e.g. `DD_SYSTEM_PROBE_NETWORK_ENABLED=false`).
 ///
 /// The logic uses `!= Some(false)` so that non-boolean values still trigger
 /// fallback as a safety net — matching the YAML side where a section without
@@ -339,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_network_tracer_needs_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("true"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true"), || {
             let decision = determine_action_no_config();
             assert_eq!(decision, FallbackDecision::FallbackToSystemProbe);
         });
@@ -356,7 +367,7 @@ discovery:
         let config_file = create_test_config(yaml);
 
         // Env var says true, YAML says false
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("true"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true"), || {
             let config = load_config(Some(config_file.path().to_path_buf()));
             let decision = determine_action(&config);
             assert_eq!(
@@ -404,7 +415,7 @@ discovery:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_NETWORK_CONFIG_ENABLED", Some("true")),
+                ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
@@ -499,7 +510,7 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_false_no_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("false"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("false"), || {
             assert!(
                 find_non_discovery_env_var().is_none(),
                 "Env var set to 'false' should not trigger fallback"
@@ -509,7 +520,7 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_zero_no_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("0"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("0"), || {
             assert!(
                 find_non_discovery_env_var().is_none(),
                 "Env var set to '0' should not trigger fallback"
@@ -519,10 +530,10 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_non_boolean_triggers_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("maybe"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("maybe"), || {
             assert_eq!(
                 find_non_discovery_env_var().as_deref(),
-                Some("DD_NETWORK_CONFIG_ENABLED"),
+                Some("DD_SYSTEM_PROBE_NETWORK_ENABLED"),
             );
         });
     }
@@ -690,7 +701,7 @@ network_config:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_SERVICE_MONITORING_CONFIG_ENABLED", Some("true")),
+                ("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
@@ -1086,7 +1097,7 @@ log_level: 12345
             [
                 ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_NETWORK_CONFIG_ENABLED", Some("true")), // Non-discovery module
+                ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")), // Non-discovery module
             ],
             || {
                 let decision = determine_action(&Ok(None));
@@ -1115,6 +1126,26 @@ log_level: 12345
                 );
             },
         );
+    }
+
+    #[test]
+    fn test_load_config_from_directory() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let sp_path = dir.path().join("system-probe.yaml");
+        std::fs::write(
+            &sp_path,
+            "discovery:\n  enabled: true\n  use_sd_agent: true\n",
+        )
+        .unwrap();
+
+        let config = load_config(Some(dir.path().to_path_buf())).unwrap();
+        assert!(
+            config.is_some(),
+            "should load system-probe.yaml from directory"
+        );
+        let enabled = get_yaml_bool_option(config.as_ref().unwrap(), "discovery.enabled");
+        assert_eq!(enabled, Some(true));
     }
 
     // Helm chart scenario tests
