@@ -14,7 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -41,11 +42,38 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// which lead to build:
 	//   - config.Component which requires a valid datadog.yaml
 	//   - hostname.Component which requires a valid hostname
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	configPath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
+}
+
+func TestValidateRemoteAgentConfigStream(t *testing.T) {
+	t.Run("error when use_configstream true and registry enabled false", func(t *testing.T) {
+		cfg := config.NewMock(t)
+		cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
+		cfg.SetWithoutSource("remote_agent.registry.enabled", false)
+		err := validateRemoteAgentConfigStream(cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not")
+	})
+
+	t.Run("no error when use_configstream false", func(t *testing.T) {
+		cfg := config.NewMock(t)
+		cfg.SetWithoutSource("remote_agent.configstream.enabled", false)
+		cfg.SetWithoutSource("remote_agent.registry.enabled", false)
+		err := validateRemoteAgentConfigStream(cfg)
+		require.NoError(t, err)
+	})
+
+	t.Run("no error when both use_configstream and registry enabled true", func(t *testing.T) {
+		cfg := config.NewMock(t)
+		cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
+		cfg.SetWithoutSource("remote_agent.registry.enabled", true)
+		err := validateRemoteAgentConfigStream(cfg)
+		require.NoError(t, err)
+	})
 }

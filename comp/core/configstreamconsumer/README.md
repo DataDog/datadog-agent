@@ -40,7 +40,7 @@ See `../configstream/README.md` for the producer side and the gRPC/protobuf cont
 
 Supply **either** a fixed `SessionID` **or** a `SessionIDProvider` (e.g. from the remote agent component). The consumer uses the provider at connect time so RAR can register first. 
 
-**Blocking vs non-blocking startup** is determined in your run function: call `WaitReady(ctx)` to block until the first snapshot, or omit it to start immediately (see [Usage patterns](#usage-patterns)).
+**Blocking vs non-blocking startup** is determined in your run function: call `WaitReady(ctx)` to block until the first snapshot (**pattern 1, strongly encouraged**), or omit it to start immediately (**pattern 2, very dangerous**—see [Usage patterns](#usage-patterns)).
 
 **Params must be provided as `*Params`** so FX injects into the consumer's optional `*Params` field. When `Params` is nil or both `SessionID` and `SessionIDProvider` are empty, the component is not created (e.g. when RAR is disabled).
 
@@ -90,9 +90,11 @@ Use **2a** when you already have a session ID; use **2b** when the remote agent 
 
 ## Usage Patterns
 
-### Pattern 1: Block until config ready (recommended)
+**Pattern 1 (block until config ready) is strongly encouraged.** Pattern 2 (start immediately) is very dangerous due to potential inconsistencies and should be used only when necessary.
 
-Use when the agent needs the config to be fully populated before starting:
+### Pattern 1: Block until config ready (strongly encouraged)
+
+Use when the agent needs the config to be fully populated before starting. This is the recommended and safe approach.
 
 ```go
 func run(consumer configstreamconsumer.Component) error {
@@ -112,9 +114,9 @@ func run(consumer configstreamconsumer.Component) error {
 }
 ```
 
-### Pattern 2: Start immediately (eventually consistent)
+### Pattern 2: Start immediately (eventually consistent) — use with caution
 
-Use when the agent can start with defaults and react to config changes:
+**Pattern 2 is very dangerous** due to potential inconsistencies: the agent may start with no config or stale config, and behavior can be hard to reason about. **Pattern 1 (block until config ready) is strongly encouraged.** Use pattern 2 only when you have a clear need to start without waiting and can tolerate empty or eventually consistent config.
 
 ```go
 func run(consumer configstreamconsumer.Component) error {
@@ -137,7 +139,7 @@ func run(consumer configstreamconsumer.Component) error {
 
 ## Requirements
 
-- **Core agent**: `configstream` component and RAR enabled (`remote_agent_registry.enabled: true`).
+- **Core agent**: `configstream` component (`remote_agent.configstream.enabled: true`) and RAR enabled (`remote_agent.registry.enabled: true`).
 - **RAR**: Remote agent must register with RAR before subscribing; pass `session_id` via gRPC metadata (supply fixed `SessionID` or `SessionIDProvider` with `WaitSessionID(ctx) (string, error)`).
 - **IPC**: mTLS and auth token for gRPC (same as other core-agent IPC).
 - **ConfigWriter** (optional): If set, streamed snapshot/updates are written with `SourceLocalConfigProcess`, keeping main config in sync.
@@ -165,7 +167,7 @@ Covers: snapshot and ordered updates, stale/dropped updates, `WaitReady` blockin
 ### Manual testing with system-probe
 
 1. Start the core agent with RAR and config stream enabled.
-2. Set `remote_agent_registry.enabled: true` and `cmd_host` / `cmd_port` in the config used by system-probe.
+2. Set `cmd_host` / `cmd_port` in the config used by system-probe.
 3. Start system-probe. You should see:
    - `Waiting for initial configuration from core agent...`
    - After snapshot: `Initial configuration received from core agent. Starting system-probe.`
@@ -174,7 +176,7 @@ Covers: snapshot and ordered updates, stale/dropped updates, `WaitReady` blockin
 ## Troubleshooting
 
 - **Config streaming not in use**  
-  Log shows `(remote_agent_registry.enabled=true)` but no wait: ensure the consumer receives non-nil `*Params` (FX provider must return `*configstreamconsumerimpl.Params`, not `Params`).
+  Log shows `(remote_agent.registry.enabled=true)` but no wait: ensure the consumer receives non-nil `*Params` (FX provider must return `*configstreamconsumerimpl.Params`, not `Params`).
 
 - **session_id required in metadata**  
   Ensure the remote agent registers with RAR first and that the consumer is given either a fixed `SessionID` or a `SessionIDProvider` that returns the session ID.

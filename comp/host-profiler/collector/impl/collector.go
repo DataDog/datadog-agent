@@ -10,11 +10,13 @@ package collectorimpl
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -25,8 +27,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // Params contains the parameters for the collector component.
@@ -90,20 +90,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (c *collectorImpl) Run() error {
+	currentScore, err := oom.GetOOMScoreAdj(0)
+	if err != nil {
+		slog.Warn("Failed to get OOM score adjustment", slog.String("error", err.Error()))
+	} else if currentScore > 0 {
+		if err = oom.SetOOMScoreAdj(0, 0); err != nil {
+			slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
+		}
+	}
+
 	return c.collector.Run(context.Background())
 }
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
-	zapCore := extraFactories.GetZapCore()
-	extraFactories.SetupSlogDefault(zapCore)
-
-	// Replace default core to use Agent logger
-	options := []zap.Option{
-		zap.WrapCore(func(zapcore.Core) zapcore.Core {
-			return zapCore
-		}),
-	}
-
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Command:     filepath.Base(os.Args[0]),
@@ -119,12 +118,9 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 					fileprovider.NewFactory(),
 				},
 				ConverterFactories: extraFactories.GetConverters(),
-				ProviderSettings: confmap.ProviderSettings{
-					Logger: zap.New(zapCore),
-				},
 			},
 		},
-		LoggingOptions: options,
+		LoggingOptions: extraFactories.GetLoggingOptions(),
 	}, nil
 }
 

@@ -28,13 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -43,8 +44,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -130,10 +132,11 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		config.Module(),
+		delegatedauthnoopfx.Module(),
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryimpl.Module(),
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
 		statsd.Module(),
@@ -152,7 +155,7 @@ func getSharedFxOption() fx.Option {
 		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix
@@ -250,8 +253,8 @@ func run(
 		}
 		deps.Log.Info("Initial configuration received from core agent. Starting system-probe.")
 	} else {
-		rarEnabled := agentConfig.GetBool("remote_agent_registry.enabled")
-		deps.Log.Infof("Config streaming not in use; proceeding without waiting for initial configuration (remote_agent_registry.enabled=%v).", rarEnabled)
+		rarEnabled := agentConfig.GetBool("remote_agent.registry.enabled")
+		deps.Log.Infof("Config streaming not in use; proceeding without waiting for initial configuration (remote_agent.registry.enabled=%v).", rarEnabled)
 	}
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {

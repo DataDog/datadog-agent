@@ -88,8 +88,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -264,6 +264,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault("ebpf_check.enabled", false)
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
+	// noisy neighbor module
+	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
@@ -304,7 +306,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.use_kprobe_fallback", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.buffer_size", 0)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.kretprobe_max_active", 512)
-	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"})
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME"})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.runtime_compilation.enabled", false)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.enabled", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.ingress.enabled", true)
@@ -347,7 +349,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// Discovery config
 	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnvAndSetDefault("discovery.use_sd_agent", false)
+	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.ignored_command_names", []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")

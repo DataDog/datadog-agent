@@ -6,6 +6,8 @@
 package setup
 
 import (
+	"strings"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -14,11 +16,12 @@ const (
 	PARLogFile = "private_action_runner.log_file"
 
 	// Identity / enrollment configuration
-	PARSelfEnroll         = "private_action_runner.self_enroll"
-	PARIdentityFilePath   = "private_action_runner.identity_file_path"
-	PARIdentitySecretName = "private_action_runner.identity_secret_name"
-	PARPrivateKey         = "private_action_runner.private_key"
-	PARUrn                = "private_action_runner.urn"
+	PARSelfEnroll           = "private_action_runner.self_enroll"
+	PARIdentityFilePath     = "private_action_runner.identity_file_path"
+	PARIdentityUseK8sSecret = "private_action_runner.identity_use_k8s_secret"
+	PARIdentitySecretName   = "private_action_runner.identity_secret_name"
+	PARPrivateKey           = "private_action_runner.private_key"
+	PARUrn                  = "private_action_runner.urn"
 
 	// General config
 	PARTaskConcurrency    = "private_action_runner.task_concurrency"
@@ -42,6 +45,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)
 	config.BindEnvAndSetDefault(PARIdentityFilePath, "")
+	config.BindEnvAndSetDefault(PARIdentityUseK8sSecret, true)
 	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
 	config.BindEnvAndSetDefault(PARPrivateKey, "")
 	config.BindEnvAndSetDefault(PARUrn, "")
@@ -50,9 +54,16 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARHttpAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
+
 }

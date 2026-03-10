@@ -33,10 +33,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const (
-	kubernetesServiceNameLabel = "kubernetes.io/service-name"
-)
-
 // ServiceEndpointSlicesAPI abstracts the dependency on the Kubernetes API (useful for testing)
 type ServiceEndpointSlicesAPI interface {
 	// ListServices lists all Services
@@ -56,7 +52,7 @@ func (api *svcEndpointSlicesAPI) ListServices() ([]*v1.Service, error) {
 
 func (api *svcEndpointSlicesAPI) ListEndpointSlices(namespace, name string) ([]*discv1.EndpointSlice, error) {
 	return api.endpointSliceLister.EndpointSlices(namespace).List(
-		labels.Set{kubernetesServiceNameLabel: name}.AsSelector(),
+		labels.Set{apiserver.KubernetesServiceNameLabel: name}.AsSelector(),
 	)
 }
 
@@ -295,7 +291,7 @@ func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfChangedEndp
 	}
 
 	// Get service name from labels
-	serviceName := castedObj.Labels[kubernetesServiceNameLabel]
+	serviceName := castedObj.Labels[apiserver.KubernetesServiceNameLabel]
 	if serviceName == "" {
 		return
 	}

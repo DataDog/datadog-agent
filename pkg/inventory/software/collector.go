@@ -46,6 +46,13 @@ func warnf(format string, args ...interface{}) *Warning {
 // application, including identification, versioning, installation details,
 // and system-specific information.
 type Entry struct {
+	// Source indicates the type or source of the software installation
+	// (e.g., Windows: "desktop", "msstore", "msu"; MacOS: "app", "pkg",
+	// "homebrew", "mas", "kext", "sysext"). This field helps categorize
+	// software by its installation method or distribution channel.
+	// Placed first for easy identification when scanning JSON output.
+	Source string `json:"software_type"`
+
 	// DisplayName is the human-readable name of the software application
 	// as it appears to users (e.g., "Microsoft Office 365", "Adobe Photoshop").
 	// This field is used for display purposes and software identification.
@@ -57,16 +64,13 @@ type Entry struct {
 	Version string `json:"version"`
 
 	// InstallDate is the date when the software was installed on the system.
-	// The format may vary by platform but is typically in ISO 8601 format
-	// or a platform-specific date format (e.g., "2023-01-15T10:30:00Z").
+	// The format is RFC3339 (ISO 8601): "2006-01-02T15:04:05Z07:00"
+	// For example: "2023-01-15T10:30:00Z"
+	// All timestamps are in UTC (indicated by the Z suffix).
+	// When displayed in the GUI/status output, it is formatted as "YYYY/MM/DD" (date only).
 	// This field is optional and may be empty if the installation date
 	// cannot be determined.
 	InstallDate string `json:"deployment_time,omitempty"`
-
-	// Source indicates the type or source of the software installation
-	// (e.g., "desktop", "msstore", "msu"). This field helps categorize
-	// software by its installation method or distribution channel.
-	Source string `json:"software_type"`
 
 	// UserSID is the Security Identifier of the user who installed the software,
 	// particularly relevant for user-specific installations on Windows.
@@ -87,21 +91,99 @@ type Entry struct {
 	// the operational state of the software installation.
 	Status string `json:"deployment_status"`
 
+	// BrokenReason explains why the software installation is marked as broken.
+	// This field is only populated when Status is "broken" and provides
+	// specific details to help diagnose the issue.
+	// Examples:
+	//   - "executable not found: Contents/MacOS/MyApp"
+	//   - "install path not found: /usr/local/bin"
+	//   - "Info.plist missing CFBundleExecutable" (macOS)
+	//   - "MSI record not found in registry" (Windows)
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	BrokenReason string `json:"-"`
+
 	// ProductCode is a unique identifier for the software product,
 	// often used in package management systems or installation databases
 	// (e.g., Windows Product Code, package identifiers). This field
 	// provides a stable identifier for tracking software across systems.
 	ProductCode string `json:"product_code"`
+
+	// InstallSource indicates how the software was installed on macOS.
+	// Possible values:
+	//   - "pkg": Installed via a .pkg installer package
+	//   - "mas": Installed from the Mac App Store
+	//   - "manual": Installed manually (drag-and-drop from DMG, etc.)
+	// This field is macOS-specific and helps understand the installation method.
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallSource string `json:"-"`
+
+	// PkgID is the package identifier from the macOS installer receipt database.
+	// This field is populated when InstallSource is "pkg" and provides a link
+	// to the corresponding PKG receipt in /var/db/receipts/. This enables
+	// cross-referencing between application entries and their installation records.
+	// Example: "com.microsoft.Word" for Microsoft Word installed via PKG.
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	PkgID string `json:"-"`
+
+	// InstallPath is the filesystem path where the software is installed.
+	// This field helps identify the exact location of an installation, which is
+	// particularly useful when multiple versions of the same software exist
+	// in different locations (e.g., /Applications vs ~/Applications).
+	// Examples:
+	//   - Applications: "/Applications/Safari.app", "~/Applications/MyApp.app"
+	//   - Kernel extensions: "/Library/Extensions/SoftRAID.kext"
+	//   - System extensions: "/Library/SystemExtensions/.../com.example.extension.systemextension"
+	// For PKG receipts, this may be "N/A" if no single meaningful path exists;
+	// use InstallPaths for the full list of installation directories.
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallPath string `json:"-"`
+
+	// InstallPaths contains the top-level directories where a PKG installed files.
+	// This field is specific to PKG receipts and provides visibility into where
+	// the package scattered its files across the filesystem.
+	// Unlike InstallPath (single path), this captures all installation locations
+	// for packages that install to multiple directories (e.g., CLI tools that
+	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
+	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallPaths []string `json:"-"`
 }
 
 // GetID returns a unique identifier for the software entry.
 // This method provides a consistent way to identify software entries
-// across different collection runs and system restarts. The current
-// implementation uses the DisplayName as the identifier, but this
-// could be enhanced to use more stable identifiers like ProductCode
-// when available.
+// across different collection runs and system restarts.
+//
+// The ID format is: "{source}:{identifier}:{path}" where:
+//   - source: the software type (e.g., "app", "homebrew", "pkg", "pip")
+//   - identifier: ProductCode if available, otherwise DisplayName
+//   - path: InstallPath to distinguish multiple installations of same software
+//
+// This ensures each installation location is tracked separately.
+// For example, pip packages installed in different Python environments
+// will each have their own entry.
 func (se *Entry) GetID() string {
-	return se.DisplayName
+	identifier := se.ProductCode
+	if identifier == "" {
+		identifier = se.DisplayName
+	}
+
+	// Build ID with source prefix
+	id := identifier
+	if se.Source != "" {
+		id = se.Source + ":" + identifier
+	}
+
+	// Include InstallPath to make each installation unique
+	if se.InstallPath != "" {
+		id = id + ":" + se.InstallPath
+	}
+
+	return id
 }
 
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors

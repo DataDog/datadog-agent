@@ -108,6 +108,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	}
 }
 
+// UnixCreatedAt returns the creation time of the container
+func (c *ContainerContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(c.CreatedAt))
+}
+
 // IsNull returns true if the container context is null
 func (c *ContainerContext) IsNull() bool {
 	return c.ContainerID == ""
@@ -633,11 +638,11 @@ type ExitEvent struct {
 
 // DNSQuestion represents the dns question
 type DNSQuestion struct {
-	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
-	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+	Name  string `field:"name,opts:length|root_domain" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                               // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                              // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                             // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                              // SECLDoc[count] Definition:`the total count of questions in the DNS request`
 }
 
 // DNSEvent represents a DNS request event

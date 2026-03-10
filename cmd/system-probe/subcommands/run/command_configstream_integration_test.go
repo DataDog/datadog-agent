@@ -28,7 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -116,8 +116,11 @@ func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
 	datadogYaml := fmt.Sprintf(`
 cmd_host: %s
 cmd_port: %s
-remote_agent_registry:
-  enabled: false
+remote_agent:
+  registry:
+    enabled: false
+  configstream:
+    enabled: true
 `, host, port)
 	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
 	sysprobeYaml := `

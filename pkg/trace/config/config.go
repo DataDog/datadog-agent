@@ -358,11 +358,12 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators       []string      // DEPRECATED
-	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators          []string      // DEPRECATED
+	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
+	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -386,17 +387,18 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost        string
+	ReceiverPort        int
+	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout     int
+	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
+	Decoders            int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -415,6 +417,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// APIKeyRefreshThrottleInterval is the minimum time between API key refresh attempts.
+	APIKeyRefreshThrottleInterval time.Duration
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -549,14 +553,20 @@ type AgentConfig struct {
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
 
-	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
-	EnableV1TraceEndpoint bool
-
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
 
 	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
+
+	// OTelGateway indicates whether the agent is configured as an OTel gateway.
+	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
+	OTelGateway bool
+
+	// SecretsRefreshFn is called when a 403 response is received to trigger
+	// API key refresh from the secrets backend. It blocks until the refresh
+	// completes and returns a message and any error encountered.
+	SecretsRefreshFn func() (string, error) `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -607,16 +617,18 @@ func New() *AgentConfig {
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
+		ReceiverIdleTimeout:    60 * time.Second,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:              new(WriterConfig),
-		TraceWriter:              new(WriterConfig),
-		ConnectionResetInterval:  0, // disabled
-		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
+		StatsWriter:                   new(WriterConfig),
+		TraceWriter:                   new(WriterConfig),
+		ConnectionResetInterval:       0, // disabled
+		MaxSenderRetries:              4,
+		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
@@ -765,6 +777,16 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 		return nil
 	}
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
+// for stats aggregation. These tag keys will be used to extract tags from spans
+// for use in aggregation keys, similar to peer tags.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {
