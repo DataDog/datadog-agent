@@ -32,7 +32,10 @@ that match your use case.
    one file per platform target (e.g., `disk_nix_test.go`, `disk_win_test.go`)
 4. Use `require` (not `assert`) inside `EventuallyWithT` callbacks
 5. Verify compilation: `cd test/new-e2e && go vet ./tests/<area>/...`
-6. Check CI wiring: `grep -n 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml`
+6. **Run the test locally before pushing** — compilation alone is not enough:
+   `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
+   See `test/e2e-framework/AGENTS.md` § "Validating and troubleshooting" if it fails
+7. Check CI wiring: `grep -n 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml`
 
 ## Output
 

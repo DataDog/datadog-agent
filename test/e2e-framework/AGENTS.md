@@ -132,6 +132,19 @@ Not all tests fit the four out of the box environments. Common advanced patterns
 | Docker Compose | `test/new-e2e/tests/agent-health/` |
 | ECS / Fargate | `test/new-e2e/tests/cws/` |
 
+## Validating E2E tests
+
+E2E tests provision real cloud infrastructure (~10 min per run). **Always run
+the test locally before pushing** — `go vet` catches compilation errors but not
+runtime failures:
+
+```bash
+dda inv new-e2e-tests.run --targets=./tests/<area>/...
+```
+
+Use `e2e.WithDevMode()` to keep infrastructure alive after a failure so you can
+SSH in and inspect the agent directly.
+
 ## Key files
 
 - `testing/e2e/suite.go` — `BaseSuite` and `Run()` (test entry point)
