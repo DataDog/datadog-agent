@@ -29,6 +29,7 @@
 /bazel/configs/rust.bazelrc               @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
 /deps/                                  @DataDog/agent-build
+/.buildifier.json                       @DataDog/agent-build
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
 # For now, agent-build are the experts in that.

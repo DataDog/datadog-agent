@@ -321,13 +321,13 @@ fn test_config_directory_path_loads_sysprobe_yaml() {
     let config_dir = TempDir::new().unwrap();
     fs::write(
         config_dir.path().join("system-probe.yaml"),
-        b"discovery:\n  enabled: true\n  use_sd_agent: true\n",
+        b"discovery:\n  enabled: true\n  use_system_probe_lite: true\n",
     )
     .unwrap();
     fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
 
     // Pass the directory (not the .yaml file) as --config.
-    let mut child = Command::new(SD_AGENT_BIN)
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
         .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
