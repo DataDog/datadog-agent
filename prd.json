@@ -115,8 +115,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added sync.Pool for *HTTPTransaction in transaction/transaction.go (GetHTTPTransaction/PutHTTPTransaction). poolReturnHandler as default CompletionHandler returns transaction to pool after HTTP response processed. Cached allowArbitraryTags bool + userAgent string as DefaultForwarder fields (eliminates ~4 allocs from per-call config.GetBool which calls strings.Split internally). Changed versionHTTPHeaderKey to canonical 'Dd-Agent-Version' (eliminates textproto.canonicalMIMEHeaderKey alloc per Set() call). BenchmarkCreateHTTPTransaction*/1-payload: 15→11 allocs/op (27% reduction, target ≥15%). Race detector passes."
     },
     {
       "id": "US-008",

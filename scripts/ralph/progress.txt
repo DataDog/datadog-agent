@@ -13,6 +13,9 @@ Started: Tue 10 Mar 14:38:21 GMT 2026
 - Serializer benchmarks need `-tags "test zlib zstd"` to compile sketch_series_test.go (which defines testPipelines)
 - pkg/aggregator benchmarks: `benchWithTagsStore` runs each benchmark twice (useStore=true/false), so alloc counts appear doubled in pprof
 - BenchmarkTimeSamplerSampleTagCount reports 0 allocs/op because context is warm (hot path); allocs happen at context creation (trackContext)
+- viper config.GetBool() calls strings.Split for key parsing internally — cache hot config values at DefaultForwarder construction
+- textproto.CanonicalMIMEHeaderKey allocates for non-canonical header keys like "DD-Agent-Version" — use canonical forms ("Dd-Agent-Version") directly
+- Use pprof -alloc_objects flag to profile allocations; divide counts by benchmark iteration count to get allocs/op
 
 ## 2026-03-10 14:50 - US-001
 - Ran benchmarks with `-tags test` flag (required for fxutil.Test build constraint)
@@ -121,4 +124,31 @@ Started: Tue 10 Mar 14:38:21 GMT 2026
   - The HashingTagsAccumulator pre-allocation was already in place before this PRD — baseline was already 0 allocs/op
   - `Dedup2` in hash_generator.go uses an array-based hashset (no heap allocs) to deduplicate in-place
   - BenchmarkContextResolver1000 baseline was 108 ns/op; removing defer brings it to ~63 ns/op
+---
+
+## 2026-03-10 19:30 - US-007 (dogstatsd-to-forwarder PRD)
+- Added sync.Pool for *HTTPTransaction in transaction/transaction.go with GetHTTPTransaction()/PutHTTPTransaction()
+- poolReturnHandler (package-level var, no closure) set as default CompletionHandler on pooled transactions
+- Pool return is safe: fires only after HTTP response fully processed (internalProcess has returned)
+- Retried transactions: CompletionHandler not called on retry error → pool return deferred to success/drop
+- Dropped transactions (retry queue overflow): not returned to pool — acceptable race-condition-free pool leak
+- Cached `allowArbitraryTags bool` and `userAgent string` as DefaultForwarder fields in NewDefaultForwarder
+  - f.config.GetBool("allow_arbitrary_tags") calls viper which internally calls strings.Split = ~4 allocs per call
+  - Caching at construction time eliminates all these allocs in the hot transaction-creation path
+- Changed versionHTTPHeaderKey from "DD-Agent-Version" to "Dd-Agent-Version" (canonical form)
+  - textproto.CanonicalMIMEHeaderKey allocates when input != canonical; using canonical form directly avoids alloc
+- Pre-cached "datadog-agent/"+version.AgentVersion as f.userAgent (avoids string concat alloc per transaction)
+- Files changed: comp/forwarder/defaultforwarder/transaction/transaction.go, default_forwarder.go, prd.json
+- BenchmarkCreateHTTPTransaction*/1-payload: 15 allocs/op → 11 allocs/op (27% reduction, target ≥15%) ✓
+- BenchmarkCreateHTTPTransaction*/multi-payload: 51→41, 195→161, 771→641 allocs/op (17-20% reduction) ✓
+- Race detector passes: go test -race ./comp/forwarder/...
+- **Learnings:**
+  - viper config.GetBool() calls strings.Split internally for key parsing — cache hot config values at init
+  - textproto.CanonicalMIMEHeaderKey allocates when key has consecutive uppercase letters (e.g. "DD-Api-Key")
+    Use pre-canonicalized forms ("Dd-Agent-Version") to avoid per-Set() allocation
+  - sync.Pool New func is called once per pool miss (struct + map = 2 allocs); Create benchmarks miss every time
+    because transactions are never returned — the pool benefit is realized on Send benchmarks (full HTTP round trip)
+  - For "BenchmarkCreate" style benchmarks, the big win comes from eliminating per-call overhead in the creation code
+    path itself (config lookups, string concat), not from pooling the result
+  - pprof -alloc_objects flag shows absolute object counts; divide by benchmark iteration count to get allocs/op
 ---
