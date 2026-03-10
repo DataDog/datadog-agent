@@ -15,6 +15,7 @@ type stringInternerTelemetry struct {
 	bytes                telemetry.Gauge
 	hits                 telemetry.Counter
 	miss                 telemetry.Counter
+	promotions           telemetry.Counter
 	globaltlmSIRStrBytes telemetry.SimpleHistogram
 }
 
@@ -27,6 +28,7 @@ type stringInternerInstanceTelemetry struct {
 	bytes                telemetry.SimpleGauge
 	hits                 telemetry.SimpleCounter
 	miss                 telemetry.SimpleCounter
+	promotions           telemetry.SimpleCounter
 	globaltlmSIRStrBytes telemetry.SimpleHistogram
 }
 
@@ -37,11 +39,12 @@ func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInterner
 			globaltlmSIRStrBytes: telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 				"Number of times string with specific length were added",
 				[]float64{1, 2, 4, 8, 16, 32, 64, 128}),
-			resets: telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of resets of the string interner used in dogstatsd"),
-			size:   telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"}, "Number of entries in the string interner"),
-			bytes:  telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"}, "Number of bytes stored in the string interner"),
-			hits:   telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"}, "Number of times string interner returned an existing string"),
-			miss:   telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"}, "Number of times string interner created a new string object"),
+			resets:     telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"}, "Amount of resets of the string interner used in dogstatsd"),
+			size:       telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"}, "Number of entries in the string interner"),
+			bytes:      telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"}, "Number of bytes stored in the string interner"),
+			hits:       telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"}, "Number of times string interner returned an existing string"),
+			miss:       telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"}, "Number of times string interner created a new string object"),
+			promotions: telemetry.NewCounter("dogstatsd", "string_interner_promotions", []string{"interner_id"}, "Number of times a string was promoted from old generation to current"),
 		}
 	}
 
@@ -60,6 +63,7 @@ func (s *stringInternerTelemetry) PrepareForID(id string) *stringInternerInstanc
 			bytes:                s.bytes.WithValues(id),
 			hits:                 s.hits.WithValues(id),
 			miss:                 s.miss.WithValues(id),
+			promotions:           s.promotions.WithValues(id),
 			globaltlmSIRStrBytes: s.globaltlmSIRStrBytes,
 		}
 	}
@@ -94,5 +98,12 @@ func (si *stringInternerInstanceTelemetry) Miss(length int) {
 		si.bytes.Add(float64(length))
 		si.globaltlmSIRStrBytes.Observe(float64(length))
 		si.curBytes += length
+	}
+}
+
+// Promotion increments the promotions counter.
+func (si *stringInternerInstanceTelemetry) Promotion() {
+	if si.enabled {
+		si.promotions.Inc()
 	}
 }

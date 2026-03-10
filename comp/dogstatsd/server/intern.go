@@ -13,18 +13,19 @@ import (
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
 //
-// The current interning strategy is fairly simple, but can require manual
-// adjustments of the `maxSize` to improve performance, which is not ideal.
+// The current interning strategy uses a two-generation approach:
+// when the current generation fills up, it becomes the old generation and
+// a fresh current generation is created.  Hot strings found in the old
+// generation are promoted to the current generation so they are never
+// fully evicted while still in active use.
 
-// However the current strategy works well enough, and there is an
-// accepted go proposal to offer an "interning" mechanism from the
-// go runtime directly.
-
-// Once this is available, the interner design should be re-visited to
-// take advantage of the new "Unique" api that is proposed below.
+// Once a native interning mechanism is available from the Go runtime
+// the interner design should be re-visited to take advantage of the new
+// "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings map[string]string
+	strings map[string]string // current generation
+	old     map[string]string // previous generation
 	maxSize int
 	id      string
 
@@ -47,8 +48,9 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
-// If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
+// When the current generation is at capacity, the current generation becomes
+// the old generation and a new empty current generation is created.
+// Strings found in the old generation are promoted to the current generation.
 func (i *stringInterner) LoadOrStore(key []byte) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
@@ -60,9 +62,23 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		return s
 	}
 
+	// Check old generation - if found, promote to current
+	if i.old != nil {
+		if s, found := i.old[string(key)]; found {
+			if len(i.strings) >= i.maxSize {
+				i.telemetry.Reset(len(i.strings))
+				i.old = i.strings
+				i.strings = make(map[string]string)
+			}
+			i.strings[s] = s
+			i.telemetry.Promotion()
+			return s
+		}
+	}
+
 	if len(i.strings) >= i.maxSize {
 		i.telemetry.Reset(len(i.strings))
-
+		i.old = i.strings
 		i.strings = make(map[string]string)
 	}
 
