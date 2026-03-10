@@ -501,7 +501,10 @@ func (s *discoveryTestSuite) TestServicesNodeDocker() {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
+func (s *discoveryTestSuite) TestServicesAPMInstrumentationProvidedWithMaps() {
+	t := s.T()
+	discovery := s.discovery
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -545,32 +548,16 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 
 			pid := cmd.Process.Pid
 
-			t.Run("go", func(t *testing.T) {
-				discovery := setupGoDiscoveryModule(t)
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
-					resp := getServices(collect, discovery)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				resp := getServices(collect, discovery)
 
-					// Service assert
-					svc := findService(pid, resp.Services)
-					require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
-					assert.Equal(collect, svc.PID, pid)
-					assert.Equal(collect, string(test.language), svc.Language)
-					assert.Equal(collect, true, svc.APMInstrumentation)
-				}, 30*time.Second, 100*time.Millisecond)
-			})
-			t.Run("sd-agent", func(t *testing.T) {
-				discovery := setupSdAgentDiscoveryModule(t)
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
-					resp := getServices(collect, discovery)
-
-					// Service assert
-					svc := findService(pid, resp.Services)
-					require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
-					assert.Equal(collect, svc.PID, pid)
-					assert.Equal(collect, string(test.language), svc.Language)
-					assert.Equal(collect, true, svc.APMInstrumentation)
-				}, 30*time.Second, 100*time.Millisecond)
-			})
+				// Service assert
+				svc := findService(pid, resp.Services)
+				require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
+				assert.Equal(collect, svc.PID, pid)
+				assert.Equal(collect, string(test.language), svc.Language)
+				assert.Equal(collect, true, svc.APMInstrumentation)
+			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
 }
