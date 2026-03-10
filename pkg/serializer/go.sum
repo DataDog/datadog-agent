@@ -1,6 +1,6 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.184-0.20260305013150-862de1be0e62 h1:xhRoxa+wYUtrPlH1fEKwYJU3EvYBv+AYmMNMD3Au8mo=
-github.com/DataDog/agent-payload/v5 v5.0.184-0.20260305013150-862de1be0e62/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722 h1:O1Mfl6ZL/caIP/rts/Io5cS49MOueOi0oidxQWD/cVk=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
