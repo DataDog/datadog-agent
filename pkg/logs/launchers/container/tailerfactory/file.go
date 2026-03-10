@@ -175,6 +175,8 @@ func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
+			// The podman collector adds annotation to containers it pulls with their storage location
+			// This is used to construct the log location (podman k8s-file driver)
 			wmeta, ok := tf.workloadmetaStore.Get()
 			if !ok {
 				return "", fmt.Errorf("cannot determine Podman log root for container %q: workloadmeta store is not initialized", containerID)

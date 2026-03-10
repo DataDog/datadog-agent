@@ -300,38 +300,7 @@ func TestMakeFileSource_podman_with_multiple_db_paths_success(t *testing.T) {
 	require.Equal(t, userLogPath, child.Config.Path)
 }
 
-func TestFindDockerLogPath_podman_with_multiple_db_paths_uses_annotation(t *testing.T) {
-	tmp := t.TempDir()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("Skip on Windows due to WSL file path abstraction")
-	}
-
-	rootDBPath := filepath.Join(tmp, "root/containers/storage/db.sql")
-	userDBPath := filepath.Join(tmp, "user/containers/storage/db.sql")
-
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
-	mockConfig.SetWithoutSource("podman_db_path", rootDBPath+","+userDBPath)
-
-	userContainersRoot := filepath.Join(tmp, "user/containers")
-	wmeta := newWorkloadmetaMock(t)
-	setPodmanContainerRootDir(wmeta, "abc", userContainersRoot)
-
-	tf := &factory{
-		pipelineProvider:  pipeline.NewMockProvider(),
-		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
-		dockerUtilGetter:  &dockerUtilGetterImpl{},
-		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
-	}
-
-	got, err := tf.findDockerLogPath("abc")
-	require.NoError(t, err)
-	want := filepath.Join(userContainersRoot, "storage/overlay-containers", "abc", "userdata/ctr.log")
-	require.Equal(t, want, got)
-}
-
-func TestFindDockerLogPath_podman_without_annotation_errors_even_with_dbpath(t *testing.T) {
+func TestMakeFileSource_podman_without_annotation_errors_even_with_dbpath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skip on Windows due to WSL file path abstraction")
 	}
@@ -357,7 +326,14 @@ func TestFindDockerLogPath_podman_without_annotation_errors_even_with_dbpath(t *
 		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
 	}
 
-	_, err := tf.findDockerLogPath("abc")
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+
+	_, err := tf.makeFileSource(source)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing annotation")
 }

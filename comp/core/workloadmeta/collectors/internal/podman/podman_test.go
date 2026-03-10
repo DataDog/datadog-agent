@@ -17,8 +17,10 @@ import (
 	"github.com/cri-o/ocicni/pkg/ocicni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 )
 
@@ -356,6 +358,51 @@ func TestPullMultipleClients(t *testing.T) {
 	}
 	assert.True(t, ids["aaa"], "expected container aaa from client1")
 	assert.True(t, ids["bbb"], "expected container bbb from client2")
+}
+
+func TestPullAddsPodmanRootDirAnnotation(t *testing.T) {
+	startTime := time.Now()
+	containers := []podman.Container{
+		{
+			Config: &podman.ContainerConfig{
+				Spec: &specs.Spec{
+					Process: &specs.Process{
+						Env: []string{},
+					},
+				},
+				ID:   "abc",
+				Name: "test-container",
+			},
+			State: &podman.ContainerState{
+				State:       podman.ContainerStateRunning,
+				StartedTime: startTime,
+			},
+		},
+	}
+
+	client := fakePodmanClient{
+		mockGetAllContainers: func() ([]podman.Container, error) {
+			return containers, nil
+		},
+	}
+
+	workloadmetaStore := fakeWorkloadmetaStore{}
+	podmanCollector := collector{
+		clients: []podmanDBClient{{
+			client:  &client,
+			rootDir: "/home/testuser/.local/share/containers",
+		}},
+		store: &workloadmetaStore,
+		seen:  make(map[workloadmeta.EntityID]struct{}),
+	}
+
+	err := podmanCollector.Pull(context.TODO())
+	require.NoError(t, err)
+	require.Len(t, workloadmetaStore.notifiedEvents, 1)
+
+	ctr, ok := workloadmetaStore.notifiedEvents[0].Entity.(*workloadmeta.Container)
+	require.True(t, ok)
+	assert.Equal(t, "/home/testuser/.local/share/containers", ctr.Annotations[pkglog.ContainerRootDirAnnotationKey])
 }
 
 func TestParsePaths(t *testing.T) {
