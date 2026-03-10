@@ -259,15 +259,20 @@
     },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "WUo18SYqUuxGwH3t2g2ZRmHHWaDgd9FC/KFzBzKwVqI=",
-        "usagesDigest": "zVMywqtcDCrcDt/bRMHd1VJ/EnqarG0lOrpUiziqZ9w=",
+        "bzlTransitiveDigest": "HjWvtZhQjnuJj8RR2Vepnr36gR3U7IXL0KBvvBU3Znw=",
+        "usagesDigest": "8FzskLP/m4dBUgB6z6tp5fWpEdyRbccrX9AQ8q9Ef3o=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
           "llvm_bpf": {
             "repoRuleId": "@@//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%download_llvm_bpf",
-            "attributes": {}
+            "attributes": {
+              "s3_base_url": "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
+              "clang_version": "12.0.1",
+              "clang_build_version": "v60409452-ee70de70",
+              "verbose": false
+            }
           }
         },
         "recordedRepoMappingEntries": []

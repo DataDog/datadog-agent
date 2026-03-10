@@ -2,22 +2,18 @@
 
 NAME = "llvm_bpf"
 
-CLANG_VERSION = "12.0.1"
-CLANG_BUILD_VERSION = "v60409452-ee70de70"
-
-_S3_BASE = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"
-
 _BINARIES = {
     "clang-bpf": "clang",
     "llc-bpf": "llc",
     "llvm-strip": "llvm-strip",
 }
 
-def _get_url(url_prefix, arch):
-    return "{}/{}-{}.{}.{}".format(_S3_BASE, url_prefix, CLANG_VERSION, arch, CLANG_BUILD_VERSION)
+def _get_url(s3_base, url_prefix, clang_version, arch, build_version):
+    return "{}/{}-{}.{}.{}".format(s3_base, url_prefix, clang_version, arch, build_version)
 
 def _download_llvm_bpf_impl(rctx):
     downloaded = {}
+    clang_version = rctx.attr.clang_version
 
     if "linux" in rctx.os.name:
         arch = rctx.os.arch
@@ -29,7 +25,7 @@ def _download_llvm_bpf_impl(rctx):
             fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
         for binary, url_prefix in _BINARIES.items():
-            url = _get_url(url_prefix, arch)
+            url = _get_url(rctx.attr.s3_base_url, url_prefix, clang_version, arch, rctx.attr.clang_build_version)
             output = "bin/" + binary
 
             if rctx.attr.verbose:
@@ -45,8 +41,6 @@ def _download_llvm_bpf_impl(rctx):
                 fail("Failed to download {} from {}".format(binary, url))
             downloaded[binary] = output
 
-    # Build the binary attributes only when we actually downloaded them;
-    # omitting the attrs lets the label default to None on non-Linux.
     binary_attrs = ""
     if downloaded:
         binary_attrs = """    clang_bpf = "{clang}",
@@ -98,7 +92,7 @@ toolchain(
 )
 {install_target}""".format(
         binary_attrs = binary_attrs,
-        version = CLANG_VERSION,
+        version = clang_version,
         install_target = install_target,
     ))
 
@@ -106,10 +100,38 @@ download_llvm_bpf = repository_rule(
     implementation = _download_llvm_bpf_impl,
     doc = "Download LLVM BPF toolchain binaries from Datadog S3.",
     attrs = {
+        "s3_base_url": attr.string(mandatory = True),
+        "clang_version": attr.string(mandatory = True),
+        "clang_build_version": attr.string(mandatory = True),
         "verbose": attr.bool(default = False),
     },
 )
 
+_configure = tag_class(
+    attrs = {
+        "s3_base_url": attr.string(default = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"),
+        "clang_version": attr.string(default = "12.0.1"),
+        "clang_build_version": attr.string(default = "v60409452-ee70de70"),
+        "verbose": attr.bool(default = False),
+    },
+)
+
+def _llvm_bpf_extension_impl(ctx):
+    cfg = ctx.modules[0].tags.configure[0] if ctx.modules[0].tags.configure else struct(
+        s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
+        clang_version = "12.0.1",
+        clang_build_version = "v60409452-ee70de70",
+        verbose = False,
+    )
+    download_llvm_bpf(
+        name = NAME,
+        s3_base_url = cfg.s3_base_url,
+        clang_version = cfg.clang_version,
+        clang_build_version = cfg.clang_build_version,
+        verbose = cfg.verbose,
+    )
+
 llvm_bpf_extension = module_extension(
-    implementation = lambda ctx: download_llvm_bpf(name = NAME),
+    implementation = _llvm_bpf_extension_impl,
+    tag_classes = {"configure": _configure},
 )
