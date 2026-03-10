@@ -62,12 +62,11 @@ func hasMetricSampleFormat(message []byte) bool {
 	if message == nil {
 		return false
 	}
-	separatorCount := bytes.Count(message, fieldSeparator)
-	return separatorCount >= 1
+	return bytes.IndexByte(message, '|') != -1
 }
 
 func parseMetricSampleNameAndRawValue(rawNameAndValue []byte) ([]byte, []byte, error) {
-	sepIndex := bytes.Index(rawNameAndValue, colonSeparator)
+	sepIndex := bytes.IndexByte(rawNameAndValue, ':')
 	if sepIndex == -1 {
 		return nil, nil, fmt.Errorf("invalid name and value: %q", rawNameAndValue)
 	}

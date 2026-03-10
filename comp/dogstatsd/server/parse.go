@@ -100,7 +100,7 @@ func findMessageType(message []byte) messageType {
 // the remainder, as a no-heap alternative to bytes.Split.
 // If the separator is not found, the remainder is nil.
 func nextField(message []byte) ([]byte, []byte) {
-	sepIndex := bytes.Index(message, fieldSeparator)
+	sepIndex := bytes.IndexByte(message, '|')
 	if sepIndex == -1 {
 		return message, nil
 	}
@@ -161,7 +161,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		// protocol, we directly parse it as a float64. This avoids
 		// pulling a slice from the float64List and greatly improve
 		// performances.
-		if !bytes.Contains(rawValue, colonSeparator) {
+		if bytes.IndexByte(rawValue, ':') == -1 {
 			value, err = parseFloat64(rawValue)
 		} else {
 			values, err = p.parseFloat64List(rawValue)
@@ -267,10 +267,10 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 
 	values := p.float64List.get()
 	for idx != -1 && len(rawFloats) != 0 {
-		idx = bytes.Index(rawFloats, colonSeparator)
+		idx = bytes.IndexByte(rawFloats, ':')
 		// skip empty value such as '21::22'
 		if idx == 0 {
-			rawFloats = rawFloats[len(colonSeparator):]
+			rawFloats = rawFloats[1:]
 			continue
 		}
 
@@ -279,7 +279,7 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 			value, err = parseFloat64(rawFloats)
 		} else {
 			value, err = parseFloat64(rawFloats[0:idx])
-			rawFloats = rawFloats[idx+len(colonSeparator):]
+			rawFloats = rawFloats[idx+1:]
 		}
 
 		if err != nil {
