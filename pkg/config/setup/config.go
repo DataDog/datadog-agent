@@ -1145,6 +1145,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		})
 	})
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
+	// otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
+	// or connected mode (expects core agent for secrets and tagger)
+	config.BindEnvAndSetDefault("otel_standalone", false)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)

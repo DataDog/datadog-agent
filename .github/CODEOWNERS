@@ -367,6 +367,7 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/otelcol/dogtelextension @DataDog/opentelemetry
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/trace-telemetry @DataDog/agent-runtimes

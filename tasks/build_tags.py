@@ -251,7 +251,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
-OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd", "kubelet"}
 
 LOADER_TAGS = set()
 
