@@ -169,6 +169,12 @@ Go build tags control feature inclusion, some examples are:
 - Tests about the pull-request settings or repository configuration
 - Release automation workflows
 
+### Contributing
+PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
+`docs/public/guidelines/` (contributing, coding style, components, etc.). When
+a PR changes behavior, configuration options, or APIs, update the corresponding
+documentation in the same PR — not as a follow-up.
+
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the
@@ -213,3 +219,63 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
+
+## Review guidelines
+
+The following are areas of particular concern for this codebase. They highlight
+project-specific risks that have led to production bugs in the Datadog Agent.
+
+### E2E coverage with fakeintake
+The E2E framework (`test/new-e2e/`) uses **fakeintake**, a mock Datadog intake
+that captures metrics, logs, traces, and check runs. When a change affects
+user-visible behavior (new metrics, changed log output, modified payloads),
+check whether an E2E test asserts the expected data arrives in fakeintake. Unit
+tests alone are not sufficient for validating the agent's end-to-end data
+pipeline.
+
+### Branch-conditional CI creates blind spots
+Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
+**not on PR branches**. This means some classes of bugs cannot be caught before
+merge. Be extra careful reviewing:
+- Packaging or installation changes (MSI, deb, rpm, BUILD.bazel)
+- Agent startup/shutdown sequences
+- Cross-component communication (e.g. system-probe ↔ agent)
+
+These changes are likely to need `qa/rc-required`.
+
+### Multi-platform divergence
+The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
+`runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
+bugs — typically the "other" platform is untested. The same applies to
+packaging: Windows MSI and Linux deb/rpm have independent logic that can
+silently diverge.
+
+### Concurrency and component lifecycle
+The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
+lifecycles. The most common bugs are send-on-closed-channel during shutdown and
+goroutine leaks. Changes that introduce goroutines or modify component lifecycle
+should have tests exercising startup and graceful shutdown.
+
+### Graceful degradation during startup
+Components initialize in stages — some dependencies may not be ready when others
+start. Functions exposed to UIs or APIs should return safe defaults when a
+dependency is unavailable, not propagate errors or panic.
+
+### Stale documentation
+If a PR changes behavior but doesn't update the corresponding docs, comments,
+or doc strings, flag it. Stale docs lead to bugs: contributors build on
+incorrect assumptions.
+
+## Maintaining this file
+
+This file is read by AI code reviewers (Codex reads it natively, Claude Code
+reads it via the `@AGENTS.md` include in `CLAUDE.md`). It should evolve with
+the codebase.
+
+Update this file whenever important context is missing — but keep rules
+generalizable. A good guideline covers a class of bugs, not a single incident.
+Think bias/variance: too specific and it only catches one bug; too generic and
+it's noise.
+
+**AI reviewers:** when reviewing a PR, if you notice a gap in these guidelines,
+suggest an update to this file — either in the same PR or as a follow-up.

@@ -17,6 +17,7 @@ PROTO_PKGS = {
     'trace': True,
     'process': False,
     'workloadmeta': False,
+    'kubemetadata': False,
     'languagedetection': False,
     'privateactionrunner': False,
     'remoteagent': False,

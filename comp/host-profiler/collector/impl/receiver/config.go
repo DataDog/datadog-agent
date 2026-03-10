@@ -28,9 +28,10 @@ type Config struct {
 	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
-// ServiceNameEnvVars is the list of environment variables used to determine the service name.
+// defaultEnvVars lists environment variables read from profiled processes to populate
+// unified service tags (service, env, version) in OTLP resource attributes.
 // The order indicates which environment variable takes precedence.
-var serviceNameEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME"}
+var defaultEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION"}
 
 var _ xconfmap.Validator = (*Config)(nil)
 
@@ -59,7 +60,7 @@ func (c *Config) Validate() error {
 		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
 
-	includeEnvVars := append([]string{}, serviceNameEnvVars...)
+	includeEnvVars := append([]string{}, defaultEnvVars...)
 	if c.EbpfCollectorConfig.IncludeEnvVars != "" {
 		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 	}

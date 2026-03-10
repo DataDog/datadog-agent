@@ -41,14 +41,14 @@ func TestTracers(t *testing.T) {
 	require.Contains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 }
 
-func TestServiceNameEnvVars(t *testing.T) {
+func TestDefaultEnvVars(t *testing.T) {
 	config := defaultConfig()
 	cfg := config.(Config)
 	cfg.SymbolUploader.Enabled = false
 	require.Equal(t, "", cfg.EbpfCollectorConfig.IncludeEnvVars)
 
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, strings.Join(serviceNameEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
+	require.Equal(t, strings.Join(defaultEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
 }
 
 func TestSymbolUploader(t *testing.T) {
@@ -86,7 +86,7 @@ func TestFlatConfigParsingIsAccepted(t *testing.T) {
 	require.False(t, cfg.SymbolUploader.Enabled)
 
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, strings.Join(serviceNameEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
+	require.Equal(t, strings.Join(defaultEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
 }
 
 func TestNestedConfigIsRejected(t *testing.T) {

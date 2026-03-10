@@ -15,8 +15,10 @@ import (
 	"hash/fnv"
 	"io"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -26,6 +28,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
+
+var currentProbe atomic.Pointer[admprobe.Probe]
+
+func setProbe(p *admprobe.Probe) {
+	currentProbe.Store(p)
+}
+
+func getProbeStats() map[string]interface{} {
+	p := currentProbe.Load()
+	if p == nil {
+		return nil
+	}
+	return p.GetStatsForStatus()
+}
 
 // GetStatus returns status info for the secret and webhook controllers.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
@@ -60,6 +76,10 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["SecretError"] = err.Error()
 	} else {
 		status["Secret"] = secretStatus
+	}
+
+	if probeStats := getProbeStats(); probeStats != nil {
+		status["Probe"] = probeStats
 	}
 
 	return status

@@ -1677,9 +1677,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1821,7 +1818,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")

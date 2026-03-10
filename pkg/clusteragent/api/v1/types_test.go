@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -82,6 +83,68 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 			if got := tt.m.DeepCopy(tt.old); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NamespacesPodsStringsSet.Copy() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestNamespacesPodsStringsSet_Delete(t *testing.T) {
+	tests := []struct {
+		name         string
+		initialSet   NamespacesPodsStringsSet
+		namespace    string
+		services     []string
+		wantModified bool
+		wantResult   NamespacesPodsStringsSet
+	}{
+		{
+			name:         "non-existing namespace returns false",
+			initialSet:   NamespacesPodsStringsSet{},
+			namespace:    "ns1",
+			services:     []string{"svc1"},
+			wantModified: false,
+			wantResult:   NamespacesPodsStringsSet{},
+		},
+		{
+			name: "non-existing service returns false",
+			initialSet: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc1")},
+			},
+			namespace:    "ns1",
+			services:     []string{"svc-other"},
+			wantModified: false,
+			wantResult: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc1")},
+			},
+		},
+		{
+			name: "deleting existing service returns true",
+			initialSet: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc1", "svc2")},
+			},
+			namespace:    "ns1",
+			services:     []string{"svc1"},
+			wantModified: true,
+			wantResult: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc2")},
+			},
+		},
+		{
+			name: "deleting last service from a namespace also deletes the namespace",
+			initialSet: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc1")},
+			},
+			namespace:    "ns1",
+			services:     []string{"svc1"},
+			wantModified: true,
+			wantResult:   NamespacesPodsStringsSet{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.initialSet.Delete(test.namespace, test.services...)
+			assert.Equal(t, test.wantModified, got)
+			assert.Equal(t, test.wantResult, test.initialSet)
 		})
 	}
 }

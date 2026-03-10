@@ -38,6 +38,7 @@ const (
 
 var (
 	gatewayClassGVR = schema.GroupVersionResource{Resource: "gatewayclasses", Group: "gateway.networking.k8s.io", Version: "v1"}
+	istioGatewayGVR = schema.GroupVersionResource{Resource: "gateways", Group: "networking.istio.io", Version: "v1"}
 	filterGVR       = schema.GroupVersionResource{Resource: "envoyfilters", Group: "networking.istio.io", Version: "v1alpha3"}
 	crdGVR          = schema.GroupVersionResource{Resource: "customresourcedefinitions", Group: "apiextensions.k8s.io", Version: "v1"}
 )
@@ -142,6 +143,32 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return nil // Not an Istio gateway class, skip
 	}
 
+	// Distinguish watch-event mode (GatewayClass was actually deleted) from cleanup mode
+	// (cleanupPattern iterates live resources and calls Deleted without removing them).
+	// The cross-pattern coordination check only applies to watch events: in cleanup mode
+	// we always proceed to delete the EnvoyFilter so it is not left behind.
+	_, errGet := i.client.Resource(gatewayClassGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	if errGet != nil && !k8serrors.IsNotFound(errGet) {
+		// On a transient API error we cannot determine the calling context. Return the error
+		// so the work item is requeued; this prevents accidentally entering cleanup mode and
+		// prematurely deleting the shared EnvoyFilter during watch-event processing.
+		return fmt.Errorf("could not determine calling context for GatewayClass %s: %w", obj.GetName(), errGet)
+	}
+	isWatchEvent := k8serrors.IsNotFound(errGet)
+
+	if isWatchEvent {
+		// Cross-pattern coordination: check if native Istio Gateways still exist
+		// If they do, the EnvoyFilter is still needed by the istio-gateway pattern
+		nativeGatewaysExist, err := anyIstioNativeGatewayExists(ctx, i.client)
+		if err != nil {
+			return fmt.Errorf("could not check for remaining Istio native gateways: %w", err)
+		}
+		if nativeGatewaysExist {
+			i.logger.Debug("Skipping EnvoyFilter deletion: Istio native gateways still exist")
+			return nil
+		}
+	}
+
 	namespace := i.config.IstioNamespace
 	name := obj.GetName()
 	i.logger.Debugf("Processing deleted gatewayclass for istio: %s", name)
@@ -170,7 +197,40 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	i.eventRecorder.recordExtensionPolicyDeleted(namespace, name)
 
-	return err
+	return nil
+}
+
+// anyIstioNativeGatewayExists checks if any networking.istio.io/v1 Gateway exists across all namespaces
+func anyIstioNativeGatewayExists(ctx context.Context, client dynamic.Interface) (bool, error) {
+	list, err := client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1})
+	if k8serrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return len(list.Items) > 0, nil
+}
+
+// anyIstioGatewayClassExists checks if any K8s GatewayClass with the istio controller exists,
+// optionally excluding one by name (used when a GatewayClass is being deleted).
+func anyIstioGatewayClassExists(ctx context.Context, client dynamic.Interface, excludeName string) (bool, error) {
+	list, err := client.Resource(gatewayClassGVR).List(ctx, metav1.ListOptions{})
+	if k8serrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, item := range list.Items {
+		if item.GetName() == excludeName {
+			continue
+		}
+		if ok, err := isGatewayClassFromIstio(&item); ok && err == nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace string) error {

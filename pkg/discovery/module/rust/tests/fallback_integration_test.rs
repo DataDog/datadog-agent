@@ -311,6 +311,44 @@ fn test_discovery_enabled_with_fallback() {
     );
 }
 
+#[test]
+fn test_config_directory_path_loads_sysprobe_yaml() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+    let mock_sp_source = mock_system_probe_path();
+
+    // Directory containing system-probe.yaml — mirrors a real installation.
+    let config_dir = TempDir::new().unwrap();
+    fs::write(
+        config_dir.path().join("system-probe.yaml"),
+        b"discovery:\n  enabled: true\n  use_sd_agent: true\n",
+    )
+    .unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
+
+    // Pass the directory (not the .yaml file) as --config.
+    let mut child = Command::new(SD_AGENT_BIN)
+        .env_clear()
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_dir.path().display()))
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "--config pointing to a directory should load system-probe.yaml, not fall back"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
+}
+
 // Killswitch integration tests
 #[test]
 fn test_killswitch_disabled_fallback() {

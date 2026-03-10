@@ -923,7 +923,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
-		Type:                     modelService.Type,
 		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,

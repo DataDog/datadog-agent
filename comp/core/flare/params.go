@@ -11,6 +11,9 @@ type Params struct {
 	// CLI.
 	local bool
 
+	// KeepArchiveAfterSend when true keeps the local flare archive file after a successful upload (e.g. for CLI --keep-archive).
+	KeepArchiveAfterSend bool
+
 	// distPath is the fully qualified path to the 'dist' directory
 	distPath string
 
