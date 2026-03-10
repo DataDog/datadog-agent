@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/internal/tools/worksynchronizer",
     visibility = ["//visibility:private"],
     deps = [
-        "@in_yaml_go_yaml_v3//:yaml",
-        "@org_golang_x_mod//modfile",
+        "//vendor/go.yaml.in/yaml/v3:yaml",
+        "//vendor/golang.org/x/mod/modfile",
     ],
 )
 
@@ -23,7 +23,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":worksynchronizer_lib"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )

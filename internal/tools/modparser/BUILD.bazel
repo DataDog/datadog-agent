@@ -5,7 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/tools/modparser",
     visibility = ["//visibility:private"],
-    deps = ["@org_golang_x_mod//modfile"],
+    deps = ["//vendor/golang.org/x/mod/modfile"],
 )
 
 go_binary(
@@ -20,7 +20,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":modparser_lib"],
     deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
+        "//vendor/github.com/stretchr/testify/assert",
+        "//vendor/github.com/stretchr/testify/require",
     ],
 )
