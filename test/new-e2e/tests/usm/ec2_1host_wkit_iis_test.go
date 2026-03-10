@@ -87,6 +87,13 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 		require.NoError(s.T(), err, "failed to write default document for %s", site.Name)
 	}
 
+	// Restart the agent so system-probe's IIS ETW provider initializes
+	// now that IIS is installed. In CI the agent was started before IIS.
+	host.MustExecute("Stop-Service datadogagent -Force")
+	time.Sleep(5 * time.Second)
+	host.MustExecute("Start-Service datadogagent")
+	time.Sleep(15 * time.Second)
+
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
 	// deployWindowsBinaries(s.T(), host)
