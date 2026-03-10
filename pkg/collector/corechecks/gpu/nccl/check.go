@@ -11,7 +11,6 @@ package nccl
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -43,7 +42,6 @@ type Check struct {
 	tagger            tagger.Component
 	telemetry         telemetry.Component
 	wmeta             workloadmeta.Component
-	parser            *Parser
 	socketListener    *SocketListener
 	processTagger     *ProcessTagger
 	containerProvider proccontainers.ContainerProvider
@@ -61,9 +59,7 @@ type rankStalenessEntry struct {
 
 // checkConfig holds the configuration for the NCCL check
 type checkConfig struct {
-	JSONDir       string `yaml:"json_dir"`
-	FileRetention string `yaml:"file_retention"`
-	SocketPath    string `yaml:"socket_path"`
+	SocketPath string `yaml:"socket_path"`
 }
 
 type ncclCheckTelemetry struct {
@@ -111,29 +107,19 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	// Parse instance config
 	c.config = &checkConfig{
-		JSONDir:       defaultJSONDir,
-		FileRetention: defaultFileRetention,
-		SocketPath:    defaultSocketPath,
+		SocketPath: defaultSocketPath,
 	}
 
 	if err := yaml.Unmarshal(config, c.config); err != nil {
 		return fmt.Errorf("failed to parse check config: %w", err)
 	}
 
-	// Override with global config if set
-	if globalDir := pkgconfigsetup.Datadog().GetString("nccl.json_dir"); globalDir != "" {
-		c.config.JSONDir = globalDir
+	// Start socket listener
+	sl, err := newSocketListener(c.config.SocketPath)
+	if err != nil {
+		return fmt.Errorf("NCCL socket listener failed: %w", err)
 	}
-
-	// Initialize parser (file-based fallback)
-	c.parser = NewParser(c.config.JSONDir)
-
-	// Start socket listener — preferred path, falls back to file parser if unavailable
-	if sl, err := newSocketListener(c.config.SocketPath); err != nil {
-		log.Infof("NCCL socket listener unavailable (%v), using file-based collection", err)
-	} else {
-		c.socketListener = sl
-	}
+	c.socketListener = sl
 
 	// Initialize container provider for PID -> container mapping
 	if c.containerProvider == nil {
@@ -179,28 +165,31 @@ func (c *Check) Run() error {
 		c.processTagger.Refresh()
 	}
 
-	// Collect events: socket (preferred) + file fallback
-	var events []ParsedEvent
-	if c.socketListener != nil {
-		// Socket path: drain events buffered since last Run()
-		events = c.socketListener.Drain()
-	} else {
-		// File path: read new lines appended since last check
-		var err error
-		events, err = c.parser.ParseNewEvents()
-		if err != nil {
-			log.Warnf("error parsing NCCL Inspector JSON: %v", err)
-			c.checkTelemetry.parseErrors.Inc()
-		}
-	}
+	// Collect events from socket listener
+	events := c.socketListener.Drain()
 
 	// Process events and emit per-rank metrics
+	collCount, proxyOpCount := 0, 0
 	for _, parsed := range events {
+		if parsed.Event.CollPerf != nil {
+			collCount++
+			log.Debugf("NCCL coll_perf: rank=%d coll=%s exec_time_us=%.1f algobw=%.3f busbw=%.3f msg_bytes=%d timing=%s tags=%v",
+				parsed.Event.Rank, parsed.Event.CollPerf.Collective, parsed.Event.CollPerf.ExecTimeUS,
+				parsed.Event.CollPerf.AlgoBandwidthGB, parsed.Event.CollPerf.BusBandwidthGB,
+				parsed.Event.CollPerf.MsgSizeBytes, parsed.Event.CollPerf.TimingSource, c.buildTags(parsed))
+		}
+		if parsed.Event.ProxyOp != nil {
+			proxyOpCount++
+			log.Debugf("NCCL proxy_op: rank=%d peer=%d ch=%d is_send=%d net_time_us=%d tags=%v",
+				parsed.Event.Rank, parsed.Event.ProxyOp.Peer, parsed.Event.ProxyOp.ChannelID,
+				parsed.Event.ProxyOp.IsSend, parsed.Event.ProxyOp.NetTimeUS, c.buildTags(parsed))
+		}
 		if err := c.processEvent(snd, parsed); err != nil {
 			log.Debugf("error processing NCCL event: %v", err)
 		}
 		c.checkTelemetry.eventsProcessed.Inc()
 	}
+	log.Debugf("NCCL check: %d events (%d coll_perf, %d proxy_op)", len(events), collCount, proxyOpCount)
 
 	// Hang detection: update last-seen timestamps and emit staleness metrics.
 	// Key by rank only (not rank+PID) so that training restarts reset staleness
@@ -217,16 +206,6 @@ func (c *Check) Run() error {
 
 	// Network transfer time: aggregate ProxyOp events per (rank, direction)
 	emitNetworkTransferMetrics(snd, events)
-
-	// Cleanup old files if retention is configured
-	if c.config.FileRetention != "" {
-		retention, err := time.ParseDuration(c.config.FileRetention)
-		if err == nil && retention > 0 {
-			if err := c.parser.CleanupOldFiles(retention); err != nil {
-				log.Debugf("error cleaning up old NCCL files: %v", err)
-			}
-		}
-	}
 
 	return nil
 }
@@ -424,21 +403,4 @@ func emitRankDivergence(snd sender.Sender, events []ParsedEvent) {
 		}
 		snd.Gauge(ncclMetricsNs+intraNodeDivergenceMetric, maxT-minT, "", divTags)
 	}
-}
-
-// extractRankFromFilename parses the rank number from a filename.
-// Handles both file format ("nccl-rank<N>-pid<P>.jsonl") and socket format ("socket:rank<N>-pid<P>").
-// Returns 0 if the rank cannot be determined.
-func extractRankFromFilename(filename string) int {
-	base := filepath.Base(filename)
-	var rank int
-	// File format: nccl-rank0-pid123.jsonl
-	if n, _ := fmt.Sscanf(base, "nccl-rank%d-", &rank); n == 1 {
-		return rank
-	}
-	// Socket format: socket:rank0-pid123
-	if n, _ := fmt.Sscanf(base, "socket:rank%d-", &rank); n == 1 {
-		return rank
-	}
-	return 0
 }

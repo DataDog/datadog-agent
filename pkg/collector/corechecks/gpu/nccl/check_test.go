@@ -10,7 +10,6 @@ package nccl
 import (
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -69,71 +68,8 @@ func TestBuildTagsWithZeroPID(t *testing.T) {
 	assert.Contains(t, tags, "pid:0")
 }
 
-func TestParserIntegration(t *testing.T) {
-	// Create temp directory with test JSON
-	tmpDir, err := os.MkdirTemp("", "nccl-check-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
-
-	testJSON := `{"id":"abc123","rank":0,"n_ranks":8,"nnodes":1,"pid":12345,"hostname":"worker-0","coll_perf":{"coll":"AllReduce","coll_sn":1,"coll_msg_size_bytes":1048576,"coll_exec_time_us":61974.5,"coll_timing_source":"kernel_gpu","coll_algobw_gbs":277.21,"coll_busbw_gbs":485.12}}
-`
-	testFile := filepath.Join(tmpDir, "nccl_output.jsonl")
-	err = os.WriteFile(testFile, []byte(testJSON), 0644)
-	require.NoError(t, err)
-
-	// Create parser
-	parser := NewParser(tmpDir)
-
-	// Parse events
-	events, err := parser.ParseNewEvents()
-	require.NoError(t, err)
-	assert.Len(t, events, 1)
-
-	// Verify event content
-	event := events[0].Event
-	assert.Equal(t, "abc123", event.ID)
-	assert.Equal(t, 0, event.Rank)
-	assert.Equal(t, 8, event.NRanks)
-	assert.Equal(t, 12345, event.PID)
-	assert.Equal(t, "worker-0", event.Hostname)
-	require.NotNil(t, event.CollPerf)
-	assert.Equal(t, "AllReduce", event.CollPerf.Collective)
-	assert.Equal(t, 61974.5, event.CollPerf.ExecTimeUS)
-	assert.Equal(t, 277.21, event.CollPerf.AlgoBandwidthGB)
-	assert.Equal(t, 485.12, event.CollPerf.BusBandwidthGB)
-	assert.Equal(t, int64(1048576), event.CollPerf.MsgSizeBytes)
-}
-
 func TestCheckNameConstant(t *testing.T) {
 	assert.Equal(t, "nccl", CheckName)
-}
-
-func TestDefaultConfigValues(t *testing.T) {
-	assert.Equal(t, "/var/log/datadog/nccl-inspector", defaultJSONDir)
-	assert.Equal(t, "1h", defaultFileRetention)
-}
-
-// --- extractRankFromFilename ---
-
-func TestExtractRankFromFilename(t *testing.T) {
-	tests := []struct {
-		filename string
-		want     int
-	}{
-		{"nccl-rank0-pid123.jsonl", 0},
-		{"nccl-rank3-pid456.jsonl", 3},
-		{"nccl-rank10-pid999.jsonl", 10},
-		{"/some/path/nccl-rank7-pid1.jsonl", 7},
-		{"socket:rank0-pid94", 0},
-		{"socket:rank1-pid50", 1},
-		{"socket:rank5-pid999", 5},
-		{"unrelated-file.jsonl", 0}, // falls back to 0
-	}
-	for _, tc := range tests {
-		t.Run(tc.filename, func(t *testing.T) {
-			assert.Equal(t, tc.want, extractRankFromFilename(tc.filename))
-		})
-	}
 }
 
 // --- hang detection ---
