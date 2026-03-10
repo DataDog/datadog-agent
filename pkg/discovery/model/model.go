@@ -22,7 +22,6 @@ type Service struct {
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
-	Type                     string                          `json:"service_type"`
 	UST                      UST                             `json:"ust"`
 }
 
