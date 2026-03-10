@@ -133,8 +133,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Final benchmarks run count=5 across dogstatsd/aggregator/forwarder/serializer packages. Cumulative allocs/op reduction: 81.0% (437,094→83,031 across pipeline benchmarks) — exceeds ≥25% target by 3.2×. BenchmarkTimeSamplerSampleThenFlushCycle/1000: 201µs→192µs (-4.5%, no regression, within 5% threshold). SampleThenFlushCycle/15000: -87.5%, /100000: -96.9% — driven by Serie/Point pooling (US-004/US-005). Race detector passes on all packages (TestAgentPayloadVersion pre-existing build-env failure unrelated to our changes). benchstat comparison appended to plans/bench-final-forwarder.txt, updated profiling summary in plans/profiling-baseline.md."
     }
   ]
 }

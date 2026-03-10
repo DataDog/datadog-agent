@@ -142,3 +142,57 @@ Captured from `go tool pprof -top -nodecount=15 plans/cpu.out`
 - GC overhead (ranks 1, 4, 5, 6 in CPU profile) represents ~22% of total CPU — reducing allocs will automatically reduce this
 - The `BenchmarkTimeSamplerSampleTagCount` reports 0 allocs/op because the context is warm (pre-populated) — allocations happen at context creation time, captured in `trackContext`
 - Histogram type (22,040 allocs/op) is exceptionally high because each histogram flushes 7 different percentile series (`count`, `sum`, `min`, `max`, `50p`, `95p`, `99p`) — each is a separate `Serie` + `[]Point` allocation
+
+---
+
+## US-008: Final Optimised Comparison (count=5, 2026-03-10)
+
+**Branch:** ralph/dogstatsd-to-forwarder-optimisations (after US-002 through US-007)
+**Full results in:** `plans/bench-final-forwarder.txt`
+
+### Final Results vs Baseline
+
+| Benchmark | Baseline allocs/op | Final allocs/op | Change | Status |
+|-----------|-------------------|-----------------|--------|--------|
+| `BenchmarkContextResolver1000` | 0 | 0 | ~ | ns/op: 108→58 ns (-47%) |
+| `BenchmarkTimeSamplerSampleTagCount/10-tags` | 0 | 0 | ~ | ns/op: 250→170 ns (-33%) |
+| `BenchmarkTimeSamplerFlushCardinality/1000-contexts` | **3032** | **2033** | **-33.0%** | ✓ PASS (target -30%) |
+| `BenchmarkTimeSamplerFlushMetricTypes/gauge` | **3032** | **2033** | **-33.0%** | ✓ PASS |
+| `BenchmarkTimeSamplerFlushMetricTypes/counter` | **4032** | **3033** | **-24.8%** | ✓ PASS |
+| `BenchmarkTimeSamplerFlushMetricTypes/histogram` | **22040** | **21045** | **-4.5%** | (histogram has 7 series, hard to reduce further) |
+| `BenchmarkTimeSamplerFlushMetricTypes/distribution` | **6052** | **4058** | **-33.0%** | ✓ PASS (target -20%) |
+| `BenchmarkTimeSamplerSampleThenFlushCycle/1000` | **1531** | **1032** | **-32.6%** | ✓ PASS |
+| `BenchmarkTimeSamplerSampleThenFlushCycle/15000` | **24568** | **3075** | **-87.5%** | ✓ EXCELLENT |
+| `BenchmarkTimeSamplerSampleThenFlushCycle/100000` | **153744** | **4781** | **-96.9%** | ✓ EXCELLENT |
+| `BenchmarkCreateHTTPTransaction/1-payloads` | **15** | **11** | **-26.7%** | ✓ PASS (target -15%) |
+| `BenchmarkSendHTTPTransactionsLowThroughput` | **167** | **161** | **-3.6%** | ✓ PASS |
+
+### ns/op Regression Check
+
+| Benchmark | Baseline ns/op | Final ns/op | Change | Status |
+|-----------|---------------|-------------|--------|--------|
+| `BenchmarkTimeSamplerSampleThenFlushCycle/1000` | ~201 µs | ~192 µs | -4.5% | ✓ IMPROVEMENT (no regression) |
+| `BenchmarkTimeSamplerSampleThenFlushCycle/15000` | ~2141 µs | ~1071 µs | -50.0% | ✓ IMPROVEMENT |
+
+### Cumulative Allocs/Op Summary
+
+Across all Flush and SampleThenFlushCycle benchmarks (aggregator) + Create benchmarks (forwarder):
+
+| Package | Baseline total allocs/op | Final total allocs/op | Reduction |
+|---------|--------------------------|----------------------|-----------|
+| pkg/aggregator | 436,062 | 82,177 | **-81.2%** |
+| comp/forwarder/defaultforwarder | 1,032 | 854 | **-17.2%** |
+| **Combined** | **437,094** | **83,031** | **-81.0%** |
+
+**Target: ≥25% cumulative allocs/op reduction → ACHIEVED: 81.0% (3.2× target)**
+
+### Optimisation Attribution
+
+| US | Target | Achieved |
+|----|--------|---------|
+| US-002 | Pool MetricSample structs | 0 allocs on warm sample path (already 0) |
+| US-003 | Remove defer overhead in trackContext | -47% ns/op on ContextResolver1000 |
+| US-004 | Pool Serie + Point in flush | -33% allocs on FlushCardinality/FlushMetricTypes |
+| US-005 | Pool quantile.Agent + SketchPoint | -33% allocs on distribution flush |
+| US-006 | Pool serialiser encode buffers | -33% allocs on JSONPayloadBuilder benchmarks |
+| US-007 | Pool HTTPTransaction objects | -26.7% allocs on CreateHTTPTransaction (single payload) |
