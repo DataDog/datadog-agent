@@ -16,6 +16,8 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -82,6 +84,8 @@ type TestBenchConfig struct {
 	ScenariosDir string
 	HTTPAddr     string
 	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
+	Cfg          config.Component
+	Logger       log.Component
 
 	// EnableOverrides controls which components are enabled at startup.
 	// Keys are component names (e.g. "cusum", "lead_lag").
@@ -1019,6 +1023,27 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, verbose bool) erro
 		fmt.Printf("Observer output written to %s\n", outputPath)
 	}
 
+	return nil
+}
+
+// RunSendAnomalyEvents loads a scenario, waits for correlators to finish, then
+// delegates to notify.go to send one Datadog event per correlation.
+// Whether events are actually sent is controlled by observer.event_reporter.sending_enabled in cfg.
+func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
+	if err := tb.LoadScenario(scenario); err != nil {
+		return fmt.Errorf("loading scenario %q: %w", scenario, err)
+	}
+
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	for tb.correlatorsProcessing {
+		tb.correlatorsDone.Wait()
+	}
+	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger)
+	if err != nil {
+		return err
+	}
+	sender.sendCorrelationEvents(tb.correlations)
 	return nil
 }
 
