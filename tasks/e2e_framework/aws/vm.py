@@ -100,6 +100,7 @@ def create_vm(
     if instance_type:
         if not architecture or architecture.lower() == get_default_architecture():
             extra_flags["ddinfra:aws/defaultInstanceType"] = instance_type
+            extra_flags["ddinfra:aws/defaultWindowsInstanceType"] = instance_type
         else:
             extra_flags["ddinfra:aws/defaultARMInstanceType"] = instance_type
 
