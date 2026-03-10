@@ -1034,8 +1034,8 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		if mode == gpuspec.DeviceModePhysical {
 			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
 				DeviceUUID: testutil.DefaultGpuUUID,
-				EventType: nvml.EventTypeXidCriticalError,
-				EventData: 31,
+				EventType:  nvml.EventTypeXidCriticalError,
+				EventData:  31,
 			}}))
 		}
 		mockSender.ResetCalls()
