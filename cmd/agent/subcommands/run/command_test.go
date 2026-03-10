@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

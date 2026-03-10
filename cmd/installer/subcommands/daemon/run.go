@@ -17,13 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	localapiimplFx "github.com/DataDog/datadog-agent/comp/updater/localapi/fx"
-	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
+	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -61,7 +61,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
 		localapiimplFx.Module(),
-		telemetryimpl.Module(),
+		updatertelemetryfx.Module(),
 		fx.Supply(pidimpl.NewParams(global.PIDFilePath)),
 		ipcfx.ModuleReadWrite(),
 	)
