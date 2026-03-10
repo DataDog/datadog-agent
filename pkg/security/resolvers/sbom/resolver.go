@@ -655,6 +655,8 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
+		seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+
 		oldLastAccess := pkg.LastAccess
 		oldSuidBit := pkg.SuidBit
 		oldAccessedByRoot := pkg.AccessedByRoot
