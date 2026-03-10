@@ -10,6 +10,7 @@ use tonic::Status;
 pub struct ReloadResult {
     pub added: Vec<String>,
     pub removed: Vec<String>,
+    pub modified: Vec<String>,
     pub unchanged: Vec<String>,
 }
 

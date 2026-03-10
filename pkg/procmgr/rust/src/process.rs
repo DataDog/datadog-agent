@@ -146,6 +146,11 @@ impl ManagedProcess {
         &self.config
     }
 
+    pub fn set_config(&mut self, config: ProcessConfig) {
+        self.restarts = RestartTracker::new(config.restart_delay());
+        self.config = config;
+    }
+
     fn transition_to(&mut self, next: ProcessState) {
         if !self.state.can_transition_to(next) {
             let msg = format!(

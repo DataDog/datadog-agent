@@ -172,7 +172,7 @@ impl fmt::Display for RestartPolicy {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProcessConfig {
     #[serde(default)]
     #[allow(dead_code)]

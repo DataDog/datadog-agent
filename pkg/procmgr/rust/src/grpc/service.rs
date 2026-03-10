@@ -165,6 +165,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         Ok(Response::new(proto::ReloadConfigResponse {
             added: result.added,
             removed: result.removed,
+            modified: result.modified,
             unchanged: result.unchanged,
         }))
     }

@@ -107,7 +107,8 @@ message ReloadConfigRequest {}
 message ReloadConfigResponse {
   repeated string added = 1;
   repeated string removed = 2;
-  repeated string unchanged = 3;
+  repeated string modified = 3;
+  repeated string unchanged = 4;
 }
 
 message GetStatusRequest {}

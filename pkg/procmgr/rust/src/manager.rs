@@ -256,10 +256,8 @@ impl ProcessManager {
 
         let mut removed = Vec::new();
         let mut stopped_procs = Vec::new();
-        let existing_names: std::collections::HashSet<String>;
         {
             let mut procs = self.processes.write().await;
-            existing_names = procs.iter().map(|p| p.name().to_owned()).collect();
             let mut i = 0;
             while i < procs.len() {
                 if procs[i].origin() == ProcessOrigin::Config
@@ -283,12 +281,24 @@ impl ProcessManager {
         }
 
         let mut added = Vec::new();
+        let mut modified = Vec::new();
+        let mut modified_running: Vec<String> = Vec::new();
         let mut unchanged = Vec::new();
         {
             let mut procs = self.processes.write().await;
             for np in new_configs {
-                if existing_names.contains(&np.name) {
-                    unchanged.push(np.name);
+                if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
+                    if *existing.config() != np.config {
+                        info!("[{}] config changed, updating", np.name);
+                        if existing.is_running() {
+                            existing.request_stop();
+                            modified_running.push(np.name.clone());
+                        }
+                        existing.set_config(np.config);
+                        modified.push(np.name);
+                    } else {
+                        unchanged.push(np.name);
+                    }
                 } else {
                     info!("[{}] new config found, adding", np.name);
                     let mut proc = ManagedProcess::new_config(np.name.clone(), np.config);
@@ -305,10 +315,28 @@ impl ProcessManager {
             }
         }
 
+        // Wait for modified processes that were running to stop, then restart
+        // with the new config.
+        {
+            let mut procs = self.processes.write().await;
+            for name in &modified_running {
+                if let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) {
+                    proc.wait_for_stop().await;
+                    info!("[{name}] restarting with updated config");
+                    if let Err(e) = proc.spawn() {
+                        warn!("[{name}] failed to restart: {e:#}");
+                    } else {
+                        spawn_watcher(proc, exit_tx.clone());
+                    }
+                }
+            }
+        }
+
         self.update_startup_order().await;
         Ok(ReloadResult {
             added,
             removed,
+            modified,
             unchanged,
         })
     }
@@ -426,6 +454,97 @@ mod tests {
             nix::sys::signal::Signal::SIGKILL,
         )
         .ok();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_updates_modified_config() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        let old_pid = {
+            let procs = mgr.processes().await;
+            assert!(procs[0].is_running());
+            assert_eq!(procs[0].config().args, vec!["60"]);
+            procs[0].pid().unwrap()
+        };
+
+        // Reload with modified config (different args)
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["120".to_string()],
+                ..Default::default()
+            },
+        }]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.modified.contains(&"svc-a".to_string()));
+        assert!(result.added.is_empty());
+        assert!(result.removed.is_empty());
+        assert!(result.unchanged.is_empty());
+
+        // Config should be updated and process restarted with a new PID
+        let procs = mgr.processes().await;
+        assert_eq!(procs[0].config().args, vec!["120"]);
+        assert!(
+            procs[0].is_running(),
+            "modified running process should be restarted"
+        );
+        assert_ne!(
+            procs[0].pid().unwrap(),
+            old_pid,
+            "restarted process should have a different PID"
+        );
+
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(procs[0].pid().unwrap() as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_not_running_stays_stopped() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        // Don't start svc-a — leave it in Created state
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["120".to_string()],
+                ..Default::default()
+            },
+        }]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.modified.contains(&"svc-a".to_string()));
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs[0].config().args, vec!["120"]);
+        assert!(
+            !procs[0].is_running(),
+            "non-running modified process should not be started"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_unchanged_config_not_modified() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        // Reload with the exact same config
+        config_loader.set(vec![sleep_def("svc-a")]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.unchanged.contains(&"svc-a".to_string()));
+        assert!(result.modified.is_empty());
         Ok(())
     }
 
