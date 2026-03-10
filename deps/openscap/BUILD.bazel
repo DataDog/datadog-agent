@@ -46,7 +46,6 @@ pkg_filegroup(
         "@gcrypt//:all_files",
         "@libselinux//:all_files",
         "@libyaml//:all_files",
-        "@pcre2//:all_files",
         "@popt//:all_files",
         "@rpm//:all_files",
         "@util-linux//:all_files",
