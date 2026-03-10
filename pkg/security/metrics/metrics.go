@@ -68,9 +68,9 @@ var (
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 	// MetricDentryCacheSize is the size of the cache
 	MetricDentryCacheSize = newRuntimeMetric(".dentry_resolver.cache_size")
-	// MetricDentryERPCResolutionTimeMs is the counter of eRPC dentry resolution errors by error type
+	// MetricDentryERPCResolutionTimeUs is the counter of eRPC average erpc dentry resolution time in a given instant, in microseconds
 	// Tags: -
-	MetricDentryERPCResolutionTimeMs = newRuntimeMetric(".dentry_resolver.erpc_resolution_time_ms")
+	MetricDentryERPCResolutionTimeUs = newRuntimeMetric(".dentry_resolver.erpc_avg_resolution_time_usec")
 
 	// DNS Resolver metrics
 

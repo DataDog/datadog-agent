@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -69,9 +70,12 @@ type Resolver struct {
 	keys             []model.PathKey
 	cacheNameEntries [][]byte
 
-	hitsCounters        map[counterEntry]*atomic.Int64
-	missCounters        map[counterEntry]*atomic.Int64
-	erpcResolutionTimes atomic.Int64
+	hitsCounters map[counterEntry]*atomic.Int64
+	missCounters map[counterEntry]*atomic.Int64
+
+	erpcResolutionAvgTime   int64
+	erpcResolutionNumValues int64
+	erpcResolutionTimesLock sync.Mutex
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -142,8 +146,13 @@ func (dr *Resolver) SendStats() error {
 
 	_ = dr.statsdClient.Gauge(metrics.MetricDentryCacheSize, float64(dr.cache.Len()), []string{}, 1)
 
-	timeMs := dr.erpcResolutionTimes.Swap(0)
-	_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeMs, float64(timeMs), nil, 1)
+	dr.erpcResolutionTimesLock.Lock()
+	avgTime := dr.erpcResolutionAvgTime
+	dr.erpcResolutionNumValues = 0
+	dr.erpcResolutionAvgTime = 0
+	dr.erpcResolutionTimesLock.Unlock()
+
+	_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeUs, float64(avgTime), nil, 1)
 
 	return dr.sendERPCStats()
 }
@@ -577,12 +586,13 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		t := time.Now()
 		path, err = dr.ResolveFromERPC(pathKey, cache)
-		durationMs := time.Since(t).Milliseconds()
-		lastErpcTime := dr.erpcResolutionTimes.Load()
-		if durationMs > lastErpcTime {
-			dr.erpcResolutionTimes.CompareAndSwap(lastErpcTime, durationMs)
-		}
+		durationMicrosec := time.Since(t).Microseconds()
 
+		// update in-line average
+		dr.erpcResolutionTimesLock.Lock()
+		dr.erpcResolutionNumValues++
+		dr.erpcResolutionAvgTime += (durationMicrosec - dr.erpcResolutionAvgTime) / dr.erpcResolutionNumValues
+		dr.erpcResolutionTimesLock.Unlock()
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(pathKey, cache)
