@@ -1447,6 +1447,7 @@ type ECSTask struct {
 	ExecutionStoppedAt      *time.Time         `proto:"ignore"`
 	VPCID                   string             `proto:"ignore"`
 	ServiceName             string             `proto:"ignore"`
+	DaemonName              string             `proto:"ignore"`
 	EphemeralStorageMetrics map[string]int64   `proto:"ignore"`
 	Limits                  map[string]float64 `proto:"ignore"`
 	LaunchType              ECSLaunchType

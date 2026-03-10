@@ -36,6 +36,10 @@ const (
 	taskMetadataPath         = "/task"
 	taskMetadataWithTagsPath = "/taskWithTags"
 	containerStatsPath       = "/task/stats"
+	// tasksMetadataPath is the path for the /tasks endpoint, which returns all tasks on the host.
+	// This is available in daemon mode (e.g. ECS Managed Instances) and returns a list of tasks
+	// rather than the single task for the current container.
+	tasksMetadataPath = "/tasks"
 )
 
 // Client is an interface for ECS metadata v3 and v4 API clients.
@@ -44,6 +48,10 @@ type Client interface {
 	GetContainer(ctx context.Context) (*Container, error)
 	GetContainerStats(ctx context.Context, id string) (*ContainerStatsV4, error)
 	GetTaskWithTags(ctx context.Context) (*Task, error)
+	// GetTasks returns all tasks running on the host. This endpoint is available in daemon
+	// mode (e.g. ECS Managed Instances) and returns the full task list in a single call,
+	// including DaemonName for daemon-scheduled tasks.
+	GetTasks(ctx context.Context) ([]Task, error)
 }
 
 // Client represents a client for a metadata v3 or v4 API endpoint.
@@ -116,6 +124,17 @@ func (c *client) GetTask(ctx context.Context) (*Task, error) {
 // GetTaskWithTags returns the current task, including propagated resource tags.
 func (c *client) GetTaskWithTags(ctx context.Context) (*Task, error) {
 	return c.getTaskMetadataAtPath(ctx, taskMetadataWithTagsPath)
+}
+
+// GetTasks returns all tasks running on the host via the /tasks endpoint.
+// This is available in daemon mode (e.g. ECS Managed Instances) and provides
+// a full host-level view of tasks in a single call.
+func (c *client) GetTasks(ctx context.Context) ([]Task, error) {
+	var tasks []Task
+	if err := c.get(ctx, tasksMetadataPath, &tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 func (c *client) get(ctx context.Context, path string, v interface{}) error {

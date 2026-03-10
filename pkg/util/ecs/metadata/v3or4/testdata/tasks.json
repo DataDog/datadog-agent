@@ -1,0 +1,46 @@
+[
+  {
+    "Cluster": "arn:aws:ecs:us-east-1:123457279990:cluster/ecs-cluster",
+    "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/aaa111bbb222ccc333ddd444eee55500",
+    "Family": "my-service",
+    "Revision": "2",
+    "DesiredStatus": "RUNNING",
+    "KnownStatus": "RUNNING",
+    "LaunchType": "MANAGED_INSTANCES",
+    "ServiceName": "my-service",
+    "Containers": [
+      {
+        "DockerId": "aaa111bbb222ccc333ddd444eee55500-1234567890",
+        "Name": "my-service",
+        "DockerName": "my-service",
+        "Image": "my-service:latest",
+        "ImageID": "sha256:aabbcc",
+        "DesiredStatus": "RUNNING",
+        "KnownStatus": "RUNNING",
+        "Type": "NORMAL"
+      }
+    ]
+  },
+  {
+    "Cluster": "arn:aws:ecs:us-east-1:123457279990:cluster/ecs-cluster",
+    "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/fff666eee555ddd444ccc333bbb22200",
+    "Family": "my-daemon",
+    "Revision": "1",
+    "DesiredStatus": "RUNNING",
+    "KnownStatus": "RUNNING",
+    "LaunchType": "MANAGED_INSTANCES",
+    "DaemonName": "my-daemon",
+    "Containers": [
+      {
+        "DockerId": "fff666eee555ddd444ccc333bbb22200-0987654321",
+        "Name": "my-daemon",
+        "DockerName": "my-daemon",
+        "Image": "my-daemon:latest",
+        "ImageID": "sha256:ddeeff",
+        "DesiredStatus": "RUNNING",
+        "KnownStatus": "RUNNING",
+        "Type": "NORMAL"
+      }
+    ]
+  }
+]
