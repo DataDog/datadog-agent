@@ -29,7 +29,7 @@ func GetRtLoader() *C.rtloader_t {
 	var pythonHome *C.char
 
 	// Specific setup for when we're running the tests with bazel
-	if os.Getenv("BAZEL_TEST") == "1" {
+	if isBazel() {
 		if runtime.GOOS == "windows" {
 			// Temporarily add the path to where the "three" dll is available to PATH
 			// so that it can be found by `LoadLibrary`
@@ -39,8 +39,6 @@ func GetRtLoader() *C.rtloader_t {
 			// On Windows, the python library file sits at the root of the Python Home
 			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
 			defer C.free(unsafe.Pointer(pythonHome))
-			// Add Python stubs to the PYTHONPATH
-			os.Setenv("PYTHONPATH", rlocationPathFromEnv("STUBS_LOCATION"))
 		} else {
 			// Python Home is a level up from the path to the binary
 			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
@@ -48,11 +46,31 @@ func GetRtLoader() *C.rtloader_t {
 		}
 	}
 
-	rv := C.make3(pythonHome, executablePath, &err)
+	rtloader := C.make3(pythonHome, executablePath, &err)
 	if err != nil {
-		fmt.Printf("Error: %s", C.GoString(err))
+		fmt.Printf("Error: %s\n", C.GoString(err))
 	}
-	return rv
+	addStubsToPythonPath(rtloader)
+	return rtloader
+}
+
+// addStubsToPythonPath puts Python stubs to the PYTHONPATH, based on whether tests
+// are running from bazel and OS
+func addStubsToPythonPath(rtloader *C.rtloader_t) {
+	if isBazel() {
+		// On bazel, we set the PYTHONPATH on the rule, except on Windows where
+		// we need to pass the rlocation to make it work without runfiles support
+		if runtime.GOOS == "windows" {
+			C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
+		}
+	} else {
+		// Pre-bazel default
+		C.add_python_path(rtloader, C.CString("../python"))
+	}
+}
+
+func isBazel() bool {
+	return os.Getenv("BAZEL_TEST") == "1"
 }
 
 func rlocationPathFromEnv(envvar string) string {
