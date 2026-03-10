@@ -97,6 +97,7 @@ type CorrShiftDetector struct {
 	recentNorms []float64
 
 	// firedSeries tracks which series have already fired at which timestamp to avoid dups.
+	// Pruned when it exceeds maxFiredEntries to bound memory.
 	firedSeries map[string]bool
 }
 
@@ -432,6 +433,12 @@ func (d *CorrShiftDetector) detectChanges(data corrAlignedData, series []corrSer
 				if delta, ok := involvedSeries[p.seriesB]; !ok || p.delta > delta {
 					involvedSeries[p.seriesB] = p.delta
 				}
+			}
+
+			// Prune dedup map to bound memory growth.
+			const maxFiredEntries = 10000
+			if len(d.firedSeries) > maxFiredEntries {
+				d.firedSeries = make(map[string]bool)
 			}
 
 			for sIdx, maxDelta := range involvedSeries {

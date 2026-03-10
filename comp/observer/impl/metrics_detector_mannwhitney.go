@@ -173,8 +173,8 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.DetectionR
 	afterMedian := detectorMedian(afterVals)
 
 	// Also compute means for relative change check
-	baselineMean := mean(series.Points[beforeStart:bestSplit])
-	baselineStddev := sampleStddev(series.Points[beforeStart:bestSplit], baselineMean)
+	baselineMean := detectorMeanValues(beforeVals)
+	baselineStddev := detectorSampleStddev(beforeVals, baselineMean)
 	afterMean := detectorMeanValues(afterVals)
 
 	// Filter 3: robust deviation check using median/MAD

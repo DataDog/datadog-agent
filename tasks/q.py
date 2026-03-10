@@ -213,82 +213,104 @@ def eval_detectors(
                     print(color_message(f"    FAILED: {e}", Color.RED))
                     continue
 
-                # Score: always do timestamp scoring; add --score-metrics for L1
-                score_metrics_flag = " --score-metrics" if level_name == "L1" else ""
+                # L1: per-metric scoring; L2: timestamp scoring
                 try:
-                    scorer_result = ctx.run(
-                        f"bin/observer-scorer --input {shlex.quote(output_path)}"
-                        f" --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json"
-                        f"{score_metrics_flag}",
-                        hide=True,
-                    )
-                    score = json.loads(scorer_result.stdout.strip())
+                    if level_name == "L1":
+                        scorer_result = ctx.run(
+                            f"bin/observer-scorer --input {shlex.quote(output_path)}"
+                            f" --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json --score-metrics",
+                            hide=True,
+                        )
+                        score = json.loads(scorer_result.stdout.strip())
+                        metrics = score.get("metrics") or {}
+                        results.append({
+                            "scenario": scn,
+                            "detector": det,
+                            "level": level_name,
+                            "correlator": correlator,
+                            "m_tp": metrics.get("tp_count", 0),
+                            "m_fp": metrics.get("fp_count", 0),
+                            "m_unk": metrics.get("unknown_count", 0),
+                            "m_prec": metrics.get("metric_precision", 0),
+                            "m_rec": metrics.get("metric_recall", 0),
+                            "m_f1": metrics.get("metric_f1", 0),
+                            "detections": metrics.get("detections", []),
+                            "unknown_metric_count": metrics.get("unknown_metric_count", 0),
+                            "unknown_detection_count": metrics.get("unknown_detection_count", 0),
+                        })
+                    else:
+                        scorer_result = ctx.run(
+                            f"bin/observer-scorer --input {shlex.quote(output_path)}"
+                            f" --scenarios-dir {shlex.quote(scenarios_dir)} --sigma {sigma} --json",
+                            hide=True,
+                        )
+                        score = json.loads(scorer_result.stdout.strip())
+                        results.append({
+                            "scenario": scn,
+                            "detector": det,
+                            "level": level_name,
+                            "correlator": correlator,
+                            "f1": score.get("f1", 0),
+                            "precision": score.get("precision", 0),
+                            "recall": score.get("recall", 0),
+                            "scored": score.get("num_predictions", 0),
+                            "warmup": score.get("num_filtered_warmup", 0),
+                            "cascading": score.get("num_filtered_cascading", 0),
+                        })
                 except Exception as e:
                     print(color_message(f"    Scoring failed: {e}", Color.RED))
                     continue
-
-                metrics = score.get("metrics") or {}
-                results.append({
-                    "scenario": scn,
-                    "detector": det,
-                    "level": level_name,
-                    "correlator": correlator,
-                    "f1": score.get("f1", 0),
-                    "precision": score.get("precision", 0),
-                    "recall": score.get("recall", 0),
-                    "scored": score.get("num_predictions", 0),
-                    "warmup": score.get("num_filtered_warmup", 0),
-                    "cascading": score.get("num_filtered_cascading", 0),
-                    "m_tp": metrics.get("tp_count", ""),
-                    "m_fp": metrics.get("fp_count", ""),
-                    "m_unk": metrics.get("unknown_count", ""),
-                    "m_prec": metrics.get("metric_precision", ""),
-                    "m_rec": metrics.get("metric_recall", ""),
-                    "detections": metrics.get("detections", []),
-                    "unknown_metric_count": metrics.get("unknown_metric_count", 0),
-                    "unknown_detection_count": metrics.get("unknown_detection_count", 0),
-                })
 
     # Print comparison matrix
     if not results:
         print(color_message("No results collected.", Color.RED))
         return
 
-    print(color_message(f"\n{'='*90}", Color.GREEN))
-    print(color_message("  Detector Eval Matrix", Color.GREEN))
-    print(color_message(f"{'='*90}\n", Color.GREEN))
+    l2_results = [r for r in results if r["level"] == "L2"]
+    l1_results = [r for r in results if r["level"] == "L1"]
 
-    header = (
-        f"{'Scenario':<22} {'Detector':<10} {'Level':<5}"
-        f" {'F1':>6} {'Prec':>6} {'Rec':>6} {'Scored':>6}"
-        f" {'mTP':>5} {'mFP':>5} {'mUnk':>5} {'mPrec':>6} {'mRec':>6}"
-    )
-    print(header)
-    print("-" * len(header))
+    # L2: Timestamp Detection
+    if l2_results:
+        print(color_message(f"\n{'='*70}", Color.GREEN))
+        print(color_message("  L2 — Timestamp Detection (TimeCluster)", Color.GREEN))
+        print(color_message(f"{'='*70}\n", Color.GREEN))
 
-    for r in results:
-        # Metric columns: show values for L1, blank for L2
-        m_tp = f"{r['m_tp']:>5}" if r['m_tp'] != "" else "    -"
-        m_fp = f"{r['m_fp']:>5}" if r['m_fp'] != "" else "    -"
-        m_unk = f"{r['m_unk']:>5}" if r['m_unk'] != "" else "    -"
-        m_prec = f"{r['m_prec']:>6.4f}" if r['m_prec'] != "" else "     -"
-        m_rec = f"{r['m_rec']:>6.4f}" if r['m_rec'] != "" else "     -"
+        header = f"{'Scenario':<22} {'Detector':<12} {'F1':>6} {'Prec':>6} {'Rec':>6} {'Scored':>6}"
+        print(header)
+        print("-" * len(header))
 
-        print(
-            f"{r['scenario']:<22} {r['detector']:<10} {r['level']:<5}"
-            f" {r['f1']:>6.4f} {r['precision']:>6.4f} {r['recall']:>6.4f}"
-            f" {r['scored']:>6}"
-            f" {m_tp} {m_fp} {m_unk} {m_prec} {m_rec}"
-        )
+        for r in l2_results:
+            print(
+                f"{r['scenario']:<22} {r['detector']:<12}"
+                f" {r['f1']:>6.4f} {r['precision']:>6.4f} {r['recall']:>6.4f}"
+                f" {r['scored']:>6}"
+            )
+
+    # L1: Per-Metric Scoring
+    if l1_results:
+        print(color_message(f"\n{'='*70}", Color.GREEN))
+        print(color_message("  L1 — Per-Metric Scoring (Passthrough)", Color.GREEN))
+        print(color_message(f"{'='*70}\n", Color.GREEN))
+
+        header = f"{'Scenario':<22} {'Detector':<12} {'mTP':>5} {'mFP':>5} {'mUnk':>5} {'mPrec':>6} {'mRec':>6} {'mF1':>6}"
+        print(header)
+        print("-" * len(header))
+
+        for r in l1_results:
+            print(
+                f"{r['scenario']:<22} {r['detector']:<12}"
+                f" {r['m_tp']:>5} {r['m_fp']:>5} {r['m_unk']:>5}"
+                f" {r['m_prec']:>6.4f} {r['m_rec']:>6.4f} {r['m_f1']:>6.4f}"
+            )
 
     # Per-metric detection detail for L1 results
-    l1_results = [r for r in results if r["level"] == "L1" and r.get("detections")]
-    if l1_results:
+    l1_detail = [r for r in results if r["level"] == "L1" and r.get("detections")]
+    if l1_detail:
         print(color_message(f"\n{'='*90}", Color.GREEN))
         print(color_message("  Per-Metric Detection Detail (L1 only)", Color.GREEN))
         print(color_message(f"{'='*90}", Color.GREEN))
 
-        for r in l1_results:
+        for r in l1_detail:
             print(f"\n  {r['scenario']} / {r['detector']}:")
             tp_dets = [d for d in r["detections"] if d["classification"] == "tp"]
             fp_dets = [d for d in r["detections"] if d["classification"] == "fp"]

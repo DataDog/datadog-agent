@@ -46,10 +46,10 @@ func TestScoreMetrics_Basic(t *testing.T) {
 
 	output := &ObserverOutput{
 		AnomalyPeriods: []ObserverCorrelation{
-			{Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},             // TP
-			{Anomalies: []ObserverAnomaly{{Source: "redis.mem.used"}}},            // FP
-			{Anomalies: []ObserverAnomaly{{Source: "some.other.metric"}}},         // unknown
-			{Anomalies: []ObserverAnomaly{{Source: "trace.http.request.hits"}}},   // TP
+			{Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},           // TP
+			{Anomalies: []ObserverAnomaly{{Source: "redis.mem.used"}}},          // FP
+			{Anomalies: []ObserverAnomaly{{Source: "some.other.metric"}}},       // unknown
+			{Anomalies: []ObserverAnomaly{{Source: "trace.http.request.hits"}}}, // TP
 		},
 	}
 
@@ -154,7 +154,7 @@ func TestScoreMetrics_Detections_FirstSeenAndCount(t *testing.T) {
 	output := &ObserverOutput{
 		AnomalyPeriods: []ObserverCorrelation{
 			{PeriodStart: 1000, Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},
-			{PeriodStart: 1100, Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},    // second hit
+			{PeriodStart: 1100, Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},     // second hit
 			{PeriodStart: 1050, Anomalies: []ObserverAnomaly{{Source: "redis.mem.used"}}},    // FP fires
 			{PeriodStart: 1200, Anomalies: []ObserverAnomaly{{Source: "some.other.metric"}}}, // unknown
 		},

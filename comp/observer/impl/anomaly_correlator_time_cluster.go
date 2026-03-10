@@ -254,9 +254,9 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 		"total_clusters":       len(c.clusters),
 		"total_anomalies":      totalAnomalies,
 		"largest_cluster_size": maxClusterSize,
-		"proximity_seconds": c.config.ProximitySeconds,
-		"window_seconds":    c.config.WindowSeconds,
-		"current_data_time": c.currentDataTime,
+		"proximity_seconds":    c.config.ProximitySeconds,
+		"window_seconds":       c.config.WindowSeconds,
+		"current_data_time":    c.currentDataTime,
 	}
 }
 

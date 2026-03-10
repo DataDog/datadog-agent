@@ -68,6 +68,20 @@ func detectorMeanValues(vals []float64) float64 {
 	return sum / float64(len(vals))
 }
 
+// detectorSampleStddev computes the sample standard deviation of a float64 slice.
+func detectorSampleStddev(vals []float64, mean float64) float64 {
+	n := len(vals)
+	if n < 2 {
+		return 0
+	}
+	var sumSq float64
+	for _, v := range vals {
+		d := v - mean
+		sumSq += d * d
+	}
+	return math.Sqrt(sumSq / float64(n-1))
+}
+
 // detectorSeriesLabel builds a human-readable label from a SeriesKey.
 // Format: "service/metricName" if a service tag exists, else "namespace/metricName".
 func detectorSeriesLabel(key observer.SeriesKey) string {
