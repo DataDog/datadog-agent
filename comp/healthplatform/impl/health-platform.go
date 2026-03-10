@@ -731,6 +731,7 @@ func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	report := &healthplatform.HealthReport{
 		EventType: "agent.health",
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		Service:   safeGetFlavor(),
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
 			AgentVersion: &agentVersion,
