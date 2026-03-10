@@ -27,7 +27,7 @@ void c_callCgoFree(void *ptr) {
 #else
 #include <dlfcn.h>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__FreeBSD__)
 #  define THREE_LIB "libdatadog-agent-three.so"
 #elif defined(__APPLE__)
 #  define THREE_LIB "libdatadog-agent-three.dylib"
