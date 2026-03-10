@@ -8,6 +8,7 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from pathlib import Path
 
 import yaml
 from invoke.exceptions import Exit
@@ -202,7 +203,7 @@ def python(ctx, show_versions=False):
 # === GITHUB === #
 @task
 def releasenote(ctx):
-    """Lints release notes with Reno."""
+    """Lints release notes."""
 
     branch = os.environ.get("BRANCH_NAME")
     pr_id = os.environ.get("PR_ID")
@@ -233,17 +234,18 @@ def releasenote(ctx):
             )
             file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
             if file_list:
-                rst_releasenotes(ctx, files=",".join(file_list))
+                lint_releasenotes(ctx, files=",".join(file_list))
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
 
 
 @task
-def rst_releasenotes(ctx, files=None, only_changed=False):
-    """Check release notes for structural issues.
+def lint_releasenotes(ctx, files=None, only_changed=False):
+    """Check release notes for structural issues and perform a trial assembly.
 
     Validates that release notes are valid YAML with known sections and correct
-    content types. Content is Markdown; no RST validation is performed.
+    content types, then performs a dry-run assembly to confirm all fragments
+    combine without errors. Content is Markdown.
 
     Args:
         files: Optional comma-separated list of files to lint. If not provided,
@@ -251,7 +253,8 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         only_changed: If True, only lint release note files that have been modified
                       compared to the base branch. Used in CI to only check PR files.
     """
-    from tasks.libs.linter.releasenotes import lint_releasenotes
+    from tasks.libs.linter.releasenotes import lint_releasenotes as _lint_files
+    from tasks.libs.releasing.notes import _assemble_changelog
 
     if files:
         file_list = [f.strip() for f in files.split(',') if f.strip()]
@@ -271,7 +274,7 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         print(color_message("No release note files to lint", "yellow"))
         return
 
-    results = lint_releasenotes(file_list)
+    results = _lint_files(file_list)
 
     if results:
         print(color_message("Issues found in release notes:", "red"))
@@ -282,6 +285,21 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         raise Exit(code=1)
 
     print(color_message(f"All {len(file_list)} release note files are valid", "green"))
+
+    # Trial assembly: confirm all fragments in each affected directory combine cleanly.
+    dirs_to_check = set()
+    for f in file_list:
+        parts = Path(f).parts
+        if parts:
+            dirs_to_check.add(parts[0])
+
+    for fragment_dir in sorted(dirs_to_check):
+        try:
+            _assemble_changelog(fragment_dir, 'draft')
+            print(color_message(f"Trial assembly of {fragment_dir} succeeded", "green"))
+        except Exception as e:
+            print(color_message(f"Trial assembly of {fragment_dir} failed: {e}", "red"))
+            raise Exit(code=1)
 
 
 @task

@@ -80,4 +80,4 @@ lint_releasenotes:
   extends: .lint
   rules: !reference [.on_releasenotes_changes]
   script:
-    - dda inv -- -e linter.rst-releasenotes --only-changed
+    - dda inv -- -e linter.lint-releasenotes --only-changed
