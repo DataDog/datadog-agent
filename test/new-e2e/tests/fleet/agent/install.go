@@ -21,9 +21,17 @@ import (
 )
 
 const (
-	linuxInstallScriptURL   = "https://install.datadoghq.com/scripts/install_script_agent7.sh"
-	windowsInstallScriptURL = "https://install.datadoghq.com/Install-Datadog.ps1"
+	defaultLinuxInstallScriptURL = "https://install.datadoghq.com/scripts/install_script_agent7.sh"
+	windowsInstallScriptURL      = "https://install.datadoghq.com/Install-Datadog.ps1"
 )
+
+func linuxInstallScriptURL() string {
+	if url, ok := os.LookupEnv("E2E_INSTALL_SCRIPT_URL"); ok {
+		return url
+	}
+	// TODO: remove once nschweitzer/speedup-install-script is merged and released
+	return "https://gist.githubusercontent.com/chouetz/86def624c8bd7a9a70121d244f8dcd52/raw/install_script_agent7.sh"
+}
 
 // InstallOption is an optional function parameter type for InstallParams options
 type InstallOption func(*installParams)
@@ -136,7 +144,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
 		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
-	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
+	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL()), client.WithEnvVariables(env))
 	return err
 }
 

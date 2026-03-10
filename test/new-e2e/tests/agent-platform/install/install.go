@@ -8,6 +8,7 @@ package install
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -65,9 +66,14 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	t.Run("Installing the agent", func(tt *testing.T) {
 		var downloadCmd string
 		var source string
+		// TODO: remove gist override once nschweitzer/speedup-install-script is merged and released
+		installScriptURL := "https://gist.githubusercontent.com/chouetz/86def624c8bd7a9a70121d244f8dcd52/raw/install_script_agent7.sh"
+		if customURL, ok := os.LookupEnv("E2E_INSTALL_SCRIPT_URL"); ok {
+			installScriptURL = customURL
+		}
 		if params.MajorVersion != "5" {
-			source = "S3"
-			downloadCmd = fmt.Sprintf(`curl -L  https://install.datadoghq.com/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			source = "custom URL"
+			downloadCmd = fmt.Sprintf(`curl -L  %s > installscript.sh`, installScriptURL)
 		} else {
 			source = "dd-agent repository"
 			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
@@ -102,7 +108,11 @@ func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Opti
 	exports = append(exports, "DD_SYSTEMDAEMON_INSTALL=true")
 	env := strings.Join(exports, " ")
 	// Retry curl few times
-	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, apikey, env)
+	macOSInstallScriptURL := "https://install.datadoghq.com/scripts/install_mac_os.sh"
+	if customURL, ok := os.LookupEnv("E2E_MACOS_INSTALL_SCRIPT_URL"); ok {
+		macOSInstallScriptURL = customURL
+	}
+	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL %s -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, macOSInstallScriptURL, apikey, env)
 
 	t.Run("Installing the agent", func(tt *testing.T) {
 		_, err := client.ExecuteWithRetry(cmd)
