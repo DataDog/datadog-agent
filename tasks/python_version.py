@@ -99,7 +99,7 @@ def update(
         print(f"  ✓ Updated {file_path}")
 
     if release_note:
-        releasenote_path = _create_releasenote(ctx, current_version, target_version)
+        releasenote_path = _create_releasenote(current_version, target_version)
         if releasenote_path:
             print(color_message(f"Release note created at {releasenote_path}", "green"))
 
@@ -138,9 +138,9 @@ def _validate_sha256(hash_str: str) -> bool:
 
 def _url_get(url: str, timeout: int = 30) -> str:
     """Fetch a URL and return its text content."""
-    ctx = ssl.create_default_context()
+    ssl_ctx = ssl.create_default_context()
     req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
+    with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
         return response.read().decode('utf-8')
 
 
@@ -295,7 +295,7 @@ def _prepare_test_update(version: str) -> tuple[Path, str]:
     return (file_path, new_content)
 
 
-def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str | None:
+def _create_releasenote(old_version: str, new_version: str) -> str:
     """Create a release note for the Python patch version update."""
     from tasks.libs.releasing.notes import _new_fragment_path
 
@@ -307,6 +307,6 @@ enhancements:
 
     path = _new_fragment_path('releasenotes', f'bump-python-to-{new_version}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(template)
+    path.write_text(template, encoding='utf-8')
 
     return str(path)

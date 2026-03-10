@@ -1,3 +1,4 @@
+import shlex
 import sys
 from datetime import date
 
@@ -50,9 +51,9 @@ def new(ctx, slug, dca=False, installscript=False):
             section_lines.append(f"# {key}:\n#   - |\n#     {title}.\n")
 
     template = "---\n# Fill in the relevant section(s) below. Delete sections that don't apply.\n# Content should be written in Markdown.\n\n"
-    template += "\n".join(section_lines)
+    template += "".join(section_lines)
 
-    with open(note_path, 'w') as f:
+    with open(note_path, 'w', encoding='utf-8') as f:
         f.write(template)
 
     print(f"Created release note: {note_path}")
@@ -86,14 +87,14 @@ def add_installscript_prelude(ctx, release_branch):
         note_path = _new_fragment_path('releasenotes-installscript', f'prelude-release-{version}')
         note_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(note_path, 'w') as f:
+        with open(note_path, 'w', encoding='utf-8') as f:
             f.write(
                 f"""prelude: |
   Released on: {date.today()}
 """
             )
 
-        ctx.run(f"git add {note_path}")
+        ctx.run(f"git add {shlex.quote(str(note_path))}")
         print("\nCommit this with:")
         print(f"git commit -m \"Add prelude for {version} release\"")
 

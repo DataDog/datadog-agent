@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -22,7 +23,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
             'features': ['Feature 1', 'Feature 2'],
             'fixes': ['Fix 1'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 0)
 
     def test_unknown_section(self):
@@ -31,7 +32,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
             'features': ['Feature 1'],
             'unknown_section': ['Something'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].section, 'structure')
         self.assertIn('unknown_section', errors[0].errors[0].message)
@@ -43,14 +44,14 @@ class TestValidateFragmentStructure(unittest.TestCase):
             'bad_section': ['Something'],
             'another_bad': ['Something else'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(len(errors[0].errors), 2)
 
     def test_not_a_dict(self):
         """Non-dict content should be detected."""
         content = ['not', 'a', 'dict']
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertIn('must be a YAML mapping', errors[0].errors[0].message)
 
@@ -59,7 +60,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
         content = {
             'features': 'not a list',
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertIn('must be a list', errors[0].errors[0].message)
 
@@ -68,7 +69,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
         content = {
             'features': ['Valid string', 123, {'nested': 'dict'}],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(len(errors[0].errors), 2)
 
@@ -77,7 +78,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
         content = {
             'features': None,
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].errors[0].level, 'warning')
 
@@ -86,7 +87,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
         content = {
             'features': ['Valid', '   ', ''],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(len(errors[0].errors), 2)
 
@@ -94,7 +95,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
         """All known sections should be accepted."""
         content = {section: [f'Content for {section}'] for section in CHANGELOG_SECTIONS if section != 'prelude'}
         content['prelude'] = 'This is a prelude string'
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 0)
 
     def test_prelude_as_string_valid(self):
@@ -103,7 +104,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
             'prelude': 'This is a valid prelude string.',
             'features': ['Feature 1'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 0)
 
     def test_prelude_as_list_invalid(self):
@@ -112,7 +113,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
             'prelude': ['Should not be a list'],
             'features': ['Feature 1'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].section, 'prelude')
         self.assertIn('must be a string', errors[0].errors[0].message)
@@ -120,7 +121,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
     def test_prelude_empty_string_warning(self):
         """Empty prelude string should produce a warning."""
         content = {'prelude': '   '}
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].section, 'prelude')
         self.assertEqual(errors[0].errors[0].level, 'warning')
@@ -128,11 +129,20 @@ class TestValidateFragmentStructure(unittest.TestCase):
     def test_prelude_non_string_type_error(self):
         """Prelude section with non-string type should be an error."""
         content = {'prelude': 123}
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].section, 'prelude')
         self.assertEqual(errors[0].errors[0].level, 'error')
         self.assertIn('must be a string, got int', errors[0].errors[0].message)
+
+    def test_empty_list_section_warning(self):
+        """Empty list in a section should produce a warning."""
+        content = {'features': []}
+        errors = validate_fragment_structure(content)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'features')
+        self.assertEqual(errors[0].errors[0].level, 'warning')
+        self.assertIn('empty list', errors[0].errors[0].message)
 
     def test_markdown_content_accepted(self):
         """Markdown content should be accepted without errors."""
@@ -143,7 +153,7 @@ class TestValidateFragmentStructure(unittest.TestCase):
             ],
             'fixes': ['Resolved **critical** bug in `old_module`.'],
         }
-        errors = validate_fragment_structure(content, 'test.yaml')
+        errors = validate_fragment_structure(content)
         self.assertEqual(len(errors), 0)
 
 
@@ -173,13 +183,11 @@ class TestLintReleasenoteFile(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def _write_temp_file(self, content: str) -> str:
         path = os.path.join(self.temp_dir, 'test_note.yaml')
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
         return path
 
@@ -296,13 +304,11 @@ class TestLintReleasenotes(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        import shutil
-
         shutil.rmtree(self.temp_dir)
 
     def _write_temp_file(self, name: str, content: str) -> str:
         path = os.path.join(self.temp_dir, name)
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
         return path
 

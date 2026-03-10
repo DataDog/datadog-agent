@@ -146,7 +146,7 @@ def update_file(warn: bool, path: str, pattern: str, replace: str, expected_matc
             raise exceptions.Exit(msg)
 
     if not dry_run:
-        with open(path, "w", newline='') as writer:
+        with open(path, "w", newline='', encoding='utf-8') as writer:
             writer.write(content)
 
 
@@ -199,13 +199,13 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
 def _create_releasenote(ctx: Context, version: str):
     from tasks.libs.releasing.notes import _new_fragment_path
 
-    RELEASENOTE_TEMPLATE = """---
+    content = f"""---
 enhancements:
 - |
-    Agents are now built with Go `{}`.
+    Agents are now built with Go `{version}`.
 """
     path = _new_fragment_path('releasenotes', f'bump-go-to-{version}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as writer:
-        writer.write(RELEASENOTE_TEMPLATE.format(version))
+    with open(path, "w", encoding='utf-8') as writer:
+        writer.write(content)
     return str(path)

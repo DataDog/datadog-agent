@@ -221,20 +221,7 @@ def releasenote(ctx):
                 )
                 raise Exit(code=1)
             # Validate the fragment YAML structure
-            from glob import glob as _glob
-
-            from tasks.libs.common.git import get_ancestor_base_branch, get_common_ancestor
-
-            base_branch = get_ancestor_base_branch()
-            merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
-            result = ctx.run(
-                f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
-                warn=True,
-                hide=True,
-            )
-            file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-            if file_list:
-                lint_releasenotes(ctx, files=",".join(file_list))
+            lint_releasenotes(ctx, only_changed=True)
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
 
@@ -266,7 +253,7 @@ def lint_releasenotes(ctx, files=None, only_changed=False):
             warn=True,
             hide=True,
         )
-        file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+        file_list = [f.strip() for f in (result.stdout or "").splitlines() if f.strip()]
     else:
         file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
 
@@ -299,7 +286,7 @@ def lint_releasenotes(ctx, files=None, only_changed=False):
             print(color_message(f"Trial assembly of {fragment_dir} succeeded", "green"))
         except Exception as e:
             print(color_message(f"Trial assembly of {fragment_dir} failed: {e}", "red"))
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
 
 @task

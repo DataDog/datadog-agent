@@ -12,27 +12,16 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from tasks.libs.releasing.notes import CHANGELOG_SECTIONS as _ASSEMBLER_SECTIONS
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-# Known sections that can contain content.
-# See releasenotes/config.yaml for the canonical list.
-CHANGELOG_SECTIONS = frozenset(
-    [
-        'features',
-        'issues',
-        'upgrade',
-        'deprecations',
-        'critical',
-        'security',
-        'fixes',
-        'other',
-        'enhancements',
-        'known_issues',
-        'prelude',
-    ]
-)
+# Known sections that can appear in a fragment.
+# Derived from the assembler's CHANGELOG_SECTIONS to ensure the linter and
+# assembler stay in sync. 'prelude' is handled separately during assembly.
+CHANGELOG_SECTIONS = frozenset(key for key, _ in _ASSEMBLER_SECTIONS) | {'prelude'}
 
 
 class LintError:
@@ -44,7 +33,7 @@ class LintError:
         self.message = message
 
     def __repr__(self) -> str:
-        line_str = f"Line {self.line}" if self.line else "Unknown line"
+        line_str = f"Line {self.line}" if self.line is not None else "Unknown line"
         return f"{line_str}: ({self.level.upper()}) {self.message}"
 
 
@@ -65,7 +54,7 @@ class ReleasenoteFileResult:
 
     @property
     def has_errors(self) -> bool:
-        return len(self.section_errors) > 0
+        return bool(self.section_errors)
 
     def format_output(self) -> str:
         """Format errors for display."""
@@ -75,12 +64,12 @@ class ReleasenoteFileResult:
         lines = [f"{self.file_path}:"]
         for section_error in self.section_errors:
             for error in section_error.errors:
-                line_str = f"Line {error.line}" if error.line else "Unknown line"
+                line_str = f"Line {error.line}" if error.line is not None else "Unknown line"
                 lines.append(f"  [{section_error.section}] {line_str}: ({error.level.upper()}) {error.message}")
         return "\n".join(lines)
 
 
-def validate_fragment_structure(content: dict, file_path: str) -> list[ReleasenoteError]:
+def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
     """Validate that the YAML content follows the expected fragment format.
 
     Checks:
@@ -156,6 +145,14 @@ def validate_fragment_structure(content: dict, file_path: str) -> list[Releaseno
                     message=f"Section '{section}' must be a list of strings, got {type(section_content).__name__}",
                 )
             )
+        elif not section_content:
+            section_errors.append(
+                LintError(
+                    line=None,
+                    level='warning',
+                    message=f"Section '{section}' is an empty list. Remove it or add content.",
+                )
+            )
         else:
             for i, item in enumerate(section_content):
                 if not isinstance(item, str):
@@ -211,7 +208,7 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     if content is None:
         return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
-    structure_errors = validate_fragment_structure(content, str(file_path))
+    structure_errors = validate_fragment_structure(content)
     section_errors.extend(structure_errors)
 
     return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
