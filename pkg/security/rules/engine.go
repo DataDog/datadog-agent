@@ -188,7 +188,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 			if r := recover(); r != nil {
 				buf := make([]byte, 1<<20)
 				n := runtime.Stack(buf, true)
-				seclog.Criticalf("panic in reloadChan ReloadPolicies goroutine: %v\n%s", r, buf[:n])
+				seclog.Errorf("panic in reloadChan ReloadPolicies goroutine: %v\n%s", r, buf[:n])
 				os.Exit(2)
 			}
 		}()
@@ -207,7 +207,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 			if r := recover(); r != nil {
 				buf := make([]byte, 1<<20)
 				n := runtime.Stack(buf, true)
-				seclog.Criticalf("panic in NewPolicyReady ReloadPolicies goroutine: %v\n%s", r, buf[:n])
+				seclog.Errorf("panic in NewPolicyReady ReloadPolicies goroutine: %v\n%s", r, buf[:n])
 				os.Exit(2)
 			}
 		}()
