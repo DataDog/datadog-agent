@@ -59,6 +59,9 @@ const (
 	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
+// SNMPTroubleshootingDocURL is the troubleshooting doc for unreachable devices (exported for tests).
+const SNMPTroubleshootingDocURL = "https://docs.datadoghq.com/network_monitoring/devices/troubleshooting/?tab=linux#unreachable-or-misconfigured-device"
+
 type profileCache struct {
 	sysObjectID string
 	timestamp   time.Time
@@ -375,7 +378,7 @@ func (d *DeviceCheck) getValuesAndTags(sess session.Session, deviceReachable boo
 
 	// Log device reachability status
 	if !deviceReachable {
-		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext")
+		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext, see troubleshooting documentation: "+SNMPTroubleshootingDocURL)
 	} else {
 		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("check device reachable: success (verified during connection)")
