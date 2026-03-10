@@ -15,9 +15,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/metrics v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/pkg/serializer v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/tagset v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260213154712-e02b9359151a
@@ -25,7 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/google/go-cmp v0.7.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.128.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.147.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.3
@@ -53,6 +55,7 @@ require github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/process/util/api v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
