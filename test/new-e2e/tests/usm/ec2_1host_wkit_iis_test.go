@@ -102,15 +102,19 @@ func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
 
 // TestIISRemoteServiceTags verifies that connections to IIS sites have
 // RemoteServiceTagsIdx >= 0 with tags containing http.iis.sitename: prefix.
-// It sends two batches of 1000 connections each (500 per port) to exercise
-// cache key replacement in the IIS ETW tag cache when ephemeral ports are reused.
+// It sends connections to each site sequentially, verifying tags after each,
+// then sends to the second site to exercise cache key replacement in the IIS
+// ETW tag cache when ephemeral ports are reused (cache entries have 2-minute TTL).
 func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
-	const requestsPerPort = 1000
+	const count = 1000
 
-	// Batch 1: send 1000 keep-alive connections per port, hold open 40s, then verify.
-	sendWindowsKeepAliveRequests(host, requestsPerPort, 40)
+	// Flush any stale data from previous runs (e.g. when reusing --keep-stack).
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	// Step 1: send 1000 connections to site A (port 8081), hold 20s, then verify.
+	sendWindowsKeepAliveRequestsToPort(host, 8081, count, 20)
 	time.Sleep(30 * time.Second)
 
 	cnx, err := s.Env().FakeIntake.Client().GetConnections()
@@ -118,34 +122,23 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 	require.NotNil(t, cnx, "GetConnections() returned nil")
 
 	stats := getConnectionStats(t, cnx, "http.iis.sitename:")
-	assertTaggedConnections(t, stats, "batch1", requestsPerPort)
+	assertTaggedConnectionsOnPort(t, stats, "siteA", 8081, count)
 	assert.True(t, stats.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
-		"batch1: port 8081 should be tagged with DatadogTestSiteA")
-	assert.True(t, stats.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
-		"batch1: port 8082 should be tagged with DatadogTestSiteB")
+		"siteA: port 8081 should be tagged with DatadogTestSiteA")
 
-	// Batch 2: send another 1000 connections per port. Ephemeral ports from batch 1
-	// are recycled by the OS, exercising IIS ETW cache key replacement.
-	//
-	// FakeIntake connection data is cumulative: batch2 sees connections from both batches.
-	// However, batch1 connections whose IIS ETW cache entries expired (2-minute TTL) will
-	// fall back to process_context:System instead of http.iis.sitename:. We therefore do
-	// NOT require http.iis.sitename: on every connection — only verify the tag appears in
-	// aggregate and that enough total connections were captured.
-	sendWindowsKeepAliveRequests(host, requestsPerPort, 40)
+	// Step 2: quickly send 1000 connections to site B (port 8082).
+	// Ephemeral ports from step 1 are recycled by the OS, exercising IIS ETW
+	// cache key replacement (entries have a 2-minute TTL).
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	sendWindowsKeepAliveRequestsToPort(host, 8082, count, 20)
 	time.Sleep(30 * time.Second)
 
 	cnx, err = s.Env().FakeIntake.Client().GetConnections()
 	require.NoError(t, err, "GetConnections() error")
 	require.NotNil(t, cnx, "GetConnections() returned nil")
 
-	stats = getConnectionStats(t, cnx)
-	assert.GreaterOrEqual(t, stats.connsByPort[8081], requestsPerPort,
-		"batch2: port 8081 should have at least %d connections", requestsPerPort)
-	assert.GreaterOrEqual(t, stats.connsByPort[8082], requestsPerPort,
-		"batch2: port 8082 should have at least %d connections", requestsPerPort)
-	assert.True(t, stats.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
-		"batch2: port 8081 should be tagged with DatadogTestSiteA")
+	stats = getConnectionStats(t, cnx, "http.iis.sitename:")
+	assertTaggedConnectionsOnPort(t, stats, "siteB", 8082, count)
 	assert.True(t, stats.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
-		"batch2: port 8082 should be tagged with DatadogTestSiteB")
+		"siteB: port 8082 should be tagged with DatadogTestSiteB")
 }

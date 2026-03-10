@@ -1,3 +1,6 @@
 service_monitoring_config:
   enabled: true
   enable_http_monitoring: true
+system_probe_config:
+  process_service_inference:
+    enabled: true
