@@ -4,8 +4,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEK
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/DataDog/agent-payload/v5 v5.0.184-0.20260305013150-862de1be0e62 h1:xhRoxa+wYUtrPlH1fEKwYJU3EvYBv+AYmMNMD3Au8mo=
-github.com/DataDog/agent-payload/v5 v5.0.184-0.20260305013150-862de1be0e62/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722 h1:O1Mfl6ZL/caIP/rts/Io5cS49MOueOi0oidxQWD/cVk=
+github.com/DataDog/agent-payload/v5 v5.0.184-0.20260310144146-bc78c599e722/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
 github.com/DataDog/datadog-api-client-go/v2 v2.55.0 h1:wRwBJJpNRoyBJXdKtInfHXeXIo+nTn5DSIayaovRYVY=
