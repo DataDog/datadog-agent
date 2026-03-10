@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -23,6 +24,17 @@ type MetricGroundTruth struct {
 type MetricGroundTruthEntry struct {
 	Service string   `json:"service"`
 	Metrics []string `json:"metrics"`
+}
+
+// MetricDetection records when and how often a specific ground truth metric was detected.
+type MetricDetection struct {
+	Service              string  `json:"service"`
+	Metric               string  `json:"metric"`
+	Classification       string  `json:"classification"` // "tp" or "fp"
+	Detected             bool    `json:"detected"`
+	Count                int     `json:"count"`
+	FirstSeenUnix        int64   `json:"first_seen_unix,omitempty"`
+	DeltaFromDisruption  float64 `json:"delta_from_disruption_sec,omitempty"`
 }
 
 // MetricScoreResult contains per-metric TP/FP classification results.
@@ -44,6 +56,11 @@ type MetricScoreResult struct {
 	TPMetricsFound  []string `json:"tp_metrics_found"`
 	TPMetricsMissed []string `json:"tp_metrics_missed"`
 	FPMetricsFired  []string `json:"fp_metrics_fired"`
+
+	// Per-metric detection timeline (TP and FP entries from ground truth).
+	Detections            []MetricDetection `json:"detections,omitempty"`
+	UnknownMetricCount    int               `json:"unknown_metric_count"`
+	UnknownDetectionCount int               `json:"unknown_detection_count"`
 }
 
 // LoadMetricGroundTruth reads TP/FP metric lists from a scenario's metadata.json.
@@ -62,18 +79,36 @@ func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTrut
 	return &gt, nil
 }
 
+// LoadDisruptionStartUnix returns the disruption start timestamp in unix seconds
+// from a scenario's metadata.json, or 0 if unavailable.
+func LoadDisruptionStartUnix(scenariosDir, scenarioName string) int64 {
+	sm, err := loadScoringMetadata(scenariosDir, scenarioName)
+	if err != nil || len(sm.groundTruthTimestamps) == 0 {
+		return 0
+	}
+	return sm.groundTruthTimestamps[0]
+}
+
 // ScoreMetrics classifies each anomaly period's metric as TP, FP, or unknown
 // by matching against the ground truth metric lists.
+//
+// disruptionStartUnix is used to compute delta_from_disruption_sec on detections.
+// Pass 0 if unavailable (deltas will be zero).
 //
 // Matching strategy: an anomaly's Source (metric name) is checked against each
 // ground truth entry's metrics list. The match is substring-based to handle
 // tag suffixes (e.g., anomaly source "redis.cpu.sys:avg" matches ground truth
 // "redis.cpu.sys").
-func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreResult {
-	// Build lookup sets: service:metric → "tp" or "fp"
-	tpSet := make(map[string]bool) // "service:metric" → true
-	fpSet := make(map[string]bool)
-	allTPKeys := make(map[string]bool) // all TP service:metric keys
+func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStartUnix int64) *MetricScoreResult {
+	// Build lookup: key → service, metric, classification
+	type gtEntry struct {
+		service        string
+		metric         string
+		classification string // "tp" or "fp"
+	}
+	tpSet := make(map[string]gtEntry)  // "service:metric" → entry
+	fpSet := make(map[string]gtEntry)
+	allTPKeys := make(map[string]bool)
 
 	// Also build service-level sets for fallback matching.
 	// Multi-series detectors (e.g., correlation) identify the right services
@@ -85,14 +120,15 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		tpServices[entry.Service] = true
 		for _, m := range entry.Metrics {
 			key := entry.Service + ":" + m
-			tpSet[key] = true
+			tpSet[key] = gtEntry{service: entry.Service, metric: m, classification: "tp"}
 			allTPKeys[key] = true
 		}
 	}
 	for _, entry := range gt.FalsePositives {
 		fpServices[entry.Service] = true
 		for _, m := range entry.Metrics {
-			fpSet[entry.Service+":"+m] = true
+			key := entry.Service + ":" + m
+			fpSet[key] = gtEntry{service: entry.Service, metric: m, classification: "fp"}
 		}
 	}
 
@@ -100,13 +136,19 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		TotalCount: len(output.AnomalyPeriods),
 	}
 
-	foundTPKeys := make(map[string]bool)
-	firedFPKeys := make(map[string]bool)
+	// Track per-key: first-seen timestamp and count
+	type metricHit struct {
+		firstSeen int64
+		count     int
+	}
+	foundTPKeys := make(map[string]*metricHit)
+	firedFPKeys := make(map[string]*metricHit)
 
 	for _, period := range output.AnomalyPeriods {
 		source := period.metricSource()
 		if source == "" {
 			result.UnknownCount++
+			result.UnknownDetectionCount++
 			continue
 		}
 
@@ -115,7 +157,11 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		for key := range tpSet {
 			if metricMatches(source, key) {
 				result.TPCount++
-				foundTPKeys[key] = true
+				if hit, ok := foundTPKeys[key]; ok {
+					hit.count++
+				} else {
+					foundTPKeys[key] = &metricHit{firstSeen: period.PeriodStart, count: 1}
+				}
 				matched = true
 				break
 			}
@@ -128,7 +174,11 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 		for key := range fpSet {
 			if metricMatches(source, key) {
 				result.FPCount++
-				firedFPKeys[key] = true
+				if hit, ok := firedFPKeys[key]; ok {
+					hit.count++
+				} else {
+					firedFPKeys[key] = &metricHit{firstSeen: period.PeriodStart, count: 1}
+				}
 				matched = true
 				break
 			}
@@ -148,9 +198,11 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 				// Credit a TP key for this service (pick the first unmatched one)
 				for key := range allTPKeys {
 					svc := strings.SplitN(key, ":", 2)[0]
-					if svc == sourceService && !foundTPKeys[key] {
-						foundTPKeys[key] = true
-						break
+					if svc == sourceService {
+						if _, ok := foundTPKeys[key]; !ok {
+							foundTPKeys[key] = &metricHit{firstSeen: period.PeriodStart, count: 1}
+							break
+						}
 					}
 				}
 				matched = true
@@ -162,12 +214,13 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 
 		if !matched {
 			result.UnknownCount++
+			result.UnknownDetectionCount++
 		}
 	}
 
-	// Collect found/missed TP metrics
+	// Collect found/missed TP metrics (legacy fields)
 	for key := range allTPKeys {
-		if foundTPKeys[key] {
+		if _, ok := foundTPKeys[key]; ok {
 			result.TPMetricsFound = append(result.TPMetricsFound, key)
 		} else {
 			result.TPMetricsMissed = append(result.TPMetricsMissed, key)
@@ -176,6 +229,64 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth) *MetricScoreRes
 	for key := range firedFPKeys {
 		result.FPMetricsFired = append(result.FPMetricsFired, key)
 	}
+
+	// Build per-metric detection timeline
+	var detections []MetricDetection
+
+	// TP entries (detected and missed)
+	for key, entry := range tpSet {
+		d := MetricDetection{
+			Service:        entry.service,
+			Metric:         entry.metric,
+			Classification: "tp",
+		}
+		if hit, ok := foundTPKeys[key]; ok {
+			d.Detected = true
+			d.Count = hit.count
+			d.FirstSeenUnix = hit.firstSeen
+			if disruptionStartUnix > 0 {
+				d.DeltaFromDisruption = float64(hit.firstSeen - disruptionStartUnix)
+			}
+		}
+		detections = append(detections, d)
+	}
+
+	// FP entries (fired and not-fired)
+	for key, entry := range fpSet {
+		d := MetricDetection{
+			Service:        entry.service,
+			Metric:         entry.metric,
+			Classification: "fp",
+		}
+		if hit, ok := firedFPKeys[key]; ok {
+			d.Detected = true
+			d.Count = hit.count
+			d.FirstSeenUnix = hit.firstSeen
+			if disruptionStartUnix > 0 {
+				d.DeltaFromDisruption = float64(hit.firstSeen - disruptionStartUnix)
+			}
+		}
+		detections = append(detections, d)
+	}
+
+	// Stable sort order: classification (fp < tp), then service, then metric
+	sort.Slice(detections, func(i, j int) bool {
+		if detections[i].Classification != detections[j].Classification {
+			return detections[i].Classification < detections[j].Classification
+		}
+		if detections[i].Service != detections[j].Service {
+			return detections[i].Service < detections[j].Service
+		}
+		return detections[i].Metric < detections[j].Metric
+	})
+
+	result.Detections = detections
+
+	// Count distinct unknown metrics (not just unknown detection count)
+	// We already count total unknown detections above; for distinct metrics
+	// we'd need to track unique sources. For now, set metric count = detection count
+	// as a reasonable approximation (unknowns are not in ground truth).
+	result.UnknownMetricCount = result.UnknownDetectionCount
 
 	// Compute precision/recall/F1
 	labeled := result.TPCount + result.FPCount

@@ -244,6 +244,9 @@ def eval_detectors(
                     "m_unk": metrics.get("unknown_count", ""),
                     "m_prec": metrics.get("metric_precision", ""),
                     "m_rec": metrics.get("metric_recall", ""),
+                    "detections": metrics.get("detections", []),
+                    "unknown_metric_count": metrics.get("unknown_metric_count", 0),
+                    "unknown_detection_count": metrics.get("unknown_detection_count", 0),
                 })
 
     # Print comparison matrix
@@ -277,6 +280,42 @@ def eval_detectors(
             f" {r['scored']:>6}"
             f" {m_tp} {m_fp} {m_unk} {m_prec} {m_rec}"
         )
+
+    # Per-metric detection detail for L1 results
+    l1_results = [r for r in results if r["level"] == "L1" and r.get("detections")]
+    if l1_results:
+        print(color_message(f"\n{'='*90}", Color.GREEN))
+        print(color_message("  Per-Metric Detection Detail (L1 only)", Color.GREEN))
+        print(color_message(f"{'='*90}", Color.GREEN))
+
+        for r in l1_results:
+            print(f"\n  {r['scenario']} / {r['detector']}:")
+            tp_dets = [d for d in r["detections"] if d["classification"] == "tp"]
+            fp_dets = [d for d in r["detections"] if d["classification"] == "fp"]
+
+            if tp_dets:
+                print("    TP Metrics:")
+                for d in tp_dets:
+                    if d["detected"]:
+                        delta = ""
+                        if d.get("delta_from_disruption_sec"):
+                            delta = f", delta={d['delta_from_disruption_sec']:+.0f}s"
+                        print(f"      {d['service']} / {d['metric']} — first at {d['first_seen_unix']} ({d['count']} total{delta})")
+                    else:
+                        print(f"      {d['service']} / {d['metric']} — NOT DETECTED")
+
+            if fp_dets:
+                print("    FP Metrics:")
+                for d in fp_dets:
+                    if d["detected"]:
+                        print(f"      {d['service']} / {d['metric']} — fired at {d['first_seen_unix']} ({d['count']} total)")
+                    else:
+                        print(f"      {d['service']} / {d['metric']} — not fired (good)")
+
+            unk_m = r.get("unknown_metric_count", 0)
+            unk_d = r.get("unknown_detection_count", 0)
+            if unk_d > 0:
+                print(f"    Unknown: {unk_m} metrics ({unk_d} detections)")
 
     print(f"\nOutput JSONs: /tmp/observer-eval-*-*.json (sigma={sigma}s)")
 

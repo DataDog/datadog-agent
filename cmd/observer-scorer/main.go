@@ -86,11 +86,28 @@ func main() {
 			metricResult.TPCount, metricResult.FPCount, metricResult.UnknownCount, metricResult.TotalCount)
 		fmt.Printf("  Metric Precision: %.4f  Recall: %.4f  F1: %.4f\n",
 			metricResult.MetricPrecision, metricResult.MetricRecall, metricResult.MetricF1)
-		if len(metricResult.TPMetricsMissed) > 0 {
-			fmt.Printf("  Missed TPs: %v\n", metricResult.TPMetricsMissed)
+
+		// Per-metric detection detail
+		if len(metricResult.Detections) > 0 {
+			fmt.Println()
+			for _, d := range metricResult.Detections {
+				tag := fmt.Sprintf("[%s]", d.Classification)
+				if d.Detected {
+					delta := ""
+					if d.DeltaFromDisruption != 0 {
+						delta = fmt.Sprintf(", delta=%+.0fs", d.DeltaFromDisruption)
+					}
+					fmt.Printf("  %s %s / %s — first at %d (%d total%s)\n",
+						tag, d.Service, d.Metric, d.FirstSeenUnix, d.Count, delta)
+				} else {
+					fmt.Printf("  %s %s / %s — NOT DETECTED\n", tag, d.Service, d.Metric)
+				}
+			}
 		}
-		if len(metricResult.FPMetricsFired) > 0 {
-			fmt.Printf("  FP metrics fired: %v\n", metricResult.FPMetricsFired)
+
+		if metricResult.UnknownDetectionCount > 0 {
+			fmt.Printf("\n  Unknown: %d metrics (%d detections)\n",
+				metricResult.UnknownMetricCount, metricResult.UnknownDetectionCount)
 		}
 	}
 }
@@ -120,5 +137,8 @@ func scoreMetricsFromFile(outputPath, scenariosDir string) (*observerimpl.Metric
 		return nil, fmt.Errorf("no TP/FP metrics in metadata.json for %s", output.Metadata.Scenario)
 	}
 
-	return observerimpl.ScoreMetrics(&output, gt), nil
+	// Load disruption start for delta computation.
+	disruptionStart := observerimpl.LoadDisruptionStartUnix(scenariosDir, output.Metadata.Scenario)
+
+	return observerimpl.ScoreMetrics(&output, gt, disruptionStart), nil
 }
