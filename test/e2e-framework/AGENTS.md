@@ -88,7 +88,9 @@ func TestMySuite(t *testing.T) {
 Key helpers on BaseSuite:
 - `s.Env()` — access the provisioned environment
 - `s.UpdateEnv(provisioner)` — change agent config mid-suite
-- `s.EventuallyWithT(fn, timeout, interval)` — retry assertions
+- `s.EventuallyWithT(fn, timeout, interval)` — retry assertions until they pass;
+  use `require` (not `assert`) inside the callback so failures short-circuit the
+  current retry iteration instead of accumulating silently
 
 ## Agent configuration
 

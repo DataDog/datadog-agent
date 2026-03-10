@@ -92,10 +92,6 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - Checks are Python or Go modules that collect metrics
 - Located in `cmd/agent/dist/checks/`
 - Can be autodiscovered via Kubernetes annotations/labels
-- **Python check tags**: `self.gauge()`, `self.service_check()`, etc. do NOT
-  automatically include instance-level `tags:` from the YAML config. The check
-  must pass them explicitly: `self.gauge(name, value, tags=instance.get("tags", []))`.
-  Without this, metrics arrive at the intake with empty tags.
 
 ### Configuration
 - Main config: `datadog.yaml`
