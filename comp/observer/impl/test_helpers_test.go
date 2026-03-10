@@ -14,8 +14,8 @@ type mockLogView struct {
 	timestampMs int64
 }
 
-func (m *mockLogView) GetContent() []byte    { return m.content }
-func (m *mockLogView) GetStatus() string     { return m.status }
-func (m *mockLogView) GetTags() []string     { return m.tags }
-func (m *mockLogView) GetHostname() string   { return m.hostname }
-func (m *mockLogView) GetTimestampMs() int64 { return m.timestampMs }
+func (m *mockLogView) GetContent() []byte           { return m.content }
+func (m *mockLogView) GetStatus() string            { return m.status }
+func (m *mockLogView) GetTags() []string            { return m.tags }
+func (m *mockLogView) GetHostname() string          { return m.hostname }
+func (m *mockLogView) GetTimestampUnixMilli() int64 { return m.timestampMs }

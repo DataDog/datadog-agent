@@ -131,7 +131,7 @@ type corrSeriesInfo struct {
 // Detect implements MultiSeriesDetector. It queries storage for all metric series,
 // selects the most variable ones, computes correlation matrices in sliding windows,
 // and flags when the correlation structure changes.
-func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime int64) observer.MultiSeriesDetectionResult {
+func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	// Step 1: Discover all series
 	allKeys := storage.ListSeries(observer.SeriesFilter{})
 
@@ -186,7 +186,7 @@ func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime in
 	}
 
 	if len(candidates) < 2 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Step 3: Select top-K by variance
@@ -203,7 +203,7 @@ func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime in
 	aligned := d.corrAlignSeries(candidates)
 	if len(aligned.timestamps) < 2*d.config.WindowSize {
 		log.Printf("  Correlation: only %d timestamps, need >= %d", len(aligned.timestamps), 2*d.config.WindowSize)
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	log.Printf("  Correlation: aligned to %d timestamps", len(aligned.timestamps))
@@ -274,7 +274,7 @@ type corrPairChange struct {
 // detectChanges computes correlation matrices in sliding windows and detects changes.
 // Uses a dual approach: consecutive window comparison (catches sudden shifts) and
 // baseline comparison (catches gradual drift from normal correlation structure).
-func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrSeriesInfo) observer.MultiSeriesDetectionResult {
+func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrSeriesInfo) observer.DetectionResult {
 	var anomalies []observer.Anomaly
 	var telemetry []observer.ObserverTelemetry
 
@@ -284,7 +284,7 @@ func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrS
 	stepSize := d.config.StepSize
 
 	if nTime < 2*winSize {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Phase 1: Compute all window matrices
@@ -305,7 +305,7 @@ func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrS
 	}
 
 	if len(windows) < 2 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Phase 2: Compute baseline matrix as the average of the first ~30% of windows
@@ -498,7 +498,7 @@ func (d *CorrelationDetector) detectChanges(data corrAlignedData, series []corrS
 	log.Printf("  Correlation: %d windows compared, maxNorm=%.4f, threshold=%.4f, %d anomalies emitted",
 		windowCount, maxNorm, finalThreshold, len(anomalies))
 
-	return observer.MultiSeriesDetectionResult{
+	return observer.DetectionResult{
 		Anomalies: anomalies,
 		Telemetry: telemetry,
 	}

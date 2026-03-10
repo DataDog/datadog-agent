@@ -71,7 +71,7 @@ func (b *BOCPDDetector) Name() string {
 }
 
 // Analyze runs BOCPD and emits the first changepoint crossing CPThreshold.
-func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
+func (b *BOCPDDetector) Detect(series observer.Series) observer.DetectionResult {
 	minPoints := b.MinPoints
 	if minPoints <= 0 {
 		minPoints = 10
@@ -107,7 +107,7 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetection
 
 	n := len(series.Points)
 	if n < minPoints {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	baselineEnd := int(float64(n) * baselineFrac)
@@ -126,7 +126,7 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetection
 		if math.Abs(baselineMean) > epsilon {
 			baselineStddev = math.Abs(baselineMean) * 0.1
 		} else {
-			return observer.MetricsDetectionResult{}
+			return observer.DetectionResult{}
 		}
 	}
 
@@ -182,7 +182,7 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetection
 					DeviationSigma: deviation,
 				},
 			}
-			return observer.MetricsDetectionResult{Anomalies: []observer.Anomaly{anomaly}}
+			return observer.DetectionResult{Anomalies: []observer.Anomaly{anomaly}}
 		}
 
 		newMeans := make([]float64, len(newRunProbs))
@@ -207,7 +207,7 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetection
 		precisions = newPrecisions
 	}
 
-	return observer.MetricsDetectionResult{}
+	return observer.DetectionResult{}
 }
 
 func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {

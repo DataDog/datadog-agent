@@ -85,7 +85,7 @@ func (m *MannWhitneyDetector) Name() string {
 // Detect runs the Mann-Whitney sliding window changepoint detection on the series.
 // It reports at most one changepoint: the split with the lowest p-value.
 // Multiple layered filters ensure only practically significant shifts are reported.
-func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
+func (m *MannWhitneyDetector) Detect(series observer.Series) observer.DetectionResult {
 	minPoints := m.MinPoints
 	if minPoints <= 0 {
 		minPoints = 50
@@ -117,7 +117,7 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 
 	n := len(series.Points)
 	if n < minPoints {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Adaptive window: use min of configured window and what fits
@@ -126,7 +126,7 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 		windowSize = maxWindow
 	}
 	if windowSize < 10 {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	bestPValue := 1.0
@@ -152,12 +152,12 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 
 	// Filter 1: statistical significance
 	if bestSplit < 0 || bestPValue >= sigThreshold {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Filter 2: effect size (rank-biserial correlation)
 	if math.Abs(bestEffect) < minEffect {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Compute baseline and after stats using robust statistics
@@ -187,7 +187,7 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 	}
 
 	if math.Abs(deviation) < minDevSigma {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Filter 4: minimum relative change
@@ -197,7 +197,7 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 	}
 	relChange := math.Abs(afterMean-baselineMean) / absBaseline
 	if relChange < minRelChange {
-		return observer.MetricsDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	score := -math.Log10(bestPValue)
@@ -229,7 +229,7 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 		},
 	}
 
-	return observer.MetricsDetectionResult{Anomalies: []observer.Anomaly{anomaly}}
+	return observer.DetectionResult{Anomalies: []observer.Anomaly{anomaly}}
 }
 
 // extractValues extracts float64 values from a slice of Points.

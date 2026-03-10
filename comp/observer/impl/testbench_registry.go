@@ -139,26 +139,16 @@ var defaultRegistry = []ComponentRegistration{
 	},
 }
 
-// enabledDetectors returns all enabled MetricsDetector instances (per-series detectors).
-func (tb *TestBench) enabledDetectors() []observerdef.MetricsDetector {
-	var result []observerdef.MetricsDetector
+// enabledDetectors returns all enabled Detector instances.
+// SeriesDetector implementations are wrapped with seriesDetectorAdapter.
+func (tb *TestBench) enabledDetectors() []observerdef.Detector {
+	var result []observerdef.Detector
 	for _, comp := range tb.components {
 		if comp.Enabled && comp.Registration.Category == "detector" {
-			if a, ok := comp.Instance.(observerdef.MetricsDetector); ok {
-				result = append(result, a)
-			}
-		}
-	}
-	return result
-}
-
-// enabledMultiDetectors returns all enabled MultiSeriesDetector instances (pull-based).
-func (tb *TestBench) enabledMultiDetectors() []observerdef.MultiSeriesDetector {
-	var result []observerdef.MultiSeriesDetector
-	for _, comp := range tb.components {
-		if comp.Enabled && comp.Registration.Category == "detector" {
-			if d, ok := comp.Instance.(observerdef.MultiSeriesDetector); ok {
+			if d, ok := comp.Instance.(observerdef.Detector); ok {
 				result = append(result, d)
+			} else if sd, ok := comp.Instance.(observerdef.SeriesDetector); ok {
+				result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
 			}
 		}
 	}

@@ -104,7 +104,7 @@ type topKSeriesScore struct {
 
 // Detect implements MultiSeriesDetector.
 // It scores all series by severity of change and only reports the top-K.
-func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) observer.MultiSeriesDetectionResult {
+func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	// Step 1: Discover all series
 	allKeys := storage.ListSeries(observer.SeriesFilter{})
 
@@ -147,7 +147,7 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 	}
 
 	if len(scored) == 0 {
-		return observer.MultiSeriesDetectionResult{}
+		return observer.DetectionResult{}
 	}
 
 	// Step 3: Rank by score descending (global ranking)
@@ -273,7 +273,7 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 
 	log.Printf("  TopK: emitting %d anomalies (after dedup)", len(anomalies))
 
-	return observer.MultiSeriesDetectionResult{
+	return observer.DetectionResult{
 		Anomalies: anomalies,
 	}
 }
