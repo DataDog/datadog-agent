@@ -156,7 +156,7 @@ def format_report(doc: UTOFDocument) -> str:
         return t.status == "fail"
 
     all_tests = _collect_all_tests(doc.tests)
-    fail_count = sum(1 for t in all_tests if fail_pred(t) and not t.subtests)
+    fail_count = sum(1 for t in all_tests if fail_pred(t) and (not t.subtests or t.failure is not None))
     failed_roots = [t for t in doc.tests if _has_matching_descendant(t, fail_pred)]
     if failed_roots:
 
@@ -186,7 +186,7 @@ def format_report(doc: UTOFDocument) -> str:
     def retry_pred(t: UTOFTestResult) -> bool:
         return t.retry_count > 0
 
-    retry_count = sum(1 for t in all_tests if retry_pred(t) and not t.subtests)
+    retry_count = sum(1 for t in all_tests if retry_pred(t) and (not t.subtests or t.failure is not None))
     retried_roots = [t for t in doc.tests if _has_matching_descendant(t, retry_pred)]
     if retried_roots:
 
@@ -234,7 +234,7 @@ def format_report(doc: UTOFDocument) -> str:
     def flaky_pred(t: UTOFTestResult) -> bool:
         return t.status in ("flaky_pass", "flaky_fail") and t.retry_count == 0
 
-    flaky_count = sum(1 for t in all_tests if flaky_pred(t) and not t.subtests)
+    flaky_count = sum(1 for t in all_tests if flaky_pred(t) and (not t.subtests or t.failure is not None))
     flaky_roots = [t for t in doc.tests if _has_matching_descendant(t, flaky_pred)]
     if flaky_roots:
 

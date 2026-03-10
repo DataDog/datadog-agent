@@ -223,3 +223,38 @@ class TestFormatReport(unittest.TestCase):
             ],
         )
         self.assertIn("Test Report (e2e)", format_report(doc))
+
+    def test_report_fail_count_matches_when_parent_has_own_failure(self):
+        """Failures (N) header must match the number of failure blocks printed.
+
+        A parent with both subtests and its own UTOFFailure (e.g. a setup panic)
+        must be counted in the section header so it doesn't read "Failures (0)"
+        while still printing a failure block.
+        """
+        parent = UTOFTestResult(
+            id="p1",
+            name="TestSuite",
+            full_name="TestSuite",
+            package="pkg/example",
+            type="unit",
+            status="fail",
+            failure=UTOFFailure(message="panic: nil pointer dereference", type="panic"),
+            subtests=[
+                UTOFTestResult(
+                    id="s1",
+                    name="TestSuite/Sub",
+                    full_name="TestSuite/Sub",
+                    package="pkg/example",
+                    type="unit",
+                    status="pass",
+                ),
+            ],
+        )
+        doc = UTOFDocument(
+            metadata=UTOFMetadata(test_system="unit"),
+            summary=UTOFSummary(total=2, passed=1, failed=1, status="fail"),
+            tests=[parent],
+        )
+        report = format_report(doc)
+        self.assertIn("Failures (1)", report)
+        self.assertNotIn("Failures (0)", report)
