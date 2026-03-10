@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"io"
 	"testing"
 	"unsafe"
 
@@ -17,31 +16,13 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Run locally with `go test -fuzz=FuzzConsumerHandleEvent -run=FuzzConsumerHandleEvent`
 func FuzzConsumerHandleEvent(f *testing.F) {
 	ddnvml.WithMockNVML(f, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 
-	cfg := config.New()
-	ctx := getTestSystemContext(f, withFatbinParsingEnabled(false)) // Keep it simple, disable fatbin parsing
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(f), cfg)
-	consumer := newTestCudaEventConsumer(f, ctx, cfg, handlers)
-
-	// Set up visible devices cache for a test PID
 	testPID := 1234
-	ctx.visibleDevicesCache[testPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(f, 0, 1)
-
-	// Replace the logger installed by the mock setup (which writes to f.Log())
-	// with one that writes to io.Discard, since Go forbids calling f.Log() inside
-	// the fuzz target.
-	discardLogger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(io.Discard, pkglog.CriticalLvl)
-	if err != nil {
-		f.Fatal(err)
-	}
-	f.Cleanup(func() { discardLogger.Close() })
-	pkglog.SetupLogger(discardLogger, "off")
 
 	// Add seed corpus with valid event types
 	// Seed with a minimal kernel launch event
@@ -82,11 +63,20 @@ func FuzzConsumerHandleEvent(f *testing.F) {
 	header.Pid_tgid = uint64(testPID)<<32 + uint64(testPID)
 	f.Add(visibleDevicesSeed)
 
-	f.Fuzz(func(_ *testing.T, rawEvent []byte) {
+	f.Fuzz(func(t *testing.T, rawEvent []byte) {
 		// Need at least a header to process
 		if len(rawEvent) < gpuebpf.SizeofCudaEventHeader {
 			return
 		}
+
+		// Mock setup must happen inside the fuzz target using t (*testing.T)
+		// rather than f (*testing.F), because Go forbids calling f.Log() inside
+		// the fuzz target, and fxutil.Test injects the TB for logging.
+		cfg := config.New()
+		ctx := getTestSystemContext(t, withFatbinParsingEnabled(false))
+		handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+		consumer := newTestCudaEventConsumer(t, ctx, cfg, handlers)
+		ctx.visibleDevicesCache[testPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 		// Parse the header and call handleEvent
 		header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&rawEvent[0]))
