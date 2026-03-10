@@ -95,7 +95,7 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
         })
         .context("failed to remove existing socket")?;
 
-    let sock = UnixListener::bind(socket_path).context("could not create sd-agent.sock")?;
+    let sock = UnixListener::bind(socket_path).context("could not create socket")?;
     std::fs::set_permissions(socket_path, Permissions::from_mode(0o720))
         .context("could not set socket permissions")?;
 
@@ -224,7 +224,10 @@ fn fallback_to_system_probe(binary_path: &Path, args: &[String]) -> Result<()> {
     Err(anyhow!("Failed to exec: {}", err))
 }
 
-async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf>) -> Result<()> {
+async fn run_system_probe_lite(
+    config: Option<yaml_rust2::Yaml>,
+    pid_path: Option<PathBuf>,
+) -> Result<()> {
     let socket_path = config::get_sysprobe_socket_path(&config);
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(&socket_path).context("Failed to setup Unix socket")?;
@@ -306,7 +309,7 @@ async fn main() -> Result<()> {
 
     // Handle fallback decision if fallback binary is configured
     if let Some(fallback_binary) = &args.fallback_binary {
-        // Do this check regardless of whether we're running sd-agent or not
+        // Do this check regardless of whether we're running system-probe-lite or not
         // since we may need it at some point if we fallback to system-probe and
         // we don't want to fail startup during another invocation.
         if !fallback_binary.exists() {
@@ -326,18 +329,18 @@ async fn main() -> Result<()> {
                 info!("Discovery is disabled and no other configuration is present. Exiting.");
                 return Ok(());
             }
-            config::FallbackDecision::RunSdAgent => {
-                info!("Only discovery module enabled. Running sd-agent.");
+            config::FallbackDecision::RunSystemProbeLite => {
+                info!("Only discovery module enabled. Running system-probe-lite.");
             }
         }
     }
 
-    // Convert Result<Option<Yaml>> to Option<Yaml> for run_sd_agent.
+    // Convert Result<Option<Yaml>> to Option<Yaml> for run_system_probe_lite.
     let config = config.ok().flatten();
 
-    // Run sd-agent server
-    info!("Starting sd-agent");
-    let result = run_sd_agent(config, args.pid_path.clone()).await;
+    // Run system-probe-lite server
+    info!("Starting system-probe-lite");
+    let result = run_system_probe_lite(config, args.pid_path.clone()).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
