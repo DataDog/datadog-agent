@@ -4,6 +4,9 @@ members = [
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
 ]
+exclude = [
+    "comp/core/gui/agent-web-ui",
+]
 
 [workspace.package]
 edition = "2024"

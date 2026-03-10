@@ -1,0 +1,20 @@
+[package]
+name = "agent-web-ui"
+version = "0.1.0"
+description = "Datadog Agent Web UI"
+authors = ["Datadog"]
+edition = "2021"
+
+[lib]
+name = "agent_web_ui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
