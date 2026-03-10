@@ -263,7 +263,7 @@ def test(
     test_washer=False,
     extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
-    host: str = "unix",
+    host="unix",
 ):
     """
     Run go tests on the given module and targets.
@@ -279,19 +279,6 @@ def test(
         dda inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         dda inv test --module=. --race
     """
-    if host == "windows":
-        print("Running tests on Windows dev environment")
-        from tasks.windows_dev_env import run as windows_run
-
-        if only_modified_packages:
-            modified_packages = ",".join(find_modified_packages(ctx))
-            windows_run(ctx, command=f"dda inv test --only-modified-packages --targets={modified_packages}")
-        elif only_impacted_packages:
-            impacted_packages = ",".join(format_packages(ctx, find_impacted_packages(ctx)))
-            windows_run(ctx, command=f"dda inv test --only-impacted-packages --targets={impacted_packages}")
-        else:
-            windows_run(ctx, command="dda inv test")
-        return
 
     sanitize_env_vars()
 
@@ -391,6 +378,24 @@ def test(
         modules = get_modified_packages(ctx, build_tags=unit_tests_tags)
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
+
+    if host == "windows":
+        from tasks.windows_dev_env import _run_on_windows_dev_env as windows_run
+
+        package_list = [
+            f"./{os.path.join(m.path, t)}" if not os.path.join(m.path, t).startswith("./") else os.path.join(m.path, t)
+            for m in modules
+            if m.should_test()
+            for t in m.test_targets
+        ]
+        inv_cmd = (
+            f"inv test --build-stdlib --targets={','.join(package_list)}" if package_list else "inv test --build-stdlib"
+        )
+        win_cmd = (
+            f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
+        )
+        windows_run(ctx, name="windows-dev-env", command=win_cmd)
+        return
 
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
