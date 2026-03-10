@@ -43,12 +43,6 @@ type HelmInstallationArgs struct {
 	RepoURL string
 	// ValuesYAML is used to provide installation-specific values
 	ValuesYAML pulumi.AssetOrArchiveArray
-	// ExtraValues are merged into the main Helm values map before YAML serialisation.
-	// Prefer this over ValuesYAML when using a local Pulumi backend: AssetOrArchiveArray
-	// values deserialise as []interface{} in local state, causing the Helm provider to
-	// fail on update with "unsupported type for 'valueYamlFiles' arg: []interface{}".
-	// ExtraValues flow through the computed ToYAMLPulumiAssetOutput() path instead.
-	ExtraValues pulumi.Map
 	// Fakeintake is used to configure the agent to send data to a fake intake
 	Fakeintake *fakeintake.Fakeintake
 	// DeployWindows is used to deploy the Windows agent
@@ -192,19 +186,10 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	values.configureImagePullSecret(imgPullSecret)
 	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
 
-	// Deep-merge caller-provided extra values so they override individual keys
-	// without replacing entire top-level maps like "datadog" or "agents".
-	deepMergeHelmValues(values, args.ExtraValues)
+	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
-	// Pass agent default values via the Values map (pulumi.Map) rather than
-	// ValuesYAML (AssetOrArchiveArray). AssetOrArchiveArray values deserialise
-	// as []interface{} in the local Pulumi backend, causing the Helm provider to
-	// fail with "unsupported type for 'valueYamlFiles' arg: []interface{}" on any
-	// update. pulumi.Map values are JSON-serialised and round-trip correctly.
-	//
-	// User-provided ValuesYAML (WithHelmValues/WithHelmValuesFile) still use the
-	// old path and remain broken with the local backend — prefer WithExtraHelmValues.
 	var valuesYAML pulumi.AssetOrArchiveArray
+	valuesYAML = append(valuesYAML, defaultYAMLValues)
 	valuesYAML = append(valuesYAML, args.ValuesYAML...)
 	if args.OTelAgentGateway {
 		valuesYAML = append(valuesYAML, buildOTelAgentGatewayConfigWithFakeintake(args.OTelGatewayConfig, args.Fakeintake))
@@ -228,8 +213,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		ChartName:      args.ChartPath,
 		InstallName:    linuxInstallName,
 		Namespace:      args.Namespace,
-		Values:         pulumi.Map(values), // defaults via Values map — works with local backend
-		ValuesYAML:     valuesYAML,         // user YAML + OTel configs
+		ValuesYAML:     valuesYAML,
 		Version:        pulumi.String(HelmVersion),
 		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
@@ -444,11 +428,6 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 			},
 		},
 		"agents": pulumi.Map{
-			// enabled must be explicit: without it, Helm merges an `agents` map via
-			// Values (--set style) that omits the key, leaving chart defaults ambiguous
-			// and causing the node agent DaemonSet to be skipped. clusterAgent sets this
-			// explicitly; agents must do the same.
-			"enabled": pulumi.Bool(true),
 			"image": pulumi.Map{
 				"repository":    pulumi.String(agentImagePath),
 				"tag":           pulumi.String(agentImageTag),
@@ -876,40 +855,6 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
-	}
-}
-
-// deepMergeHelmValues recursively merges src into dst.  For keys whose values
-// are both pulumi.Map, it recurses so that nested keys are preserved rather than
-// replaced.  All other value types in src overwrite the corresponding key in dst.
-func deepMergeHelmValues(dst HelmValues, src pulumi.Map) {
-	for k, v := range src {
-		existing, ok := dst[k]
-		if ok {
-			// If both sides are pulumi.Map, recurse.
-			if dstMap, dOk := existing.(pulumi.Map); dOk {
-				if srcMap, sOk := v.(pulumi.Map); sOk {
-					deepMergePulumiMap(dstMap, srcMap)
-					continue
-				}
-			}
-		}
-		dst[k] = v
-	}
-}
-
-func deepMergePulumiMap(dst, src pulumi.Map) {
-	for k, v := range src {
-		existing, ok := dst[k]
-		if ok {
-			if dstMap, dOk := existing.(pulumi.Map); dOk {
-				if srcMap, sOk := v.(pulumi.Map); sOk {
-					deepMergePulumiMap(dstMap, srcMap)
-					continue
-				}
-			}
-		}
-		dst[k] = v
 	}
 }
 
