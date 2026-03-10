@@ -37,8 +37,11 @@
 /.copyright-overrides.yml               @DataDog/agent-build @DataDog/agent-devx
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
+/CHANGELOG.md                           @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
+/CHANGELOG-DCA.md                       @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/agent-onboarding
+/CHANGELOG-INSTALLSCRIPT.md             @DataDog/agent-delivery @DataDog/agent-onboarding
 
 /*.md                                   @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery

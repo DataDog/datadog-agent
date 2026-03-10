@@ -76,7 +76,7 @@ validate_experiment_systemd_units:
   script:
     - dda inv -- -e installer.generate-experiment-units --check
 
-lint_releasenotes_rst:
+lint_releasenotes:
   extends: .lint
   rules: !reference [.on_releasenotes_changes]
   script:

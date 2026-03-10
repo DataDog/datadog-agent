@@ -22,7 +22,7 @@ In order to ease/speed up our review, here are some items you can check/improve 
 - [X] Write tests for the code you wrote.
 - [X] Preferably make sure that all tests pass locally.
 - [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.  Commit titles should be prefixed with general area of pull request's change. You can use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for the PR title.
-- [X] Use [Reno](#reno) to create a release note.
+- [X] Use [release notes](#release-notes) to document your change.
 - [X] Open your PR as a Draft against the `main` branch.
 - [X] Sign the Contributor Licence Agreement.
 - [X] Provide adequate QA/testing plan information.
@@ -120,36 +120,29 @@ Once reviews are complete, the merge to `main` should be done with either:
 - the squash-merge option, to keep the history of `main` clean (even though some context/details are lost in the squash). The commit message for this squash should always be edited to concisely describe the commit without extraneous “address review comments” text.
 - the “rebase-merge” option, after manually rewriting the PR’s commit history and force-pushing to the branch. When using this option, the branch must have a clean history.
 
-### Reno
+### Release notes
 
-We use `Reno` to create our CHANGELOG. Reno is a pretty simple [tool](https://docs.openstack.org/reno/latest/user/usage.html).
+Each PR should include a release note fragment unless the PR has no impact on agent behavior (e.g., documentation updates, comment changes). PRs that don't require a release note will be labeled `changelog/no-changelog` by maintainers.
 
-Each PR should include a `releasenotes` file created with `reno`, unless the PR doesn't have any impact on the behavior of the Agent and therefore shouldn't be mentioned in the CHANGELOG (examples: repository documentation updates, changes in code comments). PRs that don't require a release note file will be labeled `changelog/no-changelog` by maintainers.
-
-To install reno: `pip install reno`
-
-Ultra quick `Reno` HOWTO:
+Create a new fragment with:
 
 ```bash
-$> reno new <topic-of-my-pr> --edit
-[...]
-# Remove unused sections and fill the relevant ones.
-# Reno will create a new file in releasenotes/notes.
-#
-# Each section from every release note are combined when the CHANGELOG.rst is
-# rendered. So the text needs to be worded so that it does not depend on any
-# information only available in another section. This may mean repeating some
-# details, but each section must be readable independently of the other.
-#
-# Each section note must be formatted as reStructuredText.
-[...]
+dda inv notes.new <topic-of-my-pr>
 ```
 
-Then just add and commit the new releasenote (located in `releasenotes/notes/`) with your PR. If the change is on the `trace-agent` (folders `cmd/trace-agent` or `pkg/trace`) please prefix the release note with "APM :" and the <topic-of-my-pr> argument with "apm-".
+This creates a YAML file in `releasenotes/notes/`. Fill in the relevant sections (written in **Markdown**) and delete the rest, then commit the file with your PR.
 
-#### Reno sections
+If the change is on the `trace-agent` (folders `cmd/trace-agent` or `pkg/trace`) please prefix `<topic-of-my-pr>` with `apm-`.
 
-The main thing to keep in mind is that the CHANGELOG is written for the agent's users and not its developers.
+For Cluster Agent changes, use:
+
+```bash
+dda inv notes.new <topic-of-my-pr> --dca
+```
+
+#### Release note sections
+
+The main thing to keep in mind is that the CHANGELOG is written for the agent's users, not its developers.
 
 - `features`: describe shortly what your feature does.
 
@@ -177,7 +170,7 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
       - |
         Kubernetes 1.3 & OpenShift 3.3 are currently not fully supported: docker
         and kubelet integrations work OK, but apiserver communication (event
-        collection, `kube_service` tagging) is not implemented
+        collection, `kube_service` tagging) is not implemented.
     ```
 
 - `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to:
@@ -197,23 +190,21 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
     example:
     ```yaml
     deprecations:
-    - |
-      Changed the attribute name to enable log collection from YAML configuration
-      file from "log_enabled" to "logs_enabled", "log_enabled" is still
-      supported.
+      - |
+        Changed the attribute name to enable log collection from YAML configuration
+        file from `log_enabled` to `logs_enabled`. `log_enabled` is still supported.
     ```
 
-- `security`: List security fixes, issues, warning or related topics here.
+- `security`: List security fixes, issues, warnings or related topics here.
 
     example:
     ```yaml
     security:
       - |
-        The /agent/check-config endpoint has been patched to enforce
-        authentication of the caller via a bearer session token.
+        The `/agent/check-config` endpoint now enforces authentication via a bearer session token.
     ```
 
-- `fixes`: List the fixes done in your PR here. Remember to be clear and give a minimum of context so people reading the CHANGELOG understand what the fix is about.
+- `fixes`: List the fixes done in your PR here. Be clear and give enough context so readers understand what was fixed.
 
     example:
     ```yaml
@@ -222,14 +213,13 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
         Fix EC2 tags collection when multiple marketplaces are set.
     ```
 
-- `other`: Add here every other information you want in the CHANGELOG that don't feat in any other section. This section should rarely be used.
+- `other`: Add here every other information you want in the CHANGELOG that doesn't fit in any other section. This section should rarely be used.
 
     example:
     ```yaml
     other:
       - |
-        Only enable the ``resources`` metadata collector on Linux by default, to match
-        Agent 5's behavior.
+        Only enable the `resources` metadata collector on Linux by default, to match Agent 5's behavior.
     ```
 
 ## PR labels
@@ -238,7 +228,7 @@ For internal PRs (from people in the Datadog organization), you have few extra l
 
 - `community/help-wanted`: for community PRs where help is needed to finish it.
 - `community`: for community PRs.
-- `changelog/no-changelog`: for PRs that don't require a reno releasenote (useful for PRs only changing documentation or tests).
+- `changelog/no-changelog`: for PRs that don't require a release note (useful for PRs only changing documentation or tests).
 - `qa/done` or `qa/no-code-change`: used to skip the QA week:
     - `qa/done` label is recommended in case of code changes ***and*** manual / automated QA done before merge.
     - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
