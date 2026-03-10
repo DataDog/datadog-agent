@@ -24,6 +24,13 @@ type FakeTagger struct {
 	TagsByEntityID map[types.EntityID][]string
 }
 
+// NewEmptyFakeTagger creates a FakeTagger with no configured tags.
+//
+//nolint:revive
+func NewEmptyFakeTagger() *FakeTagger {
+	return &FakeTagger{TagsByEntityID: map[types.EntityID][]string{}}
+}
+
 // NewFakeTagger creates a FakeTagger that returns tags keyed by entity ID.
 //
 //nolint:revive
@@ -31,11 +38,65 @@ func NewFakeTagger(tagsByEntityID map[types.EntityID][]string) *FakeTagger {
 	return &FakeTagger{TagsByEntityID: tagsByEntityID}
 }
 
-// NewEmptyFakeTagger creates a FakeTagger with no configured tags.
+// AgentTags returns nil tags.
 //
 //nolint:revive
-func NewEmptyFakeTagger() *FakeTagger {
-	return &FakeTagger{TagsByEntityID: map[types.EntityID][]string{}}
+func (f *FakeTagger) AgentTags(cardinality types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+// EnrichTags is a no-op.
+//
+//nolint:revive
+func (f *FakeTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {}
+
+// GenerateContainerIDFromOriginInfo returns an empty string.
+//
+//nolint:revive
+func (f *FakeTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	return "", nil
+}
+
+// GetEntity returns nil.
+//
+//nolint:revive
+func (f *FakeTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	return nil, nil
+}
+
+// GetEntityHash returns an empty string.
+//
+//nolint:revive
+func (f *FakeTagger) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
+	return ""
+}
+
+// GlobalTags returns nil tags.
+//
+//nolint:revive
+func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+// List returns an empty response.
+//
+//nolint:revive
+func (f *FakeTagger) List() types.TaggerListResponse {
+	return types.TaggerListResponse{}
+}
+
+// Standard returns nil tags.
+//
+//nolint:revive
+func (f *FakeTagger) Standard(entityID types.EntityID) ([]string, error) {
+	return nil, nil
+}
+
+// Subscribe returns nil.
+//
+//nolint:revive
+func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return nil, nil
 }
 
 // Tag returns the configured tags for the given entity ID.
@@ -51,64 +112,3 @@ func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinali
 func (f *FakeTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
 	return nil, true, nil
 }
-
-// GenerateContainerIDFromOriginInfo returns an empty string.
-//
-//nolint:revive
-func (f *FakeTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	return "", nil
-}
-
-// Standard returns nil tags.
-//
-//nolint:revive
-func (f *FakeTagger) Standard(entityID types.EntityID) ([]string, error) {
-	return nil, nil
-}
-
-// List returns an empty response.
-//
-//nolint:revive
-func (f *FakeTagger) List() types.TaggerListResponse {
-	return types.TaggerListResponse{}
-}
-
-// GetEntity returns nil.
-//
-//nolint:revive
-func (f *FakeTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
-	return nil, nil
-}
-
-// Subscribe returns nil.
-//
-//nolint:revive
-func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
-	return nil, nil
-}
-
-// GetEntityHash returns an empty string.
-//
-//nolint:revive
-func (f *FakeTagger) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
-	return ""
-}
-
-// AgentTags returns nil tags.
-//
-//nolint:revive
-func (f *FakeTagger) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-// GlobalTags returns nil tags.
-//
-//nolint:revive
-func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-// EnrichTags is a no-op.
-//
-//nolint:revive
-func (f *FakeTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {}
