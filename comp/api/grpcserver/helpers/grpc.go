@@ -57,8 +57,9 @@ func TimeoutHandlerFunc(httpHandler http.Handler, timeout time.Duration) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deadline := time.Now().Add(timeout)
 
-		conn := r.Context().Value(grpccontext.ConnContextKey).(net.Conn)
-		_ = conn.SetWriteDeadline(deadline)
+		if conn, ok := r.Context().Value(grpccontext.ConnContextKey).(net.Conn); ok {
+			_ = conn.SetWriteDeadline(deadline)
+		}
 
 		httpHandler.ServeHTTP(w, r)
 	})
