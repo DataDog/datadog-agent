@@ -164,9 +164,20 @@ func (e *escaper) escape(c context, n parse.Node) context {
 	panic("escaping " + n.String() + " is unimplemented")
 }
 
+// godebugStub is a minimal stub for internal/godebug.Setting, which cannot be
+// imported outside the standard library. It provides the Value and IncNonDefault
+// methods used by security-related GODEBUG switches in html/template.
+type godebugStub struct{ value string }
+
+func (g godebugStub) Value() string  { return g.value }
+func (g godebugStub) IncNonDefault() {}
+
 var debugAllowActionJSTmpl = 0
 
-var htmlmetacontenturlescape = 0
+// htmlmetacontenturlescape is stubbed as a simple type since we cannot import
+// internal/godebug. We always enable the secure behavior (URL filtering in
+// meta content attributes), matching the intent of CVE-2026-27142's fix.
+var htmlmetacontenturlescape = godebugStub{value: "1"}
 
 // escapeAction escapes an action template node.
 func (e *escaper) escapeAction(c context, n *parse.ActionNode) context {
