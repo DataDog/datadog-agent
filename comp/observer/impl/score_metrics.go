@@ -64,6 +64,24 @@ type MetricScoreResult struct {
 }
 
 // LoadMetricGroundTruth reads TP/FP metric lists from a scenario's metadata.json.
+//
+// The metadata.json file must contain "true_positives" and "false_positives" arrays,
+// each with entries specifying a service and its labeled metrics:
+//
+//	{
+//	  "true_positives": [
+//	    {"service": "cassandra-cluster", "metrics": ["system.cpu.user", "cassandra.write_latency.99th_percentile"]},
+//	    {"service": "notification-pipeline", "metrics": ["trace.notification.delivery.errors"]}
+//	  ],
+//	  "false_positives": [
+//	    {"service": "integration-api", "metrics": ["trace.flask.request.hits"]},
+//	    {"service": "cassandra-cluster", "metrics": ["cassandra.exceptions.count"]}
+//	  ]
+//	}
+//
+// True positives are metrics that genuinely changed during the disruption.
+// False positives are metrics that look suspicious but are not caused by the disruption.
+// Any other fields in the JSON (scenario metadata, timestamps, etc.) are ignored.
 func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTruth, error) {
 	path := filepath.Join(scenariosDir, scenarioName, "metadata.json")
 	data, err := os.ReadFile(path)

@@ -55,9 +55,18 @@ func (c *DetectorPassthroughCorrelator) Reset() {
 	c.anomaliesByDetector = make(map[string][]observer.Anomaly)
 }
 
-// ActiveCorrelations returns one correlation per individual anomaly, sorted by
-// detector name then timestamp. Each anomaly becomes its own period so the
-// scorer can evaluate each detection timestamp independently.
+// ActiveCorrelations returns one ActiveCorrelation per individual anomaly,
+// sorted by detector name then timestamp.
+//
+// Each anomaly becomes its own correlation with:
+//   - Pattern:     "passthrough_{detectorName}_{index}"
+//   - Title:       "Passthrough[{detectorName}]: {anomaly.Source}"
+//   - Anomalies:   single-element slice containing the original anomaly
+//   - FirstSeen/LastUpdated: the anomaly's timestamp
+//
+// When serialized via WriteObserverOutput, each correlation becomes an
+// ObserverCorrelation where period_start == period_end == anomaly.Timestamp.
+// This allows the scorer to evaluate each detection independently
 func (c *DetectorPassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
