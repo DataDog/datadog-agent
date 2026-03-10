@@ -297,24 +297,16 @@ def _prepare_test_update(version: str) -> tuple[Path, str]:
 
 def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str | None:
     """Create a release note for the Python patch version update."""
+    from tasks.libs.releasing.notes import _new_fragment_path
+
     template = f"""---
 enhancements:
 - |
-    The Agent's embedded Python has been upgraded from {old_version} to {new_version}
+    The Agent's embedded Python has been upgraded from {old_version} to {new_version}.
 """
 
-    # Create release note using reno
-    res = ctx.run(f'reno new "Bump embedded Python to {new_version}"', hide='both')
-    if not res:
-        print(color_message("WARNING: Could not create release note. Please create manually.", "orange"))
-        return None
-
-    match = re.match(r"^Created new notes file in (.*)$", res.stdout)
-    if not match:
-        print(color_message("WARNING: Could not get created release note path. Please create manually.", "orange"))
-        return None
-
-    path = match.group(1)
+    path = _new_fragment_path('releasenotes', f'bump-python-to-{new_version}')
+    path.parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(template)
 
-    return path
+    return str(path)

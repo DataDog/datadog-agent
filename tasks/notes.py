@@ -8,8 +8,55 @@ from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch, try_git_command
 from tasks.libs.common.worktree import agent_context
-from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
+from tasks.libs.releasing.notes import (
+    CHANGELOG_SECTIONS,
+    _add_dca_prelude,
+    _add_prelude,
+    _new_fragment_path,
+    update_changelog_generic,
+)
 from tasks.libs.releasing.version import deduce_version
+
+
+@task
+def new(ctx, slug, dca=False, installscript=False):
+    """Create a new release note fragment.
+
+    Creates a YAML template in releasenotes/notes/ (or releasenotes-dca/notes/
+    if --dca is set, or releasenotes-installscript/notes/ if --installscript is set).
+    Fill in the relevant sections and delete the rest.
+
+    Example:
+        dda inv notes.new my-feature
+        dda inv notes.new my-fix --dca
+    """
+    if dca:
+        changelog_dir = 'releasenotes-dca'
+    elif installscript:
+        changelog_dir = 'releasenotes-installscript'
+    else:
+        changelog_dir = 'releasenotes'
+
+    note_path = _new_fragment_path(changelog_dir, slug)
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+
+    section_lines = []
+    for key, title in CHANGELOG_SECTIONS:
+        if key == 'upgrade':
+            section_lines.append(
+                f"# {key}:\n#   - |\n#     {title}: include steps users can follow if affected.\n"
+            )
+        else:
+            section_lines.append(f"# {key}:\n#   - |\n#     {title}.\n")
+
+    template = "---\n# Fill in the relevant section(s) below. Delete sections that don't apply.\n# Content should be written in Markdown.\n\n"
+    template += "\n".join(section_lines)
+
+    with open(note_path, 'w') as f:
+        f.write(template)
+
+    print(f"Created release note: {note_path}")
+    print("Edit the file, fill in the relevant sections, and commit it with your PR.")
 
 
 @task
@@ -36,17 +83,17 @@ def add_installscript_prelude(ctx, release_branch):
     version = deduce_version(ctx, release_branch, next_version=False)
 
     with agent_context(ctx, release_branch):
-        res = ctx.run(f"reno --rel-notes-dir releasenotes-installscript new prelude-release-{version}")
-        new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
+        note_path = _new_fragment_path('releasenotes-installscript', f'prelude-release-{version}')
+        note_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(new_releasenote, "w") as f:
+        with open(note_path, 'w') as f:
             f.write(
-                f"""prelude:
-        |
-        Released on: {date.today()}"""
+                f"""prelude: |
+  Released on: {date.today()}
+"""
             )
 
-        ctx.run(f"git add {new_releasenote}")
+        ctx.run(f"git add {note_path}")
         print("\nCommit this with:")
         print(f"git commit -m \"Add prelude for {version} release\"")
 
@@ -54,12 +101,9 @@ def add_installscript_prelude(ctx, release_branch):
 @task
 def update_changelog(ctx, release_branch, target="all", upstream="origin"):
     """
-    Quick task to generate the new CHANGELOG using reno when releasing a minor
-    version (linux/macOS only).
+    Generate the new CHANGELOG.md when releasing a minor version (linux/macOS only).
     By default generates Agent and Cluster Agent changelogs.
     Use target == "agent" or target == "cluster-agent" to only generate one or the other.
-    If new_version is omitted, a changelog since last tag on the current branch
-    will be generated.
     """
 
     with agent_context(ctx, release_branch):
@@ -78,20 +122,13 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         try:
             ctx.run("git diff --exit-code HEAD", hide="both")
         except Failure:
-            print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+            print("Error: You have uncommitted changes, please commit or stash before using update_changelog")
             return
 
-        # let's check that the tag for the new version is present
-        try:
-            ctx.run(f"git tag --list | grep {new_version}")
-        except Failure:
-            print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
-            raise
-
         if generate_agent:
-            update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+            update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.md")
         if generate_cluster_agent:
-            update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+            update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.md")
 
         # Step 2 - commit changes
 
@@ -101,13 +138,13 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
 
-        print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
+        print(color_message("Committing CHANGELOG.md and CHANGELOG-DCA.md", "bold"))
         print(
             color_message(
                 "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
             )
         )
-        ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
+        ctx.run("git add CHANGELOG.md CHANGELOG-DCA.md")
 
         commit_message = f"'Changelog updates for {new_version} release'"
 
@@ -147,8 +184,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
 @task
 def update_installscript_changelog(ctx, release_branch):
     """
-    Quick task to generate the new CHANGELOG-INSTALLSCRIPT using reno when releasing a minor
-    version (linux/macOS only).
+    Generate the new CHANGELOG-INSTALLSCRIPT.md when releasing a minor version.
     """
 
     new_version = deduce_version(ctx, release_branch, next_version=False)
@@ -172,43 +208,7 @@ def update_installscript_changelog(ctx, release_branch):
         # make sure we are up to date
         ctx.run("git fetch")
 
-        # let's check that the tag for the new version is present (needed by reno)
-        try:
-            ctx.run(f"git tag --list | grep installscript-{new_version}")
-        except Failure:
-            print(f"Missing 'installscript-{new_version}' git tag: mandatory to use 'reno'")
-            raise
-
-        # generate the new changelog
-        ctx.run(
-            f"reno --rel-notes-dir releasenotes-installscript report             --ignore-cache             --version installscript-{new_version}             --no-show-source > /tmp/new_changelog-installscript.rst"
-        )
-
-        # reseting git
-        ctx.run("git reset --hard HEAD")
-
-        # mac's `sed` has a different syntax for the "-i" paramter
-        sed_i_arg = "-i"
-        if sys.platform == 'darwin':
-            sed_i_arg = "-i ''"
-        # remove the old header from the existing changelog
-        ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst")
-
-        if sys.platform != 'darwin':
-            # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-            ctx.run(
-                "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(  # noqa: FS002
-                    sed_i_arg, new_version, '=' * len(new_version)
-                )
-            )
-
-        # merging to CHANGELOG-INSTALLSCRIPT.rst
-        ctx.run(
-            "cat CHANGELOG-INSTALLSCRIPT.rst >> /tmp/new_changelog-installscript.rst && mv /tmp/new_changelog-installscript.rst CHANGELOG-INSTALLSCRIPT.rst"
-        )
-
-        # commit new CHANGELOG-INSTALLSCRIPT
-        ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
+        update_changelog_generic(ctx, new_version, "releasenotes-installscript", "CHANGELOG-INSTALLSCRIPT.md")
 
         print("\nCommit this with:")
         print(f"git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {new_version}\"")

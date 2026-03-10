@@ -197,19 +197,15 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
 
 
 def _create_releasenote(ctx: Context, version: str):
+    from tasks.libs.releasing.notes import _new_fragment_path
+
     RELEASENOTE_TEMPLATE = """---
 enhancements:
 - |
-    Agents are now built with Go ``{}``.
+    Agents are now built with Go `{}`.
 """
-    # hiding stderr too because `reno` displays some warnings about the config
-    res = ctx.run(f'reno new "bump go to {version}"', hide='both')
-    assert res, "Could not create release note"
-    match = re.match("^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
-    if not match:
-        raise exceptions.Exit("Could not get created release note path")
-
-    path = match.group(1)
+    path = _new_fragment_path('releasenotes', f'bump-go-to-{version}')
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as writer:
         writer.write(RELEASENOTE_TEMPLATE.format(version))
-    return path
+    return str(path)

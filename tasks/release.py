@@ -1275,11 +1275,9 @@ def create_github_release(ctx, release_branch, draft=True):
     """
     Create a GitHub release for the given tag.
     """
-    import pandoc
-
     sections = (
-        ("Agent", "CHANGELOG.rst"),
-        ("Datadog Cluster Agent", "CHANGELOG-DCA.rst"),
+        ("Agent", "CHANGELOG.md"),
+        ("Datadog Cluster Agent", "CHANGELOG-DCA.md"),
     )
 
     notes = []
@@ -1287,7 +1285,12 @@ def create_github_release(ctx, release_branch, draft=True):
 
     with agent_context(ctx, release_branch):
         for section, filename in sections:
-            text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
+            try:
+                with open(filename, encoding='utf-8') as fh:
+                    text = fh.read()
+            except OSError as e:
+                print(f"Warning: could not read {filename}: {e}")
+                continue
 
             header_found = False
             lines = []

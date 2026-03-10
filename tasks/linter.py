@@ -213,38 +213,49 @@ def releasenote(ctx):
         if github.is_release_note_needed(pr_id):
             if not github.contains_release_note(pr_id):
                 print(
-                    f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
-                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
+                    f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one"
+                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#release-notes"
                     ", or apply the label 'changelog/no-changelog' to the PR.",
                     file=sys.stderr,
                 )
                 raise Exit(code=1)
-            ctx.run("reno lint")
+            # Validate the fragment YAML structure
+            from glob import glob as _glob
+
+            from tasks.libs.common.git import get_ancestor_base_branch, get_common_ancestor
+
+            base_branch = get_ancestor_base_branch()
+            merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
+            result = ctx.run(
+                f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
+                warn=True,
+                hide=True,
+            )
+            file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+            if file_list:
+                rst_releasenotes(ctx, files=",".join(file_list))
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
 
 
 @task
 def rst_releasenotes(ctx, files=None, only_changed=False):
-    """Check release notes for RST formatting issues.
+    """Check release notes for structural issues.
 
-    Validates that release notes use proper reStructuredText (RST) formatting
-    instead of Markdown, using docutils as the reference RST parser.
+    Validates that release notes are valid YAML with known sections and correct
+    content types. Content is Markdown; no RST validation is performed.
 
     Args:
         files: Optional comma-separated list of files to lint. If not provided,
                lints all .yaml files in releasenotes/notes/ and releasenotes-dca/notes/.
         only_changed: If True, only lint release note files that have been modified
-                      compared to the base branch (main). Used in CI to only check
-                      files in the current PR.
+                      compared to the base branch. Used in CI to only check PR files.
     """
     from tasks.libs.linter.releasenotes import lint_releasenotes
 
     if files:
         file_list = [f.strip() for f in files.split(',') if f.strip()]
     elif only_changed:
-        # Get release note files that have been added or modified compared to the base branch
-        # Uses COMPARE_TO_BRANCH in CI, or falls back to detecting the PR's target branch
         base_branch = get_ancestor_base_branch()
         merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
         result = ctx.run(
@@ -260,19 +271,17 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
         print(color_message("No release note files to lint", "yellow"))
         return
 
-    # Validate filenames when checking a targeted set of files (CI or pre-commit),
-    # but not when linting the full corpus which contains legacy non-conforming names.
-    results = lint_releasenotes(file_list, validate_filename=bool(files or only_changed))
+    results = lint_releasenotes(file_list)
 
     if results:
-        print(color_message("RST formatting issues found in release notes:", "red"))
+        print(color_message("Issues found in release notes:", "red"))
         print()
         for result in results:
             print(result.format_output())
             print()
         raise Exit(code=1)
 
-    print(color_message(f"All {len(file_list)} release note files have valid RST formatting", "green"))
+    print(color_message(f"All {len(file_list)} release note files are valid", "green"))
 
 
 @task
