@@ -12,7 +12,16 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"go.uber.org/atomic"
 )
+
+// newFuzzProbe returns a minimal probe suitable for unit-level fuzz tests that
+// exercise individual parsing functions. It initialises only the fields those
+// functions actually read so that calls like p.bootTime.Load() don't panic.
+func newFuzzProbe() *probe {
+	return &probe{clockTicks: DefaultClockTicks, bootTime: atomic.NewUint64(0)}
+}
 
 func FuzzParseStatContent(f *testing.F) {
 	// Real /proc/[pid]/stat seeds
@@ -24,7 +33,7 @@ func FuzzParseStatContent(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("no parens here"))
 
-	p := &probe{clockTicks: DefaultClockTicks}
+	p := newFuzzProbe()
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		sInfo := &statInfo{cpuStat: &CPUTimesStat{}}
@@ -46,7 +55,7 @@ func FuzzParseStatusLine(f *testing.F) {
 	f.Add([]byte("nonvoluntary_ctxt_switches:\t50"))
 	f.Add([]byte(""))
 
-	p := &probe{clockTicks: DefaultClockTicks}
+	p := newFuzzProbe()
 
 	f.Fuzz(func(t *testing.T, line []byte) {
 		sInfo := &statusInfo{
@@ -67,7 +76,7 @@ func FuzzParseIOLine(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("unknown_field: 999"))
 
-	p := &probe{clockTicks: DefaultClockTicks}
+	p := newFuzzProbe()
 
 	f.Fuzz(func(t *testing.T, line []byte) {
 		io := &IOCountersStat{ReadBytes: -1, ReadCount: -1, WriteBytes: -1, WriteCount: -1}

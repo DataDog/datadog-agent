@@ -165,7 +165,7 @@ func (e entry) parseAddress(rawAddress []byte) (netip.Addr, uint16) {
 
 	// Parse port number
 	n, err := hex.Decode(e.buffer, rawPort)
-	if err != nil {
+	if err != nil || n < 2 {
 		return netip.Addr{}, 0
 	}
 	parsedPort := binary.BigEndian.Uint16(e.buffer[:n])

@@ -60,6 +60,7 @@ func parseV2IOFn(stats *IOStats) func([]string) error {
 	return func(fields []string) error {
 		if len(fields) < 2 {
 			reportError(newValueError("", fmt.Errorf("malformed line fields: '%v'", fields)))
+			return nil
 		}
 
 		written := false
