@@ -1,9 +1,10 @@
+load("@@//bazel/rules:dd_auto_pkg_artifact.bzl", "dd_auto_pkg_artifact")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
@@ -81,22 +82,27 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "sepol_rpath_patched",
+    inputs = [":sepol"],
+)
+
 pkg_files(
     name = "lib_files",
-    srcs = [":sepol"],
-    prefix = "lib",
+    srcs = [":sepol_rpath_patched"],
+    prefix = "embedded/lib",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
-    prefix = "include/sepol",
+    prefix = "embedded/include/sepol",
 )
 
 pkg_files(
     name = "policy_hdr_files",
     srcs = glob(["include/sepol/policydb/*.h"]),
-    prefix = "include/sepol/policydb",
+    prefix = "embedded/include/sepol/policydb",
 )
 
 pkg_filegroup(
@@ -106,13 +112,12 @@ pkg_filegroup(
         ":policy_hdr_files",
         ":lib_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
+dd_auto_pkg_artifact(
+    name = "sepol_pkg",
+    src = ":sepol",
+    install_files = [":all_files"],
+    visibility = ["//visibility:public"],
 )
