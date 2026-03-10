@@ -1,0 +1,140 @@
+{
+  "project": "datadog-agent",
+  "branchName": "ralph/dogstatsd-to-forwarder-optimisations",
+  "description": "DogStatsD-to-Forwarder Pipeline Memory Optimisations - Reduce allocs/op across the full metric pipeline (parsing → aggregation → serialisation → forwarding) by ≥25% via sync.Pool recycling and pre-sized data structures",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Establish CPU and Memory Allocation Baseline",
+      "description": "As a developer, I want a reproducible profiling baseline for the full pipeline so that I can measure the impact of every subsequent optimisation against real data.",
+      "acceptanceCriteria": [
+        "Run `go test -bench=. -benchmem -count=5 ./comp/dogstatsd/server/... ./pkg/aggregator/... ./pkg/serializer/... ./comp/forwarder/defaultforwarder/...` and save output to `plans/bench-baseline-forwarder.txt`",
+        "Run `go test -bench=. -memprofile=mem.out -cpuprofile=cpu.out -benchmem ./pkg/aggregator/...` to generate pprof profiles",
+        "A `scripts/profile_pipeline.sh` shell script is created that documents the exact commands to reproduce the baseline profiles",
+        "Top 10 allocation sites by cumulative allocs/op are documented in `plans/profiling-baseline.md`",
+        "Top 10 CPU hotspots are documented in `plans/profiling-baseline.md`",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Pool MetricSample Structs Across the Parsing→Aggregator Boundary",
+      "description": "As a developer, I want MetricSample structs to be pooled and reused rather than heap-allocated per metric so that GC pressure in the high-frequency parsing path is reduced.",
+      "acceptanceCriteria": [
+        "A `sync.Pool` for `MetricSample` structs is introduced in `pkg/metrics` or `comp/dogstatsd/server`",
+        "`MetricSample` structs are obtained from the pool in the parsing worker (`comp/dogstatsd/server/server_worker.go`) instead of being freshly allocated",
+        "Structs are returned to the pool after the TimeSampler has consumed them (after `sample()` completes in `pkg/aggregator/time_sampler.go`)",
+        "Tags (`[]string`) field is copied or fully interned before the struct is returned to the pool — no dangling references",
+        "`BenchmarkTimeSamplerSampleTagCount` allocs/op is ≥20% lower than `plans/bench-baseline-forwarder.txt`",
+        "`go test -race ./comp/dogstatsd/server/... ./pkg/aggregator/...` passes with no data race",
+        "All unit tests pass: `go test ./comp/dogstatsd/server/... ./pkg/aggregator/...`",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Reduce Tag Slice Allocations in Context Key Generation",
+      "description": "As a developer, I want tag slice handling in contextResolver.trackContext() to allocate fewer intermediate slices so that context key generation is cheaper per sample.",
+      "acceptanceCriteria": [
+        "`HashingTagsAccumulator` in `pkg/aggregator/context_resolver.go` reuses a pre-allocated backing buffer per TimeSampler worker goroutine (using `sync.Pool` or per-worker struct field), avoiding a fresh `[]string` allocation per `trackContext()` call",
+        "The sort in key generation operates on the in-place buffer rather than a copy where the API permits",
+        "`BenchmarkContextResolver1000` allocs/op is ≥25% lower than `plans/bench-baseline-forwarder.txt`",
+        "`BenchmarkTimeSamplerSampleHighCardinality` (100K contexts) ns/op shows no regression vs baseline",
+        "All unit tests pass: `go test ./pkg/aggregator/...`",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Pool Serie Structs and Point Slices in TimeSampler Flush",
+      "description": "As a developer, I want Serie structs and their []Point backing arrays to be pooled across flush cycles so that the flush path allocates less per cycle.",
+      "acceptanceCriteria": [
+        "A `SeriePool` using `sync.Pool` is introduced in `pkg/metrics` or `pkg/aggregator` to recycle `Serie` structs",
+        "Point slices within pooled `Serie` structs are pre-allocated to the expected capacity (number of flush buckets in the Serie's window) to avoid append-driven growth allocations",
+        "Pooled `Serie` structs are fully zeroed/reset before reuse to prevent stale field leakage between flush cycles",
+        "`BenchmarkTimeSamplerFlushCardinality` (10K contexts) allocs/op is ≥30% lower than `plans/bench-baseline-forwarder.txt`",
+        "`BenchmarkTimeSamplerFlushMetricTypes` shows no regression in ns/op vs baseline",
+        "All unit tests pass: `go test ./pkg/aggregator/... ./pkg/metrics/...`",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Reduce Allocation in SketchMap Insertion and Flush",
+      "description": "As a developer, I want sketch (distribution metric) insertion and flush to avoid creating unnecessary intermediate map entries and slice copies so that distribution metrics have lower allocation cost.",
+      "acceptanceCriteria": [
+        "Inner map initialisation in `sketchMap` (`pkg/aggregator/sketch_map.go`) uses `make(map[...], hint)` with a hint derived from the previous flush's cardinality (tracked as a rolling average) to reduce rehashing allocations",
+        "`SketchPoint` slices in `flushBefore()` are pre-allocated to the expected capacity (number of timestamp buckets) rather than growing via append",
+        "`BenchmarkTimeSamplerFlushMetricTypes` for distribution type allocs/op is ≥20% lower than `plans/bench-baseline-forwarder.txt`",
+        "Existing sketch quantile accuracy tests pass: `go test ./pkg/util/quantile/...`",
+        "All unit tests pass: `go test ./pkg/aggregator/...`",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Reduce Buffer Allocations in Serialisation Streaming Path",
+      "description": "As a developer, I want the IterableSeries and IterableSketches streaming paths to reuse encode buffers between payload chunks so that serialisation allocates fewer intermediate byte slices per flush.",
+      "acceptanceCriteria": [
+        "Encoding buffers (`bytes.Buffer` or `[]byte`) in the serialiser (`pkg/serializer/serializer.go` and `pkg/serializer/internal/metrics/`) are obtained from a `sync.Pool` rather than freshly allocated per payload chunk",
+        "Pooled buffers are returned to the pool only after the encoded payload has been handed off to the forwarder (not while a channel consumer may still hold a reference)",
+        "`json_payload_builder_throughput_benchmark_test.go` allocs/op is ≥20% lower than `plans/bench-baseline-forwarder.txt`",
+        "Payload content is byte-identical to pre-optimisation output (validated by existing serialiser correctness tests: `go test ./pkg/serializer/...`)",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Pool Forwarder Transaction Objects",
+      "description": "As a developer, I want HTTP transaction objects in the forwarder to be pooled and reused so that high-frequency metric submissions allocate fewer objects on the heap.",
+      "acceptanceCriteria": [
+        "`transaction.HTTPTransaction` structs are obtained from a `sync.Pool` in `comp/forwarder/defaultforwarder` rather than being freshly allocated per `SubmitV1Series()` / `SubmitSketch()` call",
+        "Transaction structs are fully reset before reuse: headers cleared, payload reference nilled, retry state zeroed",
+        "Transactions are returned to the pool only after the HTTP response is fully processed (success or terminal 4xx failure) — not while the retry queue still holds a reference",
+        "Retry logic in `domain_forwarder.go` correctly handles pooled transactions with no double-return to pool on retried transactions",
+        "`forwarder_bench_test.go` allocs/op is ≥15% lower than `plans/bench-baseline-forwarder.txt`",
+        "`go test -race ./comp/forwarder/...` passes with no data race",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Validate Cumulative Allocation Reduction Against Baseline",
+      "description": "As a developer, I want a final benchmark comparison between the optimised pipeline and the baseline profiles to confirm that cumulative allocs/op reduction meets targets with no regressions.",
+      "acceptanceCriteria": [
+        "Run `go test -bench=. -benchmem -count=5 ./comp/dogstatsd/server/... ./pkg/aggregator/... ./pkg/serializer/... ./comp/forwarder/defaultforwarder/...` and save output to `plans/bench-final-forwarder.txt`",
+        "Total allocs/op across all pipeline benchmarks in `plans/bench-final-forwarder.txt` is ≥25% lower than `plans/bench-baseline-forwarder.txt` (verified with `benchstat` comparison)",
+        "`BenchmarkTimeSamplerSampleThenFlushCycle` ns/op is not worse than baseline (within 5%)",
+        "All existing benchmark tests show no regression >5% in ns/op vs baseline",
+        "A human-readable comparison table (benchstat output) is appended to `plans/bench-final-forwarder.txt`",
+        "Updated profiling summary is appended to `plans/profiling-baseline.md` alongside the original baseline for side-by-side comparison",
+        "`go test -race ./comp/dogstatsd/... ./pkg/aggregator/... ./pkg/serializer/... ./comp/forwarder/...` passes",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

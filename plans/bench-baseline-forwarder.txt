@@ -1,0 +1,199 @@
+# DogStatsD-to-Forwarder Pipeline Benchmark Baseline
+# Date: 2026-03-10
+# Branch: ralph/dogstatsd-to-forwarder-optimisations (from main)
+# Machine: 12th Gen Intel(R) Core(TM) i9-12900H, Linux/amd64
+#
+# Command to reproduce (count=5 for statistically robust results):
+#   DD_LOG_LEVEL=off go test -tags test -bench=. -benchmem -count=5 \
+#     ./comp/dogstatsd/server/... ./pkg/aggregator/... \
+#     ./comp/forwarder/defaultforwarder/... 2>&1
+#
+# Note: pkg/serializer requires additional build tags:
+#   DD_LOG_LEVEL=off go test -tags "test zlib zstd" -bench=. -benchmem -count=5 \
+#     ./pkg/serializer/internal/metrics/...
+#
+# Note: DD_LOG_LEVEL=off suppresses the per-iteration logging noise that
+# the aggregator tests emit to stdout. The benchmarks themselves still run
+# correctly — this flag only affects readability of the output.
+#
+# Note: The forwarder package has pre-existing test failures on main branch
+# in domain_forwarder_test.go. Use -run='^$' to run only benchmarks:
+#   DD_LOG_LEVEL=off go test -tags test -bench=. -benchmem -count=5 -run='^$' \
+#     ./comp/forwarder/defaultforwarder/...
+#
+# Baseline results captured with count=3, benchtime=500ms
+# (count=5 baseline for US-008 final validation will be run at that stage)
+
+# =============================================================================
+# DogStatsD Server (comp/dogstatsd/server)
+# =============================================================================
+goos: linux
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/comp/dogstatsd/server
+cpu: 12th Gen Intel(R) Core(TM) i9-12900H
+BenchmarkParseMetric/1-tags-20      	 2079355	       319.7 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 1931385	       321.3 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/1-tags-20      	 1693717	       325.0 ns/op	      16 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 1452118	       437.5 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 1302062	       445.6 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/4-tags-20      	 1481818	       513.9 ns/op	      64 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	  654166	       908.9 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	  731101	       846.7 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/16-tags-20     	  600754	       847.3 ns/op	     256 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  260062	      2747 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  243344	      2449 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/64-tags-20     	  249614	      2621 ns/op	    1152 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	   62608	     10224 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	   75918	      9725 ns/op	    4864 B/op	       1 allocs/op
+BenchmarkParseMetric/256-tags-20    	   69354	     10820 ns/op	    4864 B/op	       1 allocs/op
+
+# =============================================================================
+# Aggregator (pkg/aggregator)
+# =============================================================================
+goos: linux
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/pkg/aggregator
+cpu: 12th Gen Intel(R) Core(TM) i9-12900H
+BenchmarkContextResolver1000-20                	 6480918	       116.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkContextResolver1000-20                	 6255469	       111.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkContextResolver1000-20                	 6037047	        97.88 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=true-20                     3955759       163.6 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=true-20                     3478996       161.7 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=true-20                     3136369       167.0 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=false-20                    3082910       187.7 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=false-20                    3916918       182.9 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/0-tags/useStore=false-20                    3574848       169.4 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=true-20                     3043740       192.8 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=true-20                     2761966       181.5 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=true-20                     3466616       201.4 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=false-20                    2590670       195.6 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=false-20                    3015250       210.8 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/2-tags/useStore=false-20                    2790394       204.2 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=true-20                     2733003       237.9 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=true-20                     2386922       234.0 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=true-20                     2576628       235.9 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=false-20                    2589991       215.1 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=false-20                    2579894       197.5 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/5-tags/useStore=false-20                    2638653       215.4 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=true-20                    2353075       235.8 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=true-20                    2297786       234.7 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=true-20                    2258755       248.0 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=false-20                   2319478       267.9 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=false-20                   2067397       267.2 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/10-tags/useStore=false-20                   2068322       289.7 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=true-20                    1382529       413.8 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=true-20                    1333503       434.2 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=true-20                    1432209       446.0 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=false-20                   1419532       419.7 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=false-20                   1397694       447.3 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/20-tags/useStore=false-20                   1282516       440.5 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=true-20                     634334       815.8 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=true-20                     701182       819.5 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=true-20                     758955       819.4 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=false-20                    713952       806.4 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=false-20                    681103       816.1 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerSampleTagCount/50-tags/useStore=false-20                    683506       839.5 ns/op     0 B/op       0 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=true-20             1363      399580 ns/op    1000 contexts   266170 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=true-20             1269      395428 ns/op    1000 contexts   266165 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=true-20             1364      400554 ns/op    1000 contexts   266178 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=false-20            1232      409838 ns/op    1000 contexts   266169 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=false-20            1303      400863 ns/op    1000 contexts   266157 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushCardinality/1000-contexts/useStore=false-20            1328      410629 ns/op    1000 contexts   266170 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=true-20                     1310      388492 ns/op    1000 metrics    266159 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=true-20                     1318      381442 ns/op    1000 metrics    266170 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=true-20                     1420      376922 ns/op    1000 metrics    266175 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=false-20                    1269      400988 ns/op    1000 metrics    266160 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=false-20                    1324      408950 ns/op    1000 metrics    266170 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/gauge/useStore=false-20                    1366      413531 ns/op    1000 metrics    266161 B/op    3032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=true-20                   1196      480878 ns/op    1000 metrics    554168 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=true-20                   1021      534793 ns/op    1000 metrics    554232 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=true-20                   1141      510947 ns/op    1000 metrics    554219 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=false-20                   894      576414 ns/op    1000 metrics    554191 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=false-20                  1056      569209 ns/op    1000 metrics    554211 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/counter/useStore=false-20                  1029      564187 ns/op    1000 metrics    554198 B/op    4032 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=true-20                  259     2064247 ns/op    1000 metrics   1603520 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=true-20                  252     2037718 ns/op    1000 metrics   1603500 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=true-20                  261     2081116 ns/op    1000 metrics   1603514 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=false-20                 246     2064619 ns/op    1000 metrics   1603535 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=false-20                 250     2061304 ns/op    1000 metrics   1603514 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/histogram/useStore=false-20                 272     2108154 ns/op    1000 metrics   1603540 B/op   22040 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=true-20              1174      505097 ns/op    1000 metrics    450849 B/op    6052 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=true-20               992      511163 ns/op    1000 metrics    451002 B/op    6052 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=true-20               978      512440 ns/op    1000 metrics    451271 B/op    6052 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=false-20              925      582551 ns/op    1000 metrics    451036 B/op    6052 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=false-20             1080      576949 ns/op    1000 metrics    451186 B/op    6052 allocs/op
+BenchmarkTimeSamplerFlushMetricTypes/distribution/useStore=false-20             1226      484413 ns/op    1000 metrics    450758 B/op    6052 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=true-20          2653      220069 ns/op    133982 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=true-20          3166      198950 ns/op    133970 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=true-20          3369      201055 ns/op    133988 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=false-20         2890      210784 ns/op    133975 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=false-20         2761      237772 ns/op    134004 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/1000-samples-per-flush/useStore=false-20         2644      225271 ns/op    133979 B/op    1531 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=true-20          231     2200939 ns/op   2111385 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=true-20          267     2091537 ns/op   2111387 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=true-20          262     2140578 ns/op   2111381 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=false-20         243     2152765 ns/op   2111372 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=false-20         253     2254035 ns/op   2111378 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/15000-samples-per-flush/useStore=false-20         256     2213384 ns/op   2111377 B/op   24568 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=true-20          33    16824592 ns/op  14453257 B/op  153744 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=true-20          33    17111307 ns/op  14453219 B/op  153744 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=true-20          34    17394512 ns/op  14453245 B/op  153744 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=false-20         38    18406413 ns/op  14453242 B/op  153744 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=false-20         42    17191192 ns/op  14453291 B/op  153744 allocs/op
+BenchmarkTimeSamplerSampleThenFlushCycle/100000-samples-per-flush/useStore=false-20         37    13859342 ns/op  14453262 B/op  153744 allocs/op
+
+# =============================================================================
+# Forwarder (comp/forwarder/defaultforwarder)
+# =============================================================================
+goos: linux
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder
+cpu: 12th Gen Intel(R) Core(TM) i9-12900H
+BenchmarkCreateHTTPTransactionPayloadSize/256-bytes-20           535310    1048 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionPayloadSize/256-bytes-20           508128    1139 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionPayloadSize/256-bytes-20           481945    1105 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionPayloadSize/4096-bytes-20          495613    1063 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionPayloadSize/4096-bytes-20          512961    1065 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionPayloadSize/4096-bytes-20          577659    1048 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/1-payloads-20         562850    1090 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/1-payloads-20         540859    1068 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/1-payloads-20         549199    1102 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/4-payloads-20         162841    3515 ns/op    3040 B/op    51 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/4-payloads-20         169184    3478 ns/op    3040 B/op    51 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/4-payloads-20         160476    3517 ns/op    3040 B/op    51 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/16-payloads-20         41781   12945 ns/op   12064 B/op   195 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/16-payloads-20         44482   13392 ns/op   12064 B/op   195 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/16-payloads-20         43651   13072 ns/op   12064 B/op   195 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/64-payloads-20          9898   51435 ns/op   48160 B/op   771 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/64-payloads-20         10000   51236 ns/op   48160 B/op   771 allocs/op
+BenchmarkCreateHTTPTransactionMultiPayload/64-payloads-20         10000   51115 ns/op   48160 B/op   771 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/1-api-keys-20          569548    1099 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/1-api-keys-20          468380    1120 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/1-api-keys-20          545931    1092 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/2-api-keys-20          274051    1924 ns/op    1576 B/op    28 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/2-api-keys-20          285289    1859 ns/op    1576 B/op    28 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/2-api-keys-20          311920    1855 ns/op    1576 B/op    28 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/4-api-keys-20          175534    3325 ns/op    3160 B/op    52 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/4-api-keys-20          168426    3381 ns/op    3160 B/op    52 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/4-api-keys-20          177062    3525 ns/op    3160 B/op    52 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/8-api-keys-20           94447    6432 ns/op    6328 B/op    98 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/8-api-keys-20           92544    6423 ns/op    6328 B/op    98 allocs/op
+BenchmarkCreateHTTPTransactionMultiAPIKey/8-api-keys-20           99658    6417 ns/op    6328 B/op    98 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/1-domains-20           538869    1090 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/1-domains-20           549630    1067 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/1-domains-20           543898    1108 ns/op     784 B/op    15 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/2-domains-20           279568    1882 ns/op    1536 B/op    27 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/2-domains-20           302040    1843 ns/op    1536 B/op    27 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/2-domains-20           298430    1870 ns/op    1536 B/op    27 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/3-domains-20           228735    2595 ns/op    2288 B/op    39 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/3-domains-20           222968    2649 ns/op    2288 B/op    39 allocs/op
+BenchmarkCreateHTTPTransactionMultiDomain/3-domains-20           223239    2651 ns/op    2288 B/op    39 allocs/op
+BenchmarkSendHTTPTransactionsLowThroughput-20                     16513   34969 ns/op   16256 B/op   167 allocs/op
+BenchmarkSendHTTPTransactionsLowThroughput-20                     17118   34334 ns/op   15385 B/op   167 allocs/op
+BenchmarkSendHTTPTransactionsLowThroughput-20                     17647   34031 ns/op   15309 B/op   167 allocs/op
+BenchmarkSendHTTPTransactionsHighThroughput-20                      796  756627 ns/op  610716 B/op  2784 allocs/op
+BenchmarkSendHTTPTransactionsHighThroughput-20                      822  715595 ns/op  595200 B/op  2772 allocs/op
+BenchmarkSendHTTPTransactionsHighThroughput-20                      877  726809 ns/op  591418 B/op  2777 allocs/op
+BenchmarkSendHTTPTransactionsPriorityMix-20                       15456   39170 ns/op   16267 B/op   169 allocs/op
+BenchmarkSendHTTPTransactionsPriorityMix-20                       15333   38274 ns/op   15635 B/op   169 allocs/op
+BenchmarkSendHTTPTransactionsPriorityMix-20                       15865   38915 ns/op   15499 B/op   169 allocs/op
