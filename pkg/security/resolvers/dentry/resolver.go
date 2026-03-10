@@ -73,7 +73,7 @@ type Resolver struct {
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
 
-	erpcResolutionAvgTime   int64
+	erpcResolutionAvgTime   float64
 	erpcResolutionNumValues int64
 	erpcResolutionTimesLock sync.Mutex
 }
@@ -148,11 +148,13 @@ func (dr *Resolver) SendStats() error {
 
 	dr.erpcResolutionTimesLock.Lock()
 	avgTime := dr.erpcResolutionAvgTime
+	numValues := dr.erpcResolutionNumValues
 	dr.erpcResolutionNumValues = 0
 	dr.erpcResolutionAvgTime = 0
 	dr.erpcResolutionTimesLock.Unlock()
-
-	_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeUs, float64(avgTime), nil, 1)
+	if numValues > 0 {
+		_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeUs, avgTime, nil, 1)
+	}
 
 	return dr.sendERPCStats()
 }
@@ -591,7 +593,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		// update in-line average
 		dr.erpcResolutionTimesLock.Lock()
 		dr.erpcResolutionNumValues++
-		dr.erpcResolutionAvgTime += (durationMicrosec - dr.erpcResolutionAvgTime) / dr.erpcResolutionNumValues
+		dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
 		dr.erpcResolutionTimesLock.Unlock()
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
