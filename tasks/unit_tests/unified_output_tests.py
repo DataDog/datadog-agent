@@ -9,6 +9,7 @@ from pathlib import Path
 from tasks.libs.testing.result_json import ResultJson
 from tasks.libs.testing.utof import UTOFMetadata, format_report
 from tasks.libs.testing.utof.metadata import generate_metadata
+from tasks.libs.testing.utof.e2e import convert_e2e_test_results
 from tasks.libs.testing.utof.go_parser.failure_parser import (
     _extract_message_from_raw_output,
     _extract_stacktrace_from_raw_output,
@@ -856,3 +857,221 @@ class TestSubtestHierarchy(unittest.TestCase):
         self.assertIn("TestEKSSuite", report)
         self.assertIn("TestCPU", report)
         self.assertIn("TestMemory", report)
+
+
+# ---------------------------------------------------------------------------
+# E2E converter tests
+# ---------------------------------------------------------------------------
+
+
+class TestE2EConvertBasic(unittest.TestCase):
+    """Test basic conversion of e2e test output."""
+
+    def setUp(self):
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
+        self.doc = convert_e2e_test_results(self.result)
+
+    def test_metadata_test_system(self):
+        self.assertEqual(self.doc.metadata.test_system, "e2e")
+
+    def test_test_type_is_e2e(self):
+        all_tests = _flatten(self.doc.tests)
+        for t in all_tests:
+            self.assertEqual(t.type, "e2e", f"Test {t.full_name} has wrong type")
+
+    def test_version(self):
+        self.assertEqual(self.doc.version, "1.0.0")
+
+    def test_summary_has_failures(self):
+        self.assertEqual(self.doc.summary.status, "fail")
+        self.assertGreater(self.doc.summary.failed, 0)
+
+    def test_known_passing_tests(self):
+        leaves = _flatten_leaves(self.doc.tests)
+        statuses = {t.full_name: t.status for t in leaves}
+        self.assertEqual(statuses.get("TestWindowsTestSuite/TestAPIKeyRefresh"), "pass")
+        self.assertEqual(statuses.get("TestWindowsTestSuite/TestManualProcessCheck"), "pass")
+        self.assertEqual(statuses.get("TestWindowsTestSuite/TestManualProcessDiscoveryCheck"), "pass")
+
+    def test_known_failing_tests(self):
+        leaves = _flatten_leaves(self.doc.tests)
+        statuses = {t.full_name: t.status for t in leaves}
+        self.assertEqual(statuses.get("TestWindowsTestSuite/TestManualUnprotectedProcessCheckWithIO"), "fail")
+        self.assertEqual(statuses.get("TestWindowsTestSuite/TestUnprotectedProcessCheckIO"), "fail")
+
+    def test_package_is_e2e_path(self):
+        all_tests = _flatten(self.doc.tests)
+        for t in all_tests:
+            self.assertIn("test/new-e2e", t.package)
+
+
+class TestE2ETestHierarchy(unittest.TestCase):
+    """Test that e2e test suite structure is correctly represented."""
+
+    def setUp(self):
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
+        self.doc = convert_e2e_test_results(self.result)
+
+    def test_suite_is_root(self):
+        """TestWindowsTestSuite should be the single root."""
+        self.assertEqual(len(self.doc.tests), 1)
+        root = self.doc.tests[0]
+        self.assertEqual(root.name, "TestWindowsTestSuite")
+
+    def test_suite_has_subtests(self):
+        root = self.doc.tests[0]
+        self.assertIsNotNone(root.subtests)
+        self.assertGreater(len(root.subtests), 0)
+
+    def test_suite_field_on_subtests(self):
+        """Direct children of the suite should have suite='TestWindowsTestSuite'."""
+        root = self.doc.tests[0]
+        for child in root.subtests:
+            self.assertEqual(child.suite, "TestWindowsTestSuite", f"{child.name} has wrong suite")
+
+    def test_suite_node_has_empty_suite(self):
+        """The suite root itself has an empty suite field."""
+        root = self.doc.tests[0]
+        self.assertEqual(root.suite, "")
+
+    def test_summary_counts_leaves_only(self):
+        """Summary should count only leaf tests, not the suite root."""
+        leaf_count = sum(1 for t in _flatten_leaves(self.doc.tests))
+        self.assertEqual(self.doc.summary.total, leaf_count)
+
+    def test_leaf_name_is_segment(self):
+        root = self.doc.tests[0]
+        for child in root.subtests:
+            self.assertNotIn("/", child.name)
+
+
+class TestE2EFailureExtraction(unittest.TestCase):
+    """Test that failure info is extracted from e2e test output."""
+
+    def setUp(self):
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
+        self.doc = convert_e2e_test_results(self.result)
+        self.leaves = _flatten_leaves(self.doc.tests)
+
+    def test_failing_test_has_failure(self):
+        test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestUnprotectedProcessCheckIO")
+        self.assertIsNotNone(test.failure)
+
+    def test_failure_message_extracted(self):
+        test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestUnprotectedProcessCheckIO")
+        self.assertIsNotNone(test.failure.message)
+        self.assertGreater(len(test.failure.message), 0)
+        self.assertNotIn("--- FAIL:", test.failure.message)
+
+    def test_passing_test_has_no_failure(self):
+        test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestAPIKeyRefresh")
+        self.assertIsNone(test.failure)
+
+
+class TestE2EJsonSerialization(unittest.TestCase):
+    """Test that e2e UTOF documents serialize correctly."""
+
+    def setUp(self):
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
+        self.doc = convert_e2e_test_results(self.result)
+
+    def test_valid_json(self):
+        d = self.doc.to_dict()
+        json_str = json.dumps(d)
+        parsed = json.loads(json_str)
+        self.assertIn("version", parsed)
+        self.assertIn("metadata", parsed)
+        self.assertIn("summary", parsed)
+        self.assertIn("tests", parsed)
+
+    def test_metadata_test_system_in_json(self):
+        d = self.doc.to_dict()
+        self.assertEqual(d["metadata"]["test_system"], "e2e")
+
+    def test_none_fields_stripped(self):
+        d = self.doc.to_dict()
+        for test in d["tests"]:
+            if test.get("status") == "pass":
+                self.assertNotIn("failure", test)
+                self.assertNotIn("attempts", test)
+
+
+class TestE2EReport(unittest.TestCase):
+    """Test that the generic report renders e2e results correctly."""
+
+    def setUp(self):
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_e2e.json"))
+        self.doc = convert_e2e_test_results(self.result)
+        self.report = format_report(self.doc)
+
+    def test_report_shows_e2e_system(self):
+        self.assertIn("Test Report (e2e)", self.report)
+
+    def test_report_failed(self):
+        self.assertIn("FAILED", self.report)
+
+    def test_report_shows_failing_test(self):
+        self.assertIn("TestUnprotectedProcessCheckIO", self.report)
+
+    def test_report_strips_package_prefix(self):
+        self.assertNotIn("github.com/DataDog/datadog-agent/", self.report.split("TestWindowsTestSuite")[0])
+
+
+class TestE2EWithWasher(unittest.TestCase):
+    """Validate that passing a TestWasher to convert_e2e_test_results works (regression for bool-washer bug)."""
+
+    def test_washer_from_merged_file(self):
+        # Simulates what _generate_e2e_unified_output does: create a fresh
+        # TestWasher from the same file, then convert. Previously this path
+        # crashed with "'bool' object has no attribute 'get_flaky_failures'"
+        # because the task parameter test_washer=False was passed directly.
+        result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
+        result_json = ResultJson.from_file(result_json_path)
+        tw = TestWasher(test_output_json_file=result_json_path)
+        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        self.assertIsNotNone(doc)
+        self.assertGreater(doc.summary.total, 0)
+
+    def test_report_renders_without_error(self):
+        result_json_path = str(TESTDATA / "test_output_e2e_warning.json")
+        result_json = ResultJson.from_file(result_json_path)
+        tw = TestWasher(test_output_json_file=result_json_path)
+        doc = convert_e2e_test_results(result_json, test_washer=tw)
+        report = format_report(doc)
+        self.assertIn("Test Report (e2e)", report)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _flatten(tests):
+    """Flatten a test tree into a list (all nodes)."""
+    result = []
+
+    def _walk(t):
+        result.append(t)
+        if t.subtests:
+            for sub in t.subtests:
+                _walk(sub)
+
+    for t in tests:
+        _walk(t)
+    return result
+
+
+def _flatten_leaves(tests):
+    """Flatten a test tree into leaf nodes only."""
+    result = []
+
+    def _walk(t):
+        if t.subtests:
+            for sub in t.subtests:
+                _walk(sub)
+        else:
+            result.append(t)
+
+    for t in tests:
+        _walk(t)
+    return result
