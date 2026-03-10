@@ -95,8 +95,8 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "sd-agent")
-	require.FileExists(t, binaryPath, "sd-agent binary should be built")
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "system-probe-lite")
+	require.FileExists(t, binaryPath, "system-probe-lite binary should be built")
 
 	socketDir := t.TempDir()
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
@@ -105,7 +105,7 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
 	cmd.Env = append(os.Environ(),
 		"DD_DISCOVERY_ENABLED=true",
-		"DD_DISCOVERY_USE_SD_AGENT=true",
+		"DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true",
 		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
 	)
 	cmd.Stdout = os.Stdout
@@ -119,7 +119,7 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
 		return err == nil
-	}, 10*time.Second, 50*time.Millisecond, "sd-agent socket did not appear")
+	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not appear")
 
 	return &testDiscoveryModule{
 		url: "http://sysprobe",
