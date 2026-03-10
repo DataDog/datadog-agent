@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
-	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
-	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 
 	"go.uber.org/fx"
 
@@ -247,7 +247,7 @@ func getPlatformModules() fx.Option {
 		agentcrashdetectfx.Module(),
 		etwtracerimpl.Module,
 		windowseventlogfx.Module(),
-		winregistryfx.Module(),
+		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),

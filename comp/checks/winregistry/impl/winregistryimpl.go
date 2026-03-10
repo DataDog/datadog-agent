@@ -17,10 +17,9 @@ import (
 	"strconv"
 	"strings"
 
-	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -29,11 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
+	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows/registry"
 )
@@ -43,20 +44,22 @@ const (
 	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
 
-// Requires defines the dependencies for the winregistry component.
-type Requires struct {
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newWindowsRegistryComponent))
+}
+
+type dependencies struct {
+	fx.In
+
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
 	LogsComponent option.Option[agent.Component]
 
 	// Datadog Agent logs component, used to log to the Agent logs
-	Log log.Component
-	LC  compdef.Lifecycle
-}
-
-// Provides defines the output of the winregistry component.
-type Provides struct {
-	Comp winregistry.Component
+	Log       log.Component
+	Lifecycle fx.Lifecycle
 }
 
 type registryValueCfg struct {
@@ -353,20 +356,19 @@ func (c *WindowsRegistryCheck) Run() error {
 	return nil
 }
 
-// NewComponent creates a new winregistry component.
-func NewComponent(reqs Requires) Provides {
-	reqs.LC.Append(compdef.Hook{
+func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
+	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(checkName, option.New(func() check.Check {
-				integrationLogs, _ := reqs.LogsComponent.Get()
+				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{
 					CheckBase:     core.NewCheckBase(checkName),
 					logsComponent: integrationLogs,
-					log:           reqs.Log,
+					log:           deps.Log,
 				}
 			}))
 			return nil
 		},
 	})
-	return Provides{Comp: struct{}{}}
+	return struct{}{}
 }
