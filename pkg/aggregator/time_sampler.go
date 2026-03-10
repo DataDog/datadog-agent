@@ -63,7 +63,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 		interval:           interval,
 		contextResolver:    newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
 		metricsByTimestamp: map[int64]metrics.ContextMetrics{},
-		sketchMap:          make(sketchMap),
+		sketchMap:          newSketchMap(),
 		id:                 id,
 		idString:           idString,
 		hostname:           hostname,
@@ -221,11 +221,22 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		flushAllBefore = math.MaxInt64
 	}
 
+	// Pre-count timestamp buckets to flush so SketchPoint slices can be
+	// pre-allocated to the right capacity, avoiding append-driven growth.
+	numBuckets := s.sketchMap.countBucketsBefore(flushAllBefore)
+	if numBuckets < 1 {
+		numBuckets = 1
+	}
+
 	s.sketchMap.flushBefore(flushAllBefore, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+		points := pointsByCtx[ck]
+		if points == nil {
+			points = make([]metrics.SketchPoint, 0, numBuckets)
+		}
+		pointsByCtx[ck] = append(points, p)
 	})
 	for ck, points := range pointsByCtx {
 		ss := s.newSketchSeries(ck, points)

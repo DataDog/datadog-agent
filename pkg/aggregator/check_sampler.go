@@ -55,7 +55,7 @@ func newCheckSampler(
 		sketches:               make(metrics.SketchSeriesList, 0),
 		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
+		sketchMap:              newSketchMap(),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),

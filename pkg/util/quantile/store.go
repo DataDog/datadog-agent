@@ -115,7 +115,7 @@ func (s *sparseStore) merge(c *Config, o *sparseStore) {
 	// TODO|PERF: We have essentially unlimited tmp space, can we merge into a
 	// dense store and then copy back to the sparse version?
 	s.count += o.count
-	tmp := getBinList()[:0]
+	tmp, tmpHandle := getBinList()
 
 	sIdx := 0
 	for _, ob := range o.bins {
@@ -139,7 +139,7 @@ func (s *sparseStore) merge(c *Config, o *sparseStore) {
 	tmp = trimLeft(tmp, c.binLimit)
 	s.bins = s.bins.ensureLen(len(tmp))
 	copy(s.bins, tmp)
-	putBinList(tmp)
+	putBinList(tmp, tmpHandle)
 }
 
 func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
@@ -152,7 +152,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 
 	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
 	// in the sketch (and no overflow happens) we can just directly update.
-	tmp := getBinList()
+	tmp, tmpHandle := getBinList()
 
 	var (
 		sIdx, keyIdx int
@@ -194,7 +194,7 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 	// TODO|PERF: reallocate if cap(s.bins) >> len(s.bins)
 	s.bins = s.bins.ensureLen(len(tmp))
 	copy(s.bins, tmp)
-	putBinList(tmp)
+	putBinList(tmp, tmpHandle)
 }
 
 func (s *sparseStore) insert(c *Config, keys []Key) {
@@ -206,7 +206,7 @@ func (s *sparseStore) insert(c *Config, keys []Key) {
 
 	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
 	// in the sketch (and no overflow happens) we can just directly update.
-	tmp := getBinList()
+	tmp, tmpHandle := getBinList()
 
 	var (
 		sIdx, keyIdx int
@@ -246,7 +246,7 @@ func (s *sparseStore) insert(c *Config, keys []Key) {
 	// TODO|PERF: reallocate if cap(s.bins) >> len(s.bins)
 	s.bins = s.bins.ensureLen(len(tmp))
 	copy(s.bins, tmp)
-	putBinList(tmp)
+	putBinList(tmp, tmpHandle)
 }
 
 // bufCountLeadingEqual returns the number of consecutive keys in a[i:] that equal a[i].

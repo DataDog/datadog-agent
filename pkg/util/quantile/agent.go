@@ -61,6 +61,30 @@ func (a *Agent) Reset() {
 	a.Buf = nil // TODO: pool
 }
 
+// FinishAndReset flushes any pending inserts, returns a deep copy of the sketch,
+// and resets the agent in-place for pool reuse. Unlike Finish, the backing arrays
+// of Buf and CountBuf are retained (length set to 0) so that subsequent inserts on
+// a recycled agent avoid reallocating those slices.
+func (a *Agent) FinishAndReset() *Sketch {
+	// Flush Buf into the sketch, retaining the backing array for reuse.
+	if len(a.Buf) != 0 {
+		a.Sketch.insert(agentConfig, a.Buf)
+		a.Buf = a.Buf[:0]
+	}
+	// Flush CountBuf into the sketch, retaining the backing array for reuse.
+	if len(a.CountBuf) != 0 {
+		a.Sketch.insertCounts(agentConfig, a.CountBuf)
+		a.CountBuf = a.CountBuf[:0]
+	}
+
+	var sketch *Sketch
+	if !a.IsEmpty() {
+		sketch = a.Sketch.Copy()
+	}
+	a.Sketch.Reset()
+	return sketch
+}
+
 // Insert v into the sketch.
 func (a *Agent) Insert(v float64, sampleRate float64) {
 	k := agentConfig.key(v)

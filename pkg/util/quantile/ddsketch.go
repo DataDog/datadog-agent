@@ -95,9 +95,10 @@ func convertFloatCountsToIntCounts(floatKeyCounts []floatKeyCount) ([]KeyCount, 
 // The conversion assumes that the DDSketch has a mapping that is compatible
 // with the Sketch parameters (eg. a DDSketch returned by convertDDSketchMapping).
 func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sketch, error) {
-	// Get the bin list from pool
-	bins := getBinList()
-	defer putBinList(bins)
+	// Get the bin list from pool; binsHandle is used to return it without
+	// allocating a new slice header (avoids the escape-to-heap on putBinList).
+	bins, binsHandle := getBinList()
+	defer func() { putBinList(bins, binsHandle) }()
 
 	sparseStore := sparseStore{
 		bins:  bins,

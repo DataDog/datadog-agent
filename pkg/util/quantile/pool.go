@@ -41,13 +41,20 @@ var (
 	}
 )
 
-func getBinList() []bin {
-	a := *(binListPool.Get().(*[]bin))
-	return a[:0]
+// getBinList returns a zeroed []bin from the pool and the pooled *[]bin handle.
+// Callers must pass the handle to putBinList to return the slice without
+// allocating a new slice header (avoids the escape-to-heap that &a causes).
+func getBinList() ([]bin, *[]bin) {
+	bp := binListPool.Get().(*[]bin)
+	return (*bp)[:0], bp
 }
 
-func putBinList(a []bin) {
-	binListPool.Put(&a)
+// putBinList returns a to the pool via the handle obtained from getBinList.
+// Using the handle avoids boxing a []bin value (which would allocate a new
+// slice header each call).
+func putBinList(a []bin, bp *[]bin) {
+	*bp = a[:0]
+	binListPool.Put(bp)
 }
 
 func getKeyList() []Key {

@@ -16,7 +16,7 @@ import (
 )
 
 func TestInsert(t *testing.T) {
-	sketchMap := make(sketchMap)
+	sketchMap := newSketchMap()
 
 	assert.Equal(t, 0, sketchMap.Len())
 
