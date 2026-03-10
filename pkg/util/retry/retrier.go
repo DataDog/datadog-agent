@@ -133,10 +133,9 @@ func (r *Retrier) doTry() *Error {
 			}
 		case Backoff:
 			sleep := r.cfg.InitialRetryDelay * 1 << r.tryCount
-			if sleep > r.cfg.MaxRetryDelay {
+			r.tryCount++
+			if sleep > r.cfg.MaxRetryDelay || sleep <= 0 {
 				sleep = r.cfg.MaxRetryDelay
-			} else {
-				r.tryCount++
 			}
 			r.status = FailWillRetry
 			r.nextTry = r.cfg.now().Add(sleep)
