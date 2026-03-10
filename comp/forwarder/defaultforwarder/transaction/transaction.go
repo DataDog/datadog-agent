@@ -282,6 +282,54 @@ type Transaction interface {
 	SerializeTo(log.Component, TransactionsSerializer) error
 }
 
+var httpTransactionPool = sync.Pool{
+	New: func() interface{} {
+		return &HTTPTransaction{
+			Headers: make(http.Header),
+		}
+	},
+}
+
+// poolReturnHandler is a CompletionHandler that returns the transaction to the pool.
+// It is set as the default CompletionHandler by GetHTTPTransaction.
+var poolReturnHandler HTTPCompletionHandler = func(tr *HTTPTransaction, _ int, _ []byte, _ error) {
+	PutHTTPTransaction(tr)
+}
+
+// GetHTTPTransaction returns an *HTTPTransaction from the pool, fully reset and ready for use.
+// The transaction's CompletionHandler is pre-set to return it to the pool after completion.
+// Callers that override CompletionHandler are responsible for calling PutHTTPTransaction themselves
+// if pool recycling is desired.
+func GetHTTPTransaction() *HTTPTransaction {
+	tr := httpTransactionPool.Get().(*HTTPTransaction)
+	// Clear headers without reallocating the map.
+	for k := range tr.Headers {
+		delete(tr.Headers, k)
+	}
+	tr.Domain = ""
+	tr.Endpoint = Endpoint{}
+	tr.Payload = nil
+	tr.ErrorCount = 0
+	tr.CreatedAt = time.Now()
+	tr.Retryable = true
+	tr.StorableOnDisk = true
+	tr.Priority = TransactionPriorityNormal
+	tr.Kind = Series
+	tr.Destination = AllRegions
+	tr.AttemptHandler = defaultAttemptHandler
+	tr.CompletionHandler = poolReturnHandler
+	return tr
+}
+
+// PutHTTPTransaction returns an *HTTPTransaction to the pool.
+// The caller must not use the transaction after this call.
+func PutHTTPTransaction(tr *HTTPTransaction) {
+	tr.Payload = nil
+	tr.AttemptHandler = nil
+	tr.CompletionHandler = nil
+	httpTransactionPool.Put(tr)
+}
+
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{

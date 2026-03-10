@@ -48,7 +48,7 @@ const (
 
 const (
 	apiHTTPHeaderKey          = "DD-Api-Key"
-	versionHTTPHeaderKey      = "DD-Agent-Version"
+	versionHTTPHeaderKey      = "Dd-Agent-Version" // canonical form avoids textproto allocation in Set()
 	useragentHTTPHeaderKey    = "User-Agent"
 	arbitraryTagHTTPHeaderKey = "Allow-Arbitrary-Tag-Value"
 )
@@ -291,6 +291,13 @@ type DefaultForwarder struct {
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
+
+	// allowArbitraryTags is cached at construction time to avoid repeated config lookups
+	// (which call strings.Split internally) in the hot transaction-creation path.
+	allowArbitraryTags bool
+	// userAgent is cached at construction time to avoid repeated string concatenation
+	// in the hot transaction-creation path.
+	userAgent string
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -312,8 +319,10 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
-		agentName:      agentName,
-		localForwarder: nil,
+		agentName:          agentName,
+		localForwarder:     nil,
+		allowArbitraryTags: config.GetBool("allow_arbitrary_tags"),
+		userAgent:          "datadog-agent/" + version.AgentVersion,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -526,7 +535,6 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
-	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
@@ -542,7 +550,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 			}
 
 			for _, auth := range dr.GetAuthorizers() {
-				t := transaction.NewHTTPTransaction()
+				t := transaction.GetHTTPTransaction()
 				t.Domain = drDomain
 				t.Endpoint = endpoint
 				t.Payload = payload
@@ -552,8 +560,8 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Destination = payload.Destination
 				auth.Authorize(t)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
-				if allowArbitraryTags {
+				t.Headers.Set(useragentHTTPHeaderKey, f.userAgent)
+				if f.allowArbitraryTags {
 					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
 
@@ -793,9 +801,9 @@ func (f *DefaultForwarder) GetDomainResolvers() []pkgresolver.DomainResolver {
 // SubmitTransaction adds a transaction to the queue for sending.
 func (f *DefaultForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
 	t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-	t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
+	t.Headers.Set(useragentHTTPHeaderKey, f.userAgent)
 
-	if f.config.GetBool("allow_arbitrary_tags") {
+	if f.allowArbitraryTags {
 		t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 	}
 
