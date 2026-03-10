@@ -235,8 +235,8 @@ func deployPersistentResources(
 				Namespace: pulumi.String(namespace),
 			},
 			StringData: pulumi.StringMap{
-				"DD_API_KEY": awsEnv.AgentAPIKey(),
-				"DD_APP_KEY": awsEnv.AgentAPPKey(),
+				"api-key": awsEnv.AgentAPIKey(),
+				"app-key": awsEnv.AgentAPPKey(),
 			},
 		}, kubeOpts...)
 	if err != nil {
@@ -309,10 +309,12 @@ func deployOrchestratorJob(
 		}
 		chartTarballB64 := base64.StdEncoding.EncodeToString(chartTarball)
 
-		cmName := "gensim-ep-" + ep.episode
-		volName := "ep-" + ep.episode
+		// Kubernetes names must be lowercase RFC 1123: [a-z0-9-.]
+		sanitized := strings.ToLower(strings.ReplaceAll(ep.episode, "_", "-"))
+		cmName := "gensim-ep-" + sanitized
+		volName := "ep-" + sanitized
 
-		cm, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-"+ep.episode),
+		cm, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-"+sanitized),
 			&corev1.ConfigMapArgs{
 				Metadata: metav1.ObjectMetaArgs{
 					Name:      pulumi.String(cmName),
@@ -346,7 +348,7 @@ func deployOrchestratorJob(
 	// ── Post-renderer ConfigMap ──────────────────────────────────────────────
 	// Pure awk implementation: no python3 dependency (alpine/k8s doesn't ship it).
 	// Reads YAML documents separated by "---", drops stub agent resources
-	// (DaemonSet/ServiceAccount/ClusterRole/ClusterRoleBinding named datadog-agent),
+	// (DaemonSet/Service/ServiceAccount/ClusterRole/ClusterRoleBinding named datadog-agent),
 	// and patches imagePullPolicy: Never -> Always.
 	postRendererScript := `#!/bin/sh
 # Post-renderer: patch imagePullPolicy and strip stub agent resources.
@@ -365,7 +367,7 @@ function process_doc(d) {
   # Drop stub agent resources.
   # Match name: datadog-agent followed by newline (not $, which only anchors
   # to end-of-string in awk, not end-of-line within a variable).
-  if (d ~ /kind:[[:space:]]*(DaemonSet|ServiceAccount|ClusterRole|ClusterRoleBinding)/ &&
+  if (d ~ /kind:[[:space:]]*(DaemonSet|Service|ServiceAccount|ClusterRole|ClusterRoleBinding)/ &&
       (d ~ /name:[[:space:]]*datadog-agent[[:space:]]*\n/ || d ~ /name:[[:space:]]*datadog-agent[[:space:]]*$/)) {
     return
   }
@@ -456,7 +458,7 @@ function process_doc(d) {
 										ValueFrom: &corev1.EnvVarSourceArgs{
 											SecretKeyRef: &corev1.SecretKeySelectorArgs{
 												Name: ddSecret.Metadata.Name().Elem(),
-												Key:  pulumi.String("DD_API_KEY"),
+												Key:  pulumi.String("api-key"),
 											},
 										},
 									},
@@ -465,7 +467,7 @@ function process_doc(d) {
 										ValueFrom: &corev1.EnvVarSourceArgs{
 											SecretKeyRef: &corev1.SecretKeySelectorArgs{
 												Name: ddSecret.Metadata.Name().Elem(),
-												Key:  pulumi.String("DD_APP_KEY"),
+												Key:  pulumi.String("app-key"),
 											},
 										},
 									},
@@ -535,7 +537,8 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"}\n" +
 		"\n" +
 		"update_episode_status() {\n" +
-		"  local ep_spec=\"$1\" new_status=\"$2\" extra=\"${3:-{}}\"\n" +
+		"  local ep_spec=\"$1\" new_status=\"$2\" extra=\"${3}\"\n" +
+		"  [ -z \"$extra\" ] && extra='{}'\n" +
 		"  local ep=\"${ep_spec%%:*}\"\n" +
 		"  local sc=\"${ep_spec##*:}\"\n" +
 		"  local current\n" +
@@ -638,18 +641,14 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"clusterChecksRunner:\n" +
 		"  enabled: false\n" +
 		"clusterAgent:\n" +
-		"  enabled: true\n" +
-		"  image:\n" +
-		"    repository: PLACEHOLDER_IMAGE_REPO\n" +
-		"    tag: PLACEHOLDER_IMAGE_TAG\n" +
-		"    doNotCheckTag: true\n" +
+		"  enabled: false\n" +
 		"AGENT_EOF\n" +
 		"  # Patch placeholders with actual values (avoids heredoc variable expansion issues)\n" +
 		"  sed -i \"s|PLACEHOLDER_IMAGE_REPO|$IMAGE_REPO|g\" /workspace/agent-values.yaml\n" +
 		"  sed -i \"s|PLACEHOLDER_IMAGE_TAG|$IMAGE_TAG|g\" /workspace/agent-values.yaml\n" +
 		"\n" +
 		"  # 2. Install agent\n" +
-		"  helm install dda-linux datadog/datadog \\\n" +
+		"  helm upgrade --install dda-linux datadog/datadog \\\n" +
 		"    -f /workspace/agent-values.yaml \\\n" +
 		"    -n \"$KUBE_NAMESPACE\" \\\n" +
 		"    --wait --timeout 5m\n" +
@@ -667,7 +666,7 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"    fi\n" +
 		"\n" +
 		"    EP_RELEASE=\"gensim-$(echo \"$EPISODE\" | tr '_' '-' | tr '[:upper:]' '[:lower:]')\"\n" +
-		"    helm install \"$EP_RELEASE\" \"$CHART_DIR\" \\\n" +
+		"    helm upgrade --install \"$EP_RELEASE\" \"$CHART_DIR\" \\\n" +
 		"      -n \"$KUBE_NAMESPACE\" \\\n" +
 		"      --set imageRegistry=\"$IMAGE_REGISTRY\" \\\n" +
 		"      --set namespace=\"$KUBE_NAMESPACE\" \\\n" +
@@ -676,7 +675,7 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"      --set datadog.site=\"$DD_SITE\" \\\n" +
 		"      --set datadog.env=\"$EP_RELEASE\" \\\n" +
 		"      --post-renderer /scripts/post-renderer.sh \\\n" +
-		"      --skip-tests\n" +
+		"      --skip-crds\n" +
 		"  fi\n" +
 		"\n" +
 		"  update_episode_status \"$EP_SPEC\" \"running\" '{\"phase\":\"episode-running\"}'\n" +
@@ -690,6 +689,10 @@ func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucke
 		"  cp \"/episodes/$EPISODE/$SCENARIO.yaml\" \"/workspace/episodes/$SCENARIO.yaml\"\n" +
 		"  mkdir -p /workspace/results\n" +
 		"  cd /workspace\n" +
+		"  # play-episode.sh requires DD_ENV, DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE.\n" +
+		"  # DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE are set on the Job env. DD_ENV must\n" +
+		"  # be set to the episode helm release name (used for monitor scoping).\n" +
+		"  export DD_ENV=\"gensim-$(echo \"$EPISODE\" | tr '_' '-' | tr '[:upper:]' '[:lower:]')\"\n" +
 		"  EP_OUTCOME=\"success\"\n" +
 		"  bash /workspace/play-episode.sh run-episode \"$SCENARIO\" || EP_OUTCOME=\"failure\"\n" +
 		"  cd /\n" +
@@ -895,10 +898,19 @@ func buildEpisodeImages(
 		return err
 	}
 
-	dockerComposeCopy, err := buildHost.OS.FileManager().CopyFile(
-		"docker-compose-yaml-"+episodeName,
-		pulumi.String(filepath.Join(episodePath, "docker-compose.yaml")),
-		pulumi.String(buildDir+"/docker-compose.yaml"),
+	// Read docker-compose.yaml content locally and write it to the build VM via
+	// inline command. This avoids CopyFile, whose resource naming can collide when
+	// multiple episodes are built on the same VM in a single Pulumi run.
+	composeContent, err := os.ReadFile(filepath.Join(episodePath, "docker-compose.yaml"))
+	if err != nil {
+		return fmt.Errorf("reading docker-compose.yaml for %s: %w", episodeName, err)
+	}
+	dockerComposeCopy, err := buildHost.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("write-compose-"+episodeName),
+		&command.Args{
+			Create: pulumi.Sprintf("cat > %s/docker-compose.yaml <<'COMPOSE_EOF'\n%s\nCOMPOSE_EOF", buildDir, string(composeContent)),
+			Sudo:   true,
+		},
 		utils.PulumiDependsOn(servicesCopy...),
 	)
 	if err != nil {

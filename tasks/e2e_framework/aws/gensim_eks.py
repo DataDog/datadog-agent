@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 from datetime import datetime, timezone
@@ -123,19 +124,18 @@ def submit_gensim_eks(
     except Exception:
         aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
 
-    kubeconfig_path = f"{stack_name}-kubeconfig.yaml"
+    kubeconfig_path = _find_kubeconfig(stack_name)
     if os.path.exists(kubeconfig_path):
         # Check if cluster is reachable
         cluster_ok = ctx.run(
-            f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl cluster-info",
+            f"KUBECONFIG={kubeconfig_path} kubectl cluster-info",
             warn=True,
             hide=True,
         )
         if cluster_ok and cluster_ok.ok:
             # Check for active orchestrator job
             job_result = ctx.run(
-                f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get job gensim-orchestrator "
-                f"-n {namespace} -o json",
+                f"KUBECONFIG={kubeconfig_path} kubectl get job gensim-orchestrator " f"-n {namespace} -o json",
                 warn=True,
                 hide=True,
             )
@@ -145,7 +145,7 @@ def submit_gensim_eks(
                 if status.get("active", 0) == 1:
                     # Show current run status if available
                     cm_result = ctx.run(
-                        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get configmap "
+                        f"KUBECONFIG={kubeconfig_path} kubectl get configmap "
                         f"gensim-run-status -n {namespace} -o jsonpath='{{.data.status}}'",
                         warn=True,
                         hide=True,
@@ -158,8 +158,7 @@ def submit_gensim_eks(
                     # Job completed or failed -- clean it up
                     tool.info("Cleaning up previous orchestrator job.")
                     ctx.run(
-                        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl delete job "
-                        f"gensim-orchestrator -n {namespace}",
+                        f"KUBECONFIG={kubeconfig_path} kubectl delete job " f"gensim-orchestrator -n {namespace}",
                         warn=True,
                         hide=True,
                     )
@@ -249,23 +248,17 @@ def status_gensim_eks(
     Example:
         inv aws.eks.gensim.status
     """
-    from tasks.e2e_framework import config
 
     # ── 1. Get kubeconfig and aws_wrapper ─────────────────────────────────
-    kubeconfig_path = f"{stack_name}-kubeconfig.yaml"
+    kubeconfig_path = _find_kubeconfig(stack_name)
     if not os.path.exists(kubeconfig_path):
         tool.warn("No gensim cluster found. Run `inv aws.eks.gensim.submit` first.")
         return
 
-    try:
-        local_config = config.get_local_config(config_path)
-        aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
-    except Exception:
-        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin -- "
-
     # ── 2. Read the status ConfigMap ──────────────────────────────────────
+    # No aws_wrapper needed -- kubeconfig has embedded auth credentials.
     result = ctx.run(
-        f"KUBECONFIG={kubeconfig_path} {aws_wrapper}kubectl get configmap "
+        f"KUBECONFIG={kubeconfig_path} kubectl get configmap "
         f"gensim-run-status -n {namespace} -o jsonpath='{{.data.status}}'",
         warn=True,
         hide=True,
@@ -331,6 +324,18 @@ def destroy_gensim_eks(
 
 
 # -- Helpers -------------------------------------------------------------------
+
+
+def _find_kubeconfig(stack_name: str) -> str:
+    """Find the kubeconfig file for the given stack name.
+
+    The file is written by _show_connection_message as {full_stack_name}-kubeconfig.yaml
+    where full_stack_name includes the user prefix (e.g. scott-opell-gensim-eks).
+    """
+    matches = glob.glob(f"*{stack_name}-kubeconfig.yaml")
+    if matches:
+        return matches[0]
+    return f"{stack_name}-kubeconfig.yaml"
 
 
 def _get_gensim_repo_path() -> Path:
