@@ -28,14 +28,14 @@ def rtloader_go_test(**kwargs):
     """
     unix_data = [
         "//rtloader:datadog-agent-three",
+        "//rtloader/test:python_stubs",
         "@cpython//:python_unix",
         "@cpython//:python3_bin",
-        "//rtloader/test:python_stubs",
     ]
 
     unix_env = {
         "LD_LIBRARY_PATH": ".",
-        "PYTHON_BIN": "$(rootpath @cpython//:python3_bin)",
+        "PYTHON_BIN": "$(rlocationpath @cpython//:python3_bin)",
         "PYTHONPATH": "test/python",
     }
 
@@ -49,9 +49,9 @@ def rtloader_go_test(**kwargs):
             "@platforms//os:macos": unix_data,
             "@platforms//os:windows": [
                 "//rtloader/test:dir_with_three",
+                "//rtloader/test:dir_with_python_stubs",
                 "@cpython//:python_win",
                 "@cpython//:python_win_lib",
-                "//rtloader/test:dir_with_python_stubs",
             ],
         }),
         env = kwargs.pop("env", {}) | select({

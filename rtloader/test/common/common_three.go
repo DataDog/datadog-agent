@@ -27,48 +27,23 @@ func GetRtLoader() *C.rtloader_t {
 	defer C.free(unsafe.Pointer(executablePath))
 
 	var pythonHome *C.char
-	// Use an explicit "Python Home" (the root directory of the Python installation)
-	// Intended for driving the tests from Bazel
-	if pythonBin := os.Getenv("PYTHON_BIN"); pythonBin != "" {
-		// PYTHON_BIN points to the python executable under bin
-		// Get the full path based on Bazel-provided variables
-		absPath := filepath.Join(os.Getenv("TEST_SRCDIR"), os.Getenv("TEST_WORKSPACE"), pythonBin)
-		// And then walk back to get the "Python Home"
-		pythonHome = C.CString(filepath.Dir(filepath.Dir(absPath)))
-		defer C.free(unsafe.Pointer(pythonHome))
-	}
 
-	if pythonLib := os.Getenv("PYTHON_LIB"); pythonLib != "" {
-		absPath, err := runfiles.Rlocation(pythonLib)
-		if err != nil {
-			panic(fmt.Sprintf("error: failed to get location for `python lib`: %s", err))
+	// Specific setup for when we're running the tests with bazel
+	if os.Getenv("BAZEL_TEST") == "1" {
+		if runtime.GOOS == "windows" {
+			// Add the path to where the "three" dll is available to PATH
+			// so that it can be found by `LoadLibrary`
+			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
+			// On Windows, the python library file sits at the root of the Python Home
+			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
+			defer C.free(unsafe.Pointer(pythonHome))
+			// Add Python stubs to the PYTHONPATH
+			os.Setenv("PYTHONPATH", rlocationPathFromEnv("STUBS_LOCATION"))
+		} else {
+			// Python Home is a level up from the path to the binary
+			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
+			defer C.free(unsafe.Pointer(pythonHome))
 		}
-		pythonHome = C.CString(filepath.Dir(absPath))
-	}
-
-	if stubsLocation := os.Getenv("STUBS_LOCATION"); stubsLocation != "" {
-		absPath, err := runfiles.Rlocation(stubsLocation)
-		if err != nil {
-			panic(fmt.Sprintf("error: failed to get location for `python stubs`: %s", err))
-		}
-		os.Setenv("PYTHONPATH", absPath)
-		fmt.Printf("stubs are in: %s\n", absPath)
-	}
-
-	if runtime.GOOS == "windows" {
-		// Add the full path to where the "three" dll is available to PATH
-		// THREE_PATH is given relative to the bazel execroot, and tests on windows
-		// run from the execroot.
-		// On windows, the ways to control the search path for dll's is limited,
-		// modifying PATH being the most practical in this setting.
-		if threePath := os.Getenv("THREE_PATH"); threePath != "" {
-			absThreePath, err := runfiles.Rlocation(threePath)
-			if err != nil {
-				panic("error: failed to get location for `three` library")
-			}
-			os.Setenv("PATH", absThreePath + ";" + os.Getenv("PATH"))
-		}
-		fmt.Printf("PATH: %s\n", os.Getenv("PATH"))
 	}
 
 	rv := C.make3(pythonHome, executablePath, &err)
@@ -76,4 +51,12 @@ func GetRtLoader() *C.rtloader_t {
 		fmt.Printf("Error: %s", C.GoString(err))
 	}
 	return rv
+}
+
+func rlocationPathFromEnv(envvar string) string {
+	resolved, err := runfiles.Rlocation(os.Getenv(envvar))
+	if err != nil {
+		panic(fmt.Sprintf("error: failed to get location for `three` library: %s", err))
+	}
+	return resolved
 }
