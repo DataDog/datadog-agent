@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultIdentityFileName = "privateactionrunner_private_identity.json"
@@ -34,10 +37,16 @@ type PersistedIdentity struct {
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ctx context.Context, ddSite, runnerHostname, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey string) (*Result, error) {
+	orchClusterID, err := clustername.GetClusterID()
+	if err != nil {
+		pkglog.Warnf("Failed to get orchestrator cluster ID: %v", err)
+	}
+	agentFlavor := flavor.GetFlavor()
+
 	now := time.Now().UTC()
 	formattedTime := now.Format("20060102150405")
-	runnerName := runnerHostname + "-" + formattedTime
+	runnerName := runnerNamePrefix + "-" + formattedTime
 
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
@@ -56,6 +65,9 @@ func SelfEnroll(ctx context.Context, ddSite, runnerHostname, apiKey, appKey stri
 		runnerName,
 		runnerModes,
 		publicJwk,
+		runnerHostname,
+		orchClusterID,
+		agentFlavor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
