@@ -191,6 +191,19 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	iisTags := fetchIISTagsCache(c.sysprobeClient)
 	procCacheTags := fetchProcessCacheTags(c.sysprobeClient)
 	portToPID := getListeningPortToPIDMap()
+
+	// Supplement portToPID from connections data. system-probe runs as root
+	// and provides both sides of intra-host connections, so server-side
+	// entries have the correct PID even when portlist.Poller (running as
+	// dd-agent) cannot read /proc/<pid>/fd/ for other users' processes.
+	for _, cx := range conns.Conns {
+		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 {
+			if _, exists := portToPID[cx.Laddr.Port]; !exists {
+				portToPID[cx.Laddr.Port] = cx.Pid
+			}
+		}
+	}
+
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
 	return StandardRunResult(messages), nil
@@ -538,21 +551,11 @@ func batchConnections(
 				if len(remoteTags) == 0 {
 					if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
 						destServiceCtx := serviceExtractor.GetServiceContext(destPID)
-						log.Debugf("remote-svc-diag: pid=%d raddr=%d:%d destPID=%d serviceCtx=%v",
-							c.Pid, c.Raddr.Port, c.Laddr.Port, destPID, destServiceCtx)
 						remoteTags = append(remoteTags, destServiceCtx...)
 
-						pidTags := getRemoteProcessTags(destPID, procCacheTags, processTagProvider)
-						log.Debugf("remote-svc-diag: destPID=%d pidTags=%v", destPID, pidTags)
-						if len(pidTags) > 0 {
+						if pidTags := getRemoteProcessTags(destPID, procCacheTags, processTagProvider); len(pidTags) > 0 {
 							remoteTags = append(remoteTags, pidTags...)
 						}
-					} else if _, ok := portToPID[c.Raddr.Port]; !ok {
-						log.Debugf("remote-svc-diag: pid=%d raddr.port=%d NOT in portToPID (len=%d)",
-							c.Pid, c.Raddr.Port, len(portToPID))
-					} else {
-						log.Debugf("remote-svc-diag: pid=%d raddr.port=%d destPID==c.Pid, skipping",
-							c.Pid, c.Raddr.Port)
 					}
 				}
 
@@ -560,13 +563,7 @@ func batchConnections(
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
 					log.Debugf("remote service tags: pid=%d -> raddr.port=%d remoteServiceTagsIdx=%d tags=%v",
 						c.Pid, c.Raddr.Port, c.RemoteServiceTagsIdx, remoteTags)
-				} else {
-					log.Debugf("remote-svc-diag: NO tags pid=%d raddr.port=%d intraHost=%v cid=%q",
-						c.Pid, c.Raddr.Port, c.IntraHost, c.Laddr.ContainerId)
 				}
-			} else if c.Raddr.Port == 8081 || c.Raddr.Port == 8082 {
-				log.Debugf("remote-svc-diag: SKIP pid=%d raddr.port=%d intraHost=%v cid=%q",
-					c.Pid, c.Raddr.Port, c.IntraHost, c.Laddr.ContainerId)
 			}
 
 			// Get process tags and add them to the connection tags

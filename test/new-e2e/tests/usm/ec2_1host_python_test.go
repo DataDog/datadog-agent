@@ -81,26 +81,16 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
 
-	// Open 100 keep-alive connections per port and hold them for 40 seconds so
-	// system-probe has time to resolve process context before connections close.
+	// Send 100 HTTP requests per port using urllib (stdlib).
+	// Each request opens a new TCP connection.
 	const requestsPerPort = 100
 	host.MustExecute(fmt.Sprintf(`python3 -c "
-import socket, time
+import urllib.request
 
-conns = []
 for port in [8081, 8082]:
     for i in range(%d):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('127.0.0.1', port))
-        s.sendall(b'GET / HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n')
-        s.recv(4096)
-        conns.append(s)
+        urllib.request.urlopen('http://127.0.0.1:{}/'.format(port))
 
-print(f'opened {len(conns)} connections, holding 40s')
-time.sleep(40)
-
-for s in conns:
-    s.close()
 print('done')
 "`, requestsPerPort))
 
