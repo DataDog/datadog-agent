@@ -850,11 +850,6 @@ func TestMetricsFollowSpec(t *testing.T) {
 		specMetrics[name] = struct{}{}
 	}
 
-	// XID metrics require real device events.
-	notExpectedOnBasicRun := map[string]bool{
-		"errors.xid.total": true,
-	}
-
 	deviceModes := []gpuspec.DeviceMode{
 		gpuspec.DeviceModePhysical,
 		gpuspec.DeviceModeMIG,
@@ -876,14 +871,13 @@ func TestMetricsFollowSpec(t *testing.T) {
 							assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
 
 							metricSpec := metricsSpec.Metrics[metricName]
-							assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
 							assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
 							assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
 						}
 					})
 
 					for name, m := range metricsSpec.Metrics {
-						if notExpectedOnBasicRun[name] || !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
+						if !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
 							continue
 						}
 
@@ -920,6 +914,26 @@ type metricCollectionSetup struct {
 func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
 	t.Helper()
 	opts := gpuspec.BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
+	xidEvents := make(chan nvml.EventData, 1)
+	t.Cleanup(func() { close(xidEvents) })
+	if mode == gpuspec.DeviceModePhysical {
+		opts = append(opts, testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
+			return &nvmlmock.EventSet{
+				FreeFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
+				WaitFunc: func(_ uint32) (nvml.EventData, nvml.Return) {
+					select {
+					case evt := <-xidEvents:
+						return evt, nvml.SUCCESS
+					default:
+						time.Sleep(5 * time.Millisecond)
+						return nvml.EventData{}, nvml.ERROR_TIMEOUT
+					}
+				},
+			}, nvml.SUCCESS
+		}))
+	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
@@ -989,10 +1003,6 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	require.True(t, ok)
 
 	WithGPUConfigEnabled(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{"device_events"})
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
-	})
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
 	check.containerProvider = mockContainerProvider
@@ -1038,9 +1048,17 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	check.spCache = spCache
 
 	runCollection := func() {
-		// Some metrics require a second run to be collected, so we run it twice and clear
-		// the mock sender between runs.
+		// Some metrics require a second run to be collected, so we run it twice.
+		// XID events are injected between runs, after collectors have registered devices.
 		require.NoError(t, checkGeneric.Run())
+		if mode == gpuspec.DeviceModePhysical {
+			xidEvents <- nvml.EventData{
+				Device:    &nvmlmock.Device{GetUUIDFunc: func() (string, nvml.Return) { return testutil.DefaultGpuUUID, nvml.SUCCESS }},
+				EventType: nvml.EventTypeXidCriticalError,
+				EventData: 31,
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 		mockSender.ResetCalls()
 		require.NoError(t, checkGeneric.Run())
 	}
@@ -1050,6 +1068,8 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		"gpu_device":         strings.ToLower(strings.ReplaceAll(testutil.DefaultGPUName, " ", "_")),
 		"gpu_vendor":         "nvidia",
 		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
+		"type":               "31",
+		"origin":             "hardware",
 	}
 
 	return metricCollectionSetup{
