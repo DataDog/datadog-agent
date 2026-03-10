@@ -56,31 +56,31 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestDiscoveryUseSdAgent(t *testing.T) {
+func TestDiscoveryUseSystemProbeLite(t *testing.T) {
 	t.Run("disabled by default", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		assert.False(t, cfg.GetBool("discovery.use_sd_agent"))
+		assert.False(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 
 	t.Run("enabled from env var", func(t *testing.T) {
-		t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "true")
+		t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		assert.True(t, cfg.GetBool("discovery.use_sd_agent"))
+		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 
 	t.Run("disabled from env var", func(t *testing.T) {
-		t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "false")
+		t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "false")
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		assert.False(t, cfg.GetBool("discovery.use_sd_agent"))
+		assert.False(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 
 	t.Run("enabled from config", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		cfg.SetWithoutSource("discovery.use_sd_agent", true)
-		assert.True(t, cfg.GetBool("discovery.use_sd_agent"))
+		cfg.SetWithoutSource("discovery.use_system_probe_lite", true)
+		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 }

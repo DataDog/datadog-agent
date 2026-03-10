@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_parse_no_separator() {
-        let args = vec!["sd-agent".to_string(), "--some-flag".to_string()];
+        let args = vec!["system-probe-lite".to_string(), "--some-flag".to_string()];
         let parsed = Args::parse(args.into_iter());
         assert_eq!(parsed.fallback_binary, None);
         assert!(parsed.system_probe_args.is_empty());
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_parse_separator_with_no_args() {
-        let args = vec!["sd-agent".to_string(), "--".to_string()];
+        let args = vec!["system-probe-lite".to_string(), "--".to_string()];
         let parsed = Args::parse(args.into_iter());
         assert_eq!(parsed.fallback_binary, None);
         assert!(parsed.system_probe_args.is_empty());
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_parse_separator_with_binary_only() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
         ];
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_parse_separator_with_binary_and_args() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn test_parse_with_config_space_separated() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_parse_with_config_equals() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn test_parse_with_config_short_flag() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_parse_ignores_args_before_separator() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--some-flag".to_string(),
             "--another-flag=value".to_string(),
             "--".to_string(),
@@ -266,19 +266,22 @@ mod tests {
         let args = vec![
             "run".to_string(),
             "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
+            "/var/run/system-probe-lite.pid".to_string(),
         ];
         let (config, pid) = extract_paths(&args);
         assert_eq!(config, None);
-        assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
+        assert_eq!(pid, Some(PathBuf::from("/var/run/system-probe-lite.pid")));
     }
 
     #[test]
     fn test_extract_paths_pid_equals() {
-        let args = vec!["run".to_string(), "--pid=/var/run/sd-agent.pid".to_string()];
+        let args = vec![
+            "run".to_string(),
+            "--pid=/var/run/system-probe-lite.pid".to_string(),
+        ];
         let (config, pid) = extract_paths(&args);
         assert_eq!(config, None);
-        assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
+        assert_eq!(pid, Some(PathBuf::from("/var/run/system-probe-lite.pid")));
     }
 
     #[test]
@@ -292,12 +295,12 @@ mod tests {
     #[test]
     fn test_parse_with_pid_space_separated() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
             "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
+            "/var/run/system-probe-lite.pid".to_string(),
         ];
         let parsed = Args::parse(args.into_iter());
         assert_eq!(
@@ -306,22 +309,22 @@ mod tests {
         );
         assert_eq!(
             parsed.system_probe_args,
-            vec!["run", "--pid", "/var/run/sd-agent.pid"]
+            vec!["run", "--pid", "/var/run/system-probe-lite.pid"]
         );
         assert_eq!(
             parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
+            Some(PathBuf::from("/var/run/system-probe-lite.pid"))
         );
     }
 
     #[test]
     fn test_parse_with_pid_equals() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
-            "--pid=/var/run/sd-agent.pid".to_string(),
+            "--pid=/var/run/system-probe-lite.pid".to_string(),
         ];
         let parsed = Args::parse(args.into_iter());
         assert_eq!(
@@ -330,25 +333,25 @@ mod tests {
         );
         assert_eq!(
             parsed.system_probe_args,
-            vec!["run", "--pid=/var/run/sd-agent.pid"]
+            vec!["run", "--pid=/var/run/system-probe-lite.pid"]
         );
         assert_eq!(
             parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
+            Some(PathBuf::from("/var/run/system-probe-lite.pid"))
         );
     }
 
     #[test]
     fn test_parse_with_config_and_pid() {
         let args = vec![
-            "sd-agent".to_string(),
+            "system-probe-lite".to_string(),
             "--".to_string(),
             "/usr/bin/system-probe".to_string(),
             "run".to_string(),
             "--config".to_string(),
             "/etc/config.yaml".to_string(),
             "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
+            "/var/run/system-probe-lite.pid".to_string(),
         ];
         let parsed = Args::parse(args.into_iter());
         assert_eq!(
@@ -362,13 +365,13 @@ mod tests {
                 "--config",
                 "/etc/config.yaml",
                 "--pid",
-                "/var/run/sd-agent.pid"
+                "/var/run/system-probe-lite.pid"
             ]
         );
         assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
         assert_eq!(
             parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
+            Some(PathBuf::from("/var/run/system-probe-lite.pid"))
         );
     }
 }

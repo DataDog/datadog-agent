@@ -152,6 +152,7 @@ func (s *Server) Stop() {
 
 		go func() {
 			s.logger.Infof("Listener `%s` shutting down", listener.config.Addr())
+			listener.flowState.Shutdown()
 			close(stopped)
 		}()
 

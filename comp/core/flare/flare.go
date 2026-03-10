@@ -273,7 +273,8 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
 		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
 
-		done := make(chan struct{})
+		// Buffered so the goroutine can send even if we already left via timeout.
+		done := make(chan struct{}, 1)
 		go func() {
 			startTime := time.Now()
 			err := p.Callback(fb)

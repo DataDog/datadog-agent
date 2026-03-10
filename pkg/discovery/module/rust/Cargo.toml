@@ -1,5 +1,5 @@
 [package]
-name = "sd-agent"
+name = "system-probe-lite"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ name = "dd_discovery"
 crate-type = ["rlib", "cdylib"]
 
 [[bin]]
-name = "sd-agent"
+name = "system-probe-lite"
 path = "src/main.rs"
 
 [[bin]]

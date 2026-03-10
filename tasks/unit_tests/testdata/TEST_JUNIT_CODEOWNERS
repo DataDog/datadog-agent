@@ -204,7 +204,7 @@
 /cmd/agent/subcommands/hostname         @DataDog/agent-runtimes
 /cmd/agent/subcommands/version          @DataDog/agent-runtimes
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
-/cmd/agent/subcommands/snmp             @DataDog/ndm-core
+/cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring-core
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-log-pipelines
 /cmd/agent/subcommands/analyzelogs      @DataDog/agent-log-pipelines
 /cmd/agent/subcommands/streamep         @DataDog/container-integrations
@@ -223,7 +223,7 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
-/cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/installer.go                 @DataDog/fleet
@@ -247,7 +247,7 @@
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*  @DataDog/cloud-network-monitoring
-/cmd/system-probe/modules/ping*         @DataDog/ndm-core
+/cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
 /cmd/system-probe/windows_resources/    @DataDog/windows-products
@@ -292,7 +292,7 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
+/omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
@@ -309,13 +309,13 @@
 /comp/forwarder @DataDog/agent-metric-pipelines
 /comp/logs @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/agent-configuration
-/comp/ndmtmp @DataDog/ndm-core
+/comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/cloud-network-monitoring
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
-/comp/snmptraps @DataDog/ndm-core
+/comp/snmptraps @DataDog/network-device-monitoring-core
 /comp/systray @DataDog/windows-products
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet @DataDog/windows-products
@@ -341,7 +341,7 @@
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/kubernetes-experiences
 /comp/metadata/clusteragent @DataDog/container-platform
-/comp/metadata/haagent @DataDog/ndm-core
+/comp/metadata/haagent @DataDog/network-device-monitoring-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/metadata/softwareinventory @DataDog/windows-products
@@ -352,13 +352,13 @@
 /comp/connectivitychecker @DataDog/fleet
 /comp/etw @DataDog/windows-products
 /comp/fleetstatus @DataDog/fleet
-/comp/haagent @DataDog/ndm-core
+/comp/haagent @DataDog/network-device-monitoring-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
-/comp/snmpscan @DataDog/ndm-core
+/comp/snmpscan @DataDog/network-device-monitoring-core
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
@@ -409,7 +409,7 @@
 /pkg/trace/transform/                   @DataDog/opentelemetry-agent
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/agent-integrations
-/comp/core/autodiscovery/listeners/snmp*.go   @DataDog/ndm-core
+/comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring-core
 /comp/core/autodiscovery/providers/           @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go   @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-platform @DataDog/agent-log-pipelines
@@ -446,7 +446,7 @@
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/agent-security @DataDog/container-integrations
-/pkg/collector/corechecks/snmp/         @DataDog/ndm-core
+/pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring-core
 /pkg/collector/corechecks/system/                 @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-products
@@ -472,7 +472,7 @@
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
-/pkg/diagnose/firewallscanner/          @DataDog/ndm-core
+/pkg/diagnose/firewallscanner/          @DataDog/network-device-monitoring-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-products
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
@@ -600,8 +600,8 @@
 /pkg/databasemonitoring                 @DataDog/database-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
-/pkg/networkdevice/                     @DataDog/ndm-core
-/pkg/snmp/                              @DataDog/ndm-core
+/pkg/networkdevice/                     @DataDog/network-device-monitoring-core
+/pkg/snmp/                              @DataDog/network-device-monitoring-core
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-products
 /comp/core/workloadmeta/collectors/internal/cloudfoundry  @DataDog/agent-integrations
@@ -675,8 +675,8 @@
 /test/integration/                      @DataDog/serverless @Datadog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
-/test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
-/test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
+/test/fakeintake/aggregator/ndmAggregator.go @DataDog/network-device-monitoring-core
+/test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/network-device-monitoring-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
@@ -705,9 +705,9 @@
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
-/test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
+/test/new-e2e/tests/ha-agent                  @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
-/test/new-e2e/tests/ndm                       @DataDog/ndm-core
+/test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
 /test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring

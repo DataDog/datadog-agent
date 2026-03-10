@@ -253,6 +253,9 @@ metrics:
   errors.xid.total:
     tagsets:
       - device
+    custom_tags:
+      - origin
+      - type
     support:
       unsupported_architectures: []
       device_modes:

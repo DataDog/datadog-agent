@@ -144,7 +144,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/ndm-core
+      - team/network-device-monitoring-core
       - changelog/no-changelog
     ignore:
       # Ignore internal modules

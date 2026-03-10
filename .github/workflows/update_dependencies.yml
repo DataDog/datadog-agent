@@ -36,6 +36,8 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
+      - name: Set up Bazel cache
+        uses: ./.github/actions/bazel-cache
       - name: Update every golang.org/x/... package
         run: |
           go get -u golang.org/x/arch golang.org/x/crypto \

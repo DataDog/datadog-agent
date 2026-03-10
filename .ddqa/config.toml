@@ -82,8 +82,8 @@ github_labels = ["team/usm"]
 jira_project = "NDMC"
 jira_issue_type = "HighPriority"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "ndm-core"
-github_labels = ["team/ndm-core"]
+github_team = "network-device-monitoring-core"
+github_labels = ["team/network-device-monitoring-core"]
 
 [teams."Network Device Monitoring - Integrations"]
 jira_project = "NDINT"

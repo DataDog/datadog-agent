@@ -131,7 +131,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
 	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
-	queryTimeout := registry.conf.GetDuration("remote_agent_registry.query_timeout")
+	queryTimeout := registry.conf.GetDuration("remote_agent.registry.query_timeout")
 
 	var wg sync.WaitGroup
 
