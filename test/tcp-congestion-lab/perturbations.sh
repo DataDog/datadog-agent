@@ -146,9 +146,20 @@ except Exception as e:
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
+  #=== RCV-OOOPACK: reorder on server egress → exercises rcv_ooopack on client ===
+  rcv-ooopack)
+    echo "=== Receive OOO: reorder on server egress, iperf3 reverse (server→client) ==="
+    echo "Expected signals: rcv_ooopack>0"
+    # Apply reordering on SERVER egress so data arrives OOO at the client receiver.
+    # iperf3 -R (reverse) makes the server the sender; the client socket accumulates rcv_ooopack.
+    docker exec $SERVER tc qdisc add dev eth0 root netem delay 10ms reorder 50% 50%
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH" -R
+    docker exec $SERVER tc qdisc del dev eth0 root
+    ;;
+
   #=== ALL: run all scenarios sequentially ===
   all)
-    for scenario in baseline loss heavy-loss reorder wan ecn zero-window sack-recovery; do
+    for scenario in baseline loss heavy-loss reorder rcv-ooopack wan ecn zero-window sack-recovery; do
       echo ""
       echo "================================================"
       $0 --duration "$DURATION" --bandwidth "$BANDWIDTH" $scenario
@@ -208,7 +219,8 @@ while True:
     echo "  baseline        Clean traffic (no perturbations)"
     echo "  loss [%]        Random packet loss (default 5%)"
     echo "  heavy-loss      Heavy 20% loss (triggers RTO)"
-    echo "  reorder         Packet reordering"
+    echo "  reorder         Packet reordering (send-side, reord_seen)"
+    echo "  rcv-ooopack     Receive-side OOO (server egress reorder + iperf3 -R)"
     echo "  wan             WAN simulation (delay + loss)"
     echo "  ecn             ECN congestion marking"
     echo "  zero-window     Slow reader (zero-window probes)"

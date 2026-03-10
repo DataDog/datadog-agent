@@ -231,7 +231,7 @@ type StatCounters struct {
 	TCPProbe0Count   uint32 // zero-window probe events (tcp_send_probe0 invocations)
 	TCPDeliveredCE   uint32 // segments delivered with ECN CE mark (4.19+)
 	TCPReordSeen     uint32 // reordering events detected (4.19+)
-	TCPRcvOOOPack    uint32 // out-of-order packets received (2.6+)
+	TCPRcvOOOPack    uint32 // out-of-order packets received (5.4+)
 }
 
 // IsZero returns whether all the stat counter values are zeroes

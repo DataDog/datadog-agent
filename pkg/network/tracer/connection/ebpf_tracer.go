@@ -229,7 +229,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	if spec, err := ddebpf.GetKernelSpec(); err == nil {
 		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
 			manager.ConstantEditor{Name: "delivered_ce_offset", Value: tcpSockFieldOffset(spec, "delivered_ce")},
-			manager.ConstantEditor{Name: "reord_seen_offset", Value: tcpSockFieldOffset(spec, "reord_seen")})
+			manager.ConstantEditor{Name: "reord_seen_offset", Value: tcpSockFieldOffset(spec, "reord_seen")},
+			manager.ConstantEditor{Name: "rcv_ooopack_offset", Value: tcpSockFieldOffset(spec, "rcv_ooopack")})
 	}
 
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
