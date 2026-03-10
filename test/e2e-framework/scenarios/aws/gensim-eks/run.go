@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -61,13 +63,6 @@ func Run(ctx *pulumi.Context) error {
 	}
 
 	// ── Cluster ───────────────────────────────────────────────────────────────
-	// WithLinuxNodeGroup is required: without it the cluster has only Fargate nodes
-	// (used for system pods like CoreDNS) and episode workloads cannot be scheduled.
-	// WithoutFargate: no Fargate nodes in this cluster. Fargate is used by default
-	// for CoreDNS (provisioning speed), but the NoSchedule taint on Fargate nodes
-	// causes DaemonSets (including the Datadog agent) to accumulate stuck-Pending
-	// pods, blocking Helm readiness checks and adding operational complexity.
-	// CoreDNS simply schedules on the EC2 node group once nodes join instead.
 	cluster, err := eksscenario.NewCluster(awsEnv, "gensim",
 		eksscenario.WithLinuxNodeGroup(),
 		eksscenario.WithoutFargate(),
@@ -344,7 +339,32 @@ func deployOrchestratorJob(
 		})
 	}
 
+	// ── Agent values ConfigMap ───────────────────────────────────────────────
+	renderedValues, err := renderAgentValues(agentImage)
+	if err != nil {
+		return err
+	}
+	agentValuesCM, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("agent-values-cm"),
+		&corev1.ConfigMapArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name:      pulumi.String("gensim-agent-values"),
+				Namespace: pulumi.String(namespace),
+			},
+			Data: pulumi.StringMap{
+				"agent-values.yaml": pulumi.String(renderedValues),
+			},
+		}, kubeOpts...)
+	if err != nil {
+		return err
+	}
+
 	// ── Volumes ──────────────────────────────────────────────────────────────
+	episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
+		Name: pulumi.String("agent-values"),
+		ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+			Name: pulumi.String("gensim-agent-values"),
+		},
+	})
 	// Workspace emptyDir
 	episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
 		Name:     pulumi.String("workspace"),
@@ -353,17 +373,22 @@ func deployOrchestratorJob(
 
 	// ── Volume mounts ────────────────────────────────────────────────────────
 	episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
+		Name:      pulumi.String("agent-values"),
+		MountPath: pulumi.String("/config/agent-values.yaml"),
+		SubPath:   pulumi.String("agent-values.yaml"),
+	})
+	episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
 		Name:      pulumi.String("workspace"),
 		MountPath: pulumi.String("/workspace"),
 	})
 
 	// ── Job dependencies ─────────────────────────────────────────────────────
 	var jobDeps []pulumi.Resource
-	jobDeps = append(jobDeps, sa, ddSecret)
+	jobDeps = append(jobDeps, sa, ddSecret, agentValuesCM)
 	jobDeps = append(jobDeps, episodeConfigMaps...)
 
 	// ── Orchestrator Job ─────────────────────────────────────────────────────
-	_, err := batchv1.NewJob(ctx, awsEnv.Namer.ResourceName("orchestrator-job"),
+	_, err = batchv1.NewJob(ctx, awsEnv.Namer.ResourceName("orchestrator-job"),
 		&batchv1.JobArgs{
 			Metadata: metav1.ObjectMetaArgs{
 				Name:      pulumi.String("gensim-orchestrator"),
@@ -427,6 +452,28 @@ func deployOrchestratorJob(
 // buildOrchestratorScript constructs the bash script that the orchestrator Job executes.
 // All values come from environment variables set on the Job's env (EPISODES, AGENT_IMAGE,
 // GENSIM_SHA, KUBE_NAMESPACE, S3_BUCKET, IMAGE_REGISTRY, DD_API_KEY, DD_APP_KEY, DD_SITE).
+//
+//go:embed agent-values.yaml.tmpl
+var agentValuesTmpl string
+
+// renderAgentValues renders the agent Helm values template with the given image.
+func renderAgentValues(agentImage string) (string, error) {
+	repo := agentImage[:strings.LastIndex(agentImage, ":")]
+	tag := agentImage[strings.LastIndex(agentImage, ":")+1:]
+
+	tmpl, err := template.New("agent-values").Parse(agentValuesTmpl)
+	if err != nil {
+		return "", fmt.Errorf("parsing agent-values template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, struct{ ImageRepo, ImageTag string }{repo, tag})
+	if err != nil {
+		return "", fmt.Errorf("rendering agent-values template: %w", err)
+	}
+	return buf.String(), nil
+}
+
 func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry string) string {
 	return `set -euo pipefail
 apk add --no-cache aws-cli 2>/dev/null || true
@@ -631,70 +678,8 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   update_episode_status "$EP_SPEC" "running" '{"phase":"agent-install"}'
 
-  # 2. Write agent values YAML (comprehensive: APM, logs, process, DogStatsD)
-  cat > /workspace/agent-values.yaml <<'AGENT_EOF'
-fullnameOverride: datadog-agent
-
-datadog:
-  apiKeyExistingSecret: gensim-secrets
-  appKeyExistingSecret: gensim-secrets
-  apm:
-    portEnabled: true
-    instrumentation:
-      enabled: true
-  logs:
-    enabled: true
-    containerCollectAll: true
-  processAgent:
-    enabled: true
-    processCollection: true
-  dogstatsd:
-    useHostPort: true
-  kubelet:
-    tlsVerify: false
-  clusterName: gensim
-  clusterChecks:
-    enabled: true
-  env:
-    - name: DD_OBSERVER_RECORDING_ENABLED
-      value: "true"
-    - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
-      value: "1s"
-
-agents:
-  enabled: true
-  image:
-    repository: PLACEHOLDER_IMAGE_REPO
-    tag: PLACEHOLDER_IMAGE_TAG
-    doNotCheckTag: true
-  useConfigMap: true
-  customAgentConfig:
-    observer:
-      recording:
-        enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
-  containers:
-    agent:
-      resources:
-        requests:
-          memory: 1500Mi
-          cpu: 500m
-        limits:
-          memory: 3000Mi
-
-clusterAgent:
-  enabled: true
-  admissionController:
-    enabled: true
-    mutateUnlabelled: true
-
-clusterChecksRunner:
-  enabled: false
-AGENT_EOF
-  # Patch placeholders with actual values (avoids heredoc variable expansion issues)
-  sed -i "s|PLACEHOLDER_IMAGE_REPO|$IMAGE_REPO|g" /workspace/agent-values.yaml
-  sed -i "s|PLACEHOLDER_IMAGE_TAG|$IMAGE_TAG|g" /workspace/agent-values.yaml
+  # 2. Copy pre-rendered agent values (rendered at deploy time from agent-values.yaml.tmpl)
+  cp /config/agent-values.yaml /workspace/agent-values.yaml
 
   # 3. Install agent (with episode check configs if extracted)
   AGENT_EXTRA_VALUES=""
@@ -911,6 +896,8 @@ func provisionBuildVM(ctx *pulumi.Context, awsEnv resAws.Environment) (*remote.H
 	return buildHost, installToolsCmd, nil
 }
 
+// TODO: Remove once gensim-episodes publishes pre-built images for all episodes.
+//
 // buildEpisodeImages copies a single episode's service source code to the build VM,
 // builds Docker images via docker buildx bake, and pushes them to ECR.
 //
@@ -1068,8 +1055,8 @@ fi`,
 }
 
 // hashDir computes a deterministic SHA256 hash of all files under a directory.
-// It walks the tree, sorts paths for determinism, and hashes each file's
-// contents. The result changes whenever any file is added, removed, or modified.
+// Used as a Pulumi Trigger so the build command re-runs when source files change
+// (Pulumi's DependsOn only controls ordering, not re-execution).
 func hashDir(root string) (string, error) {
 	var paths []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
