@@ -22,5 +22,6 @@ class TagCheckCheck(AgentCheck):
 
     def check(self, instance):
         value = float(instance.get("metric_value", 0))
-        self.gauge("tag_check.metric", value)
-        self.service_check("tag_check.can_connect", AgentCheck.OK)
+        tags = instance.get("tags", [])
+        self.gauge("tag_check.metric", value, tags=tags)
+        self.service_check("tag_check.can_connect", AgentCheck.OK, tags=tags)

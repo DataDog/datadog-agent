@@ -15,7 +15,6 @@ package tagisolation
 
 import (
 	_ "embed"
-	"fmt"
 	"testing"
 	"time"
 
@@ -64,56 +63,6 @@ func TestTagIsolationSuite(t *testing.T) {
 			),
 		),
 	))
-}
-
-// Test00_DebugMetricTags dumps all tag_check.metric series and their tags
-// to diagnose why WithTags filtering returns empty.
-func (s *tagIsolationSuite) Test00_DebugMetricTags() {
-	fakeintake := s.Env().FakeIntake.Client()
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		// Get ALL metrics for tag_check.metric — no tag filter
-		metrics, err := fakeintake.FilterMetrics("tag_check.metric")
-		require.NoError(c, err)
-		require.NotEmpty(c, metrics, "no tag_check.metric in fakeintake yet")
-
-		s.T().Logf("Found %d tag_check.metric series", len(metrics))
-		for i, m := range metrics {
-			s.T().Logf("  series[%d]: Tags=%v Points=%d", i, m.GetTags(), len(m.Points))
-			if len(m.Points) > 0 {
-				last := m.Points[len(m.Points)-1]
-				s.T().Logf("    last point: value=%v ts=%v", last.Value, last.Timestamp)
-			}
-		}
-
-		// Also check service checks
-		checks, err := fakeintake.FilterCheckRuns("tag_check.can_connect")
-		require.NoError(c, err)
-		s.T().Logf("Found %d tag_check.can_connect check runs", len(checks))
-		for i, cr := range checks {
-			if i < 5 { // only log first 5
-				s.T().Logf("  check[%d]: Tags=%v Status=%d", i, cr.Tags, cr.Status)
-			}
-		}
-
-		// Test the actual filter that's failing
-		alphaMetrics, err := fakeintake.FilterMetrics("tag_check.metric",
-			client.WithTags[*aggregator.MetricSeries]([]string{"instance:alpha"}),
-		)
-		require.NoError(c, err)
-		s.T().Logf("FilterMetrics with instance:alpha: %d results", len(alphaMetrics))
-
-		require.NotEmpty(c, alphaMetrics, fmt.Sprintf(
-			"WithTags filter returned empty; raw series tags: %v",
-			func() [][]string {
-				var all [][]string
-				for _, m := range metrics {
-					all = append(all, m.GetTags())
-				}
-				return all
-			}(),
-		))
-	}, 3*time.Minute, 10*time.Second)
 }
 
 // TestAlphaInstanceMetrics verifies that the alpha instance reports metrics
