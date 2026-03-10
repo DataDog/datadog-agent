@@ -826,6 +826,7 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	// If the test is a fuzz test, the logger provided in core.MockBundle() will be created with the wrong testing.TB
 	// and cause a panic.
 	if _, ok := t.(*testing.F); ok {
+		// fx.Decorate allows transforming a given component, in this case we replace it with a disabled logger
 		opts = append(opts, fx.Decorate(func(log.Component) log.Component { return logslog.Disabled() }))
 	}
 
