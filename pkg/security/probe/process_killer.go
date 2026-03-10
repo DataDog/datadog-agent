@@ -255,6 +255,7 @@ func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 		p.Unlock()
 		return false, errors.New("the enforcement capability is disabled")
 	}
+	binariesExcluded := p.binariesExcluded
 	p.Unlock()
 
 	for _, pc := range kcs {
@@ -262,7 +263,7 @@ func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 			return false, fmt.Errorf("process with pid %d cannot be killed", pc.pid)
 		}
 
-		if slices.ContainsFunc(p.binariesExcluded, func(glob *eval.Glob) bool {
+		if slices.ContainsFunc(binariesExcluded, func(glob *eval.Glob) bool {
 			return glob.Matches(pc.path)
 		}) {
 			return false, fmt.Errorf("process `%s`(%d) is protected", pc.path, pc.pid)
