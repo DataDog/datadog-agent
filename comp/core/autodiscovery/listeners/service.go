@@ -211,46 +211,26 @@ func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]int
 	}
 }
 
-// filterTemplatesProviderPrecedence enforces provider-level precedence among
-// the templates that survived workload matching:
-//
-//	crd-file > file
-//
-// It must be called after filterTemplatesMatched so that a CRD file template
-// that was rejected by workload filters does not incorrectly suppress the
-// corresponding file template.
+// filterTemplatesProviderPrecedence enforces CRD-file-over-file precedence among
+// the templates that survived workload matching. It must be called after
+// filterTemplatesMatched so that a CRD file template rejected by workload
+// filters does not incorrectly suppress the corresponding file template.
 func (s *WorkloadService) filterTemplatesProviderPrecedence(configs map[string]integration.Config) {
-	otherSourceNames := map[string]struct{}{}
 	crdFileNames := map[string]struct{}{}
 	for _, config := range configs {
-		switch config.Provider {
-		case names.CRDFile:
+		if config.Provider == names.CRDFile {
 			crdFileNames[config.Name] = struct{}{}
-		case names.File:
-			// lowest priority — skip
-		default:
-			otherSourceNames[config.Name] = struct{}{}
 		}
 	}
 
 	for digest, config := range configs {
-		switch config.Provider {
-		case names.File:
-			if _, hasCRD := crdFileNames[config.Name]; hasCRD {
-				log.Debugf("Ignoring file config from %s: CRD file provider overrides check %s for service %s",
-					config.Source, config.Name, s.GetServiceID())
-				delete(configs, digest)
-			} else if _, hasOther := otherSourceNames[config.Name]; hasOther {
-				log.Debugf("Ignoring file config from %s: higher-priority provider overrides check %s for service %s",
-					config.Source, config.Name, s.GetServiceID())
-				delete(configs, digest)
-			}
-		case names.CRDFile:
-			if _, hasOther := otherSourceNames[config.Name]; hasOther {
-				log.Debugf("Ignoring CRD file config from %s: higher-priority provider overrides check %s for service %s",
-					config.Source, config.Name, s.GetServiceID())
-				delete(configs, digest)
-			}
+		if config.Provider != names.File {
+			continue
+		}
+		if _, hasCRD := crdFileNames[config.Name]; hasCRD {
+			log.Debugf("Ignoring file config from %s: CRD file provider overrides check %s for service %s",
+				config.Source, config.Name, s.GetServiceID())
+			delete(configs, digest)
 		}
 	}
 }
