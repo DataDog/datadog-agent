@@ -131,14 +131,23 @@ windows-link,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windo
 windows-sys,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
 windows-sys,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows-sys Authors
 windows-targets,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows-targets,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows-targets Authors
 windows_aarch64_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_aarch64_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_aarch64_gnullvm Authors
 windows_aarch64_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_aarch64_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_aarch64_msvc Authors
 windows_i686_gnu,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_i686_gnu,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_i686_gnu Authors
 windows_i686_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_i686_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_i686_gnullvm Authors
 windows_i686_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_i686_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_i686_msvc Authors
 windows_x86_64_gnu,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_x86_64_gnu,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_x86_64_gnu Authors
 windows_x86_64_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_x86_64_gnullvm,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_x86_64_gnullvm Authors
 windows_x86_64_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,Microsoft
+windows_x86_64_msvc,https://github.com/microsoft/windows-rs,MIT OR Apache-2.0,The windows_x86_64_msvc Authors
 winx,https://github.com/sunfishcode/winx,Apache-2.0 WITH LLVM-exception,"Jakub Konka <kubkon@jakubkonka.com>, Dan Gohman <dev@sunfishcode.online>"
 yaml-rust2,https://github.com/Ethiraric/yaml-rust2,MIT OR Apache-2.0,"Yuheng Chen <yuhengchen@sensetime.com>, Ethiraric <ethiraric@gmail.com>, David Aguilar <davvid@gmail.com>"
 zerocopy,https://github.com/google/zerocopy,BSD-2-Clause OR Apache-2.0 OR MIT,"Joshua Liebow-Feeser <joshlf@google.com>, Jack Wrenn <jswrenn@amazon.com>"

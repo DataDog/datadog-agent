@@ -1,4 +1,4 @@
-# system-probe-lite
+# sd-agent
 
 A Rust implementation of resource discovery.
 
@@ -7,10 +7,10 @@ A Rust implementation of resource discovery.
 ### Build the Binary
 
 ```bash
-cargo build --release --bin system-probe-lite
+cargo build --release --bin sd-agent
 ```
 
-The binary will be located at `target/release/system-probe-lite`.
+The binary will be located at `target/release/sd-agent`.
 
 ### Build the Shared Library
 
@@ -76,13 +76,13 @@ cargo +nightly miri test ffi::
 ## Running
 
 Start the service (requires appropriate permissions to create
-`/opt/datadog-agent/run/sysprobe.sock`):
+`/opt/datadog-agent/run/sd-agent.sock`):
 
 ```bash
-sudo ./target/release/system-probe-lite
+sudo ./target/release/sd-agent
 ```
 
-The service listens on `/opt/datadog-agent/run/sysprobe.sock` and exposes a
+The service listens on `/opt/datadog-agent/run/sd-agent.sock` and exposes a
 single endpoint:
 
 ```
@@ -129,13 +129,13 @@ Bazel automatically reads dependencies from `Cargo.toml` and `Cargo.lock`. When 
 
 2. Regenerate the Bazel lockfile:
    ```bash
-   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:system-probe-lite
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
    ```
 
 3. Add the dependency to the appropriate target in `BUILD.bazel`:
    ```starlark
    rust_binary(
-       name = "system-probe-lite",
+       name = "sd-agent",
        deps = [
            "@crates//:your-new-crate",
            # ... other deps
@@ -156,7 +156,7 @@ When running `cargo update` to update dependency versions:
 
 2. Regenerate the Bazel lockfile:
    ```bash
-   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:system-probe-lite
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
    ```
 
 #### Adding New Source Files
@@ -165,10 +165,10 @@ When adding new Rust source files to the library:
 
 1. Add the file to your project (e.g., `src/new_module.rs`)
 2. Update `BUILD.bazel` to include it in the glob pattern (it should be auto-included if using `glob(["src/**/*.rs"])`)
-3. For the `system-probe-lite` binary, explicitly add new modules if they're used by `main.rs`:
+3. For the `sd-agent` binary, explicitly add new modules if they're used by `main.rs`:
    ```starlark
    rust_binary(
-       name = "system-probe-lite",
+       name = "sd-agent",
        srcs = [
            "src/main.rs",
            "src/new_module.rs",  # Add new files here

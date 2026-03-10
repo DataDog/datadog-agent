@@ -433,7 +433,7 @@ func TestRustBinary(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "system-probe-lite")
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "sd-agent")
 
 	require.FileExists(t, binaryPath, "Rust binary should be built")
 
@@ -443,7 +443,7 @@ func TestRustBinary(t *testing.T) {
 	}
 
 	env := os.Environ()
-	env = append(env, "DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true")
+	env = append(env, "DD_DISCOVERY_USE_SD_AGENT=true")
 	env = append(env, "DD_DISCOVERY_ENABLED=false")
 	// Fake system-probe binary with empty configuration file
 	cmd := exec.Command(binaryPath, "--", truePath, "-c", "/dev/null")

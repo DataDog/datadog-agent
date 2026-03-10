@@ -111,9 +111,9 @@ filegroup(
 # Binary Targets
 # ============================================================================
 
-# Main system-probe-lite service binary
+# Main sd-agent service binary
 rust_binary(
-    name = "system-probe-lite",
+    name = "sd-agent",
     srcs = [
         "src/cli.rs",
         "src/config.rs",
@@ -139,7 +139,7 @@ rust_binary(
 
 pkg_files(
     name = "all_files",
-    srcs = [":system-probe-lite"],
+    srcs = [":sd-agent"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -202,13 +202,13 @@ rust_test(
     srcs = ["tests/fallback_integration_test.rs"],
     data = [
         ":mock_system_probe",
-        ":system-probe-lite",
+        ":sd-agent",
     ],
     edition = "2024",
-    # Set compile-time environment variable pointing to system-probe-lite binary
+    # Set compile-time environment variable pointing to sd-agent binary
     # This mimics Cargo's CARGO_BIN_EXE_* behavior
     rustc_env = {
-        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
+        "CARGO_BIN_EXE_sd-agent": "$(rootpath :sd-agent)",
         "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
     },
     deps = [
@@ -220,10 +220,10 @@ rust_test(
 rust_test(
     name = "pid_integration_test",
     srcs = ["tests/pid_integration_test.rs"],
-    data = [":system-probe-lite"],
+    data = [":sd-agent"],
     edition = "2024",
     rustc_env = {
-        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
+        "CARGO_BIN_EXE_sd-agent": "$(rootpath :sd-agent)",
     },
     deps = [
         "@crates//:nix",

@@ -554,7 +554,7 @@ def hacky_dev_image_build(
 
         copy_extra_agents += (
             "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
-            "COPY pkg/discovery/module/rust/embedded/bin/system-probe-lite /opt/datadog-agent/embedded/bin/system-probe-lite\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/sd-agent /opt/datadog-agent/embedded/bin/sd-agent\n"
         )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/

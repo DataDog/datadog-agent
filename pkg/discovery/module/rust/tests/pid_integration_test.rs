@@ -14,33 +14,33 @@ use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
-const SYSTEM_PROBE_LITE_BIN: &str = env!("CARGO_BIN_EXE_system-probe-lite");
+const SD_AGENT_BIN: &str = env!("CARGO_BIN_EXE_sd-agent");
 
 #[test]
 fn test_pid_file_created_and_cleaned_up_on_sigterm() {
     let temp_dir = TempDir::new().unwrap();
-    let pid_path = temp_dir.path().join("system-probe-lite.pid");
+    let pid_path = temp_dir.path().join("sd-agent.pid");
     let mock_sp = temp_dir.path().join("system-probe");
 
-    // Create mock system-probe (needed so system-probe-lite doesn't exit early)
+    // Create mock system-probe (needed so sd-agent doesn't exit early)
     fs::write(&mock_sp, "#!/bin/bash\nexit 0\n").unwrap();
     fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
 
     // Use unique socket path for this test to avoid conflicts
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
-    // Spawn system-probe-lite with PID file
-    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+    // Spawn sd-agent with PID file
+    let mut child = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp)
         .arg("run")
         .arg("--pid")
         .arg(&pid_path)
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
-        .expect("Failed to spawn system-probe-lite");
+        .expect("Failed to spawn sd-agent");
 
     // Give it time to start and create PID file
     thread::sleep(Duration::from_millis(500));
@@ -79,28 +79,28 @@ fn test_pid_file_created_and_cleaned_up_on_sigterm() {
 #[test]
 fn test_pid_file_created_and_cleaned_up_on_sigint() {
     let temp_dir = TempDir::new().unwrap();
-    let pid_path = temp_dir.path().join("system-probe-lite.pid");
+    let pid_path = temp_dir.path().join("sd-agent.pid");
     let mock_sp = temp_dir.path().join("system-probe");
 
-    // Create mock system-probe (needed so system-probe-lite doesn't exit early)
+    // Create mock system-probe (needed so sd-agent doesn't exit early)
     fs::write(&mock_sp, "#!/bin/bash\nexit 0\n").unwrap();
     fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
 
     // Use unique socket path for this test to avoid conflicts
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
-    // Spawn system-probe-lite with PID file
-    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+    // Spawn sd-agent with PID file
+    let mut child = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp)
         .arg("run")
         .arg("--pid")
         .arg(&pid_path)
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
-        .expect("Failed to spawn system-probe-lite");
+        .expect("Failed to spawn sd-agent");
 
     // Give it time to start and create PID file
     thread::sleep(Duration::from_millis(500));
@@ -139,26 +139,26 @@ fn test_pid_file_created_and_cleaned_up_on_sigint() {
 #[test]
 fn test_no_pid_file_without_flag() {
     let temp_dir = TempDir::new().unwrap();
-    let pid_path = temp_dir.path().join("system-probe-lite.pid");
+    let pid_path = temp_dir.path().join("sd-agent.pid");
     let mock_sp = temp_dir.path().join("system-probe");
 
-    // Create mock system-probe (needed so system-probe-lite doesn't exit early)
+    // Create mock system-probe (needed so sd-agent doesn't exit early)
     fs::write(&mock_sp, "#!/bin/bash\nexit 0\n").unwrap();
     fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
 
     // Use unique socket path for this test to avoid conflicts
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
-    // Spawn system-probe-lite WITHOUT --pid flag
-    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+    // Spawn sd-agent WITHOUT --pid flag
+    let mut child = Command::new(SD_AGENT_BIN)
         .arg("--")
         .arg(&mock_sp)
         .arg("run")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .env("DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET", &socket_path)
         .spawn()
-        .expect("Failed to spawn system-probe-lite");
+        .expect("Failed to spawn sd-agent");
 
     // Give it time to start
     thread::sleep(Duration::from_millis(500));

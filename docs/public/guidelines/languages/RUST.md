@@ -201,7 +201,7 @@ cargo generate-lockfile
 
 > **Note:** You must run `cargo generate-lockfile` (or `cargo build`) whenever you change any `Cargo.toml`. If `Cargo.lock` is out of sync, Bazel will report an error:
 > ```
-> ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+> ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 > ```
 
 ### Step 5: Create BUILD.bazel
@@ -409,7 +409,7 @@ cargo generate-lockfile
 
 Bazel will fail if `Cargo.toml` and `Cargo.lock` are out of sync:
 ```
-ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 ```
 
 ## Further Reading
