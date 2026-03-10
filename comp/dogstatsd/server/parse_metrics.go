@@ -80,19 +80,24 @@ func parseMetricSampleNameAndRawValue(rawNameAndValue []byte) ([]byte, []byte, e
 }
 
 func parseMetricSampleMetricType(rawMetricType []byte) (metricType, error) {
-	switch {
-	case bytes.Equal(rawMetricType, gaugeSymbol):
-		return gaugeType, nil
-	case bytes.Equal(rawMetricType, countSymbol):
-		return countType, nil
-	case bytes.Equal(rawMetricType, histogramSymbol):
-		return histogramType, nil
-	case bytes.Equal(rawMetricType, distributionSymbol):
-		return distributionType, nil
-	case bytes.Equal(rawMetricType, setSymbol):
-		return setType, nil
-	case bytes.Equal(rawMetricType, timingSymbol):
-		return timingType, nil
+	switch len(rawMetricType) {
+	case 1:
+		switch rawMetricType[0] {
+		case 'g':
+			return gaugeType, nil
+		case 'c':
+			return countType, nil
+		case 'h':
+			return histogramType, nil
+		case 'd':
+			return distributionType, nil
+		case 's':
+			return setType, nil
+		}
+	case 2:
+		if rawMetricType[0] == 'm' && rawMetricType[1] == 's' {
+			return timingType, nil
+		}
 	}
 	return 0, fmt.Errorf("invalid metric type: %q", rawMetricType)
 }
