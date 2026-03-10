@@ -167,7 +167,9 @@ func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatch
 
 // GetTagFilterList returns the current tag filterlist.
 func (fl *FilterList) GetTagFilterList() filterlist.TagMatcher {
-	return &fl.tagFilterList
+	fl.updateTagMtx.RLock()
+	defer fl.updateTagMtx.RUnlock()
+	return fl.tagFilterList
 }
 
 // GetMetricFilterList returns the current metric filterlist.
@@ -255,7 +257,7 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	defer fl.updateTagMtx.RUnlock()
 
 	for _, update := range fl.tagFilterListUpdate {
-		update(&fl.tagFilterList)
+		update(fl.tagFilterList)
 	}
 }
 
@@ -336,7 +338,7 @@ func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)
 	fl.updateTagMtx.RLock()
 	defer fl.updateTagMtx.RUnlock()
 
-	onUpdate(&fl.tagFilterList)
+	onUpdate(fl.tagFilterList)
 }
 
 func NewFilterListReq(req Requires) Provides {

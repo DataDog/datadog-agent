@@ -46,15 +46,13 @@ type hashedMetricTagList struct {
 }
 
 func NewEmptyTagMatcher() filterlist.TagMatcher {
-	matcher := tagMatcher{
+	return tagMatcher{
 		MetricTags: map[string]hashedMetricTagList{},
 	}
-	return &matcher
 }
 
 func NewTagMatcher(metrics map[string]MetricTagList) filterlist.TagMatcher {
-	matcher := newTagMatcher(metrics)
-	return &matcher
+	return newTagMatcher(metrics)
 }
 
 // NewTagMatcher creates a new instance of TagMatcher. The function takes
@@ -107,7 +105,7 @@ func tagName(tag string) string {
 // ShouldStripTags returns true if it has been configured to strip tags
 // from the given metric name. The returned tag list will be used to query
 // the tag.
-func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
+func (m tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
 	tm, ok := m.MetricTags[metricName]
 	if !ok {
 		return nil, false
