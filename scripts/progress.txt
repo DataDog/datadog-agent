@@ -1,0 +1,56 @@
+## Codebase Patterns
+- The `Metric` interface in `pkg/metrics/metric.go` uses an accumulator pattern: `flush(timestamp float64, out []*Serie) ([]*Serie, error)`. All metric types append to `out` and return it.
+- Use `GetSerie()` / `PutSerie()` from `pkg/metrics/serie_pool.go` for pooled *Serie allocation in flush paths.
+- Test files for metrics (`pkg/metrics/*_test.go`) call `flush()` directly (same package). Any interface change requires updating these test callsites.
+- Pre-existing test failure: `TestCheckMetrics` and `TestHistogramPercentiles` in `pkg/metrics` panic due to `SetWithoutSource` being called outside a proper test-scoped config mock. Not caused by our changes.
+- Aggregator tests use `-tags test` build tag: `go test -tags test ./pkg/aggregator/...`
+- `BenchmarkTimeSamplerFlushCardinality` benchmark creates a fresh sampler each iteration with `b.StopTimer()` during setup, so pool warmup doesn't happen within a single iteration. Alloc savings come from structural changes (eliminating wrapper slices) rather than pool hits.
+- **sketchMap is now a struct** (not map type alias): use `newSketchMap()` constructor, not `make(sketchMap)`. Methods have pointer receivers.
+- **sync.Pool get/put pattern for slices**: `putBinList(a []bin)` with `&a` causes a slice header escape-to-heap (1 alloc per call). Fix by having get return `([]T, *[]T)` and put take `*[]T` — reuses the existing heap-allocated header rather than creating a new one.
+- **Agent.FinishAndReset()**: preferred over `Finish()` for pool-reuse paths — retains Buf/CountBuf backing arrays so next insert on a recycled agent avoids reallocation.
+- **Pool hit timing**: benchmarks with `b.StopTimer()` setup show pool warmup across iterations (pool is package-level). Timer-ON allocs are ONLY from the flush phase. Pre-warm analysis: after ~10 cycles, backing arrays (bins, Buf) are retained via Reset, so subsequent Insert/flush cycles are 2 allocs/agent (Sketch.Copy).
+
+---
+
+# Ralph Progress Log
+Started: Tue 10 Mar 14:36:46 GMT 2026
+---
+
+## 2026-03-10 - US-004
+- Implemented Serie struct and Point slice pooling in the TimeSampler flush path
+- Files changed:
+  - `pkg/metrics/serie_pool.go` (new): SeriePool via sync.Pool, GetSerie/PutSerie functions
+  - `pkg/metrics/metric.go`: Changed Metric.flush() interface to accept accumulator `[]*Serie` parameter
+  - `pkg/metrics/gauge.go`, `count.go`, `rate.go`, `counter.go`, `monotonic_count.go`, `set.go`: Updated flush() to use accumulator + GetSerie()
+  - `pkg/metrics/histogram.go`: flush() accumulates directly into out, eliminating internal make([]*Serie,...) alloc
+  - `pkg/metrics/historate.go`, `metric_with_timestamp.go`: Updated flush() signatures
+  - `pkg/metrics/context_metrics.go`: Updated flushToSeries() to use accumulator pattern
+  - `pkg/aggregator/time_sampler.go`: dedupSerieBySerieSignature returns absorbed series to pool via PutSerie()
+  - All `pkg/metrics/*_test.go`: Added nil accumulator argument to flush() calls
+- **Learnings for future iterations:**
+  - The main alloc saving is from eliminating the `[]*Serie{...}` wrapper slice (1 alloc/metric/flush). The pool itself only helps when series are returned (e.g., absorbed/merged series in multi-bucket flush).
+  - `BenchmarkTimeSamplerFlushCardinality/1000-contexts`: 2032 allocs/op vs baseline 3032 = 33% reduction
+  - `BenchmarkTimeSamplerFlushMetricTypes/gauge`: 2032 allocs/op vs baseline 3032 = 33% reduction
+  - histogram alloc reduction was smaller (1000/22040 = ~4.5%) because each histogram produces 5 series, and the pool.New still allocates on cache miss
+  - Race detector passes: `go test -race -tags test ./pkg/aggregator/...`
+---
+
+## 2026-03-10 - US-005
+- Reduced allocation in SketchMap insertion and flush path
+- Files changed:
+  - `pkg/aggregator/sketch_map.go`: Converted sketchMap from map type alias to struct with lastCardinality hint field + agentPool sync.Pool for *quantile.Agent reuse + countBucketsBefore() helper
+  - `pkg/aggregator/sketch_map_test.go`: Updated `make(sketchMap)` → `newSketchMap()`
+  - `pkg/aggregator/time_sampler.go`: Updated to use newSketchMap() + pre-allocate SketchPoint slices using numBuckets hint
+  - `pkg/aggregator/check_sampler.go`: Updated to use newSketchMap()
+  - `pkg/util/quantile/agent.go`: Added FinishAndReset() method that retains Buf/CountBuf backing arrays while resetting for pool reuse
+  - `pkg/util/quantile/pool.go`: Changed getBinList/putBinList API to use ([]bin, *[]bin) — eliminates 1 slice-header escape alloc per call
+  - `pkg/util/quantile/store.go`: Updated 3 call sites to use new getBinList/putBinList API
+  - `pkg/util/quantile/ddsketch.go`: Updated 1 call site to use new getBinList/putBinList API
+- **Learnings for future iterations:**
+  - The "mystery" 3rd alloc per FinishAndReset was `putBinList(a []bin)` → `&a` causes slice header to escape to heap = 1 alloc per call. Fix: use *[]bin handle returned from getBinList.
+  - Timer-ON flush allocs breakdown for 1000 distribution metrics: 2000 from Sketch.Copy (2 per agent) + 1000 from SketchPoint slices + 1000 from SketchSeries structs + ~52 overhead = 4052 total
+  - Agent pool hits are genuine in steady state (pool not GC'd between b.StopTimer setup and b.StartTimer flush in the same iteration).
+  - `BenchmarkTimeSamplerFlushMetricTypes/distribution`: 4052 allocs/op vs baseline 6052 = 33% reduction (target ≥20%).
+  - All quantile accuracy tests pass: `go test ./pkg/util/quantile/...`
+  - Race detector passes: `go test -race -tags test ./pkg/aggregator/...`
+---

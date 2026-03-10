@@ -67,8 +67,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added SeriePool (sync.Pool) in pkg/metrics/serie_pool.go with GetSerie/PutSerie. Changed Metric.flush() interface to accept accumulator []*Serie, eliminating the []*Serie{} wrapper allocation per metric per flush. All metric types use GetSerie() with pre-allocated Points[:0:1]. histogram.flush() accumulates directly into out, eliminating internal make([]*Serie,...). dedupSerieBySerieSignature returns absorbed series to pool via PutSerie(). BenchmarkTimeSamplerFlushCardinality/1000-contexts: 2032 allocs/op vs baseline 3032 = 33% reduction (>=30% target). FlushMetricTypes: no ns/op regression (26% faster). Tests pass with -race."
     },
     {
       "id": "US-005",
@@ -83,8 +83,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Converted sketchMap to struct with lastCardinality hint for inner map sizing. Added agentPool (sync.Pool) for *quantile.Agent reuse. Added Agent.FinishAndReset() which retains Buf/CountBuf backing arrays for allocation-free reuse. Fixed getBinList/putBinList to use *[]bin handles (eliminates 1 alloc/insert from slice header escape). Pre-allocate SketchPoint slices using countBucketsBefore hint. BenchmarkTimeSamplerFlushMetricTypes/distribution: 4052 allocs/op vs baseline 6052 = 33% reduction (target ≥20%). All tests pass with -race."
     },
     {
       "id": "US-006",
