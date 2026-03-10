@@ -40,6 +40,9 @@ that match your use case.
 - **CI wiring**: check if an existing job already covers your test directory
   (`grep -n 'TARGETS:.*<area>' .gitlab/test/e2e/e2e.yml`). If not, add trigger
   rules and a job definition — look at existing jobs for the pattern
+- **Custom Python checks**: pass `tags=instance.get("tags", [])` explicitly to
+  `self.gauge()`, `self.service_check()`, etc. — instance tags are NOT
+  automatically injected into the serialized payload
 - **Run locally**: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`
   (handles AWS auth internally, no `aws-vault exec` wrapper needed)
 
