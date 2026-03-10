@@ -24,28 +24,31 @@ pub(crate) struct ExitEvent {
 #[derive(Clone)]
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
-    startup_order: Arc<Vec<usize>>,
+    /// Indices into the `processes` Vec in dependency-resolved startup order.
+    /// Recomputed on config reload so that indices stay in sync with the Vec.
+    startup_order: Arc<RwLock<Vec<usize>>>,
     config_loader: Arc<dyn ConfigLoader>,
 }
 
 impl ProcessManager {
     pub(crate) fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
         let configs = config_loader.load();
-        let startup_order = resolve_startup_order(&configs);
         let processes: Vec<ManagedProcess> = configs
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, pd.config))
             .collect();
+        let startup_order = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
-            startup_order: Arc::new(startup_order),
+            startup_order: Arc::new(RwLock::new(startup_order)),
             config_loader,
         }
     }
 
     async fn start(&self) {
+        let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
-        for &idx in self.startup_order.iter() {
+        for &idx in order.iter() {
             let proc = &mut procs[idx];
             if proc.should_start()
                 && let Err(e) = proc.spawn()
@@ -189,15 +192,18 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
-        let mut procs = self.processes.write().await;
-        if procs.iter().any(|p| p.name() == name) {
-            return Err(Status::already_exists(format!(
-                "process '{name}' already exists"
-            )));
+        {
+            let mut procs = self.processes.write().await;
+            if procs.iter().any(|p| p.name() == name) {
+                return Err(Status::already_exists(format!(
+                    "process '{name}' already exists"
+                )));
+            }
+            let proc = ManagedProcess::new_runtime(name.clone(), config);
+            info!("[{name}] created via RPC");
+            procs.push(proc);
         }
-        let proc = ManagedProcess::new_runtime(name.clone(), config);
-        info!("[{name}] created via RPC");
-        procs.push(proc);
+        self.update_startup_order().await;
         Ok(())
     }
 
@@ -246,17 +252,14 @@ impl ProcessManager {
     ) -> Result<ReloadResult, Status> {
         let new_configs = self.config_loader.load();
         let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|np| np.name.as_str()).collect();
+            new_configs.iter().map(|c| c.name.as_str()).collect();
 
-        let mut removed_procs;
-        let existing_names: std::collections::HashSet<String>;
         let mut removed = Vec::new();
-
+        let mut stopped_procs = Vec::new();
+        let existing_names: std::collections::HashSet<String>;
         {
             let mut procs = self.processes.write().await;
             existing_names = procs.iter().map(|p| p.name().to_owned()).collect();
-
-            removed_procs = Vec::new();
             let mut i = 0;
             while i < procs.len() {
                 if procs[i].origin() == ProcessOrigin::Config
@@ -268,14 +271,14 @@ impl ProcessManager {
                         proc.request_stop();
                     }
                     removed.push(proc.name().to_owned());
-                    removed_procs.push(proc);
+                    stopped_procs.push(proc);
                 } else {
                     i += 1;
                 }
             }
         }
 
-        for proc in &mut removed_procs {
+        for proc in &mut stopped_procs {
             proc.wait_for_stop().await;
         }
 
@@ -287,22 +290,22 @@ impl ProcessManager {
                 if existing_names.contains(&np.name) {
                     unchanged.push(np.name);
                 } else {
-                    let name = np.name;
-                    info!("[{name}] new config found, adding");
-                    let mut proc = ManagedProcess::new_config(name.clone(), np.config);
+                    info!("[{}] new config found, adding", np.name);
+                    let mut proc = ManagedProcess::new_config(np.name.clone(), np.config);
                     if proc.should_start() {
                         if let Err(e) = proc.spawn() {
-                            warn!("[{name}] failed to start: {e:#}");
+                            warn!("[{}] failed to start: {e:#}", np.name);
                         } else {
                             spawn_watcher(&mut proc, exit_tx.clone());
                         }
                     }
+                    added.push(np.name);
                     procs.push(proc);
-                    added.push(name);
                 }
             }
         }
 
+        self.update_startup_order().await;
         Ok(ReloadResult {
             added,
             removed,
@@ -310,17 +313,22 @@ impl ProcessManager {
         })
     }
 
-    async fn shutdown(&self) {
-        let mut procs = self.processes.write().await;
-        let ordered_set: std::collections::HashSet<usize> =
-            self.startup_order.iter().copied().collect();
-        let runtime_indices: Vec<usize> = (0..procs.len())
-            .filter(|i| !ordered_set.contains(i))
-            .collect();
+    async fn update_startup_order(&self) {
+        let new_order = recompute_startup_order(&self.processes.read().await);
+        *self.startup_order.write().await = new_order;
+    }
 
-        let mut shutdown_order: Vec<usize> = self.startup_order.iter().copied().rev().collect();
-        shutdown_order.extend(runtime_indices);
-        shutdown::shutdown_ordered(&mut procs, &shutdown_order).await;
+    async fn shutdown(&self) {
+        let order: Vec<usize> = self
+            .startup_order
+            .read()
+            .await
+            .iter()
+            .copied()
+            .rev()
+            .collect();
+        let mut procs = self.processes.write().await;
+        shutdown::shutdown_ordered(&mut procs, &order).await;
     }
 }
 
@@ -355,19 +363,25 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
     }
 }
 
-fn resolve_startup_order(configs: &[ProcessDefinition]) -> Vec<usize> {
-    let result = ordering::resolve_order(configs);
+/// Build `ProcessDefinition`s from the live processes Vec and resolve their
+/// dependency order. Because the definitions are built in the same index order
+/// as the Vec, the returned indices can be used directly for indexing into it.
+fn recompute_startup_order(procs: &[ManagedProcess]) -> Vec<usize> {
+    let defs: Vec<ProcessDefinition> = procs
+        .iter()
+        .map(|p| ProcessDefinition {
+            name: p.name().to_string(),
+            config: p.config().clone(),
+        })
+        .collect();
+    let result = ordering::resolve_order(&defs);
     if !result.skipped.is_empty() {
         warn!(
             "dependency cycle detected, skipping processes: {}",
             result.skipped.join(", ")
         );
     }
-    let names: Vec<&str> = result
-        .order
-        .iter()
-        .map(|&i| configs[i].name.as_str())
-        .collect();
+    let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
     info!("startup order: {}", names.join(" -> "));
     result.order
 }
@@ -375,25 +389,29 @@ fn resolve_startup_order(configs: &[ProcessDefinition]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ProcessConfig, StaticConfigLoader};
+    use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
         Arc::new(StaticConfigLoader::new(defs))
     }
 
-    #[tokio::test]
-    async fn test_complete_restart_skips_already_running() {
-        let mgr = ProcessManager::new(loader(vec![ProcessDefinition {
-            name: "svc".to_string(),
+    fn sleep_def(name: &str) -> ProcessDefinition {
+        ProcessDefinition {
+            name: name.to_string(),
             config: ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
                 ..Default::default()
             },
-        }]));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]));
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-        mgr.handle_start("svc", &exit_tx).await.unwrap();
+        mgr.handle_start("svc", &exit_tx).await?;
         {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
@@ -410,22 +428,22 @@ mod tests {
             nix::sys::signal::Signal::SIGKILL,
         )
         .ok();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_reload_preserves_runtime_created_processes() {
+    async fn test_reload_preserves_runtime_created_processes() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]));
         let config = ProcessConfig {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
         mgr.handle_create("runtime-svc".to_string(), config)
-            .await
-            .unwrap();
+            .await?;
 
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(
             !result.removed.contains(&"runtime-svc".to_string()),
             "runtime-created process should not be removed by reload"
@@ -434,5 +452,168 @@ mod tests {
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
         assert_eq!(procs[0].name(), "runtime-svc");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_after_reload_removes_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![
+            sleep_def("svc-a"),
+            sleep_def("svc-b"),
+        ]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        mgr.handle_start("svc-b", &exit_tx).await?;
+
+        // Reload removes svc-b
+        config_loader.set(vec![sleep_def("svc-a")]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.removed.contains(&"svc-b".to_string()));
+
+        // Shutdown must not panic despite svc-b being gone from the Vec
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs.iter().all(|p| !p.is_running()),
+            "all remaining processes should be stopped"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_after_reload_adds_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await.unwrap();
+
+        // Reload adds svc-b
+        config_loader.set(vec![sleep_def("svc-a"), sleep_def("svc-b")]);
+        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        assert!(result.added.contains(&"svc-b".to_string()));
+
+        // svc-b auto-started by reload; start svc-a again is already running
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs.iter().all(|p| !p.is_running()),
+            "all processes (including reload-added) should be stopped"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_after_reload_with_runtime_process() {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await.unwrap();
+
+        // Create a runtime process
+        mgr.handle_create(
+            "runtime-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        mgr.handle_start("runtime-svc", &exit_tx).await.unwrap();
+
+        // Reload removes svc-a but preserves runtime-svc
+        config_loader.set(vec![]);
+        let result = mgr.handle_reload_config(&exit_tx).await.unwrap();
+        assert!(result.removed.contains(&"svc-a".to_string()));
+
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(
+            procs.iter().all(|p| !p.is_running()),
+            "runtime-created process should also be shut down"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_startup_order_indices_match_processes() {
+        let mgr = ProcessManager::new(loader(vec![
+            sleep_def("alpha"),
+            sleep_def("bravo"),
+            sleep_def("charlie"),
+        ]));
+
+        let order = mgr.startup_order.read().await;
+        let procs = mgr.processes().await;
+        let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
+        assert_eq!(names, vec!["alpha", "bravo", "charlie"]);
+    }
+
+    #[tokio::test]
+    async fn test_create_includes_runtime_process_in_startup_order() {
+        let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]));
+        mgr.handle_create(
+            "svc-b".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                after: vec!["svc-a".to_string()],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        let order = mgr.startup_order.read().await;
+        let procs = mgr.processes().await;
+        let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
+        assert_eq!(
+            names,
+            vec!["svc-a", "svc-b"],
+            "runtime process with after-dep should appear in startup order"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_reload_recomputes_startup_order() {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        {
+            let order = mgr.startup_order.read().await;
+            assert_eq!(*order, vec![0], "single process at index 0");
+        }
+
+        // Reload with a new process that has an after-dependency, which
+        // forces a non-alphabetical order (svc-b before svc-api).
+        config_loader.set(vec![
+            ProcessDefinition {
+                name: "svc-api".to_string(),
+                config: ProcessConfig {
+                    command: "/bin/sleep".to_string(),
+                    args: vec!["60".to_string()],
+                    after: vec!["svc-b".to_string()],
+                    ..Default::default()
+                },
+            },
+            sleep_def("svc-b"),
+        ]);
+        mgr.handle_reload_config(&exit_tx).await.unwrap();
+
+        let order = mgr.startup_order.read().await;
+        let procs = mgr.processes().await;
+        let names: Vec<&str> = order.iter().map(|&i| procs[i].name()).collect();
+        assert_eq!(
+            names,
+            vec!["svc-b", "svc-api"],
+            "startup order should be recomputed with dependency constraints"
+        );
     }
 }

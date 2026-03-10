@@ -53,6 +53,47 @@ impl ConfigLoader for StaticConfigLoader {
     }
 }
 
+#[cfg(test)]
+pub struct MutableConfigLoader {
+    configs: std::sync::RwLock<Vec<ProcessDefinition>>,
+}
+
+#[cfg(test)]
+impl MutableConfigLoader {
+    pub fn new(configs: Vec<ProcessDefinition>) -> Self {
+        Self {
+            configs: std::sync::RwLock::new(configs),
+        }
+    }
+
+    pub fn set(&self, configs: Vec<ProcessDefinition>) {
+        *self.configs.write().unwrap() = configs;
+    }
+}
+
+#[cfg(test)]
+impl ConfigLoader for MutableConfigLoader {
+    fn load(&self) -> Vec<ProcessDefinition> {
+        self.configs
+            .read()
+            .unwrap()
+            .iter()
+            .map(|pd| ProcessDefinition {
+                name: pd.name.clone(),
+                config: pd.config.clone(),
+            })
+            .collect()
+    }
+
+    fn source(&self) -> &str {
+        "mutable"
+    }
+
+    fn location(&self) -> String {
+        "in-memory (mutable test)".to_string()
+    }
+}
+
 pub struct YamlConfigLoader {
     dir: PathBuf,
 }
