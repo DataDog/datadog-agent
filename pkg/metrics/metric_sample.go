@@ -167,6 +167,11 @@ func (m *MetricSample) GetTimestamp() float64 {
 	return m.Timestamp
 }
 
+// GetTimestampUnix returns the metric sample timestamp in Unix seconds.
+func (m *MetricSample) GetTimestampUnix() int64 {
+	return int64(m.Timestamp)
+}
+
 // GetSampleRate returns the metric sample rate.
 func (m *MetricSample) GetSampleRate() float64 {
 	return m.SampleRate
