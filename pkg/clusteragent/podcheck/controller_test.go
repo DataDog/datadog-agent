@@ -100,6 +100,7 @@ func setupTestController(t *testing.T, configMapName, configMapNamespace string,
 		informerFactory,
 		kubeClient,
 		func() bool { return true },
+		make(chan struct{}, 1),
 		configMapName,
 		configMapNamespace,
 	)

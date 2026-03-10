@@ -35,13 +35,14 @@ var gvrDPC = datadoghq.GroupVersion.WithResource("datadogpodchecks")
 // PodCheckController watches DatadogPodCheck CRDs and writes AD-compatible
 // check configs to a ConfigMap that the Node Agent reads via file-based AD.
 type PodCheckController struct {
-	kubeClient         kubernetes.Interface
-	lister             cache.GenericLister
-	synced             cache.InformerSynced
-	workqueue          workqueue.TypedRateLimitingInterface[string]
-	isLeader           func() bool
-	configMapName      string
-	configMapNamespace string
+	kubeClient            kubernetes.Interface
+	lister                cache.GenericLister
+	synced                cache.InformerSynced
+	workqueue             workqueue.TypedRateLimitingInterface[string]
+	isLeader              func() bool
+	leadershipChangeNotif <-chan struct{}
+	configMapName         string
+	configMapNamespace    string
 }
 
 // NewPodCheckController creates a new PodCheckController.
@@ -49,6 +50,7 @@ func NewPodCheckController(
 	informerFactory dynamicinformer.DynamicSharedInformerFactory,
 	kubeClient kubernetes.Interface,
 	isLeader func() bool,
+	leadershipChangeNotif <-chan struct{},
 	configMapName string,
 	configMapNamespace string,
 ) (*PodCheckController, error) {
@@ -62,9 +64,10 @@ func NewPodCheckController(
 			workqueue.DefaultTypedItemBasedRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: "podcheck"},
 		),
-		isLeader:           isLeader,
-		configMapName:      configMapName,
-		configMapNamespace: configMapNamespace,
+		isLeader:              isLeader,
+		leadershipChangeNotif: leadershipChangeNotif,
+		configMapName:         configMapName,
+		configMapNamespace:    configMapNamespace,
 	}
 
 	if _, err := podCheckInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -91,6 +94,7 @@ func (c *PodCheckController) Run(stopCh <-chan struct{}) {
 	log.Info("PodCheck controller cache synced, starting worker")
 
 	go c.worker()
+	go c.watchLeadershipChanges(stopCh)
 
 	<-stopCh
 	log.Info("Stopping PodCheck controller")
@@ -98,6 +102,23 @@ func (c *PodCheckController) Run(stopCh <-chan struct{}) {
 
 func (c *PodCheckController) enqueue() {
 	c.workqueue.AddRateLimited(reconcileKey)
+}
+
+// watchLeadershipChanges watches for leadership changes and enqueues a reconcile
+// when this instance becomes leader, ensuring CRs that existed before leadership
+// acquisition are processed promptly.
+func (c *PodCheckController) watchLeadershipChanges(stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-c.leadershipChangeNotif:
+			if c.isLeader() {
+				log.Warn("PodCheck controller gained leadership, enqueuing reconciliation")
+				c.enqueue()
+			}
+		case <-stopCh:
+			return
+		}
+	}
 }
 
 func (c *PodCheckController) worker() {

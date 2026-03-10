@@ -233,7 +233,8 @@ func TestConvertCR_NoSelector(t *testing.T) {
 	require.NoError(t, err)
 
 	yaml := entries["default_check_nginx.yaml"]
-	assert.NotContains(t, yaml, "cel_selector")
+	assert.Contains(t, yaml, "cel_selector:")
+	assert.Contains(t, yaml, `container.pod.namespace == 'default'`)
 }
 
 func TestConfigMapKey(t *testing.T) {

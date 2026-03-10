@@ -30,6 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -60,6 +61,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerServicesInformer,
 	},
+	podcheckControllerName: {
+		func() bool { return pkgconfigsetup.Datadog().GetBool("podcheck.enabled") },
+		startPodCheckController,
+	},
 	endpointsControllerName: {
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
@@ -75,10 +80,6 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && pkgconfigsetup.Datadog().GetBool("cluster_checks.crd_collection")
 		},
 		registerCRDInformer,
-	},
-	podcheckControllerName: {
-		func() bool { return pkgconfigsetup.Datadog().GetBool("podcheck.enabled") },
-		startPodCheckController,
 	},
 }
 
@@ -243,10 +244,18 @@ func startPodCheckController(ctx *ControllerContext, errChan chan error) {
 		configMapNamespace = namespace.GetResourcesNamespace()
 	}
 
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		errChan <- fmt.Errorf("failed to get leader engine for PodCheck controller: %w", err)
+		return
+	}
+	leaderNotif, _ := le.Subscribe()
+
 	controller, err := podcheck.NewPodCheckController(
 		ctx.DynamicInformerFactory,
 		ctx.Client,
 		ctx.IsLeaderFunc,
+		leaderNotif,
 		configMapName,
 		configMapNamespace,
 	)
