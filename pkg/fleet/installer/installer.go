@@ -115,6 +115,7 @@ func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}
+	i.config.RecordStartup(ctx)
 	return i, nil
 }
 

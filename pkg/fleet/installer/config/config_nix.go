@@ -23,6 +23,23 @@ const (
 	deploymentIDFile = ".deployment-id"
 )
 
+// RecordStartup records a history entry if any YAML files in the stable config
+// directory have changed since the last recorded state. Call this once at
+// installer startup to capture local edits made between installer runs.
+func (d *Directories) RecordStartup(_ context.Context) {
+	if !isHistoryEnabled(d.StablePath) {
+		return
+	}
+	hist, err := newHistory(d.StablePath)
+	if err != nil {
+		log.Warnf("fleet-installer: could not initialize config history for startup: %v", err)
+		return
+	}
+	if err := hist.recordFromSnapshot(d.StablePath); err != nil {
+		log.Warnf("fleet-installer: could not record config history at startup: %v", err)
+	}
+}
+
 // GetState returns the state of the directories.
 func (d *Directories) GetState() (State, error) {
 	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
@@ -57,6 +74,11 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return err
 	}
+	// The history directory must not carry over into the experiment; it belongs
+	// only to the stable directory.
+	if rmErr := os.RemoveAll(filepath.Join(d.ExperimentPath, historyDirName)); rmErr != nil {
+		log.Warnf("fleet-installer: could not remove history dir from experiment: %v", rmErr)
+	}
 
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 
@@ -64,6 +86,16 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return err
 	}
+
+	if isHistoryEnabled(d.StablePath) {
+		hist, histErr := newHistory(d.StablePath)
+		if histErr != nil {
+			log.Warnf("fleet-installer: could not initialize config history: %v", histErr)
+		} else if histErr = hist.record(operations.DeploymentID, d.StablePath, d.ExperimentPath); histErr != nil {
+			log.Warnf("fleet-installer: could not record config history: %v", histErr)
+		}
+	}
+
 	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
 	if err != nil {
 		return err

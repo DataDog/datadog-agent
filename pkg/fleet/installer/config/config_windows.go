@@ -181,3 +181,6 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
 	return nil
 }
+
+// RecordStartup is a no-op on Windows (history recording is Linux-only for now).
+func (d *Directories) RecordStartup(_ context.Context) {}
