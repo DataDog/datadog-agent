@@ -168,14 +168,14 @@ func (m *MannWhitneyDetector) Detect(series observer.Series) observer.MetricsDet
 	beforeVals := extractValues(series.Points[beforeStart:bestSplit])
 	afterVals := extractValues(series.Points[bestSplit : bestSplit+windowSize])
 
-	beforeMedian := mwMedian(beforeVals)
-	beforeMAD := mwMAD(beforeVals, beforeMedian)
-	afterMedian := mwMedian(afterVals)
+	beforeMedian := detectorMedian(beforeVals)
+	beforeMAD := detectorMAD(beforeVals, beforeMedian, true) // scaled for σ-deviation comparison
+	afterMedian := detectorMedian(afterVals)
 
 	// Also compute means for relative change check
 	baselineMean := mean(series.Points[beforeStart:bestSplit])
 	baselineStddev := sampleStddev(series.Points[beforeStart:bestSplit], baselineMean)
-	afterMean := mwMeanValues(afterVals)
+	afterMean := detectorMeanValues(afterVals)
 
 	// Filter 3: robust deviation check using median/MAD
 	deviation := 0.0
@@ -239,54 +239,6 @@ func extractValues(points []observer.Point) []float64 {
 		vals[i] = p.Value
 	}
 	return vals
-}
-
-// mwMeanValues computes the mean of a float64 slice.
-func mwMeanValues(vals []float64) float64 {
-	if len(vals) == 0 {
-		return 0
-	}
-	var sum float64
-	for _, v := range vals {
-		sum += v
-	}
-	return sum / float64(len(vals))
-}
-
-// mwMedian computes the median of a float64 slice. Does not modify the input.
-func mwMedian(vals []float64) float64 {
-	if len(vals) == 0 {
-		return 0
-	}
-	sorted := make([]float64, len(vals))
-	copy(sorted, vals)
-	sort.Float64s(sorted)
-	n := len(sorted)
-	if n%2 == 0 {
-		return (sorted[n/2-1] + sorted[n/2]) / 2
-	}
-	return sorted[n/2]
-}
-
-// mwMAD computes the Median Absolute Deviation from a given median.
-// MAD = median(|x_i - median|). Scaled by 1.4826 to estimate stddev for normal data.
-func mwMAD(vals []float64, median float64) float64 {
-	if len(vals) == 0 {
-		return 0
-	}
-	absDevs := make([]float64, len(vals))
-	for i, v := range vals {
-		absDevs[i] = math.Abs(v - median)
-	}
-	sort.Float64s(absDevs)
-	n := len(absDevs)
-	var mad float64
-	if n%2 == 0 {
-		mad = (absDevs[n/2-1] + absDevs[n/2]) / 2
-	} else {
-		mad = absDevs[n/2]
-	}
-	return mad * 1.4826 // scale to be consistent with stddev for normal data
 }
 
 // mannWhitneyU computes the Mann-Whitney U statistic and approximate p-value

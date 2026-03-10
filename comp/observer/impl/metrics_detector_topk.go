@@ -139,9 +139,9 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 		}
 
 		result.key = key
-		result.metricID = topKMetricID(key)
-		result.label = topKSeriesLabel(key)
-		result.service = topKService(key)
+		result.metricID = detectorMetricID(key)
+		result.label = detectorSeriesLabel(key)
+		result.service = detectorService(key)
 		result.hasService = result.service != ""
 		scored = append(scored, *result)
 	}
@@ -312,12 +312,12 @@ func (d *TopKDetector) scoreSeries(series *observer.Series) *topKSeriesScore {
 	}
 
 	// Compute baseline statistics (median and MAD)
-	preMedian := topKMedian(values[:baselineEnd])
-	preMAD := topKMAD(values[:baselineEnd], preMedian)
+	preMedian := detectorMedian(values[:baselineEnd])
+	preMAD := detectorMAD(values[:baselineEnd], preMedian, false) // raw MAD as severity denominator
 
 	// Scan post-baseline for the segment with the largest deviation.
 	// Use a sliding approach: find the post-baseline median.
-	postMedian := topKMedian(values[baselineEnd:])
+	postMedian := detectorMedian(values[baselineEnd:])
 
 	absChange := math.Abs(postMedian - preMedian)
 
@@ -364,79 +364,4 @@ func (d *TopKDetector) scoreSeries(series *observer.Series) *topKSeriesScore {
 		preMAD:     preMAD,
 		changePt:   changePt,
 	}
-}
-
-// topKMedian computes the median of a float64 slice.
-func topKMedian(values []float64) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-	sorted := make([]float64, len(values))
-	copy(sorted, values)
-	sort.Float64s(sorted)
-	n := len(sorted)
-	if n%2 == 0 {
-		return (sorted[n/2-1] + sorted[n/2]) / 2
-	}
-	return sorted[n/2]
-}
-
-// topKMAD computes the Median Absolute Deviation.
-func topKMAD(values []float64, median float64) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-	deviations := make([]float64, len(values))
-	for i, v := range values {
-		deviations[i] = math.Abs(v - median)
-	}
-	sort.Float64s(deviations)
-	n := len(deviations)
-	if n%2 == 0 {
-		return (deviations[n/2-1] + deviations[n/2]) / 2
-	}
-	return deviations[n/2]
-}
-
-// topKSeriesLabel builds a human-readable label from a SeriesKey.
-func topKSeriesLabel(key observer.SeriesKey) string {
-	service := ""
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			service = tag[len("service:"):]
-			break
-		}
-	}
-	if service != "" {
-		return service + "/" + key.Name
-	}
-	if key.Namespace != "" {
-		return key.Namespace + "/" + key.Name
-	}
-	return key.Name
-}
-
-// topKService extracts the service name from a SeriesKey's tags.
-func topKService(key observer.SeriesKey) string {
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			return tag[len("service:"):]
-		}
-	}
-	return ""
-}
-
-// topKMetricID builds a metric identifier matching the scorer's expected format: "service:metricName".
-func topKMetricID(key observer.SeriesKey) string {
-	service := ""
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			service = tag[len("service:"):]
-			break
-		}
-	}
-	if service != "" {
-		return service + ":" + key.Name
-	}
-	return key.Name
 }

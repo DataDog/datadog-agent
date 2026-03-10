@@ -61,7 +61,7 @@ var defaultRegistry = []ComponentRegistration{
 			return NewRRCFDetector(config)
 		},
 	},
-{
+	{
 		Name:           "mannwhitney",
 		DisplayName:    "Mann-Whitney",
 		Category:       "detector",
@@ -70,7 +70,7 @@ var defaultRegistry = []ComponentRegistration{
 			return NewMannWhitneyDetector()
 		},
 	},
-{
+	{
 		Name:           "correlation",
 		DisplayName:    "Correlation",
 		Category:       "detector",

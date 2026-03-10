@@ -325,39 +325,6 @@ def eval_detectors(
     print(f"Full results: {results_path}")
 
 
-def _count_baseline_fps(output_path, metadata_path, sigma):
-    """Count scored predictions that fired before ground truth onset."""
-    try:
-        with open(output_path) as f:
-            output = json.load(f)
-        with open(metadata_path) as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return 0
-
-    from datetime import datetime
-
-    gt_str = meta.get("disruption", {}).get("start", "")
-    bl_str = meta.get("baseline", {}).get("start", "")
-    if not gt_str:
-        return 0
-
-    gt_ts = int(datetime.fromisoformat(gt_str.replace("Z", "+00:00")).timestamp())
-    bl_ts = int(datetime.fromisoformat(bl_str.replace("Z", "+00:00")).timestamp()) if bl_str else 0
-
-    count = 0
-    cutoff = gt_ts + 2 * sigma
-    for p in output.get("anomaly_periods", []):
-        ts = p["period_start"]
-        if bl_ts and ts < bl_ts:
-            continue
-        if ts > cutoff:
-            continue
-        if ts < gt_ts:
-            count += 1
-    return count
-
-
 def _ensure_parquets(ctx, name, parquet_dir):
     """Download and extract parquet files from S3 if not present locally."""
     zip_key = SCENARIO_ZIPS.get(name)

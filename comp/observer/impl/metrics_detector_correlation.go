@@ -159,8 +159,8 @@ func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime in
 		}
 
 		// Compute label and metric ID from tags
-		label := corrSeriesLabel(key)
-		metricID := corrMetricID(key)
+		label := detectorSeriesLabel(key)
+		metricID := detectorMetricID(key)
 
 		// Compute variance for ranking
 		v := corrComputeVariance(series.Points)
@@ -171,7 +171,7 @@ func (d *CorrelationDetector) Detect(storage observer.StorageReader, dataTime in
 		// Boost variance for series with service tags — application metrics
 		// are more likely to have service tags than infrastructure metrics.
 		if d.config.PreferServiceTags && d.config.ServiceTagBoost > 0 {
-			if corrHasServiceTag(key.Tags) {
+			if detectorHasServiceTag(key.Tags) {
 				v *= d.config.ServiceTagBoost
 			}
 		}
@@ -693,53 +693,10 @@ func corrComputeVariance(points []observer.Point) float64 {
 	return sumSq / float64(len(points))
 }
 
-// corrSeriesLabel builds a human-readable label from a SeriesKey.
-func corrSeriesLabel(key observer.SeriesKey) string {
-	service := ""
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			service = tag[len("service:"):]
-			break
-		}
-	}
-	if service != "" {
-		return service + "/" + key.Name
-	}
-	if key.Namespace != "" {
-		return key.Namespace + "/" + key.Name
-	}
-	return key.Name
-}
-
-// corrMetricID builds a metric identifier matching the scorer's expected format: "service:metricName".
-func corrMetricID(key observer.SeriesKey) string {
-	service := ""
-	for _, tag := range key.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			service = tag[len("service:"):]
-			break
-		}
-	}
-	if service != "" {
-		return service + ":" + key.Name
-	}
-	return key.Name
-}
-
 // corrIsExcluded checks whether a metric name matches any of the configured exclude prefixes.
 func (d *CorrelationDetector) corrIsExcluded(name string) bool {
 	for _, prefix := range d.config.ExcludePrefixes {
 		if strings.HasPrefix(name, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// corrHasServiceTag checks whether any of the tags is a service: tag.
-func corrHasServiceTag(tags []string) bool {
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "service:") {
 			return true
 		}
 	}

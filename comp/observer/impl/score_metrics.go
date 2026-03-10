@@ -28,13 +28,13 @@ type MetricGroundTruthEntry struct {
 
 // MetricDetection records when and how often a specific ground truth metric was detected.
 type MetricDetection struct {
-	Service              string  `json:"service"`
-	Metric               string  `json:"metric"`
-	Classification       string  `json:"classification"` // "tp" or "fp"
-	Detected             bool    `json:"detected"`
-	Count                int     `json:"count"`
-	FirstSeenUnix        int64   `json:"first_seen_unix,omitempty"`
-	DeltaFromDisruption  float64 `json:"delta_from_disruption_sec,omitempty"`
+	Service             string  `json:"service"`
+	Metric              string  `json:"metric"`
+	Classification      string  `json:"classification"` // "tp" or "fp"
+	Detected            bool    `json:"detected"`
+	Count               int     `json:"count"`
+	FirstSeenUnix       int64   `json:"first_seen_unix,omitempty"`
+	DeltaFromDisruption float64 `json:"delta_from_disruption_sec,omitempty"`
 }
 
 // MetricScoreResult contains per-metric TP/FP classification results.
@@ -106,7 +106,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		metric         string
 		classification string // "tp" or "fp"
 	}
-	tpSet := make(map[string]gtEntry)  // "service:metric" → entry
+	tpSet := make(map[string]gtEntry) // "service:metric" → entry
 	fpSet := make(map[string]gtEntry)
 	allTPKeys := make(map[string]bool)
 
