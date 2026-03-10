@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixed JMXFetch process not being terminated on Windows in certain cases.

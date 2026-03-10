@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix "status" command JSON output to exclude non JSON header. The output of
-    the command is now a valid JSON payload.

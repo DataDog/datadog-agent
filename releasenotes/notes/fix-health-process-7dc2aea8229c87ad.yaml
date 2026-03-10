@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix missing health status from Docker containers in Live Container View.

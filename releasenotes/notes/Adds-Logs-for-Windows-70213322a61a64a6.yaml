@@ -1,7 +1,0 @@
----
-prelude: >
-    This release includes support for Datadog Logs for Windows.             
-features:
-  - |
-    In this release, the Datadog Log feature is supported on all supported 
-    versions of windows.

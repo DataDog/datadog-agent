@@ -1,6 +1,0 @@
----
-features:
-  - |
-    A new `troubleshooting` section has been added to the Agent CLI. This section will hold helpers to understand the
-    Agent behavior. For now, the section only has two command to print the different metadata payloads sent by the Agent
-    (`v5` and `inventory`).

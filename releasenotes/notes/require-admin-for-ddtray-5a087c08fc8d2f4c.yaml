@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The Datadog Agent Manager ``ddtray.exe`` now requires admin to launch.

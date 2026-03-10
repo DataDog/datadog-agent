@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Removes use of gopsutil on Windows.  Gopsutil relies heavily on WMI; 
-    because the go runtime doesn't lock goroutines to system threads, the
-    COM layer can have difficulties initializing.
-    Solves the problem where metadata and various system checks can't 
-    initialize properly

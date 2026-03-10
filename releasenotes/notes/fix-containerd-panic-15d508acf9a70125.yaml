@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a panic in containerd if retrieved ociSpec is nil

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add ``host_provider_id`` tag to Kubernetes events; for AWS instances this is unique in
-    contrast to the Kubernetes nodename currently provided with the ``host`` tag.

@@ -1,4 +1,0 @@
----
-other:
-  - |
-    For CircleCI use builder images in the `datadog` dockerhub repo.

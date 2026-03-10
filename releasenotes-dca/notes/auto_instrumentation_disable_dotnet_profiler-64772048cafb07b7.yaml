@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.

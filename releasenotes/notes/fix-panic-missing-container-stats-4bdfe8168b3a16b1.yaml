@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix `panic` in `container`, `containerd`, and `docker` when container stats are temporarily not available

@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fix ``datadog.agent.check_ready`` to always include the ``check_name`` tag value for Python checks.

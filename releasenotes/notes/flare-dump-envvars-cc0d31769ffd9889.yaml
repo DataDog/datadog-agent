@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The flare now includes a dump of whitelisted environment variables
-    that can have an impact on agent behaviour. If no whitelisted envvar
-    is found, the envvars.log file is not created in the flare.

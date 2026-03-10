@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix bug introduced in 7.26 where default checks were schedueld on ECS Fargate due to changes in entrypoint scripts.

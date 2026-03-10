@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Add a new agent command to dump the content of the workloadmeta store ``agent workload-list``.
-    The output of ``agent workload-list --verbose`` is included in the agent flare.

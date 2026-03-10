@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds the ability to import the Trace configuration options from datadog.conf to their respective datadog.yaml fields with the `import` command.

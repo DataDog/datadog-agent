@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    The cluster name can now be longer than 40 characters, however
-    the combined length of the host name and cluster name must not
-    exceed 254 characters.

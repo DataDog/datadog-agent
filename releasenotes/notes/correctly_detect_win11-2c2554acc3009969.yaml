@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    On Windows the Agent now correctly detects Windows 11.

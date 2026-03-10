@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Ignore AKS pause containers hosted in the aksrepos.azurecr.io
-    container registry.

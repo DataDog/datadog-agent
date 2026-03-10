@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixes the Agent failing to start on sysvinit on systems with dpkg >= 1.19.3

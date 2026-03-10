@@ -1,5 +1,0 @@
----
-features:
-  - "*[experimental]* CWS generates an SBOM for any running workload on the machine."
-  - "*[experimental]* CWS events are enriched with SBOM data."
-  - "*[experimental]* CWS activity dumps are enriched with SBOM data."

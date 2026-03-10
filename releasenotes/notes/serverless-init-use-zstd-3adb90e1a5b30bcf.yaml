@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Use `zstd` compression on logs in serverless-init for better performance.

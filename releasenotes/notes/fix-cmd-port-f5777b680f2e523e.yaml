@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix custom command line port configuration on `configcheck` and `tagger-list` CLI commands.

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    APM: A warning is now logged when the agent is under heavy load.

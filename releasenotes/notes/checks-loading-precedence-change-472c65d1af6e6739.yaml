@@ -1,8 +1,0 @@
----
-upgrade:
-  - |
-    Custom checks (located by default on Linux in ``/etc/datadog-agent/checks.d/``) now have a
-    *lower* precedence than the checks that are bundled with the Agent. This means that a custom
-    check with the same name as a bundled check will now be ignored, and the bundled check will be
-    loaded instead. If you want to override a bundled check with a custom check, please use a
-    new name for your custom check, and use that new name for the related yaml configuration file.

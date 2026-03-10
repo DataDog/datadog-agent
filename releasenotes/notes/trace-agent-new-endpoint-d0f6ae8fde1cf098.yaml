@@ -1,4 +1,0 @@
-features:
-  - |
-    APM: A new intake endpoint was added as /v0.6/traces, which accepts a new, more compact and efficient payload format.
-    For more details, check: https://github.com/DataDog/datadog-agent/blob/7.33.0/pkg/trace/api/version.go#L78.

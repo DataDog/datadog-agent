@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    The ``docker.exit`` service check has a new tag ``exit_code``.
-    The ``143`` exit code is considered OK by default, in addition to ``0``.
-    The Docker check supports a parameter ``ok_exit_codes`` to allow choosing exit codes that are considered OK.

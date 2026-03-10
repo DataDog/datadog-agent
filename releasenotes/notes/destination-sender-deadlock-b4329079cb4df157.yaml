@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixed a deadlock in the Logs Agent.

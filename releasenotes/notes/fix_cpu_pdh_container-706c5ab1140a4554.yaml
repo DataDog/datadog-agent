@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed a bug where the CPU check would not work within a container on Windows.

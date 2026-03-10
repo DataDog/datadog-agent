@@ -1,4 +1,0 @@
-fixes:
-  - |
-    Fix the private action runner PowerShell example config not being installed on Windows.
-    The file is now correctly placed at ``C:\ProgramData\Datadog\private-action-runner\powershell-script-config.yaml``.

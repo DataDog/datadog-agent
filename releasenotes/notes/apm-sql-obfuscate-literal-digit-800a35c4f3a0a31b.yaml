@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Allow digits in SQL literal identifiers (e.g. `1sad123jk`)

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add more flags to increase control over the CCCache, such as `refresh_on_cache_miss`, `sidecars_tags`,
-    and `isolation_segments_tags` flags under `cluster_agent` properties.

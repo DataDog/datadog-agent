@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix the display of unresolved configs in the verbose output of the ``configcheck`` command

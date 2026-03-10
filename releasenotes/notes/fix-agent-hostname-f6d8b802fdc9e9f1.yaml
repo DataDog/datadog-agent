@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fixes bug in agent hostname command, whereby the configuration library
-    wasn't initialized.  This caused `agent hostname` to use the default
-    computed hostname, rather than the entry in the configuration file

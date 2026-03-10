@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix profiling billing when using Azure App Services.

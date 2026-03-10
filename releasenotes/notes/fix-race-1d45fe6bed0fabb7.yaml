@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a possible agent crash due to a race condition in the auto discovery.

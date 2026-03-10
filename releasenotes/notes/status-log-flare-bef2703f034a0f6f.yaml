@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add a ``status.log`` and a ``config-check.log`` with a basic message in the flare
-    if the agent is not running or is unreachable.

@@ -1,4 +1,0 @@
-
-fixes:
-  - |
-    The leader election process is now restarted if the leader stops leading.

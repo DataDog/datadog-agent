@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Allow configuring process discovery check in the process agent when both regular process and container checks are off.

@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Support disabling DatadogMetric autogeneration with the
-    external_metrics_provider.enable_datadogmetric_autogen configuration option
-    (enabled by default).

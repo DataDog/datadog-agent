@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Modify JMXFetch jar permissions to allow the agent to read it on osx.

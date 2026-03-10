@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Removed specific environment variable filter on the Windows platform to fetch ECS task tags.

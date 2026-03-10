@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a `tagger` goroutine race issue when adding a new entry in the `tagger.Store` and requesting an entry in another goroutine.

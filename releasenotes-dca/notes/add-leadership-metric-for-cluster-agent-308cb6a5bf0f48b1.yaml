@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The Cluster Agent exposes a new metric `leader_election_is_leader`.
-    The label `is_leader` can be added to other Cluster Agent metrics via a label join using the common label `join_leader`.

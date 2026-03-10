@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Process agent service should pass the configuration file argument to the
-    executable when launching - otherwise service will always come up on 
-    reboots.

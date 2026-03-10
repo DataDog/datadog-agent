@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    To match the behavior of Agent 5, a flag has been introduced to make the
-    agent use ``hostname -f`` on unix-based systems before trying ``os.Hostname()``.
-    This flag is turned off by default for 6.3 and will be enabled by default in 6.4.
-    The import command used to upgrade from the Agent5 to the Agent6 will enable
-    this flag in the config.

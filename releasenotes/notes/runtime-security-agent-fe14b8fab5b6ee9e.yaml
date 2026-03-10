@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The new Runtime Security Agent collects file integrity monitoring events.
-    It is disabled by default and only available for Linux for now.

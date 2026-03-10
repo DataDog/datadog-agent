@@ -1,7 +1,0 @@
----
-features:
-  - |
-    The `network_config.enable_http_monitoring` configuration has changed to `service_monitoring_config.enable_http_monitoring`.
-
-deprecations:
-  - The `network_config.enable_http_monitoring` configuration is now deprecated. Use `service_monitoring_config.enable_http_monitoring` instead.

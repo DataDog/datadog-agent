@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a crash in the docker check when collecting sizes on an image with no repository tags.

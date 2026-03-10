@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Added `DD_ENV` to the SBOMPayload in the SBOM check.

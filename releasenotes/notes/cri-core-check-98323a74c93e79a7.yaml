@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add a new CRI core check that will send metrics about resource usage of your
-    containers via the Container Runtime Interface.

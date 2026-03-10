@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Add `send_monotonic_with_gauge`, `ignore_metrics_by_labels`, 
-    and `ignore_tags` params to prometheus scrape. Allow values 
-    defaulting to `true` to be set to `false`, if configured.

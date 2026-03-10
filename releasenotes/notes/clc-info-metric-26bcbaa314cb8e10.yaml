@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The Cluster Agent now exposes a new metric ``cluster_checks_configs_info``.
-    It exposes the node and the check ID as tags.

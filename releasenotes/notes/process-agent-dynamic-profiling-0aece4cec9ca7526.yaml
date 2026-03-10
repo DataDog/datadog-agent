@@ -1,3 +1,0 @@
----
-enhancements:
-  - Allows profiling for the Process Agent to be dynamically enabled from the CLI with `process-agent config set internal_profiling`. Optionally, once profiling is enabled, block, mutex, and goroutine profiling can also be enabled with `process-agent config set runtime_block_profile_rate`, `process-agent config set runtime_mutex_profile_fraction`, and `process-agent config set internal_profiling_goroutines`.

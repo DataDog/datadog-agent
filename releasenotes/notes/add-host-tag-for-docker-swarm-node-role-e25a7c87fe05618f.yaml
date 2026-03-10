@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added a host tag for docker swarm node role.

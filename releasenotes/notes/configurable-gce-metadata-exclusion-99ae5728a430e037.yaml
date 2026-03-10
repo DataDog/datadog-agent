@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Adding a new config option "exclude_gce_tags", to configure which metadata
-    attribute from Google Cloud Engine to exclude from being converted into
-    host tags.

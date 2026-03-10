@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Added support for wildcards to `DD_KUBERNETES_POD_LABELS_AS_TAGS`. For example,
-    `DD_KUBERNETES_POD_LABELS_AS_TAGS='{"*":"kube_%%label%%"}'` will all pod labels as
-    tags to your metrics with tags names prefixed by `kube_`.

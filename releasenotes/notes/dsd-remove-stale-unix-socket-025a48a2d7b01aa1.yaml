@@ -1,2 +1,0 @@
-enhancements:
-  - dogstatsd cleans up stale UNIX socket on startup.

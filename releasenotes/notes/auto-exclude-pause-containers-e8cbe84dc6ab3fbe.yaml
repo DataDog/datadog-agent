@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Pause containers are now detected and auto excluded based on the `io.kubernetes` container labels.

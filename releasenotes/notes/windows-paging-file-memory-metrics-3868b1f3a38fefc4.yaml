@@ -1,3 +1,0 @@
-features:
-  - |
-    Added paging file metrics to the Windows memory check for `pagefile.sys` usage.

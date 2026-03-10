@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix kube_service tagging of kubernetes network metrics

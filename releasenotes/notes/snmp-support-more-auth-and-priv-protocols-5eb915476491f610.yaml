@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Upgrade gosnmp to support more authentication and privacy protocols
-    for v3 connections.

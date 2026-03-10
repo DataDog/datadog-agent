@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    USM: Handle the HTTP TRACE method.

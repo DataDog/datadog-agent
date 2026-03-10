@@ -1,5 +1,0 @@
-fixes:
-  - |
-    Fixed system-probe not working on CentOS/RHEL 8 due to our custom SELinux policy.
-    We now install the custom policy only on CentOS/RHEL 7, where the system-probe is known
-    not to work with the default. On other platform the default will be used.

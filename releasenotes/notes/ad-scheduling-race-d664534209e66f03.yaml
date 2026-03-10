@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fix a possible race condition in AutoDiscovery where configuration is
-    identical on container churn and considered as duplicate before being
-    de-scheduled.

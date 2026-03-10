@@ -1,9 +1,0 @@
----
-enhancements:
-  - |
-    The Kube State Metrics Core check sends a new metric ``kubernetes_state.pod.count``
-    tagged with owner tags (e.g ``kube_deployment``, ``kube_replica_set``, ``kube_cronjob``, ``kube_job``).
-  - |
-    The Kube State Metrics Core check tags ``kubernetes_state.replicaset.count`` with a ``kube_deployment`` tag.
-  - |
-    The Kube State Metrics Core check tags ``kubernetes_state.job.count`` with a ``kube_cronjob`` tag.

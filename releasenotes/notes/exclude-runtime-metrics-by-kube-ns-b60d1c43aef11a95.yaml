@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Docker and Containerd checks now support filtering containers by kube_namespace.

@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    On Windows, changes the configuration for Process Agent and Trace 
-    Agent services to be manual-start.  There is no impact if the 
-    services are configured to be active; however, if they're disabled, 
-    will stop the behavior where they're briefly started then stopped, 
-    which creates excessive Windows service alert.

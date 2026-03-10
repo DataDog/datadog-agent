@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    KSM Core check: Add the ``helm_chart`` tag automatically from the standard helm label ``helm.sh/chart``.
-  - |
-    Helm check: Add a ``helm_chart`` tag, equivalent to the standard helm label ``helm.sh/chart`` (see https://helm.sh/docs/chart_best_practices/labels/).

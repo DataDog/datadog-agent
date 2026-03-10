@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    On EKS Fargate, the `container` check is scheduled while no suitable metrics collector is available, leading to excessive logging. Also fixes an issue with Liveness/Readiness probes failing regularly.

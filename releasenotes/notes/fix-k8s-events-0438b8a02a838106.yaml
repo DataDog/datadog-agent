@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix sending duplicated kubernetes events.

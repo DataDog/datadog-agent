@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    Changed the attribute name to enable log collection from YAML configuration file from "log_enabled" to "logs_enabled", "log_enabled" is still supported.

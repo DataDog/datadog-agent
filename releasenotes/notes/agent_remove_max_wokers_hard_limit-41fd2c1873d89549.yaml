@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Remove agent MaxNumWorkers hard limit that cap the number of check runners
-    to 25. The removal is motivated by the need for some users to run thousands
-    of integrations like snmp corecheck.

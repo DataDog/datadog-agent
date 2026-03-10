@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes the container startup on Fargate, where we tried and remove the same
-    file twice, failing hard (stopping) on the second attempt.

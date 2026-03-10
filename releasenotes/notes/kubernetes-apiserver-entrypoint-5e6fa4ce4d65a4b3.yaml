@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Docker image: fix entrypoint bug causing the kubernetes_apiserver check
-    to not be enabled

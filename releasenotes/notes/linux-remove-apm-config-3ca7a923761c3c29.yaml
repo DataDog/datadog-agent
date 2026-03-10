@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The `apm.yaml.default` config file was removed on linux and the
-    `trace-agent.conf.example` was removed on every other platform.
-

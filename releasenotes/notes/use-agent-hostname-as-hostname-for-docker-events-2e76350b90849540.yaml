@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Changes the hostname used for Docker events to be the hostname of the agent.

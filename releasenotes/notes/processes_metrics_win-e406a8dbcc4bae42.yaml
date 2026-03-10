@@ -1,3 +1,0 @@
----
-features:
-  - Adds in the proc.queue_length and proc.count metrics with the windows version of the Agent.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    The Cluster Agent Admission Controller now injects DD_DOGSTATSD_URL when used in `socket` mode (default), allowing DogStatsD clients to work without configuration.

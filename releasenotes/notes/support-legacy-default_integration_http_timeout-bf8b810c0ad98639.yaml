@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Support the legacy default_integration_http_timeout configuration option.

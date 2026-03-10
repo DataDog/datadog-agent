@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Prevent logs agent from submitting protocol buffer payloads with invalid UTF-8.

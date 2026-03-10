@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The Agent now collects the Availability Zone a Fargate Task (using platform
-    version 1.4 or later) is running in as an "availability_zone" tag.

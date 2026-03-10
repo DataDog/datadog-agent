@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    On Windows the comments in the datadog.yaml file are preserved after installation.

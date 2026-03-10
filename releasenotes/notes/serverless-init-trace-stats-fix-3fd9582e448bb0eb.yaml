@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Trace Stats with serverless-init are computed in the Agent only. Backend
-    trace stats computation is disabled.

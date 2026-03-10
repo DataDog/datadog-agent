@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Revert `docker.mem.in_use` calculation to use RSS Memory instead of total memory.

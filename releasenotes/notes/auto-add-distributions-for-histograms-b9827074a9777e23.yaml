@@ -1,8 +1,0 @@
----
-features:
-  - |
-    Add flag `histogram_copy_to_distribution` to send histogram metric values
-    as distributions automatically. Note that the distributions feature is in
-    beta. An additional flag `histogram_copy_to_distribution_prefix` modifies
-    the existing histogram metric name by adding a prefix, e.g. `dist.`, to
-    better distinguish between these values.

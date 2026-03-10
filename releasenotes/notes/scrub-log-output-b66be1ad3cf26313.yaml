@@ -1,5 +1,0 @@
----
-other:
-  - |
-    Scrub all logging output from credentials. Should prevent leakage of 
-    credentials in logs from 3rd-party code or code added in the future.

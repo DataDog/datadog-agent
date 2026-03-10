@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Dogstatsd clients can now choose the cardinality of tags added by origin detection per metrics
-    via the tag 'dd.internal.card' ("low", "orch", "high").

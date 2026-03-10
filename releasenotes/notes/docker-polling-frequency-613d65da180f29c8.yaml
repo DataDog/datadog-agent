@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Docker label autodiscovery configurations are now polled more often by default.

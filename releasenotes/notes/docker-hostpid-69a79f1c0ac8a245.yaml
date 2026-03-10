@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Docker image: fix hostPID operations

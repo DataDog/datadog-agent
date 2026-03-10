@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    prometheus_scrape: Adds support for `tag_by_endpoint` and `collect_counters_with_distributions` in the `prometheus_scrape.checks[].configurations[]` items.

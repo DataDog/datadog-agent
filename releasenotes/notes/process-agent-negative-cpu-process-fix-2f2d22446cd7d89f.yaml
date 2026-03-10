@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue in the process agent where in rare scenarios, negative CPU usage percentages would be reported for processes.

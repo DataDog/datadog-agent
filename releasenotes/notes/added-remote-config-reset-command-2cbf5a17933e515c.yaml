@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added `agent remote-config reset` command to reset the remote configuration state which can be useful in troubleshooting issues related to remote configuration.

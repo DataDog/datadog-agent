@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Add the ``DD_PROCESS_CONFIG_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_QUEUE_SIZE`` env variables to set the ``process_config.queue_size``.
-    Add the ``DD_PROCESS_CONFIG_RT_QUEUE_SIZE`` and ``DD_PROCESS_AGENT_RT_QUEUE_SIZE`` env variables to set the ``process_config.rt_queue_size``.
-    Add the ``DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES`` and ``DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES`` env variables to set the ``process_config.process_queue_bytes``.

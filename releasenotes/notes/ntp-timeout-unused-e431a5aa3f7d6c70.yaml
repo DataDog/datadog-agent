@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed NTP timeout not being used from the configuration.

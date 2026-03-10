@@ -1,7 +1,0 @@
-deprecations:
-  - Removes the `DD_PROCESS_AGENT_CONTAINER_SOURCE` environment variable from the Process Agent. The list of container sources now entirely depends on the activated features.
-enhancements:
-  - |
-    Add the `DD_PROCESS_CONFIG_SCRUB_ARGS` and `DD_PROCESS_AGENT_SCRUB_ARGS` env variables to set the `process_config.scrub_args`.
-    Add the `DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS` and `DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS` env variables to set the `process_config.custom_sensitive_words`.
-    Add the `DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS` and `DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS` env variables to set the `process_config.strip_proc_arguments`.

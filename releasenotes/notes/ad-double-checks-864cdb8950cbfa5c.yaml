@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Don't try to match containers by image name if they provide an AD template
-    via docker labels or pod annotations. This avoid scheduling double checks.

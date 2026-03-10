@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Updating custom error used to insure the collection of the token in the configmap datadogtoken.

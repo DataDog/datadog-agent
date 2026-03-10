@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add SSL support & label joins for the prometheus check

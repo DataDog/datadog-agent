@@ -1,6 +1,0 @@
----
-upgrade:
-  - |
-    Improving the service mapper to a metadata mapper.
-    The agent just queries metadata from the DCA and can directly tag the kubernetes metrics.
-    The processing of new tags can be easily done and only the DCA needs to be modified.

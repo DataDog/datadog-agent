@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Add a configcheck command to the agent API and CLI, it prints current loaded & resolved
-    configurations for each provider. The output of the command is also added to a new config-check.log
-    into the flare.

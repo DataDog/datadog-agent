@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    The single dash variants of the system-probe flags are now deprecated. Please use ``--config`` and ``--pid`` instead.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    OpenShift ClusterResourceQuotas metrics are now collected by the kube_apiserver check,
-    under the openshift.clusterquota.* and openshift.appliedclusterquota.* names.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes Agent startup script when enabling OOM Kill and TCP Queue Length checks to prevent crashes when restarting the container.

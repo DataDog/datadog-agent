@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    The KSM Core check now handles cron job schedules with time zones.

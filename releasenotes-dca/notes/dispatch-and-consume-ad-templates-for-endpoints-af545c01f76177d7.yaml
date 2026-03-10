@@ -1,6 +1,0 @@
----
-features:
-  - |
-    The Cluster Agent can now auto-discover config templates
-    for kubernetes endpoints checks and expose them to node
-    Agents via its API.

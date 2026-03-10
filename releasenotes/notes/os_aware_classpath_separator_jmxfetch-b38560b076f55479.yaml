@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes JMXFetch on Windows when the ``custom_jar_paths`` and/or ``tools_jar_path`` options are set,
-    by using a semicolon as the path separator on Windows.

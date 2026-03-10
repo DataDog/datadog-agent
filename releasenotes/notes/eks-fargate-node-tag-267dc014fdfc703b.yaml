@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    EKS Fargate containers are tagged with ``eks_fargate_node``.

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add new config parameter (dogstatsd_entity_id_precedence) to enable DD_ENTITY_ID
-    presence check when enriching Dogstatsd metrics with tags.

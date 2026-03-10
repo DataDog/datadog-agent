@@ -1,4 +1,0 @@
-features:
-  - |
-    Dogstatsd origin detection now supports container tagging for Kubernetes clusters
-    running containerd or cri-o, in addition to the existing docker support

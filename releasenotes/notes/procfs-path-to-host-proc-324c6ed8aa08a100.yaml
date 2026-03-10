@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Set the default "procfs_path" configuration to `/host/proc` when containerized
-    to allow the network check to collect the host's network metrics. This can be
-    overridden with the the DD_PROCFS_PATH envvar.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The `agent import` command now handles converting options from the legacy
-    `kubernetes.yaml` file, for agents running on the host

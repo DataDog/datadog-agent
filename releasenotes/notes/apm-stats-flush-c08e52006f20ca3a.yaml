@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fixed the issue where not all trace stats are flushed on trace-agent shutdown.

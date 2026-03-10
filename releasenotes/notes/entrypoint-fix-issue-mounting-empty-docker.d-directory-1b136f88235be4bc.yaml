@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue in Docker where mounting empty directories to disable docker check results in an error.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes a conflict preventing NPM/USM and the TCP Queue Length check from being enabled at the same time.

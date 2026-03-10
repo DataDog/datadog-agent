@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Add environment variable DD_ENABLE_GOHAI for setting option enable_gohai when running in a container.

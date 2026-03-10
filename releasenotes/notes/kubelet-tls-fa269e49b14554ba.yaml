@@ -1,8 +1,0 @@
----
-security:
-  - |
-    The agent can try to setup the http client to query the kubelet's API with the following settings, in order:
-     - HTTPS w/ configured certificates
-     - HTTPS w/ configured token
-     - HTTPS w/ service account token
-     - HTTP

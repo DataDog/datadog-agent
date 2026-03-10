@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    ``DD_CLUSTER_NAME`` can be used to define the ``kube_cluster_name`` on EKS Fargate.

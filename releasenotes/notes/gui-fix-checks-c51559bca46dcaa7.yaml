@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    GUI had broken after the introduction of integrations as wheels this PR
-    ensures we collect the full list of available integrations so we can
-    enable the corresponding configurations from the UI.

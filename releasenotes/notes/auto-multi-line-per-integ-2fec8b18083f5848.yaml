@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Specifying ``auto_multi_line_detection: false`` in an integration's
-    ``logs_config`` will now disable detection for that integration, even if
-    detection is enabled globally.

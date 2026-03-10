@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Align docker agent's kubernetes liveness probe timeout with docker healthcheck (5s) to avoid too many container restarts.

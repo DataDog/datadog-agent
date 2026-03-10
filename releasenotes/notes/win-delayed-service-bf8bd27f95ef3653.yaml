@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    On windows `Automatic` services would fail to start across reboots due to
-    a known go issue on 1.9.2: https://github.com/golang/go/issues/23479
-    We now start windows services as delayed start automatic services (ie. they
-    now start automatically after all other automatic services).

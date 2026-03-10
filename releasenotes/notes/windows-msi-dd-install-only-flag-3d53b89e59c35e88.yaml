@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds a new argument, DD_INSTALL_ONLY, to the Windows MSI. Set DD_INSTALL_ONLY=true to install the Agent without starting the services.

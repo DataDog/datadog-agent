@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Change logs agent configuration to use protocol buffers encoding and 
-    endpoint by default.

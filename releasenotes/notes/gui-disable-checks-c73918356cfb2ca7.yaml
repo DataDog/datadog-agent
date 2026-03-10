@@ -1,4 +1,0 @@
----
-features:
-  - Implementation for disabling checks from the web UI
-  - Agent restart message on UI, clears after restart. 

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes bug on Windows where, if configuration options are specified on the 
-    installation command line, invalid proxy options are set.

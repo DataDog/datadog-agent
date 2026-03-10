@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    APM: DD_APM_FILTER_TAGS_REQUIRE and DD_APM_FILTER_TAGS_REJECT can now be a literal JSON array.
-    e.g. ``["someKey:someValue"]`` This allows for matching tag values with the space character in them.

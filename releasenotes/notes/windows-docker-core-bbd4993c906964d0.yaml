@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Windows Docker images based on Windows Core are now provided. Checks that didn't work on Nano should work on Core.

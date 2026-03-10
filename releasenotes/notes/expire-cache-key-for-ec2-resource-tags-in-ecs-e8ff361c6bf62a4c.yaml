@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Expires the cache key for availability of ECS metadata endpoint used to fetch
-    EC2 resource tags every 5 minutes.

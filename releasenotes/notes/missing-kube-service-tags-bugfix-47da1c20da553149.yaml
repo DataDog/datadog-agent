@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes a bug causing kube_service tags to be missing when kubernetes_map_services_on_ip is false.

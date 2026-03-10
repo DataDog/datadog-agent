@@ -1,3 +1,0 @@
-fixes:
-  - |
-    ignore "origin" tags if the 'dd.internal.entity_id' tag is present in dogstatsd metrics.

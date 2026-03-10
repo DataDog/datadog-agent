@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Admission Controller: Add telemetry around auto-instrumentation via remote config.

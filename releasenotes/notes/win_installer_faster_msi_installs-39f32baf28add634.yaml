@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    On Windows, the installer now uses a zipped Python integration folder, which
-    should result in faster install times.

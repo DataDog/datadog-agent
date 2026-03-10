@@ -1,4 +1,0 @@
----
-fixes:
-  - Fixed an issue where the import script would put an empty histogram aggregates and
-    percentiles in datadog.yaml if they didn't exist in datadog.conf.

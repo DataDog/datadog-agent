@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Agent log format improvement: logs can have kv-pairs as context to make it easier to get all logs for a given context
-    Sample: 2020-09-17 12:17:17 UTC | CORE | INFO | (pkg/collector/runner/runner.go:327 in work) | check:io | Done running check

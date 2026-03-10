@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    The Cluster Agent's admission controller now requires the
-    pod label ``admission.datadoghq.com/enabled=true`` to inject standard labels.
-    This optimizes the number of mutation webhook requests.

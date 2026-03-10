@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Adds a new `flare_stripped_keys` config setting to clean up additional
-    configuration information from flare.

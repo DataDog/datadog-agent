@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Datadog Process Agent Service is started automatically by the core agent on Windows when process discovery is enabled in the config.
-

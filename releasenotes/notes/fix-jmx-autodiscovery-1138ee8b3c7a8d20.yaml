@@ -1,6 +1,0 @@
----
-
-fixes:
-  - Multiple config files can now be used for the same JMX based integration
-  - The auto-discovery mechanism can now properly discover multiple configs for one JMX based integration
-  - The JMXFetch process is now managed properly when JMXFetch configs are unscheduled through auto-discovery

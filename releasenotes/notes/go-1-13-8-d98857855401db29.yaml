@@ -1,4 +1,0 @@
----
-other:
-  - |
-    All Agents binaries are now compiled with Go ``1.13.8``

@@ -1,5 +1,0 @@
----
-other:
-  - |
-    The scripts of the Linux packages now don't exit with errors when no supported init system is detected,
-    and only print warnings instead

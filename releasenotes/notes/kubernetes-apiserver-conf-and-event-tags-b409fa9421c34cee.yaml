@@ -1,8 +1,0 @@
----
-features:
-  - |
-    Add source_component and namespace tags to Kubernetes events.
-fixes:
-  - |
-    Only load and log the kube_apiserver check if `KUBERNETES=yes` is used.
-

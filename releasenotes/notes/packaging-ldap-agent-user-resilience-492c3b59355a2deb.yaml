@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    In the event of being unable to lock the `dd-agent` user (eg. `dd-agent` 
-    is an LDAP user) during installation, do not fail; print relevant warning.

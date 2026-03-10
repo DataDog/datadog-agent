@@ -1,3 +1,0 @@
----
-enhancements:
-  - Agent flare now includes output from the `process` and `container` checks.

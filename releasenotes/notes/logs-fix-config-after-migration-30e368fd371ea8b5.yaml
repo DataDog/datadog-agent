@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Ignore empty logs_dd_url to fall back on default config for logs agent.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug that can make the agent enable incompatible Autodiscovery listeners.

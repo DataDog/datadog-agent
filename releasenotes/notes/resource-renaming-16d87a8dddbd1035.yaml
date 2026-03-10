@@ -1,4 +1,0 @@
----
-features:
-  - |
-    This PR adds the HTTP Method and HTTP Endpoint to the stats protobuf file for the resource renaming feature.

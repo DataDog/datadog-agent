@@ -1,4 +1,0 @@
-
-enhancements:
-  - |
-      Added garbage collection of the tmp directory to the datadog-installer.

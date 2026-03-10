@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Configure error log when failing to run docker inspect to read as debug instead, as this log is duplicated by the tagger.

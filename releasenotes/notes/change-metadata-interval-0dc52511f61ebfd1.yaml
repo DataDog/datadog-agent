@@ -1,9 +1,0 @@
----
-enhancements:
-  - |
-    The default collection interval for host metadata has been reduced from 4
-    hours to 30 min.
-  - |
-    Collection interval for the default metadata providers ('host',
-    'agent_checks' and 'resources') can now be configured using the
-    'metadata_providers' configuration entry.

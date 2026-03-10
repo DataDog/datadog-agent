@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Update from alpine:3.10 to alpine:3.12 the base image in Dogstatsd's Dockerfiles. 

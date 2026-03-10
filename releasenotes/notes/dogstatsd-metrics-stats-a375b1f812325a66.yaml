@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add a command `dogstatsd-stats` to the agent to get
-    basic stats about the processed metrics.

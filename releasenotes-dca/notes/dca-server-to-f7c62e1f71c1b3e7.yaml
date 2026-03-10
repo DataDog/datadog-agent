@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a potential file descriptors leak.

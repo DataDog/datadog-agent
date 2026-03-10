@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Fixes a memory leak when the Agent is running in Docker environments. This
-    leak resulted in memory usage growing linearly, corresponding with the
-    amount of containers ever ran while the current Agent process was also
-    running. Long-lived Agent processes on nodes with a lot of container churn
-    would cause the Agent to eventually run out of memory.

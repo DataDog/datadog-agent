@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    When using ``site: ddog-gov.com``, the agent now uses Agent-version-based
-    URLs and ``api.ddog-gov.com`` as it has previously done for other Datadog
-    domains.

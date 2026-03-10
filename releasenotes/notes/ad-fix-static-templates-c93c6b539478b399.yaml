@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix an issue where some auto-discovered integrations would not get rescheduled when the template was not containing variables

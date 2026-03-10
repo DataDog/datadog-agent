@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Detect correct launch type for ECS Managed Instances when running in daemon mode.

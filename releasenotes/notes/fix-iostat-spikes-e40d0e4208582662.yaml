@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Fix spikes for `system.io.avg_q_sz` metrics on Linux when the kernel counter
-    was wrapping back to 0.
-  - |
-    Fix system.io.* metrics on Linux that were off by 1 when the kernel counters
-    were wrapping back to 0.

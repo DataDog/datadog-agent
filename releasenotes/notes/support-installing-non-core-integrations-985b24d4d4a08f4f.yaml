@@ -1,4 +1,0 @@
-features:
-  - |
-    Support installing non-core integrations with the ``integration`` command,
-    such as those located in the ``integrations-extras`` repository.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Runtime security now reports command line arguments as part of the
-    exec events.

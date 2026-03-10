@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixed an edge case in the Admission Controller when ``mutateUnlabelled`` is enabled and ``configMode`` is set to ``socket``.
-    This combination could prevent the creation of new DaemonSet Agent pods.

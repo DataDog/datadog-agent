@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Set the Datadog event type (info or warning) when collecting Kubernetes events.

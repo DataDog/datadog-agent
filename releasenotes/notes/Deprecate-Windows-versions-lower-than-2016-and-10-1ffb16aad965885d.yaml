@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    Installing the Agent on Windows Server versions lower than 2016 and client versions lower than 10 is now deprecated.

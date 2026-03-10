@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The OSX build of the agent does not include the containers integrations
-    as they are only supported on Linux for now. The Windows build already
-    excluded them since beta1

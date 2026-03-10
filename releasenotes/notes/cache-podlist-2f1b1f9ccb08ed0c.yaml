@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The kubelet request /pods is now cached to avoid stressing the kubelet API and
-    for better performances

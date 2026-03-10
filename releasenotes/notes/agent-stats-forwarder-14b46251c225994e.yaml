@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Default config `agent_stats.yaml` used to collect go_expvar metrics from the
-    Agent has been updated.

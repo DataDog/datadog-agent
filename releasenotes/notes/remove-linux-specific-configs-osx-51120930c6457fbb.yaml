@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Deleted linux-specific configuration files on macosx to avoid polluting the logs and the web ui.

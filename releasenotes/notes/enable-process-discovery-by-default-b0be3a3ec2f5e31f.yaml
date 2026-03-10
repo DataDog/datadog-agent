@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Enables process discovery check to run by default in the process agent.
-    Process discovery is a lightweight process metadata collection check enabling
-    users to see recommendations for integrations running in their environments.

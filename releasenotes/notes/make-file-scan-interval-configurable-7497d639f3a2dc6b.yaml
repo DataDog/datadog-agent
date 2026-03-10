@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The amount of time the agent waits before scanning for new logs is now configurable with `logs_config.file_scan_period`

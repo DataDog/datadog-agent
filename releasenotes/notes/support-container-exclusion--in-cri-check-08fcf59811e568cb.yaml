@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The CRI check now supports container exclusion based on container name, image and kubernetes namespace.

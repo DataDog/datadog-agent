@@ -1,4 +1,0 @@
----
-fixes:
-  - Fix docker memory metrics parsing from cgroup files
-  - Fix docker.mem.in_use metric computation

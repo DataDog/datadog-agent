@@ -1,7 +1,0 @@
----
-other:
-  - |
-    Make file tailing a little less verbose. We avoid logging at every iteration
-    the different issues we encountered, instead we log them at first run only.
-    The status command shows the up-to-date information, and can
-    be used at anytime to troubleshoot such issues

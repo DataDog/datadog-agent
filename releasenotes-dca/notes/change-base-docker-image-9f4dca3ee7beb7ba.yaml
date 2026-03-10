@@ -1,5 +1,0 @@
----
-upgrade:
-  - |
-    Change base Docker image used to build the Cluster Agent imges, moving from debian:bullseye to ubuntu:20.10.
-    In the future the Cluster Agent will follow Ubuntu stable versions.

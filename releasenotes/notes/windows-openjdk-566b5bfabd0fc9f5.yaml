@@ -1,3 +1,0 @@
-upgrade:
-  - |
-    Windows containers were updated to use OpenJDK 11.0.25+9.

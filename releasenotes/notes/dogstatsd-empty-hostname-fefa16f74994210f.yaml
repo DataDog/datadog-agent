@@ -1,4 +1,0 @@
----
-enhancements:
-  - Dogstatsd supports removing the hostname on events and services checks
-    as it did with metrics, by adding an empty ``host:`` tag

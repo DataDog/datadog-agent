@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Allows system_probe to be enabled without enabling network performance monitoring.
-
-    Set ``network_config.enabled=false`` in your ``system-probe.yaml`` when running the system-probe without networks enabled.

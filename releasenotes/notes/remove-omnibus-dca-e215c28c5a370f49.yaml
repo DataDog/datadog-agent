@@ -1,3 +1,0 @@
----
-deprecations:
-  - Removing omnibus build for the DCA. As this agent is meant to be running on a node we only need a binary.

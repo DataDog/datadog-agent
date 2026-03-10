@@ -1,8 +1,0 @@
----
-features:
-  - |
-    The datadog/agent docker image supports running with a non-root dd-agent user,
-    still part of the root group though. This allows running in the default
-    OpenShift security context (random UID, root GID).
-    The Docker integration will require additionnal privileges, but Kubernetes
-    and ECS integrations will work out of the box.

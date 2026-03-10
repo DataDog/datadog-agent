@@ -1,9 +1,0 @@
-
----
-upgrade:
-  - |
-    The `overlay_numlower` integer attribute that was reported for files
-    and executables was unreliable. It was replaced by a simple boolean
-    attribute named `in_upper_layer` that is set to true when a file
-    is either only on the upper layer of an overlayfs filesystem, or
-    is an altered version of a file present in a base layer.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adding the 'bind_host' option to configure the interface to bind by dogstatsd and JMX.

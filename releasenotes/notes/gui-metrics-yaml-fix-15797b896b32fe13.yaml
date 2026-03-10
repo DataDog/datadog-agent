@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    metrics.yaml is not a "configurable" file - it provides default metrics for
-    checks and shouldn't be altered. Removed from the GUI configuration file 
-    list.

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The ecs-agent's docker container name can now be set via the ``ecs_agent_container_name``
-    option or the ``DD_ECS_AGENT_CONTAINER_NAME`` envvar for autodetection.

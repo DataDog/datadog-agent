@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add the `process_agent_runtime_config_dump.yaml` file to the core Agent flare with `process-agent` runtime settings.

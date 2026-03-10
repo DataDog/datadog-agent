@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Be more lenient when filtering containers using labels.

@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Introduce the flare command for the DCA CLI.
-security:
-  - |
-    Separate the tokens for the internal API (used for flare, status, metamap) and the external enpoint (used for the tagger of the agent).

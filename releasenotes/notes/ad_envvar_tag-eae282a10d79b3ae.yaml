@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Add %%env_XXXX%% tag support for Autodiscovery templates. This allows to
-    substitute environment variables into check templates at runtime.
-    **Note:** the environment variables are extracted from the agent's context,
-    not from the monitored container's envvars.

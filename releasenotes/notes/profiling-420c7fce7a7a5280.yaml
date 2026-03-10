@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Flares now include goroutine blocking and mutex profiles if enabled. New flare options
-    were added to collect new profiles at the same time as cpu profile.

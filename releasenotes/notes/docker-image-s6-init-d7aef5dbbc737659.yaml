@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Use the S6 light init in the docker image to start the process-agent and the
-    trace-agent. This allows to remove the process orchestration logic from the
-    infra-agent

@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue where the Agent would panic when trying to inspect Docker
-    containers while the Docker daemon was unavailable or taking too long to
-    respond.

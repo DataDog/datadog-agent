@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Include compliance benchmarks from github.com/DataDog/security-agent-policies in the Agent packages and the Cluster Agent image.

@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The DEB and RPM packages now create the ``dd-agent`` user with no login shell (``/sbin/nologin``
-    or ``/usr/sbin/nologin``). The packages do not modify the login shell of the ``dd-agent`` user
-    if it already exists.

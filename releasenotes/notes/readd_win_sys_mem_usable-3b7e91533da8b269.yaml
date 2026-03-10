@@ -1,3 +1,0 @@
----
-fixes:
-  - Adds back the removed system.mem.usable metric for Agents running on Windows.

@@ -1,5 +1,0 @@
-fixes:
-  - |
-    Fix TLS connection handshake that hang forever making the whole logs
-    pipeline to be stucked resulting in logs not being tailed and file
-    descriptor not being closed. 

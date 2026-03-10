@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add the ability to change log_level at runtime.
-    To set the log_level to ``debug`` the following command should be used: ``agent config set log_level debug``.

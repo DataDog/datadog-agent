@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a potential race in the autodiscovery where a service would be removed before
-    its config could be resolved (causing the agent to crash)

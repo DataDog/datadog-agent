@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add reporting of `container.{cpu|memory|io}.partial_stall` metrics based on PSI Some values when host is running with cgroupv2 enabled (Linux only).
-    This metric provides the wall time (in nanoseconds) during which at least one task in the container has been stalled on the given resource.

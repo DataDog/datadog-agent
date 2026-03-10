@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Adds config setting for ECS metadata endpoint client timeout (ecs_metadata_timeout), value in milliseconds.

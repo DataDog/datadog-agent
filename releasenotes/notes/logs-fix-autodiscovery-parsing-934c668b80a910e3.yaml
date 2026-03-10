@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed parsing issue with logs processing rules in autodiscovery.

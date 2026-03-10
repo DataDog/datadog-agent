@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Change to a randomized exponential backoff in case of connection failure

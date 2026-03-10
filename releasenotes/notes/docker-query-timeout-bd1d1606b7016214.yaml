@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Docker: set a default 5 seconds timeout on all docker requests to mitigate
-    possible docker daemon freezes

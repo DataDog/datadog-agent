@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Number of matched lines is displayed on the status page for each source using multi_line log processing rules.

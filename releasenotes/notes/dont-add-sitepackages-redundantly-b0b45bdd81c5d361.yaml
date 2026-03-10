@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    The checks packaged with the new wheels method are in the default python 
-    package site, already included in ``sys.path``. We therefore removed this 
-    path them from the locations that are appended to the default python ``sys.path``

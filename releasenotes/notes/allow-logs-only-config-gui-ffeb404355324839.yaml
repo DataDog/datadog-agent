@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-      It is now possible to save logs only configuration in the GUI without getting an error message.

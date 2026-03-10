@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    Consider the task level resource limits if the container level resource limits aren't defined on ECS Fargate.
-fixes:
-  - |
-    Fix a bug that prevents from reading the correct container resource limits on ECS Fargate.

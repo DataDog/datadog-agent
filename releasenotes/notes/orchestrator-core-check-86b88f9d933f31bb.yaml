@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Orchestrator explorer collection is no longer handled by the cluster-agent directly but
-    by a dedicated check.

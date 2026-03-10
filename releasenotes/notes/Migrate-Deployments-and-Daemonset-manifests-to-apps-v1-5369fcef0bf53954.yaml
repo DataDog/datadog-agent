@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Migrate the api version of the Deployment and DaemonSet kubernetes objects
-    to apps/v1 as older bersions are not supported anymore in k8s 1.16.

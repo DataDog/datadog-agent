@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    The logs configuration `use_http` and `use_tcp` flags have been deprecated in favor of `force_use_http` and `force_use_tcp`.

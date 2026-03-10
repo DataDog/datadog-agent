@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    Support posix-compliant flags for process-agent. Shorthand flags for "p" (pid), "i" (info), and "v" (version) are
-    now supported.
-deprecations:
-  - Deprecated non-posix compliant flags for process agent. A warning should now be displayed if one is detected.

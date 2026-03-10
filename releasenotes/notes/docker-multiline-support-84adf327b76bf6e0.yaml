@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Added a support for multi-line tailing with docker
-    

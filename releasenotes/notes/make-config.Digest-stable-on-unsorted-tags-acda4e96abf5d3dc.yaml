@@ -1,4 +1,0 @@
-fixes:
-  - |
-    Fixes config.Digest that was not stable depending on the oder of tags in the instance.
-    It also did not take into account LogsConfig, this is fixed as well.

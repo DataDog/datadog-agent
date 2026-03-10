@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add IO operations monitoring for Docker check (docker.io.read/write_operations)

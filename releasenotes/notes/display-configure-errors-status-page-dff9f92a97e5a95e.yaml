@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The 'status' command and 'status' page (in the GUI) now displays errors
-    raised by the '__init__' method of a Python check.

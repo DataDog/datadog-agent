@@ -1,5 +1,0 @@
-fixes:
-  - |
-    Fix issue introduced in 7.43 that prevents the Datadog Agent Manager application
-    from executing from the checkbox at the end of the Datadog Agent installation when
-    the installer is run by a non-elevated administrator user.

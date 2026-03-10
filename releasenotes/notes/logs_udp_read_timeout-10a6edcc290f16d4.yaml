@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Removed the read timeout for UDP connections causing the agent to stop forwarding logs after one minute of nonactivity.

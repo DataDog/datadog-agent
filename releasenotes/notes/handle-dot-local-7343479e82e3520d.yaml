@@ -1,3 +1,0 @@
-fixes:
-  - |
-    When a DNS name with ".local" is specifed in the parameter DDAGENTUSER_NAME, the correctly finds the corresponding domain.

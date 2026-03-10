@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Allow writing SECL rules against container creation time through the new `container.created_at`
-    field, similar to the existing `process.container_at` field.
-    The container creation time is also reported in the sent events.

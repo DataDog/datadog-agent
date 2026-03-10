@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Prevent a deadlock from occurring in the otel-agent when its internal telemetry Prometheus endpoint is scraped.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add optional forwarding of dogstatsd packets to another UDP server.

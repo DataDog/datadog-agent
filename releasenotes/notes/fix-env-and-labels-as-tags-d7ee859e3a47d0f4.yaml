@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix case issues in tag extraction for docker/kubernetes container tags and kubernetes host tags

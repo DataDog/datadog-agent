@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a crash that could occur when having trouble connecting to the Kubelet.
-

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Some valid clusterNames are not valid hostNames/hostAlias. Additional logging and cleaning should make the problem
-    more clear and handle most of the cases.

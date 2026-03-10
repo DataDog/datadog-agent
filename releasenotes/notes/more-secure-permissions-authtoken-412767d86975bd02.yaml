@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The `auth_token` file, used to store the api authentication token, is now
-    only readable/writable by the user running the agent instead of inheriting
-    datadog.yaml permissions.

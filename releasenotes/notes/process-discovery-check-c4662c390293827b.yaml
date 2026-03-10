@@ -1,4 +1,0 @@
-features:
-  - |
-    Created a new process discovery check. This is a lightweight check that runs every 4 hours by default, and collects
-    process metadata, so that Datadog can suggest potential integrations for the user to enable.

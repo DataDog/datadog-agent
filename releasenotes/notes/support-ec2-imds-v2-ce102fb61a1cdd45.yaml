@@ -1,8 +1,0 @@
-enhancements:
-  - |
-    Add support for the EC2 instance metadata service
-    (IMDS) v2 that requires to get a token before any
-    metadata query. The agent will still issue
-    unauthenticated request first (IMDS v1) before
-    switching to token-based authentication (IMDS
-    v2) if it fails.

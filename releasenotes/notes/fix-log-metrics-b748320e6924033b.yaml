@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Add missing telemetry metrics for HTTP log bytes sent.

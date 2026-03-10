@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix a false positive in the collector-queue healthcheck

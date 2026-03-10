@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix an issue where logs wouldn't be ingested if the API key contains a trailing
-    new line

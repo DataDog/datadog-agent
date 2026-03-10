@@ -1,8 +1,0 @@
----
-prelude: >
-    Use systemd/upstart facilities on linux to orchestrate the agents execution.
-features:
-  - |
-    Use systemd/upstart facilities on linux to orchestrate the agents execution.
-    Rate limit process restarts such that 5 failures in a 10 second span will
-    result in no further restart attempts.

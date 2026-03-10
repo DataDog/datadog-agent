@@ -1,3 +1,0 @@
-fixes:
-  - |
-    process-agent and system-probe now clean up their PID files when exiting.

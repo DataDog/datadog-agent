@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Connection to the ECS agent should be more resilient

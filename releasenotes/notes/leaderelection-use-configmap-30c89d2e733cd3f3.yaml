@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Change the kubernetes leader election system to use configmaps instead of endpoints. This
-    allows a simpler migration from Agent5, as Agent6 will not require additional permissions.

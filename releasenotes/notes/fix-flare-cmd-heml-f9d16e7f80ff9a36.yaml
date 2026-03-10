@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    Fix the `flare` command not being able to be created for the non-core agents (trace,
-    network, ...) when running in a separated container, such as in Helm. A new
-    option, `--local`, has been added to the `flare` command to force the
-    creation of the archive using the local filesystem and not the one where
-    the core agent process is in.

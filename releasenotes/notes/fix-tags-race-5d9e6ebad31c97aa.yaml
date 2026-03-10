@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed a bug that could potentially cause missing container tags for check metrics.

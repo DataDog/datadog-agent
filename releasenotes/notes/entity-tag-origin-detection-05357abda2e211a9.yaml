@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Dogstatsd can now inject extra tags on a metric when a special entity tag is provided

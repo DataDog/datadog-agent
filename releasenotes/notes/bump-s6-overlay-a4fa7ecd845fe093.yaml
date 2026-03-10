@@ -1,3 +1,0 @@
-other:
-  - |
-    Update s6-overlay version used in Datadog Agent container images to v2.2.0.3

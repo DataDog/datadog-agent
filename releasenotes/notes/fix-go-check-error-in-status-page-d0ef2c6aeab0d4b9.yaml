@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix Go checks errors not being displayed in the status page.

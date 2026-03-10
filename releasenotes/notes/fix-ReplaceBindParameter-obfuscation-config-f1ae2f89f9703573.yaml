@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes ReplaceBindParameter obfuscation config handling in Python DBMS checks.

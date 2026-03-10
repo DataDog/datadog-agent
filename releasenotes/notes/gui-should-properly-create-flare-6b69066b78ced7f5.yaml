@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes a bug that caused the GUI to create a flare without a status file

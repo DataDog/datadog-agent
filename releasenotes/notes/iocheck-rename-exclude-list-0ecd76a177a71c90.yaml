@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    IO check: device_blacklist_re has been deprecated in favor of device_exclude_re.

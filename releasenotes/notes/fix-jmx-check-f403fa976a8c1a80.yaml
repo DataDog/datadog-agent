@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fix a race condition that could prevent JMX checks from running.

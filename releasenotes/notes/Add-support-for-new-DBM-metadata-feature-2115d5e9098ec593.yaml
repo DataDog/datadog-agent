@@ -1,4 +1,0 @@
----
-features:
-  - |
-    This change adds support for ingesting information such as database settings and schemas as database "metadata"

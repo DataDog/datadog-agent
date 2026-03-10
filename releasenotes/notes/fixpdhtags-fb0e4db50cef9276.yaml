@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix bug where global tags for PDH based python checks are not read
-    correctly from the configuration yaml.

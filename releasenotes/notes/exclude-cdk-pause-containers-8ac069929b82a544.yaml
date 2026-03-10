@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Exclude pause containers using the `cdk/pause.*` image.

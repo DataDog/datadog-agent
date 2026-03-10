@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Run CSPM commands as a configurable user.
-    Defaults to 'nobody'.

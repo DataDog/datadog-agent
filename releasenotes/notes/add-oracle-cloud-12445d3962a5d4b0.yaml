@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Cloud provider detection now support Oracle Cloud. This includes cloud provider detection, host aliases and NTP
-    servers.

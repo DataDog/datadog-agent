@@ -1,5 +1,0 @@
----
-
-features:
-  - adds a core check and the core logic to query the kubernetes API server and format the events into Datadog events. Also adds the Control Plane status check.
-

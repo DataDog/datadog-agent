@@ -1,7 +1,0 @@
----
-features:
-  - |
-    The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
-    detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information. The
-    Agent configuration is scrubbed of any sensitive information and only contains configuration you’ve set using the
-    configuration file or environment variables.

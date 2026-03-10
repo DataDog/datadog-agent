@@ -1,6 +1,0 @@
-enhancements:
-  - |
-    Templates used for the agent status command are now
-    embedded in the binary at compilation time and thus
-    original template files are not required anymore at
-    runtime.

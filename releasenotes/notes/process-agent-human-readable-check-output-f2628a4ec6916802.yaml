@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Adds human readable output of process and container data in the `check` command
-    for the Process Agent.

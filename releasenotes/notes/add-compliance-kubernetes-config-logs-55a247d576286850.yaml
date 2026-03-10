@@ -1,4 +1,0 @@
-features:
-  - |
-    Add the capability for the security-agent compliance module to export
-    detailed Kubernetes node configurations.

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Allow the Agent to schedule different checks from different sources on the same service.

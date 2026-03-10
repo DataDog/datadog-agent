@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Improve docker monitoring when the system is under a very high load. The agent
-    might still temporarily miss a healthcheck, but will be able to run already
-    scheduled checks, and recover once the spike ends

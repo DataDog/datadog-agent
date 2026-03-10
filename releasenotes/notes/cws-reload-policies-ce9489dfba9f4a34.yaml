@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add a new `runtime reload` command to the `security-agent`
-    to dynamically reload CWS policies.

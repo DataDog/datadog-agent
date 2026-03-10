@@ -1,3 +1,0 @@
----
-fixes:
-  - The secret command now correctly displays the ACL on a path with spaces.

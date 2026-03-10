@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Under some circumstances, the Agent would delete all tags for a workload if
-    they were collected from different sources, such as the kubelet and docker,
-    but deleted from only one of them. Now, the agent keeps track of tags per
-    collector correctly.

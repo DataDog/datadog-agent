@@ -1,3 +1,0 @@
-features:
-  - |
-    Data Streams Monitoring: Adds new feature allowing users to retrieve messages from Kafka topics.

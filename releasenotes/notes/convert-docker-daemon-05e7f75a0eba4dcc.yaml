@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    The old docker_daemon check is now properly converted in the "import" command by default
-

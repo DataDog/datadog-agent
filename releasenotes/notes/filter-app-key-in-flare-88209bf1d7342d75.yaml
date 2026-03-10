@@ -1,5 +1,0 @@
----
-security:
-  - |
-    'app_key' value from the configuration is now redacted when creating a
-    flare with the agent.

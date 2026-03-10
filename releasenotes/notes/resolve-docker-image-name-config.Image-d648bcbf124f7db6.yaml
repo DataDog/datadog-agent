@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Resolve Docker image name using config.Image in the case of multiple image RepoTags

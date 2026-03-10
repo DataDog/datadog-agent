@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Changes default precision of pdh-based counters from int to float. Fixes bug where fidelity of some counters is quite low, especially counters with values between 0 and 1.

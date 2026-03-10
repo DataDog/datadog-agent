@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Extract env, version and service tags from kubelet

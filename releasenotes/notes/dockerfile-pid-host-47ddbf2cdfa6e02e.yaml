@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix Docker container `--pid=host` operations. Previous RCs can cause host system
-    instabilities and should not be run in pid host mode.

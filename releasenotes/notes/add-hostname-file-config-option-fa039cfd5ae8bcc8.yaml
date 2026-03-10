@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Added `hostname_file` as a configuration option that can be used to set
-    the Agent's hostname.

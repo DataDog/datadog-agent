@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Included tags for TLS offered versions and TLS chosen version as part of TCP connections stats on Windows.

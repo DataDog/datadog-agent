@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix missing container metrics (container, containerd checks and live container view) on AWS Bottlerocket

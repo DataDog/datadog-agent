@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Reno and releasenotes are now mandatory. A test will fail if no
-    releasenotes where added/updated to the PR. A 'noreno' label can be added
-    to the PR to skip this test.

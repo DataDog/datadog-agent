@@ -1,4 +1,0 @@
-upgrade:
-  - |
-    Aggregate APM stats payloads by gRPC code
-    

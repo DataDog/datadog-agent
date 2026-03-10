@@ -1,3 +1,0 @@
----
-fixes:
-  - When using the import script, change the group owner of configuration files to the dd-agent user.

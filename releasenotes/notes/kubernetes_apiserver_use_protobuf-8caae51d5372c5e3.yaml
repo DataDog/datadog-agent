@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add an option to enable protobuf communication with the Kubernetes apiserver

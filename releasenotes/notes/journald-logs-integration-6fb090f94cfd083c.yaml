@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Created a new journald integration to collect logs from systemd. It's only available on debian distributions for now.

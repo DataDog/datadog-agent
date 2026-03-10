@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Properly check for "true" value of env var DD_LEADER_ELECTION

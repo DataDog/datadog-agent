@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Series for a common metric name will no longer be split among multiple
-    transactions/payload. This guarantee that every point for a time T and a metric
-    M will be bundled together when push to the backend. This allows some
-    optimization on the backend side.

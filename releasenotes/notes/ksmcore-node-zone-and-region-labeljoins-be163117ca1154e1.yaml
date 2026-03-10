@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add kube_region and kube_zone tags to node metrics reported by the kube-state-metrics core check

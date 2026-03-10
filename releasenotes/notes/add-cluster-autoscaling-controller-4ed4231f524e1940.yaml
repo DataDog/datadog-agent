@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds new Cluster Autoscaling controller in Cluster Agent.

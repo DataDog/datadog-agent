@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Environment autodiscovery is now used to selectively activate providers (kubernetes, docker, etc.) inside each component (tagger, host tags, hostname).

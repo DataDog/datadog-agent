@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix to evaluate whether the DCA can query resources (events, ervices, nodes, pods) before running core component or checks.
-    Logic allows for the DCA to run components independently if they are configured and we can query the associated resources.

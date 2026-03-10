@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The ``agent diagnose`` and ``agent flare`` commands no longer create error-level log messages when the diagnostics fail.
-    These message are logged at the "info" level, instead.

@@ -1,5 +1,0 @@
-fixes:
-  - | 
-    Fix files descriptor leak when tailing a logs file with file rotation and
-    the tailer is stuck for instance because of lost connectivity with the logs
-    intake endpoint.

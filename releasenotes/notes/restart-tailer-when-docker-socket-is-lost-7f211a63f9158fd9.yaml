@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Recover from errors when connection to the docker socket is lost to continue tailing containers.

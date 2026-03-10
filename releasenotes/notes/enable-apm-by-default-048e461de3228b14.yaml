@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Sets correct default value for apm config to enabled, so that the trace agent is
-    started by default
-    Removes deprecated process_agent_enabled flag

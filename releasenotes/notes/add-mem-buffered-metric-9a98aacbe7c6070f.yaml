@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add 'system.mem.buffered' metric on linux system.

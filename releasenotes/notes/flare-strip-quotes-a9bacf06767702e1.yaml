@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix some edge cases where flare could contain secrets if the secrets where
-    encapsulated in quotes.

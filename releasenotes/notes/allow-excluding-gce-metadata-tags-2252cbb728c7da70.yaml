@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Tags generated from GCE metadata may now be omitted by using
-    ``collect_gce_tags`` configuration option.

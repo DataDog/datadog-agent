@@ -1,4 +1,0 @@
----
-security:
-  - |
-    The Agent now checks containerd containers `Spec` size before parsing it. Any `Spec` exceeding 2MB will not be parsed and a warning will be emitted. This impacts the `container_env_as_tags` feature and `%%hostname%%` variable resolution for environments based on `containerd` outside of Kubernetes.

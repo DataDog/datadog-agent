@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add a new command 'datadog-cluster-agent health' to show the cluster
-    agent's health, similar to the already existing `agent health`.

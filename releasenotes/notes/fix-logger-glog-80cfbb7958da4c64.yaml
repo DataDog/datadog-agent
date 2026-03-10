@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix the command-line flag parsing regression caused by a transitive dependency importing the
-    glog library. `agent` flags should now behave as in beta9.

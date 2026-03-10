@@ -1,6 +1,0 @@
----
-features:
-  - |
-    The process-agent uses the datadog.yaml file for activation and additional config.
-
-

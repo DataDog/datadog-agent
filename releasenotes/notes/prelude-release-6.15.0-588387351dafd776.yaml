@@ -1,5 +1,0 @@
-prelude:
-    |
-    Release on: 2019-11-05
-
-    - Please refer to the `6.15.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-6150>`_ for the list of changes on the Core Checks

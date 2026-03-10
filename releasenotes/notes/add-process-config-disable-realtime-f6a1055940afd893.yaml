@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    Adds the process_config.disable_realtime_checks config setting in the process
-    Agent allowing users to disable realtime process and container checks. Note:
-    This prevents refresh of stats in the Live Processes and Live Containers pages
-    for processes and containers reported by the Agent.

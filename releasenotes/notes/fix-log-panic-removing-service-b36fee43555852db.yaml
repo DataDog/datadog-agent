@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix potential panic when removing a service that the log agent is currently tailing.

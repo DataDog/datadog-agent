@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Upstart would indefinitely respawn trace and process agents even when exiting
-    with a zero status code. We now explicitly define exit code 0 as a valid exit
-    code to prevent respawn when the agents are disabled.

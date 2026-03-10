@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix the cgroup collector to correctly pickup Cloud Foundry containers.

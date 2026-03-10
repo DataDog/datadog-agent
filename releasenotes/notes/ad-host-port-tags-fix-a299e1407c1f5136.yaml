@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix handling of the %%host%% and %%port%% autodiscovery tags

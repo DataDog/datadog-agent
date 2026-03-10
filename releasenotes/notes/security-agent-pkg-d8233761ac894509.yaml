@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Make security-agent part of automatically started agents in RPM/DEB/etc. packages (will do nothing and exit 0 by default)
-fixes:
-  - |
-    Fix pidfile support on security-agent

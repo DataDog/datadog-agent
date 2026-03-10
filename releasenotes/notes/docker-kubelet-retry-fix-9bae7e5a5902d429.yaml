@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed a regression that was preventing the Agent from retrying kubelet and docker connections in case of failure.

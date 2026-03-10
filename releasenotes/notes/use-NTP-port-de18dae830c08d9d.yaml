@@ -1,7 +1,0 @@
----
-upgrade:
-  - |
-    The ``port`` option in the NTP check configuration is now parsed as an integer instead of a string.
-fixes:
-  - |
-    The NTP check now properly uses the ``port`` configuration option.

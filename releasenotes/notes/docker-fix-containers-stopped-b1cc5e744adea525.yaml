@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue where the Docker check would undercount the number of
-    stopped containers in the `docker.containers.stopped` and
-    `docker.containers.stopped.total` metrics, accompanied by a "Cannot split
-    the image name" error in the logs.

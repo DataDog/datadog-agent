@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add support for PHP Single Step Instrumentation in Kubernetes (not enabled by default)

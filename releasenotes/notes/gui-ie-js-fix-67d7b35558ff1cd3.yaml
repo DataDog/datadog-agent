@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    IE does not support String.prototype.endsWith, add implementation to the
-    string prototype to enable the functionality.

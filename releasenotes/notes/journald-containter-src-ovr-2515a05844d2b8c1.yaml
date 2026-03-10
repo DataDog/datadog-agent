@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add container_mode in journald input to set source/service as Docker image short name when we receive container logs

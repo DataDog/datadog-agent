@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Stop doing HTML escaping on agent status command output
-    in order to properly display all non-alphanumeric
-    characters.

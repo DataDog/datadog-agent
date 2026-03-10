@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Metadata information sent by the Agent are now part of the flares. This will allow for easier troubleshooting of
-    issues related to metadata.

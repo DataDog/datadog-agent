@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixed the serializer exporter for the OSS Collector, which was not setting the correct proxy variables when sending metric data.

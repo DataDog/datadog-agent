@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix log format when no log file is specified which cause the log date to
-    not be correctly displayed.

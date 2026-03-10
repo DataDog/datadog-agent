@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Orchestrator manifests will now be published with all tags present in their metadata counterparts.

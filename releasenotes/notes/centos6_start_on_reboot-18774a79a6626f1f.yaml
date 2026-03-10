@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Properly listen for events emitted on OSes like CentOS 6 so the Agent starts on reboot

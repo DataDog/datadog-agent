@@ -1,6 +1,0 @@
-fixes:
-  - |
-    The service mapper now groups the mappings of pods to services by namespace.
-    This prevents `kube_service` tags from being erroneously applied to metrics
-    for a pod not targeted by a service but has the same name as a pod in a different
-    namespace targeted by that service.

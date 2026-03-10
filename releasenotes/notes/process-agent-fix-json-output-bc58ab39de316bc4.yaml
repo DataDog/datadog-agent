@@ -1,3 +1,0 @@
----
-fixes:
-  - Adds new `--json` flag to `check`. `process-agent check --json` now outputs valid json.

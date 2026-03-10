@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Support the Kubernetes service name tags on containers.
-    The tag used is kube_service.
-    The default listener for kubernetes is now the kubelet instead of docker.

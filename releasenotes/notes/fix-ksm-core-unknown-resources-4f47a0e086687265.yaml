@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixes `kubernetes_state_core` crash when unknown resources are provided.

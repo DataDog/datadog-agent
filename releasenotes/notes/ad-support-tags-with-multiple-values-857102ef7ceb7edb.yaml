@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Pod and container tags autodiscovered via pod annotations
-    now support multiple values for the same key.

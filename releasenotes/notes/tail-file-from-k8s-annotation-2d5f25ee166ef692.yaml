@@ -1,8 +1,0 @@
----
-enhancements:
-  - |
-    File tailing from a kubernetes pod annotation is
-    now supported. Note that the file path is relative
-    to the Agent and not the pod/container bearing
-    the annotation.
-

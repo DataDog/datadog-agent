@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    The Agent now supports a single "com.datadoghq.ad.checks" label in Docker,
-    containerd, and Podman containers. It merges the contents of the existing
-    "check_names", "init_configs" (now optional), and "instances" annotations
-    into a single JSON value.

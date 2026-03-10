@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Avoid Linux package installation failures when both the ``initctl`` and
-    ``systemctl`` commands are present but upstart is used as the init system

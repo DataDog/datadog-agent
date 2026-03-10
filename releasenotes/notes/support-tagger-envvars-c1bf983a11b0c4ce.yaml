@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add envvar bindings for docker/kubernetes custom tag extraction features
