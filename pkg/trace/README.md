@@ -54,7 +54,7 @@ Sampling determines which traces are forwarded to the backend. Multiple samplers
 
 **Probabilistic Sampler** applies a simple rate-based sampling decision, independent of the other samplers.
 
-**APM Event Processor** (`event/`) runs alongside sampling to extract individual spans as APM Events for Trace Search. Events are extracted based on configured rates per service/operation and are subject to a global events-per-second cap.
+**APM Event Processor** (`event/`) runs alongside sampling to extract individual spans as APM Events for Trace Search. Events are extracted based on configured rates per service/operation and are subject to a global events-per-second cap. This sampler is deprecated.
 
 ### Stats computation (`stats/`)
 
