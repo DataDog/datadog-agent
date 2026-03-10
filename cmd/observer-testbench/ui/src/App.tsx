@@ -228,14 +228,14 @@ function ScoreDisplay({ score, sigma, onSigmaChange, showSigmaWindow, onToggleSi
       {canShowSigmaWindow && (
         <button
           onClick={onToggleSigmaWindow}
-          title="Show ±2σ scoring window on swimlane"
+          title="Show +2σ scoring window on swimlane"
           className={`text-xs px-2 py-0.5 rounded transition-colors ${
             showSigmaWindow
               ? 'bg-purple-600 text-white'
               : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
           }`}
         >
-          ±2σ
+          +2σ
         </button>
       )}
     </div>

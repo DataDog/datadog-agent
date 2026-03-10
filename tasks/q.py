@@ -46,7 +46,7 @@ def eval_scenarios(ctx, scenario: str = "", sigma: float = 30.0):
         sigma: Gaussian width in seconds for scoring.
     """
     print(color_message("Building observer-testbench...", Color.BLUE))
-    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
+    build_testbench(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 

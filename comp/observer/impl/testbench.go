@@ -1069,9 +1069,11 @@ func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
 	}
 
 	// Extract prediction timestamps from correlation FirstSeen.
-	predictions := make([]int64, len(correlations))
-	for i, c := range correlations {
-		predictions[i] = c.FirstSeen
+	var predictions []int64
+	for _, c := range correlations {
+		if c.FirstSeen > 0 {
+			predictions = append(predictions, c.FirstSeen)
+		}
 	}
 
 	result := scorePredictions(predictions, meta, sigma)

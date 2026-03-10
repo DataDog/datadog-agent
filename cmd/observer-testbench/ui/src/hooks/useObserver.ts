@@ -55,6 +55,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   // Use refs to avoid recreating callbacks on every state change
   const connectionStateRef = useRef(connectionState);
   const activeScenarioRef = useRef(activeScenario);
+  const sigmaRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     connectionStateRef.current = connectionState;
@@ -82,7 +83,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
           api.getCorrelations(),
           api.getCompressedCorrelations(),
           api.getStats(),
-          api.getScore(),
+          api.getScore(sigmaRef.current),
         ]);
 
       // Fetch data for ALL components (any component may provide extra data)
@@ -209,8 +210,9 @@ export function useObserver(): [ObserverState, ObserverActions] {
   }, [fetchAll]);
 
   const fetchScore = useCallback(async (sigma?: number) => {
+    if (sigma !== undefined) sigmaRef.current = sigma;
     try {
-      const data = await api.getScore(sigma);
+      const data = await api.getScore(sigmaRef.current);
       setScoreResponse(data);
     } catch (e) {
       console.error('Failed to fetch score:', e);
