@@ -70,8 +70,9 @@ void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type)
 }
 
 
-int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol) {
-    bpf_printk("bind_sample enter: pid=%d family=%d port=%d", pid, family, port);
+int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
+    bpf_printk("bind_sample enter: port=%d pid=%d family=%d", port, pid, family);
+    bpf_printk("bind_sample enter: addr=%llx addr1=%llx", addr[0], addr[1]);
 
     if (family != AF_INET && family != AF_INET6) {
         bpf_printk("bind_sample family_skip: pid=%d family=%d", pid, family);
@@ -80,25 +81,30 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
 
     monitor_event_sample_total(EVENT_BIND);
 
-    struct bind_sample_key_t key = {
-        .pid = pid,
-        .family = family,
-        .port = port,
-        .protocol = protocol,
-    };
+    struct bind_sample_key_t key;
+    __builtin_memset(&key, 0, sizeof(key));
+    key.pid = pid;
+    key.family = family;
+    key.port = port;
+    key.protocol = protocol;
+    key.addr[0] = addr[0];
+    key.addr[1] = addr[1];
 
     u8 value = 0;
     if (bpf_map_update_elem(&bind_samples, &key, &value, BPF_NOEXIST) < 0) {
-        bpf_printk("bind_sample dedup: pid=%d port=%d proto=%d", pid, port, protocol);
+        bpf_printk("bind_sample dedup: pid=%d port=%d family=%d", pid, port, family);
+        bpf_printk("bind_sample dedup: addr=%llx addr1=%llx", addr[0], addr[1]);
         return 0;
     }
 
     if (!global_limiter_allow(BIND_SAMPLE_LIMITER, 500, 1)) {
-        bpf_printk("bind_sample rate_limited: pid=%d port=%d", pid, port);
+        bpf_printk("bind_sample rate_limited: pid=%d port=%d family=%d", pid, port, family);
+        bpf_printk("bind_sample rate_limited: addr=%llx addr1=%llx", addr[0], addr[1]);
         return 0;
     }
 
-    bpf_printk("bind_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
+    bpf_printk("bind_sample sampled: pid=%d port=%d family=%d", pid, port, family);
+    bpf_printk("bind_sample sampled: addr=%llx addr1=%llx", addr[0], addr[1]);
     monitor_event_sample_sampled(EVENT_BIND);
     return 1;
 }
@@ -114,19 +120,21 @@ int __attribute__((always_inline)) approve_dns_sample(u32 pid) {
     return 1;
 }
 
-int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol) {
+int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
     if (family != AF_INET && family != AF_INET6) {
         return 0;
     }
 
     monitor_event_sample_total(EVENT_CONNECT);
 
-    struct bind_sample_key_t key = {
-        .pid = pid,
-        .family = family,
-        .port = port,
-        .protocol = protocol,
-    };
+    struct bind_sample_key_t key;
+    __builtin_memset(&key, 0, sizeof(key));
+    key.pid = pid;
+    key.family = family;
+    key.port = port;
+    key.protocol = protocol;
+    key.addr[0] = addr[0];
+    key.addr[1] = addr[1];
 
     u8 value = 0;
     if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {

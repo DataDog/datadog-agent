@@ -70,7 +70,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     }
 
     if (!(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        if (approve_connect_sample(event.process.pid, syscall->connect.family, syscall->connect.port, syscall->connect.protocol)) {
+        if (approve_connect_sample(event.process.pid, event.family, event.port, event.protocol, event.addr)) {
             event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
         }
     }

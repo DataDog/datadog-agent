@@ -33,6 +33,7 @@ struct bind_sample_key_t {
     u16 port;
     u16 protocol;
     u16 padding;
+    u64 addr[2];
 };
 
 struct dr_erpc_state_t {
