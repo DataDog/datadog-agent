@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -34,6 +35,7 @@ type ScoreResult struct {
 	NumGroundTruths      int     `json:"num_ground_truths"`
 	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
 	NumFilteredCascading int     `json:"num_filtered_cascading"`
+	NumBaselineFPs       int     `json:"num_baseline_fps"`
 	Sigma                float64 `json:"sigma"`
 }
 
@@ -237,7 +239,7 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 	}
 
 	if meta.Disruption.Start == "" {
-		return nil, fmt.Errorf("metadata.json missing disruption.start")
+		return nil, errors.New("metadata.json missing disruption.start")
 	}
 
 	dt, err := time.Parse(time.RFC3339, meta.Disruption.Start)
@@ -266,6 +268,9 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 // inferred from the scenario's metadata.json (using the scenario name from the output).
 // Explicit groundTruthTimestamps override metadata inference.
 func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
+	if sigma <= 0 {
+		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
+	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading output file: %w", err)
@@ -294,7 +299,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	}
 
 	if len(groundTruthTimestamps) == 0 {
-		return nil, fmt.Errorf("no ground truth: provide --ground-truth-ts or --scenarios-dir with metadata.json")
+		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with metadata.json")
 	}
 
 	// Compute prediction window: filter warmup (before baseline.start) and
@@ -321,6 +326,20 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		predictions = append(predictions, period.PeriodStart)
 	}
 
+	// Count baseline FPs: scored predictions that fire before disruption onset.
+	minGT := groundTruthTimestamps[0]
+	for _, gt := range groundTruthTimestamps[1:] {
+		if gt < minGT {
+			minGT = gt
+		}
+	}
+	var numBaselineFPs int
+	for _, p := range predictions {
+		if p < minGT {
+			numBaselineFPs++
+		}
+	}
+
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  predictions,
 		GroundTruthTimestamps: groundTruthTimestamps,
@@ -328,6 +347,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumFilteredCascading = numFilteredCascading
+	result.NumBaselineFPs = numBaselineFPs
 
 	return &result, nil
 }
