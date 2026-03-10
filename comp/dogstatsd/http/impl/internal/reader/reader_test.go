@@ -106,8 +106,9 @@ func TestBasic(t *testing.T) {
 	require.NoError(t, r.NextPoint())
 	require.Equal(t, pb.MetricType_Sketch, r.Type())
 
-	sum, min, max, cnt := r.SketchSummary()
+	sum, avg, min, max, cnt := r.SketchSummary()
 	require.Equal(t, 0., sum)
+	require.Equal(t, 0., avg)
 	require.Equal(t, 0., min)
 	require.Equal(t, 0., max)
 	require.Equal(t, uint64(4), cnt)
@@ -171,7 +172,7 @@ func FuzzReader(f *testing.F) {
 				_ = mr.Timestamp()
 				switch mr.Type() {
 				case pb.MetricType_Sketch:
-					_, _, _, _ = mr.SketchSummary()
+					_, _, _, _, _ = mr.SketchSummary()
 					_ = mr.SketchNumBins()
 					_, _ = mr.SketchCols()
 				default:

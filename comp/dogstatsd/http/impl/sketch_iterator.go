@@ -86,12 +86,8 @@ func (it *sketchIterator) MoveNext() bool {
 			return false
 		}
 
-		sum, min, max, cnt := it.reader.SketchSummary()
+		sum, avg, min, max, cnt := it.reader.SketchSummary()
 		k, n := it.reader.SketchCols()
-		avg := float64(0)
-		if cnt > 0 {
-			avg = sum / float64(cnt)
-		}
 		b.Points = append(b.Points, metrics.SketchPoint{
 			Ts: it.reader.Timestamp(),
 			Sketch: &sketchData{
