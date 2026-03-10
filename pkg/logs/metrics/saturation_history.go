@@ -179,6 +179,13 @@ func (h *SaturationHistory) RecordFill(stage string, fill float64) {
 
 // RecordRetry records a transport-layer retry event.
 // Called by the HTTP destination on every retry attempt.
+//
+// Retry count is recorded in the rolling windows and currentFill for display
+// on the status page, but intentionally does NOT drive the saturation state
+// machine or profile recommendations. Retry count measures HTTP errors, not
+// backpressure — a few retries is normal and should not trigger a config
+// suggestion. Transport saturation detection will be wired to sender worker
+// utilization ratio once that signal is available in SaturationHistory.
 func (h *SaturationHistory) RecordRetry() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -196,19 +203,18 @@ func (h *SaturationHistory) RecordRetry() {
 	}
 	h.retryTimestamps = append(h.retryTimestamps[:n], now)
 
-	// Normalise retry count to a [0, 1] fill-equivalent so it fits the same state machine.
+	// Normalise retry rate to [0, 1] for display purposes only.
 	rate := float64(len(h.retryTimestamps))
-	h.currentFill[SenderTlmName] = rate / float64(retryRateThreshold+1)
 	fillEquiv := rate / float64(retryRateThreshold+1)
 	if fillEquiv > 1.0 {
 		fillEquiv = 1.0
 	}
+	h.currentFill[SenderTlmName] = fillEquiv
 
 	for i := range h.windows {
 		h.windows[i].record(SenderTlmName, fillEquiv, now)
 	}
-	h.updateState(SenderTlmName, fillEquiv, now)
-	h.emitTelemetry()
+	// Deliberately no updateState or emitTelemetry — see comment above.
 }
 
 // updateState runs the per-stage saturation state machine and appends events on recovery.
@@ -254,10 +260,12 @@ func (h *SaturationHistory) appendEvent(e SaturationEvent) {
 }
 
 // emitTelemetry fires stage-saturation and profile-recommendation metrics.
+// Only stages driven by CapacityMonitor (processor, strategy) participate in
+// the saturation state machine; the sender stage is excluded until a reliable
+// utilization-based signal replaces the retry-count proxy.
 // Must be called with h.mu held.
 func (h *SaturationHistory) emitTelemetry() {
-	knownStages := []string{ProcessorTlmName, StrategyTlmName, SenderTlmName}
-	for _, stage := range knownStages {
+	for _, stage := range []string{ProcessorTlmName, StrategyTlmName} {
 		v := 0.0
 		if s, ok := h.states[stage]; ok && s.saturated {
 			v = 1.0
@@ -277,19 +285,21 @@ func (h *SaturationHistory) emitTelemetry() {
 	}
 }
 
-// computeSuggestion returns the recommended profile based on the 5-minute rolling max.
-// Using the 5-minute window avoids spurious recommendations from sub-second spikes.
+// computeSuggestion returns the recommended profile based on the 30-minute rolling max.
+//
+// Using the 30-minute window means a profile change is only suggested when a
+// bottleneck has been sustained long enough to warrant a permanent configuration
+// change — brief spikes don't count. Transport (sender) is intentionally excluded
+// until a reliable non-retry-based signal (sender worker utilization ratio) is wired
+// into SaturationHistory.
 // Must be called with h.mu held.
 func (h *SaturationHistory) computeSuggestion() string {
-	strategyFill := h.windows[0].max(StrategyTlmName)
-	transportFill := h.windows[0].max(SenderTlmName)
-	processorFill := h.windows[0].max(ProcessorTlmName)
+	strategyFill := h.windows[1].max(StrategyTlmName)
+	processorFill := h.windows[1].max(ProcessorTlmName)
 
 	switch {
 	case strategyFill >= saturationHighThreshold:
 		return "max_throughput"
-	case transportFill >= saturationHighThreshold:
-		return "wan_optimized"
 	case processorFill >= saturationHighThreshold:
 		return "performance"
 	default:

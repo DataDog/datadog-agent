@@ -98,7 +98,9 @@ func (i *CapacityMonitor) report() {
 	TlmUtilizationBytes.Set(i.avgBytes, i.name, i.instance)
 	if i.channelCapacity > 0 {
 		fillPct := i.avgItems / float64(i.channelCapacity)
-		if fillPct > 1.0 {
+		if fillPct < 0 {
+			fillPct = 0
+		} else if fillPct > 1.0 {
 			fillPct = 1.0
 		}
 		TlmUtilizationFillPct.Set(fillPct*100, i.name, i.instance)

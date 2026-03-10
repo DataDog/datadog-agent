@@ -38,13 +38,15 @@ func TestNoSaturation_NilSuggestion(t *testing.T) {
 	assert.Empty(t, s.RecentEvents)
 }
 
+// Suggestions use the 30-minute window so the recommendation stays visible
+// after a bottleneck recovers, giving users time to observe it in agent status.
 func TestStrategySaturation_SuggestsMaxThroughput(t *testing.T) {
 	h := newTestHistory()
 	h.RecordFill(StrategyTlmName, 0.85)
 
 	s := h.Summary()
 	assert.Equal(t, "max_throughput", s.SuggestedProfile)
-	assert.InDelta(t, 0.85, s.MaxFill5m[StrategyTlmName], 0.01)
+	assert.InDelta(t, 0.85, s.MaxFill30m[StrategyTlmName], 0.01)
 }
 
 func TestProcessorSaturation_SuggestsPerformance(t *testing.T) {
@@ -55,21 +57,28 @@ func TestProcessorSaturation_SuggestsPerformance(t *testing.T) {
 	assert.Equal(t, "performance", s.SuggestedProfile)
 }
 
-func TestTransportSaturation_SuggestsWanOptimized(t *testing.T) {
+// Retries are informational only — they update the display windows but do not
+// drive profile suggestions, since retry count measures HTTP errors not backpressure.
+// Transport suggestion requires sender worker utilization signal (not yet wired).
+func TestRetries_DoNotSuggestProfile(t *testing.T) {
 	h := newTestHistory()
-	// Push enough retries to exceed the threshold.
 	for i := 0; i < retryRateThreshold+2; i++ {
 		h.RecordRetry()
 	}
 
 	s := h.Summary()
-	assert.Equal(t, "wan_optimized", s.SuggestedProfile)
+	assert.Empty(t, s.SuggestedProfile)
+	// But the retry fill-equivalent should be visible in the windows for display.
+	assert.Greater(t, s.MaxFill5m[SenderTlmName], 0.0)
 }
 
-// Strategy saturated at the same time as transport → compression wins (it's upstream).
-func TestStrategyTakesPriorityOverTransport(t *testing.T) {
+// Strategy fill + retries → strategy suggestion wins; retries don't interfere.
+func TestStrategyFill_SuggestsMaxThroughputDespiteRetries(t *testing.T) {
 	h := newTestHistory()
-	h.RecordFill(StrategyTlmName, 0.90)
+	// Use RecordFill (not just 5m, need 30m window) — fill 30 samples so 30m window is populated.
+	for i := 0; i < 30; i++ {
+		h.RecordFill(StrategyTlmName, 0.90)
+	}
 	for i := 0; i < retryRateThreshold+2; i++ {
 		h.RecordRetry()
 	}
