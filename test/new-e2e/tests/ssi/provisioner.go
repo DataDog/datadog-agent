@@ -17,6 +17,7 @@ import (
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	provgke "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes"
+	provopenshift "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes/openshiftvm"
 	localkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
@@ -34,6 +35,8 @@ const (
 	ProvisionerEKS ProvisionerType = "eks"
 	// ProvisionerGKE uses Google Kubernetes Engine.
 	ProvisionerGKE ProvisionerType = "gke"
+	// ProvisionerOpenShift uses OpenShift VM on GCP.
+	ProvisionerOpenShift ProvisionerType = "openshift"
 )
 
 // ProvisionerOptions contains the common options for Kubernetes provisioners.
@@ -44,7 +47,7 @@ type ProvisionerOptions struct {
 }
 
 // Provisioner returns a Kubernetes provisioner based on E2E_PROVISIONER and E2E_DEV_LOCAL parameters.
-// Supported provisioners: "kind" (default), "kind-local", "eks", "gke".
+// Supported provisioners: "kind" (default), "kind-local", "eks", "gke", "openshift".
 // E2E_DEV_LOCAL=true is a shortcut for E2E_PROVISIONER=kind-local.
 func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	provisionerType := getProvisionerType()
@@ -55,6 +58,8 @@ func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environm
 		return eksProvisioner(opts)
 	case ProvisionerGKE:
 		return gkeProvisioner(opts)
+	case ProvisionerOpenShift:
+		return openShiftProvisioner(opts)
 	default:
 		return awsKindProvisioner(opts)
 	}
@@ -146,4 +151,20 @@ func gkeProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 		gkeOpts = append(gkeOpts, provgke.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
 	}
 	return provgke.GKEProvisioner(gkeOpts...)
+}
+
+// openShiftProvisioner returns an OpenShift VM provisioner on GCP.
+func openShiftProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
+	var openShiftOpts []provopenshift.ProvisionerOption
+
+	if len(opts.AgentOptions) > 0 {
+		openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(opts.AgentOptions...))
+	}
+	if opts.WorkloadAppFunc != nil {
+		openShiftOpts = append(openShiftOpts, provopenshift.WithWorkloadApp(provopenshift.WorkloadAppFunc(opts.WorkloadAppFunc)))
+	}
+	if opts.AgentDependentWorkloadAppFunc != nil {
+		openShiftOpts = append(openShiftOpts, provopenshift.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	}
+	return provopenshift.OpenshiftVMProvisioner(openShiftOpts...)
 }

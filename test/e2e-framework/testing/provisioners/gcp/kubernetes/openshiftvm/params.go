@@ -12,27 +12,34 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
-	name              string
-	fakeintakeOptions []fakeintake.Option
-	agentOptions      []kubernetesagentparams.Option
-	openshiftOptions  []pulumi.ResourceOption
-	deployArgoRollout bool
-	extraConfigParams runner.ConfigMap
+	name                           string
+	fakeintakeOptions              []fakeintake.Option
+	agentOptions                   []kubernetesagentparams.Option
+	openshiftOptions               []pulumi.ResourceOption
+	workloadAppFuncs               []WorkloadAppFunc
+	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
+	deployArgoRollout              bool
+	extraConfigParams              runner.ConfigMap
 }
 
 func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:              "openshiftvm",
-		fakeintakeOptions: []fakeintake.Option{},
-		agentOptions:      []kubernetesagentparams.Option{},
+		name:                           "openshiftvm",
+		fakeintakeOptions:              []fakeintake.Option{},
+		agentOptions:                   []kubernetesagentparams.Option{},
+		workloadAppFuncs:               []WorkloadAppFunc{},
+		agentDependentWorkloadAppFuncs: []kubeComp.AgentDependentWorkloadAppFunc{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
@@ -72,6 +79,25 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 func WithOpenShiftOptions(opts ...pulumi.ResourceOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.openshiftOptions = opts
+		return nil
+	}
+}
+
+// WorkloadAppFunc is a function that deploys a workload app to a kube provider.
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
+
+// WithWorkloadApp adds a workload app to the environment.
+func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAgentDependentWorkloadApp adds a workload app that depends on the agent being deployed first.
+func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentDependentWorkloadAppFuncs = append(params.agentDependentWorkloadAppFuncs, appFunc)
 		return nil
 	}
 }

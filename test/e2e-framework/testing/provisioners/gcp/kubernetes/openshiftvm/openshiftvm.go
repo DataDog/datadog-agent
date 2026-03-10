@@ -127,6 +127,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 
 	// Deploy the agent
 	var agent *agentComp.KubernetesAgent
+	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions,
 			func(p *kubernetesagentparams.Params) error {
@@ -155,6 +156,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		if err != nil {
 			return err
 		}
+		dependsOnDDAgent = utils.PulumiDependsOn(agent)
 	} else {
 		env.Agent = nil
 	}
@@ -182,9 +184,6 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 
 		// Add the VPA CRD to the dependencies
 		dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
-
-		// Add the Agent to the dependencies
-		dependsOnDDAgent := utils.PulumiDependsOn(agent)
 
 		// Deploy the testing workloads
 		if _, err := redis.K8sAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
@@ -236,6 +235,22 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			if _, err := nginx.K8sRolloutAppDefinition(&gcpEnv, openshiftKubeProvider, "workload-argo-rollout-nginx", 8080, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
+		}
+	}
+
+	if dependsOnDDAgent != nil {
+		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+			_, err := appFunc(&gcpEnv, openshiftKubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&gcpEnv, openshiftKubeProvider)
+		if err != nil {
+			return err
 		}
 	}
 
