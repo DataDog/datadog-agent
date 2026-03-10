@@ -9,20 +9,25 @@ package ncclprofiler
 
 import (
 	corev1 "k8s.io/api/core/v1"
+
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 const (
-	// soVolumeName is the emptyDir volume name for the injected .so.
+	// soVolumeName is the emptyDir volume name for the injected .so files.
 	soVolumeName = "datadog-nccl-profiler"
 
 	// soMountPath is the directory where the .so volume is mounted.
 	soMountPath = "/datadog-nccl"
 
-	// soDestPath is the full in-container path to the .so after injection.
-	soDestPath = "/datadog-nccl/libnccl-profiler-inspector.so"
+	// soDestPath is the full in-container path to the wrapper .so after injection.
+	soDestPath = "/datadog-nccl/libnccl-profiler-dd.so"
 
-	// soSourcePath is where the .so lives inside the injector image.
-	soSourcePath = "/libnccl-profiler-inspector.so"
+	// soSourcePathWrapper is where the wrapper .so lives inside the injector image.
+	soSourcePathWrapper = "/libnccl-profiler-dd.so"
+
+	// soSourcePathInspector is where the Inspector .so lives inside the injector image.
+	soSourcePathInspector = "/libnccl-profiler-inspector.so"
 
 	// socketVolumeName is the hostPath volume name for the Datadog agent socket.
 	socketVolumeName = "datadog-socket"
@@ -35,32 +40,43 @@ const (
 )
 
 // mutatePod injects the NCCL profiler plugin into pod by:
-//  1. Adding an emptyDir volume for the .so file.
-//  2. Prepending an init container that copies the .so from the injector image.
+//  1. Adding an emptyDir volume for the .so files.
+//  2. Prepending an init container that copies both .so files from the injector image.
 //  3. Mounting the .so volume and the agent socket into every app container.
-//  4. Setting NCCL_PROFILER_PLUGIN and NCCL_DD_SOCKET_PATH env vars.
+//  4. Setting NCCL env vars.
 func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
-	// 1. EmptyDir volume for the .so (written by init container, read by app containers).
-	addVolume(pod, corev1.Volume{
+	soVolume := corev1.Volume{
 		Name:         soVolumeName,
 		VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
-	})
+	}
+	soMount := corev1.VolumeMount{Name: soVolumeName, MountPath: soMountPath, ReadOnly: true}
 
-	// 2. HostPath volume for the Datadog agent socket directory.
-	addVolume(pod, corev1.Volume{
+	socketVolume := corev1.Volume{
 		Name: socketVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{Path: socketHostPath},
 		},
-	})
+	}
+	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: socketMountPath, ReadOnly: true}
 
-	// 3. Prepend init container: copies .so from injector image to emptyDir.
+	// Inject volumes + mounts into all app containers using shared helpers.
+	mutatecommon.InjectVolume(pod, soVolume, soMount)
+	mutatecommon.InjectVolume(pod, socketVolume, socketMount)
+
+	// Inject NCCL env vars into all app containers.
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: "/var/run/datadog/nccl.socket"})
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"})
+
+	// Prepend init container that copies both .so files from injector image.
 	initContainer := corev1.Container{
-		Name:    "datadog-nccl-profiler-inject",
-		Image:   injectorImage,
-		Command: []string{"cp", soSourcePath, soDestPath},
+		Name:  "datadog-nccl-profiler-inject",
+		Image: injectorImage,
+		Command: []string{"sh", "-c",
+			"cp " + soSourcePathWrapper + " " + soMountPath + "/ && " +
+				"cp " + soSourcePathInspector + " " + soMountPath + "/"},
 		VolumeMounts: []corev1.VolumeMount{
-			{Name: soVolumeName, MountPath: soMountPath}, // writable: init container writes here
+			{Name: soVolumeName, MountPath: soMountPath}, // writable for init container
 		},
 	}
 	alreadyInjected := false
@@ -74,44 +90,5 @@ func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
 		pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 	}
 
-	// 4. Inject mounts and NCCL env vars into every app container.
-	for i := range pod.Spec.Containers {
-		c := &pod.Spec.Containers[i]
-		addVolumeMount(c, corev1.VolumeMount{Name: soVolumeName, MountPath: soMountPath, ReadOnly: true})
-		addVolumeMount(c, corev1.VolumeMount{Name: socketVolumeName, MountPath: socketMountPath, ReadOnly: true})
-		addEnv(c, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
-		addEnv(c, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: "/var/run/datadog/nccl.socket"})
-	}
-
 	return true, nil
-}
-
-// addVolume appends vol to pod.Spec.Volumes if a volume with the same name does not exist.
-func addVolume(pod *corev1.Pod, vol corev1.Volume) {
-	for _, v := range pod.Spec.Volumes {
-		if v.Name == vol.Name {
-			return
-		}
-	}
-	pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
-}
-
-// addVolumeMount appends mount to c.VolumeMounts if no existing mount has the same name or path.
-func addVolumeMount(c *corev1.Container, mount corev1.VolumeMount) {
-	for _, m := range c.VolumeMounts {
-		if m.Name == mount.Name || m.MountPath == mount.MountPath {
-			return
-		}
-	}
-	c.VolumeMounts = append(c.VolumeMounts, mount)
-}
-
-// addEnv appends env to c.Env if no existing env var has the same name.
-func addEnv(c *corev1.Container, env corev1.EnvVar) {
-	for _, e := range c.Env {
-		if e.Name == env.Name {
-			return
-		}
-	}
-	c.Env = append(c.Env, env)
 }

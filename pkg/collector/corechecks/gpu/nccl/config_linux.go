@@ -17,21 +17,15 @@ const (
 	// Training pods must mount the host's /var/run/datadog/ directory to reach it.
 	defaultSocketPath = "/var/run/datadog/nccl.socket"
 
-	// Default JSON directory where NCCL Inspector writes output (file fallback)
-	defaultJSONDir = "/var/log/datadog/nccl-inspector"
-
-	// Default file retention period
-	defaultFileRetention = "1h"
-
 	// hangDetectionMetric is the metric emitted for each known rank.
 	// Value is the number of seconds since that rank last produced an event.
 	// Use for hang detection (e.g. alert when > 30s).
 	hangDetectionMetric = "rank.seconds_since_last_event"
 
-	// networkMaxTransferTimeMetric is the maximum network transfer time observed
-	// for a rank in a check interval, aggregated across all proxy operations.
+	// networkMaxTransferTimeMetric is the maximum proxy operation network time
+	// observed for a rank in a check interval, aggregated across all proxy operations.
 	// Tags: rank, direction (send/recv). Cardinality: 2N.
-	networkMaxTransferTimeMetric = "network.max_transfer_time_us"
+	networkMaxTransferTimeMetric = "proxy_op.max_network_time_us"
 
 	// intraNodeDivergenceMetric is the intra-node rank divergence metric.
 	// Value is max(exec_time_us) − min(exec_time_us) across ranks observed on the same node
