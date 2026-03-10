@@ -6,12 +6,16 @@
 package privateactionrunner
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -22,13 +26,27 @@ import (
 )
 
 const (
-	privateActionRunnerEnabledConfig = `private_action_runner:
-  enabled: true
-  private_key: test_private_key_value_for_e2e_testing
-  urn: test_urn_value_for_e2e_testing
-`
-	privateActionRunnerStartedLogLine = "Starting private-action-runner"
+	privateActionRunnerStartedLogLine = "Private action runner starting"
 )
+
+func generateTestPrivateActionRunnerConfig(t *testing.T) string {
+	t.Helper()
+
+	privateJwk, _, err := util.GenerateKeys()
+	require.NoError(t, err, "failed to generate test key pair")
+
+	jwkJSON, err := json.Marshal(privateJwk)
+	require.NoError(t, err, "failed to marshal JWK")
+	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(jwkJSON)
+
+	testURN := "urn:dd:apps:on-prem-runner:us1:123456:test-runner-e2e"
+
+	return fmt.Sprintf(`private_action_runner:
+  enabled: true
+  private_key: %s
+  urn: %s
+`, encodedPrivateKey, testURN)
+}
 
 type linuxPrivateActionRunnerEnabledSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -36,11 +54,12 @@ type linuxPrivateActionRunnerEnabledSuite struct {
 
 func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
+	config := generateTestPrivateActionRunnerConfig(t)
 	e2e.Run(t, &linuxPrivateActionRunnerEnabledSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				scenec2.WithoutFakeIntake(),
-				scenec2.WithAgentOptions(agentparams.WithAgentConfig(privateActionRunnerEnabledConfig)),
+				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),
 		),
 	))
