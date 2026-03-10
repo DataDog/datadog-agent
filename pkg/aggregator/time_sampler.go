@@ -180,6 +180,9 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 
 		if existingSerie, ok := serieBySignature[serieSignature]; ok {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
+			// serie has been absorbed: its single point was copied into existingSerie.
+			// Return the now-unused struct to the pool to reduce GC pressure.
+			metrics.PutSerie(serie)
 		} else {
 			// Resolve context and populate new Serie
 			context, ok := s.contextResolver.get(serie.ContextKey)

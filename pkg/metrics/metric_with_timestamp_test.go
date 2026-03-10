@@ -19,7 +19,7 @@ func TestMetricWithTimestampGauge(t *testing.T) {
 	mGauge.addSample(&MetricSample{Value: 1}, 50)
 	mGauge.addSample(&MetricSample{Value: 2}, 55)
 
-	series, _ := mGauge.flush(60)
+	series, _ := mGauge.flush(60, nil)
 
 	// all samples are flushed
 	assert.Len(t, series, 1)
@@ -36,7 +36,7 @@ func TestMetricWithTimestampGauge(t *testing.T) {
 	// Add another sample after flush
 	mGauge.addSample(&MetricSample{Value: 3}, 40)
 
-	series, _ = mGauge.flush(100)
+	series, _ = mGauge.flush(100, nil)
 
 	// all samples are flushed
 	assert.Len(t, series, 1)
@@ -56,7 +56,7 @@ func TestMetricWithTimestampCount(t *testing.T) {
 	mGauge.addSample(&MetricSample{Value: 1}, 50)
 	mGauge.addSample(&MetricSample{Value: 2}, 55)
 
-	series, _ := mGauge.flush(60)
+	series, _ := mGauge.flush(60, nil)
 
 	// all samples are flushed
 	assert.Len(t, series, 1)
@@ -73,7 +73,7 @@ func TestMetricWithTimestampCount(t *testing.T) {
 	// Add another sample after flush
 	mGauge.addSample(&MetricSample{Value: 3}, 40)
 
-	series, _ = mGauge.flush(100)
+	series, _ = mGauge.flush(100, nil)
 
 	// all samples are flushed
 	assert.Len(t, series, 1)

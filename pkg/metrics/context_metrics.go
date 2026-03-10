@@ -107,14 +107,17 @@ func flushToSeries(
 	series []*Serie,
 	errors map[ckey.ContextKey]error,
 ) []*Serie {
-	metricSeries, err := metric.flush(bucketTimestamp)
+	prevLen := len(series)
+	var err error
+	series, err = metric.flush(bucketTimestamp, series)
 
 	if err == nil {
-		for _, serie := range metricSeries {
-			serie.ContextKey = contextKey
-			series = append(series, serie)
+		for i := prevLen; i < len(series); i++ {
+			series[i].ContextKey = contextKey
 		}
 	} else {
+		// Roll back any series that were appended before the error was detected.
+		series = series[:prevLen]
 		switch err.(type) {
 		case NoSerieError:
 			// this error happens in nominal conditions and shouldn't be returned

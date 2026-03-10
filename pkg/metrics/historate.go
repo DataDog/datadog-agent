@@ -35,13 +35,13 @@ func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
 	h.previousSample, h.previousTimestamp = sample.Value, timestamp
 }
 
-func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
+func (h *Historate) flush(timestamp float64, out []*Serie) ([]*Serie, error) {
 	if !h.sampled {
-		return []*Serie{}, NoSerieError{}
+		return out, NoSerieError{}
 	}
 
 	h.previousSample, h.previousTimestamp, h.sampled = 0.0, 0, false
-	return h.histogram.flush(timestamp)
+	return h.histogram.flush(timestamp, out)
 }
 
 func (h *Historate) isStateful() bool {

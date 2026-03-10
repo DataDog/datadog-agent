@@ -17,7 +17,7 @@ func TestSetEmptyFlush(t *testing.T) {
 	set := NewSet()
 
 	// Flush w/o samples: error
-	_, err := set.flush(50)
+	_, err := set.flush(50, nil)
 	assert.NotNil(t, err)
 }
 
@@ -31,7 +31,7 @@ func TestSetAddSample(t *testing.T) {
 		sample := MetricSample{RawValue: sampleValue}
 		set.addSample(&sample, 55)
 	}
-	series, err := set.flush(60)
+	series, err := set.flush(60, nil)
 	require.Nil(t, err)
 
 	require.Len(t, series, 1)
@@ -46,7 +46,7 @@ func TestSetAddSample(t *testing.T) {
 		sample := MetricSample{RawValue: sampleValue}
 		set.addSample(&sample, 65)
 	}
-	series, err = set.flush(70)
+	series, err = set.flush(70, nil)
 	require.Nil(t, err)
 	require.Len(t, series, 1)
 	require.Len(t, series[0].Points, 1)
@@ -55,6 +55,6 @@ func TestSetAddSample(t *testing.T) {
 	assert.Equal(t, APIGaugeType, series[0].MType)
 
 	// Flush w/o samples: error
-	_, err = set.flush(80)
+	_, err = set.flush(80, nil)
 	assert.NotNil(t, err)
 }

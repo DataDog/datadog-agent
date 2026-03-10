@@ -20,20 +20,20 @@ func (mt *MetricWithTimestamp) addSample(sample *MetricSample, timestamp float64
 	mt.points = append(mt.points, Point{Ts: timestamp, Value: sample.Value})
 }
 
-func (mt *MetricWithTimestamp) flush(_ float64) ([]*Serie, error) {
+func (mt *MetricWithTimestamp) flush(_ float64, out []*Serie) ([]*Serie, error) {
 	points := mt.points
 	mt.points = nil
 
 	if len(points) == 0 {
-		return []*Serie{}, NoSerieError{}
+		return out, NoSerieError{}
 	}
 
-	return []*Serie{
-		{
-			Points: points,
-			MType:  mt.apiType,
-		},
-	}, nil
+	serie := GetSerie()
+	// MetricWithTimestamp accumulates multiple points; reuse pool entry but replace Points slice
+	// since the pre-allocated capacity-1 slice may not suffice.
+	serie.Points = points
+	serie.MType = mt.apiType
+	return append(out, serie), nil
 }
 
 func (mt *MetricWithTimestamp) isStateful() bool {

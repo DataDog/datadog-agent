@@ -16,7 +16,7 @@ func TestCountSampling(t *testing.T) {
 	count := Count{}
 
 	// Flush w/o samples: error
-	_, err := count.flush(50)
+	_, err := count.flush(50, nil)
 	assert.NotNil(t, err)
 
 	// Add samples
@@ -25,7 +25,7 @@ func TestCountSampling(t *testing.T) {
 		sample := MetricSample{Value: sampleValue}
 		count.addSample(&sample, 55)
 	}
-	series, err := count.flush(60)
+	series, err := count.flush(60, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 1+2+5+0+8+3, series[0].Points[0].Value, epsilon)
@@ -38,7 +38,7 @@ func TestCountSampling(t *testing.T) {
 		sample := MetricSample{Value: sampleValue}
 		count.addSample(&sample, 65)
 	}
-	series, err = count.flush(70)
+	series, err = count.flush(70, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 5+3, series[0].Points[0].Value, epsilon)
@@ -46,6 +46,6 @@ func TestCountSampling(t *testing.T) {
 	}
 
 	// Flush w/o samples: error
-	_, err = count.flush(80)
+	_, err = count.flush(80, nil)
 	assert.NotNil(t, err)
 }

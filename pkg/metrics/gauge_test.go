@@ -21,7 +21,7 @@ func TestGaugeSampling(t *testing.T) {
 	mGauge.addSample(&MetricSample{Value: 1}, 50)
 	mGauge.addSample(&MetricSample{Value: 2}, 55)
 
-	series, _ := mGauge.flush(60)
+	series, _ := mGauge.flush(60, nil)
 	// the last sample is flushed
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)

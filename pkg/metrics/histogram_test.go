@@ -28,7 +28,7 @@ func TestConfigureDefault(t *testing.T) {
 	hist.addSample(&MetricSample{Value: 1}, 50)
 	hist.addSample(&MetricSample{Value: 2}, 55)
 
-	_, err := hist.flush(60)
+	_, err := hist.flush(60, nil)
 	require.Nil(t, err)
 	assert.Equal(t, []string{"max", "median", "avg", "count"}, hist.aggregates)
 	assert.Equal(t, []int{95}, hist.percentiles)
@@ -57,7 +57,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 	mHistogram := NewHistogram(10, cfg)
 
 	// Empty flush
-	_, err := mHistogram.flush(50)
+	_, err := mHistogram.flush(50, nil)
 	assert.NotNil(t, err)
 
 	// Add samples
@@ -68,7 +68,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 
-	series, err := mHistogram.flush(60)
+	series, err := mHistogram.flush(60, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 5) {
 		for _, serie := range series {
@@ -87,7 +87,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 		assert.Equal(t, ".95percentile", series[4].NameSuffix)          // 0.95
 	}
 
-	_, err = mHistogram.flush(61)
+	_, err = mHistogram.flush(61, nil)
 	assert.NotNil(t, err)
 }
 
@@ -98,7 +98,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 	mHistogram.configure([]string{"min", "sum", "invalid"}, []int{})
 
 	// Empty flush
-	_, err := mHistogram.flush(50)
+	_, err := mHistogram.flush(50, nil)
 	assert.NotNil(t, err)
 
 	// Add samples
@@ -109,7 +109,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 
-	series, err := mHistogram.flush(60)
+	series, err := mHistogram.flush(60, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 2) {
 		// Only 2 series are returned (the invalid aggregate is ignored)
@@ -123,7 +123,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 		assert.Equal(t, ".sum", series[1].NameSuffix)                         // sum
 	}
 
-	_, err = mHistogram.flush(61)
+	_, err = mHistogram.flush(61, nil)
 	assert.NotNil(t, err)
 }
 
@@ -141,7 +141,7 @@ func TestHistogramPercentiles(t *testing.T) {
 	mHistogram.configure([]string{"max", "median", "avg", "count", "min"}, []int{95, 80})
 
 	// Empty flush
-	_, err := mHistogram.flush(50)
+	_, err := mHistogram.flush(50, nil)
 	assert.NotNil(t, err)
 
 	// Sample 20 times all numbers between 1 and 100.
@@ -157,7 +157,7 @@ func TestHistogramPercentiles(t *testing.T) {
 		}
 	}
 
-	series, err := mHistogram.flush(60)
+	series, err := mHistogram.flush(60, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 7) {
 		for _, serie := range series {
@@ -180,7 +180,7 @@ func TestHistogramPercentiles(t *testing.T) {
 		assert.Equal(t, ".95percentile", series[6].NameSuffix)                               // 0.95
 	}
 
-	_, err = mHistogram.flush(61)
+	_, err = mHistogram.flush(61, nil)
 	assert.NotNil(t, err)
 }
 
@@ -194,7 +194,7 @@ func TestHistogramSampleRate(t *testing.T) {
 	mHistogram.addSample(&MetricSample{Value: 3, SampleRate: 0.2}, 50)
 	mHistogram.addSample(&MetricSample{Value: 10, SampleRate: 0.5}, 50)
 
-	series, err := mHistogram.flush(60)
+	series, err := mHistogram.flush(60, nil)
 	assert.Nil(t, err)
 	require.Len(t, series, 9)
 
@@ -221,7 +221,7 @@ func TestHistogramSampleRate(t *testing.T) {
 	assert.InEpsilon(t, 10, series[8].Points[0].Value, epsilon) // 0.95
 	assert.Equal(t, ".95percentile", series[8].NameSuffix)      // 0.95
 
-	_, err = mHistogram.flush(61)
+	_, err = mHistogram.flush(61, nil)
 	assert.NotNil(t, err)
 }
 
@@ -232,11 +232,11 @@ func TestHistogramReset(t *testing.T) {
 
 	mHistogram.addSample(&MetricSample{Value: 1}, 50)
 	mHistogram.addSample(&MetricSample{Value: 2, SampleRate: 0.5}, 50)
-	_, err := mHistogram.flush(60)
+	_, err := mHistogram.flush(60, nil)
 	assert.Nil(t, err)
 
 	mHistogram.addSample(&MetricSample{Value: 10}, 50)
-	series, err := mHistogram.flush(70)
+	series, err := mHistogram.flush(70, nil)
 	assert.Nil(t, err)
 	require.Len(t, series, 9)
 
@@ -263,7 +263,7 @@ func TestHistogramReset(t *testing.T) {
 	assert.InEpsilon(t, 10, series[8].Points[0].Value, epsilon)  // 0.95
 	assert.Equal(t, ".95percentile", series[8].NameSuffix)       // 0.95
 
-	_, err = mHistogram.flush(71)
+	_, err = mHistogram.flush(71, nil)
 	assert.NotNil(t, err)
 }
 
@@ -281,7 +281,7 @@ func benchHistogram(b *testing.B, number int, sampleRate float64) {
 		for i := 0; i < number; i++ {
 			h.addSample(&m, 10)
 		}
-		h.flush(10)
+		h.flush(10, nil)
 	}
 }
 

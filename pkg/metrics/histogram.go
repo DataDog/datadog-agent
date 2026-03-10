@@ -110,14 +110,12 @@ func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	h.count += int64(1 / rate)
 }
 
-func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
+func (h *Histogram) flush(timestamp float64, out []*Serie) ([]*Serie, error) {
 	if len(h.samples) == 0 {
-		return []*Serie{}, NoSerieError{}
+		return out, NoSerieError{}
 	}
 
 	sort.Sort(h.samples)
-
-	series := make([]*Serie, 0, len(h.aggregates)+len(h.percentiles))
 
 	// Compute aggregates
 	for _, aggregate := range h.aggregates {
@@ -150,11 +148,11 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 			continue
 		}
 
-		series = append(series, &Serie{
-			Points:     []Point{{Ts: timestamp, Value: value}},
-			MType:      mType,
-			NameSuffix: "." + aggregate,
-		})
+		serie := GetSerie()
+		serie.Points = append(serie.Points[:0], Point{Ts: timestamp, Value: value})
+		serie.MType = mType
+		serie.NameSuffix = "." + aggregate
+		out = append(out, serie)
 	}
 
 	// Compute percentiles
@@ -169,11 +167,11 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		for _, s := range h.samples {
 			weight += s.weight
 			for idx < len(target) && weight > target[idx] {
-				series = append(series, &Serie{
-					Points:     []Point{{Ts: timestamp, Value: s.value}},
-					MType:      APIGaugeType,
-					NameSuffix: fmt.Sprintf(".%dpercentile", h.percentiles[idx]),
-				})
+				serie := GetSerie()
+				serie.Points = append(serie.Points[:0], Point{Ts: timestamp, Value: s.value})
+				serie.MType = APIGaugeType
+				serie.NameSuffix = fmt.Sprintf(".%dpercentile", h.percentiles[idx])
+				out = append(out, serie)
 				idx++
 			}
 			if idx >= len(h.percentiles) {
@@ -187,7 +185,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	h.sum = 0
 	h.count = 0
 
-	return series, nil
+	return out, nil
 }
 
 func (h *Histogram) isStateful() bool {

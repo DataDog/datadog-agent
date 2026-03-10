@@ -27,7 +27,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 	h := NewHistorate(1, c)
 
 	// Flush w/o samples: error
-	_, err := h.flush(50)
+	_, err := h.flush(50, nil)
 	assert.NotNil(t, err)
 }
 
@@ -37,7 +37,7 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 	h.addSample(&MetricSample{Value: 1}, 50)
 
 	// Flush one sample: error
-	_, err := h.flush(50)
+	_, err := h.flush(50, nil)
 	assert.NotNil(t, err)
 }
 
@@ -51,7 +51,7 @@ func TestHistorateAddSample(t *testing.T) {
 	h.addSample(&MetricSample{Value: 2}, 51)
 
 	// Flush one sample: error
-	series, err := h.flush(52)
+	series, err := h.flush(52, nil)
 	require.Nil(t, err)
 	if assert.Len(t, series, 5) {
 		for _, serie := range series {

@@ -17,7 +17,7 @@ func TestCounterEmptyFlush(t *testing.T) {
 	counter := NewCounter(10)
 
 	// Flush w/o samples: error
-	_, err := counter.flush(50)
+	_, err := counter.flush(50, nil)
 	assert.NotNil(t, err)
 }
 
@@ -46,7 +46,7 @@ func TestCounterAddSample(t *testing.T) {
 		counter.addSample(&sample, 55)
 	}
 
-	series, err := counter.flush(60)
+	series, err := counter.flush(60, nil)
 	assert.Nil(t, err)
 	require.Len(t, series, 1)
 	require.Len(t, series[0].Points, 1)
@@ -66,7 +66,7 @@ func TestCounterAddSample(t *testing.T) {
 		sample := MetricSample{Value: sampleValue, SampleRate: 0.5}
 		counter.addSample(&sample, 65)
 	}
-	series, err = counter.flush(70)
+	series, err = counter.flush(70, nil)
 	assert.Nil(t, err)
 	require.Len(t, series, 1)
 	require.Len(t, series[0].Points, 1)
@@ -74,6 +74,6 @@ func TestCounterAddSample(t *testing.T) {
 	assert.EqualValues(t, 70, series[0].Points[0].Ts)
 
 	// Flush w/o samples: error
-	_, err = counter.flush(80)
+	_, err = counter.flush(80, nil)
 	assert.NotNil(t, err)
 }

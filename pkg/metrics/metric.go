@@ -58,7 +58,11 @@ func (a *APIMetricType) UnmarshalText(buf []byte) error {
 // Metric is the interface of all metric types
 type Metric interface {
 	addSample(sample *MetricSample, timestamp float64)
-	flush(timestamp float64) ([]*Serie, error)
+	// flush appends any flushed Series to out and returns the (possibly grown) slice.
+	// Passing nil for out is valid; a new slice will be allocated on first append.
+	// Implementations obtain Serie structs via GetSerie(); absorbed (merged) Series
+	// should be returned via PutSerie() by the caller after merging their points.
+	flush(timestamp float64, out []*Serie) ([]*Serie, error)
 	// isStateful() indicates that metric preserves information between flushes, which is
 	// required for correct operation (e.g. monotonic count keeps previous value).
 	isStateful() bool

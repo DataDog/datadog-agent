@@ -18,17 +18,17 @@ func TestMonotonicCountSampling(t *testing.T) {
 	monotonicCount := MonotonicCount{}
 
 	// Flush w/o samples: error
-	_, err := monotonicCount.flush(40)
+	_, err := monotonicCount.flush(40, nil)
 	assert.NotNil(t, err)
 
 	// Flush with one sample only and no prior samples: error
 	monotonicCount.addSample(&MetricSample{Value: 2}, 45)
-	_, err = monotonicCount.flush(40)
+	_, err = monotonicCount.flush(40, nil)
 	assert.NotNil(t, err)
 
 	// Add another sample with lower value: flush 0.
 	monotonicCount.addSample(&MetricSample{Value: 1}, 48)
-	series, err := monotonicCount.flush(50)
+	series, err := monotonicCount.flush(50, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.Equal(t, 0., series[0].Points[0].Value)
@@ -40,7 +40,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 	monotonicCount.addSample(&MetricSample{Value: 3}, 55)
 	monotonicCount.addSample(&MetricSample{Value: 6}, 55)
 	monotonicCount.addSample(&MetricSample{Value: 7}, 58)
-	series, err = monotonicCount.flush(60)
+	series, err = monotonicCount.flush(60, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 6, series[0].Points[0].Value, epsilon)
@@ -48,12 +48,12 @@ func TestMonotonicCountSampling(t *testing.T) {
 	}
 
 	// Flush w/o samples: error
-	_, err = monotonicCount.flush(70)
+	_, err = monotonicCount.flush(70, nil)
 	assert.NotNil(t, err)
 
 	// Add a single sample
 	monotonicCount.addSample(&MetricSample{Value: 11}, 75)
-	series, err = monotonicCount.flush(80)
+	series, err = monotonicCount.flush(80, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 4, series[0].Points[0].Value, epsilon)
@@ -62,7 +62,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 
 	// Add another sample with same value: flush 0.
 	monotonicCount.addSample(&MetricSample{Value: 11}, 81)
-	series, err = monotonicCount.flush(82)
+	series, err = monotonicCount.flush(82, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.Equal(t, 0., series[0].Points[0].Value)
@@ -71,7 +71,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 
 	// Add another sample with lower value: flush 0.
 	monotonicCount.addSample(&MetricSample{Value: 9}, 83)
-	series, err = monotonicCount.flush(84)
+	series, err = monotonicCount.flush(84, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.Equal(t, 0., series[0].Points[0].Value)
@@ -84,7 +84,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 	monotonicCount.addSample(&MetricSample{Value: 20}, 85)
 	monotonicCount.addSample(&MetricSample{Value: 13}, 85)
 	monotonicCount.addSample(&MetricSample{Value: 17}, 85)
-	series, err = monotonicCount.flush(90)
+	series, err = monotonicCount.flush(90, nil)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		// should skip when counter is reset, i.e. between 12 and 9, and btw 20 and 13
@@ -187,7 +187,7 @@ func TestMonotonicCount_FlushFirstValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			tt.monotonicCount.addSample(&MetricSample{Value: tt.sampleValue, FlushFirstValue: tt.flushFirstValue}, timestamp)
-			series, err := tt.monotonicCount.flush(timestamp)
+			series, err := tt.monotonicCount.flush(timestamp, nil)
 			if tt.expectsError {
 				assert.NotNil(t, err)
 				assert.Len(t, series, 0)
@@ -206,10 +206,10 @@ func TestMonotonicCount_FlushFirstValue(t *testing.T) {
 	}
 
 	// at the end of all the tests, both monotonic counters should flush no value if no further samples are submitted
-	series, err := monotonicCount1.flush(timestamp)
+	series, err := monotonicCount1.flush(timestamp, nil)
 	assert.NotNil(t, err)
 	assert.Len(t, series, 0)
-	series, err = monotonicCount2.flush(timestamp)
+	series, err = monotonicCount2.flush(timestamp, nil)
 	assert.NotNil(t, err)
 	assert.Len(t, series, 0)
 }

@@ -18,21 +18,18 @@ func (c *Count) addSample(sample *MetricSample, _ float64) {
 	c.sampled = true
 }
 
-func (c *Count) flush(timestamp float64) ([]*Serie, error) {
+func (c *Count) flush(timestamp float64, out []*Serie) ([]*Serie, error) {
 	value, sampled := c.value, c.sampled
 	c.value, c.sampled = 0, false
 
 	if !sampled {
-		return []*Serie{}, NoSerieError{}
+		return out, NoSerieError{}
 	}
 
-	return []*Serie{
-		{
-			// we use the timestamp passed to the flush
-			Points: []Point{{Ts: timestamp, Value: value}},
-			MType:  APICountType,
-		},
-	}, nil
+	serie := GetSerie()
+	serie.Points = append(serie.Points[:0], Point{Ts: timestamp, Value: value})
+	serie.MType = APICountType
+	return append(out, serie), nil
 }
 
 func (c *Count) isStateful() bool {

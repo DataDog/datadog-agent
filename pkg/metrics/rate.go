@@ -26,13 +26,13 @@ func (r *Rate) addSample(sample *MetricSample, timestamp float64) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (r *Rate) flush(_ float64) ([]*Serie, error) {
+func (r *Rate) flush(_ float64, out []*Serie) ([]*Serie, error) {
 	if r.previousTimestamp == 0 || r.timestamp == 0 {
-		return []*Serie{}, NoSerieError{}
+		return out, NoSerieError{}
 	}
 
 	if r.timestamp == r.previousTimestamp {
-		return []*Serie{}, errors.New("Rate was sampled twice at the same timestamp, can't compute a rate")
+		return out, errors.New("Rate was sampled twice at the same timestamp, can't compute a rate")
 	}
 
 	value, ts := (r.sample-r.previousSample)/(r.timestamp-r.previousTimestamp), r.timestamp
@@ -40,15 +40,13 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 	r.sample, r.timestamp = 0., 0.
 
 	if value < 0 {
-		return []*Serie{}, errors.New("Rate value is negative, discarding it (the underlying counter may have been reset)")
+		return out, errors.New("Rate value is negative, discarding it (the underlying counter may have been reset)")
 	}
 
-	return []*Serie{
-		{
-			Points: []Point{{Ts: ts, Value: value}},
-			MType:  APIGaugeType,
-		},
-	}, nil
+	serie := GetSerie()
+	serie.Points = append(serie.Points[:0], Point{Ts: ts, Value: value})
+	serie.MType = APIGaugeType
+	return append(out, serie), nil
 }
 
 func (r *Rate) isStateful() bool {
