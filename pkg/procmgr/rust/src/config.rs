@@ -7,8 +7,11 @@ use anyhow::{Context, Result};
 use log::{debug, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+pub type NamedProcess = (String, ProcessConfig);
 
 const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
 
@@ -31,6 +34,17 @@ pub enum RestartPolicy {
     OnFailure,
     OnSuccess,
     Never,
+}
+
+impl fmt::Display for RestartPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RestartPolicy::Always => write!(f, "always"),
+            RestartPolicy::OnFailure => write!(f, "on-failure"),
+            RestartPolicy::OnSuccess => write!(f, "on-success"),
+            RestartPolicy::Never => write!(f, "never"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +76,10 @@ pub struct ProcessConfig {
     pub start_limit_burst: Option<u32>,
     pub start_limit_interval_sec: Option<u64>,
     pub runtime_success_sec: Option<u64>,
+    #[serde(default)]
+    pub after: Vec<String>,
+    #[serde(default)]
+    pub before: Vec<String>,
 }
 
 const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;
@@ -70,6 +88,33 @@ const DEFAULT_RESTART_MAX_DELAY_SEC: f64 = 60.0;
 const DEFAULT_START_LIMIT_BURST: u32 = 5;
 const DEFAULT_START_LIMIT_INTERVAL_SEC: u64 = 10;
 const DEFAULT_RUNTIME_SUCCESS_SEC: u64 = 1;
+
+impl Default for ProcessConfig {
+    fn default() -> Self {
+        Self {
+            description: None,
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            environment_file: None,
+            working_dir: None,
+            pidfile: None,
+            stdout: "inherit".to_string(),
+            stderr: "inherit".to_string(),
+            auto_start: true,
+            condition_path_exists: None,
+            stop_timeout: None,
+            restart: RestartPolicy::Never,
+            restart_sec: None,
+            restart_max_delay_sec: None,
+            start_limit_burst: None,
+            start_limit_interval_sec: None,
+            runtime_success_sec: None,
+            after: vec![],
+            before: vec![],
+        }
+    }
+}
 
 impl ProcessConfig {
     pub fn stop_timeout(&self) -> Duration {
@@ -113,7 +158,7 @@ pub fn config_dir() -> PathBuf {
 /// Scan a directory for `*.yaml` files and parse each into a ProcessConfig.
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and skipped.
-pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
+pub fn load_configs(dir: &Path) -> Result<Vec<NamedProcess>> {
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 

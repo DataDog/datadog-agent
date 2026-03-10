@@ -221,13 +221,13 @@ build do
   end
 
   # sd-agent (service discovery agent)
-  if ENV['WITH_SD_AGENT'] == 'true'
-    command_on_repo_root "bazel run --config=sd-agent-release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  if linux_target? and !heroku_target?
+    command_on_repo_root "bazel run --config=release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)
   if ENV['WITH_DD_PROCMGRD'] == 'true'
-    command_on_repo_root "bazel run --config=dd-procmgrd-release #{flavor_flag} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazel run --config=release #{flavor_flag} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent

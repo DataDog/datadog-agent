@@ -32,6 +32,9 @@ const (
 	eventBundleChTimeout          = 1 * time.Second
 	closeEventBundleChTimeout     = 10 * time.Second
 	eventChBufferSize             = 50
+	// firstPullWaitTimeout is how long the pull goroutine waits for at least one
+	// collector before doing the first pull.
+	firstPullWaitTimeout = 30 * time.Second
 )
 
 type subscriber struct {
@@ -43,6 +46,8 @@ type subscriber struct {
 
 // start starts the workload metadata store.
 func (w *workloadmeta) start(ctx context.Context) {
+	w.firstCollectorReady = make(chan struct{})
+
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -63,6 +68,9 @@ func (w *workloadmeta) start(ctx context.Context) {
 		}
 	}()
 
+	// Start collectors in the background so we don't block the pull goroutine
+	// for the full retry duration (which can cause E2E timeouts when context
+	// is cancelled during slow startup).
 	go func() {
 		if err := w.startCandidatesWithRetry(ctx); err != nil {
 			w.log.Errorf("error starting collectors: %s", err)
@@ -71,12 +79,26 @@ func (w *workloadmeta) start(ctx context.Context) {
 
 	go func() {
 		pullTicker := time.NewTicker(pullCollectorInterval)
-		health := health.RegisterLiveness("workloadmeta-puller")
 
-		// Start a pull immediately to fill the store without waiting for the
-		// next tick.
+		// Wait for at least one collector or timeout before first pull, so we
+		// don't signal CollectorsInitialized after an empty pull
+		// but also don't block on full startCandidatesWithRetry.
+		select {
+		case <-w.firstCollectorReady:
+			w.log.Debug("at least one workloadmeta collector ready, starting pull loop")
+		case <-time.After(firstPullWaitTimeout):
+			w.log.Warnf("no workloadmeta collector ready after %s, starting pull loop anyway", firstPullWaitTimeout)
+		case <-ctx.Done():
+			pullTicker.Stop()
+			w.unsubscribeAll()
+			w.log.Infof("stopped workloadmeta store")
+			return
+		}
 		w.pull(ctx)
 		w.updateCollectorStatus(wmdef.CollectorsInitialized)
+
+		// Register liveness only after we're in the pull loop.
+		health := health.RegisterLiveness("workloadmeta-puller")
 
 		for {
 			select {
@@ -628,6 +650,8 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff.MaxInterval = retryCollectorMaxInterval
 
 	if len(w.candidates) == 0 {
+		// No collectors to start; allow pull goroutine to proceed (first pull will be empty).
+		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
 		// TODO: this should actually probably just be an error?
 		return nil
 	}
@@ -645,6 +669,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 
 		return nil, errors.New("some collectors failed to start. Will retry")
 	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	if err != nil {
+		// Close so the pull goroutine unblocks instead of waiting for firstPullWaitTimeout.
+		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
+		w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+	}
 	return err
 }
 
@@ -666,6 +695,9 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		if err == nil {
 			w.log.Infof("workloadmeta collector %q started successfully", id)
 			w.collectors[id] = c
+			w.firstCollectorReadyOnce.Do(func() {
+				close(w.firstCollectorReady)
+			})
 		} else {
 			w.log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
 		}

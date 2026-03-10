@@ -60,6 +60,7 @@ build do
             # Delete the leftovers of static linking.
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
+            delete "#{install_dir}/embedded/lib/dbus-1.0/include"
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -194,18 +195,13 @@ build do
             # Edit rpath from a true path to relative path for each binary
             command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
-            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else
-                hardened_runtime = ""
-            end
-
             if code_signing_identity
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
                 app = "'#{install_dir}/Datadog Agent.app'"
 
                 # Codesign ~480 files (out of ~28000)
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
                     (
