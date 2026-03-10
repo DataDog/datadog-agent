@@ -73,6 +73,9 @@ func (m *metricsClient) attributeFromTags(tags []string) attribute.Set {
 	})
 	for _, t := range tags {
 		kv := strings.Split(t, ":")
+		if len(kv) < 2 {
+			continue
+		}
 		attr = append(attr, attribute.KeyValue{
 			Key:   attribute.Key(kv[0]),
 			Value: attribute.StringValue(kv[1]),
