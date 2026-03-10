@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +43,12 @@ func hostname(c *config.AgentConfig) error {
 // acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
 // gRPC endpoints. If it fails, it will return an error.
 func acquireHostname(c *config.AgentConfig) error {
+	ipcPortString := pkgconfigsetup.GetIPCPort()
+	ipcPort, err := strconv.Atoi(ipcPortString)
+	if err != nil || ipcPort <= 0 {
+		return fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", ipcPortString)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -50,7 +57,7 @@ func acquireHostname(c *config.AgentConfig) error {
 		return err
 	}
 
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), c.IPCTLSClientConfig)
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, ipcPortString, c.IPCTLSClientConfig)
 	if err != nil {
 		return err
 	}

@@ -51,7 +51,6 @@ pub struct Service {
     pub log_files: Vec<String>,
     pub apm_instrumentation: bool,
     pub language: Language,
-    pub service_type: String,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -160,7 +159,6 @@ fn get_service(
         log_files,
         apm_instrumentation,
         language,
-        service_type: String::new(),
     })
 }
 
