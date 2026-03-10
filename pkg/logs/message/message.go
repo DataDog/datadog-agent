@@ -325,6 +325,11 @@ func (m *Message) GetTimestampMs() int64 {
 	return m.IngestionTimestamp / 1000000
 }
 
+// GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
+func (m *Message) GetTimestampUnixMilli() int64 {
+	return m.IngestionTimestamp / 1000000
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.
