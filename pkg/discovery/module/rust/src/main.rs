@@ -37,7 +37,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
@@ -143,7 +143,7 @@ async fn handle_services(
     };
 
     let services = get_services(params);
-    info!("Found {} services", services.services.len());
+    debug!("Found {} services", services.services.len());
 
     Response::builder()
         .header("Content-Type", "application/json")
@@ -199,7 +199,7 @@ async fn handle_request(
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
-            info!("Handling /discovery/services request");
+            debug!("Handling /discovery/services request");
             handle_services(req).await
         }
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,

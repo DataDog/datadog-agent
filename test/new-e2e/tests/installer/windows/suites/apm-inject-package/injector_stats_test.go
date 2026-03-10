@@ -213,7 +213,7 @@ func (s *testInjectorStats) enableInjectorTelemetry() {
 
 	// Explicitly enable injector telemetry.
 	// If /telemetry supports uncompressed output, make sure to also enable
-	// RAR with remote_agent_registry.enabled = true.
+	// RAR with remote_agent.registry.enabled = true.
 	config["injector"] = map[string]interface{}{
 		"enable_telemetry": true,
 	}
