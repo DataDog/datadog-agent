@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -31,6 +32,16 @@ const (
 	controllerRevisionHashLabel = "controller-revision-hash"
 )
 
+// See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+const (
+	kubePodConditionResizePending                 = "PodResizePending"
+	kubePodConditionResizePendingReasonInfeasible = "Infeasible"
+	kubePodConditionResizePendingReasonDeferred   = "Deferred"
+
+	kubePodConditionResizeInProgress            = "PodResizeInProgress"
+	kubePodConditionResizeInProgressReasonError = "Error"
+)
+
 type PodResizeStatus int
 
 const (
@@ -42,15 +53,13 @@ const (
 	PodResizeStatusDeferred
 )
 
-// See https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
-const (
-	kubePodConditionResizePending                 = "PodResizePending"
-	kubePodConditionResizePendingReasonInfeasible = "Infeasible"
-	kubePodConditionResizePendingReasonDeferred   = "Deferred"
-
-	kubePodConditionResizeInProgress            = "PodResizeInProgress"
-	kubePodConditionResizeInProgressReasonError = "Error"
-)
+// classifiedPod pairs a pod with the LastTransitionTime of the condition that
+// determined its resize status. For statuses with no relevant condition
+// (NeedsPatch, Completed), LastTransitionTime is the zero value.
+type classifiedPod struct {
+	pod                *workloadmeta.KubernetesPod
+	lastTransitionTime time.Time
+}
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.
 // Return (strategy, reason). Reason is only returned when chosen strategy disables vertical patching.
@@ -446,6 +455,26 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 	return modified
 }
 
+// shouldFallbackToRollout returns true if any pod in toEvict has been stuck in its
+// unresolvable state longer than RollbackFallbackDelay seconds, indicating that
+// eviction is not making progress and a full rollout should be triggered instead.
+func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
+	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
+		return false
+	}
+	delay := podAutoscaler.Spec.ApplyPolicy.Update.RollbackFallbackDelay
+	if delay <= 0 {
+		return false
+	}
+	threshold := time.Duration(delay) * time.Second
+	for _, cp := range toEvict {
+		if !cp.lastTransitionTime.IsZero() && now.Sub(cp.lastTransitionTime) > threshold {
+			return true
+		}
+	}
+	return false
+}
+
 // isRolloutRequired checks if a rollout is required for the podAutoscaler.
 // The default mode is in-place (Auto); only an explicit TriggerRollout mode forces a rollout.
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
@@ -457,9 +486,11 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 	return spec.ApplyPolicy.Update.Mode == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode
 }
 
-func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string) PodResizeStatus {
+// getPodResizeStatus returns the resize status of pod and the LastTransitionTime
+// of the condition that produced that status (zero if not condition-based).
+func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string) (PodResizeStatus, time.Time) {
 	if pod.Annotations[model.RecommendationIDAnnotation] != recommendationID {
-		return PodResizeStatusNeedsPatch
+		return PodResizeStatusNeedsPatch, time.Time{}
 	}
 
 	// A pod having the conditions PodResizePending and PodResizeInProgress are not mutually exclusive,
@@ -468,23 +499,23 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 	for _, condition := range pod.Conditions {
 		if condition.Type == kubePodConditionResizeInProgress {
 			if condition.Reason == kubePodConditionResizeInProgressReasonError {
-				return PodResizeStatusError
+				return PodResizeStatusError, condition.LastTransitionTime
 			}
-			return PodResizeStatusInProgress
+			return PodResizeStatusInProgress, condition.LastTransitionTime
 		}
 	}
 
 	for _, condition := range pod.Conditions {
 		if condition.Type == kubePodConditionResizePending {
 			if condition.Reason == kubePodConditionResizePendingReasonInfeasible {
-				return PodResizeStatusInfeasible
+				return PodResizeStatusInfeasible, condition.LastTransitionTime
 			}
 			// If the reason is not Infeasible, it must be Deferred (ref: https://github.com/kubernetes/kubernetes/blob/42eb93b12fa6e9fd0e0da852cc01f13850ac5258/pkg/kubelet/status/status_manager.go#L289-L291)
-			return PodResizeStatusDeferred
+			return PodResizeStatusDeferred, condition.LastTransitionTime
 		}
 	}
 
-	return PodResizeStatusCompleted
+	return PodResizeStatusCompleted, time.Time{}
 }
 
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {

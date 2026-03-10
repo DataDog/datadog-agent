@@ -123,13 +123,13 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
 	// accurately (only truly complete pods count) and hand pre-classified slices to
 	// syncInternal, avoiding a second getPodResizeStatus pass there.
-	podsByResizeStatus := make(map[PodResizeStatus][]*workloadmeta.KubernetesPod)
+	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		status := getPodResizeStatus(pod, recommendationID)
-		podsByResizeStatus[status] = append(podsByResizeStatus[status], pod)
+		status, ltt := getPodResizeStatus(pod, recommendationID)
+		podsByResizeStatus[status] = append(podsByResizeStatus[status], classifiedPod{pod: pod, lastTransitionTime: ltt})
 	}
 	autoscalerInternal.SetScaledReplicas(int32(len(podsByResizeStatus[PodResizeStatusCompleted])))
 
@@ -154,7 +154,7 @@ func (u *verticalController) syncInternal(
 	pods []*workloadmeta.KubernetesPod,
 	podsPerRecommendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
-	podsByResizeStatus map[PodResizeStatus][]*workloadmeta.KubernetesPod,
+	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
 ) (autoscaling.ProcessResult, error) {
 
 	// TriggerRollout mode: delegate to the workload-kind-specific rollout path.
@@ -187,44 +187,49 @@ func (u *verticalController) syncInternal(
 			autoscalerInternal.SetEvictedReplicas(0)
 		}
 
-		for _, pod := range needsPatch {
-			if err := u.patchInPlace(ctx, autoscalerInternal, pod, recommendationID); err != nil {
-				log.Warnf("failed to patch pod %s/%s in place: %v", pod.Namespace, pod.Name, err)
+		for _, cp := range needsPatch {
+			if err := u.patchInPlace(ctx, autoscalerInternal, cp.pod, recommendationID); err != nil {
+				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
 			}
 		}
 	}
 
 	// Build the list of pods to evict.
-	toEvict := make([]*workloadmeta.KubernetesPod, 0, len(podsByResizeStatus[PodResizeStatusError])+len(podsByResizeStatus[PodResizeStatusInfeasible]))
+	toEvict := make([]classifiedPod, 0, len(podsByResizeStatus[PodResizeStatusError])+len(podsByResizeStatus[PodResizeStatusInfeasible]))
 	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusError]...)
 	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusInfeasible]...)
 	now := u.clock.Now()
-	for _, pod := range podsByResizeStatus[PodResizeStatusDeferred] {
+	for _, cp := range podsByResizeStatus[PodResizeStatusDeferred] {
 		if shouldEvictDeferred(podAutoscaler, now) {
-			toEvict = append(toEvict, pod)
+			toEvict = append(toEvict, cp)
 		}
+	}
+
+	// If any pod has been stuck in an unresolvable state for longer than RollbackFallbackDelay,
+	// escalate to a full rollout rather than continuing to attempt evictions.
+	if shouldFallbackToRollout(toEvict, podAutoscaler, now) {
+		log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
+		return u.triggerRollout(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID)
 	}
 
 	// Evict pods that cannot resize in-place, counting only successful evictions and
 	// stopping on PDB rejection so we don't disrupt more pods than the budget allows.
 	var evictedThisSync int32
-	for _, pod := range toEvict {
-		result, err := u.evictPod(ctx, pod)
+	for _, cp := range toEvict {
+		result, err := u.evictPod(ctx, cp.pod)
 		if err != nil {
-			log.Warnf("failed to evict pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			log.Warnf("failed to evict pod %s/%s: %v", cp.pod.Namespace, cp.pod.Name, err)
 		}
 		if result == evictor.Evicted {
 			evictedThisSync++
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason,
-				"Pod %s/%s could not resize in-place, evicted as fallback", pod.Namespace, pod.Name)
+				"Pod %s/%s could not resize in-place, evicted as fallback", cp.pod.Namespace, cp.pod.Name)
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			break
 		}
 	}
 	autoscalerInternal.AddEvictedReplicas(evictedThisSync)
-
-	// TODO: If we have a PDB lock, here is probably where we'd add lock detection logic to trigger a rollout (worst case scenario)
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
 	// gives the total active pod count. If every active pod is complete, the resize cycle is done.

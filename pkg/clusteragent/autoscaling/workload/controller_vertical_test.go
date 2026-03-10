@@ -253,6 +253,20 @@ func scalingValWithRequests(recID, cpu string) *model.VerticalScalingValues {
 	}
 }
 
+// makeDPAWithFallbackDelay builds a DPA with RollbackFallbackDelay set.
+func makeDPAWithFallbackDelay(ns, name string, delaySeconds int32) *datadoghq.DatadogPodAutoscaler {
+	return &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+					RollbackFallbackDelay: delaySeconds,
+				},
+			},
+		},
+	}
+}
+
 // makeDPAWithPendingPeriod builds a DPA with the resize pending period and optional last-action time set.
 func makeDPAWithPendingPeriod(ns, name string, periodSeconds int32, lastActionTime *time.Time) *datadoghq.DatadogPodAutoscaler {
 	dpa := &datadoghq.DatadogPodAutoscaler{
@@ -306,8 +320,13 @@ func podWithRevLimit(name, recID, ownerKind, owner, rev string, cpu float64) *wo
 
 // podWithResizeCondition creates a pod with a given pod condition type and reason.
 func podWithResizeCondition(name, recID, ownerKind, owner, conditionType, reason string) *workloadmeta.KubernetesPod {
+	return podWithResizeConditionAt(name, recID, ownerKind, owner, conditionType, reason, time.Time{})
+}
+
+// podWithResizeConditionAt creates a pod with a given condition and a specific LastTransitionTime.
+func podWithResizeConditionAt(name, recID, ownerKind, owner, conditionType, reason string, ltt time.Time) *workloadmeta.KubernetesPod {
 	p := pod(name, recID, ownerKind, owner)
-	p.Conditions = []workloadmeta.KubernetesPodCondition{{Type: conditionType, Reason: reason}}
+	p.Conditions = []workloadmeta.KubernetesPodCondition{{Type: conditionType, Reason: reason, LastTransitionTime: ltt}}
 	return p
 }
 
@@ -680,7 +699,7 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 	if sv == nil {
 		sv = scalingValWithRequests(recommendationID, "500m")
 	}
-	// No ApplyPolicy → isRolloutRequired returns false → in-place path.
+	// No ApplyPolicy -> isRolloutRequired returns false -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace:     "default",
 		Name:          "ai",
@@ -698,14 +717,14 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 }
 
 // buildPodsByResizeStatus mirrors the classification done by sync() for test helpers.
-func buildPodsByResizeStatus(pods []*workloadmeta.KubernetesPod, recommendationID string) map[PodResizeStatus][]*workloadmeta.KubernetesPod {
-	m := make(map[PodResizeStatus][]*workloadmeta.KubernetesPod)
+func buildPodsByResizeStatus(pods []*workloadmeta.KubernetesPod, recommendationID string) map[PodResizeStatus][]classifiedPod {
+	m := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		status := getPodResizeStatus(pod, recommendationID)
-		m[status] = append(m[status], pod)
+		status, ltt := getPodResizeStatus(pod, recommendationID)
+		m[status] = append(m[status], classifiedPod{pod: pod, lastTransitionTime: ltt})
 	}
 	return m
 }
@@ -721,7 +740,7 @@ func TestSyncInternal_InPlace_Completed_NoRequeue(t *testing.T) {
 	}
 	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
 	assert.NoError(t, err)
-	assert.False(t, result.Requeue, "all pods complete → no requeue")
+	assert.False(t, result.Requeue, "all pods complete -> no requeue")
 }
 
 // TestSyncInternal_InPlace_InProgress_Requeues verifies that a pod actively being resized
@@ -755,7 +774,7 @@ func TestSyncInternal_InPlace_SkipsTerminatingPods(t *testing.T) {
 	result, err := f.runSyncInPlaceMode(t, nil, nil, "r1", pods)
 	assert.NoError(t, err)
 	assert.False(t, podPatched, "terminating pods must not be patched")
-	// All active (non-terminating) pods are zero → complete → no requeue.
+	// All active (non-terminating) pods are zero -> complete -> no requeue.
 	assert.False(t, result.Requeue, "no active pods means resize is complete")
 }
 
@@ -844,7 +863,7 @@ func TestSyncInternal_InPlace_PDB_StopsEviction(t *testing.T) {
 		return false, nil, nil
 	})
 
-	// Two infeasible pods; PDB blocks the first → second should not be attempted.
+	// Two infeasible pods; PDB blocks the first -> second should not be attempted.
 	pods := []*workloadmeta.KubernetesPod{
 		podWithResizeCondition("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
 			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible),
@@ -855,6 +874,103 @@ func TestSyncInternal_InPlace_PDB_StopsEviction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, result.Requeue, "must requeue after PDB-blocked eviction")
 	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "only first eviction attempted before PDB stop")
+}
+
+// TestSyncInternal_InPlace_FallbackToRollout_WhenStuck verifies that a pod stuck beyond
+// RollbackFallbackDelay triggers a rollout instead of eviction.
+func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.createTarget("default", "d1", kubernetes.DeploymentKind)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{Object: map[string]any{
+			"metadata": map[string]any{"name": "d1", "namespace": "default"},
+		}}, nil
+	})
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "ai",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{Name: "d1", Kind: kubernetes.DeploymentKind, APIVersion: "apps/v1"},
+		},
+		ScalingValues: model.ScalingValues{Vertical: scalingValWithRequests("r1", "500m")},
+	}).Build()
+
+	stuckSince := now.Add(-10 * time.Minute)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
+
+	result, err := f.controller.syncInternal(
+		context.Background(), dpa, &ai, target, gvk, "r1",
+		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+	)
+	assert.NoError(t, err)
+	assert.True(t, workloadPatched, "rollout must be triggered when pod is stuck beyond RollbackFallbackDelay")
+	assert.True(t, result.Requeue)
+}
+
+// TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough verifies that a pod stuck
+// less than RollbackFallbackDelay is evicted normally without triggering a rollout.
+func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	stuckSince := now.Add(-1 * time.Minute)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
+
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "no rollout when pod has not been stuck long enough")
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "eviction must proceed when under the fallback threshold")
+}
+
+// TestSyncInternal_InPlace_NoFallback_WhenDelayZero verifies that RollbackFallbackDelay=0
+// (disabled) never triggers the rollout fallback, even for a long-stuck pod.
+func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	k8sClient := f.attachK8sClient()
+	interceptEvictions(k8sClient)
+
+	workloadPatched := false
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		workloadPatched = true
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	stuckSince := now.Add(-24 * time.Hour)
+	pods := []*workloadmeta.KubernetesPod{
+		podWithResizeConditionAt("p1", "r1", kubernetes.ReplicaSetKind, "rs1",
+			kubePodConditionResizePending, kubePodConditionResizePendingReasonInfeasible, stuckSince),
+	}
+	dpa := makeDPAWithFallbackDelay("default", "ai", 0) // disabled
+
+	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
+	assert.NoError(t, err)
+	assert.False(t, workloadPatched, "rollout fallback must not trigger when RollbackFallbackDelay is 0")
+	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
 }
 
 // TestSyncInternal_TriggerRolloutMode_UsesRolloutPath verifies that when
@@ -916,7 +1032,7 @@ func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
 	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
 
-	// No ApplyPolicy at all → isRolloutRequired returns false → in-place path.
+	// No ApplyPolicy at all -> isRolloutRequired returns false -> in-place path.
 	ai := (&model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "ai",
@@ -928,7 +1044,7 @@ func TestSyncInternal_DefaultMode_UsesInPlacePath(t *testing.T) {
 	}).Build()
 
 	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
-	// Pod already complete → in-place loop finishes without any patch.
+	// Pod already complete -> in-place loop finishes without any patch.
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
