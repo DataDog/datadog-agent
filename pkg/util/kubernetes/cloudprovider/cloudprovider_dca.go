@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,31 +31,31 @@ func DCAGetName(ctx context.Context) string {
 		return ""
 	}
 
-	nl := getNodeLabels(ctx, nodeName)
-	providerName := getKubeDistributionNameFromNodeLabels(nl)
+	nl, sysInfo := getNodeMeta(ctx, nodeName)
 
+	providerName := getKubeDistributionName(nl, sysInfo.KubeletVersion)
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.
 	cache.Cache.Set(cacheKey, providerName, cache.NoExpiration)
 	return providerName
 }
 
-// getNodeLabels retrieves node labels for provided nodeName in cluster agent.
-func getNodeLabels(ctx context.Context, nodeName string) map[string]string {
+// getNodeMeta retrieves node labels for provided nodeName in cluster agent.
+func getNodeMeta(ctx context.Context, nodeName string) (map[string]string, *corev1.NodeSystemInfo) {
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Warnf("Unable to get apiserver: %v", err)
-		return nil
+		return nil, nil
 	}
 	nodeCl := cl.Cl.CoreV1().Nodes()
 
 	node, err := nodeCl.Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		log.Warnf("Unable to get self node: %v", err)
-		return nil
+		return nil, nil
 	}
 	if node == nil {
-		return nil
+		return nil, nil
 	}
-	return node.Labels
+	return node.Labels, &node.Status.NodeInfo
 }
