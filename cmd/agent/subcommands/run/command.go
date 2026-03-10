@@ -307,6 +307,10 @@ func run(log log.Component,
 		stopAgent(cfg, sysprobeConf)
 	}()
 
+	if err := validateRemoteAgentConfigStream(cfg); err != nil {
+		return err
+	}
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -737,6 +741,14 @@ func startAgent(
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
 func StopAgentWithDefaults(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
 	stopAgent(cfg, sysprobeConf)
+}
+
+// validateRemoteAgentConfigStream returns an error if remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not.
+func validateRemoteAgentConfigStream(cfg config.Component) error {
+	if cfg.GetBool("remote_agent.configstream.enabled") && !cfg.GetBool("remote_agent.registry.enabled") {
+		return errors.New("remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not; set remote_agent.registry.enabled: true to use config stream for remote agents")
+	}
+	return nil
 }
 
 // stopAgent Tears down the agent process

@@ -91,16 +91,18 @@ message ConfigSetting {
 
 ## Configuration
 
-The config stream is automatically enabled when the component is loaded. No explicit configuration required.
+The config stream is **only available** when both of the following are true on the core agent:
+- `remote_agent.registry.enabled: true`
+- `remote_agent.configstream.enabled: true`
 
 **Optional settings:**
 ```yaml
 # datadog.yaml
 remote_agent:
   registry:
-    enabled: true  # Required for RAR-gated authorization
+    enabled: true          # Required for RAR-gated authorization and for use_configstream
   configstream:
-    enabled: true # Required to use the configstreamconsumer
+    enabled: true # Enables config stream for remote agents (requires remote_agent.registry.enabled)
     sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
 ```
 

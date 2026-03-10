@@ -319,6 +319,23 @@ func (r *configReader) AllSettingsWithoutDefault() map[string]interface{} {
 	return r.AllSettings()
 }
 
+// AllSettingsWithoutSecrets returns all settings (config stream has no separate secrets layer)
+func (r *configReader) AllSettingsWithoutSecrets() map[string]interface{} {
+	return r.AllSettings()
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend layer.
+// For config stream, equivalent to AllSettingsWithoutDefault.
+func (r *configReader) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return r.AllSettingsWithoutDefault()
+}
+
+// GetSecretSettingPaths returns the flattened key paths that exist in the secrets layer.
+// Config stream has no separate secrets layer, so returns nil.
+func (r *configReader) GetSecretSettingPaths() []string {
+	return nil
+}
+
 // AllSettingsBySource returns all settings by source
 func (r *configReader) AllSettingsBySource() map[model.Source]interface{} {
 	return map[model.Source]interface{}{
