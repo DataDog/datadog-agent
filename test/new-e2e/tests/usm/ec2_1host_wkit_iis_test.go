@@ -87,9 +87,9 @@ func (s *iisRemoteTagsSuite) SetupSuite() {
 		require.NoError(s.T(), err, "failed to write default document for %s", site.Name)
 	}
 
-	// Deploy locally-built binaries from the branch.
-	// The nightly agent doesn't have the IIS tag caching / remote service tag code.
-	deployWindowsBinaries(s.T(), host)
+	// In CI, the provisioner installs the agent built from the current branch.
+	// For local dev, uncomment to deploy locally-built binaries:
+	// deployWindowsBinaries(s.T(), host)
 }
 
 func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
