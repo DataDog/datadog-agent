@@ -82,6 +82,8 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
 	fooTpl := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"source":"foo"}`)}
 	barTpl := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"source":"bar"}`)}
+	fooCRDTpl := integration.Config{Name: "foo", Provider: names.CRDFile, Instances: []integration.Data{[]byte(`{"crd":"foo"}`)}}
+	barCRDTpl := integration.Config{Name: "bar", Provider: names.CRDFile, Instances: []integration.Data{[]byte(`{"crd":"bar"}`)}}
 	fooNonFileTpl := integration.Config{Name: "foo", Provider: "xxx", LogsConfig: []byte(`{"source":"foo-nf"}`)}
 	barNonFileTpl := integration.Config{Name: "bar", Provider: "xxx", LogsConfig: []byte(`{"source":"bar-nf"}`)}
 	nothingDropped := []integration.Config{}
@@ -104,6 +106,78 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	t.Run("some checkNames, partial match", func(t *testing.T) {
 		assert.Equal(t, []integration.Config{barTpl},
 			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"bing", "bar"}}, fooTpl, barTpl, fooNonFileTpl, barNonFileTpl))
+	})
+
+	t.Run("CRD file template dropped by annotation checkName", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooCRDTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooCRDTpl, barTpl))
+	})
+
+	t.Run("both file and CRD file templates dropped by annotation checkNames", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooTpl, fooCRDTpl, barCRDTpl},
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo", "bar"}}, fooTpl, fooCRDTpl, barCRDTpl, fooNonFileTpl))
+	})
+
+	t.Run("non-file non-CRD template not dropped", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{entity: entity, checkNames: []string{"foo"}}, fooNonFileTpl))
+	})
+}
+
+func TestServiceFilterTemplatesProviderPrecedence(t *testing.T) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) []integration.Config {
+		return filterConfigsDropped(svc.filterTemplatesProviderPrecedence, configs...)
+	}
+
+	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "testy"}}
+	fooFile := integration.Config{Name: "foo", Provider: names.File, LogsConfig: []byte(`{"a":"file"}`)}
+	fooCRD := integration.Config{Name: "foo", Provider: names.CRDFile, Instances: []integration.Data{[]byte(`{}`)}}
+	fooOther := integration.Config{Name: "foo", Provider: "remote-config", Instances: []integration.Data{[]byte(`{"x":1}`)}}
+	barFile := integration.Config{Name: "bar", Provider: names.File, LogsConfig: []byte(`{"a":"bar"}`)}
+	barCRD := integration.Config{Name: "bar", Provider: names.CRDFile, Instances: []integration.Data{[]byte(`{"bar":"crd"}`)}}
+	nothingDropped := []integration.Config{}
+
+	svc := &WorkloadService{entity: entity}
+
+	t.Run("file only: nothing dropped", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(svc, fooFile))
+	})
+
+	t.Run("CRD present: file dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFile},
+			filterDrops(svc, fooFile, fooCRD))
+	})
+
+	t.Run("OtherSource present: file dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFile},
+			filterDrops(svc, fooFile, fooOther))
+	})
+
+	t.Run("OtherSource present: CRD dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooCRD},
+			filterDrops(svc, fooCRD, fooOther))
+	})
+
+	t.Run("OtherSource present: both file and CRD dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFile, fooCRD},
+			filterDrops(svc, fooFile, fooCRD, fooOther))
+	})
+
+	t.Run("OtherSource for different name: unrelated file not dropped", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(svc, barFile, fooOther))
+	})
+
+	t.Run("CRD for foo, file for bar: only foo file dropped", func(t *testing.T) {
+		assert.Equal(t, []integration.Config{fooFile},
+			filterDrops(svc, fooFile, fooCRD, barFile))
+	})
+
+	t.Run("OtherSource for same name as CRD and file: both CRD and file dropped", func(t *testing.T) {
+		barOther := integration.Config{Name: "bar", Provider: "remote-config", Instances: []integration.Data{[]byte(`{"y":2}`)}}
+		assert.Equal(t, []integration.Config{barFile, barCRD},
+			filterDrops(svc, barFile, barCRD, barOther))
 	})
 }
 

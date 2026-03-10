@@ -149,6 +149,10 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	s.filterTemplatesOverriddenChecks(configs)
 	filterTemplatesMatched(s, configs)
 
+	// Provider precedence must run after matching so that a CRD file template
+	// rejected by workload filters does not suppress the file fallback.
+	s.filterTemplatesProviderPrecedence(configs)
+
 	// Container Collect All filtering should always be last
 	s.filterTemplatesContainerCollectAll(configs)
 }
@@ -187,20 +191,64 @@ func (s *WorkloadService) filterTemplatesEmptyOverrides(configs map[string]integ
 	}
 }
 
-// filterTemplatesOverriddenChecks drops file-based templates if this service's
-// labels/annotations specify a check of the same name.
+// filterTemplatesOverriddenChecks drops file-based and CRD-file-based templates
+// if this service's labels/annotations specify a check of the same name.
 func (s *WorkloadService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
 	for digest, config := range configs {
-		if config.Provider != names.File {
-			continue // only override file configs
+		if config.Provider != names.File && config.Provider != names.CRDFile {
+			continue // only override file and CRD file configs
 		}
 		for _, checkName := range s.checkNames {
 			if config.Name == checkName {
-				// Ignore config from file when the same check is activated on
+				// Ignore config from file/CRD file when the same check is activated on
 				// the same service via other config providers (k8s annotations
 				// or container labels)
 				log.Debugf("Ignoring config from %s: the service %s overrides check %s",
 					config.Source, s.GetServiceID(), config.Name)
+				delete(configs, digest)
+			}
+		}
+	}
+}
+
+// filterTemplatesProviderPrecedence enforces provider-level precedence among
+// the templates that survived workload matching:
+//
+//	crd-file > file
+//
+// It must be called after filterTemplatesMatched so that a CRD file template
+// that was rejected by workload filters does not incorrectly suppress the
+// corresponding file template.
+func (s *WorkloadService) filterTemplatesProviderPrecedence(configs map[string]integration.Config) {
+	otherSourceNames := map[string]struct{}{}
+	crdFileNames := map[string]struct{}{}
+	for _, config := range configs {
+		switch config.Provider {
+		case names.CRDFile:
+			crdFileNames[config.Name] = struct{}{}
+		case names.File:
+			// lowest priority — skip
+		default:
+			otherSourceNames[config.Name] = struct{}{}
+		}
+	}
+
+	for digest, config := range configs {
+		switch config.Provider {
+		case names.File:
+			if _, hasCRD := crdFileNames[config.Name]; hasCRD {
+				log.Debugf("Ignoring file config from %s: CRD file provider overrides check %s for service %s",
+					config.Source, config.Name, s.GetServiceID())
+				delete(configs, digest)
+			} else if _, hasOther := otherSourceNames[config.Name]; hasOther {
+				log.Debugf("Ignoring file config from %s: higher-priority provider overrides check %s for service %s",
+					config.Source, config.Name, s.GetServiceID())
+				delete(configs, digest)
+			}
+		case names.CRDFile:
+			if _, hasOther := otherSourceNames[config.Name]; hasOther {
+				log.Debugf("Ignoring CRD file config from %s: higher-priority provider overrides check %s for service %s",
+					config.Source, config.Name, s.GetServiceID())
 				delete(configs, digest)
 			}
 		}
