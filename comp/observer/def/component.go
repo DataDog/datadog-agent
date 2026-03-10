@@ -53,7 +53,8 @@ type MetricView interface {
 	GetName() string
 	GetValue() float64
 	GetRawTags() []string
-	GetTimestamp() float64
+	// GetTimestampUnix returns the sample timestamp in Unix seconds.
+	GetTimestampUnix() int64
 	GetSampleRate() float64
 }
 
@@ -66,7 +67,8 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
-	GetTimestampMs() int64
+	// GetTimestampUnixMilli returns the log timestamp in Unix milliseconds.
+	GetTimestampUnixMilli() int64
 }
 
 // TraceView provides read-only access to a trace (collection of spans with the same trace ID).
@@ -87,10 +89,10 @@ type TraceView interface {
 	GetHostname() string
 	// GetContainerID returns the container ID where the trace originated.
 	GetContainerID() string
-	// GetTimestamp returns the trace start time in nanoseconds since epoch.
-	GetTimestamp() int64
-	// GetDuration returns the trace duration in nanoseconds.
-	GetDuration() int64
+	// GetTimestampUnixNano returns the trace start time in Unix nanoseconds.
+	GetTimestampUnixNano() int64
+	// GetDurationNano returns the trace duration in nanoseconds.
+	GetDurationNano() int64
 	// GetPriority returns the sampling priority.
 	GetPriority() int32
 	// IsError returns true if this trace contains an error.
@@ -125,10 +127,10 @@ type SpanView interface {
 	GetResource() string
 	// GetType returns the span type (e.g., "web", "db", "cache").
 	GetType() string
-	// GetStart returns the span start time in nanoseconds since epoch.
-	GetStart() int64
-	// GetDuration returns the span duration in nanoseconds.
-	GetDuration() int64
+	// GetStartUnixNano returns the span start time in Unix nanoseconds.
+	GetStartUnixNano() int64
+	// GetDurationNano returns the span duration in nanoseconds.
+	GetDurationNano() int64
 	// GetError returns the error code (0 = no error, 1 = error).
 	GetError() int32
 	// GetMeta returns string tags/metadata for this span.
@@ -171,8 +173,8 @@ type TraceStatRow interface {
 	GetClientVersion() string
 	GetClientContainerID() string
 	// Time bucket window (from ClientStatsBucket)
-	GetBucketStart() uint64    // nanoseconds since epoch
-	GetBucketDuration() uint64 // nanoseconds
+	GetBucketStartUnixNano() uint64 // Unix nanoseconds
+	GetBucketDurationNano() uint64  // nanoseconds
 	// Aggregation dimensions (from ClientGroupedStats)
 	GetService() string
 	GetName() string // operation name
@@ -186,7 +188,7 @@ type TraceStatRow interface {
 	GetHits() uint64
 	GetErrors() uint64
 	GetTopLevelHits() uint64
-	GetDuration() uint64     // total duration in nanoseconds
+	GetDurationNano() uint64 // total duration in nanoseconds
 	GetOkSummary() []byte    // DDSketch encoded latency distribution for ok spans
 	GetErrorSummary() []byte // DDSketch encoded latency distribution for error spans
 	GetPeerTags() []string
@@ -213,10 +215,10 @@ type ProfileView interface {
 	GetHostname() string
 	// GetContainerID returns the container ID where the profile was collected.
 	GetContainerID() string
-	// GetTimestamp returns the profile timestamp in nanoseconds since epoch.
-	GetTimestamp() int64
-	// GetDuration returns the profile duration in nanoseconds.
-	GetDuration() int64
+	// GetTimestampUnixNano returns the profile timestamp in Unix nanoseconds.
+	GetTimestampUnixNano() int64
+	// GetDurationNano returns the profile duration in nanoseconds.
+	GetDurationNano() int64
 	// GetTags returns profile tags.
 	GetTags() map[string]string
 	// GetContentType returns the original Content-Type header (profile format is language-specific).
@@ -227,24 +229,21 @@ type ProfileView interface {
 	GetExternalPath() string
 }
 
-// LogDetector transforms observed logs into metrics and anomaly events.
+// LogMetricsExtractor transforms observed logs into metrics.
 // Implementations should be stateless and fast since they run synchronously
 // on every observed log.
-type LogDetector interface {
-	// Name returns the detector name for debugging and logging.
+type LogMetricsExtractor interface {
+	// Name returns the extractor name for debugging and logging.
 	Name() string
-	// Process examines a log and returns any detected signals.
-	Process(log LogView) LogDetectionResult
+	// ProcessLog examines a log and returns any derived metrics.
+	ProcessLog(log LogView) []MetricOutput
 }
 
-// LogDetectionResult contains outputs from processing a log.
-type LogDetectionResult struct {
-	// Metrics are timeseries values derived from the log.
-	Metrics []MetricOutput
-	// Anomalies are directly detected anomalies (bypassing the metrics→MetricsDetector path).
-	Anomalies []Anomaly
-	// Used to debug anomaly detectors
-	Telemetry []ObserverTelemetry
+// LogObserver is an optional interface that Detectors can implement to
+// receive log observations. This allows detectors to incorporate log signals
+// without going through the metrics extraction path.
+type LogObserver interface {
+	ProcessLog(log LogView)
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
@@ -267,10 +266,10 @@ type SeriesID string
 type AnomalyType string
 
 const (
-	// AnomalyTypeMetric is a metric-based anomaly detected by a MetricsDetector.
+	// AnomalyTypeMetric is a metric-based anomaly detected by a detector.
 	AnomalyTypeMetric AnomalyType = "metric"
-	// AnomalyTypeLog is a log-based anomaly emitted directly by a log detector,
-	// bypassing the metrics→MetricsDetector pipeline.
+	// AnomalyTypeLog is a log-based anomaly emitted directly by a log observer,
+	// bypassing the metrics extraction pipeline.
 	AnomalyTypeLog AnomalyType = "log"
 )
 
@@ -287,7 +286,7 @@ type Anomaly struct {
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
 	// Empty for log anomalies.
 	SourceSeriesID SeriesID
-	// DetectorName identifies which MetricsDetector or LogDetector produced this anomaly.
+	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	Title        string
 	Description  string
@@ -327,7 +326,7 @@ type ReportOutput struct {
 }
 
 // Series is a time series with simple timestamp/value points.
-// This is the simplified view passed to MetricsDetector.
+// This is the simplified view passed to SeriesDetector.
 type Series struct {
 	Namespace string
 	Name      string
@@ -349,20 +348,20 @@ type ObserverTelemetry struct {
 	Log          LogView
 }
 
-// MetricsDetector analyzes a time series for anomalies.
-// Implementations should be stateless and just do math on the points.
-type MetricsDetector interface {
-	// Name returns the analysis name for debugging.
-	Name() string
-	// Detect examines a series and returns any detected anomalies.
-	Detect(series Series) MetricsDetectionResult
-}
-
-// MetricsDetectionResult contains outputs from metrics detection.
-type MetricsDetectionResult struct {
+// DetectionResult contains outputs from anomaly detection.
+type DetectionResult struct {
 	Anomalies []Anomaly
 	// Used to debug anomaly detectors
 	Telemetry []ObserverTelemetry
+}
+
+// SeriesDetector analyzes a time series for anomalies.
+// Implementations should be stateless and just do math on the points.
+type SeriesDetector interface {
+	// Name returns the analysis name for debugging.
+	Name() string
+	// Detect examines a series and returns any detected anomalies.
+	Detect(series Series) DetectionResult
 }
 
 // Correlator accumulates anomaly events and produces reports.
@@ -407,7 +406,7 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by MetricsDetector implementations.
+	// RawAnomalies returns all anomalies detected by detector implementations.
 	RawAnomalies() []Anomaly
 }
 
@@ -451,20 +450,13 @@ type StorageReader interface {
 	PointCount(key SeriesKey) int
 }
 
-// MultiSeriesDetectionResult contains outputs from multi-series detection.
-type MultiSeriesDetectionResult struct {
-	Anomalies []Anomaly
-	// Used to debug anomaly detectors
-	Telemetry []ObserverTelemetry
-}
-
-// MultiSeriesDetector is the flexible detection interface where detectors pull data from storage.
+// Detector is the flexible detection interface where detectors pull data from storage.
 // This supports multivariate detection across multiple series.
-type MultiSeriesDetector interface {
+type Detector interface {
 	Name() string
 
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) MultiSeriesDetectionResult
+	Detect(storage StorageReader, dataTime int64) DetectionResult
 }

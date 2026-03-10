@@ -87,9 +87,7 @@ func (m *metricObs) GetRawTags() []string {
 	return m.tags
 }
 
-func (m *metricObs) GetTimestamp() float64 {
-	return float64(m.timestamp)
-}
+func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 
 // Observer does not store samplerate; just return 1.0
 func (m *metricObs) GetSampleRate() float64 {
@@ -174,7 +172,7 @@ func (l *logObs) GetHostname() string {
 }
 
 // Optionally, for logs that provide timestamp interface (if needed elsewhere)
-func (l *logObs) GetTimestampMs() int64 {
+func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
 
@@ -187,7 +185,7 @@ func NewComponent(deps Requires) Provides {
 	reporter.SetCorrelationState(correlator)
 
 	obs := &observerImpl{
-		logDetectors: []observerdef.LogDetector{
+		extractors: []observerdef.LogMetricsExtractor{
 			&LogMetricsExtractor{
 				MaxEvalBytes: 4096,
 				// Exclude metadata fields that shouldn't be metrics.
@@ -204,11 +202,9 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		multiDetectors: []observerdef.MultiSeriesDetector{
-			newMetricsDetectorAdapter(NewCUSUMDetector(), []observerdef.Aggregate{
-				observerdef.AggregateAverage,
-				observerdef.AggregateCount,
-			}),
+		detectors: []observerdef.Detector{
+			newSeriesDetectorAdapter(NewCUSUMDetector(), defaultAggregations),
+			newSeriesDetectorAdapter(NewBOCPDDetector(), defaultAggregations),
 			NewRRCFDetector(DefaultRRCFConfig()),
 		},
 		correlators: []observerdef.Correlator{
@@ -369,13 +365,13 @@ func samplePass(rate float64, n uint64) bool {
 
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
-	logDetectors   []observerdef.LogDetector
-	multiDetectors []observerdef.MultiSeriesDetector
-	correlators    []observerdef.Correlator
-	reporters      []observerdef.Reporter
-	storage        *timeSeriesStorage
-	obsCh          chan observation
-	handleFunc     observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	extractors  []observerdef.LogMetricsExtractor
+	detectors   []observerdef.Detector
+	correlators []observerdef.Correlator
+	reporters   []observerdef.Reporter
+	storage     *timeSeriesStorage
+	obsCh       chan observation
+	handleFunc  observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Raw anomaly tracking for test bench display
 	rawAnomalies     []observerdef.Anomaly
@@ -418,16 +414,17 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
 	view := &logView{obs: l}
-	for _, detector := range o.logDetectors {
-		result := detector.Process(view)
-		for _, m := range result.Metrics {
+	for _, extractor := range o.extractors {
+		metrics := extractor.ProcessLog(view)
+		for _, m := range metrics {
 			// Virtual metrics coming from logs starts with _virtual.
 			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
 		}
-		// Route directly emitted anomalies through the standard pipeline
-		for _, anomaly := range result.Anomalies {
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
+	}
+	// Allow detectors to observe logs directly
+	for _, d := range o.detectors {
+		if lo, ok := d.(observerdef.LogObserver); ok {
+			lo.ProcessLog(view)
 		}
 	}
 	o.maybeRunDetectors(l.timestampMs / 1000)
@@ -451,7 +448,7 @@ func (o *observerImpl) maybeRunDetectors(dataTime int64) {
 // runDetectorsUpTo runs all multi-series detectors, providing them access to storage
 // and the data timestamp up to which they should analyze.
 func (o *observerImpl) runDetectorsUpTo(upTo int64) {
-	for _, detector := range o.multiDetectors {
+	for _, detector := range o.detectors {
 		result := detector.Detect(o.storage, upTo)
 		for _, anomaly := range result.Anomalies {
 			o.captureRawAnomaly(anomaly)
@@ -463,25 +460,32 @@ func (o *observerImpl) runDetectorsUpTo(upTo int64) {
 	o.flushAndReport()
 }
 
-// metricsDetectorAdapter wraps a stateless MetricsDetector to implement MultiSeriesDetector.
+// defaultAggregations is the standard set of aggregations used when adapting
+// a SeriesDetector into a Detector.
+var defaultAggregations = []observerdef.Aggregate{
+	observerdef.AggregateAverage,
+	observerdef.AggregateCount,
+}
+
+// seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
 // It runs the wrapped detector on all series, handling aggregation suffixes.
-type metricsDetectorAdapter struct {
-	detector     observerdef.MetricsDetector
+type seriesDetectorAdapter struct {
+	detector     observerdef.SeriesDetector
 	aggregations []observerdef.Aggregate
 }
 
-func newMetricsDetectorAdapter(detector observerdef.MetricsDetector, aggregations []observerdef.Aggregate) *metricsDetectorAdapter {
-	return &metricsDetectorAdapter{
+func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
+	return &seriesDetectorAdapter{
 		detector:     detector,
 		aggregations: aggregations,
 	}
 }
 
-func (a *metricsDetectorAdapter) Name() string {
+func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
-func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.MultiSeriesDetectionResult {
+func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
@@ -502,6 +506,7 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 
 			result := a.detector.Detect(seriesWithAgg)
 			for _, anomaly := range result.Anomalies {
+				anomaly.Type = observerdef.AnomalyTypeMetric
 				anomaly.DetectorName = a.detector.Name()
 				anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
 				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
@@ -511,7 +516,7 @@ func (a *metricsDetectorAdapter) Detect(storage observerdef.StorageReader, dataT
 		}
 	}
 
-	return observerdef.MultiSeriesDetectionResult{
+	return observerdef.DetectionResult{
 		Anomalies: allAnomalies,
 		Telemetry: allTelemetry,
 	}
@@ -704,7 +709,7 @@ type handle struct {
 
 // ObserveMetric observes a DogStatsD metric sample.
 func (h *handle) ObserveMetric(sample observerdef.MetricView) {
-	timestamp := int64(sample.GetTimestamp())
+	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
@@ -731,7 +736,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 // ObserveLog observes a log message.
 func (h *handle) ObserveLog(msg observerdef.LogView) {
 	// Use provided timestampMs if available, otherwise use current time
-	timestampMs := msg.GetTimestampMs()
+	timestampMs := msg.GetTimestampUnixMilli()
 
 	obs := observation{
 		source: h.source,
@@ -767,8 +772,8 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 			name:     sv.GetName(),
 			resource: sv.GetResource(),
 			spanType: sv.GetType(),
-			start:    sv.GetStart(),
-			duration: sv.GetDuration(),
+			start:    sv.GetStartUnixNano(),
+			duration: sv.GetDurationNano(),
 			error:    sv.GetError(),
 			meta:     copyStringMap(sv.GetMeta()),
 			metrics:  copyFloat64Map(sv.GetMetrics()),
@@ -785,8 +790,8 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 			service:      trace.GetService(),
 			hostname:     trace.GetHostname(),
 			containerID:  trace.GetContainerID(),
-			timestamp:    trace.GetTimestamp(),
-			duration:     trace.GetDuration(),
+			timestamp:    trace.GetTimestampUnixNano(),
+			duration:     trace.GetDurationNano(),
 			priority:     trace.GetPriority(),
 			isError:      trace.IsError(),
 			tags:         copyStringMap(trace.GetTags()),
@@ -821,8 +826,8 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 			version:      profile.GetVersion(),
 			hostname:     profile.GetHostname(),
 			containerID:  profile.GetContainerID(),
-			timestamp:    profile.GetTimestamp(),
-			duration:     profile.GetDuration(),
+			timestamp:    profile.GetTimestampUnixNano(),
+			duration:     profile.GetDurationNano(),
 			tags:         copyStringMap(profile.GetTags()),
 			contentType:  profile.GetContentType(),
 			rawData:      copyBytes(profile.GetRawData()),
@@ -842,11 +847,11 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte    { return v.obs.content }
-func (v *logView) GetStatus() string     { return v.obs.status }
-func (v *logView) GetTags() []string     { return v.obs.tags }
-func (v *logView) GetHostname() string   { return v.obs.hostname }
-func (v *logView) GetTimestampMs() int64 { return v.obs.timestampMs }
+func (v *logView) GetContent() []byte           { return v.obs.content }
+func (v *logView) GetStatus() string            { return v.obs.status }
+func (v *logView) GetTags() []string            { return v.obs.tags }
+func (v *logView) GetHostname() string          { return v.obs.hostname }
+func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.
@@ -858,11 +863,11 @@ type agentLogView struct {
 	timestampMs int64
 }
 
-func (v *agentLogView) GetContent() []byte    { return v.content }
-func (v *agentLogView) GetStatus() string     { return v.status }
-func (v *agentLogView) GetTags() []string     { return v.tags }
-func (v *agentLogView) GetHostname() string   { return v.hostname }
-func (v *agentLogView) GetTimestampMs() int64 { return v.timestampMs }
+func (v *agentLogView) GetContent() []byte           { return v.content }
+func (v *agentLogView) GetStatus() string            { return v.status }
+func (v *agentLogView) GetTags() []string            { return v.tags }
+func (v *agentLogView) GetHostname() string          { return v.hostname }
+func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {
