@@ -805,12 +805,18 @@ func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Conte
 }
 
 func setRequestInvalid(ctx context.Context) {
-	state := ctx.Value(requestStateKey).(*requestState)
+	state, ok := ctx.Value(requestStateKey).(*requestState)
+	if !ok {
+		return
+	}
 	state.State = pbgo.TaskState_INVALID_STATE
 }
 
 func setRequestDone(ctx context.Context, err error) {
-	state := ctx.Value(requestStateKey).(*requestState)
+	state, ok := ctx.Value(requestStateKey).(*requestState)
+	if !ok {
+		return
+	}
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
