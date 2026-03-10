@@ -51,7 +51,8 @@ An environment defines what infrastructure a test needs:
 
 ### Provisioners
 
-Provisioners create the environment's infrastructure:
+Provisioners create the environment's infrastructure. All built-in provisioners
+live in `testing/provisioners/aws/` (host, docker, ecs, kubernetes).
 
 ```go
 // Host on AWS EC2
