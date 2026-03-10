@@ -1,0 +1,13 @@
+{{- with .privateActionRunnerStatus -}}
+<div class="stat">
+  <span class="stat_title">Private Action Runner</span>
+  <span class="stat_data">
+    Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}<br>
+  {{- if .Enabled }}
+    URN: {{ .URN }}<br>
+    Self Enroll: {{ .SelfEnroll }}<br>
+    Actions Allowlist: {{- if .ActionsAllowlist }} {{ .ActionsAllowlist }}{{else}} (none){{end}}<br>
+  {{- end }}
+  </span>
+</div>
+{{- end -}}

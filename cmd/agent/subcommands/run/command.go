@@ -149,6 +149,7 @@ import (
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -442,6 +443,7 @@ func getSharedFxOption() fx.Option {
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
+		parStatusImpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
