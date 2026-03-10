@@ -101,8 +101,9 @@ while True:
 	_, err = host.Execute("Invoke-WebRequest -UseBasicParsing http://localhost:8082/")
 	require.NoError(s.T(), err, "Python HTTP server on port 8082 not responding")
 
-	// Deploy locally-built binaries from the branch.
-	deployWindowsBinaries(s.T(), host)
+	// In CI, the provisioner installs the agent built from the current branch.
+	// For local dev, uncomment to deploy locally-built binaries:
+	// deployWindowsBinaries(s.T(), host)
 }
 
 func (s *httpRemoteTagsWindowsSuite) BeforeTest(suiteName, testName string) {
