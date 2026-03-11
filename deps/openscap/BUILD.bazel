@@ -57,5 +57,5 @@ pkg_filegroup(
     prefix = "embedded",
     # Do not pick up with ... expansion.
     tags = ["manual"],
-    visibility = ["//packages:__subpackages__"],
+    visibility = ["//visibility:private"],
 )
