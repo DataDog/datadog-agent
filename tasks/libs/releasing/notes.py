@@ -33,6 +33,7 @@ CHANGELOG_SECTIONS = [
 def _new_fragment_path(changelog_dir: str, slug: str) -> Path:
     """Return a new fragment file path with a unique 16-char hex suffix."""
     uid = secrets.token_hex(8)
+    slug = slug.replace('/', '-')
     return Path(changelog_dir) / 'notes' / f'{slug}-{uid}.yaml'
 
 
@@ -129,7 +130,9 @@ def _assemble_changelog(fragment_dir: str | Path, version: str) -> str:
                 item_lines = item.split('\n')
                 lines.append(f'- {item_lines[0]}')
                 for extra in item_lines[1:]:
-                    lines.append(f'  {extra}')
+                    # Blank continuation lines must be empty (not indented) so
+                    # they render as paragraph breaks rather than hard line-breaks.
+                    lines.append(f'  {extra}' if extra.strip() else '')
             lines.append('')
 
     return '\n'.join(lines) + '\n'

@@ -313,7 +313,7 @@ class TestLintReleasenotes(unittest.TestCase):
         return path
 
     def test_multiple_files_some_with_errors(self):
-        """Should return only files with errors."""
+        """Should return only files with errors in the errors list."""
         valid_content = """---
 features:
   - |
@@ -326,15 +326,31 @@ invalid_section:
         valid_path = self._write_temp_file('valid.yaml', valid_content)
         invalid_path = self._write_temp_file('invalid.yaml', invalid_content)
 
-        results = lint_releasenotes([valid_path, invalid_path])
+        errors, warnings = lint_releasenotes([valid_path, invalid_path])
 
-        self.assertEqual(len(results), 1)
-        self.assertIn('invalid.yaml', results[0].file_path)
+        self.assertEqual(len(errors), 1)
+        self.assertIn('invalid.yaml', errors[0].file_path)
+        self.assertEqual(len(warnings), 0)
+
+    def test_warning_only_files_not_in_errors(self):
+        """Files with only warnings should appear in warnings, not errors."""
+        warning_content = """---
+features:
+  - ""
+"""
+        path = self._write_temp_file('warn.yaml', warning_content)
+
+        errors, warnings = lint_releasenotes([path])
+
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('warn.yaml', warnings[0].file_path)
 
     def test_empty_file_list(self):
         """Empty file list should return empty results."""
-        results = lint_releasenotes([])
-        self.assertEqual(len(results), 0)
+        errors, warnings = lint_releasenotes([])
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(warnings), 0)
 
     def test_all_valid_files(self):
         """All valid files should return empty results."""
@@ -346,27 +362,53 @@ features:
         path1 = self._write_temp_file('file1.yaml', content)
         path2 = self._write_temp_file('file2.yaml', content)
 
-        results = lint_releasenotes([path1, path2])
-        self.assertEqual(len(results), 0)
+        errors, warnings = lint_releasenotes([path1, path2])
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(warnings), 0)
 
 
 class TestReleasenoteFileResult(unittest.TestCase):
     """Tests for ReleasenoteFileResult class."""
 
     def test_has_errors_true(self):
-        """has_errors should be True when there are section errors."""
+        """has_errors should be True when there are error-level entries."""
+        result = ReleasenoteFileResult(
+            file_path='test.yaml',
+            section_errors=[
+                ReleasenoteError(section='features', errors=[LintError(line=1, level='error', message='test')])
+            ],
+        )
+        self.assertTrue(result.has_errors)
+
+    def test_has_errors_false_no_entries(self):
+        """has_errors should be False when there are no section errors."""
+        result = ReleasenoteFileResult(file_path='test.yaml', section_errors=[])
+        self.assertFalse(result.has_errors)
+
+    def test_has_errors_false_warnings_only(self):
+        """has_errors should be False when section errors contain only warnings."""
         result = ReleasenoteFileResult(
             file_path='test.yaml',
             section_errors=[
                 ReleasenoteError(section='features', errors=[LintError(line=1, level='warning', message='test')])
             ],
         )
-        self.assertTrue(result.has_errors)
-
-    def test_has_errors_false(self):
-        """has_errors should be False when there are no section errors."""
-        result = ReleasenoteFileResult(file_path='test.yaml', section_errors=[])
         self.assertFalse(result.has_errors)
+
+    def test_has_warnings_true(self):
+        """has_warnings should be True when there are warning-level entries."""
+        result = ReleasenoteFileResult(
+            file_path='test.yaml',
+            section_errors=[
+                ReleasenoteError(section='features', errors=[LintError(line=1, level='warning', message='test')])
+            ],
+        )
+        self.assertTrue(result.has_warnings)
+
+    def test_has_warnings_false(self):
+        """has_warnings should be False when there are no warnings."""
+        result = ReleasenoteFileResult(file_path='test.yaml', section_errors=[])
+        self.assertFalse(result.has_warnings)
 
 
 if __name__ == '__main__':

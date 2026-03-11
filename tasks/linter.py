@@ -249,24 +249,35 @@ def lint_releasenotes(ctx, files=None, only_changed=False):
         base_branch = get_ancestor_base_branch()
         merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
         result = ctx.run(
-            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
+            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca|-installscript)?/notes/.*\\.yaml$'",
             warn=True,
             hide=True,
         )
         file_list = [f.strip() for f in (result.stdout or "").splitlines() if f.strip()]
     else:
-        file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
+        file_list = (
+            list(glob('releasenotes/notes/*.yaml'))
+            + list(glob('releasenotes-dca/notes/*.yaml'))
+            + list(glob('releasenotes-installscript/notes/*.yaml'))
+        )
 
     if not file_list:
         print(color_message("No release note files to lint", "yellow"))
         return
 
-    results = _lint_files(file_list)
+    errors, warnings = _lint_files(file_list)
 
-    if results:
-        print(color_message("Issues found in release notes:", "red"))
+    if warnings:
+        print(color_message("Warnings in release notes:", "yellow"))
         print()
-        for result in results:
+        for result in warnings:
+            print(result.format_output())
+            print()
+
+    if errors:
+        print(color_message("Errors found in release notes:", "red"))
+        print()
+        for result in errors:
             print(result.format_output())
             print()
         raise Exit(code=1)

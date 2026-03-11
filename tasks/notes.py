@@ -145,7 +145,6 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
             )
         )
-        ctx.run("git add CHANGELOG.md CHANGELOG-DCA.md")
 
         commit_message = f"'Changelog updates for {new_version} release'"
 

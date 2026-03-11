@@ -54,11 +54,23 @@ class ReleasenoteFileResult:
 
     @property
     def has_errors(self) -> bool:
-        return bool(self.section_errors)
+        return any(
+            e.level == 'error'
+            for section_error in self.section_errors
+            for e in section_error.errors
+        )
+
+    @property
+    def has_warnings(self) -> bool:
+        return any(
+            e.level == 'warning'
+            for section_error in self.section_errors
+            for e in section_error.errors
+        )
 
     def format_output(self) -> str:
-        """Format errors for display."""
-        if not self.has_errors:
+        """Format errors and warnings for display."""
+        if not self.section_errors:
             return ""
 
         lines = [f"{self.file_path}:"]
@@ -214,14 +226,19 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
 
-def lint_releasenotes(files: Iterable[str | Path]) -> list[ReleasenoteFileResult]:
+def lint_releasenotes(files: Iterable[str | Path]) -> tuple[list[ReleasenoteFileResult], list[ReleasenoteFileResult]]:
     """Lint multiple release note files.
 
-    Returns a list of ReleasenoteFileResult objects for files with errors only.
+    Returns a tuple of (errors, warnings) where each is a list of
+    ReleasenoteFileResult objects for files with errors or warnings respectively.
+    Files that have only warnings are not included in the errors list.
     """
-    results = []
+    errors = []
+    warnings = []
     for file_path in files:
         result = lint_releasenote_file(file_path)
         if result.has_errors:
-            results.append(result)
-    return results
+            errors.append(result)
+        elif result.has_warnings:
+            warnings.append(result)
+    return errors, warnings
