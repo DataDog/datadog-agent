@@ -226,13 +226,6 @@ func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) 
 	return path.Name, nil
 }
 
-func newPathEntry(parent model.PathKey, name string) PathEntry {
-	return PathEntry{
-		Parent: parent,
-		Name:   name,
-	}
-}
-
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(pathKey model.PathKey, _ bool) string {
 	name, _ := dr.ResolveNameFromCache(pathKey)

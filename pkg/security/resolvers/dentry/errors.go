@@ -32,15 +32,6 @@ func (err ErrTruncatedParentsERPC) Error() string {
 
 var errTruncatedParentsERPC ErrTruncatedParentsERPC
 
-// ErrTruncatedParents is used to notify that some parents of the path are missing
-type ErrTruncatedParents struct{}
-
-func (err ErrTruncatedParents) Error() string {
-	return "truncated_parents"
-}
-
-var errTruncatedParents ErrTruncatedParents
-
 // ErrERPCResolution is used to notify that the eRPC resolution failed
 type ErrERPCResolution struct{}
 
@@ -49,15 +40,6 @@ func (err ErrERPCResolution) Error() string {
 }
 
 var errERPCResolution ErrERPCResolution
-
-// ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
-type ErrKernelMapResolution struct{}
-
-func (err ErrKernelMapResolution) Error() string {
-	return "map_resolution"
-}
-
-var errKernelMapResolution ErrKernelMapResolution
 
 // ErrDentryPathKeyNotFound is used to notify that the request key is missing from the kernel maps
 type ErrDentryPathKeyNotFound struct {
