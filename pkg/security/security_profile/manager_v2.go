@@ -373,12 +373,6 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Debug: log sampled bind events reaching userspace
-	if event.IsActivityDumpSample() && event.GetEventType() == model.BindEventType {
-		seclog.Debugf("v2 sampled bind: pid=%d family=%d port=%d protocol=%d comm=%s",
-			event.ProcessContext.Pid, event.Bind.AddrFamily, event.Bind.Addr.Port, event.Bind.Protocol, event.ProcessContext.Comm)
-	}
-
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
