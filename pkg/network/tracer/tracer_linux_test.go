@@ -3485,6 +3485,10 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
+	if kv < kernel.VersionCode(5, 4, 0) {
+		t.Skip("rcv_ooopack requires kernel 5.4+")
+	}
+
 	tc, err := exec.LookPath("tc")
 	if err != nil {
 		t.Skip("tc not found: required for netem reordering")
