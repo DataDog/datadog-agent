@@ -196,9 +196,31 @@ _ebpf_prog = rule(
     toolchains = [_TOOLCHAIN_TYPE],
 )
 
-def ebpf_prog(target_compatible_with = ["@platforms//os:linux"], **kwargs):
-    """eBPF program target, Linux-only by default."""
-    _ebpf_prog(target_compatible_with = target_compatible_with, **kwargs)
+def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
+    _ebpf_prog(
+        name = name,
+        visibility = visibility,
+        src = src,
+        deps = deps,
+        core = core,
+        debug = debug,
+        extra_flags = extra_flags,
+        target_arch = target_arch,
+        target_compatible_with = ["@platforms//os:linux"],
+    )
+
+ebpf_prog = macro(
+    doc = "Compile a single eBPF program (.c -> .o), Linux-only.",
+    attrs = {
+        "src": attr.label(mandatory = True, allow_single_file = [".c"], configurable = False),
+        "deps": attr.label_list(default = [], configurable = False),
+        "core": attr.bool(default = False, configurable = False),
+        "debug": attr.bool(default = False, configurable = False),
+        "extra_flags": attr.string_list(default = [], configurable = False),
+        "target_arch": attr.string(default = "", configurable = False),
+    },
+    implementation = _ebpf_prog_macro_impl,
+)
 
 def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
     _ebpf_prog(
