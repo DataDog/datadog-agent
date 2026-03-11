@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -186,19 +187,31 @@ func (c *keyvaultHTTPClient) GetSecret(ctx context.Context, secretName, secretVe
 // getAccessToken retrieves an OAuth2 bearer token for the Key Vault resource.
 // It tries (in order):
 //  1. Environment variables (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET + AZURE_TENANT_ID)
-//  2. Azure IMDS managed identity (with optional client_id from config)
+//  2. Workload Identity (AZURE_FEDERATED_TOKEN_FILE)
+//  3. Azure IMDS managed identity (with optional client_id from config)
+//  4. Azure CLI
 func (c *keyvaultHTTPClient) getAccessToken(ctx context.Context) (string, error) {
 	// 1. Try environment variables first (service principal / client credentials).
 	if token, err := c.clientCredentialsToken(ctx); err == nil {
 		return token, nil
 	}
 
-	// 2. Try IMDS managed identity.
+	// 2. Try Workload Identity (federated token).
+	if token, err := c.workloadIdentityToken(ctx); err == nil {
+		return token, nil
+	}
+
+	// 3. Try IMDS managed identity.
 	if token, err := c.imdsToken(ctx); err == nil {
 		return token, nil
 	}
 
-	return "", errors.New("unable to obtain Azure access token: tried client credentials and IMDS managed identity")
+	// 4. Try Azure CLI (dev convenience, last resort).
+	if token, err := c.azureCLIToken(ctx); err == nil {
+		return token, nil
+	}
+
+	return "", errors.New("unable to obtain Azure access token: tried client credentials, workload identity, IMDS managed identity, and Azure CLI")
 }
 
 // imdsToken fetches a token from the Azure Instance Metadata Service (managed identity).
@@ -239,6 +252,89 @@ func (c *keyvaultHTTPClient) imdsToken(ctx context.Context) (string, error) {
 		return "", errors.New("empty access token from IMDS")
 	}
 	return tokenResp.AccessToken, nil
+}
+
+// workloadIdentityToken gets a token using Azure Workload Identity (Kubernetes federated token).
+// Requires AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_FEDERATED_TOKEN_FILE.
+func (c *keyvaultHTTPClient) workloadIdentityToken(ctx context.Context) (string, error) {
+	tenantID := os.Getenv("AZURE_TENANT_ID")
+	clientID := os.Getenv("AZURE_CLIENT_ID")
+	tokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE")
+	if tenantID == "" || clientID == "" || tokenFile == "" {
+		return "", errors.New("AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE not all set")
+	}
+
+	tokenBytes, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read federated token file: %w", err)
+	}
+	assertion := strings.TrimSpace(string(tokenBytes))
+
+	authority := os.Getenv("AZURE_AUTHORITY_HOST")
+	if authority == "" {
+		authority = "https://login.microsoftonline.com"
+	}
+
+	tokenURL := fmt.Sprintf("%s/%s/oauth2/v2.0/token", strings.TrimRight(authority, "/"), url.PathEscape(tenantID))
+
+	data := url.Values{
+		"grant_type":            {"client_credentials"},
+		"client_assertion_type": {"urn:ietf:params:oauth:client-assertion-type:jwt-bearer"},
+		"client_assertion":      {assertion},
+		"client_id":             {clientID},
+		"scope":                 {"https://vault.azure.net/.default"},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("workload identity token request returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", err
+	}
+	if tokenResp.AccessToken == "" {
+		return "", errors.New("empty access token from workload identity")
+	}
+	return tokenResp.AccessToken, nil
+}
+
+// azureExecCommand can be overridden in tests.
+var azureExecCommand = exec.CommandContext
+
+// azureCLIToken gets a token by invoking the Azure CLI.
+func (c *keyvaultHTTPClient) azureCLIToken(ctx context.Context) (string, error) {
+	cmd := azureExecCommand(ctx, "az", "account", "get-access-token", "--resource", "https://vault.azure.net", "--output", "json")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("az CLI failed: %w", err)
+	}
+
+	var result struct {
+		AccessToken string `json:"accessToken"`
+	}
+	if err := json.Unmarshal(out, &result); err != nil {
+		return "", fmt.Errorf("failed to parse az CLI output: %w", err)
+	}
+	if result.AccessToken == "" {
+		return "", errors.New("empty access token from az CLI")
+	}
+	return result.AccessToken, nil
 }
 
 // clientCredentialsToken gets a token using AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID.
