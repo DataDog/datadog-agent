@@ -27,13 +27,13 @@ agent_config = rule(
         ),
         "out": attr.string(default = "datadog.yaml"),
         "_renderer": attr.label(
-            default = Label("//pkg/config:render_config"),
+            default = Label("//pkg/render_config/config:render_config"),
             allow_single_file = True,
             executable = True,
             cfg = "exec",
         ),
         "_template": attr.label(
-            default = Label("//pkg/config:template"),
+            default = Label("//pkg/render_config/config:template"),
             allow_single_file = True,
         ),
     },
