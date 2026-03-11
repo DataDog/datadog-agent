@@ -306,7 +306,7 @@ async fn main() -> Result<()> {
     let log_level = config::get_log_level(&config);
     let log_file_path = config::get_log_file(&config);
     dd_agent_log::init(dd_agent_log::LogConfig {
-        logger_name: "SD-AGENT",
+        logger_name: "SYS-PROBE-LITE",
         level: log_level,
         log_file: Some(std::path::PathBuf::from(log_file_path)),
     })?;
