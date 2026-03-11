@@ -1,0 +1,11 @@
+# Each section from every release note is combined when the
+# CHANGELOG.rst is rendered. Text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Use config flag 'request_location_permission' in WLAN config to gate location permission request on MacOS
