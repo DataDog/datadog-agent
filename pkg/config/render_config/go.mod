@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/config
 go 1.25.0
 
 require (
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	go.yaml.in/yaml/v3 v3.0.4
-        github.com/pmezard/difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
