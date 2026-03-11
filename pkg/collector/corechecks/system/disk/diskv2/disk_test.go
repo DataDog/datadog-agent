@@ -1313,6 +1313,50 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
+func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErrorReturned(t *testing.T) {
+	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 1)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{
+			Path:  "/",
+			Total: 1024,
+			Free:  512,
+			Used:  512,
+		}, nil
+	}), func(ctx context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		// Simulate a blocking partition enumeration (e.g. orphaned Windows volume)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(10 * time.Second):
+			return partitionsTrue, nil
+		}
+	}), testClock)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
+	m.SetupAcceptAll()
+	done := make(chan error, 1)
+	go func() {
+		done <- diskCheck.Run()
+	}()
+	<-afterCalled
+	mockClock.Add(5 * time.Second)
+	err := <-done
+
+	assert.ErrorContains(t, err, "disk partition enumeration timed out")
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+}
+
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {
 	for _, fl := range []string{flavor.IotAgent, flavor.ClusterAgent} {
 		t.Run(fl, func(t *testing.T) {

@@ -443,11 +443,7 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	ctx := context.Background()
-	if c.instanceConfig.ProcMountInfoPath != "" {
-		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
-	}
-	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
+	partitions, err := c.getDiskPartitionsWithTimeout(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		if len(partitions) == 0 {
 			// Complete failure - no partitions retrieved
@@ -539,6 +535,35 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	// See: https://github.com/DataDog/integrations-core/pull/7323#issuecomment-756427024
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+}
+
+func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil_disk.PartitionStat, error) {
+	type partitionsResult struct {
+		partitions []gopsutil_disk.PartitionStat
+		err        error
+	}
+	resultCh := make(chan partitionsResult, 1)
+	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
+	timeoutCh := c.clock.After(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
+	go func() {
+		defer cancel()
+		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		select {
+		case resultCh <- partitionsResult{partitions, err}:
+		case <-timeoutCh:
+		}
+	}()
+	select {
+	case result := <-resultCh:
+		return result.partitions, result.err
+	case <-timeoutCh:
+		cancel()
+		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
+	}
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
