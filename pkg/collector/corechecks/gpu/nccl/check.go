@@ -11,6 +11,7 @@ package nccl
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -28,6 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// defaultIsProcessAlive checks whether a host-namespace PID still exists by
+// probing /proc/<pid>. Used for hang-detection eviction: when a training job
+// finishes, the rank's process disappears and we evict its staleness entry
+// to avoid a false-positive spike.
+func defaultIsProcessAlive(pid int) bool {
+	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
+	return err == nil
+}
+
 // Check represents the NCCL check that collects metrics from NCCL Inspector output
 type Check struct {
 	core.CheckBase
@@ -40,6 +50,7 @@ type Check struct {
 	containerProvider proccontainers.ContainerProvider
 	checkTelemetry    *ncclCheckTelemetry
 	lastSeenRank      map[string]rankStalenessEntry // "rank:N" → last event + timestamp for hang detection
+	isProcessAlive    func(pid int) bool            // injectable for testing; defaults to /proc check
 }
 
 // rankStalenessEntry tracks the last event seen for a rank, used for hang detection.
@@ -128,6 +139,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)
+	c.isProcessAlive = defaultIsProcessAlive
 
 	// Initialize telemetry
 	c.checkTelemetry = newCheckTelemetry(c.telemetry)
@@ -301,6 +313,7 @@ func (c *Check) emitNetworkTransferMetrics(snd sender.Sender, events []ParsedEve
 			"direction:"+key.direction,
 		)
 		snd.Gauge(ncclMetricsNs+networkMaxTransferTimeMetric, float64(a.maxTime), "", tags)
+		log.Debugf("NCCL network_transfer: rank=%d dir=%s max_time_us=%d tags=%v", key.rank, key.direction, a.maxTime, tags)
 	}
 }
 
@@ -330,6 +343,11 @@ func (c *Check) buildTags(parsed ParsedEvent) []string {
 		tags = append(tags, fmt.Sprintf("pid:%d", event.PID))
 	}
 
+	// Append plugin-discovered extra tags (e.g. ray_job_id, ray_node_id)
+	for k, v := range event.ExtraTags {
+		tags = append(tags, k+":"+v)
+	}
+
 	return tags
 }
 
@@ -356,6 +374,21 @@ func (c *Check) emitStalenessMetrics(snd sender.Sender, now time.Time) {
 			delete(c.lastSeenRank, rankKey)
 			continue
 		}
+
+		// If the rank's process is gone, the job finished — evict immediately
+		// to avoid a false-positive staleness spike.
+		// Only use HostPID (from SO_PEERCRED): it is always a host-namespace PID
+		// and can be reliably checked against /proc. event.PID may be a
+		// container-namespace PID which would not exist on the host, causing
+		// spurious eviction and silently disabling hang detection.
+		if staleness > 0 && c.isProcessAlive != nil && entry.parsed.HostPID > 0 {
+			if !c.isProcessAlive(entry.parsed.HostPID) {
+				log.Debugf("NCCL hang detection: evicting %s — process %d no longer exists", rankKey, entry.parsed.HostPID)
+				delete(c.lastSeenRank, rankKey)
+				continue
+			}
+		}
+
 		tags := c.buildTags(entry.parsed)
 		tags = append(tags, rankKey) // "rank:N"
 		if entry.parsed.Event.Hostname != "" {

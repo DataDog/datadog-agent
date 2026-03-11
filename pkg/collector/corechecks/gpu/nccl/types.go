@@ -26,8 +26,9 @@ type NCCLInspectorEvent struct {
 	GPUUUID    string `json:"gpu_uuid"`    // GPU UUID (if available)
 
 	// Metadata
-	Hostname        string `json:"hostname"`
-	DumpTimestampUS int64  `json:"dump_timestamp_us"`
+	Hostname        string            `json:"hostname"`
+	DumpTimestampUS int64             `json:"dump_timestamp_us"`
+	ExtraTags       map[string]string `json:"extra_tags,omitempty"` // Plugin-discovered tags (e.g. ray_job_id)
 
 	// Collective performance data
 	CollPerf *CollectivePerf `json:"coll_perf,omitempty"`
@@ -76,10 +77,11 @@ type nvidiaHeader struct {
 }
 
 type nvidiaMetadata struct {
-	Hostname        string `json:"hostname"`
-	PID             int    `json:"pid"`
-	DumpTimestampUS int64  `json:"dump_timestamp_us"`
-	GPUUUID         string `json:"gpu_uuid"`
+	Hostname        string            `json:"hostname"`
+	PID             int               `json:"pid"`
+	DumpTimestampUS int64             `json:"dump_timestamp_us"`
+	GPUUUID         string            `json:"gpu_uuid"`
+	ExtraTags       map[string]string `json:"extra_tags,omitempty"`
 }
 
 // toNCCLInspectorEvent converts NVIDIA's nested format to our internal representation.
@@ -94,6 +96,7 @@ func (e *nvidiaInspectorEvent) toNCCLInspectorEvent() NCCLInspectorEvent {
 		GPUUUID:         e.Metadata.GPUUUID,
 		Hostname:        e.Metadata.Hostname,
 		DumpTimestampUS: e.Metadata.DumpTimestampUS,
+		ExtraTags:       e.Metadata.ExtraTags,
 		CollPerf:        e.CollPerf,
 		ProxyOp:         e.ProxyOp,
 	}
