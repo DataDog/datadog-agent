@@ -359,42 +359,42 @@ func TestValidateAutoscalerSpec(t *testing.T) {
 			wantErr: "applyPolicy.update.resizePendingPeriod (-1) must be 0 (disabled) or between 1 and 3599 seconds",
 		},
 
-		"rollbackFallbackDelay zero is valid (disabled)": {
+		"rolloutFallbackDelay zero is valid (disabled)": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RollbackFallbackDelay: 0},
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 0},
 				},
 			},
 		},
-		"rollbackFallbackDelay 1 is valid": {
+		"rolloutFallbackDelay 1 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RollbackFallbackDelay: 1},
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 1},
 				},
 			},
 		},
-		"rollbackFallbackDelay 3599 is valid": {
+		"rolloutFallbackDelay 3599 is valid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RollbackFallbackDelay: 3599},
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3599},
 				},
 			},
 		},
-		"rollbackFallbackDelay 3600 is invalid": {
+		"rolloutFallbackDelay 3600 is invalid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RollbackFallbackDelay: 3600},
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: 3600},
 				},
 			},
-			wantErr: "applyPolicy.update.rollbackFallbackDelay (3600) must be 0 (disabled) or between 1 and 3599 seconds",
+			wantErr: "applyPolicy.update.rolloutFallbackDelay (3600) must be 0 (disabled) or between 1 and 3599 seconds",
 		},
-		"rollbackFallbackDelay negative is invalid": {
+		"rolloutFallbackDelay negative is invalid": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RollbackFallbackDelay: -1},
+					Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{RolloutFallbackDelay: -1},
 				},
 			},
-			wantErr: "applyPolicy.update.rollbackFallbackDelay (-1) must be 0 (disabled) or between 1 and 3599 seconds",
+			wantErr: "applyPolicy.update.rolloutFallbackDelay (-1) must be 0 (disabled) or between 1 and 3599 seconds",
 		},
 	}
 

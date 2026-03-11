@@ -253,14 +253,14 @@ func scalingValWithRequests(recID, cpu string) *model.VerticalScalingValues {
 	}
 }
 
-// makeDPAWithFallbackDelay builds a DPA with RollbackFallbackDelay set.
+// makeDPAWithFallbackDelay builds a DPA with RolloutFallbackDelay set.
 func makeDPAWithFallbackDelay(ns, name string, delaySeconds int32) *datadoghq.DatadogPodAutoscaler {
 	return &datadoghq.DatadogPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
 		Spec: datadoghq.DatadogPodAutoscalerSpec{
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
-					RollbackFallbackDelay: delaySeconds,
+					RolloutFallbackDelay: delaySeconds,
 				},
 			},
 		},
@@ -682,8 +682,9 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
 	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
 	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
+	dpa := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
 
-	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+	err := f.controller.patchInPlace(context.Background(), dpa, &ai, p, "r1")
 	assert.NoError(t, err)
 	// Expect two sequential patches: resize subresource, then metadata annotation.
 	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")
@@ -877,7 +878,7 @@ func TestSyncInternal_InPlace_PDB_StopsEviction(t *testing.T) {
 }
 
 // TestSyncInternal_InPlace_FallbackToRollout_WhenStuck verifies that a pod stuck beyond
-// RollbackFallbackDelay triggers a rollout instead of eviction.
+// RolloutFallbackDelay triggers a rollout instead of eviction.
 func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
 	now := time.Now()
 	f := newVerticalControllerFixture(t, now)
@@ -915,12 +916,12 @@ func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
 		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
-	assert.True(t, workloadPatched, "rollout must be triggered when pod is stuck beyond RollbackFallbackDelay")
+	assert.True(t, workloadPatched, "rollout must be triggered when pod is stuck beyond RolloutFallbackDelay")
 	assert.True(t, result.Requeue)
 }
 
 // TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough verifies that a pod stuck
-// less than RollbackFallbackDelay is evicted normally without triggering a rollout.
+// less than RolloutFallbackDelay is evicted normally without triggering a rollout.
 func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
 	now := time.Now()
 	f := newVerticalControllerFixture(t, now)
@@ -946,7 +947,7 @@ func TestSyncInternal_InPlace_NoFallback_WhenNotStuckLongEnough(t *testing.T) {
 	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()), "eviction must proceed when under the fallback threshold")
 }
 
-// TestSyncInternal_InPlace_NoFallback_WhenDelayZero verifies that RollbackFallbackDelay=0
+// TestSyncInternal_InPlace_NoFallback_WhenDelayZero verifies that RolloutFallbackDelay=0
 // (disabled) never triggers the rollout fallback, even for a long-stuck pod.
 func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
 	now := time.Now()
@@ -969,7 +970,7 @@ func TestSyncInternal_InPlace_NoFallback_WhenDelayZero(t *testing.T) {
 
 	_, err := f.runSyncInPlaceMode(t, dpa, nil, "r1", pods)
 	assert.NoError(t, err)
-	assert.False(t, workloadPatched, "rollout fallback must not trigger when RollbackFallbackDelay is 0")
+	assert.False(t, workloadPatched, "rollout fallback must not trigger when RolloutFallbackDelay is 0")
 	assert.Equal(t, 1, countEvictions(t, k8sClient.Actions()))
 }
 

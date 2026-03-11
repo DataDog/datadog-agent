@@ -175,6 +175,7 @@ func (u *verticalController) syncInternal(
 	// In-place resize path.
 	// If this is a new recommendation, record the action (regardless of whether the patches
 	// below succeed) and reset the eviction counter for this cycle.
+	var toEvictOnPatchFailure []classifiedPod
 	if needsPatch := podsByResizeStatus[PodResizeStatusNeedsPatch]; len(needsPatch) > 0 {
 		lastAction := autoscalerInternal.VerticalLastAction()
 		if lastAction == nil || lastAction.Version != recommendationID {
@@ -182,22 +183,25 @@ func (u *verticalController) syncInternal(
 			autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 				Time:    metav1.NewTime(u.clock.Now()),
 				Version: recommendationID,
-				Type:    datadoghqcommon.DatadogPodAutoscalerTriggerRolloutVerticalActionType,
+				Type:    datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType,
 			}, nil)
 			autoscalerInternal.SetEvictedReplicas(0)
 		}
 
 		for _, cp := range needsPatch {
-			if err := u.patchInPlace(ctx, autoscalerInternal, cp.pod, recommendationID); err != nil {
+			if err := u.patchInPlace(ctx, podAutoscaler, autoscalerInternal, cp.pod, recommendationID); err != nil {
 				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
+				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
 			}
 		}
 	}
 
-	// Build the list of pods to evict.
-	toEvict := make([]classifiedPod, 0, len(podsByResizeStatus[PodResizeStatusError])+len(podsByResizeStatus[PodResizeStatusInfeasible]))
+	// Build the list of pods to evict: pods with unresolvable conditions, plus any
+	// pods whose resize patch failed (the API rejected it — e.g. unsupported on this cluster).
+	toEvict := make([]classifiedPod, 0, len(podsByResizeStatus[PodResizeStatusError])+len(podsByResizeStatus[PodResizeStatusInfeasible])+len(toEvictOnPatchFailure))
 	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusError]...)
 	toEvict = append(toEvict, podsByResizeStatus[PodResizeStatusInfeasible]...)
+	toEvict = append(toEvict, toEvictOnPatchFailure...)
 	now := u.clock.Now()
 	for _, cp := range podsByResizeStatus[PodResizeStatusDeferred] {
 		if shouldEvictDeferred(podAutoscaler, now) {
@@ -205,7 +209,7 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// If any pod has been stuck in an unresolvable state for longer than RollbackFallbackDelay,
+	// If any pod has been stuck in an unresolvable state for longer than RolloutFallbackDelay,
 	// escalate to a full rollout rather than continuing to attempt evictions.
 	if shouldFallbackToRollout(toEvict, podAutoscaler, now) {
 		log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
@@ -246,7 +250,7 @@ func (u *verticalController) syncInternal(
 
 // patchInPlace applies the resource recommendation to a single pod via the resize subresource,
 // then updates the pod's RecommendationIDAnnotation to record the applied recommendation.
-func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
+func (u *verticalController) patchInPlace(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
 	patchTarget := workloadpatcher.PodTarget(pod.Namespace, pod.Name)
 
 	// Patch spec.containers[*].resources via the pods/resize subresource.
@@ -254,6 +258,10 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 	intent := workloadpatcher.NewPatchIntent(patchTarget).With(workloadpatcher.SetContainerResources(containersResourcePatches))
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize", PatchType: types.StrategicMergePatchType})
 	if err != nil {
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToPatchInPlace, fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err))
+		autoscalerInternal.UpdateFromVerticalAction(nil, err)
+		autoscalerInternal.VerticalActionErrorInc()
+		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason, err.Error())
 		return fmt.Errorf("failed to patch pod %s/%s resources in place: %w", pod.Namespace, pod.Name, err)
 	}
 
@@ -263,6 +271,10 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 	}))
 	_, err = u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"})
 	if err != nil {
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonFailedToPatchInPlace, fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err))
+		autoscalerInternal.UpdateFromVerticalAction(nil, err)
+		autoscalerInternal.VerticalActionErrorInc()
+		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.InPlaceResizeFallbackEventReason, err.Error())
 		return fmt.Errorf("failed to patch pod %s/%s annotations in place: %w", pod.Namespace, pod.Name, err)
 	}
 

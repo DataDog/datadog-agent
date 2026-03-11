@@ -456,13 +456,13 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 }
 
 // shouldFallbackToRollout returns true if any pod in toEvict has been stuck in its
-// unresolvable state longer than RollbackFallbackDelay seconds, indicating that
+// unresolvable state longer than RolloutFallbackDelay seconds, indicating that
 // eviction is not making progress and a full rollout should be triggered instead.
 func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
 	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
 		return false
 	}
-	delay := podAutoscaler.Spec.ApplyPolicy.Update.RollbackFallbackDelay
+	delay := podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
 	if delay <= 0 {
 		return false
 	}
