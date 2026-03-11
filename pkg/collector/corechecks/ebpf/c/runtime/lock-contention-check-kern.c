@@ -3,6 +3,8 @@
 #include "bpf_tracing.h"
 #include "map-defs.h"
 #include "lock-contention-check-kern-user.h"
+#include "bpf_metadata.h"
+#include "bpf_telemetry.h"
 
 #define MAX_TSTAMP_ENTRIES 8192
 
