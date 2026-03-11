@@ -1,10 +1,104 @@
-from datetime import date
+from __future__ import annotations
 
+import secrets
+import sys
+from datetime import date
+from pathlib import Path
+
+import yaml
 from invoke import Failure
 
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
+
+# Section ordering and display names for the Markdown changelog assembler.
+# This is the canonical list of sections. tasks/libs/linter/releasenotes_md.py
+# derives its CHANGELOG_SECTIONS frozenset from this list (plus 'prelude').
+CHANGELOG_SECTIONS = [
+    ('upgrade', 'Upgrade Notes'),
+    ('features', 'New Features'),
+    ('enhancements', 'Enhancement Notes'),
+    ('issues', 'Issues'),
+    ('known_issues', 'Known Issues'),
+    ('deprecations', 'Deprecation Notes'),
+    ('security', 'Security Notes'),
+    ('fixes', 'Bug Fixes'),
+    ('critical', 'Critical Notes'),
+    ('other', 'Other Notes'),
+]
+
+
+def _new_fragment_path(changelog_dir: str, slug: str) -> Path:
+    """Return a new fragment file path with a unique 16-char hex suffix."""
+    uid = secrets.token_hex(8)
+    slug = slug.replace('/', '-')
+    return Path(changelog_dir) / 'notes' / f'{slug}-{uid}.yaml'
+
+
+def _assemble_changelog(fragment_dir: str | Path, version: str) -> str:
+    """Collect all fragment YAML files and render them into a Markdown section.
+
+    This is the new pure-Python assembler. During the migration period it runs
+    alongside reno (which remains authoritative). Fragment content is passed
+    through verbatim — RST or Markdown — so the structural comparison holds
+    regardless of content format.
+    """
+    notes_path = Path(fragment_dir) / 'notes'
+    fragment_files = sorted(notes_path.glob('*.yaml'))
+
+    sections = {key: [] for key, _ in CHANGELOG_SECTIONS}
+    prelude = None
+
+    for fragment_file in fragment_files:
+        try:
+            with open(fragment_file, encoding='utf-8') as f:
+                content = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError) as e:
+            raise RuntimeError(f"Failed to read fragment {fragment_file}: {e}") from e
+
+        if not content or not isinstance(content, dict):
+            continue
+
+        if 'prelude' in content and isinstance(content['prelude'], str):
+            if prelude is not None:
+                print(
+                    f"WARNING: multiple fragments contain 'prelude'; last one wins: {fragment_file}", file=sys.stderr
+                )
+            prelude = content['prelude'].strip()
+
+        for section_key, _ in CHANGELOG_SECTIONS:
+            if section_key in content:
+                items = content[section_key]
+                if isinstance(items, list):
+                    for item in items:
+                        if isinstance(item, str):
+                            if item.strip():
+                                sections[section_key].append(item.strip())
+                        elif item is not None:
+                            print(
+                                f"WARNING: non-string item in '{section_key}' of {fragment_file}: {item!r}",
+                                file=sys.stderr,
+                            )
+
+    lines = [f'## {version}', '']
+
+    if prelude:
+        lines.append(prelude)
+        lines.append('')
+
+    for section_key, section_title in CHANGELOG_SECTIONS:
+        if sections[section_key]:
+            lines.append(f'### {section_title}')
+            lines.append('')
+            for item in sections[section_key]:
+                item_lines = item.split('\n')
+                lines.append(f'- {item_lines[0]}')
+                for extra in item_lines[1:]:
+                    lines.append(f'  {extra}' if extra.strip() else '')
+            lines.append('')
+
+    return '\n'.join(lines) + '\n'
 
 
 def _add_prelude(ctx, version, release_date=None):

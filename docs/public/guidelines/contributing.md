@@ -128,6 +128,14 @@ Each PR should include a `releasenotes` file created with `reno`, unless the PR 
 
 To install reno: `pip install reno`
 
+Alternatively, if you have the development tools installed, you can use the built-in task instead of `reno new`:
+
+```bash
+$> dda inv notes.new <topic-of-my-pr>
+```
+
+This creates the same YAML template without requiring reno to be installed. Either approach produces a file in `releasenotes/notes/` ready to fill in.
+
 Ultra quick `Reno` HOWTO:
 
 ```bash

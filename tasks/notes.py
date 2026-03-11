@@ -8,8 +8,57 @@ from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch, try_git_command
 from tasks.libs.common.worktree import agent_context
-from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
+from tasks.libs.releasing.notes import (
+    CHANGELOG_SECTIONS,
+    _add_dca_prelude,
+    _add_prelude,
+    _new_fragment_path,
+    update_changelog_generic,
+)
 from tasks.libs.releasing.version import deduce_version
+
+
+@task
+def new(ctx, slug, dca=False, installscript=False):  # noqa: U100
+    """Create a new release note fragment.
+
+    Creates a YAML template in releasenotes/notes/ (or releasenotes-dca/notes/
+    if --dca is set, or releasenotes-installscript/notes/ if --installscript is set).
+    Fill in the relevant sections and delete the rest.
+
+    Note: Content should be written in reStructuredText (RST) while reno remains
+    the authoritative changelog assembler.
+
+    Example::
+
+        dda inv notes.new my-feature
+        dda inv notes.new my-fix --dca
+    """
+    if dca:
+        changelog_dir = 'releasenotes-dca'
+    elif installscript:
+        changelog_dir = 'releasenotes-installscript'
+    else:
+        changelog_dir = 'releasenotes'
+
+    note_path = _new_fragment_path(changelog_dir, slug)
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+
+    section_lines = []
+    for key, title in CHANGELOG_SECTIONS:
+        if key == 'upgrade':
+            section_lines.append(f"# {key}:\n#   - |\n#     {title}: include steps users can follow if affected.\n")
+        else:
+            section_lines.append(f"# {key}:\n#   - |\n#     {title}.\n")
+
+    template = "---\n# Fill in the relevant section(s) below. Delete sections that don't apply.\n# Content should be written in RST (reStructuredText).\n\n"
+    template += "".join(section_lines)
+
+    with open(note_path, 'w', encoding='utf-8') as f:
+        f.write(template)
+
+    print(f"Created release note: {note_path}")
+    print("Edit the file, fill in the relevant sections, and commit it with your PR.")
 
 
 @task
