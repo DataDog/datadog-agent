@@ -116,9 +116,8 @@ mod tests {
 
     #[test]
     fn test_parse_missing_socket() {
-        let result = Args::parse(
-            args(&["system-probe-lite", "run", "--log-level", "info"]).into_iter(),
-        );
+        let result =
+            Args::parse(args(&["system-probe-lite", "run", "--log-level", "info"]).into_iter());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
