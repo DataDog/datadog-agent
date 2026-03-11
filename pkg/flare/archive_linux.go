@@ -8,7 +8,11 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
+	"os"
 	"path/filepath"
+	"strings"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -27,6 +31,8 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}
+
+	_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_audit.log"), getLinuxAuditLogs)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
@@ -76,4 +82,44 @@ func getSystemProbeDiscoveryState() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/state")
 	return priviledged.GetHTTPData(sysProbeClient, url)
+}
+
+// getLinuxAuditLogs reads /var/log/audit/audit.log and returns lines mentioning
+// Datadog agent binaries. This is useful for diagnosing SELinux AVC denials.
+func getLinuxAuditLogs() ([]byte, error) {
+	const auditLogPath = "/var/log/audit/audit.log"
+
+	f, err := os.Open(auditLogPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Binary names to grep for in the audit log
+	datadogBinaries := []string{
+		"datadog-agent",
+		"system-probe",
+		"sysprobe",
+		"security-agent",
+		"process-agent",
+		"trace-agent",
+	}
+
+	var result bytes.Buffer
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		for _, binary := range datadogBinaries {
+			if strings.Contains(line, binary) {
+				result.WriteString(line)
+				result.WriteByte('\n')
+				break
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return result.Bytes(), err
+	}
+	return result.Bytes(), nil
 }
