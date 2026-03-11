@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # Known sections that can appear in a fragment.
 # Derived from the assembler's CHANGELOG_SECTIONS to ensure the linter and
 # assembler stay in sync. 'prelude' is handled separately during assembly.
-CHANGELOG_SECTIONS = frozenset(key for key, _ in _ASSEMBLER_SECTIONS) | {'prelude'}
+CHANGELOG_SECTIONS = frozenset(key for key, _ in _ASSEMBLER_SECTIONS) | {"prelude"}
 
 
 class LintError:
@@ -55,7 +55,7 @@ class ReleasenoteFileResult:
     @property
     def has_errors(self) -> bool:
         return any(
-            e.level == 'error'
+            e.level == "error"
             for section_error in self.section_errors
             for e in section_error.errors
         )
@@ -63,7 +63,7 @@ class ReleasenoteFileResult:
     @property
     def has_warnings(self) -> bool:
         return any(
-            e.level == 'warning'
+            e.level == "warning"
             for section_error in self.section_errors
             for e in section_error.errors
         )
@@ -76,8 +76,12 @@ class ReleasenoteFileResult:
         lines = [f"{self.file_path}:"]
         for section_error in self.section_errors:
             for error in section_error.errors:
-                line_str = f"Line {error.line}" if error.line is not None else "Unknown line"
-                lines.append(f"  [{section_error.section}] {line_str}: ({error.level.upper()}) {error.message}")
+                line_str = (
+                    f"Line {error.line}" if error.line is not None else "Unknown line"
+                )
+                lines.append(
+                    f"  [{section_error.section}] {line_str}: ({error.level.upper()}) {error.message}"
+                )
         return "\n".join(lines)
 
 
@@ -95,12 +99,12 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
     if not isinstance(content, dict):
         return [
             ReleasenoteError(
-                section='yaml',
+                section="yaml",
                 errors=[
                     LintError(
                         line=None,
-                        level='error',
-                        message=f'Release note must be a YAML mapping, got {type(content).__name__}',
+                        level="error",
+                        message=f"Release note must be a YAML mapping, got {type(content).__name__}",
                     )
                 ],
             )
@@ -111,12 +115,12 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
         section_errors = [
             LintError(
                 line=None,
-                level='error',
+                level="error",
                 message=f"Unknown section '{s}'. Valid sections: {', '.join(sorted(CHANGELOG_SECTIONS))}",
             )
             for s in sorted(unknown_sections)
         ]
-        errors.append(ReleasenoteError(section='structure', errors=section_errors))
+        errors.append(ReleasenoteError(section="structure", errors=section_errors))
 
     for section, section_content in content.items():
         if section not in CHANGELOG_SECTIONS:
@@ -128,16 +132,16 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
             section_errors.append(
                 LintError(
                     line=None,
-                    level='warning',
+                    level="warning",
                     message=f"Section '{section}' is empty (null). Remove it or add content.",
                 )
             )
-        elif section == 'prelude':
+        elif section == "prelude":
             if not isinstance(section_content, str):
                 section_errors.append(
                     LintError(
                         line=None,
-                        level='error',
+                        level="error",
                         message=f"Section 'prelude' must be a string, got {type(section_content).__name__}",
                     )
                 )
@@ -145,7 +149,7 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
                 section_errors.append(
                     LintError(
                         line=None,
-                        level='warning',
+                        level="warning",
                         message="Section 'prelude' is empty or whitespace-only",
                     )
                 )
@@ -153,7 +157,7 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
             section_errors.append(
                 LintError(
                     line=None,
-                    level='error',
+                    level="error",
                     message=f"Section '{section}' must be a list of strings, got {type(section_content).__name__}",
                 )
             )
@@ -161,7 +165,7 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
             section_errors.append(
                 LintError(
                     line=None,
-                    level='warning',
+                    level="warning",
                     message=f"Section '{section}' is an empty list. Remove it or add content.",
                 )
             )
@@ -171,7 +175,7 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
                     section_errors.append(
                         LintError(
                             line=None,
-                            level='error',
+                            level="error",
                             message=f"Item {i} in section '{section}' must be a string, got {type(item).__name__}",
                         )
                     )
@@ -179,7 +183,7 @@ def validate_fragment_structure(content: dict) -> list[ReleasenoteError]:
                     section_errors.append(
                         LintError(
                             line=None,
-                            level='warning',
+                            level="warning",
                             message=f"Item {i} in section '{section}' is empty or whitespace-only",
                         )
                     )
@@ -200,33 +204,51 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     section_errors: list[ReleasenoteError] = []
 
     try:
-        with open(file_path, encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             content = yaml.safe_load(f)
     except yaml.YAMLError as e:
         section_errors.append(
             ReleasenoteError(
-                section='yaml', errors=[LintError(line=None, level='error', message=f'YAML parsing error: {e}')]
+                section="yaml",
+                errors=[
+                    LintError(
+                        line=None, level="error", message=f"YAML parsing error: {e}"
+                    )
+                ],
             )
         )
-        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
+        return ReleasenoteFileResult(
+            file_path=str(file_path), section_errors=section_errors
+        )
     except OSError as e:
         section_errors.append(
             ReleasenoteError(
-                section='file', errors=[LintError(line=None, level='error', message=f'File read error: {e}')]
+                section="file",
+                errors=[
+                    LintError(line=None, level="error", message=f"File read error: {e}")
+                ],
             )
         )
-        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
+        return ReleasenoteFileResult(
+            file_path=str(file_path), section_errors=section_errors
+        )
 
     if content is None:
-        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
+        return ReleasenoteFileResult(
+            file_path=str(file_path), section_errors=section_errors
+        )
 
     structure_errors = validate_fragment_structure(content)
     section_errors.extend(structure_errors)
 
-    return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
+    return ReleasenoteFileResult(
+        file_path=str(file_path), section_errors=section_errors
+    )
 
 
-def lint_releasenotes(files: Iterable[str | Path]) -> tuple[list[ReleasenoteFileResult], list[ReleasenoteFileResult]]:
+def lint_releasenotes(
+    files: Iterable[str | Path],
+) -> tuple[list[ReleasenoteFileResult], list[ReleasenoteFileResult]]:
     """Lint multiple release note files.
 
     Returns a tuple of (errors, warnings) where each is a list of
