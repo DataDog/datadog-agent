@@ -23,6 +23,16 @@ ASSETS_DIR = Path("cmd/agent/dist/assets")
 CONFD_DIR = Path("cmd/agent/dist/conf.d")
 TEMPLATES_DIR = Path("tasks/integration_templates")
 
+# Checks that predate the spec.yaml workflow; spec-sync skips them.
+SPEC_SYNC_IGNORE = frozenset(
+    {
+        "network_path",
+        "windows_certificate",
+        "wincrashdetect",
+        "systemd",
+    }
+)
+
 # ---------------------------------------------------------------------------
 # Template system
 # ---------------------------------------------------------------------------
@@ -147,6 +157,93 @@ def _option_to_param_type(value: dict) -> str:
     return spec_type
 
 
+def _render_object_section(name: str, description: str, required: bool, properties: dict) -> str:
+    """
+    Render an object option whose sub-properties each have a description as an
+    indented block of ## @param entries (no @param on the parent itself).
+
+    Example output (before outer indentation):
+        ## <description>
+        #
+        # <name>:
+
+          ## @param <prop> - <type> - optional
+          ## <prop description>
+          #
+          # <prop>: <example>
+    """
+    lines = []
+    for desc_line in description.rstrip().splitlines():
+        lines.append(f"## {desc_line}" if desc_line.strip() else "##")
+    lines.append("#")
+    prefix = "" if required else "# "
+    lines.append(f"{prefix}{name}:")
+
+    for prop_name, prop in properties.items():
+        prop_type = prop.get("type", "string")
+        param_type = "list of strings" if prop_type == "array" else prop_type
+        prop_required = prop.get("required", False)
+        default = prop.get("default")
+        example = prop.get("example")
+        prop_desc = prop.get("description", "").strip()
+        block = _render_param_comment(prop_name, param_type, prop_required, default, prop_desc, example)
+        lines.append(textwrap.indent(block, "  "))
+
+    return "\n".join(lines) + "\n"
+
+
+def _render_object_mapping(name: str, description: str, required: bool, properties: dict) -> str:
+    """
+    Render an object option whose sub-properties have no descriptions as a flat
+    ## @param block with commented YAML showing the structure.
+
+    Example output (before outer indentation):
+        ## @param <name> - mapping - optional
+        ## <description>
+        #
+        # <name>:
+        #   <prop1>:
+        #   - <example_item>
+    """
+    req_str = "required" if required else "optional"
+    lines = [f"## @param {name} - mapping - {req_str}"]
+    for desc_line in description.rstrip().splitlines():
+        lines.append(f"## {desc_line}" if desc_line.strip() else "##")
+    lines.append("#")
+    lines.append(f"# {name}:")
+    for prop_name, prop in properties.items():
+        prop_type = prop.get("type", "string")
+        example = prop.get("example")
+        if prop_type == "array" and isinstance(example, list):
+            lines.append(f"#   {prop_name}:")
+            for item in example:
+                lines.append(f"#   - {item}")
+        else:
+            example_str = str(example) if example is not None else f"<{prop_name.upper()}>"
+            lines.append(f"#   {prop_name}: {example_str}")
+    return "\n".join(lines) + "\n"
+
+
+def _render_opt_block(opt: dict) -> str:
+    """Dispatch to the appropriate renderer for a single option entry."""
+    name = opt["name"]
+    value = opt.get("value", {})
+    description = opt.get("description", "").strip()
+    required = opt.get("required", False)
+
+    properties = value.get("properties")
+    if properties and value.get("type") == "object":
+        has_descriptions = any(p.get("description") for p in properties.values())
+        if has_descriptions:
+            return _render_object_section(name, description, required, properties)
+        return _render_object_mapping(name, description, required, properties)
+
+    default = value.get("default")
+    example = value.get("example")
+    param_type = _option_to_param_type(value)
+    return _render_param_comment(name, param_type, required, default, description, example)
+
+
 def _generate_conf_yaml(check_name: str, spec: dict) -> str:
     """Render a conf.yaml.example string from a parsed spec dict."""
     lines = [
@@ -157,6 +254,7 @@ def _generate_conf_yaml(check_name: str, spec: dict) -> str:
         "",
     ]
 
+    common_params = _common_instance_params()
     for file_entry in spec.get("files", []):
         for template_block in file_entry.get("options", []):
             template = template_block.get("template", "")
@@ -165,23 +263,16 @@ def _generate_conf_yaml(check_name: str, spec: dict) -> str:
                 continue
             lines.append(f"{template}:")
             lines.append("")
+
             if template == "instances":
+                check_opts = [o for o in opts if o.get("name") not in common_params]
+                common_opts = [o for o in opts if o.get("name") in common_params]
                 lines.append("  -")
-            for opt in opts:
-                name = opt["name"]
-                value = opt.get("value", {})
-                description = opt.get("description", "").strip()
-                required = opt.get("required", False)
-                default = value.get("default")
-                example = value.get("example")
-                param_type = _option_to_param_type(value)
-                block = _render_param_comment(name, param_type, required, default, description, example)
-                # indent instance options
-                if template == "instances":
-                    indented = textwrap.indent(block, "    ")
-                    lines.append(indented)
-                else:
-                    lines.append(block)
+                for opt in check_opts + common_opts:
+                    lines.append(textwrap.indent(_render_opt_block(opt), "    "))
+            else:
+                for opt in opts:
+                    lines.append(_render_opt_block(opt))
             lines.append("")
 
     return "\n".join(lines)
@@ -309,22 +400,126 @@ def _parse_conf_yaml(conf_path: Path) -> dict:
 
     # State machine for parsing @param blocks
     i = 0
+    pending_desc_lines: list[str] = []  # ## lines buffered before a section-style object
+
     while i < len(lines):
-        stripped = lines[i].strip()
+        raw_line = lines[i]
+        stripped = raw_line.strip()
 
         # Detect section headers
         if re.match(r'^init_config\s*:', stripped):
             current_template = "init_config"
+            pending_desc_lines = []
             i += 1
             continue
         if re.match(r'^instances\s*:', stripped):
             current_template = "instances"
+            pending_desc_lines = []
             i += 1
             continue
+
+        # Detect section-style object: "# name:" not preceded by @param, followed by indented @param sub-blocks
+        section_match = re.match(r'^#\s+(\w+)\s*:\s*$', stripped)
+        if section_match:
+            # Peek ahead: find first non-empty/non-separator stripped line
+            j = i + 1
+            while j < len(lines) and lines[j].strip() in ('', '#'):
+                j += 1
+            if j < len(lines) and re.match(r'^##\s+@param\s+', lines[j].strip()):
+                parent_name = section_match.group(1)
+                description = "\n".join(pending_desc_lines).strip()
+                pending_desc_lines = []
+                base_indent = len(raw_line) - len(raw_line.lstrip())
+                properties: dict = {}
+                i = j
+
+                while i < len(lines):
+                    raw = lines[i]
+                    s = raw.strip()
+                    if not s or s == '#':
+                        i += 1
+                        continue
+                    curr_indent = len(raw) - len(raw.lstrip())
+                    if curr_indent <= base_indent:
+                        break
+                    sub_param = re.match(r'^##\s+@param\s+(\S+)\s+-\s+(.+)', s)
+                    if sub_param:
+                        prop_name = sub_param.group(1)
+                        rest = sub_param.group(2)
+                        parts = [p.strip() for p in rest.split(" - ")]
+                        raw_type = parts[0] if parts else "string"
+                        prop_required = False
+                        prop_default = None
+                        for part in parts[1:]:
+                            if part.lower() == "required":
+                                prop_required = True
+                            elif part.lower() == "optional":
+                                prop_required = False
+                            elif part.lower().startswith("default:"):
+                                prop_default = _parse_scalar(part[len("default:") :].strip())
+                        i += 1
+                        prop_desc_lines: list[str] = []
+                        while i < len(lines):
+                            s2 = lines[i].strip()
+                            if s2.startswith("## ") or s2 == "##":
+                                text = s2[3:] if s2.startswith("## ") else ""
+                                if text.startswith("@param"):
+                                    break
+                                prop_desc_lines.append(text)
+                                i += 1
+                            else:
+                                break
+                        prop_example = None
+                        k = i
+                        while k < len(lines) and lines[k].strip() in ('#', ''):
+                            k += 1
+                        if k < len(lines):
+                            ex_match = re.match(r'^[\s#]*#\s+' + re.escape(prop_name) + r'\s*:\s*(.*)', lines[k])
+                            if ex_match:
+                                raw_ex = ex_match.group(1).strip()
+                                if raw_ex:
+                                    prop_example = _parse_scalar(raw_ex)
+                                items = []
+                                m = k + 1
+                                while m < len(lines):
+                                    item_match = re.match(r'^[\s#]*#\s+-\s+(.*)', lines[m])
+                                    if item_match:
+                                        items.append(item_match.group(1).strip())
+                                        m += 1
+                                    else:
+                                        break
+                                if items:
+                                    prop_example = items
+                        prop_value = _spec_type(raw_type)
+                        if prop_example is not None:
+                            prop_value["example"] = prop_example
+                        else:
+                            prop_value["example"] = f"<{prop_name.upper()}>"
+                        if prop_default is not None:
+                            prop_value["default"] = prop_default
+                        properties[prop_name] = {
+                            "description": "\n".join(prop_desc_lines).strip() + "\n",
+                            "required": prop_required,
+                            **prop_value,
+                        }
+                    else:
+                        i += 1
+
+                options_by_template[current_template].append(
+                    {
+                        "name": parent_name,
+                        "fleet_configurable": False,
+                        "value": {"type": "object", "properties": properties},
+                        "description": description + "\n",
+                        "required": False,
+                    }
+                )
+                continue
 
         # Detect @param annotation
         param_match = re.match(r'^##\s+@param\s+(\S+)\s+-\s+(.+)', stripped)
         if param_match:
+            pending_desc_lines = []
             param_name = param_match.group(1)
             rest = param_match.group(2)
 
@@ -400,6 +595,14 @@ def _parse_conf_yaml(conf_path: Path) -> dict:
             options_by_template[current_template].append(opt)
             continue
 
+        # Accumulate ## description lines (not @param) into buffer for section-style objects
+        if stripped.startswith("## ") or stripped == "##":
+            text = stripped[3:] if stripped.startswith("## ") else ""
+            pending_desc_lines.append(text)
+        elif stripped not in ('#', ''):
+            # Non-comment, non-separator line resets the description buffer
+            pending_desc_lines = []
+
         i += 1
 
     return options_by_template
@@ -439,12 +642,17 @@ def _build_spec(check_name: str, options_by_template: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _spec_value_to_go_type(value: dict) -> str:
+def _spec_value_to_go_type(value: dict, field_name: str = "") -> str:
     """Convert a spec value dict to a Go type string."""
     spec_type = value.get("type", "string")
     if spec_type == "array":
         item_type = value.get("items", {}).get("type", "string")
         return f"[]{_GO_TYPE_MAP.get(item_type, 'interface{}')}"
+    if spec_type == "object" and field_name:
+        properties = value.get("properties", {})
+        has_descriptions = any(p.get("description") for p in properties.values())
+        if has_descriptions:
+            return _snake_to_pascal(field_name)
     return _GO_TYPE_MAP.get(spec_type, "interface{}")
 
 
@@ -452,11 +660,22 @@ def _snake_to_pascal(name: str) -> str:
     return "".join(part.capitalize() for part in name.split("_"))
 
 
-def _build_config_struct_fields(spec: dict) -> list[str]:
+def _to_unexported(name: str) -> str:
+    """Lowercase the first character of a PascalCase name (Go unexported)."""
+    return name[0].lower() + name[1:] if name else name
+
+
+def _build_config_struct_fields(spec: dict) -> tuple[list[str], dict[str, tuple[str, list[str]]]]:
     """
-    Return Go struct field lines for all non-common instance options in the spec.
+    Return Go struct field lines for all non-common instance options in the spec,
+    plus a dict of helper struct types needed for section-style object fields.
+
+    Returns:
+        fields         – lines for the Configuration struct body
+        helper_structs – {TypeName: (description, [field lines])} for nested struct types
     """
-    fields = []
+    fields: list[str] = []
+    helper_structs: dict[str, tuple[str, list[str]]] = {}
     for file_entry in spec.get("files", []):
         for block in file_entry.get("options", []):
             if block.get("template") != "instances":
@@ -465,10 +684,23 @@ def _build_config_struct_fields(spec: dict) -> list[str]:
                 name = opt["name"]
                 if name in _common_instance_params():
                     continue
-                go_type = _spec_value_to_go_type(opt.get("value", {}))
-                field_name = _snake_to_pascal(name)
-                fields.append(f'\t{field_name} {go_type} `yaml:"{name}"`')
-    return fields
+                value = opt.get("value", {})
+                properties = value.get("properties", {})
+                has_desc = any(p.get("description") for p in properties.values())
+                if value.get("type") == "object" and properties and has_desc:
+                    type_name = _snake_to_pascal(name)
+                    fields.append(f'\t{type_name} {type_name} `yaml:"{name}"`')
+                    sub_fields = []
+                    for prop_name, prop in properties.items():
+                        go_type = _spec_value_to_go_type(prop)
+                        sub_fields.append(f'\t{_snake_to_pascal(prop_name)} {go_type} `yaml:"{prop_name}"`')
+                    desc = opt.get("description", "").strip()
+                    helper_structs[type_name] = (desc, sub_fields)
+                else:
+                    go_type = _spec_value_to_go_type(value, name)
+                    field_name = _snake_to_pascal(name)
+                    fields.append(f'\t{field_name} {go_type} `yaml:"{name}"`')
+    return fields, helper_structs
 
 
 def _find_check_go_file(check_name: str) -> Path | None:
@@ -478,13 +710,31 @@ def _find_check_go_file(check_name: str) -> Path | None:
     return None
 
 
-def _sync_config_struct(go_file: Path, fields: list[str]) -> bool:
+def _sync_config_struct(go_file: Path, fields: list[str], helper_structs: dict[str, tuple[str, list[str]]]) -> bool:
     """
-    Replace the body of `type Configuration struct { ... }` in go_file with fields.
+    Replace the body of `type Configuration struct { ... }` in go_file with fields,
+    and insert or replace helper struct types for section-style object fields.
+    Preserves existing exported/unexported casing of helper struct type names.
     Returns True if the file was changed.
     """
     content = go_file.read_text()
-    body = ("\n".join(fields) + "\n") if fields else ""
+
+    # Detect existing casing for each helper struct before any modifications.
+    resolved_names: dict[str, str] = {}
+    for type_name in helper_structs:
+        unexported = _to_unexported(type_name)
+        existing = re.search(rf'type ({re.escape(type_name)}|{re.escape(unexported)}) struct \{{', content)
+        resolved_names[type_name] = existing.group(1) if existing else type_name
+
+    # Rewrite Configuration field type references to match detected casing.
+    resolved_fields = []
+    for f in fields:
+        line = f
+        for exported_name, used_name in resolved_names.items():
+            line = line.replace(f" {exported_name} ", f" {used_name} ")
+        resolved_fields.append(line)
+
+    body = ("\n".join(resolved_fields) + "\n") if resolved_fields else ""
     new_struct = f"type Configuration struct {{\n{body}}}"
     updated, count = re.subn(
         r'type Configuration struct \{[^}]*\}',
@@ -494,6 +744,43 @@ def _sync_config_struct(go_file: Path, fields: list[str]) -> bool:
     )
     if count == 0:
         return False
+
+    # Build helper struct blocks with preserved casing, remove old, insert after Configuration.
+    helper_blocks = []
+    for type_name, (desc, sub_fields) in helper_structs.items():
+        used_name = resolved_names[type_name]
+        unexported = _to_unexported(type_name)
+        either = f"(?:{re.escape(type_name)}|{re.escape(unexported)})"
+
+        sub_body = ("\n".join(sub_fields) + "\n") if sub_fields else ""
+        helper_struct = f"type {used_name} struct {{\n{sub_body}}}"
+
+        if desc:
+            normalized = desc[0].lower() + desc[1:] if desc else ""
+            if not normalized.endswith("."):
+                normalized += "."
+            comment = f"// {used_name} holds {normalized}"
+        else:
+            comment = f"// {used_name} holds nested configuration."
+        helper_blocks.append(f"{comment}\n{helper_struct}")
+
+        # Remove any existing definition (exported or unexported, with optional preceding comment)
+        updated = re.sub(
+            rf'\n*(?:// {either} [^\n]*\n)?type {either} struct \{{[^}}]*\}}\n*',
+            '\n\n',
+            updated,
+            flags=re.DOTALL,
+        )
+
+    if helper_blocks:
+        config_struct = f"type Configuration struct {{\n{body}}}"
+        joined_helpers = "\n\n".join(helper_blocks)
+        updated = updated.replace(
+            config_struct,
+            f"{config_struct}\n\n{joined_helpers}",
+            1,
+        )
+
     if updated == content:
         return False
     go_file.write_text(updated)
@@ -534,6 +821,10 @@ def spec_sync(_, check=None, sync=False):
             continue
 
         check_name = spec_path.parent.name
+        if check_name in SPEC_SYNC_IGNORE:
+            print(f"SKIP (legacy): {check_name}")
+            continue
+
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
 
@@ -542,7 +833,7 @@ def spec_sync(_, check=None, sync=False):
         out_dir = CONFD_DIR / f"{check_name}.d"
         out_path = out_dir / "conf.yaml.example"
 
-        fields = _build_config_struct_fields(spec)
+        fields, helper_structs = _build_config_struct_fields(spec)
         go_file = _find_check_go_file(check_name)
 
         if sync:
@@ -551,7 +842,7 @@ def spec_sync(_, check=None, sync=False):
             print(f"Wrote {out_path}")
 
             if go_file:
-                if _sync_config_struct(go_file, fields):
+                if _sync_config_struct(go_file, fields, helper_structs):
                     print(f"Updated Configuration struct in {go_file}")
                 else:
                     print(f"Configuration struct already up to date in {go_file}")
@@ -587,9 +878,38 @@ def spec_sync(_, check=None, sync=False):
 
             if go_file:
                 content = go_file.read_text()
+
+                # The Configuration field may reference the helper type as
+                # exported (StuffAndThings) or unexported (stuffAndThings).
+                # Build an alternative body that uses unexported type names
+                # so we can accept either.
+                alt_fields = []
+                for f in fields:
+                    alt = f
+                    for tn in helper_structs:
+                        alt = alt.replace(f" {tn} ", f" {_to_unexported(tn)} ")
+                    alt_fields.append(alt)
+
                 body = ("\n".join(fields) + "\n") if fields else ""
+                alt_body = ("\n".join(alt_fields) + "\n") if alt_fields else ""
                 expected_struct = f"type Configuration struct {{\n{body}}}"
-                if expected_struct not in content:
+                alt_struct = f"type Configuration struct {{\n{alt_body}}}"
+                struct_ok = expected_struct in content or alt_struct in content
+
+                # Also check helper structs (accept exported or unexported type name)
+                helpers_ok = True
+                for type_name, (_desc, sub_fields) in helper_structs.items():
+                    sub_body = ("\n".join(sub_fields) + "\n") if sub_fields else ""
+                    exported_helper = f"type {type_name} struct {{\n{sub_body}}}"
+                    unexported_helper = f"type {_to_unexported(type_name)} struct {{\n{sub_body}}}"
+                    if exported_helper not in content and unexported_helper not in content:
+                        helpers_ok = False
+                        errors.append(
+                            f"DRIFT: helper struct {type_name} in {go_file}\n"
+                            f"  → Run `dda inv integration.spec-sync --check {check_name} --sync` to fix."
+                        )
+
+                if not struct_ok:
                     actual_match = re.search(r'type Configuration struct \{([^}]*)\}', content, re.DOTALL)
                     actual_body = actual_match.group(1) if actual_match else ""
 
@@ -619,7 +939,7 @@ def spec_sync(_, check=None, sync=False):
                             f"DRIFT: Configuration struct in {go_file}\n{diff}\n"
                             f"  → Run `dda inv integration.spec-sync --check {check_name} --sync` to fix."
                         )
-                else:
+                elif helpers_ok:
                     print(f"OK (struct): {check_name}")
 
     if errors:
