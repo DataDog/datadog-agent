@@ -49,6 +49,7 @@ func GetRtLoader() *C.rtloader_t {
 	rtloader := C.make3(pythonHome, executablePath, &err)
 	if err != nil {
 		fmt.Printf("Error: %s\n", C.GoString(err))
+		return rtloader
 	}
 	addStubsToPythonPath(rtloader)
 	return rtloader
