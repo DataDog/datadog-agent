@@ -142,23 +142,13 @@
 #     # Path from where the policy files are loaded
 #
 #     dir: c:\ProgramData\Datadog\runtime-security.d
-{{ else }}
+{{- else -}}
 #     # @param dir - string - default: /etc/datadog-agent/runtime-security.d
 #     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
 #     # Path from where the policy files will be loaded
 #
 #     dir: /etc/datadog-agent/runtime-security.d
-{{ end }}
-#   # @param syscall_monitor - custom object - optional
-#   # Syscall monitoring
-#
-#   syscall_monitor:
-
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED - boolean - optional - default: false
-#     # Set to true to enable the Syscall monitoring (recommended for troubleshooting only).
-#
-#     enabled: false
+{{- end }}
 
 #   # @param custom_sensitive_words - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
@@ -179,7 +169,7 @@
 #   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
 #   # Define your own list of non-sensitive environment variable names whose value will not be
 #   # concealed by the runtime security module.
-#   # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES
+#   # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES, OTEL_SERVICE_NAME, DD_SERVICE
 #
 #   envs_with_value:
 #     - LD_PRELOAD
@@ -187,6 +177,8 @@
 #     - PATH
 #     - HISTSIZE
 #     - HISTFILESIZE
+#     - OTEL_SERVICE_NAME
+#     - DD_SERVICE
 
 #   # @param activity_dump - custom object - optional
 #   # Activity dump section configures if/how the Agent sends activity dumps to Datadog

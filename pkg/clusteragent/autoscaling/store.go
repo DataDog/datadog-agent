@@ -16,8 +16,13 @@ const (
 	deleteOperation
 )
 
+// SenderID identifies the component that triggered a store change
+type SenderID string
+
 // ObserverFunc represents observer functions of the store
-type ObserverFunc func(string, string)
+// First parameter is the key, second parameter is the sender identifier.
+// Observers that need to access the object should call store.LockRead to ensure safe access.
+type ObserverFunc func(string, SenderID)
 
 // Observer allows to define functions to watch changes in Store
 type Observer struct {
@@ -101,21 +106,25 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 // Update updates all objects in the store with the result of the `updator` function.
 // Updator func is expected to return the new object and a boolean indicating if the object has changed.
 // The object is updated only if boolean is true, observers are notified only for updated objects after all objects have been updated.
-func (s *Store[T]) Update(updator func(T) (T, bool), sender string) {
-	var changedIDs []string
+func (s *Store[T]) Update(updator func(T) (T, bool), sender SenderID) {
+	type change struct {
+		id  string
+		obj T
+	}
+	var changes []change
 	s.lock.Lock()
 	for id, object := range s.store {
 		newObject, changed := updator(object)
 		if changed {
 			s.store[id] = newObject
-			changedIDs = append(changedIDs, id)
+			changes = append(changes, change{id: id, obj: newObject})
 		}
 	}
 	s.lock.Unlock()
 
 	// Notifying must be done after releasing the lock
-	for _, id := range changedIDs {
-		s.notify(setOperation, id, sender)
+	for _, ch := range changes {
+		s.notify(setOperation, ch.id, sender)
 	}
 }
 
@@ -128,7 +137,7 @@ func (s *Store[T]) Count() int {
 }
 
 // Set object for id
-func (s *Store[T]) Set(id string, obj T, sender string) {
+func (s *Store[T]) Set(id string, obj T, sender SenderID) {
 	s.lock.Lock()
 	s.store[id] = obj
 	s.lock.Unlock()
@@ -137,10 +146,12 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 }
 
 // Delete object corresponding to id if present
-func (s *Store[T]) Delete(id, sender string) {
+func (s *Store[T]) Delete(id string, sender SenderID) {
 	s.lock.Lock()
 	_, exists := s.store[id]
-	delete(s.store, id)
+	if exists {
+		delete(s.store, id)
+	}
 	s.lock.Unlock()
 
 	if exists {
@@ -151,26 +162,22 @@ func (s *Store[T]) Delete(id, sender string) {
 // LockRead allows to get an item and leave the store in a locked state to allow safe Read -> Operation -> Write sequences
 // Still locks if the key does not exist as you may want to prevent a concurrent Write.
 // It's not very efficient to lock the whole store but it's probably enough for our use case.
-func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool) {
+// The returned unlock function must be called to release the lock. When lockOnMissing is false and the key is
+// absent, the lock is released before returning and the unlock function is a no-op.
+func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool, func()) {
 	s.lock.Lock()
 
 	res, ok := s.store[id]
-	if !ok {
-		if !lockOnMissing {
-			s.lock.Unlock()
-		}
+	if !ok && !lockOnMissing {
+		s.lock.Unlock()
+		return res, false, func() {}
 	}
 
-	return res, ok
-}
-
-// Unlock allows to unlock after a read that does not require any modification to the internal object
-func (s *Store[T]) Unlock(string) {
-	s.lock.Unlock()
+	return res, ok, s.lock.Unlock
 }
 
 // UnlockSet sets the new object value and releases the lock (previously acquired by `LockRead`)
-func (s *Store[T]) UnlockSet(id string, obj T, sender string) {
+func (s *Store[T]) UnlockSet(id string, obj T, sender SenderID) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
@@ -178,10 +185,11 @@ func (s *Store[T]) UnlockSet(id string, obj T, sender string) {
 }
 
 // UnlockDelete deletes an object and releases the lock (previously acquired by `LockRead`)
-func (s *Store[T]) UnlockDelete(id, sender string) {
+func (s *Store[T]) UnlockDelete(id string, sender SenderID) {
 	_, exists := s.store[id]
-
-	delete(s.store, id)
+	if exists {
+		delete(s.store, id)
+	}
 	s.lock.Unlock()
 
 	if exists {
@@ -190,7 +198,7 @@ func (s *Store[T]) UnlockDelete(id, sender string) {
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (s *Store[T]) notify(operationType storeOperation, key, sender string) {
+func (s *Store[T]) notify(operationType storeOperation, key string, sender SenderID) {
 	s.observersLock.RLock()
 	defer s.observersLock.RUnlock()
 

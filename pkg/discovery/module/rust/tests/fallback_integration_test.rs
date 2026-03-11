@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use tempfile::{NamedTempFile, TempDir};
 
-const SD_AGENT_BIN: &str = env!("CARGO_BIN_EXE_sd-agent");
+const SYSTEM_PROBE_LITE_BIN: &str = env!("CARGO_BIN_EXE_system-probe-lite");
 
 fn mock_system_probe_path() -> PathBuf {
     // Bazel test: use the path provided via environment variable
@@ -35,17 +35,23 @@ fn test_fallback_on_npm_enabled() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Run sd-agent with network tracer enabled using new -- syntax
-    let _output = Command::new(SD_AGENT_BIN)
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
+    // Run system-probe-lite with network tracer enabled using new -- syntax
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     // Verify system-probe was called with correct args
     assert!(marker_file.exists(), "System-probe should have been called");
@@ -57,6 +63,14 @@ fn test_fallback_on_npm_enabled() {
         expected_args,
         content
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(
+            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
+        ),
+        "Expected fallback due to DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -66,14 +80,13 @@ fn test_no_fallback_on_discovery_only() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
-    // Run sd-agent with only discovery enabled (should NOT fallback)
+    // Run system-probe-lite with only discovery enabled (should NOT fallback)
     // Note: --config must be after -- to be parsed as system-probe arg
-    let mut child = Command::new(SD_AGENT_BIN)
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -81,9 +94,9 @@ fn test_no_fallback_on_discovery_only() {
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .spawn()
-        .expect("Failed to spawn sd-agent");
+        .expect("Failed to spawn system-probe-lite");
 
     // Give it a moment to potentially call system-probe
     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -96,7 +109,7 @@ fn test_no_fallback_on_discovery_only() {
 
     // Clean up
     child.kill().ok();
-    child.wait().expect("Failed to wait on sd-agent");
+    child.wait().expect("Failed to wait on system-probe-lite");
 }
 
 #[test]
@@ -113,28 +126,37 @@ fn test_config_file_only() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(marker_file.exists(), "Should fallback based on config file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Falling back to system-probe: YAML key network_config is active"),
+        "Expected fallback due to network_config YAML key, got: {}",
+        stdout
+    );
 }
 
 #[test]
 fn test_missing_fallback_binary() {
-    let output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg("/nonexistent/system-probe")
         .arg("run")
-        .env("DD_NETWORK_CONFIG_ENABLED", "true")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(!output.status.success(), "Should fail with missing binary");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -158,7 +180,8 @@ fn test_invalid_yaml_triggers_fallback() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -166,9 +189,15 @@ fn test_invalid_yaml_triggers_fallback() {
         .arg("--config")
         .arg(config_file.path())
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(marker_file.exists(), "Should fallback on invalid YAML");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Failed to load YAML config. Falling back to system-probe."),
+        "Expected fallback due to invalid YAML, got: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -185,19 +214,27 @@ fn test_unknown_yaml_key_triggers_fallback() {
         .unwrap();
     config_file.flush().unwrap();
 
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "Unknown YAML key should trigger fallback"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Falling back to system-probe: YAML key unknown_module is active"),
+        "Expected fallback due to unknown_module YAML key, got: {}",
+        stdout
     );
 }
 
@@ -208,14 +245,13 @@ fn test_discovery_disabled_exits_cleanly() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Discovery explicitly disabled should exit cleanly (not call system-probe)
     // Note: --config must be after -- to be parsed as system-probe arg
-    let output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
@@ -223,9 +259,9 @@ fn test_discovery_disabled_exits_cleanly() {
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "false")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         !marker_file.exists(),
@@ -244,21 +280,73 @@ fn test_discovery_enabled_with_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Both discovery and DD_SERVICE should trigger fallback
-    let _output = Command::new(SD_AGENT_BIN)
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
+    // Both discovery and DD_RUNTIME_SECURITY_CONFIG_ENABLED should trigger fallback
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .env("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(
+            "Falling back to system-probe: env var DD_RUNTIME_SECURITY_CONFIG_ENABLED is set"
+        ),
+        "Expected fallback due to DD_RUNTIME_SECURITY_CONFIG_ENABLED, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_config_directory_path_loads_sysprobe_yaml() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+    let mock_sp_source = mock_system_probe_path();
+
+    // Directory containing system-probe.yaml — mirrors a real installation.
+    let config_dir = TempDir::new().unwrap();
+    fs::write(
+        config_dir.path().join("system-probe.yaml"),
+        b"discovery:\n  enabled: true\n  use_system_probe_lite: true\n",
+    )
+    .unwrap();
+    fs::write(config_dir.path().join("datadog.yaml"), b"").unwrap();
+
+    // Pass the directory (not the .yaml file) as --config.
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_dir.path().display()))
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .spawn()
+        .expect("Failed to spawn sd-agent");
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    assert!(
+        !marker_file.exists(),
+        "--config pointing to a directory should load system-probe.yaml, not fall back"
+    );
+
+    child.kill().ok();
+    child.wait().expect("Failed to wait on sd-agent");
 }
 
 // Killswitch integration tests
@@ -269,20 +357,32 @@ fn test_killswitch_disabled_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
     // Killswitch disabled should trigger fallback even with discovery enabled
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "false")
         .env("DD_DISCOVERY_ENABLED", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "Killswitch disabled should trigger fallback to system-probe"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        "Expected fallback due to killswitch disabled, got: {}",
+        stdout
     );
 }
 
@@ -293,45 +393,56 @@ fn test_killswitch_not_set_defaults_to_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
     // Killswitch not set should default to fallback (safe default)
-    let _output = Command::new(SD_AGENT_BIN)
-        .arg("--")
-        .arg(&mock_sp_source)
-        .arg(&marker_file)
-        .arg("run")
-        .env("DD_DISCOVERY_ENABLED", "true")
-        .output()
-        .expect("Failed to execute sd-agent");
-
-    assert!(
-        marker_file.exists(),
-        "Killswitch not set should default to fallback (safe default)"
-    );
-}
-
-#[test]
-fn test_killswitch_enabled_runs_sd_agent() {
-    let temp_dir = TempDir::new().unwrap();
-    let marker_file = temp_dir.path().join("sp-called");
-
-    let mock_sp_source = mock_system_probe_path();
-
-    // Create empty config file to avoid picking up system config
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
-
-    // Killswitch enabled should allow sd-agent to run
-    let mut child = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .output()
+        .expect("Failed to execute system-probe-lite");
+
+    assert!(
+        marker_file.exists(),
+        "Killswitch not set should default to fallback (safe default)"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        "Expected fallback due to killswitch not set, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn test_killswitch_enabled_runs_system_probe_lite() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
+    // Killswitch enabled should allow system-probe-lite to run
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
         .spawn()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     // Give it time to start
     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -348,7 +459,7 @@ fn test_killswitch_enabled_runs_sd_agent() {
 
     assert!(
         !marker_file.exists(),
-        "Killswitch enabled should NOT trigger fallback - sd-agent should run"
+        "Killswitch enabled should NOT trigger fallback - system-probe-lite should run"
     );
 }
 
@@ -364,7 +475,7 @@ fn test_killswitch_yaml_config() {
     config_file
         .write_all(
             b"discovery:
-  use_sd_agent: false
+  use_system_probe_lite: false
   enabled: true
 ",
         )
@@ -372,18 +483,26 @@ fn test_killswitch_yaml_config() {
     config_file.flush().unwrap();
 
     // YAML with killswitch disabled should trigger fallback
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "YAML with killswitch disabled should trigger fallback"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        "Expected fallback due to killswitch disabled in YAML, got: {}",
+        stdout
     );
 }
 
@@ -399,7 +518,7 @@ fn test_killswitch_env_overrides_yaml_enabled() {
     config_file
         .write_all(
             b"discovery:
-  use_sd_agent: true
+  use_system_probe_lite: true
   enabled: true
 ",
         )
@@ -407,19 +526,27 @@ fn test_killswitch_env_overrides_yaml_enabled() {
     config_file.flush().unwrap();
 
     // Env var (false) should override YAML (true)
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "false")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "Env var should override YAML - fallback should happen"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout
+            .contains("Falling back to system-probe: system-probe-lite killswitch is not enabled"),
+        "Expected fallback due to killswitch env var override, got: {}",
+        stdout
     );
 }
 
@@ -430,23 +557,22 @@ fn test_env_var_false_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Env var set to "false" should NOT trigger fallback
-    let mut child = Command::new(SD_AGENT_BIN)
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "false")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false")
         .spawn()
-        .expect("Failed to spawn sd-agent");
+        .expect("Failed to spawn system-probe-lite");
 
     std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -456,7 +582,7 @@ fn test_env_var_false_no_fallback() {
     );
 
     child.kill().ok();
-    child.wait().expect("Failed to wait on sd-agent");
+    child.wait().expect("Failed to wait on system-probe-lite");
 }
 
 #[test]
@@ -466,23 +592,22 @@ fn test_env_var_zero_no_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
-    // Create empty config file
-    let mut config_file = NamedTempFile::new().unwrap();
-    config_file.write_all(b"").unwrap();
-    config_file.flush().unwrap();
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
 
     // Env var set to "0" should NOT trigger fallback
-    let mut child = Command::new(SD_AGENT_BIN)
+    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
         .arg(format!("--config={}", config_file.path().display()))
-        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .env("DD_DISCOVERY_ENABLED", "true")
-        .env("DD_NETWORK_CONFIG_ENABLED", "0")
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "0")
         .spawn()
-        .expect("Failed to spawn sd-agent");
+        .expect("Failed to spawn system-probe-lite");
 
     std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -492,7 +617,7 @@ fn test_env_var_zero_no_fallback() {
     );
 
     child.kill().ok();
-    child.wait().expect("Failed to wait on sd-agent");
+    child.wait().expect("Failed to wait on system-probe-lite");
 }
 
 #[test]
@@ -502,18 +627,32 @@ fn test_env_var_non_boolean_triggers_fallback() {
 
     let mock_sp_source = mock_system_probe_path();
 
+    // Empty config file to avoid picking up /etc/datadog-agent/system-probe.yaml
+    let config_file = NamedTempFile::new().unwrap();
+
     // Env var set to a non-boolean value should trigger fallback (safety net)
-    let _output = Command::new(SD_AGENT_BIN)
+    let output = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .env_clear()
         .arg("--")
         .arg(&mock_sp_source)
         .arg(&marker_file)
         .arg("run")
-        .env("DD_NETWORK_CONFIG_ENABLED", "maybe")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_SYSTEM_PROBE_NETWORK_ENABLED", "maybe")
+        .env("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
         .output()
-        .expect("Failed to execute sd-agent");
+        .expect("Failed to execute system-probe-lite");
 
     assert!(
         marker_file.exists(),
         "Env var with non-boolean value should trigger fallback as safety net"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(
+            "Falling back to system-probe: env var DD_SYSTEM_PROBE_NETWORK_ENABLED is set"
+        ),
+        "Expected fallback due to non-boolean DD_SYSTEM_PROBE_NETWORK_ENABLED, got: {}",
+        stdout
     );
 }
