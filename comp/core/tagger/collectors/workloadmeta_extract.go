@@ -288,9 +288,16 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	for _, tag := range container.CollectorTags {
 		if sandboxID, ok := strings.CutPrefix(tag, "sandbox_id:"); ok {
+			sandboxEntityID := types.NewEntityID(types.SandboxID, sandboxID)
+			// Track sandbox as a child of the container so it is cleaned up on deletion
+			containerTaggerEntityID := common.BuildTaggerEntityID(container.EntityID)
+			if c.children[containerTaggerEntityID] == nil {
+				c.children[containerTaggerEntityID] = make(map[types.EntityID]struct{})
+			}
+			c.children[containerTaggerEntityID][sandboxEntityID] = struct{}{}
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               containerSource,
-				EntityID:             types.NewEntityID(types.SandboxID, sandboxID),
+				EntityID:             sandboxEntityID,
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,

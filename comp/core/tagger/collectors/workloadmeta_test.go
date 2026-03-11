@@ -2561,8 +2561,8 @@ func TestHandleContainer(t *testing.T) {
 					StandardTags:         []string{},
 				},
 				{
-					Source:               containerSource,
-					EntityID:             types.NewEntityID(types.SandboxID, "abc123"),
+					Source:   containerSource,
+					EntityID: types.NewEntityID(types.SandboxID, "abc123"),
 					HighCardTags: []string{
 						"container_name:" + containerName,
 						"container_id:" + entityID.ID,
@@ -3045,6 +3045,107 @@ func TestHandleDelete(t *testing.T) {
 
 	assertTagInfoListEqual(t, expected, actual)
 	assert.Empty(t, collector.children)
+}
+
+func TestHandleSandboxIDDelete(t *testing.T) {
+	containerID := "container-abc"
+	sandboxID := "sandbox-123"
+
+	containerEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   containerID,
+	}
+	container := &workloadmeta.Container{
+		EntityID: containerEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "agent",
+		},
+		CollectorTags: []string{"sandbox_id:" + sandboxID},
+	}
+
+	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
+	sandboxTaggerEntityID := types.NewEntityID(types.SandboxID, sandboxID)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+	// Simulate a set event so children are tracked
+	collector.handleContainer(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: container,
+	})
+
+	// Sandbox entity should be registered as a child of the container
+	assert.Contains(t, collector.children[containerTaggerEntityID], sandboxTaggerEntityID)
+
+	// Now delete the container: both the container and the sandbox entity should be deleted
+	actual := collector.handleDelete(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: container,
+	})
+
+	expected := []*types.TagInfo{
+		{
+			Source:       containerSource,
+			EntityID:     containerTaggerEntityID,
+			DeleteEntity: true,
+		},
+		{
+			Source:       containerSource,
+			EntityID:     sandboxTaggerEntityID,
+			DeleteEntity: true,
+		},
+	}
+
+	assertTagInfoListEqual(t, expected, actual)
+	assert.Empty(t, collector.children)
+}
+
+func TestHandleSandboxIDChange(t *testing.T) {
+	containerID := "container-abc"
+	oldSandboxID := "sandbox-old"
+	newSandboxID := "sandbox-new"
+
+	containerEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   containerID,
+	}
+	containerV1 := &workloadmeta.Container{
+		EntityID:      containerEntityID,
+		CollectorTags: []string{"sandbox_id:" + oldSandboxID},
+	}
+	containerV2 := &workloadmeta.Container{
+		EntityID:      containerEntityID,
+		CollectorTags: []string{"sandbox_id:" + newSandboxID},
+	}
+
+	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
+	oldSandboxTaggerEntityID := types.NewEntityID(types.SandboxID, oldSandboxID)
+	newSandboxTaggerEntityID := types.NewEntityID(types.SandboxID, newSandboxID)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+	collector.handleContainer(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: containerV1})
+	assert.Contains(t, collector.children[containerTaggerEntityID], oldSandboxTaggerEntityID)
+
+	// Simulate the event loop resetting children before re-processing
+	unseen := make(map[types.EntityID]struct{})
+	for child := range collector.children[containerTaggerEntityID] {
+		unseen[child] = struct{}{}
+	}
+	collector.children[containerTaggerEntityID] = make(map[types.EntityID]struct{})
+
+	// Second set — new sandbox ID
+	collector.handleContainer(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: containerV2})
+
+	// New sandbox should be registered; old sandbox should be in unseen (stale)
+	assert.Contains(t, collector.children[containerTaggerEntityID], newSandboxTaggerEntityID)
+	for child := range collector.children[containerTaggerEntityID] {
+		delete(unseen, child)
+	}
+	assert.Contains(t, unseen, oldSandboxTaggerEntityID, "old sandbox ID should be stale and eligible for deletion")
+	assert.NotContains(t, unseen, newSandboxTaggerEntityID, "new sandbox ID should not be stale")
 }
 
 type fakeProcessor struct {
