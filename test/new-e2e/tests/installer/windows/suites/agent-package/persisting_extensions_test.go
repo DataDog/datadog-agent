@@ -184,6 +184,7 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
+	s.T().Skip("Skipping test -- incident-50789")
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")

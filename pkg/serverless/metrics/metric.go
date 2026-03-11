@@ -46,7 +46,7 @@ type MultipleEndpointConfig interface {
 
 // DogStatsDFactory allows create a new DogStatsD server
 type DogStatsDFactory interface {
-	NewServer(aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error)
+	NewServer(demux aggregator.Demultiplexer, extraTags []string) (dogstatsdServer.ServerlessDogstatsd, error)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -55,12 +55,12 @@ func (m *MetricConfig) GetMultipleEndpoints() (utils.EndpointDescriptorSet, erro
 }
 
 // NewServer returns a running DogStatsD server
-func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
-	return dogstatsdServer.NewServerlessServer(demux)
+func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer, extraTags []string) (dogstatsdServer.ServerlessDogstatsd, error) {
+	return dogstatsdServer.NewServerlessServer(demux, extraTags)
 }
 
 // Start starts the DogStatsD agent
-func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, shouldForceFlushAllOnForceFlushToSerializer bool) {
+func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, shouldForceFlushAllOnForceFlushToSerializer bool, extraTags []string, enhancedMetricTags []string, enhancedMetricTagsAll []string) {
 	// prevents any UDP packets from being stuck in the buffer and not parsed
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	pkgconfigsetup.Datadog().Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond, model.SourceAgentRuntime)
@@ -71,12 +71,15 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	}
 
 	if demux != nil {
-		statsd, err := dogstatFactory.NewServer(demux)
+		statsd, err := dogstatFactory.NewServer(demux, extraTags)
 		if err != nil {
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
 			c.dogStatsDServer = statsd
 			c.Demux = demux
+			c.tags = extraTags
+			c.enhancedMetricTags = enhancedMetricTags
+			c.enhancedMetricTagsAll = enhancedMetricTagsAll
 		}
 	}
 }
@@ -97,16 +100,6 @@ func (c *ServerlessMetricAgent) Flush() {
 func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
 		c.dogStatsDServer.Stop()
-	}
-}
-
-// SetExtraTags sets extra tags on the DogStatsD server
-func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string, enhancedMetricTags []string, enhancedMetricTagsAll []string) {
-	if c.IsReady() {
-		c.tags = tagArray
-		c.enhancedMetricTags = enhancedMetricTags
-		c.enhancedMetricTagsAll = enhancedMetricTagsAll
-		c.dogStatsDServer.SetExtraTags(tagArray)
 	}
 }
 
