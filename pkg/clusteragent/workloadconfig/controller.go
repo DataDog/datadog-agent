@@ -70,7 +70,6 @@ func NewWorkloadConfigCRDController(
 		return nil, fmt.Errorf("cannot add event handler to workloadconfig informer: %w", err)
 	}
 
-	log.Info("Instrumentation Controller started")
 	return c, nil
 }
 
@@ -78,18 +77,18 @@ func NewWorkloadConfigCRDController(
 func (c *WorkloadConfigCRDController) Run(stopCh <-chan struct{}) {
 	defer c.workqueue.ShutDown()
 
-	log.Info("Starting Instrumentation controller (waiting for cache sync)")
+	log.Info("Starting WorkloadConfig CRD controller (waiting for cache sync)")
 	if !cache.WaitForCacheSync(stopCh, c.synced) {
-		log.Error("Failed to wait for Instrumentation caches to sync")
+		log.Error("Failed to wait for WorkloadConfig CRD caches to sync")
 		return
 	}
-	log.Info("Instrumentation controller cache synced, starting worker")
+	log.Info("WorkloadConfig CRD controller started")
 
 	go c.worker()
 	go c.watchLeadershipChanges(stopCh)
 
 	<-stopCh
-	log.Info("Stopping Instrumentation controller")
+	log.Info("Stopping WorkloadConfig CRD controller")
 }
 
 func (c *WorkloadConfigCRDController) enqueue() {
@@ -104,7 +103,7 @@ func (c *WorkloadConfigCRDController) watchLeadershipChanges(stopCh <-chan struc
 		select {
 		case <-c.leadershipChangeNotif:
 			if c.isLeader() {
-				log.Warn("Instrumentation controller gained leadership, enqueuing reconciliation")
+				log.Warn("WorkloadConfig CRD controller gained leadership, enqueuing reconciliation")
 				c.enqueue()
 			}
 		case <-stopCh:
@@ -132,9 +131,9 @@ func (c *WorkloadConfigCRDController) processNext() bool {
 	}
 
 	if c.workqueue.NumRequeues(key) < maxRetries {
-		log.Warnf("Error reconciling Instrumentation (will retry): %v", err)
+		log.Warnf("Error reconciling WorkloadConfig CRD (will retry): %v", err)
 	} else {
-		log.Errorf("Error reconciling Instrumentation after %d retries: %v", maxRetries, err)
+		log.Errorf("Error reconciling WorkloadConfig CRD after %d retries: %v", maxRetries, err)
 		c.workqueue.Forget(key)
 	}
 	return true

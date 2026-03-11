@@ -80,6 +80,6 @@ func (h *Handler) updateConfigMap(data map[string]string) error {
 		return fmt.Errorf("failed to update ConfigMap %s/%s: %w", h.configMapNamespace, h.configMapName, err)
 	}
 
-	log.Infof("Updated podcheck ConfigMap %s/%s with %d check configs", h.configMapNamespace, h.configMapName, len(data))
+	log.Infof("Updated ConfigMap %s/%s with %d check configs", h.configMapNamespace, h.configMapName, len(data))
 	return nil
 }

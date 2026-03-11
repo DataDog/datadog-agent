@@ -195,8 +195,8 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
-// startWorkloadConfigCRDController starts the Instrumentation controller that watches
-// DatadogPodCheck CRDs and delegates to registered config section handlers.
+// startWorkloadConfigCRDController starts the WorkloadConfig CRD controller that watches
+// DatadogWorkloadConfig CRDs and delegates to registered config section handlers.
 func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
 	configMapNamespace := namespace.GetResourcesNamespace()
 	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
@@ -207,7 +207,7 @@ func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		errChan <- fmt.Errorf("failed to get leader engine for Instrumentation controller: %w", err)
+		errChan <- fmt.Errorf("failed to get leader engine for WorkloadConfig CRD controller: %w", err)
 		return
 	}
 	leaderNotif, _ := le.Subscribe()
@@ -223,7 +223,7 @@ func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error
 		handlers,
 	)
 	if err != nil {
-		errChan <- fmt.Errorf("failed to create Instrumentation controller: %w", err)
+		errChan <- fmt.Errorf("failed to create WorkloadConfig CRD controller: %w", err)
 		return
 	}
 
