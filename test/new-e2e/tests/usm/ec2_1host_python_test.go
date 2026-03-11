@@ -6,7 +6,6 @@
 package usm
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -64,7 +63,7 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
-	// deployLinuxBinaries(s.T(), host)
+	//deployLinuxBinaries(s.T(), host)
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
@@ -81,29 +80,7 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
 
-	// Send 100 HTTP requests per port using urllib (stdlib).
-	// Each request opens a new TCP connection.
-	const requestsPerPort = 100
-	host.MustExecute(fmt.Sprintf(`python3 -c "
-import urllib.request
-
-for port in [8081, 8082]:
-    for i in range(%d):
-        urllib.request.urlopen('http://127.0.0.1:{}/'.format(port))
-
-print('done')
-"`, requestsPerPort))
-
-	time.Sleep(30 * time.Second)
-
-	// Dump process-agent diagnostic logs
-	diagLogs, _ := host.Execute("sudo grep 'remote-svc-diag' /var/log/datadog/process-agent.log | tail -50")
-	t.Logf("process-agent remote-svc-diag logs:\n%s", diagLogs)
-
-	cnx, err := s.Env().FakeIntake.Client().GetConnections()
-	require.NoError(t, err, "GetConnections() error")
-	require.NotNil(t, cnx, "GetConnections() returned nil")
-
-	stats := getConnectionStats(t, cnx, "process_context:")
-	assertTaggedConnections(t, stats, "python", requestsPerPort)
+	const requestsPerPort = 4000
+	sendPythonHTTPRequests(host, "python3", requestsPerPort)
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", requestsPerPort)
 }
