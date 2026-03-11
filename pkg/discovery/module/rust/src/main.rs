@@ -36,7 +36,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
@@ -299,7 +299,11 @@ async fn run_system_probe_lite(socket_path: &str, pid_path: Option<PathBuf>) -> 
 async fn main() -> Result<()> {
     let args = Args::parse(env::args())?;
     let log_level = parse_log_level(&args.log_level);
-    simple_logger::init_with_level(log_level)?;
+    dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "SYS-PROBE-LITE",
+        level: log_level,
+        log_file: None,
+    })?;
     info!("Starting system-probe-lite");
 
     let result = run_system_probe_lite(&args.socket_path, args.pid_path.clone()).await;
