@@ -167,7 +167,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6
-	github.com/DataDog/datadog-traceroute v1.0.12
+	github.com/DataDog/datadog-traceroute v1.0.13
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
 	github.com/DataDog/gopsutil v1.2.4
@@ -181,7 +181,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.13.0
-	github.com/NVIDIA/go-nvml v0.13.0-1
+	github.com/NVIDIA/go-nvml v0.12.9-0
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
