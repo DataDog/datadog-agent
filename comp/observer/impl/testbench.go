@@ -767,20 +767,20 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 	return result
 }
 
-// GetCorrelations returns all detected correlations from the engine's correlators.
+// GetCorrelations returns all correlations detected across the full run.
 func (tb *TestBench) GetCorrelations() []observerdef.ActiveCorrelation {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return tb.engine.StateView().ActiveCorrelations()
+	return tb.engine.StateView().CorrelationHistory()
 }
 
-// GetCompressedCorrelations returns compressed group descriptions for all active correlations.
+// GetCompressedCorrelations returns compressed group descriptions for all correlations.
 func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGroup {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	correlations := tb.engine.StateView().ActiveCorrelations()
+	correlations := tb.engine.StateView().CorrelationHistory()
 	storage := tb.engine.Storage()
 	if storage == nil || len(correlations) == 0 {
 		return []CompressedGroup{}

@@ -56,6 +56,14 @@ type engine struct {
 	totalAnomalyCount    int                             // total count ever (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
 
+	// Accumulated correlations from all advance cycles.
+	// Correlators maintain sliding windows that evict old state, but for
+	// testbench/replay we want the full history. This map accumulates
+	// every correlation ever seen, keyed by Pattern string, updating
+	// existing entries when the correlator reports a newer version.
+	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
+	correlationMu          sync.RWMutex
+
 	// Accumulated telemetry from detection runs (for StateView access).
 	accumulatedTelemetry []observerdef.ObserverTelemetry
 	telemetryMu          sync.RWMutex
@@ -247,6 +255,7 @@ func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
 	// Advance correlators so they can update their internal state.
 	for _, correlator := range e.correlators {
 		correlator.Advance(upTo)
+		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -370,6 +379,35 @@ func (e *engine) UniqueAnomalySourceCount() int {
 	return len(e.uniqueAnomalySources)
 }
 
+// accumulateCorrelations merges active correlations into the engine's historical set.
+// Existing entries are updated if the new version has more anomalies or a later timestamp.
+func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) {
+	e.correlationMu.Lock()
+	defer e.correlationMu.Unlock()
+
+	if e.accumulatedCorrelations == nil {
+		e.accumulatedCorrelations = make(map[string]observerdef.ActiveCorrelation)
+	}
+	for _, ac := range active {
+		existing, ok := e.accumulatedCorrelations[ac.Pattern]
+		if !ok || len(ac.Anomalies) > len(existing.Anomalies) || ac.LastUpdated > existing.LastUpdated {
+			e.accumulatedCorrelations[ac.Pattern] = ac
+		}
+	}
+}
+
+// AccumulatedCorrelations returns all correlations ever detected across the run.
+func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
+	e.correlationMu.RLock()
+	defer e.correlationMu.RUnlock()
+
+	result := make([]observerdef.ActiveCorrelation, 0, len(e.accumulatedCorrelations))
+	for _, ac := range e.accumulatedCorrelations {
+		result = append(result, ac)
+	}
+	return result
+}
+
 // Storage returns the engine's storage.
 func (e *engine) Storage() *timeSeriesStorage {
 	return e.storage
@@ -428,12 +466,20 @@ func (e *engine) resetTelemetry() {
 	e.accumulatedTelemetry = nil
 }
 
-// resetFull resets all engine state: analysis progress, raw anomalies, and telemetry.
+// resetCorrelations clears accumulated correlation history.
+func (e *engine) resetCorrelations() {
+	e.correlationMu.Lock()
+	defer e.correlationMu.Unlock()
+	e.accumulatedCorrelations = nil
+}
+
+// resetFull resets all engine state: analysis progress, raw anomalies, telemetry, and correlations.
 // Storage is NOT cleared — the caller manages storage lifecycle.
 func (e *engine) resetFull() {
 	e.Reset()
 	e.resetRawAnomalies()
 	e.resetTelemetry()
+	e.resetCorrelations()
 }
 
 // ReplayStoredData replays all data in storage through the scheduler policy,

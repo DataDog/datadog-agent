@@ -57,7 +57,7 @@ type ObserverAnomaly struct {
 // When verbose is false, correlations include only the time span (pattern, period_start, period_end).
 func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
-	correlations := tb.engine.StateView().ActiveCorrelations()
+	correlations := tb.engine.StateView().CorrelationHistory()
 
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := tb.engine.Storage().TimeBounds()

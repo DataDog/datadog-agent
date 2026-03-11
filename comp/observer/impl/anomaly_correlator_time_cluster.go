@@ -180,6 +180,7 @@ func (c *TimeClusterCorrelator) Reset() {
 	defer c.mu.Unlock()
 
 	c.clusters = c.clusters[:0]
+	c.nextClusterID = 0
 	c.currentDataTime = 0
 }
 

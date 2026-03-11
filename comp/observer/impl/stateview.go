@@ -132,13 +132,38 @@ func (sv *stateView) ListCorrelators() []correlatorInfo {
 	return result
 }
 
-// ActiveCorrelations returns active correlations from all correlators.
+// ActiveCorrelations returns current sliding-window correlations from all correlators.
 func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	var result []observerdef.ActiveCorrelation
 	for _, c := range sv.engine.correlators {
 		result = append(result, c.ActiveCorrelations()...)
 	}
 	return result
+}
+
+// CorrelationHistory returns all correlations ever detected across the full run.
+// Unlike ActiveCorrelations, this preserves correlations that correlators have
+// evicted from their sliding windows, making it suitable for replay/testbench/headless use.
+// It merges the accumulated history with current correlator state so that
+// correlations injected outside the normal Advance flow are also visible.
+func (sv *stateView) CorrelationHistory() []observerdef.ActiveCorrelation {
+	accumulated := sv.engine.AccumulatedCorrelations()
+	seen := make(map[string]bool, len(accumulated))
+	for _, ac := range accumulated {
+		seen[ac.Pattern] = true
+	}
+
+	// Include any current correlator state not yet in the accumulated set.
+	for _, c := range sv.engine.correlators {
+		for _, ac := range c.ActiveCorrelations() {
+			if !seen[ac.Pattern] {
+				accumulated = append(accumulated, ac)
+				seen[ac.Pattern] = true
+			}
+		}
+	}
+
+	return accumulated
 }
 
 // --- Telemetry ---
