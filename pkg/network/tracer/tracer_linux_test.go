@@ -3503,12 +3503,18 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 
 	// Server sends a large burst of data so many TCP segments are produced,
 	// maximising the chance of out-of-order arrival at the client.
+	// Keep the server connection alive so the tracer can still find it.
+	doneCh := make(chan struct{})
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		data := make([]byte, 200*4096)
 		c.Write(data) //nolint:errcheck
-		c.Close()
+		// Block until the test is done so the connection stays alive.
+		<-doneCh
 	})
-	t.Cleanup(server.Shutdown)
+	t.Cleanup(func() {
+		close(doneCh)
+		server.Shutdown()
+	})
 	require.NoError(t, server.Run())
 
 	c, err := server.Dial()
@@ -3516,6 +3522,8 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	defer c.Close()
 
 	// Drain the data — each tcp_recvmsg invocation updates the rcv_ooopack snapshot.
+	// Set a read deadline since the server no longer closes its side.
+	c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	io.Copy(io.Discard, c) //nolint:errcheck
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
