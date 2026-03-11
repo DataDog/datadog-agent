@@ -1,8 +1,7 @@
 .bazel:test:
-  rules:
-    - !reference [ .except_mergequeue ]
-    - when: on_success
   stage: source_test
+  rules:
+    - when: on_success
 
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
@@ -17,15 +16,18 @@ bazel:test:linux-arm64:
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
   script:
-    - bazel test //bazel/tests/...
+    - bazel test //bazel/tests/... //rtloader/...
 
 bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
   script:
-    - bazel test //bazel/tests/...
+    - bazel test //bazel/tests/... //rtloader/...
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  rules:
+    - !reference [ .except_skip_windows ]
+    - when: on_success
   variables:
     POWERSHELL_SCRIPT: |-
-      bazel test //bazel/tests/...
+      bazel test //bazel/tests/... //rtloader/...

@@ -9,14 +9,15 @@
 package mount
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/moby/sys/mountinfo"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/moby/sys/mountinfo"
 )
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
@@ -49,7 +50,10 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID: uint32(mnt.ID),
-		Device:  utils.Mkdev(uint32(mnt.Major), uint32(mnt.Minor)),
+		RootPathKey: model.PathKey{
+			MountID: uint32(mnt.ID),
+		},
+		Device: utils.Mkdev(uint32(mnt.Major), uint32(mnt.Minor)),
 		ParentPathKey: model.PathKey{
 			MountID: uint32(mnt.Parent),
 		},

@@ -14,8 +14,6 @@ import (
 	"sync"
 	"unsafe"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -96,39 +94,39 @@ func TracemallocEnabled() C.bool {
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
 //
 //export Headers
-func Headers(yamlPayload **C.char) {
+func Headers(jsonPayload **C.char) {
 	h := httpHeaders()
 
-	data, err := yaml.Marshal(h)
+	data, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("datadog_agent: could not Marshal headers: %s", err)
-		*yamlPayload = nil
+		*jsonPayload = nil
 		return
 	}
-	// yamlPayload will be free by rtloader when it's done with it
-	*yamlPayload = TrackedCString(string(data))
+	// jsonPayload will be free by rtloader when it's done with it
+	*jsonPayload = TrackedCString(string(data))
 }
 
 // GetConfig returns a value from the agent configuration.
 // Indirectly used by the C function `get_config` that's mapped to `datadog_agent.get_config`.
 //
 //export GetConfig
-func GetConfig(key *C.char, yamlPayload **C.char) {
+func GetConfig(key *C.char, jsonPayload **C.char) {
 	goKey := C.GoString(key)
 	if !pkgconfigsetup.Datadog().IsSet(goKey) {
-		*yamlPayload = nil
+		*jsonPayload = nil
 		return
 	}
 
 	value := pkgconfigsetup.Datadog().Get(goKey)
-	data, err := yaml.Marshal(value)
+	data, err := json.Marshal(value)
 	if err != nil {
-		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
-		*yamlPayload = nil
+		log.Errorf("could not convert configuration value '%v' to JSON: %s", value, err)
+		*jsonPayload = nil
 		return
 	}
-	// yaml Payload will be free by rtloader when it's done with it
-	*yamlPayload = TrackedCString(string(data))
+	// jsonPayload will be free by rtloader when it's done with it
+	*jsonPayload = TrackedCString(string(data))
 }
 
 // LogMessage logs a message from python through the agent logger (see

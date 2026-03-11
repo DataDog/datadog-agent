@@ -231,6 +231,9 @@ var (
 	pyInitLock    sync.RWMutex
 	pyDestroyLock sync.RWMutex
 	pyInitErrors  []string
+
+	// ErrNotInitialized is returned when rtloader is not initialized yet
+	ErrNotInitialized = errors.New("rtloader is not initialized")
 )
 
 func init() {

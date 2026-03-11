@@ -23,8 +23,9 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddHost := strings.TrimSuffix(configutils.GetMainEndpoint(config, "https://api.", "dd_url"), ".")
-	ddSite := configutils.ExtractSiteFromURL(ddHost)
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -114,22 +115,38 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
-	for _, specialAction := range BundleInheritedAllowedActions {
-		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
-		specialBundleID = strings.ToLower(specialBundleID)
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
 
-		actionsSet, ok := actionsAllowlist[specialBundleID]
-		if !ok || actionsSet.Len() == 0 {
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
 			continue
 		}
 
-		if _, exists := result[specialBundleID]; !exists {
-			result[specialBundleID] = sets.New[string]()
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
 		}
-		result[specialBundleID].Insert(specialActionName)
+		result[actionBundleID].Insert(actionName)
 	}
 
 	return result

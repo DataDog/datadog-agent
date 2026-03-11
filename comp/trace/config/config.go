@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -177,7 +177,7 @@ func (c *cfg) GetConfigHandler() http.Handler {
 				return
 			}
 
-			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
+			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettingsWithoutSecrets())
 			if err != nil {
 				log.Errorf("Unable to marshal runtime config response: %s", err)
 				body, _ := json.Marshal(map[string]string{"error": err.Error()})

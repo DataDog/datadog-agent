@@ -474,7 +474,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -483,7 +483,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"registry.datadoghq.com/agent:{latest_release}"
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -552,7 +552,10 @@ def hacky_dev_image_build(
         build_dir = get_ebpf_build_dir(build_arch)
         runtime_dir = get_ebpf_runtime_dir()
 
-        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_extra_agents += (
+            "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/system-probe-lite /opt/datadog-agent/embedded/bin/system-probe-lite\n"
+        )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
