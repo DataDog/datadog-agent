@@ -84,6 +84,11 @@ type BOCPDDetector struct {
 	// Default: 10.0
 	PriorVarianceScale float64
 
+	// MinVariance is the floor for observation variance. When warmup data has
+	// near-zero variance (e.g. constant series), this prevents pathologically
+	// sharp PDFs that would flag any tiny fluctuation as anomalous. Default: 1.0
+	MinVariance float64
+
 	// RecoveryPoints is how many consecutive non-triggering points are needed
 	// to exit alert state. Default: 10
 	RecoveryPoints int
@@ -105,6 +110,7 @@ func NewBOCPDDetector() *BOCPDDetector {
 		CPMassThreshold:    0.7,
 		MaxRunLength:       200,
 		PriorVarianceScale: 10.0,
+		MinVariance:        1.0,
 		RecoveryPoints:     10,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
@@ -252,14 +258,9 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 	variance := state.warmupM2 / float64(state.warmupCount-1) // sample variance (Bessel's correction)
 	stddev := math.Sqrt(variance)
 
-	const epsilon = 1e-10
-	if stddev < epsilon {
-		if math.Abs(state.warmupMean) > epsilon {
-			stddev = math.Abs(state.warmupMean) * 0.1
-		} else {
-			stddev = epsilon
-		}
-		variance = stddev * stddev
+	if variance < b.MinVariance {
+		variance = b.MinVariance
+		stddev = math.Sqrt(variance)
 	}
 
 	state.baselineMean = state.warmupMean

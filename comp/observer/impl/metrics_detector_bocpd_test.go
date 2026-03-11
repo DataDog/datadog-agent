@@ -91,8 +91,11 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 
+	// Use jittered warmup so the detector learns real variance (~10 stddev)
+	// rather than relying on the MinVariance floor. This keeps the 100→115
+	// shift small enough to trigger via short-run mass rather than cpProb.
 	for i := 0; i < 30; i++ {
-		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
+		storage.Add("ns", "test.metric", 100+float64(i%3-1)*5, int64(i+1), nil)
 	}
 	for i := 30; i < 60; i++ {
 		storage.Add("ns", "test.metric", 115, int64(i+1), nil)
