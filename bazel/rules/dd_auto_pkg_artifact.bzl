@@ -161,10 +161,6 @@ _dd_auto_pkg_artifact_aspect = aspect(
     provides = [_TransitiveDdAutoPkgArtifactsInfo],
 )
 
-def _process_pkg_files_info(pfi, lbl, all_actual_files):
-    all_actual_files.extend(pfi.dest_src_map.values())
-    return (PackageFilesInfo(dest_src_map = pfi.dest_src_map, attributes = pfi.attributes), lbl)
-
 def _collect_dd_auto_pkg_artifacts_impl(ctx):
     all_pkg_files = []
     all_pkg_dirs = []
@@ -179,11 +175,14 @@ def _collect_dd_auto_pkg_artifacts_impl(ctx):
                 if PackageFilegroupInfo in fg:
                     info = fg[PackageFilegroupInfo]
                     for pfi, lbl in info.pkg_files:
-                        all_pkg_files.append(_process_pkg_files_info(pfi, lbl, all_actual_files))
+                        all_actual_files.extend(pfi.dest_src_map.values())
+                        all_pkg_files.append((PackageFilesInfo(dest_src_map = pfi.dest_src_map, attributes = pfi.attributes), lbl))
                     all_pkg_dirs.extend(info.pkg_dirs)
                     all_pkg_symlinks.extend(info.pkg_symlinks)
                 elif PackageFilesInfo in fg:
-                    all_pkg_files.append(_process_pkg_files_info(fg[PackageFilesInfo], fg.label, all_actual_files))
+                    pfi = fg[PackageFilesInfo]
+                    all_actual_files.extend(pfi.dest_src_map.values())
+                    all_pkg_files.append((PackageFilesInfo(dest_src_map = pfi.dest_src_map, attributes = pfi.attributes), fg.label))
 
     return [
         # Expose the File objects so Bazel schedules their producing actions.
