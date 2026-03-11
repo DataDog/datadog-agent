@@ -304,7 +304,12 @@ async fn main() -> Result<()> {
     let args = Args::parse(env::args());
     let config = config::load_config(args.config_path);
     let log_level = config::get_log_level(&config);
-    simple_logger::init_with_level(log_level)?;
+    let log_file_path = config::get_log_file(&config);
+    dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "SYS-PROBE-LITE",
+        level: log_level,
+        log_file: Some(std::path::PathBuf::from(log_file_path)),
+    })?;
     info!("Log level set to: {:?}", log_level);
 
     // Handle fallback decision if fallback binary is configured
