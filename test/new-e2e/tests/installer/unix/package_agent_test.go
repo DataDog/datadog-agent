@@ -11,9 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/stretchr/testify/assert"
+
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -52,7 +53,7 @@ func (s *packageAgentSuite) TestInstall() {
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
-	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit, probeUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, true)
@@ -83,10 +84,10 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
 	state.AssertUnitsEnabled(agentUnit)
 
-	// we cannot assert here on process-agent/agent-data-plane being either running or dead due to timing issues,
+	// we cannot assert here on process-agent/agent-data-plane/system-probe being either running or dead due to timing issues,
 	// so it has to be checked prior (i.e., using WaitForUnitExited)
 	state.AssertUnitsRunning(agentUnit, traceUnit)
-	state.AssertUnitsDead(probeUnit, securityUnit)
+	state.AssertUnitsDead(securityUnit)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits || s.installMethod == InstallMethodAnsible {
@@ -508,7 +509,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
-	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit, probeUnit)
 
 	// Important: the installer daemon shouldn't start if FIPS is enabled. Remote Config will be disabled and the unit will exit with code 255.
 	s.host.WaitForUnitExited(s.T(), 255, installerUnit)
