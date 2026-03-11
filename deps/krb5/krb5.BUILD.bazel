@@ -130,7 +130,6 @@ filegroup(
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
-    prefix = "embedded/",
 )
 
 pkg_files(
@@ -138,14 +137,13 @@ pkg_files(
     srcs = [
         ":_bins",
     ],
-    prefix = "embedded/bin",
+    prefix = "bin",
     attributes = pkg_attributes("0755"),
 )
 
 pkg_filegroup(
     name = "all_libs",
     srcs = [":_lib_" + libname for libname in SHARED_LIBS.keys()],
-    prefix = "embedded/",
 )
 
 pkg_filegroup(
@@ -155,6 +153,7 @@ pkg_filegroup(
         ":bin_files",
         ":all_libs",
     ],
+    prefix = "embedded",
     visibility = ["@@//packages:__subpackages__"],
 )
 
