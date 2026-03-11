@@ -230,8 +230,30 @@ func (t *teeConfig) compareResult(key, method string, base, compare interface{})
 				}
 			}
 		}
+		// Don't log when compare is a strict superset of base
+		if baseMap, ok := base.(map[string]interface{}); ok {
+			if compareMap, ok := compare.(map[string]interface{}); ok {
+				if mapIsSubset(baseMap, compareMap) {
+					return
+				}
+			}
+		}
 		t.warnOnce(method, key, "base[%s]: %#v | compare[%s] %#v | from %s", t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
+}
+
+// mapIsSubset returns true if every key in base exists in superset with an identical value
+func mapIsSubset(base, superset map[string]interface{}) bool {
+	for k, v := range base {
+		sv, ok := superset[k]
+		if !ok {
+			return false
+		}
+		if !reflect.DeepEqual(v, sv) {
+			return false
+		}
+	}
+	return true
 }
 
 // Get wraps Viper for concurrent access
