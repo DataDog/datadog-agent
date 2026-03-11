@@ -9,14 +9,13 @@ package agentimpl
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"runtime"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	logsstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -37,6 +36,10 @@ const (
 	autoReasonProcess      = "processor_saturated"
 	autoReasonRecovered    = "recovered"
 	autoReasonNoBottleneck = "no_bottleneck"
+
+	autoDefaultBatchMaxConcurrentSend = 0
+	autoDefaultZstdCompressionLevel   = 1
+	autoDefaultGzipCompressionLevel   = 6
 )
 
 var autoProfileControlledKeys = []string{
@@ -175,7 +178,7 @@ func (w *autoProfileWatchdog) apply(action autoProfileAction, now time.Time) err
 	if !ok {
 		logsmetrics.TlmAutoProfileApply.Inc("failure", "config_not_writable")
 		logsmetrics.GlobalAutoProfileStatus.RecordApply("failure", "config_not_writable", action.changes)
-		return fmt.Errorf("auto profile requires writable config")
+		return errors.New("auto profile requires writable config")
 	}
 
 	for k, v := range action.changes {
@@ -233,23 +236,23 @@ func getAutoProfileLimits() autoProfileLimits {
 	return autoProfileLimits{
 		baselinePipelines:   min(4, maxPipelines),
 		maxPipelines:        maxPipelines,
-		baselineConcurrency: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		baselineConcurrency: autoDefaultBatchMaxConcurrentSend,
 	}
 }
 
 func compressionNormalized(v autoProfileRuntimeValues) bool {
 	return v.useCompression &&
 		v.compressionKind == logsconfig.ZstdCompressionKind &&
-		v.zstdCompressionLevel == pkgconfigsetup.DefaultZstdCompressionLevel &&
-		v.gzipCompressionLevel == pkgconfigsetup.DefaultGzipCompressionLevel
+		v.zstdCompressionLevel == autoDefaultZstdCompressionLevel &&
+		v.gzipCompressionLevel == autoDefaultGzipCompressionLevel
 }
 
 func normalizeCompressionChanges() map[string]interface{} {
 	return map[string]interface{}{
 		"logs_config.use_compression":        true,
 		"logs_config.compression_kind":       logsconfig.ZstdCompressionKind,
-		"logs_config.zstd_compression_level": pkgconfigsetup.DefaultZstdCompressionLevel,
-		"logs_config.compression_level":      pkgconfigsetup.DefaultGzipCompressionLevel,
+		"logs_config.zstd_compression_level": autoDefaultZstdCompressionLevel,
+		"logs_config.compression_level":      autoDefaultGzipCompressionLevel,
 	}
 }
 
@@ -400,7 +403,7 @@ func (a *logAgent) stopAutoProfileWatchdog(trigger string) {
 func (a *logAgent) clearAutoProfileRuntimeOverrides() (bool, error) {
 	cfg, ok := a.config.(pkgconfigmodel.Config)
 	if !ok {
-		return false, fmt.Errorf("auto profile requires writable config")
+		return false, errors.New("auto profile requires writable config")
 	}
 
 	cleared := false
