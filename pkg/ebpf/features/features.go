@@ -40,6 +40,13 @@ func SupportsFentry(funcName string) bool {
 	}
 	defer prog.Close()
 
+	// deadlock check must come before attach, since deadlock is upon detach
+	hasPotentialFentryDeadlock, err := kernelbugs.HasTasksRCUExitLockSymbol()
+	if hasPotentialFentryDeadlock || (err != nil) {
+		// in case of error, let's be safe and assume the bug is present
+		return false
+	}
+
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program: prog,
 	})
@@ -47,12 +54,6 @@ func SupportsFentry(funcName string) bool {
 		return false
 	}
 	defer l.Close()
-
-	hasPotentialFentryDeadlock, err := kernelbugs.HasTasksRCUExitLockSymbol()
-	if hasPotentialFentryDeadlock || (err != nil) {
-		// in case of error, let's be safe and assume the bug is present
-		return false
-	}
 
 	return true
 }
