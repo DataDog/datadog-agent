@@ -776,7 +776,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// NCCL
 	config.BindEnvAndSetDefault("nccl.enabled", false)
-	config.BindEnvAndSetDefault("nccl.json_dir", "")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1002,10 +1001,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // config for IAST which is implemented in the client libraries
 	config.BindEnv("admission_controller.auto_instrumentation.asm_sca.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // config for SCA
 	config.BindEnv("admission_controller.auto_instrumentation.profiling.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // config for profiling
-	config.BindEnv("admission_controller.nccl_profiler.enabled", "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED")                                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("admission_controller.nccl_profiler.injector_image", "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetDefault("admission_controller.nccl_profiler.enabled", false)
-	config.SetDefault("admission_controller.nccl_profiler.injector_image", "")
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.enabled", false, "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED")
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.injector_image", "", "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
