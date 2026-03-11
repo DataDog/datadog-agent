@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
