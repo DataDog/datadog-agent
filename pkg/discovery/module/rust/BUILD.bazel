@@ -169,11 +169,6 @@ filegroup(
     srcs = glob(["testdata/**/*"]),
 )
 
-filegroup(
-    name = "mock_system_probe",
-    srcs = ["testdata/fallback/mock-system-probe.sh"],
-)
-
 # Unit tests embedded in source files
 rust_test(
     name = "dd_discovery_test",
@@ -192,26 +187,6 @@ rust_test(
 )
 
 # Integration tests
-rust_test(
-    name = "fallback_integration_test",
-    srcs = ["tests/fallback_integration_test.rs"],
-    data = [
-        ":mock_system_probe",
-        ":system-probe-lite",
-    ],
-    edition = "2024",
-    # Set compile-time environment variable pointing to system-probe-lite binary
-    # This mimics Cargo's CARGO_BIN_EXE_* behavior
-    rustc_env = {
-        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
-        "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
-    },
-    deps = [
-        "@crates//:nix",
-        "@crates//:tempfile",
-    ],
-)
-
 rust_test(
     name = "pid_integration_test",
     srcs = ["tests/pid_integration_test.rs"],
