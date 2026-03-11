@@ -55,10 +55,4 @@ build do
     " #{install_dir}/embedded/lib/libxmlsec1*.so" \
 
   command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libopenscap.so" \
-    " #{install_dir}/embedded/lib/libopenscap_sce.so" \
-    " #{install_dir}/embedded/bin/oscap" \
-    " #{install_dir}/embedded/bin/oscap-io"
-
 end
