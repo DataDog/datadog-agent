@@ -172,7 +172,7 @@ func TestWorkloadIdentityToken_HTTPError(t *testing.T) {
 
 func TestAzureCLIToken(t *testing.T) {
 	old := azureExecCommand
-	azureExecCommand = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+	azureExecCommand = func(ctx context.Context, name string, _ ...string) *exec.Cmd {
 		assert.Equal(t, "az", name)
 		return exec.CommandContext(ctx, "echo", `{"accessToken":"cli-token-456"}`)
 	}

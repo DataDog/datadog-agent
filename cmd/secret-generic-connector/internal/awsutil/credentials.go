@@ -783,8 +783,8 @@ func stsEndpoint(region string) string {
 	return fmt.Sprintf("https://sts.%s.amazonaws.com/", region)
 }
 
-func isChina(region string) bool  { return strings.HasPrefix(region, "cn-") }
-func isGov(region string) bool    { return strings.HasPrefix(region, "us-gov-") }
+func isChina(region string) bool { return strings.HasPrefix(region, "cn-") }
+func isGov(region string) bool   { return strings.HasPrefix(region, "us-gov-") }
 
 // ServiceEndpoint returns the endpoint for an AWS service in the given region.
 func ServiceEndpoint(service, region string) string {
@@ -793,4 +793,3 @@ func ServiceEndpoint(service, region string) string {
 	}
 	return fmt.Sprintf("https://%s.%s.amazonaws.com/", service, region)
 }
-

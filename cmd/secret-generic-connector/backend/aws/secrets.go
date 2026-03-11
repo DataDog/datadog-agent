@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -147,7 +148,7 @@ type smGetSecretValueResponse struct {
 
 func (c *secretsManagerHTTPClient) GetSecretValue(ctx context.Context, secretID string) (*string, error) {
 	if c.cfg.Region == "" {
-		return nil, fmt.Errorf("AWS region is required for Secrets Manager")
+		return nil, errors.New("AWS region is required for Secrets Manager")
 	}
 
 	endpoint := awsutil.ServiceEndpoint("secretsmanager", c.cfg.Region)

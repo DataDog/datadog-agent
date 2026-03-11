@@ -25,7 +25,7 @@ func (c *ssmMockClient) GetParameter(_ context.Context, name string, _ bool) (*s
 	if value, exists := c.parameters[name]; exists {
 		return &value, nil
 	}
-	return nil, fmt.Errorf("Parameter %s not found.", name)
+	return nil, fmt.Errorf("parameter %s not found", name)
 }
 
 func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {

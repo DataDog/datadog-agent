@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -102,7 +103,7 @@ type ssmParameter struct {
 
 func (c *ssmHTTPClient) GetParameter(ctx context.Context, name string, withDecryption bool) (*string, error) {
 	if c.cfg.Region == "" {
-		return nil, fmt.Errorf("AWS region is required for SSM")
+		return nil, errors.New("AWS region is required for SSM")
 	}
 
 	endpoint := awsutil.ServiceEndpoint("ssm", c.cfg.Region)
