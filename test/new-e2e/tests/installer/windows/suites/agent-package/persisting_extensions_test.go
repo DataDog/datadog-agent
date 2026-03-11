@@ -116,8 +116,13 @@ func (s *testExtensionsSuite) verifyDDOTServiceNotRunning() {
 	s.Require().Contains(output, "NotFound", "DDOT service should not exist")
 }
 
-// setAgentConfig creates the agent configuration.
-func (s *testExtensionsSuite) setAgentConfig() {
+// setAgentConfig creates the agent configuration with the given OCI registry URL.
+// If registryURL is empty, the default pipeline registry is used.
+func (s *testExtensionsSuite) setAgentConfig(registryURL ...string) {
+	url := consts.PipelineOCIRegistry
+	if len(registryURL) > 0 && registryURL[0] != "" {
+		url = registryURL[0]
+	}
 	configPath := `C:\ProgramData\Datadog\datadog.yaml`
 	s.Env().RemoteHost.MkdirAll(`C:\ProgramData\Datadog`)
 	apiKey := installer.GetAPIKey()
@@ -128,7 +133,7 @@ remote_updates: true
 log_level: debug
 installer:
   registry:
-    url: installtesting.datad0g.com.internal.dda-testing.com
+    url: `+url+`
 `))
 }
 
@@ -184,8 +189,10 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
-	s.T().Skip("Skipping test -- incident-50789")
-	s.setAgentConfig()
+	// Use the beta registry so restoreAgentExtensions can find the stable OCI after rollback.
+	// The experiment extension restore will fail silently (experiment OCI is not in the beta
+	// registry), but that's fine since the experiment is intentionally rolled back anyway.
+	s.setAgentConfig(consts.BetaS3OCIRegistry)
 	s.installPreviousAgentVersion()
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
@@ -203,14 +210,19 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		s.Require().NoError(err, "daemon should stop cleanly")
 	})
 
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
-	s.Require().Host(s.Env().RemoteHost).
-		HasDatadogInstaller().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
-		})
+	// After MSI rollback, postStartExperimentBackground detects the failure and calls
+	// restoreStableAgentFromExperiment, which reinstalls the stable MSI via postStopExperiment.
+	// The experiment installer service may briefly appear as Running before rollback completes.
+	// Poll until the stable installer version is confirmed running.
+	stableVersion := s.StableAgentVersion().Version()
+	assert.Eventually(s.T(), func() bool {
+		output, err := s.Env().RemoteHost.Execute(
+			fmt.Sprintf(`& "%s\%s" version`, consts.Path, consts.BinaryName))
+		if err != nil {
+			return false
+		}
+		return strings.Contains(strings.TrimSpace(output), stableVersion)
+	}, 10*time.Minute, 30*time.Second, "stable installer should be running after MSI rollback")
 
 	s.verifyDDOTRunning(s.StableAgentVersion().Version())
 }
