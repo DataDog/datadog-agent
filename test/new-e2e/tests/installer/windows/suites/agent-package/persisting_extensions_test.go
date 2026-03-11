@@ -189,11 +189,14 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
-	// Use the pipeline registry so the stable daemon can download the experiment OCI during
-	// StartExperiment. We switch to the beta registry after the daemon stops so that
-	// restoreAgentExtensions can find the stable OCI (7.78.0-beta-fleet-ext-1) during rollback.
+	// Install the previous agent first (starts the daemon, which caches the registry config
+	// from datadog.yaml at startup). Then switch to the beta registry: the daemon won't
+	// reload it, so StartExperiment still downloads the experiment OCI from the pipeline
+	// registry. restoreAgentExtensions, however, re-reads datadog.yaml fresh at call time,
+	// so it will use the beta registry to find the stable OCI (7.78.0-beta-fleet-ext-1).
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
+	s.setAgentConfig(consts.BetaS3OCIRegistry)
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
@@ -209,12 +212,6 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		_, err := s.StartExperimentCurrentVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
 	})
-
-	// The experiment daemon is now running and the MSI installation is in progress.
-	// Switch to the beta registry so restoreAgentExtensions picks it up when the MSI
-	// rolls back and reinstalls the stable agent. The MSI failure + rollback takes long
-	// enough that this write completes well before restoreAgentExtensions reads the config.
-	s.setAgentConfig(consts.BetaS3OCIRegistry)
 
 	// After MSI rollback, postStartExperimentBackground detects the failure and calls
 	// restoreStableAgentFromExperiment, which reinstalls the stable MSI via postStopExperiment.
