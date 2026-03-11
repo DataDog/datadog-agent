@@ -230,10 +230,14 @@ func (t *teeConfig) compareResult(key, method string, base, compare interface{})
 				}
 			}
 		}
-		// Don't log when compare is a strict superset of base
+		// Skip logging when NTMs result is a superset of vipers
 		if baseMap, ok := base.(map[string]interface{}); ok {
 			if compareMap, ok := compare.(map[string]interface{}); ok {
-				if mapIsSubset(baseMap, compareMap) {
+				viperMap, ntmMap := baseMap, compareMap
+				if t.baseline.GetLibType() != "viper" {
+					viperMap, ntmMap = compareMap, baseMap
+				}
+				if mapIsSubset(viperMap, ntmMap) {
 					return
 				}
 			}
