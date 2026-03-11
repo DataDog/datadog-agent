@@ -54,7 +54,8 @@
             "211": {}
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"

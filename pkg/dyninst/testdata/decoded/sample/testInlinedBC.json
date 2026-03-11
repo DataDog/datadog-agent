@@ -52,7 +52,8 @@
             "method": "main.testInlinedBC"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

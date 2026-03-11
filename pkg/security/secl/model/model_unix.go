@@ -905,6 +905,27 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// MountEquals returns true if the mount ID is the same as the other mount ID taking the path ID into account
+// See the increment of the path ID when the mount is updated kernel side
+func (p *PathKey) MountEquals(other PathKey) bool {
+	// PathID encodes as PATH_ID(high, low) = (high << 16) | (low & 0xFFFF).
+	// The high 16 bits are the mount revision counter (bumped by MOUNT_REVISION_BUMP_VALUE on
+	// global invalidations such as directory renames/unlinks affecting the mount namespace).
+	// The low 16 bits are a per-inode counter and are unrelated between different files,
+	// so we must compare the high bits here.
+	pathID, otherPathID := uint16(p.PathID>>16), uint16(other.PathID>>16)
+
+	diff := pathID - otherPathID // unsigned wrap-around
+	if diff > 0x8000 {
+		diff = ^diff + 1 // equivalent to 65536 - diff
+	}
+
+	// see kernel side definition of MOUNT_REVISION_BUMP_VALUE
+	const mountRevisionBumpValue = 64
+
+	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || diff < mountRevisionBumpValue)
+}
+
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
 const OnDemandPerArgSize = 64
 

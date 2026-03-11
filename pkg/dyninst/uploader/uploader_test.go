@@ -31,6 +31,7 @@ type testServer struct {
 
 func (s *testServer) Close() {
 	close(s.close)
+	s.server.CloseClientConnections()
 	s.server.Close()
 }
 
@@ -124,7 +125,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(0), // disable timers
 		)
@@ -166,7 +167,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(10*time.Millisecond),
 		)
@@ -207,7 +208,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(1),
 		)
 		defer uploader.Stop()
@@ -238,10 +239,7 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploaderFactory := NewLogsUploaderFactory(
-			WithURL(ts.serverURL),
-			WithMaxBatchItems(2),
-		)
+		uploaderFactory := NewLogsUploaderFactory(ts.serverURL, WithMaxBatchItems(2))
 		defer uploaderFactory.Stop()
 		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
 			ContainerID: "test_id",
@@ -251,6 +249,7 @@ func TestLogsUploader(t *testing.T) {
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		msg2 := json.RawMessage(`{"key":"value2"}`)
 
+		// Upload two logs.
 		uploader.Enqueue(msg1)
 		uploader.Enqueue(msg2)
 
@@ -278,10 +277,7 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploaderFactory := NewLogsUploaderFactory(
-			WithURL(ts.serverURL),
-			WithMaxBatchItems(1),
-		)
+		uploaderFactory := NewLogsUploaderFactory(ts.serverURL, WithMaxBatchItems(1))
 		defer uploaderFactory.Stop()
 		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
 			Tags: "service:test",

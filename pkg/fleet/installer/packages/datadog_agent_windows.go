@@ -101,8 +101,11 @@ func postInstallDatadogAgent(ctx HookContext) error {
 			return fmt.Errorf("failed to remove Agent: %w", err)
 		}
 
-		// install the new stable Agent
-		err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
+		// Install the new stable Agent without starting services.
+		// Services are started after extensions are installed so that
+		// the core agent discovers and starts extension services (e.g. DDOT).
+		installOnlyArgs := append(ctx.WindowsArgs, "DD_INSTALL_ONLY=1")
+		err = installAgentPackage(ctx, env, "stable", installOnlyArgs, "setup_agent.log")
 		if err != nil {
 			return err
 		}
@@ -129,6 +132,18 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := restoreAgentExtensions(ctx, agentVersion, isExperiment); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
+
+	// install new extensions provided via environment variables
+	// not during experiments, we don't expect new extensions to be installed, only restored
+	if !isExperiment {
+		if err := installAgentExtensions(ctx, agentVersion, isExperiment); err != nil {
+			log.Warnf("failed to install extensions: %s", err)
+		}
+	}
+
+	// No need to explicitly start the Agent here
+	// - MSI: done at the end in StartDDServices custom action
+	// - OCI: done at the end of setup script (setup.go)
 
 	return nil
 }

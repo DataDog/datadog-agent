@@ -17,12 +17,12 @@ type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
 	SyncCache() error
 	Delete(mountID uint32, mountIDUnique uint64) error
-	ResolveFilesystem(mountID uint32, pid uint32) (string, error)
+	ResolveFilesystem(pathKey model.PathKey, pid uint32) (string, error)
 	Insert(m model.Mount) error
 	InsertMoved(m model.Mount) error
-	ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error)
+	ResolveMountRoot(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMountPath(pathKey model.PathKey, pid uint32) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMount(pathKey model.PathKey, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
 	Iterate(cb func(*model.Mount))

@@ -42,7 +42,8 @@
             "method": "main.noArgs"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]"

@@ -65,7 +65,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -136,7 +137,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -207,7 +209,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -278,7 +281,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -349,7 +353,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -420,7 +425,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -491,7 +497,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -562,7 +569,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -633,7 +641,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"
@@ -704,7 +713,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testLongFunctionWithChangingState"

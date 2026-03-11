@@ -92,7 +92,7 @@ func TestMoveMount(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
+			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.RootPathKey, 0)
 			assert.Equal(t, err, nil)
 			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
@@ -253,13 +253,13 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
+			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.RootPathKey, 0)
 			assert.Equal(t, err, nil, "Error resolving mount")
 			assert.Equal(t, 2, len(mount.Children), "Wrong number of child mounts")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 
 			for _, childMountID := range mount.Children {
-				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0)
+				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(model.PathKey{MountID: childMountID}, 0)
 				assert.Equal(t, err, nil, "Error resolving child mount")
 				assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
 			}
@@ -338,7 +338,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
-			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(model.PathKey{MountID: i}, 0)
 
 			if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain

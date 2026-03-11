@@ -32,7 +32,8 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
+	// The ignore comms feature is currently only supported for the Go discovery module.
+	discovery := setupGoDiscoveryModule(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -53,7 +54,7 @@ func TestIgnoreComm(t *testing.T) {
 
 	seen := make(map[int]model.Service)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		for _, s := range resp.Services {
 			seen[s.PID] = s
 		}

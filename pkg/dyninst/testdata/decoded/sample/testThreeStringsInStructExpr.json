@@ -20,7 +20,8 @@
             "method": "main.testThreeStringsInStruct"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

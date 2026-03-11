@@ -460,6 +460,14 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			expectMemory:     float64(legacyMemory),
 			expectCollectErr: true,
 		},
+		{
+			name:             "Hopper fallback on detail list insufficient size",
+			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			detailListErr:    nvml.ERROR_INSUFFICIENT_SIZE,
+			expectPid:        legacyPid,
+			expectMemory:     float64(legacyMemory),
+			expectCollectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
