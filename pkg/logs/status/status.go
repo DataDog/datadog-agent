@@ -82,6 +82,13 @@ type Status struct {
 	Errors           []string          `json:"errors"`
 	Warnings         []string          `json:"warnings"`
 	UseHTTP          bool              `json:"use_http"`
+	// PipelineHealth contains pre-formatted lines describing per-stage fill
+	// percentages, historical maximums, bottleneck identification, and any
+	// profile-change suggestion. Only populated when the agent is running.
+	PipelineHealth []string `json:"pipeline_health,omitempty"`
+	// AutoProfile contains pre-formatted lines describing Watchdog AUTO mode
+	// runtime state and recent actions.
+	AutoProfile []string `json:"auto_profile,omitempty"`
 }
 
 // SetCurrentTransport sets the current transport used by the log agent.

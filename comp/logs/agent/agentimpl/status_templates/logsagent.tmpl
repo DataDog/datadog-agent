@@ -46,6 +46,26 @@
   {{- end }}
 {{- end }}
 
+{{- if .PipelineHealth }}
+
+  ===============
+  Pipeline Health
+  ===============
+  {{- range $line := .PipelineHealth }}
+  {{$line}}
+  {{- end }}
+{{- end }}
+
+{{- if .AutoProfile }}
+
+  =====================
+  Auto Profile Watchdog
+  =====================
+  {{- range $line := .AutoProfile }}
+  {{$line}}
+  {{- end }}
+{{- end }}
+
 {{- if .Integrations }}
   ============
   Integrations

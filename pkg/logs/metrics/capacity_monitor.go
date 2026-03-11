@@ -14,32 +14,37 @@ import (
 // CapacityMonitor samples the average capacity of a component over a given interval.
 // Capacity is calculated as the difference between the ingress and egress of a payload.
 // Because data moves very quickly through components, we need to sample and aggregate this value over time.
+// When channelCapacity > 0, the monitor also computes a fill percentage and records it to
+// GlobalSaturationHistory for bottleneck detection and profile recommendation.
 type CapacityMonitor struct {
 	sync.Mutex
-	ingress      int64
-	ingressBytes int64
-	egress       int64
-	egressBytes  int64
-	avgItems     float64
-	avgBytes     float64
-	name         string
-	instance     string
-	tickChan     <-chan time.Time
+	ingress         int64
+	ingressBytes    int64
+	egress          int64
+	egressBytes     int64
+	avgItems        float64
+	avgBytes        float64
+	name            string
+	instance        string
+	channelCapacity int // 0 means capacity unknown; no fill % computed
+	tickChan        <-chan time.Time
 }
 
-// NewCapacityMonitor creates a new CapacityMonitor
-func NewCapacityMonitor(name, instance string) *CapacityMonitor {
-	return newCapacityMonitorWithTick(name, instance, time.NewTicker(1*time.Second).C)
+// NewCapacityMonitor creates a new CapacityMonitor. channelCapacity is the size of the
+// upstream channel feeding this component; pass 0 if unknown.
+func NewCapacityMonitor(name, instance string, channelCapacity int) *CapacityMonitor {
+	return newCapacityMonitorWithTick(name, instance, channelCapacity, time.NewTicker(1*time.Second).C)
 }
 
 // newCapacityMonitorWithTick is used for testing.
-func newCapacityMonitorWithTick(name, instance string, tickChan <-chan time.Time) *CapacityMonitor {
+func newCapacityMonitorWithTick(name, instance string, channelCapacity int, tickChan <-chan time.Time) *CapacityMonitor {
 	return &CapacityMonitor{
-		name:     name,
-		instance: instance,
-		avgItems: 0,
-		avgBytes: 0,
-		tickChan: tickChan,
+		name:            name,
+		instance:        instance,
+		channelCapacity: channelCapacity,
+		avgItems:        0,
+		avgBytes:        0,
+		tickChan:        tickChan,
 	}
 }
 
@@ -91,4 +96,12 @@ func (i *CapacityMonitor) report() {
 	}
 	TlmUtilizationItems.Set(i.avgItems, i.name, i.instance)
 	TlmUtilizationBytes.Set(i.avgBytes, i.name, i.instance)
+	if i.channelCapacity > 0 {
+		fillPct := i.avgItems / float64(i.channelCapacity)
+		if fillPct > 1.0 {
+			fillPct = 1.0
+		}
+		TlmUtilizationFillPct.Set(fillPct*100, i.name, i.instance)
+		GlobalSaturationHistory.RecordFill(i.name, fillPct)
+	}
 }

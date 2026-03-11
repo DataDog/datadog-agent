@@ -100,10 +100,25 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 	return config.BuildEndpointsWithVectorOverride(coreConfig, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
+// buildTCPEndpointsForRestart builds TCP endpoints for restart without running
+// connectivity checks or transport auto-selection logic.
+// This preserves current TCP transport during runtime profile tuning.
+func buildTCPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, error) {
+	return config.BuildEndpointsForDiagnostic(
+		coreConfig,
+		config.DefaultLogsConfigKeysWithVectorOverride(coreConfig),
+		config.DefaultDiagnosticPrefix,
+		config.DiagnosticTCP,
+		intakeTrackType,
+		config.AgentJSONIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
+}
+
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
 	pipelineProvider := pipeline.NewProvider(
-		a.config.GetInt("logs_config.pipelines"),
+		config.PipelinesCount(a.config),
 		a.auditor,
 		diagnosticMessageReceiver,
 		processingRules,

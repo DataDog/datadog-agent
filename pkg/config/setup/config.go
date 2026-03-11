@@ -2087,6 +2087,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
 	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
 
+	// Named performance profile for the logs agent. Valid values: "", "auto", "balanced",
+	// "wan_optimized", "max_throughput", "low_resource", "bandwidth_saver", "performance".
+	// Empty string (default) means no profile is applied.
+	// "auto" enables runtime tuning by the logs agent Watchdog.
+	// Any explicitly-set granular setting takes precedence over static profile overrides.
+	config.BindEnvAndSetDefault("logs_config.logs_agent_profile", "")
+
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
 	// a more substantial refactor of autodiscovery is made to determine this automatically.

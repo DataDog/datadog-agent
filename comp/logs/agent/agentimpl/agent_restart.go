@@ -105,6 +105,30 @@ func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
 	return nil
 }
 
+// restartWithCurrentTransport rebuilds endpoints while preserving current transport mode.
+// Used by runtime profile tuning to apply restart-bound settings without switching
+// between TCP and HTTP.
+func (a *logAgent) restartWithCurrentTransport(ctx context.Context) error {
+	if a.endpoints == nil {
+		return errors.New("cannot restart logs-agent: endpoints are not initialized")
+	}
+
+	var (
+		endpoints *config.Endpoints
+		err       error
+	)
+	if a.endpoints.UseHTTP {
+		endpoints, err = buildHTTPEndpointsForRestart(a.config)
+	} else {
+		endpoints, err = buildTCPEndpointsForRestart(a.config)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to build %s endpoints for restart: %w", status.GetCurrentTransport(), err)
+	}
+
+	return a.restart(ctx, endpoints)
+}
+
 // rollbackToPreviousTransport attempts to restore the agent to its previous working state
 // after a failed transport switch. This ensures the agent continues functioning
 // rather than being left in a broken state.

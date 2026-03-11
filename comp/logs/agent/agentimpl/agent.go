@@ -136,6 +136,10 @@ type logAgent struct {
 	httpRetryCtx    context.Context
 	httpRetryCancel context.CancelFunc
 	httpRetryMutex  sync.Mutex
+
+	// AUTO logs profile watchdog runtime state.
+	autoProfileMu       sync.Mutex
+	autoProfileWatchdog *autoProfileWatchdog
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -163,6 +167,8 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 		}
+		logsAgent.registerAutoProfileModeCallback(deps.Config)
+
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
 			OnStop:  logsAgent.stop,
@@ -213,6 +219,9 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+	if err := a.onStartAutoProfileMode(); err != nil {
+		a.log.Errorf("Could not start auto profile watchdog: %v", err)
+	}
 
 	// If we're currently sending over TCP, attempt restart over HTTP
 	if !endpoints.UseHTTP {
@@ -306,9 +315,11 @@ func (a *logAgent) stop(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Stopping logs-agent")
+	a.started.Store(status.StatusNotStarted)
 
 	// Stop HTTP retry loop if running
 	a.stopHTTPRetry()
+	a.onStopAutoProfileMode()
 
 	status.Clear()
 

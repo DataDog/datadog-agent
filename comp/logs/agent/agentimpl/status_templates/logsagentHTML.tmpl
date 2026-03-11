@@ -34,6 +34,26 @@
       {{- end }}
       </span>
     {{- end}}
+    {{- if .PipelineHealth }}
+      <span class="stat_subtitle">Pipeline Health</span>
+      <span class="stat_subdata">
+        <table style="font-family:monospace;border-collapse:collapse">
+        {{- range $line := .PipelineHealth }}
+          <tr><td style="white-space:pre">{{$line}}</td></tr>
+        {{- end }}
+        </table>
+      </span>
+    {{- end }}
+    {{- if .AutoProfile }}
+      <span class="stat_subtitle">Auto Profile Watchdog</span>
+      <span class="stat_subdata">
+        <table style="font-family:monospace;border-collapse:collapse">
+        {{- range $line := .AutoProfile }}
+          <tr><td style="white-space:pre">{{$line}}</td></tr>
+        {{- end }}
+        </table>
+      </span>
+    {{- end }}
     {{- range .Integrations }}
       <span class="stat_subtitle">{{ .Name }}</span>
       <span class="stat_subdata">
