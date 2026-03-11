@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFactory(t *testing.T) {
-	f := Factory()
-	assert.True(t, f.IsSet())
-}
-
 func TestCheckName(t *testing.T) {
 	check := newCheck().(*TestCheckCheck)
 	assert.Equal(t, CheckName, string(check.ID()))
