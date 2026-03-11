@@ -1321,6 +1321,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 		Clock:       mockClock,
 		afterCalled: afterCalled,
 	}
+	// Use an explicit unblock channel to simulate a syscall that ignores
+	// context cancellation (like GetVolumeInformationW on an offline volume).
+	unblock := make(chan struct{})
 	diskCheck := createDiskCheck(t)
 	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
@@ -1329,15 +1332,11 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 			Free:  512,
 			Used:  512,
 		}, nil
-	}), func(ctx context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
-		// Simulate a blocking partition enumeration (e.g. orphaned Windows volume)
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(10 * time.Second):
-			return partitionsTrue, nil
-		}
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		<-unblock
+		return partitionsTrue, nil
 	}), testClock)
+	defer close(unblock)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
@@ -1355,6 +1354,11 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.used", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	// A second Run while the goroutine is still blocked should skip immediately
+	// rather than spawning another stuck goroutine.
+	err = diskCheck.Run()
+	assert.ErrorContains(t, err, "previous call is still in progress")
 }
 
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {

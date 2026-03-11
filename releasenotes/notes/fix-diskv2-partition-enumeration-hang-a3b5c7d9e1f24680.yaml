@@ -4,5 +4,6 @@ fixes:
     Fixed a bug in the disk Go check (diskv2) where partition enumeration
     could hang indefinitely on Windows when an orphaned or offline volume
     is present on the system. The check now applies the configured timeout
-    (default 5s) to partition discovery, preventing permanent worker
-    starvation and high CPU utilization.
+    (default 5s) to partition discovery and guards against spawning
+    duplicate goroutines on subsequent check runs, preventing permanent
+    worker starvation, goroutine buildup, and high CPU utilization.

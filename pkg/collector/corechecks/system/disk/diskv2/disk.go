@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -143,6 +144,8 @@ type Check struct {
 	fs                        afero.Fs
 	statFn                    statFunc
 	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
+
+	partitionEnumInFlight atomic.Bool
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -538,6 +541,9 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 }
 
 func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil_disk.PartitionStat, error) {
+	if !c.partitionEnumInFlight.CompareAndSwap(false, true) {
+		return nil, errors.New("disk partition enumeration skipped — a previous call is still in progress, which may indicate an inaccessible or orphaned volume on the system")
+	}
 	type partitionsResult struct {
 		partitions []gopsutil_disk.PartitionStat
 		err        error
@@ -550,6 +556,7 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
+		defer c.partitionEnumInFlight.Store(false)
 		defer cancel()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
 		select {
