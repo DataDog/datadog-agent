@@ -71,7 +71,7 @@ func (c *TimeClusterCorrelator) Name() string {
 }
 
 // Process adds an anomaly, either to an existing cluster or a new one.
-func (c *TimeClusterCorrelator) Process(anomaly observer.Anomaly) {
+func (c *TimeClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -165,11 +165,13 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 }
 
 // Flush evicts old clusters and returns empty (reporters pull state via ActiveCorrelations).
-func (c *TimeClusterCorrelator) Flush() []observer.ReportOutput {
+func (c *TimeClusterCorrelator) Advance(dataTime int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
 	c.evictOldClustersLocked()
-	return nil
 }
 
 // Reset clears all internal state for reanalysis.
@@ -265,8 +267,7 @@ func (c *TimeClusterCorrelator) GetExtraData() interface{} {
 	return c.GetClusters()
 }
 
-// ActiveCorrelations returns clusters that meet the minimum size threshold.
-// Implements CorrelationState interface.
+// ActiveCorrelations returns clusters as active correlation patterns.
 func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

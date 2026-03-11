@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"fmt"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -23,30 +22,22 @@ func (p *PassthroughCorrelator) Name() string {
 	return "passthrough_correlator"
 }
 
-// Process adds an anomaly to the pending list.
-func (p *PassthroughCorrelator) Process(anomaly observer.Anomaly) {
-	p.anomalies = append(p.anomalies, anomaly)
+// ProcessAnomaly adds an anomaly to the pending list.
+func (p *PassthroughCorrelator) ProcessAnomaly(a observer.Anomaly) {
+	p.anomalies = append(p.anomalies, a)
 }
 
-// Flush converts accumulated anomalies to reports and clears the list.
-func (p *PassthroughCorrelator) Flush() []observer.ReportOutput {
-	if len(p.anomalies) == 0 {
-		return nil
-	}
+// Advance is a no-op for the passthrough correlator (no time-based eviction).
+func (p *PassthroughCorrelator) Advance(_ int64) {}
 
-	reports := make([]observer.ReportOutput, len(p.anomalies))
-	for i, a := range p.anomalies {
-		reports[i] = observer.ReportOutput{
-			Title: a.Title,
-			Body:  a.Description,
-			Metadata: map[string]string{
-				"tags": strings.Join(a.Tags, ","),
-			},
-		}
-	}
+// ActiveCorrelations returns empty (passthrough does not produce correlations).
+func (p *PassthroughCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
+	return nil
+}
 
+// Reset clears accumulated anomalies.
+func (p *PassthroughCorrelator) Reset() {
 	p.anomalies = nil
-	return reports
 }
 
 // GetPending returns pending anomalies (for testing).
@@ -56,11 +47,12 @@ func (p *PassthroughCorrelator) GetPending() []observer.Anomaly {
 
 // StdoutReporter prints reports to stdout.
 // It tracks correlation state changes and only prints when correlations appear or disappear.
+// All data comes through Report(ReportOutput) — no backdoor access to engine internals.
 type StdoutReporter struct {
-	correlationState observer.CorrelationState
-	rawAnomalyState  observer.RawAnomalyState
 	seenCorrelations map[string]string // pattern -> title for correlations we've reported
 	seenRawAnomalies map[string]bool   // source|detector -> whether we've reported this raw anomaly
+	// lastCorrelations is cached from the most recent Report call for PrintFinalState.
+	lastCorrelations []observer.ActiveCorrelation
 }
 
 // Name returns the reporter name.
@@ -68,41 +60,26 @@ func (r *StdoutReporter) Name() string {
 	return "stdout_reporter"
 }
 
-// SetCorrelationState sets the correlation state source for the reporter.
-func (r *StdoutReporter) SetCorrelationState(state observer.CorrelationState) {
-	r.correlationState = state
-	r.seenCorrelations = make(map[string]string)
-}
-
-// SetRawAnomalyState sets the raw anomaly state source for the reporter.
-func (r *StdoutReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
-	r.rawAnomalyState = state
-	r.seenRawAnomalies = make(map[string]bool)
-}
-
-// Report checks correlation state and prints changes.
-// It prints "[observer] NEW: {title}" when a correlation first appears
-// and "[observer] CLEARED: {title}" when a correlation disappears.
+// Report receives a ReportOutput with anomalies and correlations from the engine
+// and prints changes. It prints new anomalies and tracks correlation state changes,
+// printing "[observer] NEW: {title}" when a correlation first appears and
+// "[observer] CLEARED: {title}" when a correlation disappears.
 func (r *StdoutReporter) Report(report observer.ReportOutput) {
-	// Report raw anomalies first (with detector identification)
-	if r.rawAnomalyState != nil {
-		r.reportRawAnomalyChanges()
-	}
-	// If we have correlation state configured, check for changes
-	if r.correlationState != nil {
-		r.reportCorrelationChanges()
-	}
+	// Report new anomalies (with detector identification)
+	r.reportNewAnomalies(report.NewAnomalies)
+	// Check for correlation changes
+	r.reportCorrelationChanges(report.ActiveCorrelations)
+	// Cache for PrintFinalState
+	r.lastCorrelations = report.ActiveCorrelations
 }
 
-// reportRawAnomalyChanges prints new raw anomalies with their detector source.
-func (r *StdoutReporter) reportRawAnomalyChanges() {
+// reportNewAnomalies prints new anomalies from this advance cycle.
+func (r *StdoutReporter) reportNewAnomalies(anomalies []observer.Anomaly) {
 	if r.seenRawAnomalies == nil {
 		r.seenRawAnomalies = make(map[string]bool)
 	}
 
-	rawAnomalies := r.rawAnomalyState.RawAnomalies()
-
-	for _, anomaly := range rawAnomalies {
+	for _, anomaly := range anomalies {
 		key := string(anomaly.Source) + "|" + anomaly.DetectorName
 		if !r.seenRawAnomalies[key] {
 			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source)
@@ -113,13 +90,10 @@ func (r *StdoutReporter) reportRawAnomalyChanges() {
 }
 
 // reportCorrelationChanges checks for new and cleared correlations.
-func (r *StdoutReporter) reportCorrelationChanges() {
+func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.ActiveCorrelation) {
 	if r.seenCorrelations == nil {
 		r.seenCorrelations = make(map[string]string)
 	}
-
-	// Get current active correlations
-	activeCorrelations := r.correlationState.ActiveCorrelations()
 
 	// Build set of currently active pattern names
 	currentlyActive := make(map[string]string) // pattern -> title
@@ -147,43 +121,16 @@ func (r *StdoutReporter) reportCorrelationChanges() {
 	}
 }
 
-// PrintFinalState prints the current state of all correlations and raw anomalies.
+// PrintFinalState prints the current state of all correlations.
 // Call this at the end of a demo to see final cluster contents.
+// Uses the last correlations received via Report.
 func (r *StdoutReporter) PrintFinalState() {
-	// Print raw anomaly summary by detector
-	if r.rawAnomalyState != nil {
-		rawAnomalies := r.rawAnomalyState.RawAnomalies()
-		if len(rawAnomalies) > 0 {
-			byDetector := make(map[string][]observer.Anomaly)
-			for _, a := range rawAnomalies {
-				byDetector[a.DetectorName] = append(byDetector[a.DetectorName], a)
-			}
-
-			fmt.Println("[observer] Raw Anomaly Summary:")
-			for detector, anomalies := range byDetector {
-				sources := make(map[observer.MetricName]bool)
-				for _, a := range anomalies {
-					sources[a.Source] = true
-				}
-				fmt.Printf("  [%s]: %d anomalies across %d metrics\n", detector, len(anomalies), len(sources))
-				for _, a := range anomalies {
-					fmt.Printf("    - %s\n", a.Description)
-				}
-			}
-		}
-	}
-
-	// Print correlation summary
-	if r.correlationState == nil {
-		return
-	}
-	activeCorrelations := r.correlationState.ActiveCorrelations()
-	if len(activeCorrelations) == 0 {
+	if len(r.lastCorrelations) == 0 {
 		fmt.Println("[observer] Final state: no active correlations")
 		return
 	}
 	fmt.Println("[observer] Correlation Summary:")
-	for _, ac := range activeCorrelations {
+	for _, ac := range r.lastCorrelations {
 		fmt.Printf("  Cluster: %d anomalies\n", len(ac.Anomalies))
 		for _, anomaly := range ac.Anomalies {
 			fmt.Printf("    - %s\n", anomaly.Description)
