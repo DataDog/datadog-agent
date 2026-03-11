@@ -331,8 +331,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				rule:         rule,
 			}
 			if !ev.ProcessContext.Process.ContainerContext.IsNull() {
-				report.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
-				report.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+				report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+				report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 			}
 			if dismantled {
 				report.Status = KillActionStatusRuleDismantled
@@ -434,8 +434,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		rule:       rule,
 	}
 	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
-		report.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
-		report.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+		report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 	}
 
 	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {

@@ -301,11 +301,7 @@ func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []
 	pid := killReport.Pid
 	killReport.RUnlock()
 
-	containerContext := RemediationContainerContext{}
-	if containerID, containerCreatedAt := killReport.GetContainerContext(); containerID != "" {
-		containerContext.ID = containerID
-		containerContext.CreatedAt = containerCreatedAt
-	}
+	containerContext := killReport.GetRemediationContainerContext()
 
 	remediation := &Remediation{
 		actionType:       RemediationTypeKill,

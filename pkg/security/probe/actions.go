@@ -57,11 +57,10 @@ type KillActionReport struct {
 	DisarmerType string
 
 	// internal
-	Pid                uint32
-	resolved           bool
-	rule               *rules.Rule
-	containerID        string
-	containerCreatedAt uint64
+	Pid              uint32
+	resolved         bool
+	rule             *rules.Rule
+	containerContext RemediationContainerContext // This is an internal field needed for remediation status events
 }
 
 // JKillActionReport used to serialize date
@@ -133,9 +132,9 @@ func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
 	return k.rule.ID == ruleID
 }
 
-// GetContainerContext returns the container ID and created_at when the process was in a container, otherwise empty/zero.
-func (k *KillActionReport) GetContainerContext() (containerID string, createdAt uint64) {
+// GetRemediationContainerContext returns the container ID and created_at when the process was in a container, otherwise empty/zero.
+func (k *KillActionReport) GetRemediationContainerContext() RemediationContainerContext {
 	k.RLock()
 	defer k.RUnlock()
-	return k.containerID, k.containerCreatedAt
+	return k.containerContext
 }
