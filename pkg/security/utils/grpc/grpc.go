@@ -16,8 +16,10 @@ import (
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // Server defines a gRPC server
@@ -67,8 +69,15 @@ func (g *Server) Start() error {
 			return fmt.Errorf("invalid port '%s' for vsock", g.address)
 		}
 
+		cid := uint32(vsock.Host)
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			if cid, err = socket.ParseVSockAddress(vsockAddr); err != nil {
+				return err
+			}
+		}
+
 		seclog.Infof("starting runtime security agent gRPC server on vsock port %d with host context", port)
-		ln, err = vsock.ListenContextID(vsock.Host, uint32(port), &vsock.Config{})
+		ln, err = vsock.ListenContextID(cid, uint32(port), &vsock.Config{})
 	} else {
 		ln, err = net.Listen(g.family, g.address)
 	}
