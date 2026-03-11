@@ -239,15 +239,27 @@ class AgentManager {
     static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
 
+    /// Full launchd job identifier for the agent. Per-user: gui/<UID>/com.datadoghq.agent; system-wide: system/com.datadoghq.agent.
+    /// Using the full spec fixes "Could not find service in domain for port" when the GUI runs from a local build.
+    private static func agentJobIdentifier() -> String {
+        if checkCurrentInstallationMode() {
+            let userUIDInfo = bashCall(command: "echo $UID")
+            let userUID = userUIDInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines)
+            return "gui/\(userUID)/\(agentServiceName)"
+        }
+        return "system/\(agentServiceName)"
+    }
+
     static func status() -> Bool {
-        let (exitCode, stdOut, stdErr) = call(launchPath: "/bin/launchctl", arguments: ["list", agentServiceName])
+        let jobSpec = agentJobIdentifier()
+        let (exitCode, stdOut, stdErr) = call(launchPath: "/bin/launchctl", arguments: ["print", jobSpec])
 
         if exitCode != 0 {
             Logger.error("Command failed - stdout: \(stdOut), stderr: \(stdErr)", context: "AgentManager")
             return false
         }
 
-        if stdOut.range(of: "\"PID\"") != nil {
+        if stdOut.range(of: "\"PID\"") != nil || stdOut.range(of: "pid = ") != nil {
             return true
         }
 
@@ -310,10 +322,8 @@ class AgentManager {
     }
 
     static func getLoginStatus() -> Bool {
-        let userUIDInfo = bashCall(command: "echo $UID")
-        let userUID = userUIDInfo.stdOut.replacingOccurrences(of: "\n", with: "")
-        let cmd = "print gui/" + userUID + "/" + agentServiceName
-        let processInfo = agentCustomServiceCall(command: cmd)
+        let jobSpec = agentJobIdentifier()
+        let processInfo = agentCustomServiceCall(command: "print \(jobSpec)")
         return processInfo.exitCode == 0
     }
 
@@ -335,7 +345,24 @@ class AgentManager {
     }
 
     private static func agentServiceCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
-        return call(launchPath: "/bin/launchctl", arguments: [command, agentServiceName])
+        switch command {
+        case "start":
+            // Per-user: load plist to create the job and start. Works when the job is not yet loaded
+            // (e.g. locally-built GUI) and also after official install (installer may have already
+            // loaded the plist; load -w is idempotent and keeps the service enabled).
+            // System: kickstart assumes the daemon is already loaded (e.g. by the installer).
+            if checkCurrentInstallationMode() {
+                return bashCall(command: "/bin/launchctl load -w " + userAgentPlistPath)
+            }
+            let jobSpec = agentJobIdentifier()
+            return call(launchPath: "/bin/launchctl", arguments: ["kickstart", "-k", jobSpec])
+        case "stop":
+            let jobSpec = agentJobIdentifier()
+            return call(launchPath: "/bin/launchctl", arguments: ["bootout", jobSpec])
+        default:
+            let jobSpec = agentJobIdentifier()
+            return call(launchPath: "/bin/launchctl", arguments: [command, jobSpec])
+        }
     }
 
     private static func agentCustomServiceCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {

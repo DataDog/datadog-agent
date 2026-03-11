@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import CoreLocation
 import CoreWLAN
 
@@ -36,8 +37,9 @@ struct WiFiData: Codable {
 }
 
 /// WiFiDataProvider handles CoreLocation permissions and WiFi data collection.
-/// The permission prompt (open System Settings + dialog) is gated by request_location_permission
-/// from the WLAN check config (agent configcheck wlan; agent must be running).
+/// The permission prompt (custom dialog + requestWhenInUseAuthorization) runs when status is .notDetermined,
+/// or when .denied if DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED is set. Gated by request_location_permission
+/// from the WLAN check config (agent configcheck wlan; agent must be running). Single attempt per user.
 class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // Note: LaunchAgent-launched apps cannot trigger location permission prompts
     // on macOS (prompts are auto-denied by the system). Permission must be granted
@@ -45,9 +47,13 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // During the launch time of this GUI app, we will attempt to prompt for permission
     // based on the availability of the GUI environment.
     private static let userDefaultsPromptCountKey = "locationPermissionPromptAttemptCount"
+    /// Serializes "should we show the prompt" so only one thread can claim the single attempt (avoids two custom dialogs).
+    private static let permissionPromptLock = NSLock()
+    /// Shared across all instances so only one custom dialog is ever shown (e.g. GUI and IPC may use different provider instances).
+    private static var permissionAttemptCount: Int = {
+        min(max(UserDefaults.standard.integer(forKey: "locationPermissionPromptAttemptCount"), 0), 1)
+    }()
     private let locationManager: CLLocationManager
-    private var permissionPromptProcess: Process? = nil
-    private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2), persisted per-user
     private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
 
     /// Cached value of request_location_permission from WLAN check (nil = not yet fetched).
@@ -56,11 +62,21 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// Tracks whether we already failed once when fetching the flag (allows one retry before caching the default).
     private static var requestLocationPermissionFetchFailedOnce: Bool = false
 
+    /// True after we have logged "Already attempted once, skipping" once (avoids repeated debug logs on every getWiFiInfo).
+    private static var hasLoggedAlreadyAttemptedOnce: Bool = false
+
     /// Default when agent configcheck wlan fails (e.g. agent not running). Case 2: do not show prompt.
     private static let defaultRequestLocationPermissionWhenFetchFails = false
 
     /// Default when configcheck succeeds but request_location_permission is missing or unparseable in WLAN config. Case 1: show prompt.
     private static let defaultRequestLocationPermissionWhenMissing = true
+
+    /// When true, the custom dialog is also shown when status is .denied (e.g. for testing). Set DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED=true (or 1).
+    /// When user taps Allow we still call the native API; it is a no-op when .denied but keeps code simple.
+    private static func showLocationDialogWhenDeniedEnabled() -> Bool {
+        let v = ProcessInfo.processInfo.environment["DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED"]?.lowercased()
+        return v == "true" || v == "1"
+    }
 
     /// Returns the path to the agent binary (uses DD_INSTALL_PATH from LaunchAgent plist or default).
     private static func agentBinaryPath() -> String {
@@ -159,9 +175,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         // Keep delegate to monitor permission status changes
         self.locationManager.delegate = self
 
-        // Load persisted attempt count (per-user, per-installation); clamp to 0...2 (negative/corrupt → 0)
-        permissionAttemptCount = min(max(UserDefaults.standard.integer(forKey: Self.userDefaultsPromptCountKey), 0), 2)
-        
         Logger.info("WiFiDataProvider initialized", context: "WiFiDataProvider")
     }
 
@@ -201,72 +214,78 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// Attempt to prompt for location permission via detached process
-    /// Background: LaunchAgent-launched apps cannot normally trigger prompts
-    /// Caller must pass current auth status (call only when not authorized).
+    /// Requests location permission. Call only after the single attempt has been claimed under permissionPromptLock.
+    /// For .notDetermined: only calls the native API (one system dialog). For .denied with flag: shows custom dialog then native API.
     private func attemptPermissionPrompt(authStatus: CLAuthorizationStatus) {
-        // Skip if permission is restricted by policy (MDM, parental controls, etc.)
-        // User cannot override policy restrictions
-        if authStatus == .restricted {
-            Logger.info("Location permission restricted by device policy - cannot prompt", context: "WiFiDataProvider")
-            Logger.info("Contact your system administrator to enable location access", context: "WiFiDataProvider")
+        let showCustomDialog = authStatus == .denied && Self.showLocationDialogWhenDeniedEnabled()
+        guard authStatus == .notDetermined || showCustomDialog else {
             return
         }
+        Logger.info("Attempting location permission prompt (single attempt), status \(authorizationStatusString())", context: "WiFiDataProvider")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if authStatus == .notDetermined {
+                if #available(macOS 10.15, *) {
+                    self.locationManager.requestWhenInUseAuthorization()
+                    Logger.debug("requestWhenInUseAuthorization() called (system dialog only)", context: "WiFiDataProvider")
+                }
+            } else {
+                self.showLocationPermissionAlertAndRequestIfAllowed()
+            }
+        }
+    }
 
-        // For .notDetermined and .denied: Allow up to 2 prompt attempts
-        // These are user-controllable states (unlike .restricted)
-        // This gives users a second chance if they make a wrong choice
-        guard permissionAttemptCount < 2 else {
-            return
+    /// Shows a modal dialog with Deny/Allow buttons; if user taps Allow, calls requestWhenInUseAuthorization().
+    /// Must be called on the main thread. Marks attempt as used and persists after showing (single attempt).
+    private func showLocationPermissionAlertAndRequestIfAllowed() {
+        let alert = NSAlert()
+        alert.messageText = "Enable Location Permission"
+        alert.informativeText = "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID). When you tap Allow, the system may show a second dialog to grant permission."
+        alert.alertStyle = .informational
+        // Only set icon when we have a proper color image; otherwise leave unset to avoid grey/blank.
+        if let icon = Self.datadogIconImage() {
+            alert.icon = icon
+        }
+        // First button added is rightmost (primary). Allow = primary, Deny = secondary.
+        alert.addButton(withTitle: "Allow")
+        alert.addButton(withTitle: "Deny")
+
+        let response = alert.runModal()
+
+        // NSAlert.alertFirstButtonReturn = Allow (first button added), alertSecondButtonReturn = Deny
+        if response == .alertFirstButtonReturn {
+            if #available(macOS 10.15, *) {
+                locationManager.requestWhenInUseAuthorization()
+                Logger.debug("requestWhenInUseAuthorization() called (system may show its own dialog)", context: "WiFiDataProvider")
+            }
+        } else {
+            Logger.info("User chose Deny in location permission dialog", context: "WiFiDataProvider")
         }
 
-        // Don't spawn duplicate if dialog process is currently running
-        if let process = permissionPromptProcess, process.isRunning {
-            Logger.debug("Permission dialog process still running, skipping duplicate", context: "WiFiDataProvider")
-            return
-        }
+        Logger.info("Location permission prompt completed (single attempt)", context: "WiFiDataProvider")
+    }
 
-        Logger.info("Attempting to prompt for location permission via detached process...", context: "WiFiDataProvider")
-
-        // Spawn detached osascript process to show dialog and open System Settings
-        let script = """
-        do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices'" & ¬
-        " > /dev/null 2>&1 &"
-        
-        display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).
-        
-        Please:
-        1. In the System Settings window that just opened, scroll to 'Datadog Agent'
-        2. Enable the toggle switch next to 'Datadog Agent'
-        3. Click OK below when done
-        
-        Note: This prompt may auto-close if the system denies permission requests from background apps." ¬
-        buttons {"OK"} ¬
-        default button "OK" ¬
-        with title "Enable Location Permission" ¬
-        with icon caution
-        """
-        
-        // Run osascript in background (detached from current process)
-        let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", script]
-        task.standardOutput = nil
-        task.standardError = nil
-        
-        do {
-            try task.run()
-            // Don't wait for completion - let it run detached
-            permissionPromptProcess = task
-            permissionAttemptCount += 1  // Increment on successful spawn
-            // Persist per-user so 2-attempt limit survives app restarts (never write 0)
-            UserDefaults.standard.set(permissionAttemptCount, forKey: Self.userDefaultsPromptCountKey)
-            Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier), attempt \(permissionAttemptCount)/2)", context: "WiFiDataProvider")
-        } catch {
-            Logger.error("Failed to spawn permission prompt: \(error)", context: "WiFiDataProvider")
-            permissionPromptProcess = nil
-            // permissionAttemptCount not incremented - can retry later
+    /// Returns the Datadog app icon for use in dialogs (same icon as DMG installation / Finder).
+    /// Uses only Agent.icns so the dialog never shows the tray icon (agent.png) or other wrong assets.
+    private static func datadogIconImage() -> NSImage? {
+        var imagePath: String?
+        // 1) DMG/app icon: Agent.icns in Contents/Resources (official build and build-app-bundle.sh)
+        let bundleResources = (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/Agent.icns")
+        if FileManager.default.isReadableFile(atPath: bundleResources) {
+            imagePath = bundleResources
         }
+        // 2) Same via Bundle API
+        if imagePath == nil, let path = Bundle.main.path(forResource: "Agent", ofType: "icns") {
+            imagePath = path
+        }
+        // 3) Installed app under /Applications (DMG icon)
+        if imagePath == nil, FileManager.default.isReadableFile(atPath: "/Applications/Datadog Agent.app/Contents/Resources/Agent.icns") {
+            imagePath = "/Applications/Datadog Agent.app/Contents/Resources/Agent.icns"
+        }
+        guard let path = imagePath else { return nil }
+        guard let image = NSImage(contentsOfFile: path), image.isValid else { return nil }
+        image.isTemplate = false
+        return image
     }
 
     /// Get current WiFi information for the system
@@ -276,19 +295,36 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let isAuthorized = (authStatus == .authorizedAlways)
 
         // Permission detection during WLAN data collection
-        // Check permission at least 10 seconds after initialization to avoid TCC loading race condition
-        // This ensures TCC database has time to load before we check permission status
-        // Allow up to 2 attempts to give users a second chance if they make a wrong choice
+        // Check permission at least 10 seconds after initialization to avoid TCC loading race condition.
+        // Prompt when .notDetermined, or when .denied and DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED is set. Single attempt.
         let timeSinceInit = Date().timeIntervalSince(initializationTime)
-        if !isAuthorized && permissionAttemptCount < 2 && timeSinceInit >= 10.0 {
-            if requestLocationPermissionEnabled() && isGUIAvailable() {
-                Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
+        let mayPromptForDenied = Self.showLocationDialogWhenDeniedEnabled() && authStatus == .denied
+        let mayPromptForNotDetermined = authStatus == .notDetermined
+        if !isAuthorized && timeSinceInit >= 10.0 && (mayPromptForNotDetermined || mayPromptForDenied) && requestLocationPermissionEnabled() && isGUIAvailable() {
+            Self.permissionPromptLock.lock()
+            defer { Self.permissionPromptLock.unlock() }
+            if Self.permissionAttemptCount < 1 {
+                Self.permissionAttemptCount = 1
+                UserDefaults.standard.set(Self.permissionAttemptCount, forKey: Self.userDefaultsPromptCountKey)
                 attemptPermissionPrompt(authStatus: authStatus)
-            } else if !requestLocationPermissionEnabled() {
-                Logger.info("Location permission prompt disabled by config - skipping prompt", context: "WiFiDataProvider")
-            } else {
-                Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
+        }
+        if !isAuthorized && Self.permissionAttemptCount >= 1 {
+            if !Self.hasLoggedAlreadyAttemptedOnce {
+                Self.hasLoggedAlreadyAttemptedOnce = true
+                Logger.debug("Already attempted once, skipping location permission prompt", context: "WiFiDataProvider")
+            }
+        } else if !isAuthorized && timeSinceInit >= 10.0 && (mayPromptForNotDetermined || mayPromptForDenied) && !requestLocationPermissionEnabled() {
+            Logger.info("Location permission prompt disabled by config - skipping prompt", context: "WiFiDataProvider")
+        } else if !isAuthorized && timeSinceInit >= 10.0 && (mayPromptForNotDetermined || mayPromptForDenied) && requestLocationPermissionEnabled() && !isGUIAvailable() {
+            Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
+        } else if !isAuthorized && authStatus == .restricted {
+            Logger.info("Location permission restricted by device policy - cannot prompt", context: "WiFiDataProvider")
+            Logger.info("Contact your system administrator to enable location access", context: "WiFiDataProvider")
+        } else if !isAuthorized && authStatus == .denied && !Self.showLocationDialogWhenDeniedEnabled() {
+            Logger.debug("Location permission status denied - skipping prompt (set DD_GUI_SHOW_LOCATION_DIALOG_WHEN_DENIED=true to show dialog)", context: "WiFiDataProvider")
+        } else if !isAuthorized && authStatus != .notDetermined && authStatus != .denied {
+            Logger.debug("Location permission status \(authorizationStatusString()) - skipping prompt", context: "WiFiDataProvider")
         }
 
         // Get WiFi interface (this works regardless of location permission)
@@ -343,7 +379,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             error: nil
         )
 
-        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized), permission=\(isAuthorized ? "<granted>" : "<not granted>"), permission_prompt=\(requestLocationPermissionEnabled() ? "<enabled>" : "<disabled>")", context: "WiFiDataProvider")
+        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized), permission=\(authorizationStatusString()), permission_prompt=\(requestLocationPermissionEnabled() ? "<enabled>" : "<disabled>")", context: "WiFiDataProvider")
         return wifiData
     }
 
@@ -354,11 +390,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = getAuthorizationStatus()
         Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
-        
-        // Clean up prompt process when authorization status changes
-        // Do not reset permissionAttemptCount so we respect user's manual choice:
-        // if they denied twice or later manually disable in Settings, we do not prompt again
-        permissionPromptProcess = nil
 
         switch status {
         case .authorizedAlways:
