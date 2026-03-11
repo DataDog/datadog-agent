@@ -1941,10 +1941,9 @@ func TestCustomEventContainer(t *testing.T) {
 	if err != nil {
 		t.Error("failed to reload policies: %w", err)
 	}
-	// Trigger a small event to force the replay of cached events.
-	// The replay only happens in handleEvent when a new eBPF event arrives.
+
+	// Wait a bit for the rule to trigger
 	time.Sleep(2500 * time.Millisecond)
-	exec.Command("true").Run()
 
 	// Poll until a remediation_status message is received, then validate its fields (scope container).
 	err = retry.Do(func() error {
