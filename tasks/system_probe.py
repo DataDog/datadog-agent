@@ -1360,13 +1360,13 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-        # Build eBPF .o files via Bazel
-        bazel_build_ebpf(ctx, arch_obj, build_dir)
-
-        # Install Bazel-managed LLVM BPF tools for runtime compilation and e2e test artifacts.
+        # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
         ctx.run(f"{sudo} bazelisk run -- @llvm_bpf//:install --destdir=/opt/datadog-agent")
+
+        # Build eBPF .o files via Bazel
+        bazel_build_ebpf(ctx, arch_obj, build_dir)
 
     run_ninja(ctx, explain=True, arch=arch)
 
