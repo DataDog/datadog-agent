@@ -44,12 +44,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let procs = self.mgr.processes().await;
-        let proc = procs
-            .iter()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let proc = resolve_process(&procs, &name_or_uuid)?;
 
         Ok(Response::new(proto::DescribeResponse {
             detail: Some(process_detail(proc)),
@@ -109,18 +106,18 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::CreateResponse {}))
+            .map(|result| Response::new(proto::CreateResponse { uuid: result.uuid }))
     }
 
     async fn start(
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::Start {
-                name,
+                name_or_uuid,
                 reply: reply_tx,
             })
             .await
@@ -128,18 +125,24 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::StartResponse {}))
+            .map(|result| {
+                Response::new(proto::StartResponse {
+                    uuid: result.uuid,
+                    pid: result.pid.unwrap_or(0),
+                    state: proto::ProcessState::Running.into(),
+                })
+            })
     }
 
     async fn stop(
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::Stop {
-                name,
+                name_or_uuid,
                 reply: reply_tx,
             })
             .await
@@ -147,7 +150,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::StopResponse {}))
+            .map(|result| {
+                Response::new(proto::StopResponse {
+                    uuid: result.uuid,
+                    state: proto::ProcessState::Stopped.into(),
+                })
+            })
     }
 
     async fn reload_config(
@@ -206,6 +214,7 @@ impl From<ProcessState> for proto::ProcessState {
 fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     let cfg = proc.config();
     proto::Process {
+        uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
         pid: proc.pid().unwrap_or(0),
         command: cfg.command.clone(),
@@ -267,9 +276,30 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
     })
 }
 
+fn looks_like_uuid(s: &str) -> bool {
+    s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4
+}
+
+#[allow(clippy::result_large_err)]
+fn resolve_process<'a>(
+    procs: &'a [ManagedProcess],
+    name_or_uuid: &str,
+) -> Result<&'a ManagedProcess, Status> {
+    if looks_like_uuid(name_or_uuid)
+        && let Some(p) = procs.iter().find(|p| p.uuid() == name_or_uuid)
+    {
+        return Ok(p);
+    }
+    procs
+        .iter()
+        .find(|p| p.name() == name_or_uuid)
+        .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
+}
+
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     proto::ProcessDetail {
+        uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
         description: cfg.description.clone().unwrap_or_default(),
         pid: proc.pid().unwrap_or(0),

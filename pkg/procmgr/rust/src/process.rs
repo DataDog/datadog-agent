@@ -90,6 +90,7 @@ pub enum ProcessOrigin {
 
 pub struct ManagedProcess {
     name: String,
+    uuid: String,
     config: ProcessConfig,
     state: ProcessState,
     pid: Option<u32>,
@@ -113,8 +114,10 @@ impl ManagedProcess {
 
     fn new_inner(name: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
+        let uuid = uuid::Uuid::new_v4().to_string();
         Self {
             name,
+            uuid,
             config,
             state: ProcessState::Created,
             pid: None,
@@ -128,6 +131,10 @@ impl ManagedProcess {
 
     pub fn origin(&self) -> ProcessOrigin {
         self.origin
+    }
+
+    pub fn uuid(&self) -> &str {
+        &self.uuid
     }
 
     pub fn name(&self) -> &str {

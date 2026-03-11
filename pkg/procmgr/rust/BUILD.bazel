@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
 # ============================================================================
@@ -29,12 +29,16 @@ cc_library(
 )
 
 # ============================================================================
-# Binary
+# Library
 # ============================================================================
 
-rust_binary(
-    name = "dd-procmgrd",
-    srcs = glob(["src/**/*.rs"]),
+rust_library(
+    name = "dd-procmgrd-lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/bins/**"],
+    ),
+    crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = [
@@ -44,7 +48,6 @@ rust_binary(
     deps = [
         ":cpp_stdlib",
         ":process_manager_rust_proto",
-        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:log",
         "@crates//:nix",
@@ -55,12 +58,58 @@ rust_binary(
         "@crates//:tokio-stream",
         "@crates//:tonic",
         "@crates//:tonic-reflection",
+        "@crates//:uuid",
+    ],
+)
+
+# ============================================================================
+# Binaries
+# ============================================================================
+
+rust_binary(
+    name = "dd-procmgrd",
+    srcs = ["src/bins/dd-procmgrd.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:tokio",
+    ],
+)
+
+rust_binary(
+    name = "dd-procmgr",
+    srcs = ["src/bins/dd-procmgr.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "@crates//:clap",
+        "@crates//:hyper-util",
+        "@crates//:serde_json",
+        "@crates//:tokio",
+        "@crates//:tonic",
+        "@crates//:tower",
     ],
 )
 
 pkg_files(
     name = "all_files",
-    srcs = [":dd-procmgrd"],
+    srcs = [
+        ":dd-procmgr",
+        ":dd-procmgrd",
+    ],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -78,7 +127,7 @@ pkg_install(
 
 rust_test(
     name = "dd-procmgrd_test",
-    crate = ":dd-procmgrd",
+    crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     deps = [

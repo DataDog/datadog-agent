@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::command::{Command, ReloadResult};
+use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
@@ -31,7 +31,7 @@ pub struct ProcessManager {
 }
 
 impl ProcessManager {
-    pub(crate) fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
+    pub fn new(config_loader: Arc<dyn ConfigLoader>) -> Self {
         let configs = config_loader.load();
         let processes: Vec<ManagedProcess> = configs
             .into_iter()
@@ -59,7 +59,7 @@ impl ProcessManager {
         }
     }
 
-    pub(crate) async fn run(&self) -> Result<()> {
+    pub async fn run(&self) -> Result<()> {
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
         let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
@@ -92,11 +92,11 @@ impl ProcessManager {
                         Command::Create { name, config, reply } => {
                             let _ = reply.send(self.handle_create(name, *config).await);
                         }
-                        Command::Start { name, reply } => {
-                            let _ = reply.send(self.handle_start(&name, &exit_tx).await);
+                        Command::Start { name_or_uuid, reply } => {
+                            let _ = reply.send(self.handle_start(&name_or_uuid, &exit_tx).await);
                         }
-                        Command::Stop { name, reply } => {
-                            let _ = reply.send(self.handle_stop(&name).await);
+                        Command::Stop { name_or_uuid, reply } => {
+                            let _ = reply.send(self.handle_stop(&name_or_uuid).await);
                         }
                         Command::ReloadConfig { reply } => {
                             let _ = reply.send(self.handle_reload_config(&exit_tx).await);
@@ -178,7 +178,7 @@ impl ProcessManager {
         &self,
         name: String,
         config: config::ProcessConfig,
-    ) -> Result<(), Status> {
+    ) -> Result<CreateResult, Status> {
         if name.is_empty() {
             return Err(Status::invalid_argument("name must not be empty"));
         }
@@ -193,6 +193,7 @@ impl ProcessManager {
         if config.command.is_empty() {
             return Err(Status::invalid_argument("command must not be empty"));
         }
+        let uuid;
         {
             let mut procs = self.processes.write().await;
             if procs.iter().any(|p| p.name() == name) {
@@ -201,50 +202,52 @@ impl ProcessManager {
                 )));
             }
             let proc = ManagedProcess::new_runtime(name.clone(), config);
-            info!("[{name}] created via RPC");
+            uuid = proc.uuid().to_owned();
+            info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
         }
         self.update_startup_order().await;
-        Ok(())
+        Ok(CreateResult { uuid })
     }
 
     pub(crate) async fn handle_start(
         &self,
-        name: &str,
+        name_or_uuid: &str,
         exit_tx: &mpsc::Sender<ExitEvent>,
-    ) -> Result<(), Status> {
+    ) -> Result<StartResult, Status> {
         let mut procs = self.processes.write().await;
-        let proc = procs
-            .iter_mut()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let idx = resolve_index(&procs, name_or_uuid)?;
+        let proc = &mut procs[idx];
 
         if proc.is_running() {
             return Err(Status::failed_precondition(format!(
-                "process '{name}' is already running"
+                "process '{}' is already running",
+                proc.name()
             )));
         }
         proc.spawn()
-            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
+            .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
+        let uuid = proc.uuid().to_owned();
+        let pid = proc.pid();
         spawn_watcher(proc, exit_tx.clone());
-        Ok(())
+        Ok(StartResult { uuid, pid })
     }
 
-    pub(crate) async fn handle_stop(&self, name: &str) -> Result<(), Status> {
+    pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
         let mut procs = self.processes.write().await;
-        let proc = procs
-            .iter_mut()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let idx = resolve_index(&procs, name_or_uuid)?;
+        let proc = &mut procs[idx];
 
         if !proc.is_running() {
             return Err(Status::failed_precondition(format!(
-                "process '{name}' is not running"
+                "process '{}' is not running",
+                proc.name()
             )));
         }
+        let uuid = proc.uuid().to_owned();
         proc.request_stop();
         proc.wait_for_stop().await;
-        Ok(())
+        Ok(StopResult { uuid })
     }
 
     pub(crate) async fn handle_reload_config(
@@ -359,6 +362,23 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
     }
+}
+
+fn looks_like_uuid(s: &str) -> bool {
+    s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4
+}
+
+#[allow(clippy::result_large_err)]
+fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
+    if looks_like_uuid(name_or_uuid)
+        && let Some(idx) = procs.iter().position(|p| p.uuid() == name_or_uuid)
+    {
+        return Ok(idx);
+    }
+    procs
+        .iter()
+        .position(|p| p.name() == name_or_uuid)
+        .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
 /// Spawn a background task that awaits the child's exit and sends the result.

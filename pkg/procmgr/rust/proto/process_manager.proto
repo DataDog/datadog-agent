@@ -35,11 +35,12 @@ enum ProcessState {
 message ListRequest {}
 
 message Process {
-  string name = 1;
-  uint32 pid = 2;
-  string command = 3;
-  repeated string args = 4;
-  ProcessState state = 5;
+  string uuid = 1;
+  string name = 2;
+  uint32 pid = 3;
+  string command = 4;
+  repeated string args = 5;
+  ProcessState state = 6;
 }
 
 message ListResponse {
@@ -47,25 +48,26 @@ message ListResponse {
 }
 
 message DescribeRequest {
-  string name = 1;
+  string name_or_uuid = 1;
 }
 
 message ProcessDetail {
-  string name = 1;
-  string description = 2;
-  uint32 pid = 3;
-  ProcessState state = 4;
-  string command = 5;
-  repeated string args = 6;
-  string working_dir = 7;
-  map<string, string> env = 8;
-  string restart_policy = 9;
-  string stdout = 10;
-  string stderr = 11;
-  bool auto_start = 12;
-  string condition_path_exists = 13;
-  repeated string after = 14;
-  repeated string before = 15;
+  string uuid = 1;
+  string name = 2;
+  string description = 3;
+  uint32 pid = 4;
+  ProcessState state = 5;
+  string command = 6;
+  repeated string args = 7;
+  string working_dir = 8;
+  map<string, string> env = 9;
+  string restart_policy = 10;
+  string stdout = 11;
+  string stderr = 12;
+  bool auto_start = 13;
+  string condition_path_exists = 14;
+  repeated string after = 15;
+  repeated string before = 16;
 }
 
 message DescribeResponse {
@@ -88,19 +90,28 @@ message CreateRequest {
   repeated string before = 13;
 }
 
-message CreateResponse {}
+message CreateResponse {
+  string uuid = 1;
+}
 
 message StartRequest {
-  string name = 1;
+  string name_or_uuid = 1;
 }
 
-message StartResponse {}
+message StartResponse {
+  string uuid = 1;
+  uint32 pid = 2;
+  ProcessState state = 3;
+}
 
 message StopRequest {
-  string name = 1;
+  string name_or_uuid = 1;
 }
 
-message StopResponse {}
+message StopResponse {
+  string uuid = 1;
+  ProcessState state = 2;
+}
 
 message ReloadConfigRequest {}
 

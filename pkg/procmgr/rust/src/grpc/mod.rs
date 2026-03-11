@@ -93,13 +93,13 @@ mod tests {
                                     mgr_loop.handle_create(name, *config).await,
                                 );
                             }
-                            Command::Start { name, reply } => {
+                            Command::Start { name_or_uuid, reply } => {
                                 let _ = reply.send(
-                                    mgr_loop.handle_start(&name, &exit_tx_loop).await,
+                                    mgr_loop.handle_start(&name_or_uuid, &exit_tx_loop).await,
                                 );
                             }
-                            Command::Stop { name, reply } => {
-                                let _ = reply.send(mgr_loop.handle_stop(&name).await);
+                            Command::Stop { name_or_uuid, reply } => {
+                                let _ = reply.send(mgr_loop.handle_stop(&name_or_uuid).await);
                             }
                             Command::ReloadConfig { reply } => {
                                 let _ = reply.send(
@@ -199,7 +199,7 @@ mod tests {
         let (mut client, _shutdown) = start_test_server(defs).await;
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "my-service".to_string(),
+                name_or_uuid: "my-service".to_string(),
             })
             .await
             .unwrap()
@@ -230,7 +230,7 @@ mod tests {
         let (mut client, _shutdown) = start_test_server(vec![]).await;
         let status = client
             .describe(proto::DescribeRequest {
-                name: "nonexistent".to_string(),
+                name_or_uuid: "nonexistent".to_string(),
             })
             .await
             .unwrap_err();
@@ -399,7 +399,7 @@ mod tests {
 
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "beta".to_string(),
+                name_or_uuid: "beta".to_string(),
             })
             .await
             .unwrap()
@@ -411,7 +411,7 @@ mod tests {
 
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "gamma".to_string(),
+                name_or_uuid: "gamma".to_string(),
             })
             .await
             .unwrap()
@@ -485,7 +485,7 @@ mod tests {
         // Running: start a long-lived process
         client
             .start(proto::StartRequest {
-                name: "running-svc".to_string(),
+                name_or_uuid: "running-svc".to_string(),
             })
             .await
             .unwrap();
@@ -493,7 +493,7 @@ mod tests {
         // Failed: start a process that exits non-zero (watcher delivers the exit event)
         client
             .start(proto::StartRequest {
-                name: "failed-svc".to_string(),
+                name_or_uuid: "failed-svc".to_string(),
             })
             .await
             .unwrap();
@@ -501,13 +501,13 @@ mod tests {
         // Stopped: start then stop
         client
             .start(proto::StartRequest {
-                name: "stopped-svc".to_string(),
+                name_or_uuid: "stopped-svc".to_string(),
             })
             .await
             .unwrap();
         client
             .stop(proto::StopRequest {
-                name: "stopped-svc".to_string(),
+                name_or_uuid: "stopped-svc".to_string(),
             })
             .await
             .unwrap();
@@ -515,7 +515,7 @@ mod tests {
         // Exited: start a process that exits cleanly
         client
             .start(proto::StartRequest {
-                name: "exited-svc".to_string(),
+                name_or_uuid: "exited-svc".to_string(),
             })
             .await
             .unwrap();
@@ -565,7 +565,7 @@ mod tests {
 
         client
             .start(proto::StartRequest {
-                name: "live-proc".to_string(),
+                name_or_uuid: "live-proc".to_string(),
             })
             .await
             .unwrap();
@@ -607,7 +607,7 @@ mod tests {
 
         client
             .start(proto::StartRequest {
-                name: "sleeper".to_string(),
+                name_or_uuid: "sleeper".to_string(),
             })
             .await
             .unwrap();
@@ -635,7 +635,7 @@ mod tests {
 
         let err = client
             .start(proto::StartRequest {
-                name: "nonexistent".to_string(),
+                name_or_uuid: "nonexistent".to_string(),
             })
             .await
             .unwrap_err();
@@ -656,14 +656,14 @@ mod tests {
 
         client
             .start(proto::StartRequest {
-                name: "running".to_string(),
+                name_or_uuid: "running".to_string(),
             })
             .await
             .unwrap();
 
         let err = client
             .start(proto::StartRequest {
-                name: "running".to_string(),
+                name_or_uuid: "running".to_string(),
             })
             .await
             .unwrap_err();
@@ -698,14 +698,14 @@ mod tests {
         // Start via RPC so the watcher is wired
         client
             .start(proto::StartRequest {
-                name: "to-stop".to_string(),
+                name_or_uuid: "to-stop".to_string(),
             })
             .await
             .unwrap();
 
         client
             .stop(proto::StopRequest {
-                name: "to-stop".to_string(),
+                name_or_uuid: "to-stop".to_string(),
             })
             .await
             .unwrap();
@@ -715,7 +715,7 @@ mod tests {
 
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "to-stop".to_string(),
+                name_or_uuid: "to-stop".to_string(),
             })
             .await
             .unwrap()
@@ -732,7 +732,7 @@ mod tests {
 
         let err = client
             .stop(proto::StopRequest {
-                name: "nonexistent".to_string(),
+                name_or_uuid: "nonexistent".to_string(),
             })
             .await
             .unwrap_err();
@@ -752,7 +752,7 @@ mod tests {
 
         let err = client
             .stop(proto::StopRequest {
-                name: "idle".to_string(),
+                name_or_uuid: "idle".to_string(),
             })
             .await
             .unwrap_err();
@@ -774,7 +774,7 @@ mod tests {
         // Start
         client
             .start(proto::StartRequest {
-                name: "lifecycle".to_string(),
+                name_or_uuid: "lifecycle".to_string(),
             })
             .await
             .unwrap();
@@ -789,7 +789,7 @@ mod tests {
         // Stop
         client
             .stop(proto::StopRequest {
-                name: "lifecycle".to_string(),
+                name_or_uuid: "lifecycle".to_string(),
             })
             .await
             .unwrap();
@@ -831,7 +831,7 @@ mod tests {
 
         client
             .start(proto::StartRequest {
-                name: "new-svc".to_string(),
+                name_or_uuid: "new-svc".to_string(),
             })
             .await
             .unwrap();
@@ -903,7 +903,7 @@ mod tests {
 
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "defaults-svc".to_string(),
+                name_or_uuid: "defaults-svc".to_string(),
             })
             .await
             .unwrap()
@@ -945,7 +945,7 @@ mod tests {
 
         let resp = client
             .describe(proto::DescribeRequest {
-                name: "custom-svc".to_string(),
+                name_or_uuid: "custom-svc".to_string(),
             })
             .await
             .unwrap()

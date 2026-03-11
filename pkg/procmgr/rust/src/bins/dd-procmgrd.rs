@@ -3,20 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-mod command;
-mod config;
-mod env;
-mod grpc;
-mod manager;
-mod ordering;
-mod process;
-mod shutdown;
-mod state;
-
 use anyhow::Result;
-use config::YamlConfigLoader;
+use dd_procmgrd::config::YamlConfigLoader;
+use dd_procmgrd::manager::ProcessManager;
 use log::info;
-use manager::ProcessManager;
 use std::sync::Arc;
 
 #[tokio::main]

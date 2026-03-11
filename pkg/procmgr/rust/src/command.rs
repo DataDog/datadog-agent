@@ -14,19 +14,35 @@ pub struct ReloadResult {
     pub unchanged: Vec<String>,
 }
 
+#[derive(Debug)]
+pub struct CreateResult {
+    pub uuid: String,
+}
+
+#[derive(Debug)]
+pub struct StartResult {
+    pub uuid: String,
+    pub pid: Option<u32>,
+}
+
+#[derive(Debug)]
+pub struct StopResult {
+    pub uuid: String,
+}
+
 pub enum Command {
     Create {
         name: String,
         config: Box<ProcessConfig>,
-        reply: oneshot::Sender<Result<(), Status>>,
+        reply: oneshot::Sender<Result<CreateResult, Status>>,
     },
     Start {
-        name: String,
-        reply: oneshot::Sender<Result<(), Status>>,
+        name_or_uuid: String,
+        reply: oneshot::Sender<Result<StartResult, Status>>,
     },
     Stop {
-        name: String,
-        reply: oneshot::Sender<Result<(), Status>>,
+        name_or_uuid: String,
+        reply: oneshot::Sender<Result<StopResult, Status>>,
     },
     ReloadConfig {
         reply: oneshot::Sender<Result<ReloadResult, Status>>,
