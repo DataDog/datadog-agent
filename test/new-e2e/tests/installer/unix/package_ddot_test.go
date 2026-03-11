@@ -128,8 +128,8 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
-	state.AssertUnitsDead(probeUnit, securityUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
+	state.AssertUnitsDead(securityUnit)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
