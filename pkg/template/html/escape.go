@@ -174,9 +174,8 @@ func (g godebugStub) IncNonDefault() {}
 
 var debugAllowActionJSTmpl = 0
 
-// htmlmetacontenturlescape is stubbed as a simple type since we cannot import
-// internal/godebug. We always enable the secure behavior (URL filtering in
-// meta content attributes), matching the intent of CVE-2026-27142's fix.
+// Always enable the secure behavior (URL filtering in meta content attributes),
+// matching the intent of CVE-2026-27142's fix.
 var htmlmetacontenturlescape = godebugStub{value: "1"}
 
 // escapeAction escapes an action template node.
