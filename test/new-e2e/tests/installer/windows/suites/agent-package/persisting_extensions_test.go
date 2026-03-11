@@ -189,10 +189,10 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
-	// Use the beta registry so restoreAgentExtensions can find the stable OCI after rollback.
-	// The experiment extension restore will fail silently (experiment OCI is not in the beta
-	// registry), but that's fine since the experiment is intentionally rolled back anyway.
-	s.setAgentConfig(consts.BetaS3OCIRegistry)
+	// Use the pipeline registry so the stable daemon can download the experiment OCI during
+	// StartExperiment. We switch to the beta registry after the daemon stops so that
+	// restoreAgentExtensions can find the stable OCI (7.78.0-beta-fleet-ext-1) during rollback.
+	s.setAgentConfig()
 	s.installPreviousAgentVersion()
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
@@ -209,6 +209,12 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 		_, err := s.StartExperimentCurrentVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
 	})
+
+	// The experiment daemon is now running and the MSI installation is in progress.
+	// Switch to the beta registry so restoreAgentExtensions picks it up when the MSI
+	// rolls back and reinstalls the stable agent. The MSI failure + rollback takes long
+	// enough that this write completes well before restoreAgentExtensions reads the config.
+	s.setAgentConfig(consts.BetaS3OCIRegistry)
 
 	// After MSI rollback, postStartExperimentBackground detects the failure and calls
 	// restoreStableAgentFromExperiment, which reinstalls the stable MSI via postStopExperiment.
