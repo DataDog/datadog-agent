@@ -33,7 +33,7 @@ agent_config = rule(
             cfg = "exec",
         ),
         "_template": attr.label(
-            default = Label("//pkg/config/render_config:template"),
+            default = Label("//pkg/config:template"),
             allow_single_file = True,
         ),
     },

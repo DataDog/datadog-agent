@@ -11,9 +11,3 @@ go_binary(
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
-
-filegroup(
-    name = "template",
-    srcs = ["config_template.yaml"],
-    visibility = ["//visibility:public"],
-)
