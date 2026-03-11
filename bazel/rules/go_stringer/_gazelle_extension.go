@@ -13,7 +13,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/bazelbuild/bazel-gazelle/language"
@@ -31,7 +30,9 @@ func NewLanguage() language.Language {
 	return &lang{}
 }
 
-func (*lang) Name() string { return name }
+func (*lang) Name() string {
+	return name
+}
 
 func (*lang) Kinds() map[string]rule.KindInfo {
 	return map[string]rule.KindInfo{
@@ -50,9 +51,12 @@ func (*lang) Loads() []rule.LoadInfo {
 }
 
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
-	goFiles := slices.DeleteFunc(slices.Clone(args.RegularFiles), func(f string) bool {
-		return !strings.HasSuffix(f, ".go")
-	})
+	var goFiles []string
+	for _, f := range args.RegularFiles {
+		if strings.HasSuffix(f, ".go") {
+			goFiles = append(goFiles, f)
+		}
+	}
 	if len(goFiles) == 0 {
 		return language.GenerateResult{}
 	}
@@ -118,8 +122,9 @@ func parseDirective(goGenerate, src string) *rule.Rule {
 	}
 	types := strings.Split(*type_, ",")
 	if *output == "" {
-		*output = fmt.Sprintf("%s_string.go", strings.ToLower(types[0]))
+		*output = fmt.Sprintf("%s_string.go", strings.ToLower(types[0])) // stringer's default
 	}
+
 	directive := rule.NewRule(name, strings.TrimSuffix(*output, ".go"))
 	if *linecomment {
 		directive.SetAttr("linecomment", *linecomment)
