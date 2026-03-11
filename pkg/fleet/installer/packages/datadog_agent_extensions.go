@@ -133,3 +133,28 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 
 	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
 }
+
+// installAgentExtensions installs the given extensions for the agent package.
+// Extensions that are already installed (e.g. from a prior restore) are skipped
+// by the idempotency check in extensionsPkg.Install.
+//
+//nolint:unused // Used in platform-specific files
+func installAgentExtensions(ctx HookContext, version string, isExperiment bool) error {
+	env := env.FromEnv()
+	// populate extensions list based on environment variables
+	var extensions []string
+	if env.OTelCollectorEnabled {
+		extensions = append(extensions, "ddot")
+	}
+	// if no extensions are requested, return early
+	if len(extensions) == 0 {
+		return nil
+	}
+
+	// install extensions
+	setRegistryConfig(env)
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	url := oci.PackageURL(env, agentPackage, version)
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	return extensionsPkg.Install(ctx, downloader, url, extensions, isExperiment, hooks)
+}

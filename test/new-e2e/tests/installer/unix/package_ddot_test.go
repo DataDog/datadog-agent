@@ -76,9 +76,8 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
-	// Verify both packages are installed
+	// Verify agent is installed
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Wait for services to be active
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
@@ -90,9 +89,6 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
-
-	// Verify DDOT binary exists
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 
 	// Verify otelcollector configuration is present in datadog.yaml
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
