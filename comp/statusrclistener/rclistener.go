@@ -10,6 +10,7 @@ package statusrclistener
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	fleetStatusPath = "/api/ui/fleet/agent/status"
+	fleetStatusPath = "/api/unstable/fleet/agent/status"
 	httpTimeout     = 60 * time.Second
 )
 
@@ -67,7 +68,7 @@ func (l *statusRCListener) onAgentTaskEvent(taskType rcclienttypes.TaskType, tas
 
 	collectID, found := task.Config.TaskArgs["collect_id"]
 	if !found {
-		return true, fmt.Errorf("collect_id was not provided in the status agent task")
+		return true, errors.New("collect_id was not provided in the status agent task")
 	}
 
 	statusJSON, err := l.status.GetStatus("json", false)

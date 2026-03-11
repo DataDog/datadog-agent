@@ -858,6 +858,13 @@ This component collects and reports software inventory information from the host
 It provides metadata about installed software applications, including their names,
 versions, installation dates, and other relevant details for inventory tracking.
 
+### [comp/statusrclistener](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/statusrclistener)
+
+*Datadog Team*: fleet
+
+Package statusrclistener implements the RC listener on AGENT_TASK that collects the agent
+status on demand and forwards it to the fleet-api backend.
+
 ### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
 
 *Datadog Team*: synthetics-executing
