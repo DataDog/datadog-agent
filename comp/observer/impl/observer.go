@@ -433,6 +433,14 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
+// Reset clears adapter-local caches and resets the wrapped detector when supported.
+func (a *seriesDetectorAdapter) Reset() {
+	a.lastVisibleCount = make(map[string]int)
+	if resetter, ok := a.detector.(interface{ Reset() }); ok {
+		resetter.Reset()
+	}
+}
+
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
 

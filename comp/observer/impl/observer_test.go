@@ -43,6 +43,31 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 	}
 }
 
+func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 100, nil)
+
+	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
+		anomalies: []observerdef.Anomaly{{
+			Title:       "spike",
+			Description: "detected spike",
+			Timestamp:   100,
+		}},
+	}, []observerdef.Aggregate{observerdef.AggregateAverage})
+
+	first := adapter.Detect(storage, 100)
+	if len(first.Anomalies) != 1 {
+		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
+	}
+
+	adapter.Reset()
+
+	afterReset := adapter.Detect(storage, 100)
+	if len(afterReset.Anomalies) != 1 {
+		t.Fatalf("expected 1 anomaly after reset, got %d", len(afterReset.Anomalies))
+	}
+}
+
 type countingSeriesDetector struct {
 	anomalies []observerdef.Anomaly
 	telemetry []observerdef.ObserverTelemetry

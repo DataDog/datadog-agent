@@ -49,12 +49,12 @@ type engine struct {
 	// Raw anomaly tracking (for telemetry and testbench display).
 	rawAnomalies         []observerdef.Anomaly
 	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
-	rawAnomalyMu        sync.RWMutex
-	rawAnomalyWindow     int64                             // seconds to keep (0 = unlimited)
-	maxRawAnomalies      int                               // max count to keep (0 = unlimited)
-	currentDataTime      int64                             // latest anomaly timestamp seen
-	totalAnomalyCount    int                               // total count ever (no cap)
-	uniqueAnomalySources map[observerdef.MetricName]bool   // unique sources that had anomalies
+	rawAnomalyMu         sync.RWMutex
+	rawAnomalyWindow     int64                           // seconds to keep (0 = unlimited)
+	maxRawAnomalies      int                             // max count to keep (0 = unlimited)
+	currentDataTime      int64                           // latest anomaly timestamp seen
+	totalAnomalyCount    int                             // total count ever (no cap)
+	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
 
 	// Accumulated telemetry from detection runs (for StateView access).
 	accumulatedTelemetry []observerdef.ObserverTelemetry
@@ -397,6 +397,16 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 func (e *engine) Reset() {
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+
+	for _, detector := range e.detectors {
+		if resetter, ok := detector.(interface{ Reset() }); ok {
+			resetter.Reset()
+		}
+	}
+
+	for _, correlator := range e.correlators {
+		correlator.Reset()
+	}
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.

@@ -111,6 +111,30 @@ func (d *anomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) ob
 	}
 }
 
+type resettableDetector struct {
+	name       string
+	resetCount int
+}
+
+func (d *resettableDetector) Name() string { return d.name }
+func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+	return observerdef.DetectionResult{}
+}
+func (d *resettableDetector) Reset() { d.resetCount++ }
+
+type resettableCorrelator struct {
+	name       string
+	resetCount int
+}
+
+func (c *resettableCorrelator) Name() string                         { return c.name }
+func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
+func (c *resettableCorrelator) Advance(_ int64)                      {}
+func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
+	return nil
+}
+func (c *resettableCorrelator) Reset() { c.resetCount++ }
+
 func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
 	e := newEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
@@ -225,6 +249,21 @@ func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
 	assert.Equal(t, advanceReasonReplayEnd, advances[4].advanceCompleted.reason)
 }
 
+func TestEngineResetResetsDetectorsAndCorrelators(t *testing.T) {
+	detector := &resettableDetector{name: "detector"}
+	correlator := &resettableCorrelator{name: "correlator"}
+	e := newEngine(engineConfig{
+		storage:     newTimeSeriesStorage(),
+		detectors:   []observerdef.Detector{detector},
+		correlators: []observerdef.Correlator{correlator},
+	})
+
+	e.Reset()
+
+	assert.Equal(t, 1, detector.resetCount)
+	assert.Equal(t, 1, correlator.resetCount)
+}
+
 func TestReporterEventSink(t *testing.T) {
 	reported := 0
 	reporter := &countingReporter{count: &reported}
@@ -257,5 +296,5 @@ type countingReporter struct {
 	count *int
 }
 
-func (r *countingReporter) Name() string                        { return "counting" }
+func (r *countingReporter) Name() string                      { return "counting" }
 func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
