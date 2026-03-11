@@ -208,7 +208,7 @@ type MapSpecEditorOpts struct {
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
-	SecurityProfileV2Enabled      bool
+	EventSamplingEnabled          bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -292,7 +292,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if opts.SecurityProfileV2Enabled {
+	if opts.EventSamplingEnabled {
 		editors["pid_path_keys"] = manager.MapSpecEditor{
 			MaxEntries: 20000,
 			EditorFlag: manager.EditMaxEntries,

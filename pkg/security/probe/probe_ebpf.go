@@ -2661,12 +2661,12 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.OpenSamplingEnabled),
+			Name:  "event_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "open_sampling_rate",
-			Value: uint64(p.config.RuntimeSecurity.OpenSamplingRate),
+			Name:  "event_sampling_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingRate),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -2733,7 +2733,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
-		SecurityProfileV2Enabled:      p.config.RuntimeSecurity.SecurityProfileV2Enabled,
+		EventSamplingEnabled:          p.config.RuntimeSecurity.EventSamplingEnabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {

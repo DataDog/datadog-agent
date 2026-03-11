@@ -283,10 +283,10 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
 
-	// OpenSamplingEnabled defines if the kernel-side open event sampling logic should be enabled
-	OpenSamplingEnabled bool
-	// OpenSamplingRate defines the max number of sampled open events per second (0 = unlimited)
-	OpenSamplingRate int
+	// EventSamplingEnabled defines if the kernel-side event sampling logic should be enabled
+	EventSamplingEnabled bool
+	// EventSamplingRate defines the max number of sampled open events per second (0 = unlimited)
+	EventSamplingRate int
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
@@ -598,9 +598,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
-		// open sampling
-		OpenSamplingEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.open_sampling.enabled"),
-		OpenSamplingRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.open_sampling.rate"),
+		// event sampling
+		EventSamplingEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.enabled"),
+		EventSamplingRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.rate"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -677,7 +677,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
 	if rsConfig.SecurityProfileV2Enabled {
-		rsConfig.OpenSamplingEnabled = true
+		rsConfig.EventSamplingEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
