@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"math"
+	"sync"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -385,4 +386,145 @@ func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	assert.Equal(t, int64(10), result.Points[0].Timestamp)
 	assert.Equal(t, int64(20), result.Points[1].Timestamp)
 	assert.Equal(t, int64(30), result.Points[2].Timestamp)
+}
+
+func TestFindingH1_StorageNamespacesRace(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Writer goroutine: continuously add data.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			s.Add("ns", "metric", float64(i), int64(i), nil)
+		}
+	}()
+
+	// Reader goroutine: call Namespaces() concurrently.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = s.Namespaces()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingH1_StorageTimeBoundsRace(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			s.Add("ns", "metric", float64(i), int64(i), nil)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_, _, _ = s.TimeBounds()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingH1_StorageMaxTimestampRace(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			s.Add("ns", "metric", float64(i), int64(i), nil)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = s.MaxTimestamp()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingH1_StorageListAllSeriesCompactRace(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			s.Add("ns", "metric", float64(i), int64(i), nil)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = s.ListAllSeriesCompact()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingH1_StorageDroppedValueStatsRace(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			// Add some NaN to trigger drop accounting writes
+			s.Add("ns", "metric", math.NaN(), int64(i), nil)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_, _, _ = s.DroppedValueStats()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM5_NegativeMaxFloat64NotFiltered(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	// Add two -MaxFloat64 values at the same timestamp.
+	s.Add("ns", "metric", -math.MaxFloat64, 1000, nil)
+	s.Add("ns", "metric", -math.MaxFloat64, 1000, nil)
+
+	series := s.GetSeries("ns", "metric", nil, AggregateSum)
+	if series == nil {
+		// If both were filtered, the series would be nil, which is acceptable.
+		// But if only one was stored...
+		t.Skip("both values were filtered (series is nil), finding may be partially addressed")
+		return
+	}
+
+	require.Len(t, series.Points, 1)
+	sum := series.Points[0].Value
+	assert.False(t, math.IsInf(sum, -1),
+		"sum of two -MaxFloat64 values is -Inf (%v), storage should filter -MaxFloat64 like it filters +MaxFloat64", sum)
+	assert.False(t, math.IsNaN(sum),
+		"sum of two -MaxFloat64 values is NaN (%v), storage should filter -MaxFloat64", sum)
 }

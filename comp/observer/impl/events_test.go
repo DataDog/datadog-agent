@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -298,3 +299,369 @@ type countingReporter struct {
 
 func (r *countingReporter) Name() string                      { return "counting" }
 func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
+
+func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
+	anomalies := []observerdef.Anomaly{
+		{
+			Source:         "cpu",
+			SourceSeriesID: "ns|cpu:avg|",
+			DetectorName:   "test_detector",
+			Title:          "Spike detected",
+			Description:    "CPU spike",
+			Timestamp:      100,
+		},
+		{
+			Source:         "cpu",
+			SourceSeriesID: "ns|cpu:avg|",
+			DetectorName:   "test_detector",
+			Title:          "Trend change detected",
+			Description:    "CPU trend shift",
+			Timestamp:      100,
+		},
+	}
+
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(),
+		detectors: []observerdef.Detector{
+			&anomalyDetector{name: "test_detector", anomalies: anomalies},
+		},
+	})
+
+	e.Advance(100)
+
+	sv := e.StateView()
+	raw := sv.Anomalies()
+	assert.Len(t, raw, 2,
+		"two anomalies with same seriesID+detector+timestamp but different titles should both survive dedup")
+}
+
+func TestFindingM2_EmptySourceSeriesIDCollision(t *testing.T) {
+	anomalies := []observerdef.Anomaly{
+		{
+			Type:           observerdef.AnomalyTypeLog,
+			Source:         "logs",
+			SourceSeriesID: "", // empty for log anomalies
+			DetectorName:   "log_detector",
+			Title:          "Error pattern A detected",
+			Description:    "Pattern A",
+			Timestamp:      100,
+		},
+		{
+			Type:           observerdef.AnomalyTypeLog,
+			Source:         "logs",
+			SourceSeriesID: "", // empty for log anomalies
+			DetectorName:   "log_detector",
+			Title:          "Error pattern B detected",
+			Description:    "Pattern B",
+			Timestamp:      100,
+		},
+	}
+
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(),
+		detectors: []observerdef.Detector{
+			&anomalyDetector{name: "log_detector", anomalies: anomalies},
+		},
+	})
+
+	e.Advance(100)
+
+	sv := e.StateView()
+	raw := sv.Anomalies()
+	assert.Len(t, raw, 2,
+		"two log anomalies with empty SourceSeriesID but different content should both survive dedup")
+}
+
+func TestFindingM3_DedupAsymmetry(t *testing.T) {
+	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
+	anomalies := []observerdef.Anomaly{
+		{
+			Source:         "cpu",
+			SourceSeriesID: "ns|cpu:avg|",
+			DetectorName:   "test_detector",
+			Title:          "Spike",
+			Timestamp:      100,
+		},
+		{
+			Source:         "cpu",
+			SourceSeriesID: "ns|cpu:avg|",
+			DetectorName:   "test_detector",
+			Title:          "Spike",
+			Timestamp:      100,
+		},
+	}
+
+	e := newEngine(engineConfig{
+		storage: newTimeSeriesStorage(),
+		detectors: []observerdef.Detector{
+			&anomalyDetector{name: "test_detector", anomalies: anomalies},
+		},
+	})
+
+	sink := &collectingSink{}
+	e.Subscribe(sink)
+
+	e.Advance(100)
+
+	sv := e.StateView()
+	rawCount := len(sv.Anomalies())
+	eventCount := len(sink.eventsOfKind(eventAnomalyCreated))
+
+	// The bug: events will have 2 (no dedup) but rawAnomalies will have 1 (deduped).
+	// If the system were consistent, these should match.
+	assert.Equal(t, rawCount, eventCount,
+		"anomalyCreated event count (%d) should match rawAnomalies count (%d); "+
+			"mismatch means events/reporters see duplicates that rawAnomalies filtered out",
+		eventCount, rawCount)
+}
+
+func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
+	// Run the engine with many unique anomaly source names. The
+	// uniqueAnomalySources map should be bounded, but the finding says it grows
+	// without eviction.
+
+	storage := newTimeSeriesStorage()
+
+	// We need a detector that emits anomalies with unique source names.
+	// Use a custom detector that generates a unique source on each Detect call.
+	det := &dynamicAnomalyDetector{prefix: "metric_"}
+
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{det},
+	})
+
+	// Generate 1000 unique anomaly sources across many advance cycles.
+	for i := 0; i < 1000; i++ {
+		det.currentIndex = i
+		e.Advance(int64(i + 1))
+	}
+
+	sourceCount := e.UniqueAnomalySourceCount()
+	t.Logf("uniqueAnomalySources size after 1000 unique anomalies: %d", sourceCount)
+
+	// The bug: all 1000 unique sources are retained forever.
+	// A bounded implementation would cap or evict old entries.
+	// Assert that the map is bounded (e.g., under 500).
+	// This WILL FAIL because the map grows unbounded.
+	assert.LessOrEqual(t, sourceCount, 500,
+		"uniqueAnomalySources has %d entries after 1000 anomalies; "+
+			"expected bounded growth but map grows without eviction", sourceCount)
+}
+
+func TestFindingM4_UnboundedGrowthOfAccumulatedCorrelations(t *testing.T) {
+	storage := newTimeSeriesStorage()
+
+	// A correlator that produces unique patterns on each Advance.
+	corr := &dynamicCorrelator{prefix: "pattern_"}
+
+	e := newEngine(engineConfig{
+		storage:     storage,
+		correlators: []observerdef.Correlator{corr},
+	})
+
+	for i := 0; i < 1000; i++ {
+		corr.currentIndex = i
+		e.Advance(int64(i + 1))
+	}
+
+	corrCount := len(e.AccumulatedCorrelations())
+	t.Logf("accumulatedCorrelations size after 1000 unique patterns: %d", corrCount)
+
+	assert.LessOrEqual(t, corrCount, 500,
+		"accumulatedCorrelations has %d entries after 1000 unique patterns; "+
+			"expected bounded growth but map grows without eviction", corrCount)
+}
+
+func TestFindingM9_SetDetectorsRace(t *testing.T) {
+	// SetDetectors replaces engine slices without a lock.
+	// Running concurrently with Advance should trigger the race detector.
+
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{&mockDetector{name: "initial"}},
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine A: Advance in a loop
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.Advance(int64(i + 2))
+		}
+	}()
+
+	// Goroutine B: SetDetectors in a loop
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.SetDetectors([]observerdef.Detector{
+				&mockDetector{name: fmt.Sprintf("det_%d", i)},
+			})
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM9_SetCorrelatorsRace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	e := newEngine(engineConfig{
+		storage:     storage,
+		correlators: []observerdef.Correlator{&mockCorrelator{name: "initial"}},
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.Advance(int64(i + 2))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.SetCorrelators([]observerdef.Correlator{
+				&mockCorrelator{name: fmt.Sprintf("corr_%d", i)},
+			})
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM10_ResetRace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	det := &resettableDetector{name: "det"}
+	corr := &resettableCorrelator{name: "corr"}
+
+	e := newEngine(engineConfig{
+		storage:     storage,
+		detectors:   []observerdef.Detector{det},
+		correlators: []observerdef.Correlator{corr},
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.Advance(int64(i + 2))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.Reset()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
+	// DataTimestamps() only returns metric timestamps. A log at timestamp 103
+	// that produces no virtual metrics won't appear, so replay skips it.
+	//
+	// In live-style ingestion, every IngestLog call triggers onObservation,
+	// generating advance requests for that timestamp. In replay, only
+	// DataTimestamps() are iterated.
+
+	storage := newTimeSeriesStorage()
+
+	extractor := &noopLogExtractor{}
+
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	// --- Live-style ingestion ---
+	liveSink := &collectingSink{}
+	e.Subscribe(liveSink)
+
+	// Ingest metrics at 100, 101, 102, 105
+	for _, ts := range []int64{100, 101, 102, 105} {
+		requests := e.IngestMetric("ns", &metricObs{
+			name:      "cpu",
+			value:     1.0,
+			timestamp: ts,
+		})
+		for _, req := range requests {
+			e.advanceWithReason(req.upToSec, req.reason)
+		}
+	}
+
+	// Ingest log at 103 (no virtual metrics produced)
+	logRequests := e.IngestLog("ns", &logObs{
+		content:     []byte("error happened"),
+		status:      "error",
+		timestampMs: 103000, // 103 seconds in millis
+	})
+	for _, req := range logRequests {
+		e.advanceWithReason(req.upToSec, req.reason)
+	}
+
+	// Flush remaining
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		e.advanceWithReason(req.upToSec, req.reason)
+	}
+
+	liveAdvances := liveSink.eventsOfKind(eventAdvanceCompleted)
+	var liveTimestamps []int64
+	for _, evt := range liveAdvances {
+		liveTimestamps = append(liveTimestamps, evt.advanceCompleted.advancedToSec)
+	}
+
+	// --- Now reset and do replay ---
+	unsub := e.Subscribe(&collectingSink{}) // dummy to capture unsub
+	unsub()
+
+	e.resetFull()
+
+	replaySink := &collectingSink{}
+	e.Subscribe(replaySink)
+
+	e.ReplayStoredData()
+
+	replayAdvances := replaySink.eventsOfKind(eventAdvanceCompleted)
+	var replayTimestamps []int64
+	for _, evt := range replayAdvances {
+		replayTimestamps = append(replayTimestamps, evt.advanceCompleted.advancedToSec)
+	}
+
+	t.Logf("live advance timestamps:   %v", liveTimestamps)
+	t.Logf("replay advance timestamps: %v", replayTimestamps)
+
+	// The bug: replay's DataTimestamps() only has metric timestamps [100,101,102,105],
+	// missing the log's timestamp 103. So replay doesn't advance through 103.
+	// In live mode, the log at 103 DID trigger onObservation and potentially an advance.
+	//
+	// Check that DataTimestamps doesn't include 103.
+	dataTS := storage.DataTimestamps()
+	has103 := false
+	for _, ts := range dataTS {
+		if ts == 103 {
+			has103 = true
+			break
+		}
+	}
+	assert.True(t, has103,
+		"DataTimestamps() should include timestamp 103 from the log observation, "+
+			"but it only returns metric timestamps: %v", dataTS)
+}
