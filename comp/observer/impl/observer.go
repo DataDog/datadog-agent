@@ -15,6 +15,8 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -27,6 +29,9 @@ type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
+
+	Config config.Component
+	Log    log.Component
 
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
@@ -229,6 +234,19 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+	}
+
+	// Optionally add the event reporter when sending is enabled via config.
+	if deps.Config != nil && deps.Config.GetBool("observer.event_reporter.sending_enabled") {
+		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
+			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
+		} else {
+			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
+			eng.Subscribe(&reporterEventSink{
+				reporters: []observerdef.Reporter{eventReporter},
+				state:     eng.StateView(),
+			})
+		}
 	}
 
 	go obs.run()
