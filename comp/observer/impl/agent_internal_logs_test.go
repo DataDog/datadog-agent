@@ -55,7 +55,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	// Poll briefly since observer processes asynchronously.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if s := obs.storage.GetSeries("agent-internal-logs", metricName, tags, AggregateSum); s != nil && len(s.Points) > 0 {
+		if s := obs.engine.Storage().GetSeries("agent-internal-logs", metricName, tags, AggregateSum); s != nil && len(s.Points) > 0 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
