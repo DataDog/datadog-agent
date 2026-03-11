@@ -261,7 +261,6 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 	deps.Log.Infof("starting system-probe v%v", version.AgentVersion)
 
 	logUserAndGroupID(deps.Log)
-
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		deps.Log.Info("system probe not enabled. exiting")
