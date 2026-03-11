@@ -136,7 +136,6 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			fmt.Printf("failed to collect GPM sample: %s\n", err)
 			return err
 		}
 	}
