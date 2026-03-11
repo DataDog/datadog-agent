@@ -124,7 +124,7 @@ func populateConfig(config config.Component) map[string]string {
 
 func populateFIPSStatus(config config.Component) string {
 	fipsStatus := fips.Status()
-	if fipsStatus == "not available" && config.GetString("fips.enabled") == "true" {
+	if fipsStatus != "enabled" && config.GetString("fips.enabled") == "true" {
 		return "proxy"
 	}
 	return fipsStatus

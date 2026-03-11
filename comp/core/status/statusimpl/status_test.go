@@ -151,7 +151,7 @@ func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, 
 	if conf.GetBool("fips.enabled") {
 		res += "  FIPS Mode: proxy\n"
 	} else {
-		res += "  FIPS Mode: not available\n"
+		res += "  FIPS Mode: disabled\n"
 	}
 
 	res += "  Log Level: info\n"
@@ -391,7 +391,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
-    FIPS Mode: not available<br>
+    FIPS Mode: disabled<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -446,7 +446,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
-    FIPS Mode: not available<br>
+    FIPS Mode: disabled<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>

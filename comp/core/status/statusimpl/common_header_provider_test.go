@@ -201,7 +201,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
-    FIPS Mode: not available<br>
+    FIPS Mode: disabled<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
