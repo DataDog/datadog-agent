@@ -8,28 +8,29 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/awsutil"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 )
 
-// ssmClient is an interface that defines the methods we use from the ssm client
-// As the AWS SDK doesn't provide a real mock, we'll have to make our own that
-// matches this interface
+// ssmClient is an interface for fetching parameters from AWS SSM.
+// Tests provide a mock implementation.
 type ssmClient interface {
-	GetParametersByPath(ctx context.Context, params *ssm.GetParametersByPathInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
-	GetParameters(ctx context.Context, params *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)
-	GetParameter(ctx context.Context, params *ssm.GetParameterInput, optFns ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
+	GetParameter(ctx context.Context, name string, withDecryption bool) (*string, error)
 }
 
-// getSSMClient is a variable that holds the function to create a new ssmClient
-// it will be overwritten in tests
+// getSSMClient is a variable that holds the function to create a new ssmClient.
+// It is overwritten in tests.
 var getSSMClient = func(cfg aws.Config) ssmClient {
-	return ssm.NewFromConfig(cfg)
+	return &ssmHTTPClient{cfg: cfg}
 }
 
 // SSMParameterStoreBackendConfig is the configuration for a AWS SSM backend
@@ -66,21 +67,80 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (*SSMParameterStoreB
 
 // GetSecretOutput returns a the value for a specific secret
 func (b *SSMParameterStoreBackend) GetSecretOutput(ctx context.Context, secretKey string) secret.Output {
-	input := &ssm.GetParameterInput{
-		Name:           &secretKey,
-		WithDecryption: aws.Bool(true),
-	}
-
-	out, err := b.Client.GetParameter(ctx, input)
+	value, err := b.Client.GetParameter(ctx, secretKey, true)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
 	}
 
-	if out.Parameter == nil || out.Parameter.Value == nil {
+	if value == nil {
 		es := "parameter value is nil"
 		return secret.Output{Value: nil, Error: &es}
 	}
 
-	return secret.Output{Value: out.Parameter.Value, Error: nil}
+	return secret.Output{Value: value, Error: nil}
+}
+
+// --- Raw HTTP implementation of SSM ---
+
+type ssmHTTPClient struct {
+	cfg aws.Config
+}
+
+type ssmGetParameterResponse struct {
+	Parameter *ssmParameter `json:"Parameter"`
+}
+
+type ssmParameter struct {
+	Name  *string `json:"Name"`
+	Value *string `json:"Value"`
+}
+
+func (c *ssmHTTPClient) GetParameter(ctx context.Context, name string, withDecryption bool) (*string, error) {
+	region := c.cfg.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	endpoint := awsutil.ServiceEndpoint("ssm", region)
+
+	payload := fmt.Sprintf(`{"Name":%q,"WithDecryption":%t}`, name, withDecryption)
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-amz-json-1.1")
+	req.Header.Set("X-Amz-Target", "AmazonSSM.GetParameter")
+
+	creds, err := c.cfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve AWS credentials: %w", err)
+	}
+	awsutil.SignRequest(req, creds, region, "ssm", []byte(payload))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SSM GetParameter returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result ssmGetParameterResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse SSM response: %w", err)
+	}
+
+	if result.Parameter == nil || result.Parameter.Value == nil {
+		return nil, fmt.Errorf("parameter %s not found", name)
+	}
+
+	return result.Parameter.Value, nil
 }

@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/hashicorp/vault/api"
-	"github.com/hashicorp/vault/api/auth/aws"
 	vaultHttp "github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
@@ -137,8 +136,8 @@ func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
 			expectAuth:  true,
 			expectError: false,
 			validateAuth: func(t *testing.T, auth interface{}) {
-				awsAuth, ok := auth.(*aws.AWSAuth)
-				require.True(t, ok, "Expected AWSAuth type")
+				awsAuth, ok := auth.(*vaultAWSAuth)
+				require.True(t, ok, "Expected vaultAWSAuth type")
 				assert.NotNil(t, awsAuth)
 			},
 		},
@@ -152,8 +151,8 @@ func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
 			expectAuth:  true,
 			expectError: false,
 			validateAuth: func(t *testing.T, auth interface{}) {
-				awsAuth, ok := auth.(*aws.AWSAuth)
-				require.True(t, ok, "Expected AWSAuth type")
+				awsAuth, ok := auth.(*vaultAWSAuth)
+				require.True(t, ok, "Expected vaultAWSAuth type")
 				assert.NotNil(t, awsAuth)
 			},
 		},
