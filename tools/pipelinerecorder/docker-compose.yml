@@ -1,0 +1,54 @@
+# Pipeline Recorder Development Environment
+#
+# Usage:
+#   cd tools/pipelinerecorder
+#   docker compose up          # start both services
+#   docker stats               # observe CPU / RSS
+#   ls pipeline-data/          # inspect .vortex output files
+#   docker compose down -v     # tear down
+#
+# The agent container uses pipelinesink.enabled=true and forwards signal data
+# over the shared pipeline-socket volume to the recorder sidecar.
+
+services:
+  agent:
+    image: datadog/agent:latest
+    environment:
+      DD_API_KEY: ${DD_API_KEY:-dummy}
+      DD_PIPELINESINK_ENABLED: "true"
+      DD_PIPELINESINK_SOCKET_PATH: /var/run/pipelinesink/pipeline.sock
+    volumes:
+      - pipeline-socket:/var/run/pipelinesink
+    healthcheck:
+      test: ["CMD", "agent", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  recorder:
+    build:
+      context: ../..
+      dockerfile: tools/pipelinerecorder/Dockerfile
+    environment:
+      RECORDER_SOCKET_PATH: /var/run/pipelinesink/pipeline.sock
+      RECORDER_OUTPUT_DIR: /data/signals
+      RECORDER_FLUSH_ROWS: "1000"
+      RECORDER_FLUSH_INTERVAL_SECS: "10"
+      RECORDER_RETENTION_HOURS: "24"
+      RUST_LOG: info
+    volumes:
+      - pipeline-socket:/var/run/pipelinesink
+      - pipeline-data:/data/signals
+    depends_on:
+      - agent
+    healthcheck:
+      test: ["CMD-SHELL", "test -e /var/run/pipelinesink/pipeline.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pipeline-socket:
+  pipeline-data:

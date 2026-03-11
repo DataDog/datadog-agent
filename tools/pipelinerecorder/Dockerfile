@@ -1,0 +1,47 @@
+# Stage 1: build
+FROM rust:latest AS builder
+
+# Install build dependencies (g++ and clang for native deps).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    g++ \
+    clang \
+    libclang-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy Cargo manifests for dependency layer caching.
+COPY tools/pipelinerecorder/Cargo.toml tools/pipelinerecorder/Cargo.lock* ./
+
+# Copy generated FlatBuffers code for the stub layer (needed at compile time).
+COPY tools/pipelinerecorder/src/generated ./src/generated/
+
+# Pre-fetch and compile dependencies with a stub binary so the heavy dep
+# compilation is cached as a separate layer.
+RUN mkdir -p src benches \
+    && echo 'fn main(){}' > src/main.rs \
+    && echo 'fn main(){}' > src/reader.rs \
+    && echo 'fn main(){}' > benches/transport_bench.rs \
+    && echo 'fn main(){}' > benches/framing_bench.rs \
+    && echo 'fn main(){}' > benches/writer_bench.rs \
+    && cargo build --release \
+    && rm src/main.rs src/reader.rs benches/*
+
+# Copy real source and rebuild (only changed files recompile).
+COPY tools/pipelinerecorder/src ./src/
+COPY tools/pipelinerecorder/benches ./benches/
+RUN touch src/main.rs && cargo build --release
+
+# Stage 2: minimal runtime image
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /build/target/release/pipelinerecorder /usr/local/bin/pipelinerecorder
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
+    CMD test -S "${RECORDER_SOCKET_PATH:-/var/run/pipelinesink/pipeline.sock}" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/pipelinerecorder"]
