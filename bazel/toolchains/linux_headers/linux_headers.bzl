@@ -161,7 +161,6 @@ def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None, kernel_r
         if kernel_release_version and version == kernel_release_version:
             priority += 1
 
-
         if _matches_arch(name, kernel_arch):
             sort_order = 0
             priority += 1
