@@ -12,13 +12,13 @@ import "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 type controllerName string
 
 const (
-	metadataControllerName       controllerName = "metadata"
-	autoscalersControllerName    controllerName = "autoscalers"
-	servicesControllerName       controllerName = "services"
-	endpointsControllerName      controllerName = "endpoints"
-	endpointSlicesControllerName controllerName = "endpointslices"
-	crdControllerName            controllerName = "crd"
-	podcheckControllerName       controllerName = "podcheck"
+	metadataControllerName          controllerName = "metadata"
+	autoscalersControllerName       controllerName = "autoscalers"
+	workloadConfigCrdControllerName controllerName = "workloadconfigcrd"
+	servicesControllerName          controllerName = "services"
+	endpointsControllerName         controllerName = "endpoints"
+	endpointSlicesControllerName    controllerName = "endpointslices"
+	crdControllerName               controllerName = "crd"
 )
 
 const (

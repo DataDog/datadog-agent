@@ -5,19 +5,15 @@
 
 //go:build kubeapiserver
 
-package podcheck
+package checks
 
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
-	"strings"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"gopkg.in/yaml.v2"
 )
@@ -32,23 +28,23 @@ type adConfig struct {
 	Logs          interface{}          `yaml:"logs,omitempty"`
 }
 
-// configMapKey returns the ConfigMap data key for a check within a DatadogPodCheck CR.
+// configMapKey returns the ConfigMap data key for a check within a DatadogWorkloadConfig CR.
 func configMapKey(namespace, crName, checkName string) string {
 	return fmt.Sprintf("%s_%s_%s.yaml", namespace, crName, checkName)
 }
 
-// convertCR converts a DatadogPodCheck CR into a set of ConfigMap entries (key -> YAML).
+// convertCR converts a DatadogWorkloadConfig CR into a set of ConfigMap entries (key -> YAML).
 // Each CheckConfig in the CR produces one entry.
-func convertCR(dpc *datadoghq.DatadogPodCheck) (map[string]string, error) {
-	celRules := buildCELSelector(dpc)
+func convertCR(dwc *datadoghq.DatadogWorkloadConfig) (map[string]string, error) {
+	celRules := workloadconfig.BuildCELSelector(dwc)
 
-	entries := make(map[string]string, len(dpc.Spec.Checks))
-	for i, check := range dpc.Spec.Checks {
+	entries := make(map[string]string, len(dwc.Spec.Config.Checks))
+	for i, check := range dwc.Spec.Config.Checks {
 		yamlBytes, err := convertCheckToADConfig(check, celRules)
 		if err != nil {
 			return nil, fmt.Errorf("check[%d] %q: %w", i, check.Integration, err)
 		}
-		key := configMapKey(dpc.Namespace, dpc.Name, check.Integration)
+		key := configMapKey(dwc.Namespace, dwc.Name, check.Integration)
 		entries[key] = string(yamlBytes)
 	}
 	return entries, nil
@@ -86,53 +82,4 @@ func convertCheckToADConfig(check datadoghq.CheckConfig, celRules workloadfilter
 	}
 
 	return yaml.Marshal(cfg)
-}
-
-// buildCELSelector builds a CEL selector from a DatadogPodCheck's Selector and namespace.
-func buildCELSelector(dpc *datadoghq.DatadogPodCheck) workloadfilter.Rules {
-	hasAnnotations := len(dpc.Spec.Selector.MatchAnnotations) > 0
-	hasLabels := len(dpc.Spec.Selector.MatchLabels) > 0
-	var rules []string
-	if hasAnnotations {
-		rules = append(rules, buildMapCELRules("container.pod.annotations", dpc.Spec.Selector.MatchAnnotations)...)
-	}
-	if hasLabels {
-		rules = append(rules, buildMapCELRules("container.pod.labels", dpc.Spec.Selector.MatchLabels)...)
-	}
-	rules = append(rules, fmt.Sprintf("container.pod.namespace == '%s'", dpc.Namespace))
-	combinedRules := strings.Join(rules, " && ")
-	return workloadfilter.Rules{Containers: []string{combinedRules}}
-}
-
-// buildMapCELRules generates CEL equality expressions for a map field.
-// Each key-value pair becomes: fieldPath["key"] == "value".
-// Keys are sorted for deterministic output.
-func buildMapCELRules(fieldPath string, m map[string]string) []string {
-	if len(m) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	rules := make([]string, 0, len(m))
-	for _, k := range keys {
-		rules = append(rules, fmt.Sprintf(`%s["%s"] == "%s"`, fieldPath, k, m[k]))
-	}
-	return rules
-}
-
-// unstructuredToPodCheck converts an unstructured object to a DatadogPodCheck.
-func unstructuredToPodCheck(obj interface{}) (*datadoghq.DatadogPodCheck, error) {
-	unstrObj, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		return nil, fmt.Errorf("could not cast to Unstructured: %T", obj)
-	}
-	dpc := &datadoghq.DatadogPodCheck{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), dpc); err != nil {
-		return nil, fmt.Errorf("failed to convert unstructured to DatadogPodCheck: %w", err)
-	}
-	return dpc, nil
 }

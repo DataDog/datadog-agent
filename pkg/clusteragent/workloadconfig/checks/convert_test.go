@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package podcheck
+package checks
 
 import (
 	"testing"
@@ -19,29 +19,31 @@ import (
 )
 
 func TestConvertCR_SingleCheck(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-check",
 			Namespace: "web-team",
 		},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "nginx"},
 			},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration:    "nginx",
-					ContainerImage: []string{"nginx:latest"},
-					InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
-					Instances: []apiextensionsv1.JSON{
-						{Raw: []byte(`{"nginx_status_url":"http://%%host%%:81/status/"}`)},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration:    "nginx",
+						ContainerImage: []string{"nginx:latest"},
+						InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+						Instances: []apiextensionsv1.JSON{
+							{Raw: []byte(`{"nginx_status_url":"http://%%host%%:81/status/"}`)},
+						},
 					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
@@ -53,32 +55,34 @@ func TestConvertCR_SingleCheck(t *testing.T) {
 }
 
 func TestConvertCR_MultipleChecks(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "multi-check",
 			Namespace: "default",
 		},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "myapp"},
 			},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration:    "http_check",
-					ContainerImage: []string{"myapp:v1"},
-					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%:8080"}`)}},
-				},
-				{
-					Integration:    "redisdb",
-					ContainerImage: []string{"redis:7"},
-					InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
-					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration:    "http_check",
+						ContainerImage: []string{"myapp:v1"},
+						Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%:8080"}`)}},
+					},
+					{
+						Integration:    "redisdb",
+						ContainerImage: []string{"redis:7"},
+						InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+						Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 
@@ -90,20 +94,22 @@ func TestConvertCR_MultipleChecks(t *testing.T) {
 }
 
 func TestConvertCR_NilInitConfig(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "http_check",
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "http_check",
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["default_check_http_check.yaml"]
@@ -111,21 +117,23 @@ func TestConvertCR_NilInitConfig(t *testing.T) {
 }
 
 func TestConvertCR_WithLogs(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "http_check",
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
-					Logs:        &apiextensionsv1.JSON{Raw: []byte(`[{"type":"file","path":"/var/log/app.log","service":"myapp"}]`)},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "http_check",
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+						Logs:        &apiextensionsv1.JSON{Raw: []byte(`[{"type":"file","path":"/var/log/app.log","service":"myapp"}]`)},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["default_check_http_check.yaml"]
@@ -134,52 +142,55 @@ func TestConvertCR_WithLogs(t *testing.T) {
 }
 
 func TestConvertCR_WithAnnotationSelector(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{
 				MatchAnnotations: map[string]string{
 					"team": "web",
 					"env":  "prod",
 				},
 			},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "nginx",
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "nginx",
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["web-team_check_nginx.yaml"]
 	assert.Contains(t, yaml, "cel_selector:")
-	// YAML may wrap long lines, so check for key fragments
 	assert.Contains(t, yaml, `annotations["env"]`)
 	assert.Contains(t, yaml, `annotations["team"]`)
 	assert.Contains(t, yaml, `namespace == 'web-team'`)
 }
 
 func TestConvertCR_WithLabelSelector(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "nginx"},
 			},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "nginx",
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "nginx",
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["default_check_nginx.yaml"]
@@ -189,23 +200,25 @@ func TestConvertCR_WithLabelSelector(t *testing.T) {
 }
 
 func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels:      map[string]string{"app": "nginx"},
 				MatchAnnotations: map[string]string{"team": "web"},
 			},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "nginx",
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "nginx",
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["web-team_check_nginx.yaml"]
@@ -215,21 +228,23 @@ func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
 }
 
 func TestConvertCR_NoSelector(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration:    "nginx",
-					ContainerImage: []string{"nginx"},
-					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration:    "nginx",
+						ContainerImage: []string{"nginx"},
+						Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	entries, err := convertCR(dpc)
+	entries, err := convertCR(dwc)
 	require.NoError(t, err)
 
 	yaml := entries["default_check_nginx.yaml"]
@@ -241,43 +256,24 @@ func TestConfigMapKey(t *testing.T) {
 	assert.Equal(t, "web-team_nginx-check_nginx.yaml", configMapKey("web-team", "nginx-check", "nginx"))
 }
 
-func TestBuildMapCELRules(t *testing.T) {
-	rules := buildMapCELRules("container.pod.annotations", map[string]string{
-		"b-key": "val-b",
-		"a-key": "val-a",
-	})
-
-	require.Len(t, rules, 2)
-	assert.Equal(t, `container.pod.annotations["a-key"] == "val-a"`, rules[0])
-	assert.Equal(t, `container.pod.annotations["b-key"] == "val-b"`, rules[1])
-}
-
-func TestBuildMapCELRules_Labels(t *testing.T) {
-	rules := buildMapCELRules("container.pod.labels", map[string]string{"app": "nginx"})
-	require.Len(t, rules, 1)
-	assert.Equal(t, `container.pod.labels["app"] == "nginx"`, rules[0])
-}
-
-func TestBuildMapCELRules_Empty(t *testing.T) {
-	assert.Nil(t, buildMapCELRules("container.pod.labels", nil))
-}
-
 func TestConvertCR_InvalidJSON(t *testing.T) {
-	dpc := &datadoghq.DatadogPodCheck{
+	dwc := &datadoghq.DatadogWorkloadConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: "default"},
-		Spec: datadoghq.DatadogPodCheckSpec{
+		Spec: datadoghq.DatadogWorkloadConfigSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Checks: []datadoghq.CheckConfig{
-				{
-					Integration: "test",
-					InitConfig:  &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
-					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"ok": true}`)}},
+			Config: datadoghq.WorkloadConfig{
+				Checks: []datadoghq.CheckConfig{
+					{
+						Integration: "test",
+						InitConfig:  &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
+						Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"ok": true}`)}},
+					},
 				},
 			},
 		},
 	}
 
-	_, err := convertCR(dpc)
+	_, err := convertCR(dwc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "initConfig")
 }

@@ -26,7 +26,8 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/podcheck"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig/checks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -61,9 +62,9 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerServicesInformer,
 	},
-	podcheckControllerName: {
+	workloadConfigCrdControllerName: {
 		func() bool { return pkgconfigsetup.Datadog().GetBool("podcheck.enabled") },
-		startPodCheckController,
+		startWorkloadConfigCRDController,
 	},
 	endpointsControllerName: {
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
@@ -194,6 +195,45 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
+// startWorkloadConfigCRDController starts the Instrumentation controller that watches
+// DatadogPodCheck CRDs and delegates to registered config section handlers.
+func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
+	configMapNamespace := namespace.GetResourcesNamespace()
+	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
+	if configMapName == "" {
+		errChan <- errors.New("podcheck.configmap_name must be set when podcheck.enabled is true")
+		return
+	}
+
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		errChan <- fmt.Errorf("failed to get leader engine for Instrumentation controller: %w", err)
+		return
+	}
+	leaderNotif, _ := le.Subscribe()
+
+	handlers := []workloadconfig.ConfigSectionHandler{
+		checks.NewChecksHandler(ctx.Client, configMapName, configMapNamespace),
+	}
+
+	controller, err := workloadconfig.NewWorkloadConfigCRDController(
+		ctx.DynamicInformerFactory,
+		ctx.IsLeaderFunc,
+		leaderNotif,
+		handlers,
+	)
+	if err != nil {
+		errChan <- fmt.Errorf("failed to create Instrumentation controller: %w", err)
+		return
+	}
+
+	if ctx.DynamicInformerFactory != nil {
+		ctx.DynamicInformerFactory.Start(ctx.StopCh)
+	}
+
+	go controller.Run(ctx.StopCh)
+}
+
 // registerServicesInformer registers the services informer.
 func registerServicesInformer(ctx *ControllerContext, _ chan error) {
 	informer := ctx.InformerFactory.Core().V1().Services().Informer()
@@ -228,41 +268,4 @@ func registerCRDInformer(ctx *ControllerContext, _ chan error) {
 	ctx.informersMutex.Lock()
 	ctx.informers[crdInformer] = informer
 	ctx.informersMutex.Unlock()
-}
-
-// startPodCheckController starts the PodCheck controller that watches DatadogPodCheck CRDs
-// and writes AD-compatible check configs to a ConfigMap.
-func startPodCheckController(ctx *ControllerContext, errChan chan error) {
-	configMapNamespace := namespace.GetResourcesNamespace()
-	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
-	if configMapName == "" {
-		errChan <- errors.New("podcheck.configmap_name must be set when podcheck.enabled is true")
-		return
-	}
-
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		errChan <- fmt.Errorf("failed to get leader engine for PodCheck controller: %w", err)
-		return
-	}
-	leaderNotif, _ := le.Subscribe()
-
-	controller, err := podcheck.NewPodCheckController(
-		ctx.DynamicInformerFactory,
-		ctx.Client,
-		ctx.IsLeaderFunc,
-		leaderNotif,
-		configMapName,
-		configMapNamespace,
-	)
-	if err != nil {
-		errChan <- fmt.Errorf("failed to create PodCheck controller: %w", err)
-		return
-	}
-
-	if ctx.DynamicInformerFactory != nil {
-		ctx.DynamicInformerFactory.Start(ctx.StopCh)
-	}
-
-	go controller.Run(ctx.StopCh)
 }
