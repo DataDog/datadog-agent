@@ -1,4 +1,4 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog", "ebpf_program_suite")
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
 
 _COMMON_DEPS = [
     "//pkg/ebpf/c:ebpf_c_headers",
@@ -11,7 +11,7 @@ _SECURITY_FLAGS = [
 ]
 
 # runtime-security: basic variant
-ebpf_program_suite(
+ebpf_prog(
     name = "runtime-security",
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS,
@@ -19,7 +19,7 @@ ebpf_program_suite(
 )
 
 # runtime-security: syscall wrapper variant
-ebpf_program_suite(
+ebpf_prog(
     name = "runtime-security-syscall-wrapper",
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
@@ -27,7 +27,7 @@ ebpf_program_suite(
 )
 
 # runtime-security: fentry variant (syscall wrapper + fentry)
-ebpf_program_suite(
+ebpf_prog(
     name = "runtime-security-fentry",
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS + [
@@ -68,7 +68,7 @@ ebpf_prog(
 )
 
 # offset guesser
-ebpf_program_suite(
+ebpf_prog(
     name = "runtime-security-offset-guesser",
     src = "offset-guesser.c",
     extra_flags = _SECURITY_FLAGS,

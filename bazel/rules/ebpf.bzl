@@ -143,65 +143,24 @@ def _ebpf_prog_impl(ctx):
     )
 
     # --- Step 2: .bc -> .o (llc) ---
-    obj_file_name = ctx.label.name + ".o"
-    if ctx.attr.strip:
-        raw_obj = ctx.actions.declare_file(ctx.label.name + ".o.raw")
-    else:
-        raw_obj = ctx.actions.declare_file(obj_file_name)
+    obj_file = ctx.actions.declare_file(ctx.label.name + ".o")
 
     llc_args = ctx.actions.args()
     llc_args.add("-march=bpf")
     llc_args.add("-filetype=obj")
-    llc_args.add("-o", raw_obj)
+    llc_args.add("-o", obj_file)
     llc_args.add(bc_file)
 
     ctx.actions.run(
         inputs = [bc_file],
-        outputs = [raw_obj],
+        outputs = [obj_file],
         executable = tc.llc_bpf,
         arguments = [llc_args],
         mnemonic = "EbpfLlc",
         progress_message = "Linking eBPF %{label} (.bc -> .o)",
     )
 
-    # --- Step 3: strip (optional) ---
-    if ctx.attr.strip:
-        debug_stripped = ctx.actions.declare_file(ctx.label.name + ".o.dbg")
-        strip_dbg_args = ctx.actions.args()
-        strip_dbg_args.add("-g")
-        strip_dbg_args.add(raw_obj)
-        strip_dbg_args.add("-o", debug_stripped)
-
-        ctx.actions.run(
-            inputs = [raw_obj],
-            outputs = [debug_stripped],
-            executable = tc.llvm_strip,
-            arguments = [strip_dbg_args],
-            mnemonic = "EbpfStripDebug",
-            progress_message = "Stripping debug info from eBPF %{label}",
-        )
-
-        # Remove LLVM-generated local basic block labels (LBB*)
-        stripped_obj = ctx.actions.declare_file(obj_file_name)
-        strip_lbb_args = ctx.actions.args()
-        strip_lbb_args.add("-w")
-        strip_lbb_args.add("-N", "LBB*")
-        strip_lbb_args.add(debug_stripped)
-        strip_lbb_args.add("-o", stripped_obj)
-
-        ctx.actions.run(
-            inputs = [debug_stripped],
-            outputs = [stripped_obj],
-            executable = tc.llvm_strip,
-            arguments = [strip_lbb_args],
-            mnemonic = "EbpfStripLBB",
-            progress_message = "Stripping LBB symbols from eBPF %{label}",
-        )
-        final_obj = stripped_obj
-    else:
-        final_obj = raw_obj
-
-    return [DefaultInfo(files = depset([final_obj]))]
+    return [DefaultInfo(files = depset([obj_file]))]
 
 _ebpf_prog = rule(
     implementation = _ebpf_prog_impl,
@@ -223,10 +182,6 @@ _ebpf_prog = rule(
             default = False,
             doc = "Include DEBUG=1 define.",
         ),
-        "strip": attr.bool(
-            default = True,
-            doc = "Strip debug info from the final .o.",
-        ),
         "extra_flags": attr.string_list(
             doc = "Additional compiler flags.",
         ),
@@ -245,7 +200,7 @@ def ebpf_prog(target_compatible_with = ["@platforms//os:linux"], **kwargs):
     """eBPF program target, Linux-only by default."""
     _ebpf_prog(target_compatible_with = target_compatible_with, **kwargs)
 
-def _ebpf_program_suite_impl(name, visibility, src, deps, core, strip, extra_flags, target_arch):
+def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
     _ebpf_prog(
         name = name,
         visibility = visibility,
@@ -253,7 +208,6 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, strip, extra_fla
         deps = deps,
         core = core,
         debug = False,
-        strip = strip,
         extra_flags = extra_flags,
         target_arch = target_arch,
         target_compatible_with = ["@platforms//os:linux"],
@@ -265,7 +219,6 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, strip, extra_fla
         deps = deps,
         core = core,
         debug = True,
-        strip = False,
         extra_flags = extra_flags,
         target_arch = target_arch,
         target_compatible_with = ["@platforms//os:linux"],
@@ -275,14 +228,13 @@ ebpf_program_suite = macro(
     doc = """Create both normal and debug variants of an eBPF program.
 
     Generates:
-      - {name}: normal build (stripped by default)
-      - {name}-debug: build with DEBUG=1 (never stripped, keeps DWARF data)
+      - {name}: normal build
+      - {name}-debug: build with DEBUG=1
     """,
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".c"], configurable = False),
         "deps": attr.label_list(default = [], configurable = False),
         "core": attr.bool(default = False, configurable = False),
-        "strip": attr.bool(default = True, configurable = False),
         "extra_flags": attr.string_list(default = [], configurable = False),
         "target_arch": attr.string(default = "", configurable = False),
     },

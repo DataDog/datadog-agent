@@ -28,7 +28,6 @@ ebpf_prog(
         "-Ipkg/dyninst/ebpf",
         "-DDYNINST_DEBUG=1",
     ],
-    strip = False,
     deps = [
         ":dyninst_ebpf_headers",
         "//pkg/ebpf/c:ebpf_c_headers",

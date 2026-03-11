@@ -1242,20 +1242,14 @@ _BAZEL_EBPF_PREBUILT_TARGETS = [
     "//pkg/network/ebpf/c/prebuilt:conntrack",
     "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser-debug",
 ]
 
 _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:lock_contention",
-    "//pkg/ebpf/c:lock_contention-debug",
     "//pkg/ebpf/c:ksyms_iter",
-    "//pkg/ebpf/c:ksyms_iter-debug",
     "//pkg/network/ebpf/c:tracer",
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
@@ -1293,20 +1287,17 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
     """Build eBPF object files using Bazel and copy them to the build directory.
 
-    When strip=False the unstripped -debug variants are copied under the
-    non-debug file names so that tests (e.g. KMT) get objects with DWARF data.
-    Targets without a -debug counterpart are copied as-is.
+    Bazel always produces unstripped .o files. When strip=True, the copied
+    files are stripped in-place using llvm-strip (same as the old ninja flow).
     """
     import shutil
 
     all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
-    all_targets_set = set(all_targets)
     targets_str = " ".join(all_targets)
 
     print(f"Building {len(all_targets)} eBPF targets via Bazel...")
     ctx.run(f"bazelisk build {targets_str}")
 
-    # Resolve the output path (bazel-bin symlink is not available in CI)
     result = ctx.run("bazelisk info bazel-bin", hide=True)
     bazel_bin = result.stdout.strip()
 
@@ -1314,25 +1305,17 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     os.makedirs(build_dir, exist_ok=True)
     os.makedirs(co_re_dir, exist_ok=True)
 
+    copied_files = []
+
     def _copy_output(target: str, dest_dir: str):
-        """Copy the .o output for a Bazel target to the destination directory."""
-        # //pkg/foo/bar:name -> pkg/foo/bar/name.o
         label_path, name = target.lstrip("/").rsplit(":", 1)
-
-        out_name = name
-        if not strip:
-            if name.endswith("-debug"):
-                out_name = name.removesuffix("-debug")
-            elif f"//{label_path}:{name}-debug" in all_targets_set:
-                # A -debug variant exists and will be copied instead
-                return
-
         src = os.path.join(bazel_bin, label_path, f"{name}.o")
-        dst = os.path.join(dest_dir, f"{out_name}.o")
+        dst = os.path.join(dest_dir, f"{name}.o")
 
         if os.path.exists(src):
             shutil.copy2(src, dst)
-            os.chmod(dst, 0o444)
+            os.chmod(dst, 0o644)
+            copied_files.append(dst)
         else:
             print(f"Warning: expected output {src} not found")
 
@@ -1345,6 +1328,15 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     for target, dest in _BAZEL_EBPF_INPLACE_TARGETS.items():
         os.makedirs(dest, exist_ok=True)
         _copy_output(target, dest)
+
+    if strip:
+        llvm_strip = "/opt/datadog-agent/embedded/bin/llvm-strip"
+        for f in copied_files:
+            ctx.run(f"{llvm_strip} -g {f}")
+            ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
+
+    for f in copied_files:
+        os.chmod(f, 0o444)
 
     print(f"Copied eBPF objects to {build_dir}")
 
