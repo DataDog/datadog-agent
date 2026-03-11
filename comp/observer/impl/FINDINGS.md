@@ -28,10 +28,10 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 ### H3: Changepoint mass uses prior predictive instead of sum over run-length predictives
 
 - **File:** `metrics_detector_bocpd.go:300-305`
-- **Description:** `newRunProbs[0] = hazard * predPrior` deviates from standard BOCPD (Adams & MacKay 2007). Standard formula is `hazard * sum_r(runProbs[r] * pred(x|r))`. After a sustained level shift, the prior mean stays at warmup baseline while posterior means track the new level, causing cpProb to be inflated for reversion to baseline and deflated for further shift.
-- **Reproducing:** Moderate -- proper test written (snapshots state, computes both formulas through normalization, compares against implementation output).
+- **Description:** `newRunProbs[0] = hazard * predPrior` deviated from standard BOCPD (Adams & MacKay 2007). Standard formula is `hazard * sum_r(runProbs[r] * pred(x|r))`. After a sustained level shift, the prior mean stays at warmup baseline while posterior means track the new level, causing cpProb to flatline -- making cascading shifts undetectable. Author confirmed this was an unintentional shortcut.
+- **Reproducing:** Moderate -- test snapshots state, computes both formulas through normalization, compares against implementation output.
 - [x] Validated -- formulas diverge ~33% for sustained level shift scenario; test snapshots state, computes both formulas through normalization, confirms implementation matches standard recurrence
-- **Fix SHA:** PENDING CONFIRMATION -- fix applied speculatively (one-line change to use weighted sum over run-length posteriors). Awaiting author (lukesteensen) confirmation that cascading shift detection is intended.
+- **Fix SHA:** c57f2aa9da3 -- confirmed as unintentional by author (lukesteensen): "if there is an easy fix that's true to the actual algorithm then i'm all for it"
 
 ---
 

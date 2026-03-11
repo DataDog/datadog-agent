@@ -393,8 +393,8 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 // baseline) or a deviation from the standard algorithm. Needs author input.
 
 func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.T) {
-	// Speculatively unskipped -- we believe cascading shift detection is
-	// intended. Pending confirmation from the BOCPD author (lukesteensen).
+	// Confirmed as bug by author (lukesteensen) -- cascading shift detection
+	// is intended. Prior-only formula was a shortcut, not a design choice.
 
 	// Test strategy: snapshot posterior state, call updatePosterior, then
 	// independently compute both standard and prior-only formulas through

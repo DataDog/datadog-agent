@@ -333,7 +333,7 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// cpMass = hazard * sum_r(runProbs[r] * pred(x|r))
 	// This weighs the observation against all run-length hypotheses so the
 	// detector can catch cascading shifts, not just the first deviation from
-	// the warmup baseline. See FINDINGS.md H3.
+	// the warmup baseline.
 	newLen := len(state.runProbs) + 1
 	state.newRunProbs = state.newRunProbs[:newLen]
 	var cpMass float64
