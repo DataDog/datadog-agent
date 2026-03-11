@@ -121,7 +121,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		args := buildSPLiteArgs(sysprobeConfig, "")
 		assert.Equal(t, []string{
-			"system-probe-lite", "run",
+			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
 		}, args)
@@ -131,7 +131,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		args := buildSPLiteArgs(sysprobeConfig, "/opt/datadog-agent/run/system-probe.pid")
 		assert.Equal(t, []string{
-			"system-probe-lite", "run",
+			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
 			"--pid", "/opt/datadog-agent/run/system-probe.pid",
@@ -144,7 +144,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 		sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
 		args := buildSPLiteArgs(sysprobeConfig, "")
 		assert.Equal(t, []string{
-			"system-probe-lite", "run",
+			"system-probe-lite",
 			"--socket", "/custom/path.sock",
 			"--log-level", "debug",
 		}, args)
@@ -176,7 +176,7 @@ func TestResolveSPLiteExecCmd(t *testing.T) {
 		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
 		assert.Equal(t, testBinary, cmd.Path)
 		assert.Equal(t, []string{
-			"system-probe-lite", "run",
+			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
 			"--pid", "/var/run/sp.pid",

@@ -76,7 +76,6 @@ mod tests {
         let a = Args::parse(
             args(&[
                 "system-probe-lite",
-                "run",
                 "--socket",
                 "/run/sysprobe.sock",
                 "--log-level",
@@ -95,7 +94,6 @@ mod tests {
         let a = Args::parse(
             args(&[
                 "system-probe-lite",
-                "run",
                 "--socket",
                 "/run/sysprobe.sock",
                 "--log-level",
@@ -116,8 +114,7 @@ mod tests {
 
     #[test]
     fn test_parse_missing_socket() {
-        let result =
-            Args::parse(args(&["system-probe-lite", "run", "--log-level", "info"]).into_iter());
+        let result = Args::parse(args(&["system-probe-lite", "--log-level", "info"]).into_iter());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -128,9 +125,8 @@ mod tests {
 
     #[test]
     fn test_parse_missing_log_level() {
-        let result = Args::parse(
-            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
-        );
+        let result =
+            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -141,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_parse_missing_both_required() {
-        let result = Args::parse(args(&["system-probe-lite", "run"]).into_iter());
+        let result = Args::parse(args(&["system-probe-lite"]).into_iter());
         assert!(result.is_err());
     }
 }

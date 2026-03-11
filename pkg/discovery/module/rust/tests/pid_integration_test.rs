@@ -22,7 +22,6 @@ fn test_pid_file_created_and_cleaned_up_on_sigterm() {
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
-        .arg("run")
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-level")
@@ -73,7 +72,6 @@ fn test_pid_file_created_and_cleaned_up_on_sigint() {
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
-        .arg("run")
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-level")
@@ -125,7 +123,6 @@ fn test_no_pid_file_without_flag() {
 
     // Spawn system-probe-lite WITHOUT --pid flag
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
-        .arg("run")
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-level")
