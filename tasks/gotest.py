@@ -322,7 +322,7 @@ def test(
             gorace += " atexit_sleep_ms=50"
             env["GORACE"] = gorace.strip()
 
-    if result_json and os.path.isfile(result_json):
+    if host != "windows" and sys.platform != "win32" and result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
         print(f"Removing existing '{result_json}' file")
         os.remove(result_json)

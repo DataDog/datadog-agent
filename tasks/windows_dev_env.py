@@ -163,7 +163,7 @@ def run(
         _run_on_windows_dev_env(
             ctx,
             name,
-            f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}',
+            f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -CheckGoVersion \\$false -Command {{{command}}}',
         )
     )
 
@@ -523,7 +523,7 @@ def _build_watch_work(
         packages = frozenset()
         inv_cmd = fallback_command
         command_type = "linter" if "linter" in fallback_command else "test"
-    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
+    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -CheckGoVersion \\$false -Command {{{inv_cmd}}}'
     return command_type, packages, _build_remote_command(remote_host, wrapped)
 
 
@@ -685,7 +685,7 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
         inv_cmd = "inv test --build-stdlib"
     else:
         inv_cmd = "inv linter.go"
-    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
+    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -CheckGoVersion \\$false -Command {{{inv_cmd}}}'
     return _run_on_windows_dev_env(ctx, name, wrapped)
 
 
