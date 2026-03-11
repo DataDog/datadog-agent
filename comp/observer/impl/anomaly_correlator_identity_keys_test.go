@@ -25,8 +25,8 @@ func TestLeadLagCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 	seriesA := observer.SeriesID("parquet|cpu.user:avg|host:A,service:web")
 	seriesB := observer.SeriesID("parquet|cpu.user:avg|host:B,service:web")
 
-	c.Process(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
-	c.Process(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 108})
+	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 108})
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)
@@ -48,9 +48,9 @@ func TestSurpriseCorrelator_PreservesFullSeriesIDs(t *testing.T) {
 	seriesA := observer.SeriesID("parquet|net.retransmits:avg|host:A,az:1a")
 	seriesB := observer.SeriesID("parquet|net.retransmits:avg|host:B,az:1a")
 
-	c.Process(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
-	c.Process(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 101})
-	c.Flush() // finalize window
+	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesA, Timestamp: 100})
+	c.ProcessAnomaly(observer.Anomaly{SourceSeriesID: seriesB, Timestamp: 101})
+	c.Advance(200) // finalize window
 
 	edges := c.GetEdges()
 	require.NotEmpty(t, edges)

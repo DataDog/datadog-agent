@@ -143,7 +143,7 @@ func (c *SurpriseCorrelator) Name() string {
 }
 
 // Process adds an anomaly and updates co-occurrence counts.
-func (c *SurpriseCorrelator) Process(anomaly observer.Anomaly) {
+func (c *SurpriseCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -204,9 +204,13 @@ func (c *SurpriseCorrelator) finalizeWindow() {
 }
 
 // Flush evicts old data and returns empty (reporters pull state via ActiveCorrelations).
-func (c *SurpriseCorrelator) Flush() []observer.ReportOutput {
+func (c *SurpriseCorrelator) Advance(dataTime int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
 
 	// Finalize current window if it has data
 	c.finalizeWindow()
@@ -220,8 +224,6 @@ func (c *SurpriseCorrelator) Flush() []observer.ReportOutput {
 		}
 	}
 	c.recentAnomalies = newAnomalies
-
-	return nil
 }
 
 // Reset clears all internal state for reanalysis.
@@ -311,8 +313,7 @@ func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 	return edges
 }
 
-// ActiveCorrelations returns surprise patterns as correlations for reporting.
-// Implements CorrelationState interface.
+// ActiveCorrelations returns surprise patterns as correlation patterns.
 func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	edges := c.GetEdges()
 

@@ -16,14 +16,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// staticCorrelator is a test correlator that returns fixed correlations.
+type staticCorrelator struct {
+	correlations []observerdef.ActiveCorrelation
+}
+
+func (c *staticCorrelator) Name() string                                        { return "static" }
+func (c *staticCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
+func (c *staticCorrelator) Advance(_ int64)                                     {}
+func (c *staticCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return c.correlations }
+func (c *staticCorrelator) Reset()                                              {}
+
 // newTestBenchForOutput creates a minimal TestBench with injected state for testing
 // observer output. No scenarios dir or registry needed.
 func newTestBenchForOutput() *TestBench {
+	eng := newEngine(engineConfig{storage: newTimeSeriesStorage()})
 	return &TestBench{
-		storage:           newTimeSeriesStorage(),
-		components:        make(map[string]*registeredComponent),
-		metricsAnomalies:  []observerdef.Anomaly{},
-		metricsByDetector: make(map[string][]observerdef.Anomaly),
+		engine:     eng,
+		catalog:    testbenchCatalog(),
+		components: make(map[string]*componentInstance),
 	}
 }
 
@@ -79,12 +90,13 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
-	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
-	tb.correlations = []observerdef.ActiveCorrelation{testCorrelation()}
-	tb.components["cusum"] = &registeredComponent{
-		Registration: ComponentRegistration{Name: "cusum", Category: "detector"},
-		Enabled:      true,
+	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
+	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
+	// Add a correlator that returns our test correlation
+	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
+	tb.components["cusum"] = &componentInstance{
+		entry:   componentEntry{name: "cusum", kind: componentDetector},
+		enabled: true,
 	}
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
@@ -113,20 +125,21 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 func TestWriteObserverOutput_Verbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.storage.Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
-	tb.storage.Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
-	tb.correlations = []observerdef.ActiveCorrelation{testCorrelation()}
-	tb.components["cusum"] = &registeredComponent{
-		Registration: ComponentRegistration{Name: "cusum", Category: "detector"},
-		Enabled:      true,
+	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
+	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
+	// Add a correlator that returns our test correlation
+	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
+	tb.components["cusum"] = &componentInstance{
+		entry:   componentEntry{name: "cusum", kind: componentDetector},
+		enabled: true,
 	}
-	tb.components["time_cluster"] = &registeredComponent{
-		Registration: ComponentRegistration{Name: "time_cluster", Category: "correlator"},
-		Enabled:      true,
+	tb.components["time_cluster"] = &componentInstance{
+		entry:   componentEntry{name: "time_cluster", kind: componentCorrelator},
+		enabled: true,
 	}
-	tb.components["bocpd"] = &registeredComponent{
-		Registration: ComponentRegistration{Name: "bocpd", Category: "detector"},
-		Enabled:      false, // disabled — should not appear in metadata
+	tb.components["bocpd"] = &componentInstance{
+		entry:   componentEntry{name: "bocpd", kind: componentDetector},
+		enabled: false, // disabled — should not appear in metadata
 	}
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
@@ -169,8 +182,8 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 
 func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	tb := newTestBenchForOutput()
-	tb.storage.Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"})
-	tb.storage.Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
+	tb.engine.Storage().Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"})
+	tb.engine.Storage().Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
 	require.NoError(t, tb.WriteObserverOutput(outPath, false))
@@ -188,7 +201,7 @@ func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "json_validity_check"
-	tb.correlations = []observerdef.ActiveCorrelation{
+	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{
 		{
 			Pattern:         "p1",
 			Title:           "Title with \"quotes\" and\nnewlines",
@@ -204,7 +217,7 @@ func TestWriteObserverOutput_ValidJSON(t *testing.T) {
 				},
 			},
 		},
-	}
+	}}})
 
 	// Both modes produce valid JSON
 	for _, verbose := range []bool{false, true} {

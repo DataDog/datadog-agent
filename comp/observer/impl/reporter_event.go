@@ -15,7 +15,6 @@ import (
 type EventReporter struct {
 	sender           *eventSender
 	logger           log.Component
-	correlationState observerdef.CorrelationState
 	seenCorrelations map[string]bool // pattern -> reported
 }
 
@@ -24,19 +23,14 @@ func (r *EventReporter) Name() string {
 	return "event_reporter"
 }
 
-// SetCorrelationState sets the correlation state source for the reporter.
-func (r *EventReporter) SetCorrelationState(state observerdef.CorrelationState) {
-	r.correlationState = state
-	r.seenCorrelations = make(map[string]bool)
-}
-
 // Report checks for new correlations and sends an event for each one.
-func (r *EventReporter) Report(_ observerdef.ReportOutput) {
-	if r.correlationState == nil {
-		return
+// Correlations are provided via output.ActiveCorrelations from the engine's event subscription.
+func (r *EventReporter) Report(output observerdef.ReportOutput) {
+	if r.seenCorrelations == nil {
+		r.seenCorrelations = make(map[string]bool)
 	}
 
-	activeCorrelations := r.correlationState.ActiveCorrelations()
+	activeCorrelations := output.ActiveCorrelations
 
 	// Build the set of currently active patterns.
 	currentlyActive := make(map[string]bool, len(activeCorrelations))

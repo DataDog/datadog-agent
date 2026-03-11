@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -178,41 +177,47 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
-	correlator := NewCorrelator(CorrelatorConfig{})
-	reporter := &StdoutReporter{}
+	catalog := defaultCatalog()
+	detectors, correlators, _ := catalog.Instantiate(nil)
 
-	// Connect the reporter to the correlator's state
-	reporter.SetCorrelationState(correlator)
+	extractors := []observerdef.LogMetricsExtractor{
+		&LogMetricsExtractor{
+			MaxEvalBytes: 4096,
+			// Exclude metadata fields that shouldn't be metrics.
+			// These are common timestamp/ID fields that appear in event JSON.
+			ExcludeFields: map[string]struct{}{
+				"timestamp": {}, // event.Event.Ts serializes as "timestamp"
+				"ts":        {}, // alternate timestamp field name
+				"time":      {},
+				"pid":       {},
+				"ppid":      {},
+				"uid":       {},
+				"gid":       {},
+			},
+		},
+		&ConnectionErrorExtractor{},
+	}
+
+	eng := newEngine(engineConfig{
+		storage:     newTimeSeriesStorage(),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scheduler:   &currentBehaviorPolicy{},
+	})
+
+	// Wire reporters via event subscription.
+	// The reporterEventSink queries stateView for active correlations on each advance,
+	// so reporters receive all needed data through ReportOutput without backdoor access.
+	reporter := &StdoutReporter{}
+	eng.Subscribe(&reporterEventSink{
+		reporters: []observerdef.Reporter{reporter},
+		state:     eng.StateView(),
+	})
 
 	obs := &observerImpl{
-		extractors: []observerdef.LogMetricsExtractor{
-			&LogMetricsExtractor{
-				MaxEvalBytes: 4096,
-				// Exclude metadata fields that shouldn't be metrics.
-				// These are common timestamp/ID fields that appear in event JSON.
-				ExcludeFields: map[string]struct{}{
-					"timestamp": {}, // event.Event.Ts serializes as "timestamp"
-					"ts":        {}, // alternate timestamp field name
-					"time":      {},
-					"pid":       {},
-					"ppid":      {},
-					"uid":       {},
-					"gid":       {},
-				},
-			},
-			&ConnectionErrorExtractor{},
-		},
-		detectors: []observerdef.Detector{
-			newSeriesDetectorAdapter(NewCUSUMDetector(), defaultAggregations),
-			newSeriesDetectorAdapter(NewBOCPDDetector(), defaultAggregations),
-			NewRRCFDetector(DefaultRRCFConfig()),
-		},
-		correlators: []observerdef.Correlator{
-			correlator,
-		},
-		reporters: []observerdef.Reporter{reporter},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		engine: eng,
+		obsCh:  make(chan observation, 1000),
 	}
 
 	cfg := pkgconfigsetup.Datadog()
@@ -232,13 +237,15 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Optionally add the event reporter when sending is enabled via config.
-	if deps.Config.GetBool("observer.event_reporter.sending_enabled") {
+	if deps.Config != nil && deps.Config.GetBool("observer.event_reporter.sending_enabled") {
 		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eventReporter.SetCorrelationState(correlator)
-			obs.reporters = append(obs.reporters, eventReporter)
+			eng.Subscribe(&reporterEventSink{
+				reporters: []observerdef.Reporter{eventReporter},
+				state:     eng.StateView(),
+			})
 		}
 	}
 
@@ -364,37 +371,26 @@ func samplePass(rate float64, n uint64) bool {
 }
 
 // observerImpl is the implementation of the observer component.
+// It is a thin driver around the engine, which holds storage, extractors,
+// detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
-	reporters   []observerdef.Reporter
-	storage     *timeSeriesStorage
-	obsCh       chan observation
-	handleFunc  observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
-
-	// Raw anomaly tracking for test bench display
-	rawAnomalies     []observerdef.Anomaly
-	rawAnomalyMu     sync.RWMutex
-	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
-	maxRawAnomalies  int   // max number of raw anomalies to keep (0 = unlimited)
-	currentDataTime  int64 // latest data timestamp seen
+	engine     *engine
+	obsCh      chan observation
+	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// fetcher pulls traces/profiles from remote trace-agents
-	fetcher              *observerFetcher
-	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
-	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
-	lastAnalyzedDataTime int64                           // data timestamp up to which we've analyzed
+	fetcher *observerFetcher
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
+		var requests []advanceRequest
 		if obs.metric != nil {
-			o.processMetric(obs.source, obs.metric)
+			requests = o.engine.IngestMetric(obs.source, obs.metric)
 		}
 		if obs.log != nil {
-			o.processLog(obs.source, obs.log)
+			requests = append(requests, o.engine.IngestLog(obs.source, obs.log)...)
 		}
 		if obs.trace != nil {
 			o.processTrace(obs.source, obs.trace)
@@ -402,63 +398,15 @@ func (o *observerImpl) run() {
 		if obs.profile != nil {
 			o.processProfile(obs.source, obs.profile)
 		}
-	}
-}
-
-// processMetric handles a metric observation.
-func (o *observerImpl) processMetric(source string, m *metricObs) {
-	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
-	o.maybeRunDetectors(m.timestamp)
-}
-
-// processLog handles a log observation.
-func (o *observerImpl) processLog(source string, l *logObs) {
-	view := &logView{obs: l}
-	for _, extractor := range o.extractors {
-		metrics := extractor.ProcessLog(view)
-		for _, m := range metrics {
-			// Virtual metrics coming from logs starts with _virtual.
-			o.storage.Add(source, "_virtual."+m.Name, m.Value, l.timestampMs/1000, m.Tags)
+		for _, req := range requests {
+			o.engine.advanceWithReason(req.upToSec, req.reason)
 		}
 	}
-	// Allow detectors to observe logs directly
-	for _, d := range o.detectors {
-		if lo, ok := d.(observerdef.LogObserver); ok {
-			lo.ProcessLog(view)
-		}
-	}
-	o.maybeRunDetectors(l.timestampMs / 1000)
 }
 
-// maybeRunDetectors checks if data time has advanced enough to trigger detection.
-// We only analyze complete seconds - when we see data at time T, we analyze up to T-1.
-// This ensures deterministic output regardless of batch vs streaming ingestion.
-func (o *observerImpl) maybeRunDetectors(dataTime int64) {
-	// Only analyze complete seconds (everything strictly before current second)
-	analyzeUpTo := dataTime - 1
-
-	if analyzeUpTo <= o.lastAnalyzedDataTime {
-		return
-	}
-
-	o.runDetectorsUpTo(analyzeUpTo)
-	o.lastAnalyzedDataTime = analyzeUpTo
-}
-
-// runDetectorsUpTo runs all multi-series detectors, providing them access to storage
-// and the data timestamp up to which they should analyze.
-func (o *observerImpl) runDetectorsUpTo(upTo int64) {
-	for _, detector := range o.detectors {
-		result := detector.Detect(o.storage, upTo)
-		for _, anomaly := range result.Anomalies {
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
-		}
-		// TODO: handle result.Telemetry in live observer (currently only used by testbench)
-	}
-
-	o.flushAndReport()
-}
+// defaultDetectorWindowSec is the default window (in seconds) that limits how
+// far back seriesDetectorAdapter reads when running detection. 300s = 5 minutes.
+const defaultDetectorWindowSec = 300
 
 // defaultAggregations is the standard set of aggregations used when adapting
 // a SeriesDetector into a Detector.
@@ -469,15 +417,33 @@ var defaultAggregations = []observerdef.Aggregate{
 
 // seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
 // It runs the wrapped detector on all series, handling aggregation suffixes.
+//
+// The adapter tracks the point count per series/aggregation so it can skip
+// re-running the detector when no new data has arrived. This is important
+// because stateless detectors re-analyze the full series from scratch each
+// call — without this guard, per-second advancement would be O(N²).
 type seriesDetectorAdapter struct {
 	detector     observerdef.SeriesDetector
 	aggregations []observerdef.Aggregate
+
+	// windowSec limits how far back GetSeriesRange reads. 0 means unbounded
+	// (read from timestamp 0). A positive value reads [dataTime-windowSec, dataTime],
+	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
+	windowSec int64
+
+	// Per-series caching: PointCountUpTo (binary search, no copying) tells us
+	// cheaply whether a series has new visible data. When it hasn't changed,
+	// we skip detection entirely so callers do not see duplicate anomaly or
+	// telemetry events for unchanged data.
+	lastVisibleCount map[string]int
 }
 
 func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
 	return &seriesDetectorAdapter{
-		detector:     detector,
-		aggregations: aggregations,
+		detector:         detector,
+		aggregations:     aggregations,
+		windowSec:        defaultDetectorWindowSec,
+		lastVisibleCount: make(map[string]int),
 	}
 }
 
@@ -485,35 +451,61 @@ func (a *seriesDetectorAdapter) Name() string {
 	return a.detector.Name()
 }
 
+// Reset clears adapter-local caches and resets the wrapped detector when supported.
+func (a *seriesDetectorAdapter) Reset() {
+	a.lastVisibleCount = make(map[string]int)
+	if resetter, ok := a.detector.(interface{ Reset() }); ok {
+		resetter.Reset()
+	}
+}
+
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
+
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	// Get all series (no filter = everything)
-	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
-
 	for _, key := range seriesKeys {
+		k := seriesKey(key.Namespace, key.Name, key.Tags)
+
+		// Cheap check: has this series gained any newly visible points?
+		visibleCount := storage.PointCountUpTo(key, dataTime)
+		if prev, ok := a.lastVisibleCount[k]; ok && prev == visibleCount {
+			// No new data — do not re-run the detector or re-emit prior outputs.
+			continue
+		}
+		a.lastVisibleCount[k] = visibleCount
+
+		// Series has new data — run detector on each aggregation.
+		var seriesAnomalies []observerdef.Anomaly
+		var seriesTelemetry []observerdef.ObserverTelemetry
+
 		for _, agg := range a.aggregations {
-			// Get series up to dataTime
-			series := storage.GetSeriesRange(key, 0, dataTime, agg)
+			start := int64(0)
+			if a.windowSec > 0 {
+				start = dataTime - a.windowSec
+			}
+			series := storage.GetSeriesRange(key, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
 
-			// Append aggregation suffix for distinct tracking
 			seriesWithAgg := *series
 			seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
 
 			result := a.detector.Detect(seriesWithAgg)
-			for _, anomaly := range result.Anomalies {
-				anomaly.Type = observerdef.AnomalyTypeMetric
-				anomaly.DetectorName = a.detector.Name()
-				anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
-				anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-				allAnomalies = append(allAnomalies, anomaly)
+			for i := range result.Anomalies {
+				result.Anomalies[i].Type = observerdef.AnomalyTypeMetric
+				result.Anomalies[i].DetectorName = a.detector.Name()
+				result.Anomalies[i].Source = observerdef.MetricName(seriesWithAgg.Name)
+				result.Anomalies[i].SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			}
-			allTelemetry = append(allTelemetry, result.Telemetry...)
+			seriesAnomalies = append(seriesAnomalies, result.Anomalies...)
+			seriesTelemetry = append(seriesTelemetry, result.Telemetry...)
 		}
+
+		allAnomalies = append(allAnomalies, seriesAnomalies...)
+		allTelemetry = append(allTelemetry, seriesTelemetry...)
 	}
 
 	return observerdef.DetectionResult{
@@ -540,105 +532,19 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	}
 }
 
-// processAnomaly sends an anomaly to all registered correlators.
-func (o *observerImpl) processAnomaly(anomaly observerdef.Anomaly) {
-	for _, correlator := range o.correlators {
-		correlator.Process(anomaly)
-	}
-}
-
-// captureRawAnomaly stores a raw anomaly for test bench display.
-// Deduplicates by Source+DetectorName, keeping the most recent.
-func (o *observerImpl) captureRawAnomaly(anomaly observerdef.Anomaly) {
-	o.rawAnomalyMu.Lock()
-	defer o.rawAnomalyMu.Unlock()
-
-	// Always increment total count (no cap)
-	o.totalAnomalyCount++
-
-	// Track unique sources
-	if o.uniqueAnomalySources == nil {
-		o.uniqueAnomalySources = make(map[observerdef.MetricName]bool)
-	}
-	o.uniqueAnomalySources[anomaly.Source] = true
-
-	// Update current data time
-	if anomaly.Timestamp > o.currentDataTime {
-		o.currentDataTime = anomaly.Timestamp
-	}
-
-	// Deduplicate by SourceSeriesID+DetectorName+Timestamp (keep all unique anomalies)
-	key := fmt.Sprintf("%s|%s|%d", anomaly.SourceSeriesID, anomaly.DetectorName, anomaly.Timestamp)
-	found := false
-	for i, existing := range o.rawAnomalies {
-		existingKey := fmt.Sprintf("%s|%s|%d", existing.SourceSeriesID, existing.DetectorName, existing.Timestamp)
-		if existingKey == key {
-			if anomaly.Timestamp > existing.Timestamp {
-				o.rawAnomalies[i] = anomaly
-			}
-			found = true
-			break
-		}
-	}
-	if !found {
-		o.rawAnomalies = append(o.rawAnomalies, anomaly)
-	}
-
-	// Evict old anomalies if window is set
-	if o.rawAnomalyWindow > 0 {
-		cutoff := o.currentDataTime - o.rawAnomalyWindow
-		newBuffer := o.rawAnomalies[:0]
-		for _, a := range o.rawAnomalies {
-			if a.Timestamp >= cutoff {
-				newBuffer = append(newBuffer, a)
-			}
-		}
-		o.rawAnomalies = newBuffer
-	}
-
-	// Cap at maxRawAnomalies if set
-	if o.maxRawAnomalies > 0 && len(o.rawAnomalies) > o.maxRawAnomalies {
-		// Keep most recent anomalies (tail of slice)
-		o.rawAnomalies = o.rawAnomalies[len(o.rawAnomalies)-o.maxRawAnomalies:]
-	}
-}
-
 // RawAnomalies returns a copy of currently tracked raw anomalies.
-// Implements observerdef.RawAnomalyState interface.
 func (o *observerImpl) RawAnomalies() []observerdef.Anomaly {
-	o.rawAnomalyMu.RLock()
-	defer o.rawAnomalyMu.RUnlock()
-
-	result := make([]observerdef.Anomaly, len(o.rawAnomalies))
-	copy(result, o.rawAnomalies)
-	return result
+	return o.engine.RawAnomalies()
 }
 
 // TotalAnomalyCount returns the total number of anomalies ever detected (no cap).
 func (o *observerImpl) TotalAnomalyCount() int {
-	o.rawAnomalyMu.RLock()
-	defer o.rawAnomalyMu.RUnlock()
-	return o.totalAnomalyCount
+	return o.engine.TotalAnomalyCount()
 }
 
 // UniqueAnomalySourceCount returns the number of unique sources that had anomalies.
 func (o *observerImpl) UniqueAnomalySourceCount() int {
-	o.rawAnomalyMu.RLock()
-	defer o.rawAnomalyMu.RUnlock()
-	return len(o.uniqueAnomalySources)
-}
-
-// flushAndReport flushes all correlators and notifies all reporters.
-// Reporters are called with an empty report to trigger state-based reporting.
-func (o *observerImpl) flushAndReport() {
-	// Flush correlators
-	for _, correlator := range o.correlators {
-		correlator.Flush()
-	}
-	// Always notify reporters so they can check correlation state
-	for _, reporter := range o.reporters {
-		reporter.Report(observerdef.ReportOutput{})
-	}
+	return o.engine.UniqueAnomalySourceCount()
 }
 
 // processTrace handles a trace observation.
@@ -690,14 +596,9 @@ func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView)       {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
-	// Request dump via channel to ensure thread safety
-	type dumpReq struct {
-		path   string
-		result chan error
-	}
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
-	return o.storage.DumpToFile(path)
+	return o.engine.Storage().DumpToFile(path)
 }
 
 // handle is the lightweight observation interface passed to other components.
