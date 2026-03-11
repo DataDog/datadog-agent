@@ -20,10 +20,10 @@
 #![deny(clippy::print_stderr)]
 
 use std::env;
-use std::fs::{DirBuilder, OpenOptions, Permissions};
-use std::io::{ErrorKind, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt, chown};
-use std::path::{Path, PathBuf};
+use std::fs::Permissions;
+use std::io::ErrorKind;
+use std::os::unix::fs::{PermissionsExt, chown};
+use std::path::Path;
 
 use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services};
@@ -58,32 +58,6 @@ fn parse_log_level(level: &str) -> log::Level {
         "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
         _ => log::Level::Info,
     }
-}
-
-fn write_pid_file(path: &Path) -> Result<()> {
-    // Create parent directories if needed
-    if let Some(parent) = path.parent() {
-        DirBuilder::new()
-            .recursive(true)
-            .mode(0o755)
-            .create(parent)
-            .context("Failed to create PID file parent directory")?;
-    }
-
-    // Write PID to file
-    let pid = std::process::id();
-    let mut file = OpenOptions::new()
-        .write(true)
-        .mode(0o644)
-        .truncate(true)
-        .create(true)
-        .open(path)
-        .context("Failed to write PID file")?;
-    file.write_all(pid.to_string().as_bytes())
-        .context("Failed to write PID to file")?;
-
-    info!("Created PID file at {}", path.display());
-    Ok(())
 }
 
 fn remove_pid_file(path: &Path) {
@@ -224,14 +198,9 @@ async fn handle_request(
     }
 }
 
-async fn run_system_probe_lite(socket_path: &str, pid_path: Option<PathBuf>) -> Result<()> {
+async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
-
-    // Write PID file if needed
-    if let Some(ref path) = pid_path {
-        write_pid_file(path)?;
-    }
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;
@@ -306,7 +275,7 @@ async fn main() -> Result<()> {
     })?;
     info!("Starting system-probe-lite");
 
-    let result = run_system_probe_lite(&args.socket_path, args.pid_path.clone()).await;
+    let result = run_system_probe_lite(&args.socket_path).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
@@ -336,71 +305,6 @@ mod tests {
         assert_eq!(parse_log_level("off"), log::Level::Error);
         assert_eq!(parse_log_level("INFO"), log::Level::Info);
         assert_eq!(parse_log_level("unknown"), log::Level::Info);
-    }
-
-    #[test]
-    fn test_write_pid_file_creates_file_with_correct_pid() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(pid_path.exists(), "PID file should exist");
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
-        assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID file should contain current process ID"
-        );
-    }
-
-    #[test]
-    fn test_write_pid_file_creates_parent_directories() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let nested_path = temp_dir.path().join("nested").join("dirs").join("test.pid");
-
-        write_pid_file(&nested_path).unwrap_or_else(|e| panic!("Failed to write PID file: {}", e));
-
-        assert!(
-            nested_path.exists(),
-            "PID file should exist in nested directory"
-        );
-    }
-
-    #[test]
-    fn test_write_pid_file_overwrites_existing() {
-        let temp_dir =
-            TempDir::new().unwrap_or_else(|e| panic!("Failed to create temp dir: {}", e));
-        let pid_path = temp_dir.path().join("test.pid");
-
-        // Write first time
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("First write failed: {}", e));
-
-        // Write second time (should overwrite)
-        write_pid_file(&pid_path).unwrap_or_else(|e| panic!("Second write failed: {}", e));
-
-        assert!(
-            pid_path.exists(),
-            "PID file should still exist after overwrite"
-        );
-        let content = fs::read_to_string(&pid_path)
-            .unwrap_or_else(|e| panic!("Failed to read PID file: {}", e));
-        let written_pid: u32 = content
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("Failed to parse PID: {}", e));
-        assert_eq!(
-            written_pid,
-            std::process::id(),
-            "PID should still be correct"
-        );
     }
 
     #[test]
