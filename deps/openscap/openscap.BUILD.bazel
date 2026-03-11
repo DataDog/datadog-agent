@@ -50,9 +50,9 @@ ship_source_offer(name = "ship_source_offer")
 collect_dd_auto_pkg_artifacts(
     name = "auto_openscap_deps",
     srcs = [
-        "@openscap//:openscap_sce_pkg",
-        "@openscap//:oscap_io_pkg",
-        "@openscap//:oscap_pkg",
+        ":openscap_sce_pkg",
+        ":oscap_io_pkg",
+        ":oscap_pkg",
     ],
     visibility = ["//visibility:public"],
 )
