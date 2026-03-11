@@ -28,6 +28,43 @@ def new(ctx, slug, dca=False, installscript=False):
     if --dca is set, or releasenotes-installscript/notes/ if --installscript is set).
     Fill in the relevant sections and delete the rest.
 
+    The generated file looks like::
+
+        ---
+        # Fill in the relevant section(s) below. Delete sections that don't apply.
+        # Content should be written in Markdown.
+
+        # upgrade:
+        #   - |
+        #     Upgrade Notes: include steps users can follow if affected.
+        # features:
+        #   - |
+        #     New Features.
+        # enhancements:
+        #   - |
+        #     Enhancement Notes.
+        # issues:
+        #   - |
+        #     Issues.
+        # known_issues:
+        #   - |
+        #     Known Issues.
+        # deprecations:
+        #   - |
+        #     Deprecation Notes.
+        # security:
+        #   - |
+        #     Security Notes.
+        # fixes:
+        #   - |
+        #     Bug Fixes.
+        # critical:
+        #   - |
+        #     Critical Notes.
+        # other:
+        #   - |
+        #     Other Notes.
+
     Example:
         dda inv notes.new my-feature
         dda inv notes.new my-fix --dca
