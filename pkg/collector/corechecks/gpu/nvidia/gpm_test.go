@@ -260,8 +260,9 @@ func (m *mockGpmNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) nvml.Return
 
 type gpmSample struct {
 	nvml.GpmSample
-	id       int
-	getIndex int
+	gpmSupport nvml.GpmSupport
+	id         int
+	getIndex   int
 }
 
 type mockGpmDevice struct {
@@ -282,6 +283,10 @@ func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
 }
 
 func (m *mockGpmDevice) GpmSampleGet(sample nvml.GpmSample) error {
+	if m.gpmSupport.IsSupportedDevice == 0 {
+		return safenvml.NewNvmlAPIErrorOrNil("GpmSampleGet", nvml.ERROR_NOT_SUPPORTED)
+	}
+
 	if m.GpmSampleGetFunc != nil {
 		return m.GpmSampleGetFunc(sample)
 	}
