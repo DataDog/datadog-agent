@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"sync"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -29,6 +30,12 @@ type anomalyDedupKey struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
+	// mu protects detectors, correlators, logObservers, lastAnalyzedDataTime,
+	// and latestDataTime from concurrent access. Writers (Advance, Reset,
+	// SetDetectors, SetCorrelators) take a write lock; readers (stateView
+	// methods) take a read lock.
+	mu sync.RWMutex
+
 	storage     *timeSeriesStorage
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
@@ -173,6 +180,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		lo.ProcessLog(view)
 	}
 	dataTimeSec := l.timestampMs / 1000
+	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
@@ -208,12 +216,20 @@ func (e *engine) Advance(upToSec int64) advanceResult {
 // advanceWithReason runs detectors and correlators up to the given event time,
 // recording the reason for the advance in the emitted event.
 func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceResult {
+	// Snapshot mutable fields under the lock. We cannot hold mu during
+	// runDetectorsAndCorrelators because emit() callbacks may re-enter
+	// stateView methods that take mu.RLock, causing a deadlock.
+	e.mu.Lock()
 	if upToSec <= e.lastAnalyzedDataTime {
+		e.mu.Unlock()
 		return advanceResult{}
 	}
-
-	result := e.runDetectorsAndCorrelators(upToSec)
+	detectors := e.detectors
+	correlators := e.correlators
 	e.lastAnalyzedDataTime = upToSec
+	e.mu.Unlock()
+
+	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,
@@ -232,10 +248,16 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 // runDetectorsAndCorrelators runs all detectors and feeds results through correlators.
 func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
+	return e.runDetectorsAndCorrelatorsSnapshot(upTo, e.detectors, e.correlators)
+}
+
+// runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
+// Uses explicit slices so the caller can snapshot them under a lock.
+func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, detector := range e.detectors {
+	for _, detector := range detectors {
 		result := detector.Detect(e.storage, upTo)
 		for _, anomaly := range result.Anomalies {
 			if !e.captureRawAnomaly(anomaly) {
@@ -256,7 +278,7 @@ func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
 	}
 
 	// Advance correlators so they can update their internal state.
-	for _, correlator := range e.correlators {
+	for _, correlator := range correlators {
 		correlator.Advance(upTo)
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
@@ -300,7 +322,10 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	if e.uniqueAnomalySources == nil {
 		e.uniqueAnomalySources = make(map[observerdef.MetricName]bool)
 	}
-	e.uniqueAnomalySources[anomaly.Source] = true
+	const maxUniqueSources = 500
+	if len(e.uniqueAnomalySources) < maxUniqueSources {
+		e.uniqueAnomalySources[anomaly.Source] = true
+	}
 
 	if anomaly.Timestamp > e.currentDataTime {
 		e.currentDataTime = anomaly.Timestamp
@@ -386,6 +411,8 @@ func (e *engine) UniqueAnomalySourceCount() int {
 
 // accumulateCorrelations merges active correlations into the engine's historical set.
 // Existing entries are updated if the new version has more anomalies or a later timestamp.
+const maxAccumulatedCorrelations = 500
+
 func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
@@ -398,6 +425,19 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 		if !ok || len(ac.Anomalies) > len(existing.Anomalies) || ac.LastUpdated > existing.LastUpdated {
 			e.accumulatedCorrelations[ac.Pattern] = ac
 		}
+	}
+
+	// Evict oldest entries if over cap.
+	for len(e.accumulatedCorrelations) > maxAccumulatedCorrelations {
+		var oldestKey string
+		var oldestTime int64 = math.MaxInt64
+		for k, ac := range e.accumulatedCorrelations {
+			if ac.LastUpdated < oldestTime {
+				oldestTime = ac.LastUpdated
+				oldestKey = k
+			}
+		}
+		delete(e.accumulatedCorrelations, oldestKey)
 	}
 }
 
@@ -421,6 +461,9 @@ func (e *engine) Storage() *timeSeriesStorage {
 // SetDetectors replaces the engine's detectors. Used when testbench components
 // are toggled. Also refreshes the cached log observers list.
 func (e *engine) SetDetectors(detectors []observerdef.Detector) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.detectors = detectors
 	e.logObservers = nil
 	for _, d := range e.detectors {
@@ -432,12 +475,18 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 
 // SetCorrelators replaces the engine's correlators.
 func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.correlators = correlators
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
 // This does NOT clear storage or raw anomalies — use resetFull for that.
 func (e *engine) Reset() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
 

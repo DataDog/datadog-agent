@@ -22,6 +22,15 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
+	// writeGeneration increments on every Add (including same-bucket merges).
+	// Used by detectors to detect value changes that don't create new buckets.
+	writeGeneration int64
+
+	// observationTimestamps tracks all timestamps where observations occurred,
+	// including log timestamps that produced no virtual metrics. This ensures
+	// DataTimestamps() includes all observation times for replay fidelity.
+	observationTimestamps map[int64]struct{}
+
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
 	droppedExtreme   int64
@@ -172,9 +181,10 @@ func searchAtOrAfter(timestamps []int64, value int64) int {
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series:          make(map[string]*seriesStats),
-		droppedByMetric: make(map[string]int64),
-		sampledDrops:    make(map[string]int),
+		series:                make(map[string]*seriesStats),
+		observationTimestamps: make(map[int64]struct{}),
+		droppedByMetric:       make(map[string]int64),
+		sampledDrops:          make(map[string]int),
 	}
 }
 
@@ -194,6 +204,8 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
+	s.writeGeneration++
+
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]
@@ -531,6 +543,10 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 			seen[ts] = struct{}{}
 		}
 	}
+	// Include observation timestamps (e.g., from logs that produced no virtual metrics).
+	for ts := range s.observationTimestamps {
+		seen[ts] = struct{}{}
+	}
 
 	timestamps := make([]int64, 0, len(seen))
 	for ts := range seen {
@@ -596,6 +612,24 @@ func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64
 
 	// Binary search for the first timestamp > endTime.
 	return searchAfter(stats.timestamps, endTime)
+}
+
+// RecordObservationTime records that an observation occurred at the given timestamp.
+// This is used for log observations that may not produce virtual metrics but still
+// need to appear in DataTimestamps for replay fidelity.
+func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.observationTimestamps[timestamp] = struct{}{}
+}
+
+// WriteGeneration returns a counter that increments on every Add call
+// (including same-bucket merges). Detectors use this to detect value
+// changes that don't create new buckets.
+func (s *timeSeriesStorage) WriteGeneration() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.writeGeneration
 }
 
 // matchTags checks if tags contain all required key=value pairs.

@@ -65,6 +65,9 @@ type detectorInfo struct {
 
 // ListDetectors returns info about all detectors currently in the engine.
 func (sv *stateView) ListDetectors() []detectorInfo {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
 	result := make([]detectorInfo, len(sv.engine.detectors))
 	for i, d := range sv.engine.detectors {
 		result[i] = detectorInfo{
@@ -122,6 +125,9 @@ type correlatorInfo struct {
 
 // ListCorrelators returns info about all correlators currently in the engine.
 func (sv *stateView) ListCorrelators() []correlatorInfo {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
 	result := make([]correlatorInfo, len(sv.engine.correlators))
 	for i, c := range sv.engine.correlators {
 		result[i] = correlatorInfo{
@@ -134,6 +140,9 @@ func (sv *stateView) ListCorrelators() []correlatorInfo {
 
 // ActiveCorrelations returns current sliding-window correlations from all correlators.
 func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
 	var result []observerdef.ActiveCorrelation
 	for _, c := range sv.engine.correlators {
 		result = append(result, c.ActiveCorrelations()...)
@@ -147,6 +156,9 @@ func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
 // It merges the accumulated history with current correlator state so that
 // correlations injected outside the normal Advance flow are also visible.
 func (sv *stateView) CorrelationHistory() []observerdef.ActiveCorrelation {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
+
 	accumulated := sv.engine.AccumulatedCorrelations()
 	seen := make(map[string]bool, len(accumulated))
 	for _, ac := range accumulated {
@@ -182,10 +194,14 @@ func (sv *stateView) Telemetry() []observerdef.ObserverTelemetry {
 
 // LastAnalyzedTime returns the data timestamp up to which detection has run.
 func (sv *stateView) LastAnalyzedTime() int64 {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
 	return sv.engine.lastAnalyzedDataTime
 }
 
 // LatestDataTime returns the latest data timestamp seen across all ingested observations.
 func (sv *stateView) LatestDataTime() int64 {
+	sv.engine.mu.RLock()
+	defer sv.engine.mu.RUnlock()
 	return sv.engine.latestDataTime
 }

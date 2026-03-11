@@ -20,6 +20,7 @@ type bocpdSeriesState struct {
 	// Cursor: how many points we've processed so far (count-based for safety).
 	lastProcessedTime  int64
 	lastProcessedCount int
+	lastWriteGen       int64 // storage writeGeneration at last Detect
 
 	// Warmup: Welford online mean/variance accumulation.
 	initialized  bool
@@ -146,9 +147,38 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[stateKey] = state
 			}
 
-			// Check if there are new points.
+			// Check if there are new points or merged values.
 			visibleCount := storage.PointCountUpTo(key, dataTime)
-			if visibleCount <= state.lastProcessedCount {
+			currentGen := storage.WriteGeneration()
+			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
+			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
+				continue
+			}
+
+			if mergeOccurred {
+				// A same-bucket merge changed values we already processed.
+				// Re-read from the start of the last processed timestamp
+				// (inclusive) by using lastProcessedTime-1 as start.
+				startTime := state.lastProcessedTime - 1
+				if startTime < 0 {
+					startTime = 0
+				}
+				series := storage.GetSeriesRange(key, startTime, dataTime, agg)
+				if series == nil || len(series.Points) == 0 {
+					state.lastWriteGen = currentGen
+					continue
+				}
+				// Re-process points from the merged timestamp onward.
+				for _, p := range series.Points {
+					anomaly, telemetry := b.processPoint(state, p, series)
+					if anomaly != nil {
+						allAnomalies = append(allAnomalies, *anomaly)
+					}
+					allTelemetry = append(allTelemetry, telemetry...)
+				}
+				state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
 				continue
 			}
 
@@ -170,6 +200,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// Update cursor.
 			state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
 			state.lastProcessedCount = visibleCount
+			state.lastWriteGen = currentGen
 		}
 	}
 
@@ -300,6 +331,9 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
 
 	// Compute new run-length probabilities.
+	// NOTE: This uses the prior predictive for cpMass rather than the standard
+	// BOCPD recurrence (hazard * sum_r(runProbs[r] * pred(x|r))). See FINDINGS.md H3
+	// for discussion -- this may be intentional (anchoring to baseline) or a bug.
 	newLen := len(state.runProbs) + 1
 	state.newRunProbs = state.newRunProbs[:newLen]
 	state.newRunProbs[0] = hazard * predPrior
@@ -436,7 +470,10 @@ func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {
 		maxIdx = len(runProbs) - 1
 	}
 	var mass float64
-	for i := 0; i <= maxIdx; i++ {
+	// Start from index 1: index 0 is cpProb (changepoint probability),
+	// which is tested separately via CPThreshold. Including it here
+	// makes the two trigger conditions non-independent.
+	for i := 1; i <= maxIdx; i++ {
 		mass += runProbs[i]
 	}
 	return mass
