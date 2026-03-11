@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	pollingFrequency = 2 * time.Second
+	pollingFrequency   = 2 * time.Second
 	httpRequestTimeout = 10 * time.Second
 )
 
