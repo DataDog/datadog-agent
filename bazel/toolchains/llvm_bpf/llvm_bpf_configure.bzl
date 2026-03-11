@@ -2,6 +2,7 @@
 
 NAME = "llvm_bpf"
 
+# Maps installed binary name -> S3 URL prefix.
 _BINARIES = {
     "clang-bpf": "clang",
     "llc-bpf": "llc",
@@ -24,9 +25,12 @@ def _download_llvm_bpf_impl(rctx):
         else:
             fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
+        sha256s = rctx.attr.sha256s
         for binary, url_prefix in _BINARIES.items():
             url = _get_url(rctx.attr.s3_base_url, url_prefix, clang_version, arch, rctx.attr.clang_build_version)
             output = "bin/" + binary
+            sha256_key = "{}.{}".format(url_prefix, arch)
+            sha256 = sha256s.get(sha256_key, "")
 
             if rctx.attr.verbose:
                 # buildifier: disable=print
@@ -36,12 +40,14 @@ def _download_llvm_bpf_impl(rctx):
                 url = url,
                 output = output,
                 executable = True,
+                sha256 = sha256,
             )
             if not result.success:
                 fail("Failed to download {} from {}".format(binary, url))
             downloaded[binary] = output
 
     binary_attrs = ""
+    install_target = ""
     if downloaded:
         binary_attrs = """    clang_bpf = "{clang}",
     llc_bpf = "{llc}",
@@ -50,9 +56,6 @@ def _download_llvm_bpf_impl(rctx):
             llc = downloaded["llc-bpf"],
             strip = downloaded["llvm-strip"],
         )
-
-    install_target = ""
-    if downloaded:
         install_target = """
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -103,6 +106,7 @@ download_llvm_bpf = repository_rule(
         "s3_base_url": attr.string(mandatory = True),
         "clang_version": attr.string(mandatory = True),
         "clang_build_version": attr.string(mandatory = True),
+        "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
         "verbose": attr.bool(default = False),
     },
 )
@@ -112,6 +116,7 @@ _configure = tag_class(
         "s3_base_url": attr.string(default = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"),
         "clang_version": attr.string(default = "12.0.1"),
         "clang_build_version": attr.string(default = "v60409452-ee70de70"),
+        "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
         "verbose": attr.bool(default = False),
     },
 )
@@ -121,6 +126,7 @@ def _llvm_bpf_extension_impl(ctx):
         s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
         clang_version = "12.0.1",
         clang_build_version = "v60409452-ee70de70",
+        sha256s = {},
         verbose = False,
     )
     download_llvm_bpf(
@@ -128,6 +134,7 @@ def _llvm_bpf_extension_impl(ctx):
         s3_base_url = cfg.s3_base_url,
         clang_version = cfg.clang_version,
         clang_build_version = cfg.clang_build_version,
+        sha256s = cfg.sha256s,
         verbose = cfg.verbose,
     )
 

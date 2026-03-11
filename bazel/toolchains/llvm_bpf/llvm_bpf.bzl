@@ -12,13 +12,16 @@ LlvmBpfToolchainInfo = provider(
 )
 
 def _llvm_bpf_toolchain_impl(ctx):
+    clang = ctx.executable.clang_bpf if hasattr(ctx.executable, "clang_bpf") else None
+    llc = ctx.executable.llc_bpf if hasattr(ctx.executable, "llc_bpf") else None
+    strip = ctx.executable.llvm_strip if hasattr(ctx.executable, "llvm_strip") else None
     return [platform_common.ToolchainInfo(
         llvm_bpf = LlvmBpfToolchainInfo(
-            clang_bpf = ctx.file.clang_bpf if ctx.file.clang_bpf else None,
-            llc_bpf = ctx.file.llc_bpf if ctx.file.llc_bpf else None,
-            llvm_strip = ctx.file.llvm_strip if ctx.file.llvm_strip else None,
+            clang_bpf = clang,
+            llc_bpf = llc,
+            llvm_strip = strip,
             version = ctx.attr.version,
-            valid = ctx.file.clang_bpf != None,
+            valid = clang != None,
         ),
     )]
 
@@ -28,14 +31,20 @@ llvm_bpf_toolchain = rule(
         "clang_bpf": attr.label(
             doc = "clang-bpf executable",
             allow_single_file = True,
+            executable = True,
+            cfg = "exec",
         ),
         "llc_bpf": attr.label(
             doc = "llc-bpf executable",
             allow_single_file = True,
+            executable = True,
+            cfg = "exec",
         ),
         "llvm_strip": attr.label(
             doc = "llvm-strip executable",
             allow_single_file = True,
+            executable = True,
+            cfg = "exec",
         ),
         "version": attr.string(default = "unknown"),
     },

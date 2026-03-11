@@ -95,6 +95,7 @@ http_archive(
         "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
         "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
         "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
+        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
     ],
     sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
     strip_prefix = "buildtools-8.5.1",
@@ -140,6 +141,14 @@ llvm_bpf_ext.configure(
     clang_build_version = "v60409452-ee70de70",
     clang_version = "12.0.1",
     s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
+    sha256s = {
+        "clang.amd64": "2a4df4c49a57efb33ec4e51f87f837bc80f3a5874a5828384f265541a018394e",
+        "clang.arm64": "5432ee1afc66453a457e756b025e4cace3aa56f687f595ac5d5bebcff00eac1b",
+        "llc.amd64": "aa6ca65c28ac09f3ba1d22ccbda6a85d1414c6ed4491d8d758a08351cb66f86e",
+        "llc.arm64": "08429823efd7d4ab6a247b195dabd0e8d8b43c50789704fd3a19947e71dd4776",
+        "llvm-strip.amd64": "70a9edc44ccad32361f1c6ae619c3b98e5505d4b67f24b5996f55bf841ee5cbd",
+        "llvm-strip.arm64": "1fd0cb6344d606d8c6fe6ea424fdfdd1cba1228f027dd3f08463c914bc47f67e",
+    },
 )
 use_repo(llvm_bpf_ext, "llvm_bpf")
 

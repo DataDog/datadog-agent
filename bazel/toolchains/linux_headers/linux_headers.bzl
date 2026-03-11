@@ -75,7 +75,7 @@ def _list_dirs(rctx, path):
     if result.return_code != 0:
         return []
     entries = []
-    for name in result.stdout.strip().split("\n"):
+    for name in result.stdout.strip().splitlines():
         if not name:
             continue
         full = path + "/" + name
@@ -98,13 +98,22 @@ def _version_at_least(version, minimum):
     """Return True if version >= minimum. Both are (major, minor, patch) tuples."""
     return version >= minimum
 
-def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None):
+def _get_kernel_release(rctx):
+    """Return the running kernel's release string via uname -r."""
+    result = rctx.execute(["uname", "-r"], timeout = 5)
+    if result.return_code != 0:
+        return None
+    return result.stdout.strip()
+
+def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None, kernel_release_version = None):
     """Discover kernel header directories, mirroring get_linux_header_dirs() from tasks/system_probe.py.
 
     Args:
         rctx: repository context
         kernel_arch: target kernel architecture (e.g. "x86", "arm64")
         min_kernel_version: optional (major, minor, patch) tuple; headers older than this are discarded
+        kernel_release_version: optional (major, minor, patch) tuple of the running kernel;
+            candidates matching this version are prioritized
     """
 
     candidates = {}  # resolved_path -> name
@@ -128,10 +137,7 @@ def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None):
             if _is_dir(rctx, p):
                 resolved = _resolve_path(rctx, p)
 
-                # Use the resolved directory's basename for version parsing
-                res_result = rctx.execute(["basename", resolved], timeout = 5)
-                res_name = res_result.stdout.strip() if res_result.return_code == 0 else sub
-                candidates[resolved] = res_name
+                candidates[resolved] = resolved.rsplit("/", 1)[-1]
 
     # Score and filter
     # Debian/Ubuntu split header packages. So one can install the headers for a different architecture
@@ -151,6 +157,10 @@ def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None):
 
         priority = 0
         sort_order = 100
+
+        if kernel_release_version and version == kernel_release_version:
+            priority += 1
+
 
         if _matches_arch(name, kernel_arch):
             sort_order = 0
@@ -200,7 +210,15 @@ def _linux_headers_impl(rctx):
         if min_ver == None:
             fail("Invalid min_kernel_version: " + rctx.attr.min_kernel_version)
 
-    header_roots = _discover_header_dirs(rctx, kernel_arch, min_kernel_version = min_ver)
+    kernel_release = _get_kernel_release(rctx)
+    kernel_release_ver = _parse_kernel_version(kernel_release) if kernel_release else None
+
+    header_roots = _discover_header_dirs(
+        rctx,
+        kernel_arch,
+        min_kernel_version = min_ver,
+        kernel_release_version = kernel_release_ver,
+    )
 
     arch_subdirs = [
         "arch/{}/include".format(kernel_arch),
@@ -251,7 +269,6 @@ linux_headers_repo = repository_rule(
     implementation = _linux_headers_impl,
     doc = "Discover host kernel headers for eBPF prebuilt compilation.",
     local = True,
-    environ = ["KERNEL_RELEASE"],
     attrs = {
         "min_kernel_version": attr.string(
             default = "5.8.0",
