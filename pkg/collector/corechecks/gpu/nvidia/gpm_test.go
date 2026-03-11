@@ -124,6 +124,7 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 	calls := 0
 	collector := &gpmCollector{
 		device: &mockGpmDevice{
+			gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
 			GpmSampleGetFunc: func(_ nvml.GpmSample) error {
 				calls++
 				return nil
