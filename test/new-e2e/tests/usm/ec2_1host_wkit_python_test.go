@@ -53,11 +53,7 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 	// Find the embedded Python executable.
 	pythonExe := `C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe`
 	out, err := host.Execute(`Test-Path "` + pythonExe + `"`)
-	s.T().Logf("embedded python exists: %s (err=%v)", out, err)
 	require.Contains(s.T(), out, "True", "embedded Python not found at %s", pythonExe)
-
-	out, _ = host.Execute(`& "` + pythonExe + `" --version`)
-	s.T().Logf("embedded python version: %s", out)
 
 	// Write a minimal HTTP server script using only the built-in socket module.
 	host.MustExecute(`New-Item -ItemType Directory -Force -Path C:\temp | Out-Null`)
@@ -83,18 +79,11 @@ while True:
 		out, err = host.Execute(`$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{` +
 			`CommandLine='"` + pythonExe + `" C:\temp\httpserver.py ` + port + `'}; ` +
 			`Write-Output "port` + port + `: pid=$($r.ProcessId) rc=$($r.ReturnValue)"`)
-		s.T().Logf("start server %s: %s (err=%v)", port, out, err)
 		require.NoError(s.T(), err, "WMI process creation failed for port %s", port)
 		require.Contains(s.T(), out, "rc=0", "WMI process creation returned non-zero for port %s", port)
 	}
 
 	time.Sleep(5 * time.Second)
-
-	// Verify servers are running and listening.
-	out, _ = host.Execute(`Get-Process python* | Format-Table Id,ProcessName -AutoSize`)
-	s.T().Logf("python processes:\n%s", out)
-	out, _ = host.Execute(`Get-NetTCPConnection -LocalPort 8081,8082 -State Listen -ErrorAction SilentlyContinue | Format-Table`)
-	s.T().Logf("listening on 8081/8082:\n%s", out)
 
 	_, err = host.Execute("Invoke-WebRequest -UseBasicParsing http://localhost:8081/")
 	require.NoError(s.T(), err, "Python HTTP server on port 8081 not responding")
@@ -103,7 +92,7 @@ while True:
 
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
-	// deployWindowsBinaries(s.T(), host)
+	//deployWindowsBinaries(s.T(), host)
 }
 
 func (s *httpRemoteTagsWindowsSuite) BeforeTest(suiteName, testName string) {
@@ -120,15 +109,7 @@ func (s *httpRemoteTagsWindowsSuite) TestHTTPRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
 
-	const requestsPerPort = 100
-	sendWindowsKeepAliveRequests(host, requestsPerPort, 40)
-
-	time.Sleep(30 * time.Second)
-
-	cnx, err := s.Env().FakeIntake.Client().GetConnections()
-	require.NoError(t, err, "GetConnections() error")
-	require.NotNil(t, cnx, "GetConnections() returned nil")
-
-	stats := getConnectionStats(t, cnx, "process_context:")
-	assertTaggedConnections(t, stats, "http", requestsPerPort)
+	const requestsPerPort = 4000
+	sendWindowsKeepAliveRequests(host, requestsPerPort, 20)
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", requestsPerPort)
 }
