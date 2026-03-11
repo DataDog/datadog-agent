@@ -1,0 +1,25 @@
+auth_token_file_path: /tmp/agent-auth-token
+dd_url: http://127.0.0.1:9091
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+# Enable internal telemetry.
+telemetry:
+  enabled: true
+  checks: "*"
+
+# Disable process and container collection.
+process_config:
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
+
+# Per Cloud Security Management setup documentation
+# https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+remote_configuration:
+  # SMP environment does not support remote config currently.
+  enabled: false
