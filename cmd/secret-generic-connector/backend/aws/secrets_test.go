@@ -10,11 +10,20 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/awsutil"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/stretchr/testify/assert"
 )
+
+// dummyAWSSession returns a minimal aws_session config for tests so that
+// credential resolution succeeds without real credentials.
+func dummyAWSSession() map[string]interface{} {
+	return map[string]interface{}{
+		"aws_region":            "us-east-1",
+		"aws_access_key_id":     "test",
+		"aws_secret_access_key": "test",
+	}
+}
 
 // secretsManagerMockClient is the struct we'll use to mock the Secrets Manager client
 // for unit tests. E2E tests should be written with the real client.
@@ -22,18 +31,10 @@ type secretsManagerMockClient struct {
 	secrets map[string]string
 }
 
-func (c *secretsManagerMockClient) GetSecretValue(_ context.Context, params *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
-	if params == nil || params.SecretId == nil {
-		return nil, secret.ErrKeyNotFound
+func (c *secretsManagerMockClient) GetSecretValue(_ context.Context, secretID string) (*string, error) {
+	if secretValue, exists := c.secrets[secretID]; exists {
+		return &secretValue, nil
 	}
-
-	if secretValue, exists := c.secrets[*params.SecretId]; exists {
-		return &secretsmanager.GetSecretValueOutput{
-			Name:         aws.String(*params.SecretId),
-			SecretString: aws.String(secretValue),
-		}, nil
-	}
-
 	return nil, secret.ErrKeyNotFound
 }
 
@@ -44,15 +45,15 @@ func TestSecretsManagerBackend(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": false,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
@@ -80,15 +81,15 @@ func TestSecretsManagerBackend_ForceString(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": true,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
@@ -106,15 +107,15 @@ func TestSecretsManagerBackend_NotJSON(t *testing.T) {
 			"key2": "foobar",
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": false,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -136,15 +137,15 @@ func TestSecretsManagerBackend_InvalidFormat(t *testing.T) {
 			"key1": "{\"user\":\"foo\",\"password\":\"bar\"}",
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": false,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -161,15 +162,15 @@ func TestSecretsManagerBackend_SecretNotFound(t *testing.T) {
 			"key1": "{\"user\":\"foo\",\"password\":\"bar\"}",
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": false,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -192,15 +193,15 @@ func TestSecretsManagerBackend_NonStringValues(t *testing.T) {
 			}`,
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	secretsManagerBackendParams := map[string]interface{}{
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(map[string]interface{}{
 		"backend_type": "aws.secrets",
 		"force_string": false,
-	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
@@ -233,12 +234,15 @@ func TestSecretsManagerBackend_NumberPrecision(t *testing.T) {
 			"key1": `{"big_number": 123456789.123456789, "big_int": 12345678901234567890}`,
 		},
 	}
-	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+	getSecretsManagerClient = func(_ *awsutil.AWSConfig) secretsManagerClient {
 		return mockClient
 	}
 
-	params := map[string]interface{}{"backend_type": "aws.secrets", "force_string": false}
-	backend, err := NewSecretsManagerBackend(params)
+	backend, err := NewSecretsManagerBackend(map[string]interface{}{
+		"backend_type": "aws.secrets",
+		"force_string": false,
+		"aws_session":  dummyAWSSession(),
+	})
 	assert.NoError(t, err)
 
 	ctx := context.Background()
