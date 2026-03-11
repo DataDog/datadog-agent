@@ -191,6 +191,9 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping test on Windows -- incident-50789")
+	}
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
