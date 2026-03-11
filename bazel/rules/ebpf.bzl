@@ -245,15 +245,10 @@ def ebpf_prog(target_compatible_with = ["@platforms//os:linux"], **kwargs):
     """eBPF program target, Linux-only by default."""
     _ebpf_prog(target_compatible_with = target_compatible_with, **kwargs)
 
-def ebpf_program_suite(name, src, deps = [], core = False, strip = True, extra_flags = [], target_arch = "", **kwargs):
-    """Create both normal and debug variants of an eBPF program.
-
-    Generates:
-      - {name}: normal build
-      - {name}-debug: build with DEBUG=1
-    """
-    ebpf_prog(
+def _ebpf_program_suite_impl(name, visibility, src, deps, core, strip, extra_flags, target_arch):
+    _ebpf_prog(
         name = name,
+        visibility = visibility,
         src = src,
         deps = deps,
         core = core,
@@ -261,10 +256,11 @@ def ebpf_program_suite(name, src, deps = [], core = False, strip = True, extra_f
         strip = strip,
         extra_flags = extra_flags,
         target_arch = target_arch,
-        **kwargs
+        target_compatible_with = ["@platforms//os:linux"],
     )
-    ebpf_prog(
+    _ebpf_prog(
         name = name + "-debug",
+        visibility = visibility,
         src = src,
         deps = deps,
         core = core,
@@ -272,5 +268,23 @@ def ebpf_program_suite(name, src, deps = [], core = False, strip = True, extra_f
         strip = False,
         extra_flags = extra_flags,
         target_arch = target_arch,
-        **kwargs
+        target_compatible_with = ["@platforms//os:linux"],
     )
+
+ebpf_program_suite = macro(
+    doc = """Create both normal and debug variants of an eBPF program.
+
+    Generates:
+      - {name}: normal build (stripped by default)
+      - {name}-debug: build with DEBUG=1 (never stripped, keeps DWARF data)
+    """,
+    attrs = {
+        "src": attr.label(mandatory = True, allow_single_file = [".c"], configurable = False),
+        "deps": attr.label_list(default = [], configurable = False),
+        "core": attr.bool(default = False, configurable = False),
+        "strip": attr.bool(default = True, configurable = False),
+        "extra_flags": attr.string_list(default = [], configurable = False),
+        "target_arch": attr.string(default = "", configurable = False),
+    },
+    implementation = _ebpf_program_suite_impl,
+)

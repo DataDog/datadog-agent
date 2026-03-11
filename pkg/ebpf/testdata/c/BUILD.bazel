@@ -12,6 +12,7 @@ ebpf_prog(
     src = "logdebug-test.c",
     core = True,
     extra_flags = _TEST_FLAGS,
+    strip = False,
     deps = _COMMON_DEPS,
 )
 
@@ -20,6 +21,7 @@ ebpf_prog(
     src = "error_telemetry.c",
     core = True,
     extra_flags = _TEST_FLAGS,
+    strip = False,
     deps = _COMMON_DEPS,
 )
 
@@ -28,5 +30,6 @@ ebpf_prog(
     src = "uprobe_attacher-test.c",
     core = True,
     extra_flags = _TEST_FLAGS,
+    strip = False,
     deps = _COMMON_DEPS,
 )

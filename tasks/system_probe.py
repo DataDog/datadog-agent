@@ -1242,14 +1242,20 @@ _BAZEL_EBPF_PREBUILT_TARGETS = [
     "//pkg/network/ebpf/c/prebuilt:conntrack",
     "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser-debug",
 ]
 
 _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:lock_contention",
+    "//pkg/ebpf/c:lock_contention-debug",
     "//pkg/ebpf/c:ksyms_iter",
+    "//pkg/ebpf/c:ksyms_iter-debug",
     "//pkg/network/ebpf/c:tracer",
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
