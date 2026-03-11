@@ -402,7 +402,7 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("podcheck.enabled") {
+		pkgconfigsetup.Datadog().GetBool("workload_config.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 

@@ -59,7 +59,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
-	if crdCheckEnabled := pkgconfigsetup.Datadog().GetBool("podcheck.enabled"); crdCheckEnabled {
+	if crdCheckEnabled := pkgconfigsetup.Datadog().GetBool("workload_config.enabled"); crdCheckEnabled {
 		pollInterval := time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_crd_checks_poll_interval")) * time.Second
 		ac.AddConfigProvider(
 			providers.NewCRDFileConfigProvider(pkgconfigsetup.Datadog().GetString("autoconf_crd_checks_dir"), providers.DefaultCRDNameExtractor, acTelemetryStore),

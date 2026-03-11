@@ -908,9 +908,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
-	// Pod check CRD controller
-	config.BindEnvAndSetDefault("podcheck.enabled", true)
-	config.BindEnvAndSetDefault("podcheck.configmap_name", "datadog-crd-check-conf")
+	// Workload config CRD controller
+	config.BindEnvAndSetDefault("workload_config.enabled", false)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)

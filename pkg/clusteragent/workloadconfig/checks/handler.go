@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// DefaultConfigMapName is the name of the ConfigMap where CRD-based check
+// configs are written for the Node Agent's file-based AD provider.
+const DefaultConfigMapName = "datadog-crd-check-conf"
+
 // Handler implements ConfigSectionHandler for the checks section.
 // It converts DatadogWorkloadConfig CRs into AD-compatible check configs
 // and writes them to a ConfigMap that the Node Agent reads via file-based AD.

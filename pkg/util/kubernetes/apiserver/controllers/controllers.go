@@ -63,7 +63,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		registerServicesInformer,
 	},
 	workloadConfigCrdControllerName: {
-		func() bool { return pkgconfigsetup.Datadog().GetBool("podcheck.enabled") },
+		func() bool { return pkgconfigsetup.Datadog().GetBool("workload_config.enabled") },
 		startWorkloadConfigCRDController,
 	},
 	endpointsControllerName: {
@@ -199,11 +199,6 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 // DatadogWorkloadConfig CRDs and delegates to registered config section handlers.
 func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
 	configMapNamespace := namespace.GetResourcesNamespace()
-	configMapName := pkgconfigsetup.Datadog().GetString("podcheck.configmap_name")
-	if configMapName == "" {
-		errChan <- errors.New("podcheck.configmap_name must be set when podcheck.enabled is true")
-		return
-	}
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -213,7 +208,7 @@ func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error
 	leaderNotif, _ := le.Subscribe()
 
 	handlers := []workloadconfig.ConfigSectionHandler{
-		checks.NewChecksHandler(ctx.Client, configMapName, configMapNamespace),
+		checks.NewChecksHandler(ctx.Client, checks.DefaultConfigMapName, configMapNamespace),
 	}
 
 	controller, err := workloadconfig.NewWorkloadConfigCRDController(
