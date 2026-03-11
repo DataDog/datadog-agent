@@ -134,15 +134,27 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.DetectionResult 
 	priorMean := baselineMean
 	priorPrecision := 1.0 / (obsVar * priorVarScale)
 
-	runProbs := []float64{1.0}
-	means := []float64{priorMean}
-	precisions := []float64{priorPrecision}
+	// Pre-allocate buffers to maxRunLength+1 and swap between them
+	// to avoid per-point heap allocations in the hot loop.
+	bufSize := maxRunLength + 2 // +2 because we grow by 1 before truncating
+	runProbs := make([]float64, 1, bufSize)
+	means := make([]float64, 1, bufSize)
+	precisions := make([]float64, 1, bufSize)
+	runProbs[0] = 1.0
+	means[0] = priorMean
+	precisions[0] = priorPrecision
+
+	newRunProbs := make([]float64, 0, bufSize)
+	newMeans := make([]float64, 0, bufSize)
+	newPrecisions := make([]float64, 0, bufSize)
 
 	for i, p := range series.Points {
 		x := p.Value
 		predPrior := gaussianPDF(x, priorMean, obsVar+1.0/priorPrecision)
 
-		newRunProbs := make([]float64, len(runProbs)+1)
+		// Reuse pre-allocated buffer: reset length to len(runProbs)+1.
+		newLen := len(runProbs) + 1
+		newRunProbs = newRunProbs[:newLen]
 		newRunProbs[0] = hazard * predPrior
 		for r := range runProbs {
 			pred := gaussianPDF(x, means[r], obsVar+1.0/precisions[r])
@@ -185,8 +197,9 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.DetectionResult 
 			return observer.DetectionResult{Anomalies: []observer.Anomaly{anomaly}}
 		}
 
-		newMeans := make([]float64, len(newRunProbs))
-		newPrecisions := make([]float64, len(newRunProbs))
+		// Reuse pre-allocated buffers for means and precisions.
+		newMeans = newMeans[:newLen]
+		newPrecisions = newPrecisions[:newLen]
 
 		// Run length 0 hypothesis: changepoint at current time, restart from prior.
 		newMeans[0], newPrecisions[0] = normalPosterior(priorMean, priorPrecision, x, obsVar)
@@ -195,16 +208,18 @@ func (b *BOCPDDetector) Detect(series observer.Series) observer.DetectionResult 
 			newMeans[r+1], newPrecisions[r+1] = normalPosterior(means[r], precisions[r], x, obsVar)
 		}
 
-		if len(newRunProbs) > maxRunLength+1 {
-			newRunProbs = newRunProbs[:maxRunLength+1]
-			newMeans = newMeans[:maxRunLength+1]
-			newPrecisions = newPrecisions[:maxRunLength+1]
+		if newLen > maxRunLength+1 {
+			newLen = maxRunLength + 1
+			newRunProbs = newRunProbs[:newLen]
+			newMeans = newMeans[:newLen]
+			newPrecisions = newPrecisions[:newLen]
 			normalizeProbs(newRunProbs)
 		}
 
-		runProbs = newRunProbs
-		means = newMeans
-		precisions = newPrecisions
+		// Swap buffers: current becomes "new" for next iteration.
+		runProbs, newRunProbs = newRunProbs, runProbs
+		means, newMeans = newMeans, means
+		precisions, newPrecisions = newPrecisions, precisions
 	}
 
 	return observer.DetectionResult{}
