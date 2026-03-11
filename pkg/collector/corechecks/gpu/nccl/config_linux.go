@@ -26,11 +26,6 @@ const (
 	// observed for a rank in a check interval, aggregated across all proxy operations.
 	// Tags: rank, direction (send/recv). Cardinality: 2N.
 	networkMaxTransferTimeMetric = "proxy_op.max_network_time_us"
-
-	// intraNodeDivergenceMetric is the intra-node rank divergence metric.
-	// Value is max(exec_time_us) − min(exec_time_us) across ranks observed on the same node
-	// for a single collective. Only emitted when 2+ ranks are seen in one check run.
-	intraNodeDivergenceMetric = "intra_node_rank_divergence_us"
 )
 
 // rankStalenessMaxAge is the TTL for lastSeenRank entries. A rank that has not
