@@ -158,20 +158,20 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 }
 
 // quantizeResource applies URL quantization to a trace resource string.
-// If the resource looks like "METHOD /path", the path portion is quantized
-// and reconstructed as "METHOD /quantized/path". Otherwise, the entire
-// resource is quantized as a path.
+// Only resources that look like HTTP resources ("METHOD /path") are quantized;
+// non-HTTP resources (SQL queries, Redis commands, etc.) are returned as-is
+// since the URL tokenizer assumes slash-delimited paths and would mangle them.
 func quantizeResource(resource string) string {
+	method, path, hasMethod := strings.Cut(resource, " ")
+	if !hasMethod || !strings.HasPrefix(path, "/") {
+		return resource
+	}
+
 	resourceQuantizerMu.Lock()
 	defer resourceQuantizerMu.Unlock()
 
-	method, path, hasMethod := strings.Cut(resource, " ")
-	if hasMethod {
-		quantized := resourceQuantizer.Quantize([]byte(path))
-		return method + " " + string(quantized)
-	}
-	quantized := resourceQuantizer.Quantize([]byte(resource))
-	return string(quantized)
+	quantized := resourceQuantizer.Quantize([]byte(path))
+	return method + " " + string(quantized)
 }
 
 // statsMetricView implements the MetricView interface for stats-derived metrics.
