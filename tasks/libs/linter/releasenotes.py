@@ -54,19 +54,11 @@ class ReleasenoteFileResult:
 
     @property
     def has_errors(self) -> bool:
-        return any(
-            e.level == "error"
-            for section_error in self.section_errors
-            for e in section_error.errors
-        )
+        return any(e.level == "error" for section_error in self.section_errors for e in section_error.errors)
 
     @property
     def has_warnings(self) -> bool:
-        return any(
-            e.level == "warning"
-            for section_error in self.section_errors
-            for e in section_error.errors
-        )
+        return any(e.level == "warning" for section_error in self.section_errors for e in section_error.errors)
 
     def format_output(self) -> str:
         """Format errors and warnings for display."""
@@ -76,12 +68,8 @@ class ReleasenoteFileResult:
         lines = [f"{self.file_path}:"]
         for section_error in self.section_errors:
             for error in section_error.errors:
-                line_str = (
-                    f"Line {error.line}" if error.line is not None else "Unknown line"
-                )
-                lines.append(
-                    f"  [{section_error.section}] {line_str}: ({error.level.upper()}) {error.message}"
-                )
+                line_str = f"Line {error.line}" if error.line is not None else "Unknown line"
+                lines.append(f"  [{section_error.section}] {line_str}: ({error.level.upper()}) {error.message}")
         return "\n".join(lines)
 
 
@@ -210,40 +198,26 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
         section_errors.append(
             ReleasenoteError(
                 section="yaml",
-                errors=[
-                    LintError(
-                        line=None, level="error", message=f"YAML parsing error: {e}"
-                    )
-                ],
+                errors=[LintError(line=None, level="error", message=f"YAML parsing error: {e}")],
             )
         )
-        return ReleasenoteFileResult(
-            file_path=str(file_path), section_errors=section_errors
-        )
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
     except OSError as e:
         section_errors.append(
             ReleasenoteError(
                 section="file",
-                errors=[
-                    LintError(line=None, level="error", message=f"File read error: {e}")
-                ],
+                errors=[LintError(line=None, level="error", message=f"File read error: {e}")],
             )
         )
-        return ReleasenoteFileResult(
-            file_path=str(file_path), section_errors=section_errors
-        )
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
     if content is None:
-        return ReleasenoteFileResult(
-            file_path=str(file_path), section_errors=section_errors
-        )
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
     structure_errors = validate_fragment_structure(content)
     section_errors.extend(structure_errors)
 
-    return ReleasenoteFileResult(
-        file_path=str(file_path), section_errors=section_errors
-    )
+    return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
 
 
 def lint_releasenotes(

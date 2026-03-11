@@ -1,6 +1,5 @@
 import re
 import shlex
-import sys
 from datetime import date
 from glob import glob
 
@@ -46,9 +45,7 @@ def new(ctx, slug, dca=False, installscript=False):
     section_lines = []
     for key, title in CHANGELOG_SECTIONS:
         if key == 'upgrade':
-            section_lines.append(
-                f"# {key}:\n#   - |\n#     {title}: include steps users can follow if affected.\n"
-            )
+            section_lines.append(f"# {key}:\n#   - |\n#     {title}: include steps users can follow if affected.\n")
         else:
             section_lines.append(f"# {key}:\n#   - |\n#     {title}.\n")
 

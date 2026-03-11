@@ -7,7 +7,6 @@ from datetime import date
 from pathlib import Path
 
 import yaml
-from invoke import Failure
 
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
@@ -42,7 +41,9 @@ def _add_prelude(ctx, version: str, release_date: date | None = None) -> None:
     note_path = _new_fragment_path('releasenotes', f'prelude-release-{version}')
     note_path.parent.mkdir(parents=True, exist_ok=True)
     anchor = version.replace('.', '')
-    ic_url = f"https://github.com/DataDog/integrations-core/blob/{branch}/AGENT_CHANGELOG.md#datadog-agent-version-{anchor}"
+    ic_url = (
+        f"https://github.com/DataDog/integrations-core/blob/{branch}/AGENT_CHANGELOG.md#datadog-agent-version-{anchor}"
+    )
 
     with open(note_path, 'w', encoding='utf-8') as f:
         f.write(
