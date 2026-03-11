@@ -22,11 +22,11 @@ type bocpdSeriesState struct {
 	lastProcessedCount int
 
 	// Warmup: Welford online mean/variance accumulation.
-	initialized    bool
-	warmupCount    int
-	warmupMean     float64
-	warmupM2       float64     // sum of squared deviations (Welford)
-	warmupBuffer   []float64   // buffered values for posterior replay after init
+	initialized  bool
+	warmupCount  int
+	warmupMean   float64
+	warmupM2     float64   // sum of squared deviations (Welford)
+	warmupBuffer []float64 // buffered values for posterior replay after init
 
 	// Baseline (set once after warmup).
 	baselineMean   float64
@@ -46,9 +46,9 @@ type bocpdSeriesState struct {
 	newPrecisions []float64
 
 	// Alert lifecycle.
-	inAlert        bool
-	alertStart     int64
-	recoveryCount  int // consecutive non-triggering points since last trigger
+	inAlert       bool
+	alertStart    int64
+	recoveryCount int // consecutive non-triggering points since last trigger
 }
 
 // BOCPDDetector detects changepoints using Bayesian Online Changepoint Detection.
@@ -392,7 +392,7 @@ func (b *BOCPDDetector) newSeriesState(key observer.SeriesKey, agg observer.Aggr
 
 // ensureDefaults fills in zero-valued config fields with sensible defaults.
 func (b *BOCPDDetector) ensureDefaults() {
-	if b.WarmupPoints <= 0 {
+	if b.WarmupPoints < 2 {
 		b.WarmupPoints = 120
 	}
 	if b.Hazard <= 0 || b.Hazard >= 1 {
@@ -412,6 +412,9 @@ func (b *BOCPDDetector) ensureDefaults() {
 	}
 	if b.PriorVarianceScale <= 0 {
 		b.PriorVarianceScale = 10.0
+	}
+	if b.MinVariance <= 0 {
+		b.MinVariance = 1.0
 	}
 	if b.RecoveryPoints <= 0 {
 		b.RecoveryPoints = 10

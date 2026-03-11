@@ -19,6 +19,7 @@ type anomalyDedupKey struct {
 	seriesID     observerdef.SeriesID
 	detectorName string
 	timestamp    int64
+	title        string
 }
 
 // engine is the shared orchestration core for the observer pipeline.
@@ -62,7 +63,7 @@ type engine struct {
 	// every correlation ever seen, keyed by Pattern string, updating
 	// existing entries when the correlator reports a newer version.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
-	correlationMu          sync.RWMutex
+	correlationMu           sync.RWMutex
 
 	// Accumulated telemetry from detection runs (for StateView access).
 	accumulatedTelemetry []observerdef.ObserverTelemetry
@@ -237,7 +238,9 @@ func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
 	for _, detector := range e.detectors {
 		result := detector.Detect(e.storage, upTo)
 		for _, anomaly := range result.Anomalies {
-			e.captureRawAnomaly(anomaly)
+			if !e.captureRawAnomaly(anomaly) {
+				continue // duplicate — skip correlators, events, and reporters
+			}
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
 
@@ -286,8 +289,9 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 }
 
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
-// Deduplicates by SourceSeriesID+DetectorName+Timestamp.
-func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) {
+// Deduplicates by SourceSeriesID+DetectorName+Timestamp+Title.
+// Returns true if the anomaly was new, false if it was a duplicate.
+func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
@@ -307,9 +311,10 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) {
 		seriesID:     anomaly.SourceSeriesID,
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
+		title:        anomaly.Title,
 	}
 	if _, ok := e.rawAnomalyIndex[key]; ok {
-		return // exact duplicate (same series + detector + timestamp)
+		return false // exact duplicate
 	} else {
 		if e.rawAnomalyIndex == nil {
 			e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
@@ -348,9 +353,11 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) {
 				seriesID:     a.SourceSeriesID,
 				detectorName: a.DetectorName,
 				timestamp:    a.Timestamp,
+				title:        a.Title,
 			}] = i
 		}
 	}
+	return true
 }
 
 // RawAnomalies returns a copy of currently tracked raw anomalies.

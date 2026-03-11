@@ -190,7 +190,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
-	if value == math.MaxFloat64 {
+	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
@@ -269,6 +269,9 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 }
 
 func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	byMetric = make(map[string]int64, len(s.droppedByMetric))
 	for k, v := range s.droppedByMetric {
 		byMetric[k] = v
@@ -344,6 +347,9 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 
 // Namespaces returns the set of namespaces that have data.
 func (s *timeSeriesStorage) Namespaces() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	seen := make(map[string]struct{})
 	for _, stats := range s.series {
 		seen[stats.Namespace] = struct{}{}
@@ -372,6 +378,9 @@ func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observe
 
 // TimeBounds returns the minimum and maximum timestamps across all stored points.
 func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var min int64
 	var max int64
 	found := false
@@ -403,6 +412,9 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 
 // MaxTimestamp returns the latest timestamp across all series in storage.
 func (s *timeSeriesStorage) MaxTimestamp() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var max int64
 	for _, stats := range s.series {
 		if n := stats.pointCount(); n > 0 {
@@ -448,6 +460,9 @@ func copyTags(tags []string) []string {
 
 // ListAllSeriesCompact returns lightweight metadata for every stored series.
 func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	result := make([]seriesCompact, 0, len(s.series))
 	for _, st := range s.series {
 		result = append(result, seriesCompact{
