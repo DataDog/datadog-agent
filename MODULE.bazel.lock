@@ -136,9 +136,10 @@
     "https://bcr.bazel.build/modules/rules_cc/0.1.1/MODULE.bazel": "2f0222a6f229f0bf44cd711dc13c858dad98c62d52bd51d8fc3a764a83125513",
     "https://bcr.bazel.build/modules/rules_cc/0.1.5/MODULE.bazel": "88dfc9361e8b5ae1008ac38f7cdfd45ad738e4fa676a3ad67d19204f045a1fd8",
     "https://bcr.bazel.build/modules/rules_cc/0.2.0/MODULE.bazel": "b5c17f90458caae90d2ccd114c81970062946f49f355610ed89bebf954f5783c",
+    "https://bcr.bazel.build/modules/rules_cc/0.2.17/MODULE.bazel": "1849602c86cb60da8613d2de887f9566a6d354a6df6d7009f9d04a14402f9a84",
+    "https://bcr.bazel.build/modules/rules_cc/0.2.17/source.json": "3832f45d145354049137c0090df04629d9c2b5493dc5c2bf46f1834040133a07",
     "https://bcr.bazel.build/modules/rules_cc/0.2.4/MODULE.bazel": "1ff1223dfd24f3ecf8f028446d4a27608aa43c3f41e346d22838a4223980b8cc",
     "https://bcr.bazel.build/modules/rules_cc/0.2.8/MODULE.bazel": "f1df20f0bf22c28192a794f29b501ee2018fa37a3862a1a2132ae2940a23a642",
-    "https://bcr.bazel.build/modules/rules_cc/0.2.8/source.json": "85087982aca15f31307bd52698316b28faa31bd2c3095a41f456afec0131344c",
     "https://bcr.bazel.build/modules/rules_flex/0.4/MODULE.bazel": "543edf994d2c044f3d723374e50eaa739ed7ee9d82b8185adb8413bce269dcf3",
     "https://bcr.bazel.build/modules/rules_flex/0.4/source.json": "98bc56c2139b6ed6387dbabd06f625e82500bed8ba1689a5f4f3c9e8c3289f82",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.15.1/MODULE.bazel": "c2c60d26c79fda484acb95cdbec46e89d6b28b4845cb277160ce1e0c8622bb88",
@@ -1109,7 +1110,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "vH+EldSvG0z/IC2gijag+7WQmTgxapVtsUqkJlhvlvY=",
+        "bzlTransitiveDigest": "n6qqhiF/r3JciN/rkKB0NhVEVDNRX5FbuOtHOy8gkZE=",
         "usagesDigest": "v4We18mWSPeKV4GPp9Gne78W+jZOgP2pC1i4UN9br1g=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1208,6 +1209,16 @@
           ],
           [
             "rules_cc+",
+            "cc_compatibility_proxy",
+            "rules_cc++compatibility_proxy+cc_compatibility_proxy"
+          ],
+          [
+            "rules_cc+",
+            "rules_cc",
+            "rules_cc+"
+          ],
+          [
+            "rules_cc++compatibility_proxy+cc_compatibility_proxy",
             "rules_cc",
             "rules_cc+"
           ],
