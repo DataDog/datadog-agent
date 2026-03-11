@@ -12,7 +12,9 @@
       },
       {
         "matchDepNames": ["omnibus-ruby"],
-        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
+        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}",
+        "matchUpdateTypes": ["major", "minor", "patch"],
+        "enabled": false
       },
       {
         "matchDepNames": ["linux-images"],
