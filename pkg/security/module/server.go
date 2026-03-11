@@ -369,6 +369,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// For kill actions, send a custom remediation event per resolved kill report
+				// If a rule contains multiple kill, a custom event will be sent for each action
 				SendCustomEventKillAction(a.probe, msg.tags, msg.actionReports)
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
