@@ -333,6 +333,15 @@ def run(
 
         # Auto-detect pipeline ID and commit SHA for local runs if not already set
         if "E2E_PIPELINE_ID" not in os.environ:
+            print(
+                color_message(
+                    "E2E_PIPELINE_ID is not set. The E2E job you are running may require build and packaging "
+                    "jobs to have completed in the pipeline (e.g. container images, deb/rpm packages, OCI deploys). "
+                    "Check the `needs:` of your target job in .gitlab/test/e2e/e2e.yml and ensure those jobs "
+                    "have run on your branch before triggering the E2E job.",
+                    "yellow",
+                )
+            )
             commit_sha = get_commit_sha(ctx)
             short_commit_sha = get_commit_sha(ctx, short=True)
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
@@ -1206,10 +1215,10 @@ def _find_pipeline_for_commit_sha(ctx: Context, commit_sha: str) -> str | None:
                 continue
             jobs = pipeline.jobs.list(get_all=True)
 
-            stage_jobs = defaultdict(list)
+            stage_jobs: dict[str, list] = {}
             for job in jobs:
                 if job.stage in required_stages:
-                    stage_jobs[job.stage].append(job)
+                    stage_jobs.setdefault(job.stage, []).append(job)
 
             # All required stages must be present
             if not required_stages.issubset(stage_jobs.keys()):
