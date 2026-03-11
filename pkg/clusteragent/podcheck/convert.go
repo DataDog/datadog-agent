@@ -46,9 +46,9 @@ func convertCR(dpc *datadoghq.DatadogPodCheck) (map[string]string, error) {
 	for i, check := range dpc.Spec.Checks {
 		yamlBytes, err := convertCheckToADConfig(check, celRules)
 		if err != nil {
-			return nil, fmt.Errorf("check[%d] %q: %w", i, check.Name, err)
+			return nil, fmt.Errorf("check[%d] %q: %w", i, check.Integration, err)
 		}
-		key := configMapKey(dpc.Namespace, dpc.Name, check.Name)
+		key := configMapKey(dpc.Namespace, dpc.Name, check.Integration)
 		entries[key] = string(yamlBytes)
 	}
 	return entries, nil
@@ -57,7 +57,7 @@ func convertCR(dpc *datadoghq.DatadogPodCheck) (map[string]string, error) {
 // convertCheckToADConfig converts a single CheckConfig into AD-compatible YAML.
 func convertCheckToADConfig(check datadoghq.CheckConfig, celRules workloadfilter.Rules) ([]byte, error) {
 	cfg := adConfig{
-		ADIdentifiers: check.ADIdentifiers,
+		ADIdentifiers: check.ContainerImage,
 		CELSelector:   celRules,
 	}
 

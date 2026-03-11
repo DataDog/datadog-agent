@@ -57,14 +57,14 @@ func newUnstructuredPodCheck(namespace, name string, labels map[string]string, c
 	}
 }
 
-func makeCheck(name string, adIDs []interface{}, instances []interface{}) map[string]interface{} {
+func makeCheck(integration string, containerImages []interface{}, instances []interface{}) map[string]interface{} {
 	check := map[string]interface{}{
-		"name":       name,
-		"initConfig": map[string]interface{}{},
-		"instances":  instances,
+		"integration": integration,
+		"initConfig":  map[string]interface{}{},
+		"instances":   instances,
 	}
-	if adIDs != nil {
-		check["adIdentifiers"] = adIDs
+	if containerImages != nil {
+		check["containerImage"] = containerImages
 	}
 	return check
 }

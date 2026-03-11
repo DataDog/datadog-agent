@@ -30,9 +30,9 @@ func TestConvertCR_SingleCheck(t *testing.T) {
 			},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:          "nginx",
-					ADIdentifiers: []string{"nginx:latest"},
-					InitConfig:    &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+					Integration:    "nginx",
+					ContainerImage: []string{"nginx:latest"},
+					InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
 					Instances: []apiextensionsv1.JSON{
 						{Raw: []byte(`{"nginx_status_url":"http://%%host%%:81/status/"}`)},
 					},
@@ -64,15 +64,15 @@ func TestConvertCR_MultipleChecks(t *testing.T) {
 			},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:          "http_check",
-					ADIdentifiers: []string{"myapp:v1"},
-					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%:8080"}`)}},
+					Integration:    "http_check",
+					ContainerImage: []string{"myapp:v1"},
+					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%:8080"}`)}},
 				},
 				{
-					Name:          "redisdb",
-					ADIdentifiers: []string{"redis:7"},
-					InitConfig:    &apiextensionsv1.JSON{Raw: []byte(`{}`)},
-					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)}},
+					Integration:    "redisdb",
+					ContainerImage: []string{"redis:7"},
+					InitConfig:     &apiextensionsv1.JSON{Raw: []byte(`{}`)},
+					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"host":"%%host%%","port":"6379"}`)}},
 				},
 			},
 		},
@@ -96,8 +96,8 @@ func TestConvertCR_NilInitConfig(t *testing.T) {
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:      "http_check",
-					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+					Integration: "http_check",
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
 				},
 			},
 		},
@@ -117,9 +117,9 @@ func TestConvertCR_WithLogs(t *testing.T) {
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:      "http_check",
-					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
-					Logs:      &apiextensionsv1.JSON{Raw: []byte(`[{"type":"file","path":"/var/log/app.log","service":"myapp"}]`)},
+					Integration: "http_check",
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://localhost"}`)}},
+					Logs:        &apiextensionsv1.JSON{Raw: []byte(`[{"type":"file","path":"/var/log/app.log","service":"myapp"}]`)},
 				},
 			},
 		},
@@ -145,8 +145,8 @@ func TestConvertCR_WithAnnotationSelector(t *testing.T) {
 			},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:      "nginx",
-					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					Integration: "nginx",
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
@@ -172,8 +172,8 @@ func TestConvertCR_WithLabelSelector(t *testing.T) {
 			},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:      "nginx",
-					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					Integration: "nginx",
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
@@ -198,8 +198,8 @@ func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
 			},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:      "nginx",
-					Instances: []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					Integration: "nginx",
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
@@ -221,9 +221,9 @@ func TestConvertCR_NoSelector(t *testing.T) {
 			Selector: datadoghq.PodSelector{},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:          "nginx",
-					ADIdentifiers: []string{"nginx"},
-					Instances:     []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
+					Integration:    "nginx",
+					ContainerImage: []string{"nginx"},
+					Instances:      []apiextensionsv1.JSON{{Raw: []byte(`{"url":"http://%%host%%"}`)}},
 				},
 			},
 		},
@@ -269,9 +269,9 @@ func TestConvertCR_InvalidJSON(t *testing.T) {
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
 			Checks: []datadoghq.CheckConfig{
 				{
-					Name:       "test",
-					InitConfig: &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
-					Instances:  []apiextensionsv1.JSON{{Raw: []byte(`{"ok": true}`)}},
+					Integration: "test",
+					InitConfig:  &apiextensionsv1.JSON{Raw: []byte(`not-json`)},
+					Instances:   []apiextensionsv1.JSON{{Raw: []byte(`{"ok": true}`)}},
 				},
 			},
 		},
