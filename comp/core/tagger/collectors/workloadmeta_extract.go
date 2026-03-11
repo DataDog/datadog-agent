@@ -274,7 +274,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{
+	tagInfos := []*types.TagInfo{
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
@@ -285,6 +285,23 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 			IsComplete:           c.containerCompleteness(container.ID, ev.IsComplete),
 		},
 	}
+
+	for _, tag := range container.CollectorTags {
+		if sandboxID, ok := strings.CutPrefix(tag, "sandbox_id:"); ok {
+			tagInfos = append(tagInfos, &types.TagInfo{
+				Source:               containerSource,
+				EntityID:             types.NewEntityID(types.SandboxID, sandboxID),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
+				StandardTags:         standard,
+				IsComplete:           c.containerCompleteness(container.ID, ev.IsComplete),
+			})
+			break
+		}
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {

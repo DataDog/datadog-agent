@@ -87,6 +87,8 @@ const (
 	Kubelet EntityIDPrefix = "kubelet"
 	// Crd is the prefix `crd`
 	Crd EntityIDPrefix = "crd"
+	// SandboxID is the prefix `sandbox_id`
+	SandboxID EntityIDPrefix = "sandbox_id"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -105,6 +107,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		Kubelet:                {},
 		Crd:                    {},
 		KubernetesCapabilities: {},
+		SandboxID:              {},
 	}
 }
 

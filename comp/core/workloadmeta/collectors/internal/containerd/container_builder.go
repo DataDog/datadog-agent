@@ -31,6 +31,9 @@ import (
 // kataRuntimePrefix is the prefix used by Kata Containers runtime
 const kataRuntimePrefix = "io.containerd.kata"
 
+// criSandboxIDLabel is the CRI label key that holds the sandbox ID for a container
+const criSandboxIDLabel = "io.kubernetes.cri.sandbox-id"
+
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
 	if container == nil {
@@ -161,6 +164,11 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Warnf("Skipping parsing of container spec for container id: %s, spec is bigger than: %d", info.ID, cutil.DefaultAllowedSpecMaxSize)
 	} else {
 		return workloadmeta.Container{}, err
+	}
+
+	if sandboxID, ok := info.Labels[criSandboxIDLabel]; ok && sandboxID != "" {
+		workloadContainer.CollectorTags = append(workloadContainer.CollectorTags,
+			fmt.Sprintf("sandbox_id:%s", sandboxID))
 	}
 
 	return workloadContainer, nil

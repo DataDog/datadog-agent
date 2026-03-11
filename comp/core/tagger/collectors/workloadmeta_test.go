@@ -2537,6 +2537,42 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "container with sandbox ID emits sandbox_id entity",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				CollectorTags: []string{
+					"sandbox_id:abc123",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+				{
+					Source:               containerSource,
+					EntityID:             types.NewEntityID(types.SandboxID, "abc123"),
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags:          []string{},
+					StandardTags:         []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
