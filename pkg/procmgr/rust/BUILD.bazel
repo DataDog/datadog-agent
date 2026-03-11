@@ -42,9 +42,9 @@ rust_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/log/rust:dd-agent-log",
         ":cpp_stdlib",
         ":process_manager_rust_proto",
+        "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
         "@crates//:log",
         "@crates//:nix",
