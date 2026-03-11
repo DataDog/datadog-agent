@@ -482,6 +482,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
 		},
+		GpmSampleGetFunc: func(sample nvml.GpmSample) nvml.Return {
+			if opts.isVGPU() || (opts.gpmSupported != nil && !*opts.gpmSupported) {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.SUCCESS
+		},
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			if opts.isVGPU() {
 				return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
@@ -741,6 +747,15 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 			return eventSet.Wait(v)
 		},
 		ExtensionsFunc: opts.extensionsFunc,
+		GpmSampleAllocFunc: func() (nvml.GpmSample, nvml.Return) {
+			return &MockGpmSample{}, nvml.SUCCESS
+		},
+		GpmSampleFreeFunc: func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		},
+		GpmMetricsGetFunc: func(_ *nvml.GpmMetricsGetType) nvml.Return {
+			return nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts.libOptions {
@@ -861,4 +876,8 @@ func GetTotalExpectedDevices() int {
 		numMIG += count
 	}
 	return numPhysical + numMIG
+}
+
+type MockGpmSample struct {
+	nvml.GpmSample
 }
