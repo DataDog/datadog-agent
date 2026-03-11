@@ -7,14 +7,24 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"google.golang.org/protobuf/proto"
+)
+
+// resourceQuantizer is reused across calls to avoid repeated allocation of internal buffers.
+// Protected by resourceQuantizerMu since URLQuantizer is not goroutine-safe.
+var (
+	resourceQuantizer   = httpprotocol.NewURLQuantizer()
+	resourceQuantizerMu sync.Mutex
 )
 
 // percentile quantiles and their metric name suffixes
@@ -108,7 +118,7 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 		tags = append(tags, "operation:"+row.GetName())
 	}
 	if row.GetResource() != "" {
-		tags = append(tags, "resource:"+row.GetResource())
+		tags = append(tags, "resource:"+quantizeResource(row.GetResource()))
 	}
 	if row.GetType() != "" {
 		tags = append(tags, "type:"+row.GetType())
@@ -145,6 +155,23 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 	}
 
 	return tags
+}
+
+// quantizeResource applies URL quantization to a trace resource string.
+// Only resources that look like HTTP resources ("METHOD /path") are quantized;
+// non-HTTP resources (SQL queries, Redis commands, etc.) are returned as-is
+// since the URL tokenizer assumes slash-delimited paths and would mangle them.
+func quantizeResource(resource string) string {
+	method, path, hasMethod := strings.Cut(resource, " ")
+	if !hasMethod || !strings.HasPrefix(path, "/") {
+		return resource
+	}
+
+	resourceQuantizerMu.Lock()
+	defer resourceQuantizerMu.Unlock()
+
+	quantized := resourceQuantizer.Quantize([]byte(path))
+	return method + " " + string(quantized)
 }
 
 // statsMetricView implements the MetricView interface for stats-derived metrics.
