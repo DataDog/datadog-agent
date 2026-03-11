@@ -377,6 +377,19 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 			return eventSet.Wait(v)
 		},
 		ExtensionsFunc: opts.extensionsFunc,
+		GpmSampleAllocFunc: func() (nvml.GpmSample, nvml.Return) {
+			return &MockGpmSample{}, nvml.SUCCESS
+		},
+		GpmSampleFreeFunc: func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		},
+		GpmMetricsGetFunc: func(metricsGet *nvml.GpmMetricsGetType) nvml.Return {
+			for _, metric := range metricsGet.Metrics[:metricsGet.NumMetrics] {
+				metric.NvmlReturn = uint32(nvml.SUCCESS)
+			}
+
+			return nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts.libOptions {
@@ -488,4 +501,8 @@ func GetTotalExpectedDevices() int {
 		numMIG += count
 	}
 	return numPhysical + numMIG
+}
+
+type MockGpmSample struct {
+	nvml.GpmSample
 }
