@@ -50,7 +50,10 @@ brew install --cask dda
 # Install development tools
 dda inv install-tools
 
-# Build the main agent
+# Build the main agent (use this form — runs inside the dev container with correct env)
+dda env dev run -- dda inv -- -e agent.build
+
+# Build the main agent (alternative, outside dev container)
 dda inv agent.build --build-exclude=systemd
 
 # Build specific components
@@ -74,7 +77,94 @@ dda inv linter.go
 dda inv linter.all
 ```
 
-#### Running Locally
+#### Running on Linux (dev container)
+
+Some packages require Linux (e.g. `//go:build linux` files). Use the dev container:
+
+```bash
+# Run any inv command inside the Linux dev container
+dda env dev run -- dda inv -- test --targets=./pkg/some/linux/package
+dda env dev run -- dda inv -- linter.go --targets=./pkg/some/linux/package
+```
+
+#### Running Locally with Docker Testbench (Recommended)
+
+A Docker Compose testbench is available at `~/docker-testbench/`. It provides:
+- A `datadog-agent` container that **hot-reloads** agent binaries when rebuilt
+- Synthetic workload containers that simulate realistic activity (APM traces, DogStatsD metrics, logs)
+
+**Prerequisites — one-time setup:**
+
+1. Copy and fill in the environment file:
+   ```bash
+   cd ~/docker-testbench/
+   cp .env.example .env
+   # Edit .env and set:
+   #   DD_API_KEY=<your Datadog API key>
+   #   DD_HOSTNAME=agent-q-branch-<yourname>   # to identify your agent on the platform
+   #   AGENT_BINARY_PATH=~/datadog-agent/bin   # path to the repo's bin/ directory
+   ```
+
+**Dev session workflow:**
+
+1. **Start the testbench** (once per session):
+   ```bash
+   cd ~/docker-testbench/ && docker compose --profile workloads up --build --watch
+   ```
+
+2. **Build an agent binary** after making code changes:
+   ```bash
+   # Main agent
+   dda env dev run -- dda inv -- -e agent.build
+
+   # Other components (hot-reload watches all of these)
+   dda env dev run -- dda inv -- -e trace-agent.build
+   dda env dev run -- dda inv -- -e process-agent.build
+   dda env dev run -- dda inv -- -e security-agent.build
+   dda env dev run -- dda inv -- -e system-probe.build
+   ```
+   The `--watch` flag in step 1 detects the new binary and automatically restarts the container.
+
+3. **Verify the container restarted** with the new binary:
+   ```bash
+   docker ps   # check the CREATED/STATUS column for a recent restart
+   ```
+
+**Useful testbench commands:**
+```bash
+# Stream agent logs
+docker logs -f datadog-agent
+
+# Run agent CLI commands inside the container
+docker exec -it datadog-agent agent status
+docker exec -it datadog-agent agent <command>
+```
+
+**Available workload profiles:**
+
+| Profile | Workloads started |
+|---|---|
+| `workloads` | All of the below |
+| `python` | Python Flask app (APM traces, port 5000) |
+| `nodejs` | Node.js app (DogStatsD metrics, port 3000) |
+| `logs` | Log generator (text/JSON/multiline logs) |
+| `load` | Load generator (traffic to Python + Node.js apps) |
+| `payment` | Payment service + Redis (error/OOM scenario) |
+| `extras` | Squid proxy + Redis |
+
+Run a subset of workloads:
+```bash
+docker compose --profile python --profile logs up --build --watch
+```
+
+**Agent features enabled in the testbench** (see `docker-compose.yaml`):
+- Log collection from all containers (`DD_LOGS_ENABLED=true`)
+- APM / distributed tracing (`DD_APM_ENABLED=true`)
+- DogStatsD (`DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true`)
+- Continuous profiling (`DD_PROFILING_ENABLED=true`)
+- Observer/recording pipeline (`DD_OBSERVER_RECORDING_ENABLED=true`)
+
+#### Running Locally (without testbench)
 ```bash
 # Create dev config with testing API key
 echo "api_key: 0000001" > dev/dist/datadog.yaml

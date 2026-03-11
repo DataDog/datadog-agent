@@ -37,12 +37,18 @@ type Hook[T any] interface {
 	// does not affect routing.
 	Publish(producerName string, payload T)
 
-	// Subscribe registers callback as a consumer of this hook.
+	// Subscribe registers callback as a consumer of this hook with the
+	// default buffer size of 100.
 	// name must be unique among active subscribers on this hook.
 	// The callback is invoked from a dedicated goroutine; it must return
 	// promptly and must not retain the payload beyond its own return.
 	// The returned function unsubscribes the consumer and terminates its goroutine.
 	Subscribe(consumerName string, callback func(payload T)) (unsubscribe func())
+
+	// SubscribeWithBuffer is like Subscribe but uses the specified channel
+	// buffer size instead of the default 100. Larger buffers absorb longer
+	// consumer stalls (e.g. GC pauses) without dropping payloads.
+	SubscribeWithBuffer(consumerName string, bufferSize int, callback func(payload T)) (unsubscribe func())
 }
 
 // NewHook creates a new Hook that fans out published payloads to all subscribers.
@@ -92,12 +98,18 @@ func (h *hook[T]) Publish(_ string, payload T) {
 	}
 }
 
-// Subscribe subscribes to the hook and calls callback with each payload.
-// name must be unique per consumer.
-// The returned unsubscribe function stops delivery and terminates the consumer goroutine.
+// Subscribe subscribes to the hook with the default buffer size (100).
 func (h *hook[T]) Subscribe(name string, callback func(payload T)) (unsubscribe func()) {
+	return h.SubscribeWithBuffer(name, 100, callback)
+}
+
+// SubscribeWithBuffer subscribes to the hook with a caller-specified channel buffer size.
+func (h *hook[T]) SubscribeWithBuffer(name string, bufferSize int, callback func(payload T)) (unsubscribe func()) {
+	if bufferSize <= 0 {
+		bufferSize = 100
+	}
 	c := consumer[T]{
-		ch:        make(chan T, 100),
+		ch:        make(chan T, bufferSize),
 		done:      make(chan struct{}),
 		dropLabel: []string{h.name, name},
 	}

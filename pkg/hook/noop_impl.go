@@ -8,9 +8,10 @@ package hook
 // noopHook is a Hook implementation that discards all published payloads and ignores subscriptions.
 type noopHook[T any] struct{}
 
-func (noopHook[T]) Name() string                                       { return "noop" }
-func (noopHook[T]) Publish(_ string, _ T)                              {}
-func (noopHook[T]) Subscribe(_ string, _ func(T)) (unsubscribe func()) { return func() {} }
+func (noopHook[T]) Name() string                                              { return "noop" }
+func (noopHook[T]) Publish(_ string, _ T)                                     {}
+func (noopHook[T]) Subscribe(_ string, _ func(T)) (unsubscribe func())        { return func() {} }
+func (noopHook[T]) SubscribeWithBuffer(_ string, _ int, _ func(T)) func()     { return func() {} }
 
 // NewNoopHook returns a Hook that silently discards all published payloads.
 // Use this in tests or in code paths where hook observation is optional.
