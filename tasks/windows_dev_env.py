@@ -136,16 +136,19 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             _wait_for_windows_dev_env(ctx, host)
             print("Host rebooted")
 
-        # Lift the 260-character path limit required by Bazel
-        print("Lifting the 260-character path limit...")
-        ctx.run(
-            f"ssh {host} 'Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem -Name LongPathsEnabled -Value 1'"
-        )
-
         # Start the Windows dev container
         print("🐳 Starting Windows dev container")
         ctx.run(
             f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'"
+        )
+
+        # Lift the 260-character path limit required by Bazel.
+        # Set-ItemProperty writes to the shared host registry (process isolation).
+        print("Lifting the 260-character path limit...")
+        _run_on_windows_dev_env(
+            ctx,
+            name,
+            "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem -Name LongPathsEnabled -Value 1",
         )
 
         # Pull the latest version of datadog-agent to make initial sync faster
