@@ -334,7 +334,6 @@ use_repo(
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
     "com_github_planetscale_vtprotobuf",
-    "com_github_pmezard_go_difflib",
     "com_github_prometheus_client_golang",
     "com_github_prometheus_client_model",
     "com_github_prometheus_common",
