@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,18 +21,10 @@ type secretsManagerMockClient struct {
 	secrets map[string]string
 }
 
-func (c *secretsManagerMockClient) GetSecretValue(_ context.Context, params *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
-	if params == nil || params.SecretId == nil {
-		return nil, secret.ErrKeyNotFound
+func (c *secretsManagerMockClient) GetSecretValue(_ context.Context, secretID string) (*string, error) {
+	if val, ok := c.secrets[secretID]; ok {
+		return &val, nil
 	}
-
-	if secretValue, exists := c.secrets[*params.SecretId]; exists {
-		return &secretsmanager.GetSecretValueOutput{
-			Name:         aws.String(*params.SecretId),
-			SecretString: aws.String(secretValue),
-		}, nil
-	}
-
 	return nil, secret.ErrKeyNotFound
 }
 

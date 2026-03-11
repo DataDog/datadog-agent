@@ -8,83 +8,29 @@ package aws
 
 import (
 	"context"
-	"strings"
+	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/assert"
 )
 
 // ssmMockClient is the struct we'll use to mock the SSM client
 // for unit tests. E2E tests should be written with the real client.
 type ssmMockClient struct {
-	parameters map[string]interface{}
+	parameters map[string]string
 }
 
-func (c *ssmMockClient) GetParametersByPath(_ context.Context, params *ssm.GetParametersByPathInput, _ ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
-	if params == nil || params.Path == nil {
-		return nil, nil
+func (c *ssmMockClient) GetParameter(_ context.Context, name string, _ bool) (*string, error) {
+	if val, ok := c.parameters[name]; ok {
+		return &val, nil
 	}
-	outParameters := []types.Parameter{}
-	for key, value := range c.parameters {
-		if strings.HasPrefix(key, *params.Path) {
-			outParameters = append(outParameters, types.Parameter{
-				Name:  aws.String(key),
-				Value: aws.String(value.(string)),
-			})
-		}
-	}
-
-	return &ssm.GetParametersByPathOutput{
-		Parameters: outParameters,
-	}, nil
-}
-
-func (c *ssmMockClient) GetParameters(_ context.Context, params *ssm.GetParametersInput, _ ...func(*ssm.Options)) (*ssm.GetParametersOutput, error) {
-	outParameters := []types.Parameter{}
-	for key, value := range c.parameters {
-		for _, name := range params.Names {
-			if key == name {
-				outParameters = append(outParameters, types.Parameter{
-					Name:  aws.String(key),
-					Value: aws.String(value.(string)),
-				})
-				break
-			}
-		}
-	}
-
-	return &ssm.GetParametersOutput{
-		Parameters: outParameters,
-	}, nil
-}
-
-func (c *ssmMockClient) GetParameter(_ context.Context, params *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
-	if params == nil || params.Name == nil {
-		return nil, nil
-	}
-
-	paramName := *params.Name
-	if value, exists := c.parameters[paramName]; exists {
-		return &ssm.GetParameterOutput{
-			Parameter: &types.Parameter{
-				Name:  aws.String(paramName),
-				Value: aws.String(value.(string)),
-			},
-		}, nil
-	}
-
-	// Return AWS-like error for parameter not found
-	return nil, &types.ParameterNotFound{
-		Message: aws.String("Parameter " + paramName + " not found."),
-	}
+	return nil, fmt.Errorf("parameter %s not found", name)
 }
 
 func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 	mockClient := &ssmMockClient{
-		parameters: map[string]interface{}{
+		parameters: map[string]string{
 			"/group1/key1":      "value1",
 			"/group1/nest/key2": "value2",
 			"/group2/key3":      "value3",
