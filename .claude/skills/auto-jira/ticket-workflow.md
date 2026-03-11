@@ -79,7 +79,34 @@ mcp__atlassian__editJiraIssue(
 
 POST-ACTION verify: re-fetch the issue and confirm `assignee.accountId` matches yours.
 
-### Step 3: Add a start comment
+### Step 3: Add to the current sprint
+
+Fetch your active sprint ID and move the ticket into it:
+
+```
+mcp__atlassian__searchJiraIssuesUsingJql(
+  cloudId="datadoghq.atlassian.net",
+  jql='project = <BOARD> AND sprint in openSprints() AND sprint not in futureSprints()',
+  fields=["summary", "sprint"],
+  maxResults=1
+)
+```
+
+Extract the `sprint.id` from the result, then:
+
+```
+mcp__atlassian__editJiraIssue(
+  cloudId="datadoghq.atlassian.net",
+  issueIdOrKey="<KEY>",
+  fields={"customfield_10020": {"id": <SPRINT_ID>}}
+)
+```
+
+POST-ACTION verify: re-fetch the issue and confirm the sprint field is set.
+
+If no open sprint is found or the edit fails, log a warning in `AUTO_JIRA.md` and continue — this is non-blocking.
+
+### Step 4: Add a start comment
 
 ```
 mcp__atlassian__addCommentToJiraIssue(

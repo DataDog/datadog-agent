@@ -50,8 +50,27 @@ This skill handles: fetching full ticket context, codebase analysis, branching, 
 
 ## After the PR is created
 
-Once the draft PR exists with title and description:
+Once the draft PR exists, perform ALL of the following steps before moving on:
 
-1. POST-ACTION verify: `gh pr view <number> --json title,state,isDraft` — confirm `isDraft: true`
-2. Add a comment on the Jira ticket with the PR link (see [ticket-workflow.md](ticket-workflow.md))
-3. **Move on to the next ticket.** CI, review, and merge are left for humans.
+### Step 1: Fix the PR title
+
+jira-ticket-solver uses its own title format. You MUST override it:
+
+```bash
+gh pr edit <number> --repo DataDog/datadog-agent \
+  --title "[auto-jira][<KEY>] <short description>"
+```
+
+POST-ACTION verify: `gh pr view <number> --json title` — confirm title starts with `[auto-jira][<KEY>]`.
+
+### Step 2: Confirm draft
+
+`gh pr view <number> --json title,state,isDraft` — confirm `isDraft: true`.
+
+### Step 3: Link Jira ticket
+
+Add a comment on the Jira ticket with the PR link (see [ticket-workflow.md](ticket-workflow.md)).
+
+### Step 4: Move on
+
+**CI, review, and merge are left for humans.**

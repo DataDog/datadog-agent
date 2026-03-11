@@ -42,11 +42,12 @@ Write actions include: creating PRs, posting Jira comments, pushing commits, tra
 ```
 1. PARSE ARGS        -> Extract board, max-cards, filters from $ARGUMENTS
 2. SELECT TICKET     -> Find eligible ticket from board backlog
-3. CLAIM TICKET      -> Assign to user
+3. CLAIM TICKET      -> Assign to user + add to current sprint
 4. IMPLEMENT         -> Code change, lint, tests, commit (via /jira-ticket-solver)
 5. CREATE PR (DRAFT) -> Open draft PR against main
-6. LINK & COMMENT    -> Post PR link on Jira ticket
-7. NEXT              -> Go to step 2 until max-cards reached or no eligible tickets
+6. FIX PR TITLE      -> Rename to [auto-jira][<KEY>] <description> using gh pr edit
+8. LINK & COMMENT    -> Post PR link on Jira ticket
+9. NEXT              -> Go to step 2 until max-cards reached or no eligible tickets
 ```
 
 ---
