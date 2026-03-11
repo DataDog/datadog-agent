@@ -35,7 +35,7 @@ func getLocation(nbStack int) string {
 }
 
 // warnOnce logs a warning only the first time a given dedup key is seen
-func (t *teeConfig) warnOnce(method string, key string, detailFormat string, detailArgs ...interface{}) {
+func (t *teeConfig) warnOnce(method, key, detailFormat string, detailArgs ...interface{}) {
 	dedupKey := method + "(" + key + ")"
 	if _, loaded := t.loggedOnce.LoadOrStore(dedupKey, struct{}{}); !loaded {
 		detail := fmt.Sprintf(detailFormat, detailArgs...)
