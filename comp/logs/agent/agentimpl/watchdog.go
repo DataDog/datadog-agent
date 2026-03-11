@@ -9,7 +9,9 @@ package agentimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"runtime"
 	"time"
 
@@ -72,15 +74,76 @@ type autoProfileAction struct {
 	changes map[string]interface{}
 }
 
+type autoProfileRuntimeValuesLog struct {
+	Pipelines              int    `json:"pipelines"`
+	BatchMaxConcurrentSend int    `json:"batch_max_concurrent_send"`
+	UseCompression         bool   `json:"use_compression"`
+	CompressionKind        string `json:"compression_kind"`
+	ZstdCompressionLevel   int    `json:"zstd_compression_level"`
+	GzipCompressionLevel   int    `json:"gzip_compression_level"`
+}
+
+type autoProfileLimitsLog struct {
+	BaselinePipelines   int `json:"baseline_pipelines"`
+	MaxPipelines        int `json:"max_pipelines"`
+	BaselineConcurrency int `json:"baseline_concurrency"`
+}
+
+type autoProfileStageFillLog struct {
+	CurrentFill float64 `json:"current_fill"`
+	MaxFill5m   float64 `json:"max_fill_5m"`
+	MaxFill30m  float64 `json:"max_fill_30m"`
+	MaxFill2h   float64 `json:"max_fill_2h"`
+}
+
+type autoProfileSaturationLog struct {
+	Processor autoProfileStageFillLog `json:"processor"`
+	Strategy  autoProfileStageFillLog `json:"strategy"`
+	Sender    autoProfileStageFillLog `json:"sender"`
+}
+
+type autoProfileRecentEventLog struct {
+	Stage           string    `json:"stage"`
+	StartTime       time.Time `json:"start_time"`
+	EndTime         time.Time `json:"end_time,omitempty"`
+	Ongoing         bool      `json:"ongoing"`
+	PeakFill        float64   `json:"peak_fill"`
+	DurationSeconds int64     `json:"duration_seconds"`
+	Suggestion      string    `json:"suggestion,omitempty"`
+}
+
+type autoProfileWatchdogLog struct {
+	Component                string                      `json:"component"`
+	EventType                string                      `json:"event_type"`
+	Timestamp                time.Time                   `json:"timestamp"`
+	LogsAgentProfile         string                      `json:"logs_agent_profile"`
+	AgentHostname            string                      `json:"agent_hostname,omitempty"`
+	OSHostname               string                      `json:"os_hostname,omitempty"`
+	Action                   string                      `json:"action,omitempty"`
+	DecisionReason           string                      `json:"decision_reason,omitempty"`
+	SkipReason               string                      `json:"skip_reason,omitempty"`
+	ApplyStatus              string                      `json:"apply_status,omitempty"`
+	ApplyError               string                      `json:"apply_error,omitempty"`
+	SuggestedProfile         string                      `json:"suggested_profile,omitempty"`
+	CooldownRemainingSeconds int64                       `json:"cooldown_remaining_seconds"`
+	AppliesLastHour          int                         `json:"applies_last_hour"`
+	Current                  autoProfileRuntimeValuesLog `json:"current"`
+	Limits                   autoProfileLimitsLog        `json:"limits"`
+	Saturation               autoProfileSaturationLog    `json:"saturation"`
+	RecentEvents             []autoProfileRecentEventLog `json:"recent_events,omitempty"`
+	Changes                  map[string]interface{}      `json:"changes,omitempty"`
+}
+
 type autoProfileWatchdog struct {
 	agent *logAgent
 
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	startTime     time.Time
-	cooldownUntil time.Time
-	applyHistory  []time.Time
+	startTime      time.Time
+	cooldownUntil  time.Time
+	applyHistory   []time.Time
+	lastSkipReason string
 }
 
 func newAutoProfileWatchdog(agent *logAgent) *autoProfileWatchdog {
@@ -124,16 +187,25 @@ func (w *autoProfileWatchdog) run(ctx context.Context) {
 
 func (w *autoProfileWatchdog) evaluateAndApply() {
 	now := time.Now()
+	summary := logsmetrics.GlobalSaturationHistory.Summary()
+	current := getAutoProfileRuntimeValues(w.agent.config)
+	limits := getAutoProfileLimits()
 
-	action, skipReason := w.decide(now)
+	action, skipReason := w.decide(now, summary, current, limits)
 	if skipReason != "" {
 		logsmetrics.TlmAutoProfileSkipped.Inc(skipReason)
 		logsmetrics.GlobalAutoProfileStatus.RecordDecision("skipped", skipReason)
+		if skipReason != "no_change" && skipReason != w.lastSkipReason {
+			w.emitWatchdogJSONLog("skipped", now, summary, current, limits, autoProfileAction{}, skipReason, "", nil)
+		}
+		w.lastSkipReason = skipReason
 		return
 	}
+	w.lastSkipReason = ""
 
 	logsmetrics.TlmAutoProfileDecision.Inc(action.name, action.reason)
 	logsmetrics.GlobalAutoProfileStatus.RecordDecision(action.name, action.reason)
+	w.emitWatchdogJSONLog("decision", now, summary, current, limits, action, "", "", nil)
 
 	if len(action.changes) == 0 {
 		logsmetrics.TlmAutoProfileSkipped.Inc("no_change")
@@ -141,11 +213,14 @@ func (w *autoProfileWatchdog) evaluateAndApply() {
 	}
 
 	if err := w.apply(action, now); err != nil {
+		w.emitWatchdogJSONLog("apply_result", now, summary, current, limits, action, "", "failure", err)
 		w.agent.log.Warnf("Auto profile watchdog apply failed: %v", err)
+		return
 	}
+	w.emitWatchdogJSONLog("apply_result", now, summary, current, limits, action, "", "success", nil)
 }
 
-func (w *autoProfileWatchdog) decide(now time.Time) (autoProfileAction, string) {
+func (w *autoProfileWatchdog) decide(now time.Time, summary logsmetrics.SaturationSummary, current autoProfileRuntimeValues, limits autoProfileLimits) (autoProfileAction, string) {
 	if !logsconfig.IsAutoProfileEnabled(w.agent.config) {
 		return autoProfileAction{}, "disabled"
 	}
@@ -162,9 +237,6 @@ func (w *autoProfileWatchdog) decide(now time.Time) (autoProfileAction, string) 
 		return autoProfileAction{}, "budget"
 	}
 
-	summary := logsmetrics.GlobalSaturationHistory.Summary()
-	current := getAutoProfileRuntimeValues(w.agent.config)
-	limits := getAutoProfileLimits()
 	action := decideAutoProfileAction(summary, current, limits)
 	if action.name == "no_change" {
 		return autoProfileAction{}, "no_change"
@@ -214,6 +286,128 @@ func (w *autoProfileWatchdog) pruneApplyHistory(now time.Time) {
 		}
 	}
 	w.applyHistory = w.applyHistory[:n]
+}
+
+func (w *autoProfileWatchdog) appliesLastHour(now time.Time) int {
+	cutoff := now.Add(-1 * time.Hour)
+	n := 0
+	for _, ts := range w.applyHistory {
+		if ts.After(cutoff) {
+			n++
+		}
+	}
+	return n
+}
+
+func toRuntimeValuesLog(v autoProfileRuntimeValues) autoProfileRuntimeValuesLog {
+	return autoProfileRuntimeValuesLog{
+		Pipelines:              v.pipelines,
+		BatchMaxConcurrentSend: v.batchMaxConcurrentSend,
+		UseCompression:         v.useCompression,
+		CompressionKind:        v.compressionKind,
+		ZstdCompressionLevel:   v.zstdCompressionLevel,
+		GzipCompressionLevel:   v.gzipCompressionLevel,
+	}
+}
+
+func toLimitsLog(v autoProfileLimits) autoProfileLimitsLog {
+	return autoProfileLimitsLog{
+		BaselinePipelines:   v.baselinePipelines,
+		MaxPipelines:        v.maxPipelines,
+		BaselineConcurrency: v.baselineConcurrency,
+	}
+}
+
+func stageFill(summary logsmetrics.SaturationSummary, key string) autoProfileStageFillLog {
+	return autoProfileStageFillLog{
+		CurrentFill: summary.CurrentFill[key],
+		MaxFill5m:   summary.MaxFill5m[key],
+		MaxFill30m:  summary.MaxFill30m[key],
+		MaxFill2h:   summary.MaxFill2h[key],
+	}
+}
+
+func toSaturationLog(summary logsmetrics.SaturationSummary) autoProfileSaturationLog {
+	return autoProfileSaturationLog{
+		Processor: stageFill(summary, logsmetrics.ProcessorTlmName),
+		Strategy:  stageFill(summary, logsmetrics.StrategyTlmName),
+		Sender:    stageFill(summary, logsmetrics.SenderTlmName),
+	}
+}
+
+func toRecentEventsLog(events []logsmetrics.SaturationEvent) []autoProfileRecentEventLog {
+	const maxEvents = 5
+	if len(events) == 0 {
+		return nil
+	}
+	if len(events) > maxEvents {
+		events = events[:maxEvents]
+	}
+
+	out := make([]autoProfileRecentEventLog, 0, len(events))
+	for _, e := range events {
+		out = append(out, autoProfileRecentEventLog{
+			Stage:           e.Stage,
+			StartTime:       e.StartTime,
+			EndTime:         e.EndTime,
+			Ongoing:         e.Ongoing(),
+			PeakFill:        e.PeakFill,
+			DurationSeconds: int64(e.Duration().Round(time.Second).Seconds()),
+			Suggestion:      e.Suggestion,
+		})
+	}
+	return out
+}
+
+func (w *autoProfileWatchdog) emitWatchdogJSONLog(
+	eventType string,
+	now time.Time,
+	summary logsmetrics.SaturationSummary,
+	current autoProfileRuntimeValues,
+	limits autoProfileLimits,
+	action autoProfileAction,
+	skipReason string,
+	applyStatus string,
+	applyErr error,
+) {
+	cfgHostname := w.agent.config.GetString("hostname")
+	osHostname, _ := os.Hostname()
+	cooldownRemaining := int64(0)
+	if now.Before(w.cooldownUntil) {
+		cooldownRemaining = int64(w.cooldownUntil.Sub(now).Round(time.Second).Seconds())
+	}
+
+	payload := autoProfileWatchdogLog{
+		Component:                "logs_auto_profile_watchdog",
+		EventType:                eventType,
+		Timestamp:                now.UTC(),
+		LogsAgentProfile:         w.agent.config.GetString("logs_config.logs_agent_profile"),
+		AgentHostname:            cfgHostname,
+		OSHostname:               osHostname,
+		Action:                   action.name,
+		DecisionReason:           action.reason,
+		SkipReason:               skipReason,
+		ApplyStatus:              applyStatus,
+		SuggestedProfile:         summary.SuggestedProfile,
+		CooldownRemainingSeconds: cooldownRemaining,
+		AppliesLastHour:          w.appliesLastHour(now),
+		Current:                  toRuntimeValuesLog(current),
+		Limits:                   toLimitsLog(limits),
+		Saturation:               toSaturationLog(summary),
+		RecentEvents:             toRecentEventsLog(summary.RecentEvents),
+		Changes:                  action.changes,
+	}
+	if applyErr != nil {
+		payload.ApplyError = applyErr.Error()
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		w.agent.log.Warnf("Auto profile watchdog log serialization failed: %v", err)
+		return
+	}
+
+	w.agent.log.Infof("AUTO_PROFILE_WATCHDOG %s", string(raw))
 }
 
 func getAutoProfileRuntimeValues(cfg pkgconfigmodel.Reader) autoProfileRuntimeValues {

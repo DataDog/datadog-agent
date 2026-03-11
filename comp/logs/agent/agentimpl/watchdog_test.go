@@ -136,14 +136,17 @@ func TestWatchdogDecideGuardrails(t *testing.T) {
 	w := newAutoProfileWatchdog(agent)
 
 	now := time.Now()
+	summary := logsmetrics.GlobalSaturationHistory.Summary()
+	current := getAutoProfileRuntimeValues(cfg)
+	limits := getAutoProfileLimits()
 
 	w.startTime = now.Add(-30 * time.Second)
-	_, skip := w.decide(now)
+	_, skip := w.decide(now, summary, current, limits)
 	assert.Equal(t, "warmup", skip)
 
 	w.startTime = now.Add(-2 * time.Minute)
 	w.cooldownUntil = now.Add(1 * time.Minute)
-	_, skip = w.decide(now)
+	_, skip = w.decide(now, summary, current, limits)
 	assert.Equal(t, "cooldown", skip)
 
 	w.cooldownUntil = time.Time{}
@@ -152,7 +155,7 @@ func TestWatchdogDecideGuardrails(t *testing.T) {
 		now.Add(-20 * time.Minute),
 		now.Add(-30 * time.Minute),
 	}
-	_, skip = w.decide(now)
+	_, skip = w.decide(now, summary, current, limits)
 	assert.Equal(t, "budget", skip)
 }
 
