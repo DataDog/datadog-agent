@@ -12,9 +12,14 @@
 package tcpqueuelength
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
+	ebpflib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
@@ -37,7 +42,8 @@ const (
 
 // Tracer is the eBPF side of the TCP Queue Length check
 type Tracer struct {
-	m        *manager.Manager
+	coll     *ebpflib.Collection
+	links    []link.Link
 	statsMap *ebpfmaps.GenericMap[StructStatsKey, []StructStatsValue]
 }
 
@@ -59,75 +65,88 @@ func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
-	m := &manager.Manager{
-		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_recvmsg_entry", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_recvmsg_exit", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_sendmsg_entry", UID: "tcpq"}},
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_sendmsg_exit", UID: "tcpq"}},
-		},
-		Maps: []*manager.Map{
-			{Name: "tcp_queue_stats"},
-			{Name: "who_recvmsg"},
-			{Name: "who_sendmsg"},
-		},
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return nil, err
 	}
 
-	managerOptions.RemoveRlimit = true
+	collSpec, err := ebpflib.LoadCollectionSpecFromReader(buf)
+	if err != nil {
+		return nil, fmt.Errorf("load collection spec: %s", err)
+	}
 
 	if features.SupportsFentry("tcp_recvmsg") {
-		managerOptions.ExcludedFunctions = append(managerOptions.ExcludedFunctions,
-			"kprobe__tcp_recvmsg",
-			"kretprobe__tcp_recvmsg",
-			"kprobe__tcp_sendmsg",
-			"kretprobe__tcp_sendmsg",
-		)
-		managerOptions.ExcludedMaps = append(managerOptions.ExcludedMaps,
-			"who_recvmsg",
-			"who_sendmsg",
-		)
+		delete(collSpec.Programs, "kprobe__tcp_recvmsg")
+		delete(collSpec.Programs, "kretprobe__tcp_recvmsg")
+		delete(collSpec.Programs, "kprobe__tcp_sendmsg")
+		delete(collSpec.Programs, "kretprobe__tcp_sendmsg")
+		delete(collSpec.Maps, "who_recvmsg")
+		delete(collSpec.Maps, "who_sendmsg")
+
+		fentryProg := collSpec.Programs["check_sock_prog"]
+
+		tcpRecvEntry := fentryProg.Copy()
+		tcpRecvEntry.AttachType = ebpflib.AttachTraceFEntry
+		tcpRecvEntry.AttachTo = "tcp_recvmsg"
+		tcpRecvEntry.SectionName = "fentry/tcp_recvmsg"
+		collSpec.Programs["tcp_recvmsg_entry"] = tcpRecvEntry
+
+		tcpRecvExit := fentryProg.Copy()
+		tcpRecvExit.AttachType = ebpflib.AttachTraceFExit
+		tcpRecvExit.AttachTo = "tcp_recvmsg"
+		tcpRecvExit.SectionName = "fexit/tcp_recvmsg"
+		collSpec.Programs["tcp_recvmsg_exit"] = tcpRecvExit
+
+		tcpSendEntry := fentryProg.Copy()
+		tcpSendEntry.AttachType = ebpflib.AttachTraceFEntry
+		tcpSendEntry.AttachTo = "tcp_sendmsg"
+		tcpSendEntry.SectionName = "fentry/tcp_sendmsg"
+		collSpec.Programs["tcp_sendmsg_entry"] = tcpSendEntry
+
+		tcpSendExit := fentryProg.Copy()
+		tcpSendExit.AttachType = ebpflib.AttachTraceFExit
+		tcpSendExit.AttachTo = "tcp_sendmsg"
+		tcpSendExit.SectionName = "fexit/tcp_sendmsg"
+		collSpec.Programs["tcp_sendmsg_exit"] = tcpSendExit
+
+		delete(collSpec.Programs, "check_sock_prog")
 	} else {
-		managerOptions.DefaultKProbeMaxActive = maxActive
-		managerOptions.ExcludedFunctions = append(managerOptions.ExcludedFunctions,
-			"tcp_recvmsg_entry",
-			"tcp_recvmsg_exit",
-			"tcp_sendmsg_entry",
-			"tcp_sendmsg_exit",
-		)
+		delete(collSpec.Programs, "check_sock_prog")
 	}
 
-	if err := m.InitWithOptions(buf, managerOptions); err != nil {
-		return nil, fmt.Errorf("failed to init manager: %w", err)
+	coll, err := ebpflib.NewCollectionWithOptions(collSpec, managerOptions.VerifierOptions)
+	if err != nil {
+		var ve *ebpflib.VerifierError
+		if errors.As(err, &ve) {
+			return nil, fmt.Errorf("verifier error loading tcpq collection: %s\n%+v", err, ve)
+		}
+		return nil, fmt.Errorf("new tcpq collection: %s", err)
 	}
+	ebpf.AddNameMappingsCollection(coll, "tcp_queue_length")
 
-	if err := m.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start manager: %w", err)
-	}
-
-	ebpf.AddProbeFDMappings(m)
-
-	statsMap, err := ebpfmaps.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
+	statsMap, err := ebpfmaps.Map[StructStatsKey, []StructStatsValue](coll.Maps[statsMapName])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
-	ebpf.AddNameMappings(m, "tcp_queue_length")
 
-	return &Tracer{
-		m:        m,
+	t := &Tracer{
+		coll:     coll,
 		statsMap: statsMap,
-	}, nil
+	}
+	if err := t.attach(collSpec); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // Close releases all associated resources
 func (t *Tracer) Close() {
-	ebpf.RemoveNameMappings(t.m)
-	if err := t.m.Stop(manager.CleanAll); err != nil {
-		log.Errorf("error stopping TCP Queue Length: %s", err)
+	ebpf.RemoveNameMappingsCollection(t.coll)
+	for _, l := range t.links {
+		if err := l.Close(); err != nil {
+			log.Warnf("error unlinking program: %s", err)
+		}
 	}
+	t.coll.Close()
 }
 
 // GetAndFlush gets the stats
@@ -146,16 +165,12 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	it := t.statsMap.Iterate()
 	for it.Next(&statsKey, &statsValue) {
 		cgroupName := unix.ByteSliceToString(statsKey.Cgroup[:])
-		max := model.TCPQueueLengthStatsValue{}
+		maxStats := model.TCPQueueLengthStatsValue{}
 		for cpu := 0; cpu < nbCpus; cpu++ {
-			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {
-				max.ReadBufferMaxUsage = statsValue[cpu].Read_buffer_max_usage
-			}
-			if statsValue[cpu].Write_buffer_max_usage > max.WriteBufferMaxUsage {
-				max.WriteBufferMaxUsage = statsValue[cpu].Write_buffer_max_usage
-			}
+			maxStats.ReadBufferMaxUsage = max(statsValue[cpu].Read_buffer_max_usage, maxStats.ReadBufferMaxUsage)
+			maxStats.WriteBufferMaxUsage = max(statsValue[cpu].Write_buffer_max_usage, maxStats.WriteBufferMaxUsage)
 		}
-		result[cgroupName] = max
+		result[cgroupName] = maxStats
 		keys = append(keys, statsKey)
 	}
 	if err := it.Err(); err != nil {
@@ -168,6 +183,58 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	}
 
 	return result
+}
+
+func (t *Tracer) attach(collSpec *ebpflib.CollectionSpec) (err error) {
+	defer func() {
+		// if anything fails, we need to close/detach everything
+		if err != nil {
+			t.Close()
+		}
+	}()
+
+	for name, prog := range t.coll.Programs {
+		spec := collSpec.Programs[name]
+		switch prog.Type() {
+		case ebpflib.Kprobe:
+			const kprobePrefix, kretprobePrefix = "kprobe/", "kretprobe/"
+			if strings.HasPrefix(spec.SectionName, kprobePrefix) {
+				attachPoint := spec.SectionName[len(kprobePrefix):]
+				l, err := link.Kprobe(attachPoint, prog, &link.KprobeOptions{
+					TraceFSPrefix: "ddtcpq",
+				})
+				if err != nil {
+					return fmt.Errorf("link kprobe %s to %s: %s", spec.Name, attachPoint, err)
+				}
+				t.links = append(t.links, l)
+			} else if strings.HasPrefix(spec.SectionName, kretprobePrefix) {
+				attachPoint := spec.SectionName[len(kretprobePrefix):]
+				manager.TraceFSLock.Lock()
+				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
+					TraceFSPrefix:     "ddtcpq",
+					RetprobeMaxActive: maxActive,
+				})
+				manager.TraceFSLock.Unlock()
+				if err != nil {
+					return fmt.Errorf("link kretprobe %s to %s: %s", spec.Name, attachPoint, err)
+				}
+				t.links = append(t.links, l)
+			} else {
+				return fmt.Errorf("unknown section prefix: %s", spec.SectionName)
+			}
+		case ebpflib.Tracing:
+			l, err := link.AttachTracing(link.TracingOptions{
+				Program: prog,
+			})
+			if err != nil {
+				return fmt.Errorf("link tracing %s to %s: %s", name, spec.AttachTo, err)
+			}
+			t.links = append(t.links, l)
+		default:
+			return fmt.Errorf("unknown program %s type: %T", name, prog.Type())
+		}
+	}
+	return nil
 }
 
 func loadTCPQueueLengthCOREProbe() (*Tracer, error) {
