@@ -10,13 +10,7 @@ package run
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-func shouldExecSPLite(_ sysprobeconfig.Component, _ *sysconfigtypes.Config) bool {
-	return false
-}
-
-func execSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) error {
-	return nil
+func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) {
 }

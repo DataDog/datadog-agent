@@ -85,9 +85,6 @@ import (
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
 
-// ErrExecSPLite represents the case in which system-probe should exec into system-probe-lite
-var ErrExecSPLite = errors.New("exec system-probe-lite")
-
 const configPrefix = systemprobeconfig.Namespace + "."
 
 type cliParams struct {
@@ -199,6 +196,8 @@ func run(
 	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
+	maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
+
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
@@ -242,9 +241,6 @@ func run(
 	}()
 
 	if err := startSystemProbe(rcclient, settings, deps); err != nil {
-		if errors.Is(err, ErrExecSPLite) {
-			return execSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
-		}
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -265,13 +261,6 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 	deps.Log.Infof("starting system-probe v%v", version.AgentVersion)
 
 	logUserAndGroupID(deps.Log)
-
-	// Check if we should exec into system-probe-lite before checking if system-probe is enabled,
-	// since system-probe-lite should also handle the case where no modules are enabled.
-	if shouldExecSPLite(deps.SysprobeConfig, cfg) {
-		deps.Log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
-		return ErrExecSPLite
-	}
 
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {

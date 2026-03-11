@@ -184,14 +184,14 @@ func TestResolveSPLiteExecCmd(t *testing.T) {
 		assert.NotEmpty(t, cmd.Env)
 	})
 
-	t.Run("graceful fallback returns nil for execSPLite", func(t *testing.T) {
+	t.Run("graceful fallback for maybeSPLite", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
+		sysprobeConfig.SetWithoutSource("discovery.use_system_probe_lite", true)
 		log := logmock.New(t)
 
-		// execSPLite should return nil (not an error) when binary is missing,
+		// maybeSPLite should return (not panic) when binary is missing,
 		// allowing system-probe to fall back to the Go discovery module.
-		err := execSPLite(sysprobeConfig, "/var/run/sp.pid", log)
-		assert.NoError(t, err, "execSPLite should return nil when system-probe-lite is not found")
+		maybeSPLite(sysprobeConfig, "/var/run/sp.pid", log)
 	})
 }
 

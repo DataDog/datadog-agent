@@ -82,16 +82,23 @@ func resolveSPLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath s
 	}
 }
 
-// execSPLite replaces the current process with system-probe-lite.
-// If the system-probe-lite binary is not found, it returns nil to allow system-probe
-// to fall back to running the Go discovery module natively.
-func execSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) error {
+// maybeSPLite checks if system-probe should exec into system-probe-lite,
+// and if so, replaces the current process. If splite is not applicable,
+// the binary was not found, or exec fails, it returns and system-probe
+// continues with normal startup.
+func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) {
+	cfg := sysprobeConfig.SysProbeObject()
+	if !shouldExecSPLite(sysprobeConfig, cfg) {
+		return
+	}
+	log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
 	cmd := resolveSPLiteExecCmd(sysprobeConfig, pidFilePath, log)
 	if cmd == nil {
-		return nil
+		return
 	}
-
 	log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
 	log.Flush()
-	return syscall.Exec(cmd.Path, cmd.Args, cmd.Env)
+	if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
+		log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+	}
 }
