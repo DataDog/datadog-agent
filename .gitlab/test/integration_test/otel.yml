@@ -104,7 +104,7 @@ datadog_otel_components_ocb_build:
     # Start a local OCI registry to receive both the source agent OCI and the output image
     - docker run -d -p 5000:5000 --name local-registry registry:2
     - OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
-    # TODO: use pinned pipeline for AGENT_OCI until DDOT extension is released in 7.78.0
+    # TODO: use staging package for AGENT_OCI until DDOT extension is released in 7.78.0
     - |
       docker build \
       --target builder \
@@ -114,7 +114,7 @@ datadog_otel_components_ocb_build:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
       --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
-      --build-arg AGENT_OCI=installtesting.datad0g.com/agent-package:pipeline-99967119 \
+      --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
