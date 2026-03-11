@@ -51,10 +51,11 @@ func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
 	}
 	soMount := corev1.VolumeMount{Name: soVolumeName, MountPath: soMountPath, ReadOnly: true}
 
+	hostPathType := corev1.HostPathDirectoryOrCreate
 	socketVolume := corev1.Volume{
 		Name: socketVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{Path: socketHostPath},
+			HostPath: &corev1.HostPathVolumeSource{Path: socketHostPath, Type: &hostPathType},
 		},
 	}
 	socketMount := corev1.VolumeMount{Name: socketVolumeName, MountPath: socketMountPath, ReadOnly: true}
@@ -66,6 +67,7 @@ func mutatePod(pod *corev1.Pod, injectorImage string) (bool, error) {
 	// Inject NCCL env vars into all app containers.
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_PROFILER_PLUGIN", Value: soDestPath})
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: "/var/run/datadog/nccl.socket"})
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"})
 	mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"})
 
 	// Prepend init container that copies both .so files from injector image.

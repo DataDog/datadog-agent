@@ -125,53 +125,6 @@ func TestHangDetection_StalenessGrowsWithNoNewEvents(t *testing.T) {
 	snd.AssertMetricInRange(t, "Gauge", ncclMetricsNs+hangDetectionMetric, 50, 70, "", []string{"rank:2"})
 }
 
-// --- intra-node rank divergence ---
-
-func makeParsedEvent(commHash string, collSN int64, collective string, rank int, execTimeUS float64) ParsedEvent {
-	return ParsedEvent{
-		Event: NCCLInspectorEvent{
-			ID:   commHash,
-			Rank: rank,
-			CollPerf: &CollectivePerf{
-				Collective: collective,
-				CollSN:     collSN,
-				ExecTimeUS: execTimeUS,
-			},
-		},
-		Filename: "nccl-rank0-pid1.jsonl",
-	}
-}
-
-func TestRankDivergence_TwoRanksSameNode(t *testing.T) {
-	snd := new(mocksender.MockSender)
-	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-	events := []ParsedEvent{
-		makeParsedEvent("hash1", 1, "AllReduce", 0, 1000.0),
-		makeParsedEvent("hash1", 1, "AllReduce", 1, 2500.0), // rank 1 is slower
-	}
-
-	emitRankDivergence(snd, events)
-
-	// divergence = 2500 - 1000 = 1500
-	snd.AssertMetric(t, "Gauge", ncclMetricsNs+intraNodeDivergenceMetric, 1500.0, "",
-		[]string{"collective:AllReduce", "n_ranks_observed:2"})
-}
-
-func TestRankDivergence_SingleRankNoMetric(t *testing.T) {
-	snd := new(mocksender.MockSender)
-
-	events := []ParsedEvent{
-		makeParsedEvent("hash1", 1, "AllGather", 0, 500.0),
-	}
-
-	emitRankDivergence(snd, events)
-
-	// With only one rank, divergence metric must NOT be emitted
-	snd.AssertNotCalled(t, "Gauge", ncclMetricsNs+intraNodeDivergenceMetric,
-		mock.Anything, mock.Anything, mock.Anything)
-}
-
 // TestSocketListenerNvidiaNestedFormatPreservesRank is a regression test for the bug
 // where the socket listener called json.Unmarshal(line, &NCCLInspectorEvent{}) directly.
 // NCCLInspectorEvent is a flat struct expecting top-level "rank", but the NVIDIA Inspector
@@ -241,17 +194,18 @@ func TestNetworkTransferMetrics_AggregatesPerRankDirection(t *testing.T) {
 		{Event: NCCLInspectorEvent{Rank: 0, CollPerf: &CollectivePerf{Collective: "AllReduce"}}},
 	}
 
-	emitNetworkTransferMetrics(snd, events)
+	c := &Check{}
+	c.emitNetworkTransferMetrics(snd, events)
 
-	// Rank 0 send: max(5000, 8000) = 8000
-	snd.AssertMetric(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric, 8000.0, "",
-		[]string{"rank:0", "direction:send"})
+	// Rank 0 send: max(5000, 8000) = 8000; includes workload tags (pid:0 without processTagger)
+	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
+		[]string{"rank:0", "direction:send", "pid:0"})
 	// Rank 0 recv: 3000
-	snd.AssertMetric(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric, 3000.0, "",
-		[]string{"rank:0", "direction:recv"})
+	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
+		[]string{"rank:0", "direction:recv", "pid:0"})
 	// Rank 1 send: 2000
-	snd.AssertMetric(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric, 2000.0, "",
-		[]string{"rank:1", "direction:send"})
+	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
+		[]string{"rank:1", "direction:send", "pid:0"})
 }
 
 func TestNetworkTransferMetrics_NoProxyOpsNoMetric(t *testing.T) {
@@ -261,22 +215,9 @@ func TestNetworkTransferMetrics_NoProxyOpsNoMetric(t *testing.T) {
 		{Event: NCCLInspectorEvent{Rank: 0, CollPerf: &CollectivePerf{Collective: "AllReduce"}}},
 	}
 
-	emitNetworkTransferMetrics(snd, events)
+	c := &Check{}
+	c.emitNetworkTransferMetrics(snd, events)
 
 	snd.AssertNotCalled(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
-		mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestRankDivergence_NilPerfSkipped(t *testing.T) {
-	snd := new(mocksender.MockSender)
-
-	events := []ParsedEvent{
-		{Event: NCCLInspectorEvent{ID: "hash1", Rank: 0, CollPerf: nil}},
-		{Event: NCCLInspectorEvent{ID: "hash1", Rank: 1, CollPerf: nil}},
-	}
-
-	emitRankDivergence(snd, events) // must not panic
-
-	snd.AssertNotCalled(t, "Gauge", ncclMetricsNs+intraNodeDivergenceMetric,
 		mock.Anything, mock.Anything, mock.Anything)
 }

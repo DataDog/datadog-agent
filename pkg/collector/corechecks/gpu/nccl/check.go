@@ -28,13 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// collKey is used to group collective events across ranks for divergence detection.
-type collKey struct {
-	commHash   string
-	collSN     int64
-	collective string
-}
-
 // Check represents the NCCL check that collects metrics from NCCL Inspector output
 type Check struct {
 	core.CheckBase
@@ -201,11 +194,8 @@ func (c *Check) Run() error {
 	}
 	c.emitStalenessMetrics(snd, now)
 
-	// Intra-node straggler detection: emit divergence across ranks seen this run
-	emitRankDivergence(snd, events)
-
 	// Network transfer time: aggregate ProxyOp events per (rank, direction)
-	emitNetworkTransferMetrics(snd, events)
+	c.emitNetworkTransferMetrics(snd, events)
 
 	return nil
 }
@@ -280,8 +270,12 @@ type networkTransferKey struct {
 // emitNetworkTransferMetrics aggregates ProxyOp events from this check interval
 // and emits one nccl.network.max_transfer_time_us per (rank, direction).
 // Cardinality: 2N (one send + one recv per rank observed on this node).
-func emitNetworkTransferMetrics(snd sender.Sender, events []ParsedEvent) {
-	maxTimes := make(map[networkTransferKey]int64)
+func (c *Check) emitNetworkTransferMetrics(snd sender.Sender, events []ParsedEvent) {
+	type netTransferAgg struct {
+		maxTime int64
+		sample  ParsedEvent // representative event for workload tags
+	}
+	agg := make(map[networkTransferKey]*netTransferAgg)
 	for _, parsed := range events {
 		proxyOp := parsed.Event.ProxyOp
 		if proxyOp == nil {
@@ -292,16 +286,21 @@ func emitNetworkTransferMetrics(snd sender.Sender, events []ParsedEvent) {
 			dir = "send"
 		}
 		key := networkTransferKey{rank: parsed.Event.Rank, direction: dir}
-		if proxyOp.NetTimeUS > maxTimes[key] {
-			maxTimes[key] = proxyOp.NetTimeUS
+		if a, ok := agg[key]; ok {
+			if proxyOp.NetTimeUS > a.maxTime {
+				a.maxTime = proxyOp.NetTimeUS
+			}
+		} else {
+			agg[key] = &netTransferAgg{maxTime: proxyOp.NetTimeUS, sample: parsed}
 		}
 	}
-	for key, maxTime := range maxTimes {
-		tags := []string{
+	for key, a := range agg {
+		tags := c.buildTags(a.sample)
+		tags = append(tags,
 			fmt.Sprintf("rank:%d", key.rank),
-			"direction:" + key.direction,
-		}
-		snd.Gauge(ncclMetricsNs+networkMaxTransferTimeMetric, float64(maxTime), "", tags)
+			"direction:"+key.direction,
+		)
+		snd.Gauge(ncclMetricsNs+networkMaxTransferTimeMetric, float64(a.maxTime), "", tags)
 	}
 }
 
@@ -363,44 +362,5 @@ func (c *Check) emitStalenessMetrics(snd sender.Sender, now time.Time) {
 			tags = append(tags, "nccl_hostname:"+entry.parsed.Event.Hostname)
 		}
 		snd.Gauge(ncclMetricsNs+hangDetectionMetric, staleness.Seconds(), "", tags)
-	}
-}
-
-// emitRankDivergence groups the supplied events by (commHash, collSN, collective) and,
-// whenever 2+ ranks are present, emits nccl.intra_node_rank_divergence_us with the
-// max−min exec_time_us across those ranks.  This only fires when multiple ranks write
-// to the same node (intra-node divergence detection).
-func emitRankDivergence(snd sender.Sender, events []ParsedEvent) {
-	type rankTiming struct {
-		rank     int
-		execTime float64
-	}
-	collTimings := make(map[collKey][]rankTiming)
-	for _, parsed := range events {
-		perf := parsed.Event.CollPerf
-		if perf == nil {
-			continue
-		}
-		key := collKey{parsed.Event.ID, perf.CollSN, perf.Collective}
-		collTimings[key] = append(collTimings[key], rankTiming{parsed.Event.Rank, perf.ExecTimeUS})
-	}
-	for key, timings := range collTimings {
-		if len(timings) < 2 {
-			continue
-		}
-		minT, maxT := timings[0].execTime, timings[0].execTime
-		for _, t := range timings[1:] {
-			if t.execTime < minT {
-				minT = t.execTime
-			}
-			if t.execTime > maxT {
-				maxT = t.execTime
-			}
-		}
-		divTags := []string{
-			"collective:" + key.collective,
-			fmt.Sprintf("n_ranks_observed:%d", len(timings)),
-		}
-		snd.Gauge(ncclMetricsNs+intraNodeDivergenceMetric, maxT-minT, "", divTags)
 	}
 }
