@@ -7,7 +7,6 @@ package apiimpl
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
 	"time"
 
@@ -25,9 +24,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	if err != nil {
 		return err
 	}
-	if tcpAddr, ok := ipcListener.Addr().(*net.TCPAddr); ok {
-		server.ipcAddr = tcpAddr
-	}
+	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
 
