@@ -550,7 +550,6 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 	}
 	resultCh := make(chan partitionsResult, 1)
 	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
-	timeoutCh := c.clock.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	if c.instanceConfig.ProcMountInfoPath != "" {
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
@@ -559,16 +558,12 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		defer c.partitionEnumInFlight.Store(false)
 		defer cancel()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
-		select {
-		case resultCh <- partitionsResult{partitions, err}:
-		case <-timeoutCh:
-		}
+		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
 	case result := <-resultCh:
 		return result.partitions, result.err
-	case <-timeoutCh:
-		cancel()
+	case <-ctx.Done():
 		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
 	}
 }

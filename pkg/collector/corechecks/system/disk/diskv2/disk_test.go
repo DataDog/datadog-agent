@@ -1315,17 +1315,11 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 
 func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErrorReturned(t *testing.T) {
 	setupDefaultMocks()
-	mockClock := clock.NewMock()
-	afterCalled := make(chan time.Time, 1)
-	testClock := &signalClock{
-		Clock:       mockClock,
-		afterCalled: afterCalled,
-	}
 	// Use an explicit unblock channel to simulate a syscall that ignores
 	// context cancellation (like GetVolumeInformationW on an offline volume).
 	unblock := make(chan struct{})
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:  "/",
 			Total: 1024,
@@ -1335,20 +1329,17 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErro
 	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		<-unblock
 		return partitionsTrue, nil
-	}), testClock)
+	})
 	defer close(unblock)
 
+	// Configure with a short timeout (1s) to keep the test fast.
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	diskCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+	config := integration.Data([]byte("timeout: 1"))
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, nil, "test")
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
-	done := make(chan error, 1)
-	go func() {
-		done <- diskCheck.Run()
-	}()
-	<-afterCalled
-	mockClock.Add(5 * time.Second)
-	err := <-done
+
+	err := diskCheck.Run()
 
 	assert.ErrorContains(t, err, "disk partition enumeration timed out")
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
