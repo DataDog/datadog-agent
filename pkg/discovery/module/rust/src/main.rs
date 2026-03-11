@@ -302,7 +302,7 @@ async fn main() -> Result<()> {
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "SYS-PROBE-LITE",
         level: log_level,
-        log_file: None,
+        log_file: args.log_file.clone(),
     })?;
     info!("Starting system-probe-lite");
 

@@ -124,6 +124,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
+			"--log-file", sysprobeConfig.GetString("log_file"),
 		}, args)
 	})
 
@@ -134,6 +135,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
+			"--log-file", sysprobeConfig.GetString("log_file"),
 			"--pid", "/opt/datadog-agent/run/system-probe.pid",
 		}, args)
 	})
@@ -147,6 +149,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 			"system-probe-lite",
 			"--socket", "/custom/path.sock",
 			"--log-level", "debug",
+			"--log-file", sysprobeConfig.GetString("log_file"),
 		}, args)
 	})
 }
@@ -179,6 +182,7 @@ func TestResolveSPLiteExecCmd(t *testing.T) {
 			"system-probe-lite",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
+			"--log-file", sysprobeConfig.GetString("log_file"),
 			"--pid", "/var/run/sp.pid",
 		}, cmd.Args)
 		assert.NotEmpty(t, cmd.Env)

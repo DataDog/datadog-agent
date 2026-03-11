@@ -52,6 +52,7 @@ func buildSPLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string
 	args := []string{"system-probe-lite",
 		"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 		"--log-level", sysprobeConfig.GetString("log_level"),
+		"--log-file", sysprobeConfig.GetString("log_file"),
 	}
 	if pidFilePath != "" {
 		args = append(args, "--pid", pidFilePath)

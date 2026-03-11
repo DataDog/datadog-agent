@@ -21,11 +21,15 @@ fn test_pid_file_created_and_cleaned_up_on_sigterm() {
     let pid_path = temp_dir.path().join("system-probe-lite.pid");
     let socket_path = temp_dir.path().join("sysprobe.sock");
 
+    let log_path = temp_dir.path().join("system-probe.log");
+
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-level")
         .arg("info")
+        .arg("--log-file")
+        .arg(&log_path)
         .arg("--pid")
         .arg(&pid_path)
         .spawn()
@@ -70,12 +74,15 @@ fn test_pid_file_created_and_cleaned_up_on_sigint() {
     let temp_dir = TempDir::new().unwrap();
     let pid_path = temp_dir.path().join("system-probe-lite.pid");
     let socket_path = temp_dir.path().join("sysprobe.sock");
+    let log_path = temp_dir.path().join("system-probe.log");
 
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-level")
         .arg("info")
+        .arg("--log-file")
+        .arg(&log_path)
         .arg("--pid")
         .arg(&pid_path)
         .spawn()

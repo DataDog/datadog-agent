@@ -15,6 +15,9 @@ pub struct Args {
     /// Log level (--log-level, required)
     pub log_level: String,
 
+    /// Log file path (--log-file, optional)
+    pub log_file: Option<PathBuf>,
+
     /// PID file path (--pid, optional)
     pub pid_path: Option<PathBuf>,
 }
@@ -24,6 +27,7 @@ impl Args {
         let all_args: Vec<String> = args.collect();
         let mut socket_path = None;
         let mut log_level = None;
+        let mut log_file = None;
         let mut pid_path = None;
         let mut iter = all_args.iter();
 
@@ -37,6 +41,12 @@ impl Args {
             if arg == "--log-level" {
                 if let Some(next) = iter.next() {
                     log_level = Some(next.clone());
+                }
+                continue;
+            }
+            if arg == "--log-file" {
+                if let Some(next) = iter.next() {
+                    log_file = Some(PathBuf::from(next));
                 }
                 continue;
             }
@@ -58,6 +68,7 @@ impl Args {
         Ok(Args {
             socket_path,
             log_level,
+            log_file,
             pid_path,
         })
     }
@@ -86,6 +97,32 @@ mod tests {
         .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
         assert_eq!(a.log_level, "info");
+        assert!(a.log_file.is_none());
+        assert!(a.pid_path.is_none());
+    }
+
+    #[test]
+    #[test]
+    fn test_parse_with_log_file() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
+                "--socket",
+                "/run/sysprobe.sock",
+                "--log-level",
+                "info",
+                "--log-file",
+                "/var/log/datadog/system-probe.log",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.log_level, "info");
+        assert_eq!(
+            a.log_file,
+            Some(PathBuf::from("/var/log/datadog/system-probe.log"))
+        );
         assert!(a.pid_path.is_none());
     }
 
@@ -98,6 +135,8 @@ mod tests {
                 "/run/sysprobe.sock",
                 "--log-level",
                 "warn",
+                "--log-file",
+                "/var/log/datadog/system-probe.log",
                 "--pid",
                 "/var/run/system-probe-lite.pid",
             ])
@@ -106,6 +145,10 @@ mod tests {
         .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
         assert_eq!(a.log_level, "warn");
+        assert_eq!(
+            a.log_file,
+            Some(PathBuf::from("/var/log/datadog/system-probe.log"))
+        );
         assert_eq!(
             a.pid_path,
             Some(PathBuf::from("/var/run/system-probe-lite.pid"))
