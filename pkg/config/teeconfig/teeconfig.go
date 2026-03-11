@@ -35,9 +35,11 @@ func getLocation(nbStack int) string {
 }
 
 // warnOnce logs a warning only the first time a given dedup key is seen
-func (t *teeConfig) warnOnce(dedupKey string, format string, args ...interface{}) {
+func (t *teeConfig) warnOnce(method string, key string, detailFormat string, detailArgs ...interface{}) {
+	dedupKey := method + "(" + key + ")"
 	if _, loaded := t.loggedOnce.LoadOrStore(dedupKey, struct{}{}); !loaded {
-		log.Warnf(format, args...)
+		detail := fmt.Sprintf(detailFormat, detailArgs...)
+		log.Warnf("difference in config: %s(%s) -> %s", method, key, detail)
 	}
 }
 
@@ -106,7 +108,7 @@ func (t *teeConfig) IsKnown(key string) bool {
 	base := t.baseline.IsKnown(key)
 	compare := t.compare.IsKnown(key)
 	if base != compare {
-		t.warnOnce("IsKnown("+key+")", "difference in config: IsKnown(%s) -> base: %v | compare %v", key, base, compare)
+		t.warnOnce("IsKnown", key, "base: %v | compare %v", base, compare)
 	}
 	return base
 }
@@ -158,7 +160,7 @@ func (t *teeConfig) IsSet(key string) bool {
 	base := t.baseline.IsSet(key)
 	compare := t.compare.IsSet(key)
 	if base != compare {
-		t.warnOnce("IsSet("+key+")", "difference in config: IsSet(%s) -> base[%s]: %v | compare[%s]: %v | from %s", key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
+		t.warnOnce("IsSet", key, "base[%s]: %v | compare[%s]: %v | from %s", t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
 	}
 	return base
 }
@@ -228,8 +230,7 @@ func (t *teeConfig) compareResult(key, method string, base, compare interface{})
 				}
 			}
 		}
-		dedupKey := method + "(" + key + ")"
-		t.warnOnce(dedupKey, "difference in config: %s(%s) -> base[%s]: %#v | compare[%s] %#v | from %s", method, key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
+		t.warnOnce(method, key, "base[%s]: %#v | compare[%s] %#v | from %s", t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
 }
 
@@ -399,7 +400,7 @@ func (t *teeConfig) ReadInConfig() error {
 	err1 := t.baseline.ReadInConfig()
 	err2 := t.compare.ReadInConfig()
 	if (err1 == nil) != (err2 == nil) {
-		t.warnOnce("ReadInConfig()", "difference in config: ReadInConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("ReadInConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -410,7 +411,7 @@ func (t *teeConfig) ReadConfig(in io.Reader) error {
 	err1 := t.baseline.ReadConfig(bytes.NewBuffer(data))
 	err2 := t.compare.ReadConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		t.warnOnce("ReadConfig()", "difference in config: ReadConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("ReadConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -421,7 +422,7 @@ func (t *teeConfig) MergeConfig(in io.Reader) error {
 	err1 := t.baseline.MergeConfig(bytes.NewBuffer(data))
 	err2 := t.compare.MergeConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		t.warnOnce("MergeConfig()", "difference in config: MergeConfig() -> base error: %v | compare error: %v", err1, err2)
+		t.warnOnce("MergeConfig", "", "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -435,7 +436,7 @@ func (t *teeConfig) MergeFleetPolicy(configPath string) error {
 	err1 := t.baseline.MergeFleetPolicy(configPath)
 	err2 := t.compare.MergeFleetPolicy(configPath)
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		t.warnOnce("MergeFleetPolicy("+configPath+")", "difference in config: MergeFleetPolicy(%s) -> base error: %v | compare error: %v", configPath, err1, err2)
+		t.warnOnce("MergeFleetPolicy", configPath, "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
@@ -526,7 +527,7 @@ func (t *teeConfig) AddExtraConfigPaths(ins []string) error {
 	err1 := t.baseline.AddExtraConfigPaths(ins)
 	err2 := t.compare.AddExtraConfigPaths(ins)
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
-		t.warnOnce("AddExtraConfigPaths()", "difference in config: AddExtraConfigPaths(%s) -> base error: %v | compare error: %v", ins, err1, err2)
+		t.warnOnce("AddExtraConfigPaths", fmt.Sprint(ins), "base error: %v | compare error: %v", err1, err2)
 	}
 	return err1
 }
