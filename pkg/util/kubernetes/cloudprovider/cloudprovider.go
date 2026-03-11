@@ -49,7 +49,12 @@ func GetName(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	kubeDistro := getKubeDistributionName(nl, "")
+	nsi, err := dcaClient.GetNodeInfo(nodeName)
+	if err != nil {
+		return "", err
+	}
+
+	kubeDistro := getKubeDistributionName(nl, nsi.KubeletVersion)
 
 	cache.Cache.Set(cacheKey, kubeDistro, cache.NoExpiration)
 	return kubeDistro, nil
