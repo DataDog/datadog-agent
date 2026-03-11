@@ -15,7 +15,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** `Namespaces`, `TimeBounds`, `MaxTimestamp`, `ListAllSeriesCompact`, and `DroppedValueStats` iterate `s.series` without acquiring `s.mu`. Concurrent `Add()` calls create a data race on the map.
 - **Reproducing:** Easy -- `go test -race` with a goroutine calling `Add` and another calling any of the five methods.
 - [x] Validated -- 5 race tests in `findings_test.go` all fail under `-race`
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### H2: `MinVariance=0` re-enables constant-series false positives
 
@@ -23,7 +23,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** `ensureDefaults` has no guard against `MinVariance <= 0`. Setting it to zero defeats the MinVariance floor added in commit f3892b to fix constant-series false positives.
 - **Reproducing:** Easy -- construct `BOCPDDetector{MinVariance: 0}`, feed 200 constant-value points, assert no anomalies.
 - [x] Validated -- `ensureDefaults` passes through both 0 and negative values
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### H3: Changepoint mass uses prior predictive instead of sum over run-length predictives
 
@@ -43,7 +43,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** Dedup key is `{seriesID, detectorName, timestamp}`. Two anomalies with different severity, title, or description but same key collide. The second is silently dropped from `rawAnomalies`.
 - **Reproducing:** Easy -- inject a detector that returns two anomalies with same seriesID+timestamp but different titles. Assert both appear in `rawAnomalies`.
 - [x] Validated -- only 1 of 2 distinct anomalies survives dedup
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### M2: Log anomalies with empty `SourceSeriesID` collide on dedup key
 
@@ -51,7 +51,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** Log anomalies leave `SourceSeriesID` empty. Two log anomalies from the same detector in the same second share dedup key `{"", detectorName, ts}`, and the second is dropped.
 - **Reproducing:** Easy -- call `Advance` with a detector that emits two log-type anomalies at the same timestamp with empty SourceSeriesID. Assert both survive in `rawAnomalies`.
 - [x] Validated -- only 1 of 2 log anomalies survives; empty SourceSeriesID causes collision
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### M3: Dedup asymmetry -- display store deduped but correlator/reporter pipeline is not
 
@@ -59,7 +59,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** `captureRawAnomaly` deduplicates, but `processAnomaly` and the `allAnomalies` slice passed to reporters run unconditionally. Reporters receive duplicates that the display store filtered out.
 - **Reproducing:** Easy -- subscribe a `collectingSink`, inject a detector that returns duplicates. Assert `anomalyCreated` event count matches `rawAnomalies` count.
 - [x] Validated -- 2 events emitted but only 1 in rawAnomalies
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### M4: Unbounded growth of `uniqueAnomalySources` and `accumulatedCorrelations`
 
@@ -75,7 +75,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** Positive `math.MaxFloat64` is filtered, but negative is not. Two `-MaxFloat64` values in one bucket produce `-Inf` sum, corrupting aggregation results fed to detectors.
 - **Reproducing:** Easy -- `storage.Add` two `-math.MaxFloat64` values at the same timestamp, query the bucket, assert no `-Inf`.
 - [x] Validated -- sum of two `-MaxFloat64` produces `-Inf`
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### M6: BOCPD skips same-bucket value merges
 
@@ -91,7 +91,7 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Description:** `warmupM2 / (warmupCount - 1)` with `warmupCount=1` produces `0/0 = NaN`. `ensureDefaults` guards `<= 0` but not `< 2`. The detector silently degrades to garbage output.
 - **Reproducing:** Easy -- construct `BOCPDDetector{WarmupPoints: 1}`, feed data, assert no NaN in internal state or that `ensureDefaults` rejects it.
 - [x] Validated -- NaN cascades through baselineStddev, obsVar, priorPrecision, DeviationSigma
-- **Fix SHA:**
+- **Fix SHA:** 6d13f983a66
 
 ### M8: `shortRunMass` includes cpProb making trigger conditions non-independent
 
