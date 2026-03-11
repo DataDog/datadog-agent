@@ -10,6 +10,7 @@ package sysctl
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -140,6 +141,9 @@ func (i *IntPair) get(now time.Time) (int, int, error) {
 	v, updated, err := i.sctl.get(now)
 	if err == nil && updated {
 		vals := strings.Fields(v)
+		if len(vals) < 2 {
+			return i.v1, i.v2, fmt.Errorf("sysctl %s: expected 2 fields, got %d", i.path, len(vals))
+		}
 		i.v1, err = strconv.Atoi(vals[0])
 		if err == nil {
 			i.v2, err = strconv.Atoi(vals[1])
