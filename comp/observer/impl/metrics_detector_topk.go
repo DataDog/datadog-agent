@@ -40,9 +40,9 @@ type TopKConfig struct {
 
 // defaultTopKExcludePrefixes is intentionally empty. Prefix-based filtering was
 // tested but changed the global ranking composition in ways that could regress
-// either L2 or mRec depending on scenario. The service diversity bonus mechanism
-// (Step 4b in Detect) ensures application services are represented without
-// disturbing the global ranking that drives good L2 timestamp precision.
+// detection quality. The service diversity bonus mechanism (Step 4b in Detect)
+// ensures application services are represented without disturbing the global
+// ranking that drives good timestamp precision.
 var defaultTopKExcludePrefixes []string
 
 // DefaultTopKConfig returns sensible defaults.
@@ -155,7 +155,7 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 		return scored[i].score > scored[j].score
 	})
 
-	// Step 4: Select top-K globally (preserves original L2-optimal behavior)
+	// Step 4: Select top-K globally
 	k := d.config.TopK
 	fractionK := int(math.Ceil(float64(len(scored)) * d.config.TopFraction))
 	if fractionK < k {
@@ -194,7 +194,7 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 	}
 	// Compute the median change point of the global selection, so bonus metrics
 	// can adopt it. This ensures bonus metrics cluster with the main group in
-	// the time_cluster correlator, preserving L2 timestamp precision.
+	// the time_cluster correlator, preserving timestamp precision.
 	var globalChangePts []int64
 	for _, s := range selected {
 		globalChangePts = append(globalChangePts, s.changePt)
@@ -208,7 +208,7 @@ func (d *TopKDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 	}
 
 	// Cap total bonus to a small number to avoid inflating the anomaly count
-	// excessively, which would degrade time_cluster precision (L2 F1).
+	// excessively, which would degrade time_cluster precision.
 	maxBonus := 3
 	appBonus := 0
 	for _, s := range scored {
