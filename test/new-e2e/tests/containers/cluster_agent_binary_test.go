@@ -8,16 +8,35 @@ package containers
 import (
 	"context"
 	"strings"
+	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
+
+type clusterAgentBinarySuite struct {
+	baseSuite[environments.Kubernetes]
+}
+
+func TestClusterAgentBinarySuite(t *testing.T) {
+	e2e.Run(t, &clusterAgentBinarySuite{}, e2e.WithProvisioner(provkind.Provisioner(
+		provkind.WithRunOptions(
+			scenkind.WithoutFakeIntake(),
+			scenkind.WithAgentOptions(),
+		),
+	)))
+}
 
 // TestSecretGenericConnectorPresenceAndPermissions verifies that the
 // secret-generic-connector binary is present at the expected path in the
 // cluster agent image with the correct permissions (550) and ownership
 // (root:secret-manager).
-func (suite *k8sSuite) TestSecretGenericConnectorPresenceAndPermissions() {
+func (suite *clusterAgentBinarySuite) TestSecretGenericConnectorPresenceAndPermissions() {
 	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
