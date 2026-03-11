@@ -67,7 +67,6 @@ pkg_deb(
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-agent-ddot",
-    # Lifecycle scripts from omnibus/package-scripts/ddot-deb/
     postinst = "//omnibus/package-scripts/ddot-deb:postinst",
     preinst = "//omnibus/package-scripts/ddot-deb:preinst",
     prerm = "//omnibus/package-scripts/ddot-deb:prerm",
@@ -86,7 +85,6 @@ pkg_rpm(
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
-    # Lifecycle scripts from omnibus/package-scripts/ddot-rpm/
     posttrans_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:posttrans",
     pre_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:preinst",
     preun_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:prerm",

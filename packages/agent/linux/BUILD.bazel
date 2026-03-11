@@ -114,7 +114,6 @@ See http://www.datadoghq.com/ for more information
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-agent",
-    # Lifecycle scripts from omnibus/package-scripts/agent-deb/
     postinst = "//omnibus/package-scripts/agent-deb:postinst",
     postrm = "//omnibus/package-scripts/agent-deb:postrm",
     preinst = "//omnibus/package-scripts/agent-deb:preinst",
@@ -154,7 +153,6 @@ See http://www.datadoghq.com/ for more information
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
-    # Lifecycle scripts from omnibus/package-scripts/agent-rpm/
     posttrans_scriptlet_file = "//omnibus/package-scripts/agent-rpm:posttrans",
     pre_scriptlet_file = "//omnibus/package-scripts/agent-rpm:preinst",
     preun_scriptlet_file = "//omnibus/package-scripts/agent-rpm:prerm",

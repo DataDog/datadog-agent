@@ -70,7 +70,6 @@ See http://www.datadoghq.com/ for more information
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-dogstatsd",
-    # Lifecycle scripts from omnibus/package-scripts/dogstatsd-deb/
     postinst = "//omnibus/package-scripts/dogstatsd-deb:postinst",
     postrm = "//omnibus/package-scripts/dogstatsd-deb:postrm",
     preinst = "//omnibus/package-scripts/dogstatsd-deb:preinst",
@@ -98,7 +97,6 @@ See http://www.datadoghq.com/ for more information
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
-    # Lifecycle scripts from omnibus/package-scripts/dogstatsd-rpm/
     post_scriptlet_file = "//omnibus/package-scripts/dogstatsd-rpm:postinst",
     posttrans_scriptlet_file = "//omnibus/package-scripts/dogstatsd-rpm:posttrans",
     postun_scriptlet_file = "//omnibus/package-scripts/dogstatsd-rpm:postrm",
