@@ -43,6 +43,13 @@ const (
 	maxRetryForMsgWithKillAction = 62
 )
 
+// RemediationContainerContext represents the container context for remediation events (e.g. container ID and created_at).
+// Defined here so KillActionReport can use it on all platforms; Linux-specific remediation logic lives in remediations_linux.go.
+type RemediationContainerContext struct {
+	CreatedAt uint64 `json:"created_at,omitempty"`
+	ID        string `json:"id,omitempty"`
+}
+
 // KillActionReport defines a kill action reports
 type KillActionReport struct {
 	sync.RWMutex

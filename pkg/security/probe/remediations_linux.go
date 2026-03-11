@@ -69,13 +69,6 @@ type RemediationProcessContext struct {
 	PID uint32 `json:"pid,omitempty"`
 }
 
-// RemediationContainerContext represents the container context for remediation events
-// easyjson:json
-type RemediationContainerContext struct {
-	CreatedAt uint64 `json:"created_at,omitempty"`
-	ID        string `json:"id,omitempty"`
-}
-
 // RemediationAgentContext represents the agent context for remediation events
 // easyjson:json
 type RemediationAgentContext struct {
