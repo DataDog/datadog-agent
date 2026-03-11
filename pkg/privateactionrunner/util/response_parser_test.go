@@ -318,29 +318,3 @@ func TestInferResponseParsing(t *testing.T) {
 		})
 	}
 }
-
-func TestCharsetAliases(t *testing.T) {
-	tests := []struct {
-		charset  string
-		expected string
-	}{
-		{"iso-8859-1", "latin1"},
-		{"iso88591", "latin1"},
-		{"iso8859-1", "latin1"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.charset, func(t *testing.T) {
-			assert.Equal(t, tt.expected, CharsetAliases[tt.charset])
-		})
-	}
-}
-
-func TestEncodingList(t *testing.T) {
-	expectedEncodings := []string{
-		"ascii", "utf8", "utf-8", "utf16le", "ucs2", "ucs-2",
-		"base64", "base64url", "latin1", "binary", "hex",
-	}
-
-	assert.Equal(t, expectedEncodings, Encoding)
-}

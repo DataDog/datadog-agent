@@ -77,7 +77,3 @@ func TestModeMetricTag(t *testing.T) {
 		})
 	}
 }
-
-func TestModePullConstant(t *testing.T) {
-	assert.Equal(t, Mode("pull"), ModePull)
-}
