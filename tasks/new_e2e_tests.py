@@ -1206,10 +1206,10 @@ def _find_pipeline_for_commit_sha(ctx: Context, commit_sha: str) -> str | None:
                 continue
             jobs = pipeline.jobs.list(get_all=True)
 
-            stage_jobs: dict[str, list] = {}
+            stage_jobs = defaultdict(list)
             for job in jobs:
                 if job.stage in required_stages:
-                    stage_jobs.setdefault(job.stage, []).append(job)
+                    stage_jobs[job.stage].append(job)
 
             # All required stages must be present
             if not required_stages.issubset(stage_jobs.keys()):
