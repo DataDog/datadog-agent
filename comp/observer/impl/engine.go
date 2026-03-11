@@ -308,10 +308,8 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) {
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
 	}
-	if idx, ok := e.rawAnomalyIndex[key]; ok {
-		if anomaly.Timestamp > e.rawAnomalies[idx].Timestamp {
-			e.rawAnomalies[idx] = anomaly
-		}
+	if _, ok := e.rawAnomalyIndex[key]; ok {
+		return // exact duplicate (same series + detector + timestamp)
 	} else {
 		if e.rawAnomalyIndex == nil {
 			e.rawAnomalyIndex = make(map[anomalyDedupKey]int)

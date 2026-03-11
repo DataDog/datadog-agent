@@ -276,7 +276,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	defer tb.mu.Unlock()
 
 	// Clear existing data
-	tb.engine.storage = newTimeSeriesStorage()
+	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
 	tb.rawLogs = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
@@ -320,7 +320,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	analysisStart := time.Now()
 	tb.rerunDetectorsLocked()
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
-	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
+	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
@@ -933,7 +933,7 @@ func (tb *TestBench) loadDemoScenario() error {
 	defer tb.mu.Unlock()
 
 	// Clear existing data
-	tb.engine.storage = newTimeSeriesStorage()
+	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
 	tb.rawLogs = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
@@ -1080,7 +1080,7 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (detectors sync, correlators async)
 	tb.rerunDetectorsLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
