@@ -16,11 +16,13 @@
       },
       {
         "matchDepNames": ["linux-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 * * 1-5"]
       },
       {
         "matchDepNames": ["windows-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 2 * *"]
       },
