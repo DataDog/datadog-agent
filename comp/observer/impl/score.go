@@ -97,14 +97,18 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		matchedPred[c.predIdx] = true
 		matchedGT[c.gtIdx] = true
 
-		overlap := halfGaussianOverlap(
-			input.PredictionTimestamps[c.predIdx],
-			input.GroundTruthTimestamps[c.gtIdx],
-			input.Sigma,
-		)
+		// Predictions before onset are complete misses — no credit for early alarms.
+		var overlap float64
+		if input.PredictionTimestamps[c.predIdx] >= input.GroundTruthTimestamps[c.gtIdx] {
+			overlap = halfGaussianOverlap(
+				input.PredictionTimestamps[c.predIdx],
+				input.GroundTruthTimestamps[c.gtIdx],
+				input.Sigma,
+			)
+		}
 		tp += overlap
-		fp += 1.0 - overlap // prediction area not overlapping ground truth
-		fn += 1.0 - overlap // ground truth area not overlapping prediction
+		fp += 1.0 - overlap
+		fn += 1.0 - overlap
 	}
 
 	// Unmatched predictions → full FP

@@ -188,13 +188,10 @@ function f1Color(f1: number): string {
   return 'text-red-400';
 }
 
-function ScoreDisplay({ score, sigma, onSigmaChange, showSigmaWindow, onToggleSigmaWindow, canShowSigmaWindow }: {
+function ScoreDisplay({ score, sigma, onSigmaChange }: {
   score: ScoreResult;
   sigma: number;
   onSigmaChange: (s: number) => void;
-  showSigmaWindow: boolean;
-  onToggleSigmaWindow: () => void;
-  canShowSigmaWindow: boolean;
 }) {
   return (
     <div className="flex items-center gap-3 bg-slate-700/50 rounded px-3 py-1.5">
@@ -209,10 +206,6 @@ function ScoreDisplay({ score, sigma, onSigmaChange, showSigmaWindow, onToggleSi
         <span className="text-sm font-mono text-slate-200">{score.precision.toFixed(3)}</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="text-xs text-slate-400">R</span>
-        <span className="text-sm font-mono text-slate-200">{score.recall.toFixed(3)}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
         <span className="text-xs text-slate-400">&sigma;</span>
         <input
           type="range"
@@ -225,19 +218,6 @@ function ScoreDisplay({ score, sigma, onSigmaChange, showSigmaWindow, onToggleSi
         />
         <span className="text-xs font-mono text-slate-400 w-6">{sigma}s</span>
       </div>
-      {canShowSigmaWindow && (
-        <button
-          onClick={onToggleSigmaWindow}
-          title="Show +2σ scoring window on swimlane"
-          className={`text-xs px-2 py-0.5 rounded transition-colors ${
-            showSigmaWindow
-              ? 'bg-purple-600 text-white'
-              : 'bg-slate-600 text-slate-300 hover:bg-slate-500'
-          }`}
-        >
-          +2σ
-        </button>
-      )}
     </div>
   );
 }
@@ -256,7 +236,6 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [smoothLines, setSmoothLines] = useState(true);
   const [sigma, setSigma] = useState(30);
-  const [showSigmaWindow, setShowSigmaWindow] = useState(false);
 
   const handleSigmaChange = useCallback((newSigma: number) => {
     setSigma(newSigma);
@@ -344,9 +323,7 @@ function App() {
     return isNaN(ts) ? null : ts;
   }, [episodeInfo]);
 
-  const sigmaWindow = showSigmaWindow && sigmaWindowCenter != null
-    ? { center: sigmaWindowCenter, sigma }
-    : null;
+  const sigmaWindow = sigmaWindowCenter != null ? { center: sigmaWindowCenter, sigma } : null;
 
   // Phase markers derived from episode info — dotted lines on all charts
   const phaseMarkers = useMemo<PhaseMarker[]>(() => {
@@ -469,9 +446,6 @@ function App() {
                 score={state.scoreResponse.score}
                 sigma={sigma}
                 onSigmaChange={handleSigmaChange}
-                showSigmaWindow={showSigmaWindow}
-                onToggleSigmaWindow={() => setShowSigmaWindow(v => !v)}
-                canShowSigmaWindow={sigmaWindowCenter != null}
               />
             )}
             {state.scoreResponse && !state.scoreResponse.available && state.connectionState === 'ready' && (

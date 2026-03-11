@@ -123,35 +123,30 @@ func TestGaussianF1_MultipleGroundTruths(t *testing.T) {
 	assert.Equal(t, 2, result.NumGroundTruths)
 }
 
-func TestGaussianF1_HalfGaussianSymmetry(t *testing.T) {
-	// With both prediction and ground truth as right-sided half-Gaussians,
-	// equal distances before and after produce the same overlap — both
-	// distributions extend rightward, so the geometry is symmetric around d=0.
+func TestGaussianF1_PreOnsetIsCompleteMiss(t *testing.T) {
+	// Predictions before onset are complete misses — no credit regardless of distance.
 	before := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{92}, // 8s before
+		PredictionTimestamps:  []int64{92}, // 8s before onset
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
+	assert.Equal(t, 0.0, before.F1, "prediction before onset should score 0")
+	assert.Equal(t, 0.0, before.TP)
+	assert.Equal(t, 1.0, before.FP)
+	assert.Equal(t, 1.0, before.FN)
 
+	// A prediction after onset gets partial credit decaying with distance.
 	after := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{108}, // 8s after
+		PredictionTimestamps:  []int64{108}, // 8s after onset
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
+	assert.Greater(t, after.F1, 0.0, "prediction after onset should score > 0")
 
-	assert.InDelta(t, before.F1, after.F1, 0.01,
-		"equal distances should produce similar scores (before=%.3f, after=%.3f)",
+	// Pre-onset always scores strictly less than same-distance post-onset.
+	assert.Less(t, before.F1, after.F1,
+		"pre-onset (%.3f) should score less than post-onset (%.3f)",
 		before.F1, after.F1)
-
-	// But a prediction far before onset should score much less than one close after
-	farBefore := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{60}, // 40s before (4σ)
-		GroundTruthTimestamps: []int64{100},
-		Sigma:                 testSigma,
-	})
-	assert.Less(t, farBefore.F1, after.F1,
-		"far before onset (%.3f) should score less than close after (%.3f)",
-		farBefore.F1, after.F1)
 }
 
 func TestScorePredictions(t *testing.T) {

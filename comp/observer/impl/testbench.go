@@ -1126,9 +1126,7 @@ func (tb *TestBench) RunHeadless(scenario, outputPath string, opts HeadlessOptio
 
 func printScoreResult(r *ScoreResult) {
 	fmt.Printf("\nGaussian F1 Score (sigma=%.1fs)\n", r.Sigma)
-	fmt.Printf("  F1:        %.4f\n", r.F1)
-	fmt.Printf("  Precision: %.4f\n", r.Precision)
-	fmt.Printf("  Recall:    %.4f\n", r.Recall)
+	fmt.Printf("  F1: %.4f\n", r.F1)
 	fmt.Printf("  TP: %.4f  FP: %.4f  FN: %.4f\n", r.TP, r.FP, r.FN)
 	fmt.Printf("  Predictions: %d scored, %d warmup filtered, %d cascading filtered, %d baseline FPs\n",
 		r.NumPredictions, r.NumFilteredWarmup, r.NumFilteredCascading, r.NumBaselineFPs)
