@@ -149,7 +149,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 			// Check if there are new points or merged values.
 			visibleCount := storage.PointCountUpTo(key, dataTime)
-			currentGen := storage.WriteGeneration()
+			currentGen := storage.WriteGeneration(key)
 			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
 			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
 				continue

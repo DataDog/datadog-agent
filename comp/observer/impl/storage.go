@@ -22,10 +22,6 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
-	// writeGeneration increments on every Add (including same-bucket merges).
-	// Used by detectors to detect value changes that don't create new buckets.
-	writeGeneration int64
-
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// including log timestamps that produced no virtual metrics. This ensures
 	// DataTimestamps() includes all observation times for replay fidelity.
@@ -45,6 +41,10 @@ type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
+
+	// writeGeneration increments on every Add (including same-bucket merges).
+	// Used by detectors to detect value changes that don't create new buckets.
+	writeGeneration int64
 
 	// Columnar storage — all slices have the same length, indexed by point position.
 	timestamps []int64
@@ -204,8 +204,6 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
-	s.writeGeneration++
-
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]
@@ -217,6 +215,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		}
 		s.series[key] = stats
 	}
+	stats.writeGeneration++
 
 	// Bucket by second
 	bucket := timestamp
@@ -626,10 +625,15 @@ func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
 // WriteGeneration returns a counter that increments on every Add call
 // (including same-bucket merges). Detectors use this to detect value
 // changes that don't create new buckets.
-func (s *timeSeriesStorage) WriteGeneration() int64 {
+func (s *timeSeriesStorage) WriteGeneration(key observer.SeriesKey) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.writeGeneration
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	if stats, ok := s.series[k]; ok {
+		return stats.writeGeneration
+	}
+	return 0
 }
 
 // matchTags checks if tags contain all required key=value pairs.

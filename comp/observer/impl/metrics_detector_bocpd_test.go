@@ -420,7 +420,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 
 	pointCount := storage.PointCountUpTo(key, 5)
 	t.Logf("genBefore=%d, genAfter=%d, PointCountUpTo=%d, writeGen=%d",
-		genBefore, genAfter, pointCount, storage.WriteGeneration())
+		genBefore, genAfter, pointCount, storage.WriteGeneration(key))
 
 	// The detector should notice the merge via writeGeneration even though
 	// PointCountUpTo didn't change. If it re-processed, genAfter > genBefore.

@@ -459,10 +459,10 @@ type StorageReader interface {
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(key SeriesKey, endTime int64) int
 
-	// WriteGeneration returns a counter that increments on every write,
-	// including same-bucket merges. Detectors can use this to detect value
-	// changes that don't create new buckets.
-	WriteGeneration() int64
+	// WriteGeneration returns a per-series counter that increments on every
+	// write, including same-bucket merges. Detectors use this to detect value
+	// changes that don't create new buckets. Returns 0 if the series is not found.
+	WriteGeneration(key SeriesKey) int64
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.
