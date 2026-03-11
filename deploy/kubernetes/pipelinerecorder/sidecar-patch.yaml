@@ -1,0 +1,50 @@
+# Strategic-merge patch that injects the pipelinerecorder sidecar into the
+# Datadog Agent DaemonSet.
+#
+# Apply to a specific DaemonSet by name:
+#   kubectl patch daemonset <agent-daemonset-name> \
+#     --patch-file deploy/kubernetes/pipelinerecorder/sidecar-patch.yaml
+#
+# Or via kustomize:
+#   kustomize build deploy/kubernetes/pipelinerecorder/ | kubectl apply -f -
+#
+# Note: replace <AGENT_DAEMONSET_NAME> with the actual DaemonSet name (e.g. datadog-agent).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: datadog-agent  # Override with your agent DaemonSet name.
+spec:
+  template:
+    spec:
+      containers:
+        - name: pipelinerecorder
+          image: datadog/pipelinerecorder:latest
+          env:
+            - name: RECORDER_SOCKET_PATH
+              value: /var/run/pipelinesink/pipeline.sock
+            - name: RECORDER_OUTPUT_DIR
+              value: /data/signals
+            - name: RUST_LOG
+              value: info
+          volumeMounts:
+            - name: pipeline-socket
+              mountPath: /var/run/pipelinesink
+            - name: pipeline-data
+              mountPath: /data/signals
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        # Patch the agent container to mount the shared socket volume.
+        - name: agent
+          volumeMounts:
+            - name: pipeline-socket
+              mountPath: /var/run/pipelinesink
+      volumes:
+        - name: pipeline-socket
+          emptyDir: {}
+        - name: pipeline-data
+          emptyDir: {}
