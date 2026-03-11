@@ -191,15 +191,15 @@ def build_test_tree(
 def count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
     """Count leaf tests (those without subtests) by status category.
 
-    A node with subtests but its own failure (e.g. setup/teardown panic) is
-    also counted so the summary reflects every visible failure.
-
     Returns a dict with keys: passed, failed, skipped, flaky, retried, total.
     """
     counts: dict[str, int] = {"passed": 0, "failed": 0, "skipped": 0, "flaky": 0, "retried": 0, "total": 0}
 
     def _walk(t: UTOFTestResult):
-        if not t.subtests or t.failure is not None:
+        if t.subtests:
+            for sub in t.subtests:
+                _walk(sub)
+        else:
             counts["total"] += 1
             if t.status == "pass":
                 counts["passed"] += 1
@@ -211,9 +211,6 @@ def count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
                 counts["flaky"] += 1
             if t.retry_count > 0:
                 counts["retried"] += 1
-        if t.subtests:
-            for sub in t.subtests:
-                _walk(sub)
 
     for test in tests:
         _walk(test)
