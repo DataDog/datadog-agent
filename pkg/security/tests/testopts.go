@@ -46,7 +46,6 @@ type testOpts struct {
 	anomalyDetectionWarmupPeriod               time.Duration
 	disableDiscarders                          bool
 	disableERPCDentryResolution                bool
-	disableMapDentryResolution                 bool
 	envsWithValue                              []string
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool

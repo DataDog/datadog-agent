@@ -455,6 +455,6 @@ func TestEventTruncatedParents(t *testing.T) {
 	})
 
 	t.Run("erpc", func(t *testing.T) {
-		truncatedParents(t, testOpts{disableMapDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
+		truncatedParents(t, testOpts{}, dynamicTestOpts{disableAbnormalPathCheck: true})
 	})
 }

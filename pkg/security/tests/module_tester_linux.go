@@ -103,7 +103,6 @@ event_monitoring_config:
   enable_discarders: false
 {{end}}
   erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
-  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
   envs_with_value:
   {{range .EnvsWithValue}}
     - {{.}}

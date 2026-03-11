@@ -780,11 +780,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		erpcDentryResolutionEnabled = false
 	}
 
-	mapDentryResolutionEnabled := true
-	if opts.disableMapDentryResolution {
-		mapDentryResolutionEnabled = false
-	}
-
 	runtimeSecurityEnabled := true
 	if opts.disableRuntimeSecurity {
 		runtimeSecurityEnabled = false
@@ -824,7 +819,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
 		"AnomalyDetectionWarmupPeriod":               opts.anomalyDetectionWarmupPeriod,
 		"ErpcDentryResolutionEnabled":                erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":                 mapDentryResolutionEnabled,
 		"LogPatterns":                                logPatterns,
 		"LogTags":                                    logTags,
 		"EnvsWithValue":                              opts.envsWithValue,
@@ -892,7 +886,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 	}
 
 	secconfig.Probe.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
-	secconfig.Probe.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
 	return emconfig, secconfig, nil
 }

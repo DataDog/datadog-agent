@@ -35,7 +35,7 @@ func TestDentryPathERPC(t *testing.T) {
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestDentryInvalidation(t *testing.T) {
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -354,143 +354,6 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		}
 		if len(f) == 0 || len(f) > 0 && f[0] == 0 {
 			b.Log("couldn't resolve path")
-		}
-	}
-
-	test.Close()
-}
-
-func BenchmarkMapDentryResolutionSegment(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		b.Skip("not supported")
-	}
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var pathKey model.PathKey
-
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			return err
-		}
-		return syscall.Close(fd)
-	}, func(event *model.Event, _ *rules.Rule) {
-		pathKey = event.Open.File.PathKey
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(p.Manager); err != nil {
-		b.Fatal(err)
-	}
-	name, err := resolver.ResolveNameFromMap(pathKey, true)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(name)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromMap(pathKey, true)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(name) == 0 || len(name) > 0 && name[0] == 0 {
-			b.Fatal("couldn't resolve segment")
-		}
-	}
-
-	test.Close()
-}
-
-func BenchmarkMapDentryResolutionPath(b *testing.B) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer test.Close()
-
-	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		b.Skip("not supported")
-	}
-
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
-	if err != nil {
-		b.Fatal(err)
-	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
-
-	defer os.Remove(testFile)
-
-	var pathKey model.PathKey
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
-		if err != nil {
-			return err
-		}
-		return syscall.Close(fd)
-	}, func(event *model.Event, _ *rules.Rule) {
-		pathKey = event.Open.File.PathKey
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(p.Manager); err != nil {
-		b.Fatal(err)
-	}
-	f, err := resolver.ResolveFromMap(pathKey, true)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(f)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(pathKey, true)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if f[0] == 0 {
-			b.Fatal("couldn't resolve file")
 		}
 	}
 
