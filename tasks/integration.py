@@ -10,11 +10,9 @@ Commands:
 """
 
 import difflib
-import os
 import re
 import textwrap
 from pathlib import Path
-from string import Template
 
 import yaml
 from invoke import task
@@ -129,7 +127,7 @@ def _render_param_comment(name: str, param_type: str, required: bool, default, d
         import yaml as _yaml
 
         example_yaml = _yaml.dump(example, default_flow_style=False).rstrip()
-        indented = "\n".join(f"#   {l}" for l in example_yaml.splitlines())
+        indented = "\n".join(f"#   {line}" for line in example_yaml.splitlines())
         if required:
             return "\n".join(lines) + f"\n{name}:\n  # ...\n"
         return "\n".join(lines) + f"\n# {name}:\n{indented}\n"
@@ -154,8 +152,8 @@ def _generate_conf_yaml(check_name: str, spec: dict) -> str:
     lines = [
         "## All options defined here are available to all instances.",
         "##",
-        f"## WARNING: To avoid any issues with parameter overrides, do not copy/paste this file.",
-        f"## Instead edit your configuration file to only include the required parameters.",
+        "## WARNING: To avoid any issues with parameter overrides, do not copy/paste this file.",
+        "## Instead edit your configuration file to only include the required parameters.",
         "",
     ]
 
@@ -192,6 +190,7 @@ def _generate_conf_yaml(check_name: str, spec: dict) -> str:
 # ---------------------------------------------------------------------------
 # Task: spec-generate
 # ---------------------------------------------------------------------------
+
 
 @task(
     help={
@@ -341,7 +340,7 @@ def _parse_conf_yaml(conf_path: Path) -> dict:
                 elif part.lower() == "optional":
                     is_required = False
                 elif part.lower().startswith("default:"):
-                    default_str = part[len("default:"):].strip()
+                    default_str = part[len("default:") :].strip()
                     default_val = _parse_scalar(default_str)
 
             # Collect description lines (## lines after @param, until blank ## or non-## line)
@@ -365,9 +364,7 @@ def _parse_conf_yaml(conf_path: Path) -> dict:
             while j < len(lines) and lines[j].strip() in ("#", ""):
                 j += 1
             if j < len(lines):
-                example_match = re.match(
-                    r'^[\s#]*#\s+' + re.escape(param_name) + r'\s*:\s*(.*)', lines[j]
-                )
+                example_match = re.match(r'^[\s#]*#\s+' + re.escape(param_name) + r'\s*:\s*(.*)', lines[j])
                 if example_match:
                     raw_example = example_match.group(1).strip()
                     if raw_example:
@@ -441,6 +438,7 @@ def _build_spec(check_name: str, options_by_template: dict) -> dict:
 # Go struct sync helpers
 # ---------------------------------------------------------------------------
 
+
 def _spec_value_to_go_type(value: dict) -> str:
     """Convert a spec value dict to a Go type string."""
     spec_type = value.get("type", "string")
@@ -506,6 +504,7 @@ def _sync_config_struct(go_file: Path, fields: list[str]) -> bool:
 # Task: spec-sync
 # ---------------------------------------------------------------------------
 
+
 @task(
     help={
         "check": "Validate/sync only this check (optional). Runs against all checks if not set.",
@@ -557,7 +556,9 @@ def spec_sync(_, check=None, sync=False):
                 else:
                     print(f"Configuration struct already up to date in {go_file}")
             else:
-                print(f"Note: no Go file found for '{check_name}' under pkg/collector/corechecks — skipping struct sync.")
+                print(
+                    f"Note: no Go file found for '{check_name}' under pkg/collector/corechecks — skipping struct sync."
+                )
 
             synced += 1
         else:
@@ -579,10 +580,10 @@ def spec_sync(_, check=None, sync=False):
                 else:
                     print(f"OK (conf): {check_name}")
             else:
-                    errors.append(
-                        f"MISSING: {out_path} does not exist.\n"
-                        f"  → Run `dda inv integration.spec-sync --check {check_name} --sync` to create it."
-                    )
+                errors.append(
+                    f"MISSING: {out_path} does not exist.\n"
+                    f"  → Run `dda inv integration.spec-sync --check {check_name} --sync` to create it."
+                )
 
             if go_file:
                 content = go_file.read_text()
