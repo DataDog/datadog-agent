@@ -1,0 +1,7 @@
+"""Agent configuration."""
+
+filegroup(
+    name = "template",
+    srcs = ["config_template.yaml"],
+    visibility = ["//visibility:public"],
+)
