@@ -43,6 +43,8 @@ const (
 	taskIndexTag     = "task_index"
 	taskAttemptTag   = "task_attempt"
 	taskCountTag     = "task_count" // not really high cardinality, but not necessary for metrics
+
+	cloudRunJobsUsageMetricName = ""
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
@@ -98,9 +100,9 @@ func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"origin":     tags["origin"],
 	}
 
-	highCardinalityTags := map[string]string{}
+	usageTags := map[string]string{}
 
-	return baseTags, highCardinalityTags
+	return baseTags, usageTags
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
@@ -112,6 +114,10 @@ func (c *CloudRunJobs) GetDefaultLogsSource() string {
 func (c *CloudRunJobs) GetMetricPrefix() string {
 	// Use cloud run prefix for metrics common to cloud run and cloud run jobs
 	return cloudRunPrefix
+}
+
+func (c *CloudRunJobs) GetUsageMetricName() string {
+	return cloudRunJobsUsageMetricName
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.

@@ -43,19 +43,20 @@ const (
 
 const (
 	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService      = "gcr."
-	cloudRunFunction     = "gcrfx."
-	revisionName         = "revision_name"
-	serviceName          = "service_name"
-	configName           = "configuration_name"
-	containerID          = "container_id"
-	location             = "location"
-	projectID            = "project_id"
-	resourceName         = "resource_name"
-	functionTarget       = "build_function_target"
-	functionSignature    = "function_signature_type"
-	cloudRunPrefix       = "gcp.run.container"
-	cloudRunPrefixLegacy = "gcp.run"
+	cloudRunService         = "gcr."
+	cloudRunFunction        = "gcrfx."
+	revisionName            = "revision_name"
+	serviceName             = "service_name"
+	configName              = "configuration_name"
+	containerID             = "container_id"
+	location                = "location"
+	projectID               = "project_id"
+	resourceName            = "resource_name"
+	functionTarget          = "build_function_target"
+	functionSignature       = "function_signature_type"
+	cloudRunPrefix          = "gcp.run.container"
+	cloudRunPrefixLegacy    = "gcp.run"
+	cloudRunUsageMetricName = "instance"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -120,23 +121,20 @@ func (c *CloudRun) GetTags() map[string]string {
 func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
 		"location":      tags["location"],
+		"origin":        tags["origin"],
 		"project_id":    tags["project_id"],
 		"revision_name": tags["revision_name"],
 		"service_name":  tags["service_name"],
-		"origin":        tags["origin"],
 	}
 
-	if c.spanNamespace == cloudRunFunction {
-		baseTags["resource_name"] = tags["gcrfx.resource_name"]
-	} else {
-		baseTags["resource_name"] = tags["gcr.resource_name"]
+	usageTags := map[string]string{
+		"instance":     tags["container_id"],
+		"location":     tags["location"],
+		"project_id":   tags["project_id"],
+		"service_name": tags["service_name"],
 	}
 
-	highCardinalityTags := map[string]string{
-		"instance": tags["container_id"],
-	}
-
-	return baseTags, highCardinalityTags
+	return baseTags, usageTags
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
@@ -162,6 +160,10 @@ func (c *CloudRun) GetDefaultLogsSource() string {
 
 func (c *CloudRun) GetMetricPrefix() string {
 	return cloudRunPrefix
+}
+
+func (c *CloudRun) GetUsageMetricName() string {
+	return cloudRunUsageMetricName
 }
 
 // GetOrigin returns the `origin` attribute type for the given

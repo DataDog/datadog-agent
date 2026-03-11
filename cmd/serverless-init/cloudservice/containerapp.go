@@ -53,6 +53,8 @@ const (
 
 	containerAppPrefix       = "azure.app_containerapp"
 	containerAppPrefixLegacy = "azure.containerapp"
+
+	containerAppUsageMetricName = "replica"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -118,19 +120,21 @@ func (c *ContainerApp) GetTags() map[string]string {
 func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
+		"origin":          tags["origin"],
 		"region":          tags["region"],
 		"resource_group":  tags["resource_group"],
-		"resource_id":     tags["resource_id"],
 		"revisionname":    tags["revision"],
 		"subscription_id": tags["subscription_id"],
-		"origin":          tags["origin"],
 	}
 
-	highCardinalityTags := map[string]string{
-		"replica_name": tags["replica_name"],
+	usageTags := map[string]string{
+		"name":            tags["app_name"],
+		"resource_group":  tags["resource_group"],
+		"subscription_id": tags["subscription_id"],
+		"replica":         tags["replica_name"],
 	}
 
-	return baseTags, highCardinalityTags
+	return baseTags, usageTags
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
@@ -140,6 +144,10 @@ func (c *ContainerApp) GetDefaultLogsSource() string {
 
 func (c *ContainerApp) GetMetricPrefix() string {
 	return containerAppPrefix
+}
+
+func (c *ContainerApp) GetUsageMetricName() string {
+	return containerAppUsageMetricName
 }
 
 // GetOrigin returns the `origin` attribute type for the given

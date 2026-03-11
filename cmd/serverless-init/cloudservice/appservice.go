@@ -34,6 +34,8 @@ const (
 
 	appServicePrefix       = "azure.app_services"
 	appServicePrefixLegacy = "azure.appservice"
+
+	appServiceUsageMetricName = "instance"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -56,18 +58,20 @@ func (a *AppService) GetTags() map[string]string {
 func (a *AppService) GetEnhancedMetricTags(tags map[string]string) (map[string]string, map[string]string) {
 	baseTags := map[string]string{
 		"name":            tags["app_name"],
+		"origin":          tags["origin"],
 		"region":          tags["region"],
 		"resource_group":  tags["aas.resource.group"],
-		"resource_id":     tags["aas.resource.id"],
 		"subscription_id": tags["aas.subscription.id"],
-		"origin":          tags["origin"],
 	}
 
-	highCardinalityTags := map[string]string{
-		"instance": tags["aas.environment.instance_name"],
+	usageTags := map[string]string{
+		"name":            tags["app_name"],
+		"instance":        tags["aas.environment.instance_name"],
+		"resource_group":  tags["aas.resource.group"],
+		"subscription_id": tags["aas.subscription.id"],
 	}
 
-	return baseTags, highCardinalityTags
+	return baseTags, usageTags
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
@@ -83,6 +87,10 @@ func (a *AppService) GetOrigin() string {
 
 func (a *AppService) GetMetricPrefix() string {
 	return appServicePrefix
+}
+
+func (a *AppService) GetUsageMetricName() string {
+	return appServiceUsageMetricName
 }
 
 // GetSource returns the metrics source

@@ -31,7 +31,7 @@ type CgroupReader interface {
 // EnhancedMetricSender sends enhanced metrics. Satisfied by *serverlessMetrics.ServerlessMetricAgent
 type EnhancedMetricSender interface {
 	AddEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string)
-	AddHighCardinalityEnhancedMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string)
+	AddEnhancedUsageMetric(name string, value float64, metricSource metrics.MetricSource, timestamp float64, extraTags ...string)
 }
 
 // ServerlessCPUStats stores CPU stats for serverless environments
@@ -74,12 +74,13 @@ type Collector struct {
 	cancelFunc         context.CancelFunc
 	done               chan struct{}
 	metricPrefix       string
+	usageMetricName    string
 	// Previous stats for rate calculation
 	previousRateStats ServerlessRateStats
 }
 
 // NewCollector creates a new Collector
-func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, collectionInterval time.Duration) (*Collector, error) {
+func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricSource, metricPrefix string, usageMetricName string, collectionInterval time.Duration) (*Collector, error) {
 	if metricAgent == nil || reflect.ValueOf(metricAgent).IsNil() {
 		return nil, errors.New("metricAgent cannot be nil")
 	}
@@ -95,6 +96,7 @@ func NewCollector(metricAgent EnhancedMetricSender, metricSource metrics.MetricS
 		cgroupReader:       cgroupReader,
 		collectionInterval: collectionInterval,
 		metricPrefix:       metricPrefix + ".enhanced.",
+		usageMetricName:    usageMetricName,
 		previousRateStats:  NullServerlessRateStats,
 	}, nil
 }
@@ -286,6 +288,10 @@ func calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime 
 
 // sendMetrics sends the enhanced metrics to the metric agent
 func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
+	if c.usageMetricName != "" {
+		c.metricAgent.AddEnhancedUsageMetric(c.metricPrefix+c.usageMetricName, 1, c.metricSource, enhancedMetrics.Timestamp)
+	}
+
 	// CPU usage in nanocores
 	// Skip when value is -1 since this value is used on the first collect before the rate can be computed
 	if enhancedMetrics.CPUUsage != -1 {
@@ -293,7 +299,7 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	}
 
 	// CPU limit in nanocores
-	c.metricAgent.AddHighCardinalityEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
+	c.metricAgent.AddEnhancedMetric(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, enhancedMetrics.Timestamp)
 }
 
 // statValue returns the value of a float64 pointer, or a default value if the pointer is nil

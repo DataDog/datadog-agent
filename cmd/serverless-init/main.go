@@ -125,7 +125,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
-	configuredTags, tags, enhancedMetricTags, enhancedMetricTagsAll := configureTags(cloudService)
+	configuredTags, tags, enhancedMetricTags, enhancedUsageMetricTags := configureTags(cloudService)
 
 	defaultSource := cloudService.GetDefaultLogsSource()
 	agentLogConfig := serverlessInitLog.CreateConfig(defaultSource)
@@ -156,7 +156,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	// TODO check for errors and exit
 	_ = cloudService.Init(tracingCtx)
 
-	metricAgent := setupMetricAgent(tags, enhancedMetricTags, enhancedMetricTagsAll, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+	metricAgent := setupMetricAgent(tags, enhancedMetricTags, enhancedUsageMetricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	enhancedMetricsEnabled := pkgconfigsetup.Datadog().GetBool("enhanced_metrics")
 	if enhancedMetricsEnabled {
@@ -167,7 +167,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	var enhancedMetricsCollector *collector.Collector
 	if enhancedMetricsEnabled {
-		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), 3*time.Second)
+		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricName(), 3*time.Second)
 		if err != nil {
 			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
 		} else {
@@ -190,15 +190,13 @@ func configureTags(cloudService cloudservice.CloudService) ([]string, map[string
 
 	serverlessInitTag.SetVersionMode(tags, modeConf.TagVersionMode)
 
-	enhancedMetricTagsBase, enhancedMetricTagsHighCardinality := cloudService.GetEnhancedMetricTags(cloudTags)
+	enhancedMetricTagsBase, enhancedUsageMetricTags := cloudService.GetEnhancedMetricTags(cloudTags)
 	enhancedMetricTags := serverlessTag.MergeWithOverwrite(baseTags, configuredTagsMap, enhancedMetricTagsBase)
 
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
-	enhancedMetricTagsAll := serverlessTag.MergeWithOverwrite(enhancedMetricTags, enhancedMetricTagsHighCardinality)
-
-	return configuredTags, tags, enhancedMetricTags, enhancedMetricTagsAll
+	return configuredTags, tags, enhancedMetricTags, enhancedUsageMetricTags
 }
 
 var serverlessProfileTags = []string{
@@ -252,7 +250,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]string, enhancedMetricTagsAll map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]string, enhancedUsageMetricTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
 	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
@@ -262,7 +260,7 @@ func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]stri
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer, serverlessTag.MapToArray(metricTags), serverlessTag.MapToArray(enhancedMetricTags), serverlessTag.MapToArray(enhancedMetricTagsAll))
+	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer, serverlessTag.MapToArray(metricTags), serverlessTag.MapToArray(enhancedMetricTags), serverlessTag.MapToArray(enhancedUsageMetricTags))
 	return metricAgent
 }
 

@@ -45,6 +45,9 @@ type CloudService interface {
 	// GetMetricPrefix returns the prefix that will be used for the metrics
 	GetMetricPrefix() string
 
+	// GetUsageMetricName returns the name that will be used for the usage metric
+	GetUsageMetricName() string
+
 	// GetOrigin returns the value that will be used for the `origin` attribute for
 	// all logs, traces, and metrics.
 	GetOrigin() string
@@ -75,6 +78,7 @@ type CloudService interface {
 type LocalService struct{}
 
 const defaultPrefix = "datadog.serverless_agent"
+const defaultUsageMetricName = "instance"
 
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
@@ -89,11 +93,12 @@ func (l *LocalService) GetEnhancedMetricTags(tags map[string]string) (map[string
 		"local": tags["local"],
 	}
 
-	highCardinalityTags := map[string]string{
-		"high_cardinality": "true",
+	usageTags := map[string]string{
+		"local":    tags["local"],
+		"instance": "test-instance",
 	}
 
-	return baseTags, highCardinalityTags
+	return baseTags, usageTags
 }
 
 // GetDefaultLogsSource is a default implementation that returns an empty logs source
@@ -104,6 +109,11 @@ func (l *LocalService) GetDefaultLogsSource() string {
 // GetMetrixPrefix is a default implementation that returns the default prefix
 func (l *LocalService) GetMetricPrefix() string {
 	return defaultPrefix
+}
+
+// GetUsageMetricName is a default implementation that returns the default usage metric name
+func (l *LocalService) GetUsageMetricName() string {
+	return defaultUsageMetricName
 }
 
 // GetOrigin is a default implementation that returns a local empty origin

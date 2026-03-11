@@ -37,19 +37,21 @@ func (m *mockEnhancedMetricSender) AddEnhancedMetric(name string, value float64,
 	m.Called(name, value, source, ts, tags)
 }
 
-func (m *mockEnhancedMetricSender) AddHighCardinalityEnhancedMetric(name string, value float64, source metrics.MetricSource, ts float64, tags ...string) {
+func (m *mockEnhancedMetricSender) AddEnhancedUsageMetric(name string, value float64, source metrics.MetricSource, ts float64, tags ...string) {
 	m.Called(name, value, source, ts, tags)
 }
 
 func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 	mockAgent := new(mockEnhancedMetricSender)
-	mockAgent.On("AddHighCardinalityEnhancedMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockAgent.On("AddEnhancedMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
 
 	c := &Collector{
 		metricAgent:        mockAgent,
 		cgroupReader:       mockReader,
+		usageMetricName:    "instance",
 		collectionInterval: 100 * time.Millisecond,
 		cancelFunc:         func() {},
 	}
@@ -58,15 +60,15 @@ func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 
 	// collect on start
 	time.Sleep(50 * time.Millisecond)
-	mockAgent.AssertNumberOfCalls(t, "AddHighCardinalityEnhancedMetric", 1)
+	mockAgent.AssertNumberOfCalls(t, "AddEnhancedUsageMetric", 1)
 
 	// collect on interval
 	time.Sleep(100 * time.Millisecond)
-	mockAgent.AssertNumberOfCalls(t, "AddHighCardinalityEnhancedMetric", 2)
+	mockAgent.AssertNumberOfCalls(t, "AddEnhancedUsageMetric", 2)
 
 	// collect on stop
 	c.Stop()
-	mockAgent.AssertNumberOfCalls(t, "AddHighCardinalityEnhancedMetric", 3)
+	mockAgent.AssertNumberOfCalls(t, "AddEnhancedUsageMetric", 3)
 }
 
 func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
