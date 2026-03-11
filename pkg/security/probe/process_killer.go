@@ -209,14 +209,6 @@ func (p *ProcessKiller) SetState(enabled bool) {
 	p.enabled = enabled
 }
 
-// AddPendingReports add a pending reports
-func (p *ProcessKiller) AddPendingReports(report *KillActionReport) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.pendingReports = append(p.pendingReports, report)
-}
-
 // FlushPendingReports flush pending reports
 func (p *ProcessKiller) FlushPendingReports() {
 	p.Lock()
