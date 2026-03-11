@@ -328,19 +328,21 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 // Returns (triggered, cpProb, shortRunMass).
 func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
 	hazard := b.Hazard
-	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
 
-	// Compute new run-length probabilities.
-	// NOTE: This uses the prior predictive for cpMass rather than the standard
-	// BOCPD recurrence (hazard * sum_r(runProbs[r] * pred(x|r))). See FINDINGS.md H3
-	// for discussion -- this may be intentional (anchoring to baseline) or a bug.
+	// Standard BOCPD recurrence (Adams & MacKay 2007):
+	// cpMass = hazard * sum_r(runProbs[r] * pred(x|r))
+	// This weighs the observation against all run-length hypotheses so the
+	// detector can catch cascading shifts, not just the first deviation from
+	// the warmup baseline. See FINDINGS.md H3.
 	newLen := len(state.runProbs) + 1
 	state.newRunProbs = state.newRunProbs[:newLen]
-	state.newRunProbs[0] = hazard * predPrior
+	var cpMass float64
 	for r := range state.runProbs {
 		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
+		cpMass += state.runProbs[r] * pred
 	}
+	state.newRunProbs[0] = hazard * cpMass
 
 	normalizeProbs(state.newRunProbs)
 	cpProb := state.newRunProbs[0]

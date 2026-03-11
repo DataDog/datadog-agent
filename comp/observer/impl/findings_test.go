@@ -393,7 +393,8 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 // baseline) or a deviation from the standard algorithm. Needs author input.
 
 func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.T) {
-	t.Skip("H3: requires author confirmation -- prior-only cpProb may be intentional design choice vs standard BOCPD. See FINDINGS.md.")
+	// Speculatively unskipped -- we believe cascading shift detection is
+	// intended. Pending confirmation from the BOCPD author (lukesteensen).
 
 	// Test strategy: snapshot posterior state, call updatePosterior, then
 	// independently compute both standard and prior-only formulas through
