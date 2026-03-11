@@ -140,3 +140,15 @@ Reproducibility scale: **Easy** (unit test covers it directly), **Moderate** (ne
 - **Reproducing:** Hard -- requires implementing or mocking a stateful scheduler that uses `latestDataTime` in `onObservation`, then comparing live vs replay behavior.
 - [ ] Validated
 - **Fix SHA:**
+
+---
+
+## BONUS (discovered during fix implementation)
+
+### B1: Deadlock when engine mutex is held during `emit()` callbacks
+
+- **File:** `engine.go` (advanceWithReason) + `stateview.go` (ActiveCorrelations) + `events.go` (reporterEventSink)
+- **Description:** Discovered while implementing M9/M10/M11 mutex. If `advanceWithReason` holds `e.mu.Lock()` and calls `emit()`, the `reporterEventSink.onEngineEvent` callback calls `stateView.ActiveCorrelations()` which attempts `e.mu.RLock()`. Go mutexes are not reentrant, so write-lock + read-lock from the same goroutine = deadlock. The same applies to `eventAnomalyCreated` and `eventCorrelationUpdated` events emitted from `runDetectorsAndCorrelators` while the caller holds the lock.
+- **Reproducing:** Easy -- `TestAgentInternalLogsFlowIntoObserver` deadlocks deterministically (2s timeout) when `advanceWithReason` holds `e.mu` around the full method body including `emit()`.
+- [x] Validated -- deterministic deadlock in existing test suite
+- **Fix SHA:** d3a58c1d614 -- `advanceWithReason` now snapshots `detectors`/`correlators` under the lock, releases it, then runs detection and emits events unlocked. `runDetectorsAndCorrelatorsSnapshot` accepts explicit slices so the caller controls the snapshot.
