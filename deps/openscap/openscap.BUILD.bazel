@@ -727,7 +727,7 @@ pkg_filegroup(
         ":oscap_bin_files",
         ":oscap_io_bin_files",
         ":xccdf-resources",
-        "@openscap//:auto_openscap_deps",
+        ":auto_openscap_deps",
     ],
 )
 
