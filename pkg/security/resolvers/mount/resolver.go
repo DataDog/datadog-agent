@@ -685,10 +685,3 @@ func (mr *Resolver) SetPidMntNs(pid uint32, ns uint32) {
 	defer mr.lock.Unlock()
 	mr.pidNs.Add(pid, ns)
 }
-
-// DeletePid deletes a pid from the pid/ns cache
-func (mr *Resolver) DeletePid(pid uint32) {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-	mr.pidNs.Remove(pid)
-}

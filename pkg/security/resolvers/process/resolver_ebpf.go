@@ -676,9 +676,6 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	// Start by updating the exit timestamp of the pid cache entry
-	if p.mountResolver != nil {
-		p.mountResolver.DeletePid(pid)
-	}
 	entry, ok := p.entryCache[pid]
 	if !ok {
 		return
