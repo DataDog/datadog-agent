@@ -241,6 +241,12 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 		defer report.Unlock()
 
 		if report.Pid == event.ProcessContext.Pid {
+			if report.Scope == "process" {
+				if report.Status == KillActionStatusQueued {
+					// The process exited before the kill was performed
+					report.Status = KillActionStatusKillAborted
+				}
+			}
 			report.ExitedAt = event.ProcessContext.ExitTime
 			report.resolved = true
 			return true
