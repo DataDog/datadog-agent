@@ -21,11 +21,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
 
-// Config is the configuration for the profiles receiver.
+type MemoryProfilingConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// Mode: "filtered" (only processes with EnvVar=1) or "all"
+	Mode                 string `mapstructure:"mode"`
+	EnvVar               string `mapstructure:"env_var"`
+	AllocationSampleRate uint32 `mapstructure:"allocation_sample_rate"`
+}
+
 type Config struct {
 	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
 	SymbolUploader      symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
 	CollectContext      bool                                `mapstructure:"collect_context"`
+	MemoryProfiling     MemoryProfilingConfig               `mapstructure:"memory_profiling"`
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
@@ -43,6 +51,15 @@ func errSymbolEndpointsSiteRequired() error {
 }
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
+}
+func errMemoryProfilingInvalidMode() error {
+	return errors.New("memory_profiling.mode must be 'filtered' or 'all'")
+}
+func errMemoryProfilingInvalidSampleRate() error {
+	return errors.New("memory_profiling.allocation_sample_rate must be between 0 and 100")
+}
+func errMemoryProfilingFilteredModeRequiresEnvVar() error {
+	return errors.New("memory_profiling.env_var must be set when mode is 'filtered'")
 }
 
 // Validate validates the config.
@@ -65,6 +82,22 @@ func (c *Config) Validate() error {
 		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 	}
 	c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+
+	if c.MemoryProfiling.Enabled {
+		if c.MemoryProfiling.Mode != "filtered" && c.MemoryProfiling.Mode != "all" {
+			return errMemoryProfilingInvalidMode()
+		}
+		if c.MemoryProfiling.AllocationSampleRate > 100 {
+			return errMemoryProfilingInvalidSampleRate()
+		}
+		if c.MemoryProfiling.Mode == "filtered" && c.MemoryProfiling.EnvVar == "" {
+			return errMemoryProfilingFilteredModeRequiresEnvVar()
+		}
+		if c.MemoryProfiling.EnvVar != "" {
+			includeEnvVars = append(includeEnvVars, c.MemoryProfiling.EnvVar)
+			c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+		}
+	}
 
 	if c.SymbolUploader.Enabled {
 		if len(c.SymbolUploader.SymbolEndpoints) == 0 {
@@ -97,6 +130,12 @@ func defaultConfig() component.Config {
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
 		CollectContext:      false,
+		MemoryProfiling: MemoryProfilingConfig{
+			Enabled:              false,
+			Mode:                 "filtered",
+			EnvVar:               "MEMPROF",
+			AllocationSampleRate: 10,
+		},
 	}
 }
 
