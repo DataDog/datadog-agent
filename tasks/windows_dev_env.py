@@ -4,8 +4,11 @@ Create a remote Windows development environment and keep it in sync with local c
 
 import json
 import os
+import queue as queue_module
 import re
 import shutil
+import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -16,6 +19,73 @@ from invoke.tasks import task
 
 AMI_WINDOWS_DEV_2022 = "ami-09b68440cb06b26d6"
 WIN_CONTAINER_NAME = "windows-dev-env"
+_DD_MODULE_PREFIX = "github.com/DataDog/datadog-agent/"
+
+
+# ---------------------------------------------------------------------------
+# State file helpers (shared between the watch process and attach_or_run)
+# ---------------------------------------------------------------------------
+
+
+def _state_file_path(name: str) -> str:
+    return f"/tmp/windev_{name}_state.json"
+
+
+def _output_file_path(name: str) -> str:
+    return f"/tmp/windev_{name}_output.txt"
+
+
+def _write_state(name: str, state: dict) -> None:
+    """Atomically write the state JSON (write to temp file then rename)."""
+    path = _state_file_path(name)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.rename(tmp, path)
+
+
+def _read_state(name: str) -> dict | None:
+    try:
+        with open(_state_file_path(name)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _normalize_package(pkg: str) -> str:
+    """Normalize a package path to a bare relative name like 'pkg/util/json'.
+
+    Handles:
+    - './pkg/util/json'      → 'pkg/util/json'
+    - 'pkg/util/json/./.'   → 'pkg/util/json'
+    - 'github.com/DataDog/datadog-agent/pkg/util/json' → 'pkg/util/json'
+    - 'pkg/util/json'       → 'pkg/util/json'  (no-op)
+    """
+    # Collapse redundant . components (e.g. "pkg/util/json/./." → "pkg/util/json")
+    pkg = os.path.normpath(pkg).replace("\\", "/")
+    if pkg.startswith("./"):
+        pkg = pkg[2:]
+    if pkg.startswith(_DD_MODULE_PREFIX):
+        pkg = pkg[len(_DD_MODULE_PREFIX) :]
+    return pkg
+
+
+def _normalize_packages(packages) -> frozenset[str]:
+    """Return a frozenset of bare relative package names (order-independent)."""
+    return frozenset(_normalize_package(p) for p in packages)
+
+
+# ---------------------------------------------------------------------------
+# Invoke tasks
+# ---------------------------------------------------------------------------
 
 
 @task(
@@ -96,6 +166,71 @@ def run(
             f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{command}}}',
         )
     )
+
+
+@task(
+    help={
+        'name': 'Override the default name of the development environment (windows-dev-env).',
+        'command': 'Command to run after each sync (e.g. "inv test --build-stdlib --targets=./pkg/util/json").',
+    },
+)
+def watch(
+    ctx: Context,
+    name: str = "windows-dev-env",
+    command: str = "inv test --build-stdlib",
+):
+    """
+    Watch for local changes, sync them to the remote Windows VM and run a command after each sync.
+    Writes results to a state file so that `dda inv test --host windows` can attach to a running
+    test or replay a recent result instead of launching a redundant remote run.
+    """
+    with ctx.cd('./test/e2e-framework'):
+        result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", warn=True, hide=True)
+        if result is None or result.exited != 0 or not result.stdout.strip():
+            raise Exception(
+                f"Windows dev env '{name}' cannot be reached. Make sure it is running with `dda inv windows-dev-env.start`."
+            )
+        remote_host = RemoteHost(result.stdout)
+        host = f"{remote_host.user}@{remote_host.address}"
+
+    result = ctx.run(f"ssh {host} 'docker ps -q --filter name={WIN_CONTAINER_NAME}'", warn=True, hide=True)
+    if result is None or result.exited != 0 or not result.stdout.strip():
+        raise Exception(
+            f"Windows dev container '{WIN_CONTAINER_NAME}' is not running on {host}. Make sure it is running with `dda inv windows-dev-env.start`."
+        )
+
+    # Initial rsync before starting the watch loop
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Syncing changes to the remote Windows development environment...")
+    ctx.run(_build_rsync_command(host))
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Initial sync done, watching for local changes...")
+
+    # Queue carries (command_type, packages, ssh_cmd) triples.
+    # maxsize=1: at most one pending run at a time; _enqueue drains before inserting so
+    # the runner always executes the freshest command.
+    work_queue: queue_module.Queue[tuple[str, frozenset[str], str]] = queue_module.Queue(maxsize=1)
+    work_queue.put_nowait(_build_watch_work(ctx, remote_host, command))  # initial run
+
+    threading.Thread(
+        target=_test_runner_loop,
+        args=(name, work_queue),
+        daemon=True,
+    ).start()
+
+    def _enqueue() -> None:
+        work = _build_watch_work(ctx, remote_host, command)
+        # Replace any pending (not-yet-started) item with the freshest command
+        try:
+            work_queue.get_nowait()
+        except queue_module.Empty:
+            pass
+        work_queue.put_nowait(work)
+
+    _run_command_on_local_changes(ctx, host, on_sync=_enqueue)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
@@ -182,9 +317,8 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         else:
             print("🐳 Windows dev env already running, resuming sync")
 
-    _sync_windows_dev_env(ctx, name)
-    print("♻️ Windows dev env sync stopped")
-    print("Start it again with `dda inv windows-dev-env.sync`")
+    print("Start the file sync with `dda inv windows-dev-env.sync` to only sync changes.")
+    print("Start the file watcher with `dda inv windows-dev-env.watch`to sync changes and run tests.")
     print("Destroy the Windows dev env with `dda inv windows-dev-env.stop`")
 
 
@@ -252,7 +386,23 @@ def _build_rsync_command(host: str) -> str:
     )
 
 
-def _run_command_on_local_changes(ctx: Context, host: str):
+def _build_remote_command(host: "RemoteHost", command: str) -> str:
+    """Build the full SSH + docker exec command string to run `command` inside the container."""
+    docker_parts = [
+        'docker',
+        'exec',
+        '-i',
+        '-e',
+        'PYTHONUTF8=1',
+        WIN_CONTAINER_NAME,
+        'powershell',
+        f"'{command}'",
+    ]
+    joined = ' '.join(docker_parts)
+    return f'ssh {host.user}@{host.address} -p {host.port} "{joined}"'
+
+
+def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
     # lazy load watchdog to avoid import error on the CI
     from watchdog.events import FileSystemEvent, FileSystemEventHandler
     from watchdog.observers import Observer
@@ -260,9 +410,10 @@ def _run_command_on_local_changes(ctx: Context, host: str):
     class DDAgentEventHandler(FileSystemEventHandler):
         _DEBOUNCE_SECONDS = 0.5
 
-        def __init__(self, ctx: Context, host: str):
+        def __init__(self, ctx: Context, host: str, on_sync=None):
             self.ctx = ctx
             self.host = host
+            self._on_sync = on_sync
             self._timer: threading.Timer | None = None
             self._lock = threading.Lock()
             self._pending_files: set[str] = set()
@@ -308,12 +459,14 @@ def _run_command_on_local_changes(ctx: Context, host: str):
                 print(
                     f"[{datetime.now().strftime('%H:%M:%S')}] Syncing changes to the remote Windows development environment done"
                 )
+                if self._on_sync is not None:
+                    self._on_sync()
             except UnexpectedExit as e:
                 print(
                     f"[{datetime.now().strftime('%H:%M:%S')}] Sync failed (exit code {e.result.exited}), will retry on next change"
                 )
 
-    event_handler = DDAgentEventHandler(ctx=ctx, host=host)
+    event_handler = DDAgentEventHandler(ctx=ctx, host=host, on_sync=on_sync)
     observer = Observer()
     observer.schedule(event_handler, ".", recursive=True)
     observer.start()
@@ -324,6 +477,83 @@ def _run_command_on_local_changes(ctx: Context, host: str):
         observer.stop()
     finally:
         observer.join()
+
+
+def _build_watch_work(
+    ctx: Context, remote_host: "RemoteHost", fallback_command: str
+) -> tuple[str, frozenset[str], str]:
+    """
+    Compute the (command_type, packages, ssh_cmd) triple for the next test run.
+
+    Calls find_modified_packages() to build a targeted `inv test --targets=...` command
+    covering only the packages that differ from the base branch.
+    Falls back to `fallback_command` when no modified packages are found (e.g. for
+    non-test commands like `inv linter.go`, or when nothing has changed yet).
+
+    Returns:
+        command_type – "test" or "linter", stored in the state file.
+        packages     – frozenset of bare relative package names (e.g. "pkg/util/json").
+        ssh_cmd      – full SSH + docker exec command passed to subprocess.Popen.
+    """
+    from tasks.gotest import find_modified_packages
+
+    raw_packages = find_modified_packages(ctx)
+    if raw_packages:
+        packages = _normalize_packages(raw_packages)
+        inv_cmd = f"inv test --build-stdlib --targets={','.join(f'./{p}' for p in sorted(packages))}"
+        command_type = "test"
+    else:
+        packages = frozenset()
+        inv_cmd = fallback_command
+        command_type = "linter" if "linter" in fallback_command else "test"
+    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
+    return command_type, packages, _build_remote_command(remote_host, wrapped)
+
+
+def _test_runner_loop(name: str, work_queue: "queue_module.Queue[tuple[str, frozenset[str], str]]") -> None:
+    """
+    Background thread: block on the work queue, run the remote command via subprocess,
+    and update the state file before and after each run.
+    Output is written to a dedicated file so that attach_or_run can stream or replay it.
+    """
+    output_path = _output_file_path(name)
+    while True:
+        command_type, packages, ssh_cmd = work_queue.get()
+        sorted_packages = sorted(packages)
+        start_time = datetime.now()
+        _write_state(
+            name,
+            {
+                "status": "running",
+                "command": command_type,
+                "packages": sorted_packages,
+                "start_time": start_time.isoformat(),
+                "watcher_pid": os.getpid(),
+                "output_file": output_path,
+            },
+        )
+        pkg_summary = f" ({', '.join(sorted_packages)})" if sorted_packages else ""
+        print(f"[{start_time.strftime('%H:%M:%S')}] Running: {command_type}{pkg_summary}")
+        with open(output_path, "w") as out:
+            proc = subprocess.Popen(ssh_cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
+            exit_code = proc.wait()
+        end_time = datetime.now()
+        _write_state(
+            name,
+            {
+                "status": "finished",
+                "command": command_type,
+                "packages": sorted_packages,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "exit_code": exit_code,
+                "watcher_pid": os.getpid(),
+                "output_file": output_path,
+            },
+        )
+        elapsed = int((end_time - start_time).total_seconds())
+        status_str = "passed" if exit_code == 0 else f"failed (exit {exit_code})"
+        print(f"[{end_time.strftime('%H:%M:%S')}] {status_str} in {elapsed}s")
 
 
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
@@ -347,30 +577,99 @@ def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command
         if result is None or not result:
             raise Exception("Failed to find the Windows development environment.")
         host = RemoteHost(result.stdout)
-        # run the command on the Windows development environment
-        docker_command_parts = [
-            'docker',
-            'exec',
-            '-i',
-            '-e',
-            'PYTHONUTF8=1',
-            WIN_CONTAINER_NAME,
-            'powershell',
-            f"'{command}'",
-        ]
-        joined_docker_command_parts = ' '.join(docker_command_parts)
-        command_parts = [
-            "ssh",
-            f'{host.user}@{host.address}',
-            "-p",
-            f'{host.port}',
-            f'"{joined_docker_command_parts}"',
-        ]
         result = ctx.run(
-            ' '.join(command_parts),
+            _build_remote_command(host, command),
             pty=True,
             warn=True,
         )
         if result is None or not result:
             raise Exception("Failed to run the command on the Windows development environment.")
         return result.exited
+
+
+def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
+    """
+    Smart entry point for `dda inv test --host windows`.
+
+    Checks the watch process state file before starting a new remote test run:
+    - RUNNING + same command_type + requested packages ⊆ state packages → attach.
+    - FINISHED + same command_type + requested packages ⊆ state packages → replay.
+    - Otherwise → run fresh.
+
+    A non-empty requested set is accepted whenever the state covers a superset of the
+    requested packages (e.g. requesting {A} matches a state that ran {A, B}).
+    An empty requested set (all packages) only matches a state that also ran all packages.
+
+    `command_type` is "test" or "linter".
+    `packages` is a list/set of package paths in any format (./pkg/…, full Go import path, or bare
+    relative path); they are normalized to bare relative names before comparison.
+    """
+    norm_packages = _normalize_packages(packages)
+
+    state = _read_state(name)
+    if state:
+        pid = state.get("watcher_pid")
+        if pid and not _pid_alive(pid):
+            state = None  # stale: the watcher process is dead
+
+    if state and state.get("command") == command_type:
+        state_packages = frozenset(state.get("packages") or [])
+        # Non-empty request: accept if state is a superset of requested packages.
+        # Empty request (all packages): only accept if state also covers all packages.
+        packages_covered = norm_packages.issubset(state_packages) if norm_packages else not state_packages
+        if packages_covered:
+            status = state.get("status")
+            if status == "running":
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Attaching to running test...")
+                return _attach_to_output(name, state)
+            if status == "finished":
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Replaying result from {state['end_time']}...")
+                return _replay_output(state)
+
+    # Fresh run: reconstruct the inv command from command_type + packages.
+    if norm_packages:
+        targets = ",".join(f"./{p}" for p in sorted(norm_packages))
+        inv_cmd = f"inv test --build-stdlib --targets={targets}"
+    elif command_type == "test":
+        inv_cmd = "inv test --build-stdlib"
+    else:
+        inv_cmd = "inv linter.go"
+    wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
+    return _run_on_windows_dev_env(ctx, name, wrapped)
+
+
+def _attach_to_output(name: str, state: dict) -> int:
+    """Stream the watch process's output file to stdout until the test finishes."""
+    output_file = state["output_file"]
+    try:
+        with open(output_file) as f:
+            sys.stdout.write(f.read())  # catch-up: print everything written so far
+            sys.stdout.flush()
+            while True:
+                chunk = f.read()
+                if chunk:
+                    sys.stdout.write(chunk)
+                    sys.stdout.flush()
+                else:
+                    current = _read_state(name)
+                    if current and current["status"] == "finished":
+                        remaining = f.read()
+                        if remaining:
+                            sys.stdout.write(remaining)
+                            sys.stdout.flush()
+                        return current["exit_code"]
+                    time.sleep(0.1)
+    except FileNotFoundError:
+        return 1
+
+
+def _replay_output(state: dict) -> int:
+    """Print the stored output of a finished run and return its exit code."""
+    try:
+        with open(state["output_file"]) as f:
+            sys.stdout.write(f.read())
+            sys.stdout.flush()
+    except FileNotFoundError:
+        print("Output file not found, cannot replay.")
+        return 1
+    return state["exit_code"]

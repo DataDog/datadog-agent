@@ -380,7 +380,8 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     if host == "windows":
-        from tasks.windows_dev_env import _run_on_windows_dev_env as windows_run
+        print("Running tests on Windows development environment")
+        from tasks.windows_dev_env import attach_or_run
 
         package_list = [
             f"./{os.path.join(m.path, t)}" if not os.path.join(m.path, t).startswith("./") else os.path.join(m.path, t)
@@ -388,14 +389,7 @@ def test(
             if m.should_test()
             for t in m.test_targets
         ]
-        inv_cmd = (
-            f"inv test --build-stdlib --targets={','.join(package_list)}" if package_list else "inv test --build-stdlib"
-        )
-        win_cmd = (
-            f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -Command {{{inv_cmd}}}'
-        )
-        windows_run(ctx, name="windows-dev-env", command=win_cmd)
-        return
+        exit(attach_or_run(ctx, name="windows-dev-env", command_type="test", packages=package_list))
 
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
