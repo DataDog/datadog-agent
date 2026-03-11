@@ -23,11 +23,13 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,11 +55,13 @@ func findService(pid int, services []model.Service) *model.Service {
 }
 
 type testDiscoveryModule struct {
-	url string
+	url    string
+	client *http.Client
 }
 
-func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
+func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
+
 	mux := gorillamux.NewRouter()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
@@ -70,13 +75,85 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Cleanup(srv.Close)
 
 	return &testDiscoveryModule{
-		url: srv.URL,
+		url:    srv.URL,
+		client: http.DefaultClient,
 	}
+}
+
+func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
+	t.Helper()
+
+	// Skip on CentOS 7 due to Rust binary not being statically linked
+	platform, err := kernel.Platform()
+	require.NoError(t, err)
+	platformVersion, err := kernel.PlatformVersion()
+	require.NoError(t, err)
+
+	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
+		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
+	}
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	binaryPath := filepath.Join(curDir, "rust", "embedded", "bin", "system-probe-lite")
+	require.FileExists(t, binaryPath, "system-probe-lite binary should be built")
+
+	socketDir := t.TempDir()
+	socketPath := filepath.Join(socketDir, "sysprobe.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
+	cmd.Env = append(os.Environ(),
+		"DD_DISCOVERY_ENABLED=true",
+		"DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true",
+		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(socketPath)
+		return err == nil
+	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not appear")
+
+	return &testDiscoveryModule{
+		url: "http://sysprobe",
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				DialContext: spclient.DialContextFunc(socketPath),
+			},
+		},
+	}
+}
+
+type discoveryTestSuite struct {
+	suite.Suite
+	setupModule func(t *testing.T) *testDiscoveryModule
+	discovery   *testDiscoveryModule
+}
+
+func (s *discoveryTestSuite) SetupTest() {
+	s.discovery = s.setupModule(s.T())
+}
+
+func TestDiscovery(t *testing.T) {
+	t.Run("go", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupGoDiscoveryModule})
+	})
+	t.Run("rust", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule})
+	})
 }
 
 // makeRequest wraps the request to the discovery module, setting the JSON body if provided,
 // and returning the response as the given type.
-func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
+func makeRequest[T any](t require.TestingT, client *http.Client, url string, params *core.Params) *T {
 	var body *bytes.Buffer
 	if params != nil {
 		jsonData, err := params.ToJSON()
@@ -94,7 +171,7 @@ func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T 
 	}
 	require.NoError(t, err, "failed to create request")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err, "failed to send request")
 	defer resp.Body.Close()
 
@@ -246,9 +323,9 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 		return nil, err
 	}
 
-	TCP, _ := proc.NetTCP()
+	TCP, _ := proc.NetTCP() //nolint:staticcheck
 	UDP, _ := proc.NetUDP()
-	TCP6, _ := proc.NetTCP6()
+	TCP6, _ := proc.NetTCP6() //nolint:staticcheck
 	UDP6, _ := proc.NetUDP6()
 
 	tcpSockets := make(map[uint64]socketInfo)
@@ -417,39 +494,4 @@ ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920                      /opt/ot
 			require.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-func TestRustBinary(t *testing.T) {
-	// Skip on CentOS 7 due to Rust binary not being statically linked
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-
-	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
-		t.Skip("Skipping Rust binary test on CentOS 7 due to glibc compatibility issues with non-static binary")
-	}
-
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	binaryPath := filepath.Join(curDir, "rust", "sd-agent")
-
-	require.FileExists(t, binaryPath, "Rust binary should be built")
-
-	truePath := "/bin/true"
-	if _, err := os.Stat(truePath); os.IsNotExist(err) {
-		truePath = "/usr/bin/true"
-	}
-
-	env := os.Environ()
-	env = append(env, "DD_DISCOVERY_USE_SD_AGENT=true")
-	env = append(env, "DD_DISCOVERY_ENABLED=false")
-	// Fake system-probe binary with empty configuration file
-	cmd := exec.Command(binaryPath, "--", truePath, "-c", "/dev/null")
-	cmd.Env = env
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "Rust binary should execute successfully")
-	require.Contains(t, string(output), "Discovery is disabled")
-	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0", string(output))
 }

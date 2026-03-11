@@ -164,6 +164,7 @@ pkg_filegroup(
         ":lib_files",
         ":dbus_arch_deps_install",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

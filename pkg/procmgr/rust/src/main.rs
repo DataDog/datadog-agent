@@ -3,9 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod command;
+mod config;
+mod env;
+mod grpc;
+mod manager;
+mod ordering;
+mod process;
+mod shutdown;
+mod state;
+
 use anyhow::Result;
+use config::YamlConfigLoader;
 use log::info;
-use tokio::signal::unix::{SignalKind, signal};
+use manager::ProcessManager;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,14 +27,7 @@ async fn main() -> Result<()> {
         env!("CARGO_PKG_VERSION")
     );
 
-    let mut sigterm = signal(SignalKind::terminate())?;
-    let mut sigint = signal(SignalKind::interrupt())?;
-
-    tokio::select! {
-        _ = sigterm.recv() => info!("received SIGTERM"),
-        _ = sigint.recv() => info!("received SIGINT"),
-    }
-
-    info!("dd-procmgrd shutting down");
-    Ok(())
+    let loader = Arc::new(YamlConfigLoader::from_env());
+    let mgr = ProcessManager::new(loader);
+    mgr.run().await
 }

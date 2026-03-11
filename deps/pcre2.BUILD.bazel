@@ -250,6 +250,7 @@ pkg_filegroup(
         ":pcre2_libfiles",
         ":pcre2posix_libfiles",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

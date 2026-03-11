@@ -2488,11 +2488,23 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			} else {
 				out.IsKworker = bool(in.Bool())
 			}
+		case "is_exec":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IsExec = bool(in.Bool())
+			}
 		case "is_exec_child":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				out.IsExecExec = bool(in.Bool())
+			}
+		case "is_parent_missing":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IsParentMissing = bool(in.Bool())
 			}
 		case "source":
 			if in.IsNull() {
@@ -2589,6 +2601,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 					in.WantComma()
 				}
 				in.Delim('}')
+			}
+		case "variables":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Variables).UnmarshalEasyJSON(in)
 			}
 		default:
 			in.SkipRecursive()
@@ -2796,10 +2814,20 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
 	}
+	if in.IsExec {
+		const prefix string = ",\"is_exec\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsExec))
+	}
 	if in.IsExecExec {
 		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsExecExec))
+	}
+	if in.IsParentMissing {
+		const prefix string = ",\"is_parent_missing\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsParentMissing))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
@@ -2858,6 +2886,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			}
 			out.RawByte('}')
 		}
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

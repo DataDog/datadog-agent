@@ -52,11 +52,11 @@
   dependencies: []
   before_script:
     - if [[ -z "$VERSION" ]]; then VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
-    - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
-    - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7-full-amd64,${IMG_BASE_SRC}-7-full-arm64"
-    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7-jmx-win1809-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2022-amd64,${IMG_BASE_SRC}-7-jmx-winltsc2025-amd64"
-    - export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-full"
+    - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+    - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-${IMG_SUFFIX}-amd64,${IMG_BASE_SRC}-${IMG_SUFFIX}-arm64"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-jmx-win1809-amd64,${IMG_BASE_SRC}-jmx-winltsc2022-amd64,${IMG_BASE_SRC}-jmx-winltsc2025-amd64"
+    - if [[ "$IMG_SUFFIX" == "full" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}" ; else export IMG_SOURCES="${IMG_LINUX_SOURCES}"; fi
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-${IMG_SUFFIX}"
 
 .deploy_containers-a7_external:
   extends: .deploy_containers-a7-base
@@ -99,6 +99,11 @@ deploy_containers-a7-full:
   extends: .deploy_containers-a7-full-base
   rules:
     !reference [.on_deploy_manual_auto_on_rc]
+  parallel:
+    matrix:
+      - IMG_SUFFIX:
+          - "full"
+          - "fips-full"
 
 deploy_containers-a7-fips:
   extends: .deploy_containers-a7-base-fips
@@ -151,6 +156,11 @@ deploy_containers-a7-full-internal:
   extends: .deploy_containers-a7-full-base
   rules:
     !reference [.on_deploy_internal_manual_final]
+  parallel:
+    matrix:
+      - IMG_SUFFIX:
+          - "full"
+          - "fips-full"
 
 deploy_containers-a7-fips_internal:
   extends: .deploy_containers-a7-base-fips

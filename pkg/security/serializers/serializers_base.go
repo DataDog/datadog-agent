@@ -32,7 +32,7 @@ type ContainerContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
-	// Variables values
+	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
 
@@ -43,7 +43,7 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
-	// Variables values
+	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
 
@@ -79,7 +79,7 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
-	// Variables values
+	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 	// RuleContext rule context
 	RuleContext RuleContext `json:"rule_context,omitempty"`
@@ -95,8 +95,6 @@ type ProcessContextSerializer struct {
 	Parent *ProcessSerializer `json:"parent,omitempty"`
 	// Ancestor processes
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 	// True if the ancestors list was truncated because it was too big
 	TruncatedAncestors bool `json:"truncated_ancestors,omitempty"`
 }
@@ -478,11 +476,8 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 			RuleContext: newRuleContext(event, rule, scrubber),
 			Source:      event.Source,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
-	}
-	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
