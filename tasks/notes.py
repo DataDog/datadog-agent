@@ -1,6 +1,8 @@
+import re
 import shlex
 import sys
 from datetime import date
+from glob import glob
 
 from invoke import Failure, task
 from invoke.exceptions import Exit
@@ -212,3 +214,81 @@ def update_installscript_changelog(ctx, release_branch):
 
         print("\nCommit this with:")
         print(f"git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {new_version}\"")
+
+
+# Matches ``code`` (RST inline code) — captured group is the inner text.
+_RST_CODE_RE = re.compile(r'``([^`]+)``')
+
+# Matches `text <url>`_ (RST inline hyperlink).
+_RST_LINK_RE = re.compile(r'`([^`<]+?)\s+<([^>]+)>`_')
+
+# Matches any remaining `something`_ (standalone RST reference we can't auto-convert).
+_RST_REF_RE = re.compile(r'`[^`]+`_')
+
+
+def _convert_rst_to_md(text: str) -> str:
+    text = _RST_LINK_RE.sub(lambda m: f'[{m.group(1).strip()}]({m.group(2)})', text)
+    text = _RST_CODE_RE.sub(lambda m: f'`{m.group(1)}`', text)
+    return text
+
+
+@task
+def migrate_rst(ctx, dry_run=False):
+    """Convert RST formatting in fragment YAML files to Markdown (one-time migration).
+
+    Handles the two constructs found in reno-era fragments:
+      ``code``      -> `code`
+      `text <url>`_ -> [text](url)
+
+    Any remaining `ref`_ patterns that can't be auto-converted are reported
+    for manual review. Run with --dry-run to preview without writing changes.
+    """
+    import yaml
+
+    dirs = [
+        'releasenotes/notes',
+        'releasenotes-dca/notes',
+        'releasenotes-installscript/notes',
+    ]
+
+    fragment_files = []
+    for d in dirs:
+        fragment_files.extend(glob(f'{d}/*.yaml'))
+
+    modified = 0
+    flagged = []
+
+    for file_path in sorted(fragment_files):
+        with open(file_path, encoding='utf-8') as f:
+            raw = f.read()
+
+        try:
+            content = yaml.safe_load(raw)
+        except yaml.YAMLError:
+            print(color_message(f"SKIP (invalid YAML): {file_path}", "yellow"))
+            continue
+
+        if not isinstance(content, dict):
+            continue
+
+        new_raw = _convert_rst_to_md(raw)
+
+        remaining = _RST_REF_RE.findall(new_raw)
+        if remaining:
+            flagged.append((file_path, remaining))
+
+        if new_raw != raw:
+            modified += 1
+            if dry_run:
+                print(color_message(f"Would modify: {file_path}", "yellow"))
+            else:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_raw)
+
+    action = "Would modify" if dry_run else "Modified"
+    print(color_message(f"\n{action} {modified}/{len(fragment_files)} fragment files.", "green"))
+
+    if flagged:
+        print(color_message("\nThe following files contain `ref`_ patterns that need manual review:", "yellow"))
+        for path, refs in flagged:
+            print(f"  {path}: {refs}")
