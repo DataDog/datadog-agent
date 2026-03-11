@@ -116,8 +116,16 @@ func enableSystemProbeConfig(ctx HookContext) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to marshal system-probe.yaml: %w", err)
 	}
-	if err := os.WriteFile(configPath, data, 0640); err != nil {
-		return fmt.Errorf("failed to write system-probe.yaml: %w", err)
+
+	// Atomic write via temp file + rename
+	tmpPath := configPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0640); err != nil {
+		return fmt.Errorf("failed to write temporary system-probe.yaml: %w", err)
+	}
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		// Clean up the temp file on rename failure
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed to atomically replace system-probe.yaml: %w", err)
 	}
 	return nil
 }
