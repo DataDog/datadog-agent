@@ -260,9 +260,8 @@ func (m *mockGpmNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) nvml.Return
 
 type gpmSample struct {
 	nvml.GpmSample
-	gpmSupport nvml.GpmSupport
-	id         int
-	getIndex   int
+	id       int
+	getIndex int
 }
 
 type mockGpmDevice struct {

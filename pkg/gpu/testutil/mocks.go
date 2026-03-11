@@ -482,13 +482,13 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
 		},
-		GpmSampleGetFunc: func(sample nvml.GpmSample) nvml.Return {
+		GpmSampleGetFunc: func(_ nvml.GpmSample) nvml.Return {
 			if opts.isVGPU() || opts.gpmSupported == nil || !*opts.gpmSupported {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.SUCCESS
 		},
-		GpmMigSampleGetFunc: func(migInstanceID int, sample nvml.GpmSample) nvml.Return {
+		GpmMigSampleGetFunc: func(_ int, _ nvml.GpmSample) nvml.Return {
 			if opts.isVGPU() || opts.gpmSupported == nil || !*opts.gpmSupported {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
