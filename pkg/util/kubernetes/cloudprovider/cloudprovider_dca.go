@@ -33,7 +33,7 @@ func DCAGetName(ctx context.Context) string {
 
 	nl, sysInfo := getNodeMeta(ctx, nodeName)
 
-	providerName := getKubeDistributionName(nl, sysInfo.KubeletVersion)
+	providerName := getKubeDistributionName(nl, sysInfo.KubeletVersion, sysInfo.KernelVersion)
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.
 	cache.Cache.Set(cacheKey, providerName, cache.NoExpiration)

@@ -74,7 +74,7 @@ type DCAClientInterface interface {
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
-	GetNodeInfo(nodeName string) (NodeSystemInfo, error)
+	GetNodeInfo(nodeName string, filter ...string) (*NodeSystemInfo, error)
 
 	GetNodeUID(nodeName string) (string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)

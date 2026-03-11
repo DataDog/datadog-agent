@@ -17,7 +17,7 @@ import (
 
 var (
 	eksRe = regexp.MustCompile(".*eks.*")
-	aksRe = regexp.MustCompile(".*aks.*")
+	aksRe = regexp.MustCompile(".*azure.*")
 	gkeRe = regexp.MustCompile(".*gke.*")
 )
 
@@ -54,7 +54,7 @@ func GetName(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	kubeDistro := getKubeDistributionName(nl, nsi.KubeletVersion)
+	kubeDistro := getKubeDistributionName(nl, nsi.KubeletVersion, nsi.KernelVersion)
 
 	cache.Cache.Set(cacheKey, kubeDistro, cache.NoExpiration)
 	return kubeDistro, nil
@@ -62,12 +62,12 @@ func GetName(ctx context.Context) (string, error) {
 
 // getKubeDistributionName checks kubeletVersion and certain node labels to determine the kube cloud provider.
 // Returns an empty string if no provider is determined.
-func getKubeDistributionName(nl map[string]string, kubeletVersion string) string {
+func getKubeDistributionName(nl map[string]string, kubeletVersion, kernelVersion string) string {
 	switch {
+	case aksRe.MatchString(kernelVersion):
+		return "aks"
 	case eksRe.MatchString(kubeletVersion):
 		return "eks"
-	case aksRe.MatchString(kubeletVersion):
-		return "aks"
 	case gkeRe.MatchString(kubeletVersion):
 		return "gke"
 	}
