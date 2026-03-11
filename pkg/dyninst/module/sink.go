@@ -8,7 +8,6 @@
 package module
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
@@ -228,10 +227,10 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		return nil
 	}
 	s.runtime.setProbeMaybeEmitting(s.programID, probe)
-	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
 	if missingTypes := s.missingTypes.drain(); len(missingTypes) > 0 {
 		s.runtime.actuator.ReportMissingTypes(s.processID, missingTypes)
 	}
+	s.logUploader.Enqueue(decodedBytes)
 	return nil
 }
 
