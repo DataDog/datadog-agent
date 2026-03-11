@@ -44,7 +44,7 @@ func newCheck() check.Check {
 }
 
 // Configure parses the check configuration.
-func (c *TestCheckCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest_ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *TestCheckCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}
