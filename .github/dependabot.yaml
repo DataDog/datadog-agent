@@ -229,16 +229,3 @@ updates:
       interval: weekly
       day: saturday
     open-pull-requests-limit: 100
-  - package-ecosystem: maven
-    directory: Dockerfiles/agent/bouncycastle-fips
-    labels:
-      - dependencies
-      - team/agent-metric-pipelines
-      - changelog/no-changelog
-    schedule:
-      interval: weekly
-      day: saturday
-    ignore:
-      - dependency-name: org.bouncycaslte:*
-        # Ignore preview versions
-        versions: [ "[2.1,)" ]

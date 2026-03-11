@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit", "github-actions"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "maven"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
@@ -33,6 +33,13 @@
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
         "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["maven"],
+        "labels": ["dependencies", "team/agent-metric-pipelines", "changelog/no-changelog"],
+        "schedule": ["on saturday"],
+        "allowedVersions": "<2.1",
+        "groupName": "bouncycastle-fips"
       }
     ],
     "pre-commit": {
