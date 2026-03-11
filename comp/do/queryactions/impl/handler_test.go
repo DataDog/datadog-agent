@@ -80,9 +80,12 @@ func TestMatchesIdentifier_SelfHosted_WithDBName(t *testing.T) {
 	})
 }
 
-func TestMatchesIdentifier_UnknownType(t *testing.T) {
-	instance := map[string]any{"host": "localhost"}
-	dbID := &DBIdentifier{Type: "rds", Host: "localhost"}
+func TestMatchesIdentifier_RDS(t *testing.T) {
+	instance := map[string]any{"host": "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
+	dbID := &DBIdentifier{Type: "rds", Host: "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"}
+	assert.True(t, matchesIdentifier(instance, dbID))
+
+	dbID = &DBIdentifier{Type: "rds", Host: "otherdb.cluster-xxx.us-east-1.rds.amazonaws.com"}
 	assert.False(t, matchesIdentifier(instance, dbID))
 }
 

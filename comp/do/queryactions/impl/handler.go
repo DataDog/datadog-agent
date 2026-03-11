@@ -191,11 +191,8 @@ func matchesDBName(instance map[string]any, dbID *DBIdentifier) bool {
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Only "self-hosted" type is supported; matching is by host and dbname.
+// Matching is by host and dbname, regardless of hosting type.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
-	if dbID.Type != "self-hosted" {
-		return false
-	}
 	host, _ := instance["host"].(string)
 	return host == dbID.Host && matchesDBName(instance, dbID)
 }

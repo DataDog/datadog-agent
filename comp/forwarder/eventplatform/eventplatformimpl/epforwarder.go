@@ -286,7 +286,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			contentType:                   logshttp.JSONContentType,
 			endpointsConfigPrefix:         "data_observability.forwarder.",
 			hostnameEndpointPrefix:        "data-obs-intake.",
-			intakeTrackType:               "query_actions",
+			intakeTrackType:               "query-actions",
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
@@ -348,6 +348,10 @@ func Diagnose() []diagnose.Diagnosis {
 		// TODO(ECT-4273): event-management-intake does not support the empty payload sent here
 		if desc.eventType == eventplatform.EventTypeEventManagement {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
+			continue
+		}
+		if desc.eventType == eventTypeDoQueryResults {
+			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
