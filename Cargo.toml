@@ -21,6 +21,10 @@ http-body-util = "0.1"
 hyper = "1"
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 log = "0.4"
+prost = "0.13"
+prost-types = "0.13"
+protoc-gen-prost = "0.4"
+protoc-gen-tonic = "0.4"
 lru = { version = "0.16.0", default-features = false }
 memchr = "2.7.6"
 nom = "7.1"
@@ -35,10 +39,16 @@ dd-agent-log = { path = "comp/core/log/rust" }
 time = { version = "0.3", features = ["formatting", "macros"] }
 thiserror = "2.0.12"
 tokio = "1"
+tokio-stream = "0.1"
+tonic = "0.12"
+tonic-build = "0.12"
+tonic-reflection = "0.12"
 uzers = "0.12"
 walkdir = "2"
 yaml-rust2 = "0.9"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
+
+tower = "0.4"
 
 # dev-dependencies
 dircpy = "0.3.19"

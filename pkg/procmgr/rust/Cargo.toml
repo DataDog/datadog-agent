@@ -13,11 +13,23 @@ path = "src/main.rs"
 anyhow.workspace = true
 log.workspace = true
 nix = { workspace = true, features = ["signal", "process"] }
+prost.workspace = true
+prost-types.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 dd-agent-log.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
+tokio-stream = { workspace = true, features = ["net"] }
+tonic = { workspace = true, features = ["transport"] }
+tonic-reflection.workspace = true
 
 [dev-dependencies]
+hyper-util.workspace = true
 nix = { workspace = true, features = ["signal", "process", "user"] }
 tempfile.workspace = true
+tower.workspace = true
+
+[build-dependencies]
+protoc-gen-prost.workspace = true
+protoc-gen-tonic.workspace = true
+tonic-build.workspace = true

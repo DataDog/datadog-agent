@@ -19,12 +19,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	logslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 )
 
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
@@ -816,10 +818,19 @@ func fillAllMockFunctions[T any](obj T) {
 
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
-	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+	opts := []fx.Option{
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+	}
+
+	// If the test is a fuzz test, the logger provided in core.MockBundle() will be created with the wrong testing.TB
+	// and cause a panic.
+	if _, ok := t.(*testing.F); ok {
+		// fx.Decorate allows transforming a given component, in this case we replace it with a disabled logger
+		opts = append(opts, fx.Decorate(func(log.Component) log.Component { return logslog.Disabled() }))
+	}
+
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(opts...))
 }
 
 // GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs

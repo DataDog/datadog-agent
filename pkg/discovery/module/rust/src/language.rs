@@ -16,7 +16,6 @@ use std::sync::{LazyLock, Mutex};
 use anyhow::Result;
 use elf::abi::{PF_W, PF_X, PT_LOAD};
 use elf::endian::AnyEndian;
-use log::info;
 use lru::LruCache;
 use memchr::memmem;
 use serde::{Deserialize, Serialize};
@@ -58,7 +57,6 @@ impl Language {
     }
 
     pub fn detect(pid: i32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
-        info!("detect: exe={exe:?} cmdline={cmdline:?}");
         if let Some(lang) = Self::from_basename(cmdline) {
             return lang;
         }
@@ -81,7 +79,6 @@ impl Language {
     fn from_basename(cmdline: &Cmdline) -> Option<Self> {
         let mut args = cmdline.args();
         let exe = Path::new(args.next()?).file_name()?;
-        info!("from_basename: exe from args: {exe:?}");
 
         if is_jruby(exe, cmdline) {
             return Some(Self::Ruby);
@@ -99,7 +96,6 @@ impl Language {
     }
 
     fn from_command(comm: &str) -> Option<Self> {
-        info!("from_command: {comm}");
         match comm {
             "py" | "python" => return Some(Self::Python),
             "java" => return Some(Self::Java),
@@ -111,20 +107,16 @@ impl Language {
         }
 
         if comm.starts_with("python") {
-            info!("from_command: {comm} -> python");
             return Some(Self::Python);
         }
         if comm.starts_with("java") && comm != "javac" {
-            info!("from_command: {comm} -> java");
             return Some(Self::Java);
         }
 
         if is_ruby_prefix(comm) {
-            info!("from_command: {comm} -> ruby");
             return Some(Self::Ruby);
         }
         if is_php_prefix(comm) {
-            info!("from_command: {comm} -> php");
             return Some(Self::PHP);
         }
 

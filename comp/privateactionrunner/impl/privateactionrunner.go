@@ -129,6 +129,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
+		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 

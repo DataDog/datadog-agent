@@ -282,18 +282,22 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NoError(s.T(), err)
 
 	// Check agent is alive during experiment
-	status, err := s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running during experiment")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running during experiment")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+	}, 60*time.Second, 5*time.Second)
 
 	// Promote the experiment
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
 	// Check agent is alive after promotion to stable
-	status, err = s.Agent.Status()
-	require.NoError(s.T(), err, "agent should be running after promotion to stable")
-	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err, "agent should be running after promotion to stable")
+		require.NotEmpty(c, status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestExperimentIntegrationLoaded verifies that an integration config deployed
@@ -324,18 +328,22 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 	}, nil)
 	require.NoError(s.T(), err)
 
-	status, err := s.Agent.Status()
-	require.NoError(s.T(), err)
-	_, nginxLoaded := status.RunnerStats.Checks["nginx"]
-	assert.True(s.T(), nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should be loaded from the experiment conf.d directory")
+	}, 60*time.Second, 5*time.Second)
 
 	err = s.Backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
-	status, err = s.Agent.Status()
-	require.NoError(s.T(), err)
-	_, nginxLoaded = status.RunnerStats.Checks["nginx"]
-	assert.True(s.T(), nginxLoaded, "nginx check should still be loaded after promotion")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		require.NoError(c, err)
+		_, nginxLoaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, nginxLoaded, "nginx check should still be loaded after promotion")
+	}, 60*time.Second, 5*time.Second)
 }
 
 // TestConfigRollbackDeploymentID tests that rolling back a config experiment
