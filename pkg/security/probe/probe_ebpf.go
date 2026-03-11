@@ -1184,6 +1184,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				}
 			}
 
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathRelatedEvent, nil)
+
 			relatedEvents = append(relatedEvents, relatedEvent)
 		}
 	)
@@ -1237,9 +1239,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
-		if relatedEvent.ProcessCacheEntry != nil {
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(relatedEvent.ProcessCacheEntry, metrics.ReparentCallpathRelatedEvent, newEntryCb)
-		}
 		p.DispatchEvent(relatedEvent, true)
 		p.putBackPoolEvent(relatedEvent)
 	}
