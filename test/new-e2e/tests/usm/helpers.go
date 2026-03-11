@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,6 +120,21 @@ func deployLinuxBinaries(t *testing.T, host *components.RemoteHost) {
 	t.Logf("datadog services:\n%s", out)
 }
 
+// sendPythonHTTPRequests sends requestsPerPort HTTP GET requests to each of ports
+// 8081 and 8082 using Python's urllib. pythonCmd is the command to invoke Python
+// (e.g. "python3" on Linux, `& "C:\...\python.exe"` on Windows).
+func sendPythonHTTPRequests(host *components.RemoteHost, pythonCmd string, requestsPerPort int) {
+	host.MustExecute(fmt.Sprintf(`%s -c "
+import urllib.request
+
+for port in [8081, 8082]:
+    for i in range(%d):
+        urllib.request.urlopen('http://127.0.0.1:{}/'.format(port))
+
+print('done')
+"`, pythonCmd, requestsPerPort))
+}
+
 // sendWindowsKeepAliveRequests opens requestsPerPort keep-alive connections to
 // localhost:8081 and localhost:8082, holds them open for holdSeconds, then closes them.
 // Windows network driver flushes closed connections, so keep-alive is needed for reliable capture.
@@ -159,6 +175,21 @@ func sendWindowsKeepAliveRequestsToPort(host *components.RemoteHost, port, count
 			`Start-Sleep -Seconds %d; `+
 			`$resps | ForEach-Object { $_.Close() }`,
 		connLimit, count, port, holdSeconds))
+}
+
+// fetchAndAssertTaggedConnections waits for the agent to forward connections to
+// fakeintake, then asserts that connections on ports 8081/8082 have the expected tags.
+func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, minPerPort int) {
+	t.Helper()
+
+	time.Sleep(60 * time.Second)
+
+	cnx, err := fi.GetConnections()
+	require.NoError(t, err, "GetConnections() error")
+	require.NotNil(t, cnx, "GetConnections() returned nil")
+
+	stats := getConnectionStats(t, cnx, "process_context:")
+	assertTaggedConnections(t, stats, label, minPerPort)
 }
 
 // connectionStats holds the results of counting connections on test ports from FakeIntake.
