@@ -158,14 +158,14 @@ def update_go(_):
 
 # === PYTHON === #
 @task()
-def python(ctx, show_versions=False):
+def python(ctx, fix=False, show_versions=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
     running locally, you probably want to use the pre-commit instead.
 
     Args:
-        files: Optional list of files to lint (space-separated). If not provided, lints all files.
+        fix: If True, automatically fix issues that can be auto-fixed.
         show_versions: Show the versions of the linters that are being used.
     """
 
@@ -179,14 +179,12 @@ def python(ctx, show_versions=False):
         print(f"vulture version: {ctx.run('vulture --version', hide=True).stdout.strip()}")
         print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
-    if running_in_ci():
-        # We want to the CI to fail if there are any issues, lint everything in CI
-        ctx.run("ruff format --check .")
-        ctx.run("ruff check --no-fix .")
-    else:
-        # Otherwise we just need to format the files
+    if fix:
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
+    else:
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check --no-fix .")
 
     # vulture and mypy don't work well with individual files, run on full codebase
     ctx.run("vulture")
