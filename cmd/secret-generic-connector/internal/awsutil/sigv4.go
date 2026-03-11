@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package awsutil provides AWS utility functions for signing requests.
 package awsutil
 
 import (
