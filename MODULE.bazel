@@ -154,6 +154,10 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
+## Linux kernel headers for eBPF prebuilt compilation
+linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
+use_repo(linux_headers_ext, "linux_headers")
+
 ######################################
 ## Compilers and toolchains        ##
 ####################################
