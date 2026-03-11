@@ -1,0 +1,41 @@
+// FlatBuffers schema for the pipeline sink signal types.
+// Replaces the former Cap'n Proto signals.capnp.
+//
+// Generate Go:   flatc --go -o schema/pipelinesink/generated signals.fbs
+// Generate Rust: flatc --rust -o tools/pipelinerecorder/src/generated signals.fbs
+
+namespace signals;
+
+table MetricSample {
+  name:string;
+  value:double;
+  tags:[string];
+  timestamp_ns:long;
+  sample_rate:double;
+  source:string;
+}
+
+table LogEntry {
+  content:[ubyte];
+  status:string;
+  tags:[string];
+  hostname:string;
+  timestamp_ns:long;
+  source:string;
+}
+
+table MetricBatch {
+  samples:[MetricSample];
+}
+
+table LogBatch {
+  entries:[LogEntry];
+}
+
+union SignalPayload { MetricBatch, LogBatch }
+
+table SignalEnvelope {
+  payload:SignalPayload;
+}
+
+root_type SignalEnvelope;
