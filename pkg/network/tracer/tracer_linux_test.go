@@ -3500,7 +3500,9 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	// transfer is affected. "delay 10ms reorder 50%" sends 50% of packets
 	// immediately and delays the rest by 10ms, causing out-of-order delivery.
 	addNetemCmd := exec.Command(tc, "qdisc", "add", "dev", "lo", "root", "netem", "delay", "10ms", "reorder", "50%")
-	require.NoError(t, addNetemCmd.Run(), "tc qdisc add netem failed")
+	if err := addNetemCmd.Run(); err != nil {
+		t.Skipf("tc qdisc add netem failed (sch_netem module may not be available): %v", err)
+	}
 	t.Cleanup(func() {
 		exec.Command(tc, "qdisc", "del", "dev", "lo", "root").Run() //nolint:errcheck
 	})
