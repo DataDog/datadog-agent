@@ -208,17 +208,34 @@ def watch(
     # maxsize=1: at most one pending run at a time; _enqueue drains before inserting so
     # the runner always executes the freshest command.
     work_queue: queue_module.Queue[tuple[str, frozenset[str], str]] = queue_module.Queue(maxsize=1)
-    work_queue.put_nowait(_build_watch_work(ctx, remote_host, command))  # initial run
+
+    # Only seed on startup if there are already modified packages — avoids launching the
+    # full test suite just because the watcher was started before any file changes.
+    initial_work = _build_watch_work(ctx, remote_host, command)
+    _, initial_packages, _ = initial_work
+    if initial_packages:
+        work_queue.put_nowait(initial_work)
+    else:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] No modified packages, waiting for file changes...")
+
+    # Shared reference to the currently running subprocess so _enqueue can kill it.
+    current_proc: list[subprocess.Popen | None] = [None]
+    proc_lock = threading.Lock()
 
     threading.Thread(
         target=_test_runner_loop,
-        args=(name, work_queue),
+        args=(name, work_queue, current_proc, proc_lock),
         daemon=True,
     ).start()
 
     def _enqueue() -> None:
         work = _build_watch_work(ctx, remote_host, command)
-        # Replace any pending (not-yet-started) item with the freshest command
+        # Kill the in-flight process so the runner picks up the fresh command immediately.
+        with proc_lock:
+            proc = current_proc[0]
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+        # Replace any pending (not-yet-started) item with the freshest command.
         try:
             work_queue.get_nowait()
         except queue_module.Empty:
@@ -510,11 +527,18 @@ def _build_watch_work(
     return command_type, packages, _build_remote_command(remote_host, wrapped)
 
 
-def _test_runner_loop(name: str, work_queue: "queue_module.Queue[tuple[str, frozenset[str], str]]") -> None:
+def _test_runner_loop(
+    name: str,
+    work_queue: "queue_module.Queue[tuple[str, frozenset[str], str]]",
+    current_proc: "list[subprocess.Popen | None]",
+    proc_lock: threading.Lock,
+) -> None:
     """
     Background thread: block on the work queue, run the remote command via subprocess,
     and update the state file before and after each run.
     Output is written to a dedicated file so that attach_or_run can stream or replay it.
+    When the process is killed by _enqueue (negative returncode on Unix), the run is
+    treated as cancelled: no 'finished' state is written and the loop moves on immediately.
     """
     output_path = _output_file_path(name)
     while True:
@@ -536,7 +560,34 @@ def _test_runner_loop(name: str, work_queue: "queue_module.Queue[tuple[str, froz
         print(f"[{start_time.strftime('%H:%M:%S')}] Running: {command_type}{pkg_summary}")
         with open(output_path, "w") as out:
             proc = subprocess.Popen(ssh_cmd, shell=True, stdout=out, stderr=subprocess.STDOUT)
+            with proc_lock:
+                current_proc[0] = proc
             exit_code = proc.wait()
+            with proc_lock:
+                current_proc[0] = None
+
+        if exit_code < 0:
+            # Killed by _enqueue — a newer run is already queued, skip writing finished state.
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Cancelled, picking up next run...")
+            continue
+
+        if exit_code == 255:
+            # SSH error (connection dropped or watcher interrupted) — the test did not complete.
+            # Write a cancelled state so attach_or_run triggers a fresh run instead of replaying
+            # an incomplete output with a misleading exit code.
+            _write_state(
+                name,
+                {
+                    "status": "cancelled",
+                    "command": command_type,
+                    "packages": sorted_packages,
+                    "watcher_pid": os.getpid(),
+                    "output_file": output_path,
+                },
+            )
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] SSH error (exit 255), test did not complete")
+            continue
+
         end_time = datetime.now()
         _write_state(
             name,
