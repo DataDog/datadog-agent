@@ -150,7 +150,14 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 				return nil
 			}
 
-			fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
+			// Inventory payloads are already scrubbed before being stored (e.g. via
+			// marshalAndScrub). Using AddFileWithoutScrubbing avoids double-scrubbing
+			// which can corrupt pre-scrubbed values whose keys match scrubber patterns.
+			data, err := i.GetAsJSON()
+			if err != nil {
+				return err
+			}
+			fb.AddFileWithoutScrubbing(path, data) //nolint:errcheck
 			return nil
 		})
 }
