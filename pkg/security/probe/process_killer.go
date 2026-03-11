@@ -117,12 +117,10 @@ func (p *ProcessKiller) getRuleStats(ruleID string) *processKillerStats {
 	return stats
 }
 
-func updateKillActionReport(now time.Time, report *KillActionReport, failedPids []uint32, nbKilled int64) {
+// updateKillActionReport updates the report status based on the outcome of KillProcesses.
+func updateKillActionReport(report *KillActionReport, now time.Time, failedPids []uint32, nbKilled int64) {
 	report.Lock()
 	defer report.Unlock()
-	if report.Status != KillActionStatusQueued {
-		return
-	}
 	if len(failedPids) == 0 {
 		report.Status = KillActionStatusPerformed
 		report.KilledAt = now
@@ -175,7 +173,7 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 
 	failedPids, nbKilled := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, allKills)
 	for _, r := range disarmer.pendingReports {
-		updateKillActionReport(now, r, failedPids, nbKilled)
+		updateKillActionReport(r, now, failedPids, nbKilled)
 	}
 	disarmer.pendingReports = nil
 }
@@ -466,19 +464,11 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		return false, report
 	}
 
-	now := time.Now() // get the current time now to make sure it precedes the any process exit time
+	now := time.Now() // get the current time now to make sure it precedes any process exit time
 	failedPids, nbOfKilled := p.KillProcesses(true, rule.ID, sig, pcs)
-	if len(failedPids) == 0 {
-		report.KilledAt = now
-		report.Status = KillActionStatusPerformed
-	} else {
-		if nbOfKilled > 0 {
-			report.KilledAt = now
-			report.Status = KillActionStatusPartiallyPerformed
-			log.Warn("some processes failed to be killed in the container with PIDs : ", failedPids)
-		} else {
-			report.Status = KillActionStatusError
-		}
+	updateKillActionReport(report, now, failedPids, nbOfKilled)
+	if len(failedPids) > 0 && nbOfKilled > 0 {
+		log.Warn("some processes failed to be killed with PIDs: ", failedPids)
 	}
 
 	ev.ActionReports = append(ev.ActionReports, report)
