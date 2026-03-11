@@ -1284,11 +1284,17 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
 }
 
 
-def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str) -> None:
-    """Build eBPF object files using Bazel and copy them to the build directory."""
+def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
+    """Build eBPF object files using Bazel and copy them to the build directory.
+
+    When strip=False the unstripped -debug variants are copied under the
+    non-debug file names so that tests (e.g. KMT) get objects with DWARF data.
+    Targets without a -debug counterpart are copied as-is.
+    """
     import shutil
 
     all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
+    all_targets_set = set(all_targets)
     targets_str = " ".join(all_targets)
 
     print(f"Building {len(all_targets)} eBPF targets via Bazel...")
@@ -1306,8 +1312,18 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str) -> None:
         """Copy the .o output for a Bazel target to the destination directory."""
         # //pkg/foo/bar:name -> pkg/foo/bar/name.o
         label_path, name = target.lstrip("/").rsplit(":", 1)
+
+        out_name = name
+        if not strip:
+            if name.endswith("-debug"):
+                out_name = name.removesuffix("-debug")
+            elif f"//{label_path}:{name}-debug" in all_targets_set:
+                # A -debug variant exists and will be copied instead
+                return
+
         src = os.path.join(bazel_bin, label_path, f"{name}.o")
-        dst = os.path.join(dest_dir, f"{name}.o")
+        dst = os.path.join(dest_dir, f"{out_name}.o")
+
         if os.path.exists(src):
             shutil.copy2(src, dst)
             os.chmod(dst, 0o444)

@@ -269,7 +269,7 @@ def ebpf_program_suite(name, src, deps = [], core = False, strip = True, extra_f
         deps = deps,
         core = core,
         debug = True,
-        strip = strip,
+        strip = False,
         extra_flags = extra_flags,
         target_arch = target_arch,
         **kwargs
