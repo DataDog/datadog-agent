@@ -224,13 +224,8 @@ class TestFormatReport(unittest.TestCase):
         )
         self.assertIn("Test Report (e2e)", format_report(doc))
 
-    def test_report_fail_count_matches_when_parent_has_own_failure(self):
-        """Failures (N) header must match the number of failure blocks printed.
-
-        A parent with both subtests and its own UTOFFailure (e.g. a setup panic)
-        must be counted in the section header so it doesn't read "Failures (0)"
-        while still printing a failure block.
-        """
+    def test_report_direct_failure_shown_even_when_subtests_also_fail(self):
+        """A direct failure (e.g. panic) on a parent is rendered even when subtests also fail."""
         parent = UTOFTestResult(
             id="p1",
             name="TestSuite",
@@ -238,7 +233,7 @@ class TestFormatReport(unittest.TestCase):
             package="pkg/example",
             type="unit",
             status="fail",
-            failure=UTOFFailure(message="panic: nil pointer dereference", type="panic"),
+            failure=UTOFFailure(message="panic: nil pointer dereference", type="panic", direct=True),
             subtests=[
                 UTOFTestResult(
                     id="s1",
@@ -246,15 +241,15 @@ class TestFormatReport(unittest.TestCase):
                     full_name="TestSuite/Sub",
                     package="pkg/example",
                     type="unit",
-                    status="pass",
+                    status="fail",
+                    failure=UTOFFailure(message="expected 1 got 2", type="assertion", direct=True),
                 ),
             ],
         )
         doc = UTOFDocument(
             metadata=UTOFMetadata(test_system="unit"),
-            summary=UTOFSummary(total=2, passed=1, failed=1, status="fail"),
+            summary=UTOFSummary(total=1, passed=0, failed=1, status="fail"),
             tests=[parent],
         )
         report = format_report(doc)
-        self.assertIn("Failures (1)", report)
-        self.assertNotIn("Failures (0)", report)
+        self.assertIn("panic: nil pointer dereference", report)

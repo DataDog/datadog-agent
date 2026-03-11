@@ -29,7 +29,7 @@ class UTOFEnvironmentMetadata:
     os_version: str = ""
     arch: str = ""
     kernel: str = ""
-    go_version: str = ""
+    runtime_version: str = ""
     agent_flavor: str = ""
 
 
@@ -58,9 +58,14 @@ class UTOFSummary:
 @dataclass
 class UTOFFailure:
     message: str = ""
-    type: str = ""  # assertion, panic, timeout, build
+    type: str = ""  # assertion, panic, timeout, build, infrastructure
     stacktrace: str = ""
     raw_output: str = ""  # noqa: F841
+    # True when the failure originates from a direct assertion on this test.
+    # False when it is inferred/propagated from child test failures.
+    # Consumers can use this to avoid rendering redundant failure details on
+    # parent nodes that are already explained by their children.
+    direct: bool = False
 
 
 @dataclass
@@ -84,7 +89,7 @@ class UTOFAttempt:
 class UTOFTestResult:
     id: str = ""
     name: str = ""
-    full_name: str = ""  # original test2json name, e.g. "TestSketch/useStore=true/empty_flush"
+    full_name: str = ""  # original fully-qualified test name, e.g. "TestSketch/useStore=true/empty_flush"
     package: str = ""
     suite: str = ""
     type: str = "unit"

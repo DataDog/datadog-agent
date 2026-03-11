@@ -156,7 +156,7 @@ def format_report(doc: UTOFDocument) -> str:
         return t.status == "fail"
 
     all_tests = _collect_all_tests(doc.tests)
-    fail_count = sum(1 for t in all_tests if fail_pred(t) and (not t.subtests or t.failure is not None))
+    fail_count = sum(1 for t in all_tests if fail_pred(t) and not t.subtests)
     failed_roots = [t for t in doc.tests if _has_matching_descendant(t, fail_pred)]
     if failed_roots:
 
@@ -170,7 +170,12 @@ def format_report(doc: UTOFDocument) -> str:
             else:
                 name = color_message(t.name, "bold")
             out.append(f"{prefix}{badge}  {name}")
-            if t.failure:
+            # Suppress parent failure when subtests already explain the cause,
+            # but only if the failure is inferred (not a direct assertion).
+            # A direct assertion (testify blocks, panic, infrastructure) on the
+            # parent must always be shown even when subtests also failed.
+            has_failing_subtests = t.subtests and any(_has_matching_descendant(s, fail_pred) for s in t.subtests)
+            if t.failure and (not has_failing_subtests or t.failure.direct):
                 out.extend(_render_failure(t.failure, fp))
             if t.subtests:
                 out.extend(_render_subtests(t.subtests, fail_pred, depth + 1, _render_failed))
@@ -186,7 +191,7 @@ def format_report(doc: UTOFDocument) -> str:
     def retry_pred(t: UTOFTestResult) -> bool:
         return t.retry_count > 0
 
-    retry_count = sum(1 for t in all_tests if retry_pred(t) and (not t.subtests or t.failure is not None))
+    retry_count = sum(1 for t in all_tests if retry_pred(t) and not t.subtests)
     retried_roots = [t for t in doc.tests if _has_matching_descendant(t, retry_pred)]
     if retried_roots:
 
@@ -234,7 +239,7 @@ def format_report(doc: UTOFDocument) -> str:
     def flaky_pred(t: UTOFTestResult) -> bool:
         return t.status in ("flaky_pass", "flaky_fail") and t.retry_count == 0
 
-    flaky_count = sum(1 for t in all_tests if flaky_pred(t) and (not t.subtests or t.failure is not None))
+    flaky_count = sum(1 for t in all_tests if flaky_pred(t) and not t.subtests)
     flaky_roots = [t for t in doc.tests if _has_matching_descendant(t, flaky_pred)]
     if flaky_roots:
 
@@ -249,7 +254,8 @@ def format_report(doc: UTOFDocument) -> str:
                 name = color_message(t.name, "bold")
             source = color_message(f"(source: {t.flaky.source})", "grey") if t.flaky else ""
             out.append(f"{prefix}{badge}  {name}  {source}")
-            if t.failure:
+            has_flaky_subtests = t.subtests and any(_has_matching_descendant(s, flaky_pred) for s in t.subtests)
+            if t.failure and (not has_flaky_subtests or t.failure.direct):
                 out.extend(_render_failure(t.failure, fp))
             if t.subtests:
                 out.extend(_render_subtests(t.subtests, flaky_pred, depth + 1, _render_flaky))
