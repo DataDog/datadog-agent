@@ -194,11 +194,11 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	eng := newEngine(engineConfig{
-		storage:    newTimeSeriesStorage(),
-		extractors: extractors,
-		detectors:  detectors,
+		storage:     newTimeSeriesStorage(),
+		extractors:  extractors,
+		detectors:   detectors,
 		correlators: correlators,
-		scheduler:  &currentBehaviorPolicy{},
+		scheduler:   &currentBehaviorPolicy{},
 	})
 
 	// Wire reporters via event subscription.
@@ -415,9 +415,9 @@ type seriesDetectorAdapter struct {
 
 	// Per-series caching: PointCountUpTo (binary search, no copying) tells us
 	// cheaply whether a series has new visible data. When it hasn't changed,
-	// we reuse the cached detection result for that series.
+	// we skip detection entirely so callers do not see duplicate anomaly or
+	// telemetry events for unchanged data.
 	lastVisibleCount map[string]int
-	lastSeriesResult map[string]observerdef.DetectionResult
 }
 
 func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
@@ -426,7 +426,6 @@ func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations 
 		aggregations:     aggregations,
 		windowSec:        defaultDetectorWindowSec,
 		lastVisibleCount: make(map[string]int),
-		lastSeriesResult: make(map[string]observerdef.DetectionResult),
 	}
 }
 
@@ -446,11 +445,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 		// Cheap check: has this series gained any newly visible points?
 		visibleCount := storage.PointCountUpTo(key, dataTime)
 		if prev, ok := a.lastVisibleCount[k]; ok && prev == visibleCount {
-			// No new data — reuse cached results for this series.
-			if cached, hasCached := a.lastSeriesResult[k]; hasCached {
-				allAnomalies = append(allAnomalies, cached.Anomalies...)
-				allTelemetry = append(allTelemetry, cached.Telemetry...)
-			}
+			// No new data — do not re-run the detector or re-emit prior outputs.
 			continue
 		}
 		a.lastVisibleCount[k] = visibleCount
@@ -483,10 +478,6 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			seriesTelemetry = append(seriesTelemetry, result.Telemetry...)
 		}
 
-		a.lastSeriesResult[k] = observerdef.DetectionResult{
-			Anomalies: seriesAnomalies,
-			Telemetry: seriesTelemetry,
-		}
 		allAnomalies = append(allAnomalies, seriesAnomalies...)
 		allTelemetry = append(allTelemetry, seriesTelemetry...)
 	}
