@@ -52,7 +52,7 @@ func defaultCatalog() *componentCatalog {
 				factory: func() any {
 					return NewCUSUMDetector()
 				},
-				defaultEnabled: true,
+				defaultEnabled: false,
 			},
 			{
 				name:        "bocpd",
@@ -126,9 +126,8 @@ func defaultCatalog() *componentCatalog {
 }
 
 // testbenchCatalog returns a catalog customized for the testbench.
-// It differs from the default in two ways:
-//   - RRCF uses testbench-specific metrics (parquet names instead of DogStatsD names)
-//     and is disabled by default (calibration mode).
+// It differs from the default in these ways:
+//   - RRCF uses testbench-specific metrics (parquet names instead of DogStatsD names).
 //   - cross_signal is disabled (testbench uses time_cluster instead).
 //   - time_cluster is enabled by default.
 func testbenchCatalog() *componentCatalog {
@@ -138,7 +137,6 @@ func testbenchCatalog() *componentCatalog {
 		config.Metrics = TestBenchRRCFMetrics()
 		return NewRRCFDetector(config)
 	})
-	cat = cat.WithDefaultEnabled("rrcf", false)
 	cat = cat.WithDefaultEnabled("cross_signal", false)
 	cat = cat.WithDefaultEnabled("time_cluster", true)
 	return cat
