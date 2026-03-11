@@ -1,0 +1,11 @@
+"""Package lifecycle scripts for the datadog-iot-agent Debian package."""
+
+exports_files(
+    [
+        "postinst",
+        "postrm",
+        "preinst",
+        "prerm",
+    ],
+    visibility = ["//packages:__subpackages__"],
+)

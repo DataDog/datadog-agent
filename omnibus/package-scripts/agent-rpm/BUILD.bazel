@@ -1,0 +1,10 @@
+"""Package lifecycle scripts for the datadog-agent RPM package."""
+
+exports_files(
+    [
+        "posttrans",
+        "preinst",
+        "prerm",
+    ],
+    visibility = ["//packages:__subpackages__"],
+)

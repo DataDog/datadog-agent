@@ -1,0 +1,103 @@
+"""DDot (Datadog Distribution of OpenTelemetry) package components specific to linux."""
+
+load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_filegroup",
+)
+load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//compliance:package_licenses.bzl", "package_licenses")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# TODO: Add the ddot binary and component targets here, analogous to
+# //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
+# The main build dependency from ddot.rb is 'datadog-otel-agent'.
+pkg_filegroup(
+    name = "ddot_components",
+    srcs = [
+        # TODO: //packages/ddot/dependencies:all_files
+        # TODO: //packages/install_dir:embedded (ddot-specific variant)
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+# This is an intermediate node to collect all dependencies so we can walk
+# the aspect to gather OSS licenses.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":ddot_components",
+    ],
+)
+
+# Gather licenses for all pieces of the distribution.
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+pkg_deb(
+    name = "debian",
+    data = ":whole_distro_tar",
+    # datadog-agent version dependency is stamped at build time; the version
+    # must match exactly (epoch 1, same version, release 1).
+    # TODO: stamp datadog-agent dep version from pipeline:
+    #   "datadog-agent (= 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1)"
+    depends = ["datadog-agent"],
+    description = "Datadog Distribution of OpenTelemetry Collector",
+    homepage = "http://www.datadoghq.com",
+    # epoch 1
+    license = "Apache License Version 2.0",
+    maintainer = "Datadog Packages <package@datadoghq.com>",
+    package = "datadog-agent-ddot",
+    # Lifecycle scripts from omnibus/package-scripts/ddot-deb/
+    postinst = "//omnibus/package-scripts/ddot-deb:postinst",
+    preinst = "//omnibus/package-scripts/ddot-deb:preinst",
+    prerm = "//omnibus/package-scripts/ddot-deb:prerm",
+    priority = "extra",
+    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
+    section = "utils",
+    # TODO: Stamp in pipeline: 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1
+    version = "7",
+)
+
+pkg_rpm(
+    name = "rpm",
+    package_name = "datadog-agent-ddot",
+    srcs = [":whole_distro"],
+    description = "Datadog Distribution of OpenTelemetry Collector",
+    epoch = "1",
+    group = "System Environment/Daemons",
+    license = "Apache License Version 2.0",
+    # Lifecycle scripts from omnibus/package-scripts/ddot-rpm/
+    posttrans_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:posttrans",
+    pre_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:preinst",
+    preun_scriptlet_file = "//omnibus/package-scripts/ddot-rpm:prerm",
+    # TODO: Stamp in pipeline: 7.77.0~devel.git.394.fe0d0bb.pipeline.95313893
+    release = "1",
+    # datadog-agent version dependency is stamped at build time; the version
+    # must match exactly (epoch 1, same version, release 1).
+    # TODO: stamp datadog-agent dep version from pipeline:
+    #   "datadog-agent = 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1"
+    requires = ["datadog-agent"],
+    summary = "Datadog Distribution of OpenTelemetry Collector",
+    url = "http://www.datadoghq.com",
+    version = "7",
+)

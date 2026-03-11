@@ -1,0 +1,12 @@
+"""Package lifecycle scripts for the datadog-dogstatsd RPM package."""
+
+exports_files(
+    [
+        "postinst",
+        "postrm",
+        "posttrans",
+        "preinst",
+        "prerm",
+    ],
+    visibility = ["//packages:__subpackages__"],
+)
