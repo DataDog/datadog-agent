@@ -24,11 +24,11 @@ ebpf_prog(
     src = "event.c",
     core = True,
     debug = True,
-    strip = False,
     extra_flags = [
         "-Ipkg/dyninst/ebpf",
         "-DDYNINST_DEBUG=1",
     ],
+    strip = False,
     deps = [
         ":dyninst_ebpf_headers",
         "//pkg/ebpf/c:ebpf_c_headers",

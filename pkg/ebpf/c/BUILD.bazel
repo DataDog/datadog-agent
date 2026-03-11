@@ -1,5 +1,5 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules:ebpf.bzl", "ebpf_prog")
 
 cc_library(
     name = "ebpf_c_headers",
@@ -8,16 +8,34 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-ebpf_program_suite(
+ebpf_prog(
     name = "lock_contention",
     src = "lock_contention.c",
     core = True,
     deps = [":ebpf_c_headers"],
 )
 
-ebpf_program_suite(
+# Unstripped variant for KMT tests (no -DDEBUG=1 to avoid BTF relocation issues)
+ebpf_prog(
+    name = "lock_contention-debug",
+    src = "lock_contention.c",
+    core = True,
+    strip = False,
+    deps = [":ebpf_c_headers"],
+)
+
+ebpf_prog(
     name = "ksyms_iter",
     src = "ksyms_iter.c",
     core = True,
+    deps = [":ebpf_c_headers"],
+)
+
+# Unstripped variant for KMT tests
+ebpf_prog(
+    name = "ksyms_iter-debug",
+    src = "ksyms_iter.c",
+    core = True,
+    strip = False,
     deps = [":ebpf_c_headers"],
 )
