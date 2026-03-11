@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::ProcessConfig;
+use crate::state::ProcessState;
 use tokio::sync::oneshot;
 use tonic::Status;
 
@@ -23,11 +24,13 @@ pub struct CreateResult {
 pub struct StartResult {
     pub uuid: String,
     pub pid: Option<u32>,
+    pub state: ProcessState,
 }
 
 #[derive(Debug)]
 pub struct StopResult {
     pub uuid: String,
+    pub state: ProcessState,
 }
 
 pub enum Command {

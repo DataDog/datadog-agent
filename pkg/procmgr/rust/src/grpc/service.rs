@@ -129,7 +129,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
                 Response::new(proto::StartResponse {
                     uuid: result.uuid,
                     pid: result.pid.unwrap_or(0),
-                    state: proto::ProcessState::Running.into(),
+                    state: proto::ProcessState::from(result.state).into(),
                 })
             })
     }
@@ -153,7 +153,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
             .map(|result| {
                 Response::new(proto::StopResponse {
                     uuid: result.uuid,
-                    state: proto::ProcessState::Stopped.into(),
+                    state: proto::ProcessState::from(result.state).into(),
                 })
             })
     }

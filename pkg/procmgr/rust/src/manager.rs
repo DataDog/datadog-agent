@@ -229,8 +229,9 @@ impl ProcessManager {
             .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
         let uuid = proc.uuid().to_owned();
         let pid = proc.pid();
+        let state = proc.state();
         spawn_watcher(proc, exit_tx.clone());
-        Ok(StartResult { uuid, pid })
+        Ok(StartResult { uuid, pid, state })
     }
 
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
@@ -247,7 +248,8 @@ impl ProcessManager {
         let uuid = proc.uuid().to_owned();
         proc.request_stop();
         proc.wait_for_stop().await;
-        Ok(StopResult { uuid })
+        let state = proc.state();
+        Ok(StopResult { uuid, state })
     }
 
     pub(crate) async fn handle_reload_config(

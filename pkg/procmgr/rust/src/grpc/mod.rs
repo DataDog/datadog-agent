@@ -605,25 +605,34 @@ mod tests {
         }])
         .await;
 
-        client
+        let start_resp = client
             .start(proto::StartRequest {
                 name_or_uuid: "sleeper".to_string(),
             })
             .await
-            .unwrap();
+            .unwrap()
+            .into_inner();
 
-        // Verify process is now running
+        assert_eq!(
+            start_resp.state,
+            proto::ProcessState::Running as i32,
+            "start response should report actual Running state"
+        );
+        assert!(start_resp.pid > 0, "start response should include pid");
+        assert!(!start_resp.uuid.is_empty(), "start response should include uuid");
+
+        // Cross-check via list
         let resp = client
             .list(proto::ListRequest {})
             .await
             .unwrap()
             .into_inner();
         assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
-        assert!(resp.processes[0].pid > 0);
+        assert_eq!(resp.processes[0].pid, start_resp.pid);
 
         // Clean up
         nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
+            nix::unistd::Pid::from_raw(start_resp.pid as i32),
             nix::sys::signal::Signal::SIGKILL,
         )
         .ok();
@@ -703,14 +712,22 @@ mod tests {
             .await
             .unwrap();
 
-        client
+        let stop_resp = client
             .stop(proto::StopRequest {
                 name_or_uuid: "to-stop".to_string(),
             })
             .await
-            .unwrap();
+            .unwrap()
+            .into_inner();
 
-        // Give the watcher time to process the exit event
+        assert_eq!(
+            stop_resp.state,
+            proto::ProcessState::Stopped as i32,
+            "stop response should report actual Stopped state"
+        );
+        assert!(!stop_resp.uuid.is_empty(), "stop response should include uuid");
+
+        // Cross-check via describe
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         let resp = client
