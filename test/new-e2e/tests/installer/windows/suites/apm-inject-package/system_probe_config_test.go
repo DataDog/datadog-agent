@@ -79,7 +79,7 @@ func (s *testSystemProbeConfig) TestStandaloneInstallEnablesSystemProbe() {
 
 	// Install apm-inject package separately with host instrumentation
 	s.Env().RemoteHost.MustExecute(
-		fmt.Sprintf(`[Environment]::SetEnvironmentVariable("DD_APM_INSTRUMENTATION_ENABLED", "host", "Process")`),
+		`[Environment]::SetEnvironmentVariable("DD_APM_INSTRUMENTATION_ENABLED", "host", "Process")`,
 	)
 	pkgOutput, err := s.Installer().InstallPackage("apm-inject-package",
 		installer.WithVersion(s.currentAPMInjectVersion.PackageVersion()),
