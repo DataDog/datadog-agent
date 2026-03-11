@@ -75,7 +75,7 @@ def _list_dirs(rctx, path):
     if result.return_code != 0:
         return []
     entries = []
-    for name in result.stdout.strip().split("\n"):
+    for name in result.stdout.strip().splitlines():
         if not name:
             continue
         full = path + "/" + name
@@ -137,10 +137,7 @@ def _discover_header_dirs(rctx, kernel_arch, min_kernel_version = None, kernel_r
             if _is_dir(rctx, p):
                 resolved = _resolve_path(rctx, p)
 
-                # Use the resolved directory's basename for version parsing
-                res_result = rctx.execute(["basename", resolved], timeout = 5)
-                res_name = res_result.stdout.strip() if res_result.return_code == 0 else sub
-                candidates[resolved] = res_name
+                candidates[resolved] = resolved.rsplit("/", 1)[-1]
 
     # Score and filter
     # Debian/Ubuntu split header packages. So one can install the headers for a different architecture
