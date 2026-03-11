@@ -76,8 +76,6 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
     }
 
     monitor_event_sample_total(EVENT_BIND);
-    bpf_printk("bind_sample total: pid=%d port=%d family=%d", pid, port, family);
-    bpf_printk("bind_sample total: addr=%llx addr1=%llx", addr[0], addr[1]);
 
     struct bind_sample_key_t key;
     __builtin_memset(&key, 0, sizeof(key));
@@ -96,9 +94,7 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
     if (!global_limiter_allow(BIND_SAMPLE_LIMITER, 500, 1)) {
         return 0;
     }
-
-    bpf_printk("bind_sample sampled: pid=%d port=%d family=%d", pid, port, family);
-    bpf_printk("bind_sample sampled: addr=%llx addr1=%llx", addr[0], addr[1]);
+    
     monitor_event_sample_sampled(EVENT_BIND);
     return 1;
 }

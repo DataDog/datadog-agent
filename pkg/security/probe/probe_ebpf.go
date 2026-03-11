@@ -2733,6 +2733,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
+		SecurityProfileV2Enabled:      p.config.RuntimeSecurity.SecurityProfileV2Enabled,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {

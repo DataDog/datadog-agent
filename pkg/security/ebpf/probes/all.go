@@ -208,6 +208,7 @@ type MapSpecEditorOpts struct {
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
+	SecurityProfileV2Enabled      bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -282,23 +283,30 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"open_samples": {
-			MaxEntries: 40000,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"bind_samples": {
-			MaxEntries: 10000,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"connect_samples": {
-			MaxEntries: 40000,
-			EditorFlag: manager.EditMaxEntries,
-		},
 	}
 
 	if opts.SecurityProfileSyscallAnomaly {
 		editors["security_profiles"] = manager.MapSpecEditor{
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.SecurityProfileV2Enabled {
+		editors["pid_path_keys"] = manager.MapSpecEditor{
+			MaxEntries: 20000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["open_samples"] = manager.MapSpecEditor{
+			MaxEntries: 20000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["bind_samples"] = manager.MapSpecEditor{
+			MaxEntries: 10000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["connect_samples"] = manager.MapSpecEditor{
+			MaxEntries: 10000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
