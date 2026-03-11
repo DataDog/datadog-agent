@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -75,7 +74,6 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -87,8 +85,8 @@ import (
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
 
-// ErrExecSystemProbeLite represents the case in which system-probe should exec into system-probe-lite
-var ErrExecSystemProbeLite = errors.New("exec system-probe-lite")
+// ErrExecSPLite represents the case in which system-probe should exec into system-probe-lite
+var ErrExecSPLite = errors.New("exec system-probe-lite")
 
 const configPrefix = systemprobeconfig.Namespace + "."
 
@@ -244,8 +242,8 @@ func run(
 	}()
 
 	if err := startSystemProbe(rcclient, settings, deps); err != nil {
-		if errors.Is(err, ErrExecSystemProbeLite) {
-			return execSystemProbeLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
+		if errors.Is(err, ErrExecSPLite) {
+			return execSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
 		}
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
@@ -270,9 +268,9 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 
 	// Check if we should exec into system-probe-lite before checking if system-probe is enabled,
 	// since system-probe-lite should also handle the case where no modules are enabled.
-	if shouldExecSystemProbeLite(deps.SysprobeConfig, cfg) {
+	if shouldExecSPLite(deps.SysprobeConfig, cfg) {
 		deps.Log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
-		return ErrExecSystemProbeLite
+		return ErrExecSPLite
 	}
 
 	// Exit if system probe is disabled
@@ -370,84 +368,6 @@ func setupInternalProfiling(settings settings.Component, cfg model.Reader, confi
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
-}
-
-// shouldExecSystemProbeLite returns true if system-probe should exec into system-probe-lite.
-// This is the case when use_system_probe_lite is enabled and the full system-probe is not needed
-// (either no modules are enabled, or only the discovery module is enabled).
-func shouldExecSystemProbeLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
-	if !sysprobeConfig.GetBool("discovery.use_system_probe_lite") {
-		return false
-	}
-
-	// Don't exec system-probe-lite if an external system-probe is managing things
-	if cfg.ExternalSystemProbe {
-		return false
-	}
-
-	// If discovery is explicitly disabled and nothing else is enabled, just exit cleanly
-	if sysprobeConfig.IsConfigured("discovery.enabled") && !sysprobeConfig.GetBool("discovery.enabled") && !cfg.Enabled {
-		return false
-	}
-
-	// Exec system-probe-lite if no modules are enabled, or only discovery is enabled
-	return !cfg.Enabled || (len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule))
-}
-
-// systemProbeLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
-type systemProbeLiteExecCmd struct {
-	Path string
-	Args []string
-	Env  []string
-}
-
-// buildSystemProbeLiteArgs builds the command-line arguments for the system-probe-lite binary.
-func buildSystemProbeLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string) []string {
-	args := []string{"system-probe-lite", "run",
-		"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		"--log-level", sysprobeConfig.GetString("log_level"),
-	}
-	if pidFilePath != "" {
-		args = append(args, "--pid", pidFilePath)
-	}
-	return args
-}
-
-// resolveSystemProbeLiteExecCmd resolves the system-probe-lite binary path and builds the exec arguments.
-// Returns nil if the binary cannot be found (graceful fallback).
-func resolveSystemProbeLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) *systemProbeLiteExecCmd {
-	// system-probe-lite binary is expected in the same directory as system-probe
-	execPath, err := os.Executable()
-	if err != nil {
-		log.Warnf("cannot determine system-probe executable path: %s, falling back to running discovery in system-probe", err)
-		return nil
-	}
-	systemProbeLitePath := filepath.Join(filepath.Dir(execPath), "system-probe-lite")
-
-	if _, err := os.Stat(systemProbeLitePath); err != nil {
-		log.Warnf("system-probe-lite binary not found at %s: %s, falling back to running discovery in system-probe", systemProbeLitePath, err)
-		return nil
-	}
-
-	return &systemProbeLiteExecCmd{
-		Path: systemProbeLitePath,
-		Args: buildSystemProbeLiteArgs(sysprobeConfig, pidFilePath),
-		Env:  os.Environ(),
-	}
-}
-
-// execSystemProbeLite replaces the current process with system-probe-lite.
-// If the system-probe-lite binary is not found, it returns nil to allow system-probe
-// to fall back to running the Go discovery module natively.
-func execSystemProbeLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) error {
-	cmd := resolveSystemProbeLiteExecCmd(sysprobeConfig, pidFilePath, log)
-	if cmd == nil {
-		return nil
-	}
-
-	log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-	log.Flush()
-	return syscall.Exec(cmd.Path, cmd.Args, cmd.Env)
 }
 
 func logUserAndGroupID(log log.Component) {

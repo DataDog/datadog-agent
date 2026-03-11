@@ -22,7 +22,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-func TestShouldExecSystemProbeLite(t *testing.T) {
+func TestShouldExecSPLite(t *testing.T) {
 	tests := []struct {
 		name                string
 		useSystemProbeLite  bool
@@ -111,15 +111,15 @@ func TestShouldExecSystemProbeLite(t *testing.T) {
 				EnabledModules:      tc.enabledModules,
 				ExternalSystemProbe: tc.externalSystemProbe,
 			}
-			assert.Equal(t, tc.expected, shouldExecSystemProbeLite(sysprobeConfig, cfg))
+			assert.Equal(t, tc.expected, shouldExecSPLite(sysprobeConfig, cfg))
 		})
 	}
 }
 
-func TestBuildSystemProbeLiteArgs(t *testing.T) {
+func TestBuildSPLiteArgs(t *testing.T) {
 	t.Run("no pid", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		args := buildSystemProbeLiteArgs(sysprobeConfig, "")
+		args := buildSPLiteArgs(sysprobeConfig, "")
 		assert.Equal(t, []string{
 			"system-probe-lite", "run",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
@@ -129,7 +129,7 @@ func TestBuildSystemProbeLiteArgs(t *testing.T) {
 
 	t.Run("with pid", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		args := buildSystemProbeLiteArgs(sysprobeConfig, "/opt/datadog-agent/run/system-probe.pid")
+		args := buildSPLiteArgs(sysprobeConfig, "/opt/datadog-agent/run/system-probe.pid")
 		assert.Equal(t, []string{
 			"system-probe-lite", "run",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
@@ -142,7 +142,7 @@ func TestBuildSystemProbeLiteArgs(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		sysprobeConfig.Set("system_probe_config.sysprobe_socket", "/custom/path.sock", model.SourceCLI)
 		sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
-		args := buildSystemProbeLiteArgs(sysprobeConfig, "")
+		args := buildSPLiteArgs(sysprobeConfig, "")
 		assert.Equal(t, []string{
 			"system-probe-lite", "run",
 			"--socket", "/custom/path.sock",
@@ -151,13 +151,13 @@ func TestBuildSystemProbeLiteArgs(t *testing.T) {
 	})
 }
 
-func TestResolveSystemProbeLiteExecCmd(t *testing.T) {
+func TestResolveSPLiteExecCmd(t *testing.T) {
 	t.Run("returns nil when system-probe-lite binary not found", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		log := logmock.New(t)
 
 		// The test binary's directory won't have a system-probe-lite binary
-		cmd := resolveSystemProbeLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
+		cmd := resolveSPLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
 		assert.Nil(t, cmd, "should return nil when system-probe-lite binary is not found next to the test binary")
 	})
 
@@ -172,7 +172,7 @@ func TestResolveSystemProbeLiteExecCmd(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		log := logmock.New(t)
 
-		cmd := resolveSystemProbeLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
+		cmd := resolveSPLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
 		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
 		assert.Equal(t, testBinary, cmd.Path)
 		assert.Equal(t, []string{
@@ -184,14 +184,14 @@ func TestResolveSystemProbeLiteExecCmd(t *testing.T) {
 		assert.NotEmpty(t, cmd.Env)
 	})
 
-	t.Run("graceful fallback returns nil for execSystemProbeLite", func(t *testing.T) {
+	t.Run("graceful fallback returns nil for execSPLite", func(t *testing.T) {
 		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
 		log := logmock.New(t)
 
-		// execSystemProbeLite should return nil (not an error) when binary is missing,
+		// execSPLite should return nil (not an error) when binary is missing,
 		// allowing system-probe to fall back to the Go discovery module.
-		err := execSystemProbeLite(sysprobeConfig, "/var/run/sp.pid", log)
-		assert.NoError(t, err, "execSystemProbeLite should return nil when system-probe-lite is not found")
+		err := execSPLite(sysprobeConfig, "/var/run/sp.pid", log)
+		assert.NoError(t, err, "execSPLite should return nil when system-probe-lite is not found")
 	})
 }
 
