@@ -276,8 +276,8 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
     })
 }
 
-fn looks_like_uuid(s: &str) -> bool {
-    s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4
+fn looks_like_uuid_prefix(s: &str) -> bool {
+    s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
 #[allow(clippy::result_large_err)]
@@ -285,10 +285,20 @@ fn resolve_process<'a>(
     procs: &'a [ManagedProcess],
     name_or_uuid: &str,
 ) -> Result<&'a ManagedProcess, Status> {
-    if looks_like_uuid(name_or_uuid)
-        && let Some(p) = procs.iter().find(|p| p.uuid() == name_or_uuid)
-    {
-        return Ok(p);
+    if looks_like_uuid_prefix(name_or_uuid) {
+        let matches: Vec<&ManagedProcess> = procs
+            .iter()
+            .filter(|p| p.uuid().starts_with(name_or_uuid))
+            .collect();
+        match matches.len() {
+            1 => return Ok(matches[0]),
+            n if n > 1 => {
+                return Err(Status::invalid_argument(format!(
+                    "UUID prefix '{name_or_uuid}' is ambiguous ({n} matches)"
+                )));
+            }
+            _ => {}
+        }
     }
     procs
         .iter()

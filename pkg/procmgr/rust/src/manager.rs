@@ -366,16 +366,37 @@ impl ProcessManager {
     }
 }
 
-fn looks_like_uuid(s: &str) -> bool {
-    s.len() == 36 && s.chars().filter(|&c| c == '-').count() == 4
+fn looks_like_uuid_prefix(s: &str) -> bool {
+    s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
+#[allow(clippy::result_large_err)]
+fn resolve_by_uuid_prefix(
+    procs: &[ManagedProcess],
+    prefix: &str,
+) -> Option<Result<usize, Status>> {
+    let mut matches: Vec<usize> = procs
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.uuid().starts_with(prefix))
+        .map(|(i, _)| i)
+        .collect();
+    match matches.len() {
+        0 => None,
+        1 => Some(Ok(matches.remove(0))),
+        _ => Some(Err(Status::invalid_argument(format!(
+            "UUID prefix '{prefix}' is ambiguous ({} matches)",
+            matches.len()
+        )))),
+    }
 }
 
 #[allow(clippy::result_large_err)]
 fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
-    if looks_like_uuid(name_or_uuid)
-        && let Some(idx) = procs.iter().position(|p| p.uuid() == name_or_uuid)
+    if looks_like_uuid_prefix(name_or_uuid)
+        && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
     {
-        return Ok(idx);
+        return result;
     }
     procs
         .iter()

@@ -979,4 +979,102 @@ mod tests {
         assert_eq!(detail.description, "Custom service");
         assert!(!detail.auto_start);
     }
+
+    // -- UUID prefix resolution tests --
+
+    #[tokio::test]
+    async fn test_describe_by_uuid_prefix() {
+        let defs = vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }];
+        let (mut client, _shutdown) = start_test_server(defs).await;
+
+        let list = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        let full_uuid = &list.processes[0].uuid;
+        let prefix = &full_uuid[..8];
+
+        let resp = client
+            .describe(proto::DescribeRequest {
+                name_or_uuid: prefix.to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.detail.unwrap().name, "svc-a");
+    }
+
+    #[tokio::test]
+    async fn test_start_stop_by_uuid_prefix() {
+        let defs = vec![ProcessDefinition {
+            name: "svc-b".to_string(),
+            config: ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                ..Default::default()
+            },
+        }];
+        let (mut client, _shutdown) = start_test_server(defs).await;
+
+        let list = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        let prefix = list.processes[0].uuid[..8].to_string();
+
+        let start_resp = client
+            .start(proto::StartRequest {
+                name_or_uuid: prefix.clone(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(start_resp.state, proto::ProcessState::Running as i32);
+        assert!(start_resp.pid > 0);
+
+        let stop_resp = client
+            .stop(proto::StopRequest {
+                name_or_uuid: prefix,
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(stop_resp.state, proto::ProcessState::Stopped as i32);
+    }
+
+    #[tokio::test]
+    async fn test_describe_by_full_uuid() {
+        let defs = vec![ProcessDefinition {
+            name: "svc-c".to_string(),
+            config: ProcessConfig {
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }];
+        let (mut client, _shutdown) = start_test_server(defs).await;
+
+        let list = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        let full_uuid = list.processes[0].uuid.clone();
+
+        let resp = client
+            .describe(proto::DescribeRequest {
+                name_or_uuid: full_uuid,
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.detail.unwrap().name, "svc-c");
+    }
 }
