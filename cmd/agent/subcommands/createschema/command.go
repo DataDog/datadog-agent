@@ -64,6 +64,7 @@ func run(cliParams *cliParams) error {
 	}
 
 	fmt.Printf("Exiting...\n")
-	os.Exit(1)
+	// Exit successfully
+	os.Exit(0)
 	return nil
 }
