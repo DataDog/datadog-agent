@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 )
 
 type clusterAgentBinarySuite struct {
@@ -27,7 +28,7 @@ func TestClusterAgentBinarySuite(t *testing.T) {
 	e2e.Run(t, &clusterAgentBinarySuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
 			scenkind.WithoutFakeIntake(),
-			scenkind.WithAgentOptions(),
+			scenkind.WithAgentOptions(kubernetesagentparams.WithNamespace("datadog")),
 		),
 	)))
 }
