@@ -317,12 +317,15 @@ type AnomalyDebugInfo struct {
 	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
-// ReportOutput is a processed summary from correlators.
-// It represents clustered, filtered, or summarized anomaly information ready for display.
+// ReportOutput is the output model passed to reporters after each advance cycle.
+// It carries enough data for reporters to act without reaching back into engine internals.
 type ReportOutput struct {
-	Title    string
-	Body     string
-	Metadata map[string]string
+	// AdvancedToSec is the data time the engine advanced to.
+	AdvancedToSec int64
+	// NewAnomalies are anomalies detected in this advance cycle.
+	NewAnomalies []Anomaly
+	// ActiveCorrelations are the current correlation patterns across all correlators.
+	ActiveCorrelations []ActiveCorrelation
 }
 
 // Series is a time series with simple timestamp/value points.
@@ -364,15 +367,25 @@ type SeriesDetector interface {
 	Detect(series Series) DetectionResult
 }
 
-// Correlator accumulates anomaly events and produces reports.
+// Correlator accumulates anomaly events and produces correlated patterns.
 // Correlators are stateful and cluster/filter/summarize anomaly streams.
+//
+// The lifecycle is: ProcessAnomaly to feed anomalies, Advance to trigger
+// time-based maintenance (eviction, window finalization), and
+// ActiveCorrelations to read current state.
 type Correlator interface {
 	// Name returns the correlator name for debugging.
 	Name() string
-	// Process receives an anomaly event for accumulation.
-	Process(anomaly Anomaly)
-	// Flush processes accumulated anomalies and returns reports.
-	Flush() []ReportOutput
+	// ProcessAnomaly receives an anomaly event for accumulation.
+	ProcessAnomaly(a Anomaly)
+	// Advance performs time-based maintenance (eviction, window finalization)
+	// up to the given data time. Callers should invoke this after each
+	// detection cycle so correlators can manage their windows.
+	Advance(dataTime int64)
+	// ActiveCorrelations returns currently detected correlation patterns.
+	ActiveCorrelations() []ActiveCorrelation
+	// Reset clears all internal state for reanalysis.
+	Reset()
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -381,13 +394,6 @@ type Reporter interface {
 	Name() string
 	// Report delivers a report to its destination (stdout, file, webserver, etc).
 	Report(report ReportOutput)
-}
-
-// CorrelationState provides read access to active correlations.
-// Reporters use this to display current correlation status.
-type CorrelationState interface {
-	// ActiveCorrelations returns currently detected correlation patterns.
-	ActiveCorrelations() []ActiveCorrelation
 }
 
 // ActiveCorrelation represents a detected correlation pattern.
@@ -448,6 +454,10 @@ type StorageReader interface {
 	// PointCount returns the number of raw data points for a series without
 	// loading or converting them. Returns 0 if the series is not found.
 	PointCount(key SeriesKey) int
+
+	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
+	// Uses binary search for efficiency. Returns 0 if the series is not found.
+	PointCountUpTo(key SeriesKey, endTime int64) int
 }
 
 // Detector is the flexible detection interface where detectors pull data from storage.

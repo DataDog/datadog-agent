@@ -26,10 +26,12 @@ func TestHTMLReporter_Report_AddsToBuffer(t *testing.T) {
 	r := NewHTMLReporter()
 
 	r.Report(observer.ReportOutput{
-		Title: "Test Report",
-		Body:  "Test Body",
-		Metadata: map[string]string{
-			"key": "value",
+		AdvancedToSec: 100,
+		NewAnomalies: []observer.Anomaly{
+			{Source: "cpu", DetectorName: "test"},
+		},
+		ActiveCorrelations: []observer.ActiveCorrelation{
+			{Pattern: "p1", Title: "Correlation 1"},
 		},
 	})
 
@@ -37,26 +39,26 @@ func TestHTMLReporter_Report_AddsToBuffer(t *testing.T) {
 	defer r.mu.RUnlock()
 
 	require.Len(t, r.reports, 1)
-	assert.Equal(t, "Test Report", r.reports[0].Title)
-	assert.Equal(t, "Test Body", r.reports[0].Body)
-	assert.Equal(t, "value", r.reports[0].Metadata["key"])
+	assert.Equal(t, int64(100), r.reports[0].AdvancedToSec)
+	assert.Equal(t, 1, r.reports[0].NewAnomalyCount)
+	assert.Equal(t, 1, r.reports[0].CorrelationCount)
 	assert.False(t, r.reports[0].Timestamp.IsZero())
 }
 
 func TestHTMLReporter_Report_MostRecentFirst(t *testing.T) {
 	r := NewHTMLReporter()
 
-	r.Report(observer.ReportOutput{Title: "First"})
-	r.Report(observer.ReportOutput{Title: "Second"})
-	r.Report(observer.ReportOutput{Title: "Third"})
+	r.Report(observer.ReportOutput{AdvancedToSec: 10})
+	r.Report(observer.ReportOutput{AdvancedToSec: 20})
+	r.Report(observer.ReportOutput{AdvancedToSec: 30})
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	require.Len(t, r.reports, 3)
-	assert.Equal(t, "Third", r.reports[0].Title)
-	assert.Equal(t, "Second", r.reports[1].Title)
-	assert.Equal(t, "First", r.reports[2].Title)
+	assert.Equal(t, int64(30), r.reports[0].AdvancedToSec)
+	assert.Equal(t, int64(20), r.reports[1].AdvancedToSec)
+	assert.Equal(t, int64(10), r.reports[2].AdvancedToSec)
 }
 
 func TestHTMLReporter_Report_BufferLimitedTo100(t *testing.T) {
@@ -65,7 +67,7 @@ func TestHTMLReporter_Report_BufferLimitedTo100(t *testing.T) {
 	// Add 105 reports
 	for i := 0; i < 105; i++ {
 		r.Report(observer.ReportOutput{
-			Title: "Report",
+			AdvancedToSec: int64(i),
 		})
 	}
 
@@ -78,26 +80,26 @@ func TestHTMLReporter_Report_BufferLimitedTo100(t *testing.T) {
 func TestHTMLReporter_Report_OldestEvicted(t *testing.T) {
 	r := NewHTMLReporter()
 
-	// Add 100 reports
+	// Add 100 reports with AdvancedToSec=0
 	for i := 0; i < 100; i++ {
 		r.Report(observer.ReportOutput{
-			Title: "Old",
+			AdvancedToSec: 0,
 		})
 	}
 
-	// Add one more
+	// Add one more with AdvancedToSec=999
 	r.Report(observer.ReportOutput{
-		Title: "New",
+		AdvancedToSec: 999,
 	})
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// Should have 100 reports with "New" at the front
+	// Should have 100 reports with newest at the front
 	require.Len(t, r.reports, 100)
-	assert.Equal(t, "New", r.reports[0].Title)
-	// Last one should still be "Old" (oldest kept)
-	assert.Equal(t, "Old", r.reports[99].Title)
+	assert.Equal(t, int64(999), r.reports[0].AdvancedToSec)
+	// Last one should still be old (oldest kept)
+	assert.Equal(t, int64(0), r.reports[99].AdvancedToSec)
 }
 
 func TestHTMLReporter_Dashboard_ReturnsHTML(t *testing.T) {
@@ -147,10 +149,9 @@ func TestHTMLReporter_APIReports_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
 	r.Report(observer.ReportOutput{
-		Title: "Test Report",
-		Body:  "Test Body",
-		Metadata: map[string]string{
-			"key": "value",
+		AdvancedToSec: 42,
+		NewAnomalies: []observer.Anomaly{
+			{Source: "cpu"},
 		},
 	})
 
@@ -167,9 +168,8 @@ func TestHTMLReporter_APIReports_ReturnsJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, reports, 1)
-	assert.Equal(t, "Test Report", reports[0].Title)
-	assert.Equal(t, "Test Body", reports[0].Body)
-	assert.Equal(t, "value", reports[0].Metadata["key"])
+	assert.Equal(t, int64(42), reports[0].AdvancedToSec)
+	assert.Equal(t, 1, reports[0].NewAnomalyCount)
 }
 
 func TestHTMLReporter_APIReports_EmptyArray(t *testing.T) {
@@ -291,9 +291,7 @@ func TestHTMLReporter_IntegrationWithHTTPServer(t *testing.T) {
 
 	// Add test data
 	r.Report(observer.ReportOutput{
-		Title:    "Integration Test",
-		Body:     "Testing full HTTP stack",
-		Metadata: map[string]string{"test": "true"},
+		AdvancedToSec: 100,
 	})
 
 	storage := newTimeSeriesStorage()
@@ -389,19 +387,23 @@ func TestHTMLReporter_APISeriesList_NoStorage(t *testing.T) {
 	assert.Len(t, items, 0)
 }
 
-// mockCorrelationState implements CorrelationState for testing.
-type mockCorrelationState struct {
+// mockHTMLCorrelator implements Correlator for testing.
+type mockHTMLCorrelator struct {
 	correlations []observer.ActiveCorrelation
 }
 
-func (m *mockCorrelationState) ActiveCorrelations() []observer.ActiveCorrelation {
+func (m *mockHTMLCorrelator) Name() string                          { return "mock_correlator" }
+func (m *mockHTMLCorrelator) ProcessAnomaly(_ observer.Anomaly)     {}
+func (m *mockHTMLCorrelator) Advance(_ int64)                       {}
+func (m *mockHTMLCorrelator) Reset()                                {}
+func (m *mockHTMLCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	return m.correlations
 }
 
 func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
-	r.SetCorrelationState(&mockCorrelationState{
+	r.SetCorrelationState(&mockHTMLCorrelator{
 		correlations: []observer.ActiveCorrelation{
 			{
 				Pattern: "test_pattern",

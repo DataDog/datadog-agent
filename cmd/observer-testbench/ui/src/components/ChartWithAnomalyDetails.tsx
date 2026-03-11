@@ -131,16 +131,17 @@ export function ChartWithAnomalyDetails({
     setVisibleSeriesIds(buildSeriesIDSet(seriesVariants));
   }, [seriesVariantsSig]);
 
-  // Filter anomalies by enabled detectors and visible series variants.
+  // Filter anomalies by enabled detectors, visible series variants, and time range.
   const filteredAnomalies = useMemo(
     () =>
       anomalies.filter((a) => {
         if (!enabledDetectors.has(a.detectorComponent ?? a.detectorName)) return false;
+        if (timeRange && (a.timestamp < timeRange.start || a.timestamp > timeRange.end)) return false;
         if (!seriesVariants || seriesVariants.length === 0) return true;
         if (!a.sourceSeriesId) return true;
         return visibleSeriesIds.has(a.sourceSeriesId);
       }),
-    [anomalies, enabledDetectors, seriesVariants, visibleSeriesIds]
+    [anomalies, enabledDetectors, timeRange, seriesVariants, visibleSeriesIds]
   );
 
   const filteredAnomalyIds = useMemo(

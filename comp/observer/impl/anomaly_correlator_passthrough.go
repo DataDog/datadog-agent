@@ -36,17 +36,15 @@ func (c *DetectorPassthroughCorrelator) Name() string {
 	return "detector_passthrough_correlator"
 }
 
-// Process stores the anomaly, grouped by its DetectorName.
-func (c *DetectorPassthroughCorrelator) Process(anomaly observer.Anomaly) {
+// ProcessAnomaly stores the anomaly, grouped by its DetectorName.
+func (c *DetectorPassthroughCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.anomaliesByDetector[anomaly.DetectorName] = append(c.anomaliesByDetector[anomaly.DetectorName], anomaly)
 }
 
-// Flush is a no-op; state is read via ActiveCorrelations.
-func (c *DetectorPassthroughCorrelator) Flush() []observer.ReportOutput {
-	return nil
-}
+// Advance is a no-op for the passthrough correlator (no windowing).
+func (c *DetectorPassthroughCorrelator) Advance(_ int64) {}
 
 // Reset clears all internal state for reanalysis.
 func (c *DetectorPassthroughCorrelator) Reset() {

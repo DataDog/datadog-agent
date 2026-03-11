@@ -5,192 +5,22 @@
 
 package observerimpl
 
-import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-
-// ComponentRegistration describes how to create and identify a testbench component.
-type ComponentRegistration struct {
-	Name           string // unique identifier (e.g. "cusum", "lead_lag")
-	DisplayName    string // human-readable name (e.g. "CUSUM", "Lead-Lag")
-	Category       string // "detector", "correlator", or "processing"
-	DefaultEnabled bool
-	Factory        func(tb *TestBench) interface{}
-}
-
-// registeredComponent is a component instance paired with its registration and enabled state.
-type registeredComponent struct {
-	Registration ComponentRegistration
-	Instance     interface{}
-	Enabled      bool
-}
-
 // ComponentDataProvider is implemented by components that expose extra data
 // beyond what their primary interface provides (e.g. edges, clusters, scores).
 type ComponentDataProvider interface {
 	GetExtraData() interface{}
 }
 
-// defaultRegistry defines all available testbench components.
-var defaultRegistry = []ComponentRegistration{
-	// Detectors
-	{
-		Name:           "cusum",
-		DisplayName:    "CUSUM",
-		Category:       "detector",
-		DefaultEnabled: true,
-		Factory: func(_ *TestBench) interface{} {
-			return NewCUSUMDetector()
-		},
-	},
-	{
-		Name:           "bocpd",
-		DisplayName:    "BOCPD",
-		Category:       "detector",
-		DefaultEnabled: true,
-		Factory: func(tb *TestBench) interface{} {
-			return NewBOCPDDetector()
-		},
-	},
-	{
-		Name:           "rrcf",
-		DisplayName:    "RRCF",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			config := DefaultRRCFConfig()
-			config.Metrics = TestBenchRRCFMetrics()
-			return NewRRCFDetector(config)
-		},
-	},
-	{
-		Name:           "mannwhitney",
-		DisplayName:    "Mann-Whitney",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewMannWhitneyDetector()
-		},
-	},
-	{
-		Name:           "corrshift",
-		DisplayName:    "CorrShift",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewCorrShiftDetector()
-		},
-	},
-	{
-		Name:           "topk",
-		DisplayName:    "TopK",
-		Category:       "detector",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewTopKDetector()
-		},
-	},
-	// Correlators
-	{
-		Name:           "time_cluster",
-		DisplayName:    "TimeCluster",
-		Category:       "correlator",
-		DefaultEnabled: true,
-		Factory: func(_ *TestBench) interface{} {
-			return NewTimeClusterCorrelator(TimeClusterConfig{
-				ProximitySeconds: 10,
-				WindowSeconds:    120,
-			})
-		},
-	},
-	{
-		Name:           "lead_lag",
-		DisplayName:    "Lead-Lag",
-		Category:       "correlator",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewLeadLagCorrelator(LeadLagConfig{
-				MaxLagSeconds:       30,
-				MinObservations:     3,
-				ConfidenceThreshold: 0.6,
-				WindowSeconds:       120,
-			})
-		},
-	},
-	{
-		Name:           "surprise",
-		DisplayName:    "Surprise",
-		Category:       "correlator",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewSurpriseCorrelator(SurpriseConfig{
-				WindowSizeSeconds: 10,
-				MinLift:           2.0,
-				MinSupport:        2,
-			})
-		},
-	},
-	{
-		Name:           "passthrough",
-		DisplayName:    "Passthrough",
-		Category:       "correlator",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewDetectorPassthroughCorrelator()
-		},
-	},
-}
-
-// enabledDetectors returns all enabled Detector instances.
-// SeriesDetector implementations are wrapped with seriesDetectorAdapter.
-func (tb *TestBench) enabledDetectors() []observerdef.Detector {
-	var result []observerdef.Detector
-	for _, comp := range tb.components {
-		if comp.Enabled && comp.Registration.Category == "detector" {
-			if d, ok := comp.Instance.(observerdef.Detector); ok {
-				result = append(result, d)
-			} else if sd, ok := comp.Instance.(observerdef.SeriesDetector); ok {
-				result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
-			}
-		}
-	}
-	return result
-}
-
-// enabledCorrelators returns all enabled Correlator instances.
-func (tb *TestBench) enabledCorrelators() []observerdef.Correlator {
-	var result []observerdef.Correlator
-	for _, comp := range tb.components {
-		if comp.Enabled && comp.Registration.Category == "correlator" {
-			if p, ok := comp.Instance.(observerdef.Correlator); ok {
-				result = append(result, p)
-			}
-		}
-	}
-	return result
-}
-
-// allCorrelators returns all Correlator instances (enabled or not), for reset.
-func (tb *TestBench) allCorrelators() []observerdef.Correlator {
-	var result []observerdef.Correlator
-	for _, comp := range tb.components {
-		if comp.Registration.Category == "correlator" {
-			if p, ok := comp.Instance.(observerdef.Correlator); ok {
-				result = append(result, p)
-			}
-		}
-	}
-	return result
-}
-
 // GetComponentData returns the extra data and enabled status for a named component.
 func (tb *TestBench) GetComponentData(name string) (data interface{}, enabled bool) {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	comp, ok := tb.components[name]
+	ci, ok := tb.components[name]
 	if !ok {
 		return nil, false
 	}
-	if provider, ok := comp.Instance.(ComponentDataProvider); ok {
-		return provider.GetExtraData(), comp.Enabled
+	if provider, ok := ci.instance.(ComponentDataProvider); ok {
+		return provider.GetExtraData(), ci.enabled
 	}
-	return nil, comp.Enabled
+	return nil, ci.enabled
 }

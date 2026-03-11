@@ -251,7 +251,7 @@ func (c *LeadLagCorrelator) Name() string {
 }
 
 // Process adds an anomaly and updates lag histograms for all source pairs.
-func (c *LeadLagCorrelator) Process(anomaly observer.Anomaly) {
+func (c *LeadLagCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -311,9 +311,13 @@ func (c *LeadLagCorrelator) Process(anomaly observer.Anomaly) {
 }
 
 // Flush evicts old data and returns empty (reporters pull state via ActiveCorrelations).
-func (c *LeadLagCorrelator) Flush() []observer.ReportOutput {
+func (c *LeadLagCorrelator) Advance(dataTime int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
 
 	// Evict old anomalies
 	cutoff := c.currentDataTime - c.config.WindowSeconds
@@ -324,8 +328,6 @@ func (c *LeadLagCorrelator) Flush() []observer.ReportOutput {
 		}
 	}
 	c.recentAnomalies = newAnomalies
-
-	return nil
 }
 
 // Reset clears all internal state for reanalysis.
@@ -389,8 +391,7 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 	return edges
 }
 
-// ActiveCorrelations returns lead-lag patterns as correlations for reporting.
-// Implements CorrelationState interface.
+// ActiveCorrelations returns lead-lag patterns as correlation patterns.
 func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	edges := c.GetEdges()
 

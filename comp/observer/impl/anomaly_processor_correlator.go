@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"sort"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -65,7 +64,7 @@ var knownPatterns = []correlationPattern{
 }
 
 // CrossSignalCorrelator clusters anomalies from different sources within a time window
-// and detects known patterns. It implements CorrelationState and Correlator.
+// and detects known patterns. It implements Correlator.
 // Reporters read the current correlation state.
 //
 // Time is derived entirely from input data timestamps (anomaly.Timestamp),
@@ -98,7 +97,7 @@ func (c *CrossSignalCorrelator) Name() string {
 
 // Process implements Correlator. It adds an anomaly to the buffer
 // using its data timestamp and evicts old entries.
-func (c *CrossSignalCorrelator) Process(anomaly observer.Anomaly) {
+func (c *CrossSignalCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	dataTime := anomaly.Timestamp
 
 	// Update current data time (monotonically advancing)
@@ -130,9 +129,13 @@ func (c *CrossSignalCorrelator) evictOldEntries() {
 	c.buffer = newBuffer
 }
 
-// Flush implements Correlator. It checks for known patterns in the anomaly buffer
-// and updates activeCorrelations state. Returns empty slice since reporters pull state via ActiveCorrelations().
-func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
+// Advance implements Correlator. It checks for known patterns in the anomaly buffer
+// and updates activeCorrelations state.
+func (c *CrossSignalCorrelator) Advance(dataTime int64) {
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
+
 	// Evict old entries before checking patterns
 	c.evictOldEntries()
 
@@ -180,9 +183,13 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 			delete(c.activeCorrelations, name)
 		}
 	}
+}
 
-	// Return empty slice - reporters pull state via ActiveCorrelations()
-	return nil
+// Reset clears all internal state for reanalysis.
+func (c *CrossSignalCorrelator) Reset() {
+	c.buffer = nil
+	c.activeCorrelations = make(map[string]*observer.ActiveCorrelation)
+	c.currentDataTime = 0
 }
 
 // patternMatches checks if all required sources for a pattern are present.
@@ -223,21 +230,11 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 }
 
 // buildReport creates a ReportOutput for a matched pattern.
-func (c *CrossSignalCorrelator) buildReport(pattern correlationPattern, sources map[observer.MetricName]struct{}) observer.ReportOutput {
-	// Get sorted list of sources for consistent output
-	sourceList := make([]string, 0, len(sources))
-	for source := range sources {
-		sourceList = append(sourceList, string(source))
-	}
-	sort.Strings(sourceList)
-
+// NOTE: This method is currently unused (dead code). It exists as a reference
+// for how a correlator might construct a ReportOutput.
+func (c *CrossSignalCorrelator) buildReport(pattern correlationPattern, _ map[observer.MetricName]struct{}) observer.ReportOutput {
 	return observer.ReportOutput{
-		Title: pattern.reportTitle,
-		Body:  "Correlated signals: " + strings.Join(sourceList, ", "),
-		Metadata: map[string]string{
-			"pattern":      pattern.name,
-			"signal_count": "3",
-		},
+		ActiveCorrelations: c.ActiveCorrelations(),
 	}
 }
 
@@ -257,7 +254,6 @@ func (c *CrossSignalCorrelator) getSortedMetricNames(sources map[observer.Metric
 }
 
 // ActiveCorrelations returns a copy of the currently active correlation patterns.
-// This implements the CorrelationState interface.
 func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))
 	for _, ac := range c.activeCorrelations {

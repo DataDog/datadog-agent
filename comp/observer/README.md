@@ -104,7 +104,7 @@ Correlators are stateful. They receive individual anomalies, accumulate them ove
 ```
 Report(report ReportOutput)
 ```
-Reporters query state interfaces like `CorrelationState` and `RawAnomalyState` to access current system state, rather than relying solely on the report argument. Example: `StdoutReporter` queries the correlator's `ActiveCorrelations()` to print changes.
+Reporters query state interfaces like `Correlator` and `RawAnomalyState` to access current system state, rather than relying solely on the report argument. Example: `StdoutReporter` queries the correlator's `ActiveCorrelations()` to print changes.
 
 > **Note:** The Reporter interface hasn't seen much focus yet and may need some evolution as we learn more about what reporting needs look like in practice.
 
