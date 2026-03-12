@@ -909,7 +909,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
 	// Workload config CRD controller
-	config.BindEnvAndSetDefault("workload_config.enabled", false)
+	config.BindEnvAndSetDefault("workload_config.enabled", true)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)

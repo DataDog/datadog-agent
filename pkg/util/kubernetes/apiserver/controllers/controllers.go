@@ -31,7 +31,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -84,6 +83,8 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 }
 
+type leaderNotifier func() (leadershipChangeNotif <-chan struct{}, isLeader func() bool)
+
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers                   map[apiserver.InformerName]cache.SharedInformer
@@ -94,6 +95,7 @@ type ControllerContext struct {
 	DynamicInformerFactory      dynamicinformer.DynamicSharedInformerFactory
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
+	LeaderNotifier              leaderNotifier
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
@@ -199,13 +201,7 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 // DatadogWorkloadConfig CRDs and delegates to registered config section handlers.
 func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
 	configMapNamespace := namespace.GetResourcesNamespace()
-
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		errChan <- fmt.Errorf("failed to get leader engine for WorkloadConfig CRD controller: %w", err)
-		return
-	}
-	leaderNotif, _ := le.Subscribe()
+	leaderNotif, _ := ctx.LeaderNotifier()
 
 	handlers := []workloadconfig.ConfigSectionHandler{
 		checks.NewChecksHandler(ctx.Client, checks.DefaultConfigMapName, configMapNamespace),
