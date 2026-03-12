@@ -230,6 +230,9 @@ def watch(
 
     def _enqueue() -> None:
         work = _build_watch_work(ctx, remote_host, command)
+        _, packages, _ = work
+        if not packages:
+            return  # no modified packages — nothing to run
         # Kill the in-flight process so the runner picks up the fresh command immediately.
         with proc_lock:
             proc = current_proc[0]
