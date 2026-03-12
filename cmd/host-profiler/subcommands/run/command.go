@@ -35,7 +35,8 @@ import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -113,7 +114,7 @@ func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 func getTraceAgentOptions(ctx context.Context) []fx.Option {
 	return []fx.Option{
 		traceagentfx.Module(),
-		traceconfig.Module(),
+		traceconfigfx.Module(),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
@@ -121,7 +122,7 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 			PIDFilePath:              "",
 			DisableInternalProfiling: true,
 		}),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),

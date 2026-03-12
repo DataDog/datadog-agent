@@ -5,7 +5,7 @@
 
 //go:build otlp
 
-package config
+package configimpl
 
 // team: agent-apm
 

@@ -3,20 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin
-
-package config
-
-import (
-	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
-)
+package configimpl
 
 // team: agent-apm
 
 // DefaultLogFilePath is where the agent will write logs if not overridden in the conf
-const DefaultLogFilePath = "/var/log/datadog/trace-agent.log"
+const DefaultLogFilePath = "/opt/datadog-agent/logs/trace-agent.log"
 
 // defaultDDAgentBin specifies the default path to the main agent binary.
-var defaultDDAgentBin = filepath.Join(setup.InstallPath, "bin/agent/agent")
+const defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"

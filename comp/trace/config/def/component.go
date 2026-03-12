@@ -3,26 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config implements a component to handle trace-agent configuration.  This
-// component temporarily wraps pkg/trace/config.
-//
-// This component initializes pkg/config based on the bundle params, and
-// will return the same results as that package.  This is to support migration
-// to a component architecture.  When no code still uses pkg/config, that
-// package will be removed.
-//
-// The mock component does nothing at startup, beginning with an empty config.
-// It also overwrites the pkg/config.SystemProbe for the duration of the test.
+// Package config implements a component to handle trace-agent configuration.
 package config
 
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-apm
@@ -48,11 +36,8 @@ type Component interface {
 	OnUpdateAPIKey(func(oldKey, newKey string))
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewConfig),
-		fx.Supply(Params{
-			FailIfAPIKeyMissing: true,
-		}))
+// Params defines the parameters for the config component.
+type Params struct {
+	// FailIfAPIKeyMissing controls if the Agent should fail if the API key is missing from the config.
+	FailIfAPIKeyMissing bool
 }

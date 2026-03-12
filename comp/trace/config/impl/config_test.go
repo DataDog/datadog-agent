@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package configimpl
 
 import (
 	"bufio"
@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +52,16 @@ import (
 )
 
 // team: agent-apm
+
+// MockModule defines the fx options for the mock component for use in tests within this package.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(NewMock),
+		fx.Supply(traceconfigdef.Params{
+			FailIfAPIKeyMissing: true,
+		}),
+	)
+}
 
 // TestParseReplaceRules tests the compileReplaceRules helper function.
 func TestParseRepaceRules(t *testing.T) {
