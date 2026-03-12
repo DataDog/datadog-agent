@@ -551,12 +551,12 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 	resultCh := make(chan partitionsResult, 1)
 	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	if c.instanceConfig.ProcMountInfoPath != "" {
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
 		defer c.partitionEnumInFlight.Store(false)
-		defer cancel()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
 		resultCh <- partitionsResult{partitions, err}
 	}()
