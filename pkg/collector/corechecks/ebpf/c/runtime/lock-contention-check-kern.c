@@ -74,17 +74,17 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags) {
         return pelem;
     }
 
-    __u32 pid = bpf_get_current_pid_tgid();
-    pelem = bpf_map_lookup_elem(&tstamp, &pid);
+    __u32 tid = bpf_get_current_pid_tgid();
+    pelem = bpf_map_lookup_elem(&tstamp, &tid);
     /* Do not overwrite for nested lock contention */
     if (pelem && pelem->lock)
         return NULL;
 
     if (pelem == NULL) {
         struct tstamp_data zero = {};
-        if (bpf_map_update_elem(&tstamp, &pid, &zero, BPF_NOEXIST) < 0)
+        if (bpf_map_update_elem(&tstamp, &tid, &zero, BPF_NOEXIST) < 0)
             return NULL;
-        pelem = bpf_map_lookup_elem(&tstamp, &pid);
+        pelem = bpf_map_lookup_elem(&tstamp, &tid);
     }
     return pelem;
 }
@@ -110,7 +110,7 @@ SEC("tp_btf/contention_end")
 int tracepoint__contention_end(u64 *ctx)
 {
     struct tstamp_data *pelem;
-    __u32 pid = 0, idx = 0;
+    __u32 tid = 0, idx = 0;
     bool need_delete = false;
     __u64 duration;
 
@@ -129,8 +129,8 @@ int tracepoint__contention_end(u64 *ctx)
         if (pelem->lock != (__u64)ctx[0])
             return 0;
     } else {
-        pid = bpf_get_current_pid_tgid();
-        pelem = bpf_map_lookup_elem(&tstamp, &pid);
+        tid = bpf_get_current_pid_tgid();
+        pelem = bpf_map_lookup_elem(&tstamp, &tid);
         if (!pelem || pelem->lock != (__u64)ctx[0])
             return 0;
         need_delete = true;
@@ -140,7 +140,7 @@ int tracepoint__contention_end(u64 *ctx)
     if ((__s64)duration < 0) {
         pelem->lock = 0;
         if (need_delete)
-            bpf_map_delete_elem(&tstamp, &pid);
+            bpf_map_delete_elem(&tstamp, &tid);
         return 0;
     }
 
@@ -159,7 +159,7 @@ int tracepoint__contention_end(u64 *ctx)
     /* Clear the timestamp slot */
     pelem->lock = 0;
     if (need_delete)
-        bpf_map_delete_elem(&tstamp, &pid);
+        bpf_map_delete_elem(&tstamp, &tid);
     return 0;
 }
 
