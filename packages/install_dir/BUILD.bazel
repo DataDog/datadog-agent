@@ -51,7 +51,6 @@ package_licenses(
 pkg_filegroup(
     name = "etc",
     srcs = [
-        "//deps/snmp_traps:all_files",
         "//pkg/privateactionrunner/autoconnections/conf:all_files",
     ],
 )
