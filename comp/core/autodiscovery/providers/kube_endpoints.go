@@ -45,6 +45,7 @@ type kubeEndpointsConfigProvider struct {
 	upToDate           bool
 	monitoredEndpoints map[string]bool
 	configErrors       map[string]types.ErrorMsgSet
+	configErrorsMu     sync.RWMutex
 	telemetryStore     *telemetry.Store
 }
 
@@ -284,6 +285,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 
+		k.configErrorsMu.Lock()
 		if len(errors) > 0 {
 			errMsgSet := make(types.ErrorMsgSet)
 			for _, err := range errors {
@@ -294,6 +296,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		} else {
 			delete(k.configErrors, endpointsID)
 		}
+		k.configErrorsMu.Unlock()
 
 		var resolveMode endpointResolveMode
 		if value, found := svc.Annotations[kubeEndpointAnnotationPrefix+kubeEndpointResolvePath]; found {
@@ -315,11 +318,12 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		}
 	}
 
+	k.configErrorsMu.Lock()
 	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
-
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)
 	}
+	k.configErrorsMu.Unlock()
 
 	return configsInfo
 }
@@ -394,5 +398,7 @@ func (k *kubeEndpointsConfigProvider) cleanErrorsOfDeletedEndpoints(setCurrentEn
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes endpoint
 func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	k.configErrorsMu.RLock()
+	defer k.configErrorsMu.RUnlock()
 	return k.configErrors
 }
