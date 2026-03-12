@@ -16,8 +16,9 @@ repos:
   rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
   hooks:
     - id: go-fmt
-      args: [ "-w", "-s" ]
+      args: [ "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
+      fix: gofmt -w -s
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -37,6 +38,7 @@ repos:
       language: system
       pass_filenames: false
       stages: [pre-commit, pre-push]
+      cache: false # This doesn't rely on the files being changed, we can have cache issues
     - id: copyright
       name: copyright
       description: copyright headers
@@ -45,6 +47,7 @@ repos:
       require_serial: true
       files: \.go$
       pass_filenames: false
+      cache: false # We take into account staged files only. TODO: only different files from git head
     - id: python-linter
       name: python-linter
       description: run python linter (ruff)
@@ -53,6 +56,7 @@ repos:
       require_serial: true
       files: \.py$
       pass_filenames: false
+      # TODO: Append files as arg
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
@@ -60,6 +64,7 @@ repos:
       language: system
       types_or: [c, c++]
       pass_filenames: false
+      cache: false # Windows not tested
     - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
       id: dotnet-format-installer
       name: dotnet-format-installer
@@ -68,6 +73,7 @@ repos:
       # The dotnet format tool requires a solution file to operate.
       entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
       types: [c#]
+      cache: false # Windows not tested
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
