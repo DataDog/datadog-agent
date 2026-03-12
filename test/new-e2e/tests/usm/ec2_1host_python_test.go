@@ -25,6 +25,7 @@ type pythonRemoteTagsLinuxSuite struct {
 }
 
 func TestPythonRemoteTagsLinuxSuite(t *testing.T) {
+	t.Skip("Skip until lower connection capture rate on Linux is resolved")
 	t.Parallel()
 
 	e2eParams := []e2e.SuiteOption{

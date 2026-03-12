@@ -283,10 +283,9 @@ var (
 	// Used to expose IIS-specific tags (sitename, app_pool, service, env, version) to the
 	// process-agent for remote service tag enrichment on same-host connections.
 	// Entries expire after iisTagsCacheTTL.
-	iisTagsCacheMu      sync.Mutex
-	iisTagsCacheMap     = make(map[[2]uint16]iisTagsCacheEntry)
-	iisTagsEvictTotal   int64
-	iisTagsEvictLastLog time.Time
+	iisTagsCacheMu             sync.Mutex
+	iisTagsCacheMap            = make(map[[2]uint16]iisTagsCacheEntry)
+	iisTagsEvictSinceLastRead int64
 )
 
 const (
@@ -370,12 +369,7 @@ func storeIISTagsCache(key [2]uint16, tags []string) {
 				}
 			}
 			delete(iisTagsCacheMap, oldestKey)
-			iisTagsEvictTotal++
-			if now.Sub(iisTagsEvictLastLog) >= 30*time.Second {
-				log.Warnf("iis tags cache at capacity (%d): %d non-expired evictions", iisTagsCacheMaxSize, iisTagsEvictTotal)
-				iisTagsEvictTotal = 0
-				iisTagsEvictLastLog = now
-			}
+			iisTagsEvictSinceLastRead++
 		}
 	}
 
@@ -393,15 +387,26 @@ func GetIISTagsCache() map[string][]string {
 	iisTagsCacheMu.Lock()
 	defer iisTagsCacheMu.Unlock()
 
+	evicted := iisTagsEvictSinceLastRead
+	iisTagsEvictSinceLastRead = 0
+
 	now := time.Now()
+	expired := 0
 	result := make(map[string][]string, len(iisTagsCacheMap))
 	for k, entry := range iisTagsCacheMap {
 		if now.After(entry.expiry) {
+			expired++
 			continue
 		}
 		mapKey := strconv.FormatUint(uint64(k[0]), 10) + "-" + strconv.FormatUint(uint64(k[1]), 10)
 		result[mapKey] = entry.tags
 	}
+
+	if evicted > 0 {
+		log.Warnf("iis tags cache: %d entries evicted before process-agent read (capacity=%d, returning=%d, expired=%d)",
+			evicted, iisTagsCacheMaxSize, len(result), expired)
+	}
+
 	return result
 }
 
