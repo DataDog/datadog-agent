@@ -60,7 +60,7 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 			},
 		},
 		IpAllocationPolicy: &container.ClusterIpAllocationPolicyArgs{
-			ClusterIpv4CidrBlock:  pulumi.String("/22"),
+			ClusterIpv4CidrBlock:  pulumi.String("/21"),
 			ServicesIpv4CidrBlock: pulumi.String("/24"),
 		},
 		ResourceLabels: clusterLabels,
