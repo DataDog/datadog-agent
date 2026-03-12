@@ -39,6 +39,14 @@ const (
 	ProvisionerOpenShift ProvisionerType = "openshift"
 )
 
+const openShiftSSIHelmOverrides = `
+datadog:
+  csi:
+    enabled: false
+datadog-csi-driver:
+  enabled: false
+`
+
 // ProvisionerOptions contains the common options for Kubernetes provisioners.
 type ProvisionerOptions struct {
 	AgentOptions                  []kubernetesagentparams.Option
@@ -160,6 +168,8 @@ func openShiftProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	if len(opts.AgentOptions) > 0 {
 		openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(opts.AgentOptions...))
 	}
+	// Disable CSI driver on OpenShift
+	openShiftOpts = append(openShiftOpts, provopenshift.WithAgentOptions(kubernetesagentparams.WithHelmValues(openShiftSSIHelmOverrides)))
 	if opts.WorkloadAppFunc != nil {
 		openShiftOpts = append(openShiftOpts, provopenshift.WithWorkloadApp(provopenshift.WorkloadAppFunc(opts.WorkloadAppFunc)))
 	}
