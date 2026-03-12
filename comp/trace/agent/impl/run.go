@@ -13,7 +13,7 @@ import (
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -113,7 +113,7 @@ func runAgentSidekicks(ag component) error {
 	return nil
 }
 
-func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface, disableInternalProfiling bool) {
+func stopAgentSidekicks(cfg traceconfigdef.Component, statsd statsd.ClientInterface, disableInternalProfiling bool) {
 	defer watchdog.LogOnPanic(statsd)
 
 	log.Flush()
