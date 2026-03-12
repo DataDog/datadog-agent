@@ -18,7 +18,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/azureauth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 	"github.com/mitchellh/mapstructure"
 )
@@ -32,9 +34,24 @@ type keyvaultClient interface {
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient.
 // It is overwritten in tests.
 var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, error) {
+	var err error
+	var cred azcore.TokenCredential
+	if clientID == "" {
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
+		}
+	} else {
+		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+		cred, err = azidentity.NewManagedIdentityCredential(&opts)
+		if err != nil {
+			return nil, fmt.Errorf("getting identity credentials: %s", err)
+		}
+	}
+
 	return &keyvaultHTTPClient{
 		vaultURL: strings.TrimRight(keyVaultURL, "/"),
-		cred:     azureauth.NewManagedIdentityTokenProvider(clientID),
+		cred:     cred,
 	}, nil
 }
 
@@ -128,7 +145,7 @@ const kvAPIVersion = "7.4"
 
 type keyvaultHTTPClient struct {
 	vaultURL string
-	cred     azureauth.TokenProvider
+	cred     azcore.TokenCredential
 }
 
 // kvSecretBundle is the response from the Key Vault GetSecret API.
@@ -138,7 +155,9 @@ type kvSecretBundle struct {
 }
 
 func (c *keyvaultHTTPClient) GetSecret(ctx context.Context, secretName, secretVersion string) (*string, error) {
-	tokenResp, err := c.cred.GetToken(ctx, "https://vault.azure.net")
+	tokenResp, err := c.cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://vault.azure.net/.default"},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Azure access token: %w", err)
 	}
@@ -153,7 +172,7 @@ func (c *keyvaultHTTPClient) GetSecret(ctx context.Context, secretName, secretVe
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+tokenResp.Token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

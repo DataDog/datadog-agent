@@ -8,164 +8,37 @@ package hashicorp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/vaulthttp"
-	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
+	"github.com/hashicorp/vault/api"
+	vaultHttp "github.com/hashicorp/vault/http"
+	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 )
-
-// mockVaultStore backs the httptest.Server that replaces the real Vault server.
-type mockVaultStore struct {
-	mu      sync.Mutex
-	secrets map[string]map[string]interface{} // path -> data
-	mounts  map[string]mountInfo
-	token   string
-}
-
-type mountInfo struct {
-	Type    string            `json:"type"`
-	Options map[string]string `json:"options"`
-}
-
-func newMockVaultStore(token string) *mockVaultStore {
-	return &mockVaultStore{
-		secrets: make(map[string]map[string]interface{}),
-		mounts: map[string]mountInfo{
-			"secret/": {Type: "kv", Options: map[string]string{"version": "1"}},
-		},
-		token: token,
-	}
-}
-
-func (s *mockVaultStore) handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		path := strings.TrimPrefix(r.URL.Path, "/v1/")
-
-		// sys/mounts
-		if path == "sys/mounts" && r.Method == "GET" {
-			resp := make(map[string]interface{})
-			resp["request_id"] = "mock"
-			for k, v := range s.mounts {
-				resp[k] = v
-			}
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-
-		// Auth endpoints (login)
-		if strings.HasSuffix(path, "/login") || strings.Contains(path, "/login/") {
-			var body map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&body)
-			resp := map[string]interface{}{
-				"auth": map[string]interface{}{
-					"client_token": s.token,
-				},
-			}
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-
-		switch r.Method {
-		case "GET":
-			data, ok := s.secrets[path]
-			if !ok {
-				w.WriteHeader(http.StatusNotFound)
-				w.Write([]byte(`{"errors":[]}`))
-				return
-			}
-			resp := map[string]interface{}{
-				"request_id":     "mock-req",
-				"lease_id":       "",
-				"renewable":      false,
-				"lease_duration": 2764800,
-				"data":           data,
-			}
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(resp)
-
-		case "POST", "PUT":
-			var body map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&body)
-			s.secrets[path] = body
-			w.WriteHeader(http.StatusOK)
-
-		default:
-			http.NotFound(w, r)
-		}
-	})
-}
-
-func (s *mockVaultStore) addMount(path string, mi mountInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mounts[path] = mi
-}
-
-// mockStores maps test name -> *mockVaultStore for tests that need to add mounts.
-var mockStores sync.Map
-
-func getStore(t *testing.T) *mockVaultStore {
-	v, ok := mockStores.Load(t.Name())
-	if !ok {
-		// Try parent test name (for subtests).
-		parts := strings.SplitN(t.Name(), "/", 2)
-		if len(parts) == 2 {
-			v, ok = mockStores.Load(parts[0])
-		}
-	}
-	require.True(t, ok, "mock store not found for test %s", t.Name())
-	return v.(*mockVaultStore)
-}
-
-func createTestVault(t *testing.T) (*vaulthttp.Client, string) {
-	t.Helper()
-
-	t.Setenv("VAULT_ADDR", "")
-
-	token := "test-root-token"
-	store := newMockVaultStore(token)
-
-	server := httptest.NewServer(store.handler())
-	t.Cleanup(func() { server.Close() })
-
-	client, err := vaulthttp.NewClient(server.URL, nil)
-	require.NoError(t, err)
-	client.SetToken(token)
-
-	mockStores.Store(t.Name(), store)
-	t.Cleanup(func() { mockStores.Delete(t.Name()) })
-
-	return client, token
-}
 
 func TestVaultBackend(t *testing.T) {
 	client, token := createTestVault(t)
 
-	_, err := client.Write(context.Background(), "secret/foo", map[string]interface{}{
+	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
 	})
 	assert.NoError(t, err)
 
+	// Create a new Vault backend.
 	backendConfig := map[string]interface{}{
 		"vault_address": client.Address(),
 		"backend_type":  "hashicorp.vault",
-		"vault_token":   token,
+		// Note: we're not testing the whole "session" part of the backend here as we're using the root token.
+		"vault_token": token,
 	}
 
 	secretsBackend, err := NewVaultBackend(backendConfig)
@@ -188,16 +61,18 @@ func TestVaultBackend(t *testing.T) {
 func TestVaultBackend_KeyNotFound(t *testing.T) {
 	client, token := createTestVault(t)
 
-	_, err := client.Write(context.Background(), "secret/foo", map[string]interface{}{
+	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
 	})
 	assert.NoError(t, err)
 
+	// Create a new Vault backend.
 	backendConfig := map[string]interface{}{
 		"vault_address": client.Address(),
 		"backend_type":  "hashicorp.vault",
-		"vault_token":   token,
+		// Note: we're not testing the whole "session" part of the backend here as we're using the root token.
+		"vault_token": token,
 	}
 
 	secretsBackend, err := NewVaultBackend(backendConfig)
@@ -209,13 +84,134 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
+func createTestVault(t *testing.T) (*api.Client, string) {
+	t.Helper()
+
+	// clear VAULT_ADDR to ensure NewVaultBackend uses the right vault address for ci test
+	t.Setenv("VAULT_ADDR", "")
+
+	// Create an in-memory, unsealed core (the "backend", if you will).
+	core, keyShares, rootToken := vault.TestCoreUnsealed(t)
+	_ = keyShares
+
+	// Start an HTTP server for the core.
+	ln, addr := vaultHttp.TestServer(t, core)
+
+	// listener cleanup before Vault shutdown.
+	t.Cleanup(func() {
+		ln.Close()
+	})
+
+	// Create a client that talks to the server, initially authenticating with
+	// the root token.
+	conf := api.DefaultConfig()
+	conf.Address = addr
+
+	client, err := api.NewClient(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetToken(rootToken)
+
+	return client, rootToken
+}
+
+func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
+	client, err := api.NewClient(api.DefaultConfig())
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		sessionConfig VaultSessionBackendConfig
+		expectAuth    bool
+		expectError   bool
+		validateAuth  func(t *testing.T, auth interface{})
+	}{
+		{
+			name: "AWS auth with role only",
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType: "aws",
+				VaultAWSRole:  "test-role",
+			},
+			expectAuth:  true,
+			expectError: false,
+			validateAuth: func(t *testing.T, auth interface{}) {
+				awsAuth, ok := auth.(*vaultAWSAuth)
+				require.True(t, ok, "Expected vaultAWSAuth type")
+				assert.NotNil(t, awsAuth)
+			},
+		},
+		{
+			name: "AWS auth with role and region",
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType: "aws",
+				VaultAWSRole:  "test-role",
+				AWSRegion:     "us-west-2",
+			},
+			expectAuth:  true,
+			expectError: false,
+			validateAuth: func(t *testing.T, auth interface{}) {
+				awsAuth, ok := auth.(*vaultAWSAuth)
+				require.True(t, ok, "Expected vaultAWSAuth type")
+				assert.NotNil(t, awsAuth)
+			},
+		},
+		{
+			name: "AWS auth type without role should return nil",
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType: "aws",
+			},
+			expectAuth:  false,
+			expectError: false,
+		},
+		{
+			name: "Non-AWS auth type should not create AWS auth",
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType: "userpass",
+				VaultAWSRole:  "test-role",
+			},
+			expectAuth:  false,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backendConfig := VaultBackendConfig{VaultSession: tt.sessionConfig}
+			auth, _, err := newAuthenticationFromBackendConfig(backendConfig, client)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			if tt.expectAuth {
+				assert.NotNil(t, auth, "Expected non-nil auth method")
+				if tt.validateAuth != nil {
+					tt.validateAuth(t, auth)
+				}
+			} else {
+				assert.Nil(t, auth, "Expected nil auth method")
+			}
+		})
+	}
+}
+
 func TestVaultBackend_KVV2Support(t *testing.T) {
 	client, token := createTestVault(t)
-	store := getStore(t)
 
-	store.addMount("kv2/", mountInfo{Type: "kv", Options: map[string]string{"version": "2"}})
+	err := client.Sys().Mount("kv2/", &api.MountInput{
+		Type: "kv",
+		Options: map[string]string{
+			"version": "2",
+		},
+	})
+	assert.NoError(t, err)
 
-	_, err := client.Write(context.Background(), "kv2/data/foo", map[string]interface{}{
+	// Simulate KV v2 structure: {"data": {"key1": "value1", "key2": "value2"}, "metadata": {"something": "else"}}
+	_, err = client.Logical().Write("kv2/data/foo", map[string]interface{}{
 		"data": map[string]interface{}{
 			"key1": "value1",
 			"key2": "value2",
@@ -270,7 +266,7 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 		{
 			name: "JWT from file path",
 			sessionConfig: VaultSessionBackendConfig{
-				VaultKubernetesJWTPath: "tmp",
+				VaultKubernetesJWTPath: "tmp", // Will be set to temp file
 			},
 			createTempFile:  true,
 			tempFileContent: "file-jwt-token",
@@ -280,7 +276,7 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 		{
 			name: "JWT from file path with whitespace",
 			sessionConfig: VaultSessionBackendConfig{
-				VaultKubernetesJWTPath: "tmp",
+				VaultKubernetesJWTPath: "tmp", // Will be set to temp file
 			},
 			createTempFile:  true,
 			tempFileContent: "  file-jwt-token-with-spaces  \n",
@@ -289,9 +285,11 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 		},
 		{
 			name:          "JWT from default path via env var",
-			sessionConfig: VaultSessionBackendConfig{},
+			sessionConfig: VaultSessionBackendConfig{
+				// No explicit path set
+			},
 			envVars: map[string]string{
-				"DD_SECRETS_SA_TOKEN_PATH": "tmp",
+				"DD_SECRETS_SA_TOKEN_PATH": "tmp", // Will be set to temp file
 			},
 			createTempFile:  true,
 			tempFileContent: "default-env-path-token",
@@ -309,6 +307,7 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create temp file if needed
 			if tt.createTempFile {
 				tmpFile, err := os.CreateTemp("", "jwt-token-test")
 				require.NoError(t, err)
@@ -339,7 +338,7 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 }
 
 func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
-	createTestVault(t) // ensure VAULT_ADDR is cleared
+	createTestVault(t) // Start vault server, cleanup handled via t.Cleanup()
 
 	tmpFile, err := os.CreateTemp("", "jwt-token-test")
 	require.NoError(t, err)
@@ -362,7 +361,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 				VaultKubernetesRole: "test-role",
 				VaultKubernetesJWT:  "test-jwt-token",
 			},
-			errorContains: "unable to extract token from Vault login response",
+			errorContains: "failed to authenticate to Vault",
 		},
 		{
 			name: "Kubernetes auth with role from env var (expected failure)",
@@ -373,7 +372,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 			envVars: map[string]string{
 				"DD_SECRETS_VAULT_ROLE": "env-role",
 			},
-			errorContains: "unable to extract token from Vault login response",
+			errorContains: "failed to authenticate to Vault",
 		},
 		{
 			name: "Kubernetes auth with JWT from file (expected failure)",
@@ -382,7 +381,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 				VaultKubernetesRole:    "test-role",
 				VaultKubernetesJWTPath: tmpFile.Name(),
 			},
-			errorContains: "unable to extract token from Vault login response",
+			errorContains: "failed to authenticate to Vault",
 		},
 		{
 			name: "Kubernetes auth without role (should error immediately)",
@@ -407,6 +406,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create an httptest.Server that mimics Vault’s API.
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.HasSuffix(r.URL.Path, "/login") {
 					if tt.errorContains == "" {
@@ -422,6 +422,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 			}))
 			defer server.Close()
 
+			// Point the agent at our mock Vault.
 			t.Setenv("VAULT_ADDR", server.URL)
 			for k, v := range tt.envVars {
 				t.Setenv(k, v)
@@ -455,6 +456,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 func TestVaultBackend_VaultURIFormat(t *testing.T) {
 	client, token := createTestVault(t)
 
+	// Create test data - KV v1 stores data directly (no nested "data" field)
 	complexData := map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
@@ -465,10 +467,11 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 		"array": []interface{}{"item1", "item2", "item3"},
 	}
 
-	_, err := client.Write(context.Background(), "secret/complex", complexData)
+	_, err := client.Logical().Write("secret/complex", complexData)
 	assert.NoError(t, err)
 
-	_, err = client.Write(context.Background(), "secret/simple", map[string]interface{}{
+	// Also create a simple secret for basic testing
+	_, err = client.Logical().Write("secret/simple", map[string]interface{}{
 		"key1": "simple_value1",
 		"key2": "simple_value2",
 	})
@@ -523,13 +526,13 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 		{
 			name:          "Access lease_duration",
 			secretString:  "vault://secret/simple#/lease_duration",
-			expectedValue: "2764800",
+			expectedValue: "2764800", // Changed from "0" - Vault's actual default lease duration
 			expectError:   false,
 		},
 		{
 			name:          "Access renewable field",
 			secretString:  "vault://secret/simple#/renewable",
-			expectedValue: "false",
+			expectedValue: "false", // Default renewable value
 			expectError:   false,
 		},
 		{
@@ -601,11 +604,18 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 
 func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 	client, token := createTestVault(t)
-	store := getStore(t)
 
-	store.addMount("kv2/", mountInfo{Type: "kv", Options: map[string]string{"version": "2"}})
+	// Set up KV v2 mount
+	err := client.Sys().Mount("kv2/", &api.MountInput{
+		Type: "kv",
+		Options: map[string]string{
+			"version": "2",
+		},
+	})
+	assert.NoError(t, err)
 
-	_, err := client.Write(context.Background(), "kv2/data/complex", map[string]interface{}{
+	// Create test data in KV v2 format
+	_, err = client.Logical().Write("kv2/data/complex", map[string]interface{}{
 		"data": map[string]interface{}{
 			"key1": "value1",
 			"key2": "value2",
@@ -674,7 +684,8 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 func TestVaultBackend_BackwardCompatibility(t *testing.T) {
 	client, token := createTestVault(t)
 
-	_, err := client.Write(context.Background(), "secret/test", map[string]interface{}{
+	// Create test data
+	_, err := client.Logical().Write("secret/test", map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
 	})
@@ -690,10 +701,12 @@ func TestVaultBackend_BackwardCompatibility(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
+	// Test that old format still works
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/test;key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
+	// Test that new format works
 	secretOutput = secretsBackend.GetSecretOutput(ctx, "vault://secret/test#/key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
@@ -768,8 +781,8 @@ func TestVaultBackend_ErrorHandling(t *testing.T) {
 	}
 }
 
-func TestAuthenticateVaultClient_ImplicitAuth(t *testing.T) {
-	client, err := vaulthttp.NewClient("http://127.0.0.1:8200", nil)
+func TestNewAuthenticationFromBackendConfig_ImplicitAuth(t *testing.T) {
+	client, err := api.NewClient(api.DefaultConfig())
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -863,32 +876,22 @@ func TestAuthenticateVaultClient_ImplicitAuth(t *testing.T) {
 			}
 
 			backendConfig := VaultBackendConfig{VaultSession: tt.sessionConfig}
-			ctx := context.Background()
-			token, err := authenticateVaultClient(ctx, backendConfig, client)
+			auth, token, err := newAuthenticationFromBackendConfig(backendConfig, client)
 
 			assert.NoError(t, err)
+			assert.Nil(t, auth)
 			assert.Equal(t, implicitAuthToken, token)
 		})
 	}
 }
 
-func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
-	// Create a mock server that handles auth endpoints.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/login") {
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"auth":{"client_token":"test-auth-token"}}`)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	client, err := vaulthttp.NewClient(server.URL, nil)
+func TestNewAuthenticationFromBackendConfig_OtherAuthMethods(t *testing.T) {
+	client, err := api.NewClient(api.DefaultConfig())
 	require.NoError(t, err)
 
 	tests := map[string]struct {
 		sessionConfig VaultSessionBackendConfig
+		expectedAuth  bool
 		expectedToken string
 		expectError   bool
 		errorContains string
@@ -899,7 +902,8 @@ func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
 				VaultSecretID: "test-secret-id",
 				ImplicitAuth:  "false",
 			},
-			expectedToken: "test-auth-token",
+			expectedAuth:  true,
+			expectedToken: "",
 			expectError:   false,
 		},
 		"approle auth with only role ID": {
@@ -907,6 +911,17 @@ func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
 				VaultRoleID:  "test-role-id",
 				ImplicitAuth: "false",
 			},
+			expectedAuth:  false,
+			expectedToken: "",
+			expectError:   false,
+		},
+		"aws auth with role": {
+			sessionConfig: VaultSessionBackendConfig{
+				VaultAuthType: "aws",
+				VaultAWSRole:  "test-role",
+				ImplicitAuth:  "false",
+			},
+			expectedAuth:  true,
 			expectedToken: "",
 			expectError:   false,
 		},
@@ -915,21 +930,24 @@ func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
 				VaultAuthType: "unsupported",
 				ImplicitAuth:  "false",
 			},
+			expectedAuth:  false,
 			expectedToken: "",
 			expectError:   false,
 		},
 		"no auth configuration": {
 			sessionConfig: VaultSessionBackendConfig{},
+			expectedAuth:  false,
 			expectedToken: "",
 			expectError:   false,
 		},
-		"implicit auth disabled with approle auth": {
+		"implicit auth disabled with other auth": {
 			sessionConfig: VaultSessionBackendConfig{
 				VaultRoleID:   "test-role-id",
 				VaultSecretID: "test-secret-id",
 				ImplicitAuth:  "false",
 			},
-			expectedToken: "test-auth-token",
+			expectedAuth:  true,
+			expectedToken: "",
 			expectError:   false,
 		},
 	}
@@ -937,8 +955,7 @@ func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			backendConfig := VaultBackendConfig{VaultSession: tt.sessionConfig}
-			ctx := context.Background()
-			token, err := authenticateVaultClient(ctx, backendConfig, client)
+			auth, token, err := newAuthenticationFromBackendConfig(backendConfig, client)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -947,6 +964,12 @@ func TestAuthenticateVaultClient_OtherAuthMethods(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+
+			if tt.expectedAuth {
+				assert.NotNil(t, auth)
+			} else {
+				assert.Nil(t, auth)
 			}
 
 			assert.Equal(t, tt.expectedToken, token)
