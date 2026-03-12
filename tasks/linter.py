@@ -456,7 +456,8 @@ def gitlab_ci(
     """
     if running_in_workspace():
         print(
-            f"[{color_message('INFO', Color.BLUE)}] Running in a workspace (WORKSPACE_NAME is set), skipping gitlab_ci linter"
+            f"[{color_message('INFO', Color.BLUE)}] Running in a workspace (WORKSPACE_NAME is set), skipping gitlab_ci linter. "
+            f"Reason: ddtool authentication is not yet fully working in workspaces."
         )
         return
 
