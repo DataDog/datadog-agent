@@ -240,7 +240,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     private func showLocationPermissionAlertAndRequestIfAllowed() {
         let alert = NSAlert()
         alert.messageText = "Location Permission Required"
-        alert.informativeText = "Datadog Agent needs Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease enable it in:\nSystem Settings → Privacy & Security → Location Services → Datadog Agent.app"
+        alert.informativeText = "Datadog Agent needs Location permission to access WiFi network information.\n\nPlease enable it in:\nSystem Settings → Privacy & Security → Location Services → Datadog Agent.app"
         alert.alertStyle = .informational
         if let icon = Self.datadogIconImage() {
             alert.icon = icon
