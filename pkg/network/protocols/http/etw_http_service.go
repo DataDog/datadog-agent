@@ -283,10 +283,10 @@ var (
 	// Used to expose IIS-specific tags (sitename, app_pool, service, env, version) to the
 	// process-agent for remote service tag enrichment on same-host connections.
 	// Entries expire after iisTagsCacheTTL.
-	iisTagsCacheMu       sync.Mutex
-	iisTagsCacheMap      = make(map[[2]uint16]iisTagsCacheEntry)
-	iisTagsEvictTotal    int64
-	iisTagsEvictLastLog  time.Time
+	iisTagsCacheMu      sync.Mutex
+	iisTagsCacheMap     = make(map[[2]uint16]iisTagsCacheEntry)
+	iisTagsEvictTotal   int64
+	iisTagsEvictLastLog time.Time
 )
 
 const (
@@ -309,7 +309,6 @@ func init() {
 // a standalone []string for caching and exposing via the /iis_tags endpoint.
 func buildIISTags(h *WinHttpTransaction) []string {
 	tags := make([]string, 0, 7)
-	tags = append(tags, "http.iis.site:"+strconv.FormatUint(uint64(h.SiteID), 10))
 	if h.AppPool != "" {
 		tags = append(tags, "http.iis.app_pool:"+h.AppPool)
 	}
