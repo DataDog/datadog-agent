@@ -44,7 +44,7 @@
 '@datadog/injection-platform': '#injection-platform'
 '@datadog/kubernetes-experiences': '#kubernetes-experiences'
 '@datadog/metrics-aggregation': '#metrics-aggregation'
-'@datadog/ndm-core': '#ndm-core'
+'@datadog/network-device-monitoring-core': '#ndm-core'
 '@datadog/ndm-integrations': '#ndm-integrations'
 '@datadog/network-path': '#network-path-dev'
 '@datadog/opentelemetry': '#opentelemetry-ops'

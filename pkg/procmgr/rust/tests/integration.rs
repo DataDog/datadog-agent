@@ -540,13 +540,14 @@ fn test_optional_environment_file_skipped_when_missing() {
 // ===========================================================================
 
 /// Read the real DDOT yaml template and render it with the given paths.
+/// Returns `None` when `DDOT_TEMPLATE_PATH` was not set at compile time.
 fn render_ddot_template(
     install_dir: &str,
     etc_dir: &str,
     pid_dir: &str,
     fleet_dir: &str,
-) -> String {
-    let tmpl_path = std::path::PathBuf::from(env!("DDOT_TEMPLATE_PATH"));
+) -> Option<String> {
+    let tmpl_path = std::path::PathBuf::from(option_env!("DDOT_TEMPLATE_PATH")?);
     let tmpl = std::fs::read_to_string(&tmpl_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", tmpl_path.display()));
     let rendered = tmpl
@@ -554,11 +555,13 @@ fn render_ddot_template(
         .replace("{{.EtcDir}}", etc_dir)
         .replace("{{.PIDDir}}", pid_dir)
         .replace("{{.FleetPoliciesDir}}", fleet_dir);
-    rendered
-        .lines()
-        .filter(|line| !line.contains("{{"))
-        .collect::<Vec<_>>()
-        .join("\n")
+    Some(
+        rendered
+            .lines()
+            .filter(|line| !line.contains("{{"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }
 
 #[test]
@@ -597,12 +600,15 @@ fn test_ddot_template_starts_with_env_and_optional_envfile() {
     let config_dir = dir.path().join("processes.d");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    let yaml = render_ddot_template(
+    let Some(yaml) = render_ddot_template(
         install_dir.to_str().unwrap(),
         etc_dir.to_str().unwrap(),
         pid_dir.to_str().unwrap(),
         "/etc/dd/policies",
-    );
+    ) else {
+        eprintln!("DDOT_TEMPLATE_PATH not set at compile time, skipping");
+        return;
+    };
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
     let mut daemon = DaemonHandle::start(&config_dir);
@@ -637,12 +643,15 @@ fn test_ddot_template_skipped_when_binary_missing() {
     let config_dir = dir.path().join("processes.d");
     std::fs::create_dir_all(&config_dir).unwrap();
 
-    let yaml = render_ddot_template(
+    let Some(yaml) = render_ddot_template(
         "/nonexistent/install",
         "/nonexistent/etc",
         "/nonexistent/pid",
         "/nonexistent/policies",
-    );
+    ) else {
+        eprintln!("DDOT_TEMPLATE_PATH not set at compile time, skipping");
+        return;
+    };
     std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
 
     let mut daemon = DaemonHandle::start(&config_dir);

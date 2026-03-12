@@ -96,11 +96,12 @@ The config stream is automatically enabled when the component is loaded. No expl
 **Optional settings:**
 ```yaml
 # datadog.yaml
-config_stream:
-  sleep_interval: 10ms  # Backoff on non-terminal errors (default: 10ms)
-
-remote_agent_registry:
-  enabled: true  # Required for RAR-gated authorization
+remote_agent:
+  registry:
+    enabled: true  # Required for RAR-gated authorization
+  configstream:
+    enabled: true # Required to use the configstreamconsumer
+    sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
 ```
 
 ## Telemetry
@@ -179,7 +180,7 @@ rpc error: code = Unauthenticated desc = session_id required in metadata
 **Solution:**
 1. Ensure remote agent registers with RAR first using `RegisterRemoteAgent()`
 2. Pass `session_id` from RAR registration via gRPC metadata (not in request body)
-3. Check RAR is enabled: `remote_agent_registry.enabled: true`
+3. Check RAR is enabled: `remote_agent.registry.enabled: true`
 
 Example:
 ```go

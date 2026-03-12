@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -143,6 +144,8 @@ type Check struct {
 	fs                        afero.Fs
 	statFn                    statFunc
 	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
+
+	partitionEnumInFlight atomic.Bool
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -443,11 +446,7 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	ctx := context.Background()
-	if c.instanceConfig.ProcMountInfoPath != "" {
-		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
-	}
-	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
+	partitions, err := c.getDiskPartitionsWithTimeout(c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		if len(partitions) == 0 {
 			// Complete failure - no partitions retrieved
@@ -539,6 +538,34 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	// See: https://github.com/DataDog/integrations-core/pull/7323#issuecomment-756427024
 	sender.Rate(fmt.Sprintf(diskMetric, "read_time_pct"), float64(ioCounter.ReadTime)*100/1000, "", tags)
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
+}
+
+func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil_disk.PartitionStat, error) {
+	if !c.partitionEnumInFlight.CompareAndSwap(false, true) {
+		return nil, errors.New("disk partition enumeration skipped — a previous call is still in progress, which may indicate an inaccessible or orphaned volume on the system")
+	}
+	type partitionsResult struct {
+		partitions []gopsutil_disk.PartitionStat
+		err        error
+	}
+	resultCh := make(chan partitionsResult, 1)
+	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
+	go func() {
+		defer c.partitionEnumInFlight.Store(false)
+		defer cancel()
+		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		resultCh <- partitionsResult{partitions, err}
+	}()
+	select {
+	case result := <-resultCh:
+		return result.partitions, result.err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("disk partition enumeration timed out after %s — this may indicate an inaccessible or orphaned volume on the system", timeout)
+	}
 }
 
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {

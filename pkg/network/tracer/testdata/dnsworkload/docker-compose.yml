@@ -2,7 +2,7 @@ version: '3'
 name: dnsworkload
 services:
   coredns:
-    image: coredns/coredns:1.13.1
+    image: coredns/coredns:1.11.3
     command: -conf /etc/coredns/Corefile
     ports:
       - 127.0.0.1:53:53/udp

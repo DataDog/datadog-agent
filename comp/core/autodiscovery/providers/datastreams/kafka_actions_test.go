@@ -54,6 +54,9 @@ sasl_mechanism: PLAIN
 sasl_plain_username: user
 sasl_plain_password: pass
 security_protocol: SASL_SSL
+schema_registry_url: http://localhost:8081
+schema_registry_username: sr-user
+schema_registry_password: sr-pass
 `
 
 func TestActionsController(t *testing.T) {
@@ -129,6 +132,11 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, "user", instance["sasl_plain_username"])
 	assert.Equal(t, "pass", instance["sasl_plain_password"])
 	assert.Equal(t, "SASL_SSL", instance["security_protocol"])
+
+	// Check that schema registry fields are copied
+	assert.Equal(t, "http://localhost:8081", instance["schema_registry_url"])
+	assert.Equal(t, "sr-user", instance["schema_registry_username"])
+	assert.Equal(t, "sr-pass", instance["schema_registry_password"])
 
 	assert.Equal(t, true, instance["run_once"])
 

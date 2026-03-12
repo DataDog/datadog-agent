@@ -29,6 +29,7 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
+	// The URL to upload logs (with or without snapshots) to.
 	LogUploaderURL     string
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
@@ -147,7 +148,7 @@ const (
 
 	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
-	logUploaderPath   = "/debugger/v1/input"
+	logUploaderPath   = "/debugger/v2/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
 	symdbUploaderPath = "/symdb/v1/input"
 )

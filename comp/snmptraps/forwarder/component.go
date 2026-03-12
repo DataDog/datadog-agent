@@ -7,7 +7,7 @@
 // listener component, formats it properly, and sends it to the backend.
 package forwarder
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface{}

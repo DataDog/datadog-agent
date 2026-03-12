@@ -130,7 +130,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		if f.IsFileless() {
 			f.Filesystem = model.TmpFS
 		} else {
-			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.PathKey, ev.PIDContext.Pid)
 			if err != nil {
 				ev.SetPathResolutionError(f, err)
 			}
@@ -180,7 +180,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 		return "/"
 	}
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid)
+		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.RootPathKey, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -193,7 +193,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 // ResolveMountSourcePath resolves a mount source path
 func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid)
+		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(model.PathKey{MountID: e.BindSrcMountID}, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -211,7 +211,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 // ResolveMountRootPath resolves a mount root path
 func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountRootPath) == 0 {
-		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, ev.PIDContext.Pid)
+		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.RootPathKey, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountRootPathResolutionError = err
 			return ""
@@ -532,7 +532,7 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 // ResolveCGroupVersion resolves the version of the cgroup API
 func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
 	if e.CGroupVersion == 0 {
-		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupPathKey.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupPathKey, ev.PIDContext.Pid); filesystem == "cgroup2" {
 			e.CGroupVersion = 2
 		} else {
 			e.CGroupVersion = 1

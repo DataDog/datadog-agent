@@ -220,7 +220,7 @@ build do
 
   end
 
-  # sd-agent (service discovery agent)
+  # system-probe-lite (service discovery agent)
   if linux_target? and !heroku_target?
     command_on_repo_root "bazel run --config=release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end

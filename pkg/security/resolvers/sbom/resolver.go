@@ -244,9 +244,11 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 					// invalid cache data
 					r.removeSBOMData(sbom.workloadKey)
 
+					r.sbomsLock.Lock()
 					sbom.Lock()
 					r.triggerScan(sbom)
 					sbom.Unlock()
+					r.sbomsLock.Unlock()
 				},
 			)
 			refresher.Start()
@@ -531,8 +533,11 @@ func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
 
 // Delete removes the SBOM of the provided cgroup id
 func (r *Resolver) Delete(id containerutils.ContainerID) {
-	sbom := r.GetWorkload(id)
-	if sbom == nil {
+	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
+
+	sbom, ok := r.sboms.Get(id)
+	if !ok {
 		return
 	}
 	sbom.Lock()
@@ -543,13 +548,11 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 }
 
 // deleteSBOM delete all data indexed by the provided container ID
+// must be called with sbomsLock held
 func (r *Resolver) deleteSBOM(sbom *SBOM) {
-	r.sbomsLock.Lock()
-	defer r.sbomsLock.Unlock()
-
 	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
 
-	// should be called under sbom.Lock
+	// should be called under sbom.Lock and sbomsLock.Lock
 	r.sboms.Remove(sbom.ContainerID)
 }
 

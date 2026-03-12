@@ -313,6 +313,15 @@ func extractAuthFromInstanceData(instanceData integration.Data) map[string]any {
 		"tls_ciphers",
 		"tls_crlfile",
 		"sasl_oauth_token_provider",
+		// Schema Registry configuration
+		"schema_registry_url",
+		"schema_registry_username",
+		"schema_registry_password",
+		"schema_registry_tls_verify",
+		"schema_registry_tls_ca_cert",
+		"schema_registry_tls_cert",
+		"schema_registry_tls_key",
+		"schema_registry_oauth_token_provider",
 	}
 	for _, k := range allowList {
 		if v, ok := raw[k]; ok {

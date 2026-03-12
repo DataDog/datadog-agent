@@ -71,9 +71,7 @@ func (h *Host) stripSystemd244(events []SystemdEvent) []SystemdEvent {
 	}
 	newEvents := make([]SystemdEvent, 0, len(events))
 	map244Units := map[string]struct{}{
-		"datadog-agent-sysprobe.service":     {},
 		"datadog-agent-security.service":     {},
-		"datadog-agent-sysprobe-exp.service": {},
 		"datadog-agent-security-exp.service": {},
 	}
 	for _, e := range events {
@@ -95,7 +93,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 		i, j := 0, 0
 		var searchedEvents []SystemdEvent
-		for i < len(logs) && j < len(events.Events) {
+		for i < len(logs) && (j < len(events.Events) || len(searchedEvents) > 0) {
 			if len(searchedEvents) == 0 {
 				searchedEvents = events.Events[j]
 				j++
@@ -105,7 +103,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 			i++
 		}
 		lastSearchedEvents = searchedEvents
-		return j == len(events.Events)
+		return j == len(events.Events) && len(searchedEvents) == 0
 	}, 60*time.Second, 1*time.Second)
 
 	if !success {

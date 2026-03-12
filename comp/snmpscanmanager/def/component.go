@@ -6,7 +6,7 @@
 // Package snmpscanmanager is a component that is used to manage SNMP device scans
 package snmpscanmanager
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type
 type Component interface {

@@ -42,18 +42,19 @@ import (
 
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, url string) *model.ServicesResponse {
-	location := url + "/" + string(config.DiscoveryModule) + pathServices
+func getServices(t require.TestingT, discovery *testDiscoveryModule) *model.ServicesResponse {
+	location := discovery.url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &core.Params{
 		NewPids: getRunningPids(t),
 	}
 
-	return makeRequest[model.ServicesResponse](t, location, params)
+	return makeRequest[model.ServicesResponse](t, discovery.client, location, params)
 }
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
-func TestServicesBasic(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesBasic() {
+	t := s.T()
+	discovery := s.discovery
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
@@ -90,7 +91,7 @@ func TestServicesBasic(t *testing.T) {
 	seen := make(map[int]model.Service)
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		for _, s := range resp.Services {
 			seen[s.PID] = s
 		}
@@ -112,8 +113,9 @@ func TestServicesBasic(t *testing.T) {
 }
 
 // Check that we get all listening ports for a process using the services endpoint
-func TestServicesPorts(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesPorts() {
+	t := s.T()
+	discovery := s.discovery
 
 	var expectedTCPPorts []uint16
 	var expectedUDPPorts []uint16
@@ -153,7 +155,7 @@ func TestServicesPorts(t *testing.T) {
 	expectedUDPPortsMap := make(map[uint16]struct{}, len(expectedUDPPorts))
 
 	pid := os.Getpid()
-	resp := getServices(t, discovery.url)
+	resp := getServices(t, discovery)
 	svc := findService(pid, resp.Services)
 	require.NotNilf(t, svc, "could not find service for pid %v", pid)
 
@@ -192,8 +194,9 @@ func TestServicesPorts(t *testing.T) {
 	}
 }
 
-func TestServicesPortsLimits(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesPortsLimits() {
+	t := s.T()
+	discovery := s.discovery
 
 	var expectedPorts []int
 
@@ -216,7 +219,7 @@ func TestServicesPortsLimits(t *testing.T) {
 
 	pid := os.Getpid()
 
-	resp := getServices(t, discovery.url)
+	resp := getServices(t, discovery)
 	svc := findService(pid, resp.Services)
 	require.NotNilf(t, svc, "could not find service for pid %v", pid)
 
@@ -228,8 +231,9 @@ func TestServicesPortsLimits(t *testing.T) {
 	}
 }
 
-func TestServicesServiceName(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesServiceName() {
+	t := s.T()
+	discovery := s.discovery
 
 	trMeta := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
@@ -270,7 +274,7 @@ func TestServicesServiceName(t *testing.T) {
 	var svc *model.Service
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
@@ -289,8 +293,9 @@ func TestServicesServiceName(t *testing.T) {
 
 // TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
 // are discovered even when they have no open listening ports.
-func TestServicesTracerMetadataWithoutPorts(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
+	t := s.T()
+	discovery := s.discovery
 
 	trMeta := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
@@ -320,7 +325,7 @@ func TestServicesTracerMetadataWithoutPorts(t *testing.T) {
 
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
@@ -345,8 +350,9 @@ func TestServicesTracerMetadataWithoutPorts(t *testing.T) {
 
 // TestServicesLogsWithoutPorts checks that processes with open log files
 // are discovered even when they have no listening ports or tracer metadata.
-func TestServicesLogsWithoutPorts(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
+	t := s.T()
+	discovery := s.discovery
 
 	// Create a temporary log file path
 	logFile, err := os.CreateTemp("/tmp", "test-service-*.log")
@@ -387,7 +393,7 @@ func TestServicesLogsWithoutPorts(t *testing.T) {
 
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
@@ -416,7 +422,10 @@ func TestServicesLogsWithoutPorts(t *testing.T) {
 	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
 }
 
-func TestServicesAPMInstrumentationProvided(t *testing.T) {
+func (s *discoveryTestSuite) TestServicesAPMInstrumentationProvided() {
+	t := s.T()
+	discovery := s.discovery
+
 	testCases := map[string]struct {
 		commandline []string // The command line of the fake server
 		language    language.Language
@@ -440,7 +449,6 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 	}
 
 	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -456,7 +464,7 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 			pid := cmd.Process.Pid
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				resp := getServices(collect, discovery.url)
+				resp := getServices(collect, discovery)
 				startEvent := findService(pid, resp.Services)
 				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
@@ -468,7 +476,10 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 	}
 }
 
-func TestServicesNodeDocker(t *testing.T) {
+func (s *discoveryTestSuite) TestServicesNodeDocker() {
+	t := s.T()
+	discovery := s.discovery
+
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 
@@ -476,12 +487,10 @@ func TestServicesNodeDocker(t *testing.T) {
 	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
 	require.NoError(t, err)
 
-	discovery := setupDiscoveryModule(t)
-
 	pid := int(nodeJSPID)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		svc := findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 
@@ -492,7 +501,10 @@ func TestServicesNodeDocker(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
+func (s *discoveryTestSuite) TestServicesAPMInstrumentationProvidedWithMaps() {
+	t := s.T()
+	discovery := s.discovery
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -534,11 +546,10 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
 			require.NoError(t, err)
 
-			discovery := setupDiscoveryModule(t)
-
 			pid := cmd.Process.Pid
+
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				resp := getServices(collect, discovery.url)
+				resp := getServices(collect, discovery)
 
 				// Service assert
 				svc := findService(pid, resp.Services)
@@ -552,8 +563,9 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 }
 
 // Check that we can get listening processes in other namespaces using the services endpoint.
-func TestServicesNamespaces(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesNamespaces() {
+	t := s.T()
+	discovery := s.discovery
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -600,7 +612,7 @@ func TestServicesNamespaces(t *testing.T) {
 	seen := make(map[int]model.Service)
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
+		resp := getServices(collect, discovery)
 		for _, s := range resp.Services {
 			seen[s.PID] = s
 		}
@@ -613,8 +625,9 @@ func TestServicesNamespaces(t *testing.T) {
 }
 
 // Check that we are able to find services inside Docker containers using the services endpoint.
-func TestServicesDocker(t *testing.T) {
-	discovery := setupDiscoveryModule(t)
+func (s *discoveryTestSuite) TestServicesDocker() {
+	t := s.T()
+	discovery := s.discovery
 
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
@@ -648,7 +661,7 @@ func TestServicesDocker(t *testing.T) {
 		assert.NotZero(collect, pid1111)
 	}, time.Second*10, time.Millisecond*20)
 
-	resp := getServices(t, discovery.url)
+	resp := getServices(t, discovery)
 
 	// Assert events
 	svc := findService(pid1111, resp.Services)

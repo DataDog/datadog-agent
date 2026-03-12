@@ -44,7 +44,7 @@ func (mr *NoOpResolver) Delete(_ uint32, _ uint64) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32) (string, error) {
+func (mr *NoOpResolver) ResolveFilesystem(_ model.PathKey, _ uint32) (string, error) {
 	return "", nil
 }
 
@@ -54,17 +54,17 @@ func (mr *NoOpResolver) Insert(_ model.Mount) error {
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountRoot(_ model.PathKey, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountPath(_ model.PathKey, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMount returns the mount
-func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMount(_ model.PathKey, _ uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, errors.New("not available")
 }
 

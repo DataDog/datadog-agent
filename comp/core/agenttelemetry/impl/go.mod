@@ -25,7 +25,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v2 v2.4.3
-	golang.org/x/exp v0.0.0-20260209203927-2842357ff358
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect

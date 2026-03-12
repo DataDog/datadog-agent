@@ -104,6 +104,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/no-extensions/datadog/acfg.yaml",
 		},
 		{
+			name:           "extensions/no-extensions/datadog-gateway",
+			provided:       "extensions/no-extensions/datadog-gateway/config.yaml",
+			expectedResult: "extensions/no-extensions/datadog-gateway/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/datadog-gateway/acfg.yaml",
+		},
+		{
 			name:           "extensions/other-extensions/datadog",
 			provided:       "extensions/other-extensions/datadog/config.yaml",
 			expectedResult: "extensions/other-extensions/datadog/config-result.yaml",

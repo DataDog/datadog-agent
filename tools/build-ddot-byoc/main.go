@@ -236,10 +236,6 @@ func replaceDdotBinary(img v1.Image, newBinaryData []byte, binaryPath string) (v
 	newImg := empty.Image
 	newImg = mutate.MediaType(newImg, types.OCIManifestSchema1)
 	newImg = mutate.ConfigMediaType(newImg, agentPackageMediaType)
-	newImg, err = mutate.ConfigFile(newImg, srcConfig)
-	if err != nil {
-		return nil, fmt.Errorf("setting config file: %w", err)
-	}
 	if len(manifest.Annotations) > 0 {
 		newImg = mutate.Annotations(newImg, manifest.Annotations).(v1.Image)
 	}
@@ -282,6 +278,22 @@ func replaceDdotBinary(img v1.Image, newBinaryData []byte, binaryPath string) (v
 	if err != nil {
 		return nil, fmt.Errorf("building modified image: %w", err)
 	}
+
+	// Compute DiffIDs from the actual (post-replacement) layers. We cannot reuse
+	// srcConfig.RootFS.DiffIDs directly because the ddot layer was replaced with new
+	// content, changing its DiffID. Calling mutate.ConfigFile before mutate.Append
+	// would also cause doubled DiffIDs (Append appends on top of the set config).
+	computedCfg, err := newImg.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("computing config DiffIDs: %w", err)
+	}
+	finalConfig := *srcConfig
+	finalConfig.RootFS.DiffIDs = computedCfg.RootFS.DiffIDs
+	newImg, err = mutate.ConfigFile(newImg, &finalConfig)
+	if err != nil {
+		return nil, fmt.Errorf("setting config file: %w", err)
+	}
+
 	return newImg, nil
 }
 

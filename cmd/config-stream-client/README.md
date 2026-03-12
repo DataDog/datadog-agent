@@ -203,7 +203,7 @@ Error: -agent-cert-file is required when connecting to an agent with mTLS-enable
    ```bash
    grep "configstream" /var/log/datadog/agent.log
    ```
-3. Verify RAR is enabled: `remote_agent_registry.enabled: true`
+3. Verify RAR is enabled: `remote_agent.registry.enabled: true`
 
 ### Permission Denied
 

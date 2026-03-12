@@ -124,6 +124,7 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 	calls := 0
 	collector := &gpmCollector{
 		device: &mockGpmDevice{
+			gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
 			GpmSampleGetFunc: func(_ nvml.GpmSample) error {
 				calls++
 				return nil
@@ -282,6 +283,10 @@ func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
 }
 
 func (m *mockGpmDevice) GpmSampleGet(sample nvml.GpmSample) error {
+	if m.gpmSupport.IsSupportedDevice == 0 {
+		return safenvml.NewNvmlAPIErrorOrNil("GpmSampleGet", nvml.ERROR_NOT_SUPPORTED)
+	}
+
 	if m.GpmSampleGetFunc != nil {
 		return m.GpmSampleGetFunc(sample)
 	}

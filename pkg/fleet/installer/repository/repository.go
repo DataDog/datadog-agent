@@ -426,13 +426,17 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
+	// Precompute targets once to avoid repeated filepath.Base calls inside the loop.
+	stableTarget := r.stable.Target()
+	experimentTarget := r.experiment.Target()
+
 	// for all versions that are not stable or experiment:
 	// - if no pre-remove hook is configured, delete the package
 	// - if a pre-remove hook is configured, run the hook and delete the package only if the hook returns true
 	for _, file := range files {
 		isLink := file.Name() == stableVersionLink || file.Name() == experimentVersionLink
-		isStable := r.stable.Exists() && r.stable.Target() == file.Name()
-		isExperiment := r.experiment.Exists() && r.experiment.Target() == file.Name()
+		isStable := stableTarget != "" && stableTarget == file.Name()
+		isExperiment := experimentTarget != "" && experimentTarget == file.Name()
 		if isLink || isStable || isExperiment {
 			continue
 		}

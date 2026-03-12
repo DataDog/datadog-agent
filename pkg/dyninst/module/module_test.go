@@ -855,6 +855,9 @@ func (f *fakeLogsUploaderFactory) GetUploader(
 	return ul
 }
 
+// fakeLogsUploader implements module.LogsUploader.
+var _ module.LogsUploader = (*fakeLogsUploader)(nil)
+
 type fakeLogsUploader struct {
 	messages []json.RawMessage
 	closed   bool

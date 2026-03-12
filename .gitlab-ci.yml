@@ -16,6 +16,9 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
+
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
 .windows_path: &windows_path
   # Windows-specific Go source files (by filename convention)
@@ -116,6 +119,8 @@ include:
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
       - <<: *if_mergequeue
+      - <<: *if_deploy
+      - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
@@ -368,9 +373,6 @@ variables:
 
 .if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "main"
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_deploy_stable: &if_deploy_stable
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"

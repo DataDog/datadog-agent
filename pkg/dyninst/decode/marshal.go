@@ -32,8 +32,15 @@ type logger struct {
 	ThreadName string `json:"thread_name"`
 }
 
+type payloadType string
+
+const (
+	payloadTypeSnapshot payloadType = "snapshot"
+)
+
 type debuggerData struct {
 	Snapshot         snapshotData      `json:"snapshot,omitempty"`
+	Type             payloadType       `json:"type,omitempty"`
 	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
 }
 

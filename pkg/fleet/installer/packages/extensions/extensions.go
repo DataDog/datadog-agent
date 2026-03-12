@@ -107,16 +107,17 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	}
 
 	// Process each extension
+	var installErrors []error
 	for _, extension := range extensions {
 		// Check if extension is already installed with the same package version
 		if _, exists := dbPkg.Extensions[extension]; exists {
-			fmt.Printf("Extension %s already installed, skipping\n", extension)
+			log.Debugf("Extension %s already installed, skipping", extension)
 			continue
 		}
 
 		err := installSingle(ctx, pkg, extension, isExperiment, hooks)
 		if err != nil {
-			fmt.Printf("Failed to install extension %s: %v\n", extension, err)
+			installErrors = append(installErrors, fmt.Errorf("extension %s: %w", extension, err))
 			continue
 		}
 
@@ -124,13 +125,13 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 		dbPkg.Extensions[extension] = struct{}{}
 	}
 
-	// Update DB now that all extensions installed successfully
+	// Update DB with successfully installed extensions
 	err = db.SetPackage(dbPkg, isExperiment)
 	if err != nil {
 		return fmt.Errorf("could not update package in db: %w", err)
 	}
 
-	return nil
+	return errors.Join(installErrors...)
 }
 
 // installSingle installs a single extension for a package.

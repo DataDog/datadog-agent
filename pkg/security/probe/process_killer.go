@@ -621,6 +621,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 		killQueue := time.NewTicker(killQueueTicker)
 
 		defer ticker.Stop()
+		defer killQueue.Stop()
 		state := stopped
 		for {
 			switch state {

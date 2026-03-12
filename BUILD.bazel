@@ -16,6 +16,10 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude internal/tools/independent-lint
 # gazelle:exclude internal/tools/modformatter
 # gazelle:exclude pkg
+# TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
+# Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
+# support or we upgrade to a Bazel version containing a fix: https://github.com/bazelbuild/bazel/pull/26842
+# In the meantime, temporarily remove this exclusion locally if regeneration of BUILD files is required
 # gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test

@@ -6,7 +6,7 @@
 // Package oidresolver resolves OIDs
 package oidresolver
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is a interface to get Trap and Variable metadata from OIDs
 type Component interface {

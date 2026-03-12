@@ -681,3 +681,34 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 func TestFilteredSketches(t *testing.T) {
 	testWithTagsStore(t, testFilteredSketches)
 }
+
+func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	// Generate a context key that is NOT registered in the context resolver.
+	k := ckey.NewKeyGenerator()
+	tb := tagset.NewHashingTagsAccumulator()
+	orphanKey := k.Generate("orphan.metric", "orphanhost", tb)
+
+	// Insert a sketch point directly into sketchMap, bypassing trackContext.
+	// This simulates an inconsistent state where the sketch map references a
+	// context key not present in the context resolver.
+	checkSampler.sketchMap.insert(12345, orphanKey, 1.0, 1.0)
+
+	// Before the fix, commitSketches would call newSketchSeries which would
+	// dereference a nil *Context, causing a panic. After the fix, it logs
+	// an error and skips the sketch.
+	matcher := strings.NewMatcher([]string{}, false)
+	require.NotPanics(t, func() {
+		checkSampler.commit(12349.0, &matcher)
+	})
+
+	// The orphan sketch should be silently dropped.
+	_, sketches := checkSampler.flush()
+	assert.Empty(t, sketches)
+}
+
+func TestNewSketchSeriesWithMissingContext(t *testing.T) {
+	testWithTagsStore(t, testNewSketchSeriesWithMissingContext)
+}

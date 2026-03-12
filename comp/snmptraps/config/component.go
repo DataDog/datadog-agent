@@ -7,7 +7,7 @@
 // a component that provides it.
 package config
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface {

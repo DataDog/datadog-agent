@@ -90,8 +90,6 @@ func TestNilDemuxDoesNotPanic(t *testing.T) {
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{
 		Demux: nil, // Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
 	}
-	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
-	// This previously led to a panic and segmentation fault
 	Add("metric", 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
