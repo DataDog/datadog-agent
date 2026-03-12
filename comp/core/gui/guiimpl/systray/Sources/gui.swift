@@ -158,9 +158,7 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     }
 
     @objc func loginAction(_ sender: Any?) {
-        self.loginStatus = AgentManager.switchLoginStatus()
-        setLoginItemState(state: AgentManager.checkCurrentInstallationMode())
-        updateLoginItem()
+        // No-op: login item is disabled for system-wide installs
     }
 
     @objc func startAgent(_ sender: Any?) {
@@ -235,23 +233,16 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
 
 class AgentManager {
     static let agentServiceName = "com.datadoghq.agent"
-    static let userAgentPlistPath: String = "~/Library/LaunchAgents/com.datadoghq.agent.plist"
     static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
 
     static func status() -> Bool {
-        let (exitCode, stdOut, stdErr) = call(launchPath: "/bin/launchctl", arguments: ["list", agentServiceName])
-
+        let (exitCode, stdOut, _) = call(launchPath: "/bin/launchctl", arguments: ["print", "system/\(agentServiceName)"])
         if exitCode != 0 {
-            Logger.error("Command failed - stdout: \(stdOut), stderr: \(stdErr)", context: "AgentManager")
+            Logger.error("Agent not found in system domain", context: "AgentManager")
             return false
         }
-
-        if stdOut.range(of: "\"PID\"") != nil {
-            return true
-        }
-
-        return false
+        return stdOut.contains("state = running")
     }
 
     // Check if agent process is actually running (not just launchctl status)
@@ -278,9 +269,8 @@ class AgentManager {
     }
 
     static func checkCurrentInstallationMode() -> Bool {
-        let process = bashCall(command: "test -f " + userAgentPlistPath)
-        // True : Single User mode, False : Systemwide Install
-        return process.exitCode == 0 
+        // Always system-wide; returning false disables the "Enable/Disable at login" menu item
+        return false
     }
 
     static func agentCommand(command: String) {
@@ -290,31 +280,9 @@ class AgentManager {
         }
     }
 
-    static func switchLoginStatus() -> Bool {
-        let currentLoginStatus = getLoginStatus()
-        var command: String
-        if currentLoginStatus { // enabled -> disable
-            // `unload` stops a service running for the current user session, the `-w` flag will disable it going forward
-            command = "/bin/launchctl unload -w " + userAgentPlistPath
-        } else { // disabled -> enable
-            // `load` starts a service running for the current user session, the `-w` flag will enable it going forward
-            command = "/bin/launchctl load -w " + userAgentPlistPath
-        }
-        let processInfo = bashCall(command: command)
-        if processInfo.exitCode != 0 {
-            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
-            return currentLoginStatus
-        }
-
-        return !currentLoginStatus
-    }
-
     static func getLoginStatus() -> Bool {
-        let userUIDInfo = bashCall(command: "echo $UID")
-        let userUID = userUIDInfo.stdOut.replacingOccurrences(of: "\n", with: "")
-        let cmd = "print gui/" + userUID + "/" + agentServiceName
-        let processInfo = agentCustomServiceCall(command: cmd)
-        return processInfo.exitCode == 0
+        // Agent always starts at boot in system-wide mode
+        return true
     }
 
     private static func checkStatusAndCall(command: String, timeout: Int, callback: @escaping (Bool) -> Void) {
@@ -335,11 +303,18 @@ class AgentManager {
     }
 
     private static func agentServiceCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
-        return call(launchPath: "/bin/launchctl", arguments: [command, agentServiceName])
-    }
-
-    private static func agentCustomServiceCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {
-        return call(launchPath: "/bin/launchctl", arguments: command.components(separatedBy: " "))
+        switch command {
+        case "stop":
+            // Use the agent's IPC API — no privileges needed, same as `datadog-agent stop`
+            return agentCall(command: "stop")
+        case "start":
+            // Agent isn't running, no IPC server exists — must use launchctl (requires admin)
+            let script = "do shell script \"/bin/launchctl kickstart -k system/\(agentServiceName)\" with administrator privileges"
+            return call(launchPath: "/usr/bin/osascript", arguments: ["-e", script])
+        default:
+            let script = "do shell script \"/bin/launchctl \(command) system/\(agentServiceName)\" with administrator privileges"
+            return call(launchPath: "/usr/bin/osascript", arguments: ["-e", script])
+        }
     }
 
     private static func agentCall(command: String) -> (exitCode: Int32, stdOut: String, stdErr: String) {

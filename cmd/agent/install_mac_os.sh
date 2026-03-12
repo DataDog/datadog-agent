@@ -65,13 +65,6 @@ if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
 fi
 
-# Per-user install only: show the menu bar icon. Defaults to false (headless GUI).
-# Set DD_GUI_APP_MENU_ENABLED=true to remove --headless from the plist and show the menu bar icon.
-gui_app_menu_enabled=false
-if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
-    gui_app_menu_enabled=true
-fi
-
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20   = defaults to highest patch version x.20.2
@@ -89,9 +82,6 @@ fi
 
 arch=$(/usr/bin/uname -m)
 curl_retries=(--retry 2)
-
-# Cleanup tmp files used for installation
-rm -f /tmp/install-ddagent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
@@ -129,46 +119,8 @@ function prepare_dmg_file() {
     fi
 }
 
-systemdaemon_install=false
-systemdaemon_user_group=
-if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
-    systemdaemon_install=$DD_SYSTEMDAEMON_INSTALL
-    if [ -n "$DD_SYSTEMDAEMON_USER_GROUP" ]; then
-        systemdaemon_user_group=$DD_SYSTEMDAEMON_USER_GROUP
-    else
-        printf "${RED}DD_SYSTEMDAEMON_INSTALL set without DD_SYSTEDAEMON_USER_GROUP${NC}\n"
-        exit 1;
-    fi
-    if ! echo "$systemdaemon_user_group" | grep "^[^:]\+:[^:]\+$" > /dev/null; then
-        printf "${RED}DD_SYSTEMDAEMON_USER_GROUP must be in format UserName:GroupName${NC}\n"
-        exit 1;
-    fi
-    if echo "$systemdaemon_user_group" | grep ">\|<" > /dev/null; then
-        printf "${RED}DD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file${NC}\n"
-        exit 1;
-    fi
-    systemdaemon_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
-    systemdaemon_group="$(echo "$systemdaemon_user_group" | awk -F: '{ print $2 }')"
-    if ! id -u "$systemdaemon_user" >/dev/null 2>&1 ; then
-        printf "${RED}User $systemdaemon_user not found, can't proceed with installation${NC}\n"
-        exit 1;
-    fi
-    # dscacheutil -q group output is in form:
-    #   name: groupname
-    #   password: *
-    #   gid: 1001
-    #   users: user1 user2
-    # so we use `grep` and `awk` to get the group name
-    if ! dscacheutil -q group | grep "name:" | awk '{print $2}' | grep -w "$systemdaemon_group" >/dev/null 2>&1; then
-        printf "${RED}Group $systemdaemon_group not found, can't proceed with installation${NC}\n"
-        exit 1;
-    fi
-fi
-
-if [ "$systemdaemon_install" != false ]; then
-  mkdir -p /tmp/install-ddagent
-  touch /tmp/install-ddagent/system-wide
-fi
+DDAGENT_USER="_datadog"
+DDAGENT_GROUP="daemon"  # GID 1, macOS built-in system daemon group
 
 macos_full_version=$(sw_vers -productVersion)
 macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
@@ -238,6 +190,7 @@ if [ -z "$dmg_version" ]; then
     fi
 fi
 
+# COMPAT: agent 5 used DD_UPGRADE + datadog.conf. Can be removed once agent 5 upgrades are no longer supported.
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
         printf "${RED}DD_UPGRADE set but no config was found at $etc_dir/datadog.conf.${NC}\n"
@@ -253,66 +206,6 @@ if [ ! "$apikey" ]; then
     fi
 fi
 
-# Deprecation warning for per-user installations
-if [ "$systemdaemon_install" = false ] && [ ! "$upgrade" ]; then
-    printf "${YELLOW}
-================================================================================
-WARNING: Per-User Installation Mode
-================================================================================
-Per-user installations may be deprecated in the future.
-We recommend using system-wide installation instead going forward.
-
-    DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=<user>:staff \\
-        bash install_mac_os.sh
-
-System-wide installation provides:
-  - Better multi-user support
-  - Consistent behavior across user sessions
-  - Improved security and resource management
-
-Continuing with per-user installation in 10 seconds...
-Press Ctrl+C to cancel and switch to system-wide installation.
-================================================================================
-${NC}\n"
-    sleep 10
-fi
-
-if [ "$systemdaemon_install" == false ] && [ -f "$systemwide_servicefile_name" ]; then
-    printf "${RED}
-$systemwide_servicefile_name exists, suggesting a
-system-wide Agent installation is present. Individual users
-can't install the Agent when system-wide installation exists.
-
-To proceed, uninstall the system-wide agent first:
-    sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this script.
-${NC}\n"
-
-    exit 1;
-fi
-
-# Check for system-wide GUI installation (from partial/failed installations)
-if [ "$systemdaemon_install" == false ] && [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-    printf "${RED}
-System-wide GUI installation detected at:
-    /Library/LaunchAgents/com.datadoghq.gui.plist
-
-This may be from a partial or incomplete system-wide installation.
-Cannot proceed with per-user installation.
-
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this script.
-${NC}\n"
-
-    exit 1;
-fi
 
 
 # SUDO_USER is defined in man sudo: https://linux.die.net/man/8/sudo
@@ -333,17 +226,7 @@ real_user=`if [ "$SUDO_USER" ]; then
 else
   echo "$USER"
 fi`
-# If this is a systemwide install done over SSH or a similar method, the real_user is now root
-# which will eventually make the installation fail in the postinstall script. In this case, we
-# set real_user to the target user of the systemwide installation.
-if [ "$systemdaemon_install" = true ] && [ "$real_user" = root ]; then
-    real_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
-    # The install will copy plist file to real_user home dir => we add `-H`
-    # as a sudo argument to properly get its home for access to the plist file.
-    cmd_real_user="sudo -EHu $real_user"
-else
-    cmd_real_user="sudo -Eu $real_user"
-fi
+cmd_real_user="sudo -Eu $real_user"
 
 TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
 export TMPDIR
@@ -392,14 +275,18 @@ function new_config() {
         $sudo_cmd sh -c "sed $i_cmd 's/# site:.*/site: $site/' \"$etc_dir/datadog.yaml\""
     fi
     $sudo_cmd chown "$real_user":admin "$etc_dir/datadog.yaml"
-    $sudo_cmd chmod 640 $etc_dir/datadog.yaml
+    $sudo_cmd chmod 660 $etc_dir/datadog.yaml
 }
 
+# COMPAT: agent 5 used datadog.conf; this converts it to datadog.yaml. Can be removed once agent 5 upgrades are no longer supported.
 function import_config() {
     printf "${BLUE}\n* Converting old datadog.conf file to new datadog.yaml format\n${NC}\n"
     $cmd_agent import $etc_dir $etc_dir -f
 }
 
+# COMPAT: used to inject UserName/GroupName into DMG plist templates that predate baking them in at build time.
+# Only called when the keys are absent (see call site). Can be removed once all supported DMG versions
+# have UserName/GroupName baked into launchd.plist.example.in.
 function plist_modify_user_group() {
     plist_file="$1"
     user_value="$2"
@@ -407,12 +294,10 @@ function plist_modify_user_group() {
     user_parameter="UserName"
     group_parameter="GroupName"
 
-    # if, in a future agent version we add UserName/GroupName to the plist file,
-    # we want this older version of install script fail, because it wouldn't know what to do
     terms="UserName GroupName"
     for term in $terms; do
         if grep "<key>$term</key>" "$1"; then
-            printf "${RED}$plist_file already contains <key>$term</key>, please update this script to the latest version${NC}\n"
+            printf "${RED}$plist_file already contains <key>$term</key>; it should not be called for plists that already have these keys${NC}\n"
             return 1
         fi
     done
@@ -421,6 +306,35 @@ function plist_modify_user_group() {
     i_cmd="$(sed_inplace_arg)"
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
     $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
+}
+
+function create_ddagent_user() {
+    if id -u "$DDAGENT_USER" >/dev/null 2>&1; then
+        printf "${BLUE}* User $DDAGENT_USER already exists, skipping creation\n${NC}"
+        return 0
+    fi
+
+    printf "${BLUE}* Creating $DDAGENT_USER system user...\n${NC}"
+
+    # Find a free UID in the system range (300-499)
+    local uid=300
+    while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
+        uid=$((uid + 1))
+    done
+    if [ "$uid" -ge 500 ]; then
+        printf "${RED}No free UID available in range 300-499 for $DDAGENT_USER${NC}\n"
+        exit 1
+    fi
+
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER RealName "Datadog Agent"
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER UniqueID "$uid"
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
+    $sudo_cmd dscl . -create /Users/$DDAGENT_USER IsHidden 1
+
+    printf "${GREEN}  ✓ Created $DDAGENT_USER (UID $uid)\n${NC}"
 }
 
 # Function: cleanup_per_user_installation
@@ -554,6 +468,9 @@ if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent 
     fi
 fi
 
+# Create the _datadog system user if it doesn't already exist
+create_ddagent_user
+
 # # Install the agent
 printf "${BLUE}\n* Downloading datadog-agent\n${NC}"
 prepare_dmg_file $dmg_file
@@ -564,8 +481,8 @@ fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
-$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" -nobrowse >/dev/null
-if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
+$sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
+if [ -f "$systemwide_servicefile_name" ]; then
     printf "${BLUE}\n    - Stopping system-wide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
@@ -584,8 +501,8 @@ if [ -f "$sysprobe_servicefile_name" ]; then
     $sudo_cmd rm -f "${sysprobe_servicefile_name}"
 fi
 
-# Stop GUI app before installation/upgrade (handles both per-user and system-wide modes)
-# In system-wide mode, GUI runs for each logged-in user; we need to stop all instances
+# Stop GUI app before installation/upgrade.
+# COMPAT: $user_plist_file check handles upgrades from per-user installations (pre-_datadog user).
 if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
     printf "${BLUE}\n    - Stopping GUI app ...\n${NC}"
 
@@ -604,7 +521,7 @@ if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.pl
     max_wait=100  # 100 * 0.1s = 10 seconds
     count=0
     while [ $count -lt $max_wait ]; do
-        if ! pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
             break
         fi
         sleep 0.1
@@ -620,7 +537,12 @@ if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.pl
 fi
 
 printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
+# COMPAT: old DMG postinst checks for /tmp/install-ddagent/system-wide to take the system-wide path.
+# Can be removed once all supported DMG versions have the updated postinst baked in.
+$sudo_cmd mkdir -p /tmp/install-ddagent
+$sudo_cmd touch /tmp/install-ddagent/system-wide
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
+$sudo_cmd rm -rf /tmp/install-ddagent
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
@@ -633,7 +555,7 @@ install_method:
 "
 $sudo_cmd sh -c "echo '$install_info_content' > $etc_dir/install_info"
 $sudo_cmd chown "$real_user":admin "$etc_dir/install_info"
-$sudo_cmd chmod 640 $etc_dir/install_info
+$sudo_cmd chmod 660 $etc_dir/install_info
 
 # Set the configuration
 if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
@@ -642,90 +564,54 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     else
         new_config
     fi
-    printf "\n${BLUE}* Restarting the Agent...\n${NC}\n"
-    # systemwide installation is stopped at this point and will be started later on
-    if [ "$systemdaemon_install" != true ]; then
-      $cmd_launchctl stop $service_name
-
-      # Wait for the agent to fully stop
-      retry=0
-      until [ "$retry" -ge 5 ]; do
-          curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
-          retry=$[$retry+1]
-          sleep 5
-      done
-      if [ "$retry" -ge 5 ]; then
-          printf "\n${YELLOW}Could not restart the agent.
-You may have to restart it manually using the systray app or the
-\"launchctl start $service_name\" command.\n${NC}\n"
-      fi
-
-      $cmd_launchctl start $service_name
-    fi
+    printf "\n${BLUE}* Agent will be started after service setup ...\n${NC}\n"
 else
     printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
 fi
 
-# Per-user GUI: plist has --headless by default; optionally strip it and reload launchd here
-user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
-if [ "$systemdaemon_install" = false ] && [ "$gui_app_menu_enabled" = true ] && [ -f "$user_gui_plist" ]; then
-    printf "${BLUE}\n    - Enabling menu bar GUI...\n${NC}"
-    $sudo_cmd sed -i '' '/<string>--headless<\/string>/d' "$user_gui_plist"
-    # Restart the GUI so it picks up the updated plist without --headless
-    $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-    # Wait for the old process to fully exit before loading the new configuration
-    count=0
-    while pgrep -U "$user_uid" -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1 && [ $count -lt 20 ]; do
-        sleep 0.5
-        count=$((count + 1))
-    done
-    $cmd_launchctl load -w "$user_gui_plist"
+# Install $service_name as a system-wide LaunchDaemon
+printf "${BLUE}\n* Installing $service_name as a system-wide LaunchDaemon ...\n\n${NC}"
+# COMPAT: agents < 7.52.0 ran as a per-user LaunchAgent; remove the login item and unload if still present.
+if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
+    $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
+    $cmd_launchctl stop "$service_name"
+    $cmd_launchctl unload "$user_plist_file"
 fi
 
-# Per-user: GUI is started by postinst (headless) or by launchctl load above (menu bar); no open needed
-if [ "$systemdaemon_install" != false ]; then
-    printf "${BLUE}\n* Installing $service_name as a system-wide LaunchDaemon ...\n\n${NC}"
-    # Remove the Agent login item and unload the agent for current user
-    # if it is running - it's not running if the script was launched when
-    # the GUI was not running for the user (e.g. a run of this script via
-    # ssh for user not logged in via GUI).
-    # This condition is true only when installing an agent < 7.52.0
-    if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
-        $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
-        $cmd_launchctl stop "$service_name"
-        $cmd_launchctl unload "$user_plist_file"
-    fi
+# COMPAT: clean up the installing user's per-user GUI plist from pre-_datadog installations.
+installing_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
+if [ -f "$installing_user_gui_plist" ]; then
+    printf "${BLUE}    - Removing installing user's per-user GUI plist...\n${NC}"
+    rm -f "$installing_user_gui_plist"
+    printf "${GREEN}      ✓ Per-user GUI plist removed\n${NC}"
+fi
 
-    # Clean up installing user's per-user GUI plist (if exists from previous per-user installation)
-    installing_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
-    if [ -f "$installing_user_gui_plist" ]; then
-        printf "${BLUE}    - Removing installing user's per-user GUI plist...\n${NC}"
-        rm -f "$installing_user_gui_plist"
-        printf "${GREEN}      ✓ Per-user GUI plist removed\n${NC}"
-    fi
+# COMPAT: remove per-user agent plists for all other users from pre-_datadog installations.
+cleanup_all_per_user_installations
 
-    # Clean up per-user installations for ALL users on the system
-    # This prevents conflicts when other users log in after system-wide installation
-    cleanup_all_per_user_installations
+# Move the plist file to the system location
+$sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
+# COMPAT: inject UserName/GroupName if the DMG plist template predates having them baked in.
+# Can be removed once all supported DMG versions include UserName/GroupName in launchd.plist.example.in.
+if ! $sudo_cmd grep -q "<key>UserName</key>" "$systemwide_servicefile_name"; then
+    plist_modify_user_group "$systemwide_servicefile_name" "$DDAGENT_USER" "$DDAGENT_GROUP"
+fi
+$sudo_cmd chown "0:0" "$systemwide_servicefile_name"
+$sudo_cmd chmod 644 "$systemwide_servicefile_name"
+$sudo_cmd chown -R "$DDAGENT_USER:admin" "$etc_dir" "$log_dir" "$run_dir"
+$sudo_cmd chmod 770 "$etc_dir" "$log_dir"
+$sudo_cmd chmod 775 "$run_dir"
+$sudo_cmd find "$etc_dir" -type f -exec $sudo_cmd chmod 660 {} \;
+$sudo_cmd launchctl load -w "$systemwide_servicefile_name"
+$sudo_cmd launchctl kickstart "system/$service_name"
 
-    # move the plist file to the system location
-    $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
-    # make sure the daemon launches under proper user/group and that it has access
-    # to all files/dirs it needs; then start it
-    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user" "$systemdaemon_group"
-    $sudo_cmd chown "0:0" "$systemwide_servicefile_name"
-    $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
-    $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
-    $sudo_cmd launchctl kickstart "system/$service_name"
-
-    # Try to load headless GUI app for current user if they have a user session
-    # The headless GUI LaunchAgent was installed in /Library/LaunchAgents/ by postinst
-    if $cmd_real_user launchctl managername | grep -q "Aqua"; then
-        printf "${BLUE}\n* User session detected, loading headless GUI app for current user...\n${NC}"
-        $cmd_real_user launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
-    else
-        printf "${BLUE}\n* No user session detected, headless GUI app will launch at next user login\n${NC}"
-    fi
+# Try to load headless GUI app for current user if they have a user session
+# The headless GUI LaunchAgent was installed in /Library/LaunchAgents/ by postinst
+if $cmd_real_user launchctl managername | grep -q "Aqua"; then
+    printf "${BLUE}\n* User session detected, loading headless GUI app for current user...\n${NC}"
+    $cmd_real_user launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
+else
+    printf "${BLUE}\n* No user session detected, headless GUI app will launch at next user login\n${NC}"
 fi
 
 # Set up and start the system-probe service if this version includes support for it
@@ -734,6 +620,7 @@ if [ -f "$sysprobe_plist_example_file" ]; then
     printf "${BLUE}\n* Setting up system-probe ($sysprobe_service_name) as a system-wide LaunchDaemon ...\n\n${NC}"
     $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
     $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
+    $sudo_cmd chmod 644 "$sysprobe_servicefile_name"
     $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
 fi
@@ -749,14 +636,7 @@ or by opening the webui using the \"datadog-agent launch-gui\" command.
 
 ${NC}"
 
-if [ "$systemdaemon_install" = false ]; then
-    printf "${GREEN}
-If you ever want to stop the Agent, please use the Datadog Agent App or
-the launchctl command. It will start automatically at login.
-${NC}"
-else
-    printf "${GREEN}
-If you ever want to stop the Agent, please use the the launchctl command.
+printf "${GREEN}
+If you ever want to stop the Agent, please use the launchctl command.
 The Agent will start automatically at system startup.
 ${NC}"
-fi
