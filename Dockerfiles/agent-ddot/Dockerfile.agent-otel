@@ -19,6 +19,8 @@ ARG AGENT_GIT_REF
 ARG CI
 ARG DDA_VERSION=v0.29.0
 ARG PACKAGE_TYPE
+ARG GOPROXY
+ARG GONOSUMDB
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -75,6 +77,8 @@ RUN GO_VERSION=$(cat .go-version) && \
 ENV PATH="/usr/local/go/bin:${PATH}"
 RUN mkdir /go
 ENV GOPATH=/go
+ENV GOPROXY=$GOPROXY
+ENV GONOSUMDB=$GONOSUMDB
 
 # Verify installations
 RUN go version && \
