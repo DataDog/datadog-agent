@@ -86,6 +86,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, err
 	}
 	ddebpf.AddNameMappings(p.mgr.Manager, "lock_contention_check")
+	ddebpf.AddProbeFDMappings(p.mgr.Manager)
 	return p, nil
 }
 
