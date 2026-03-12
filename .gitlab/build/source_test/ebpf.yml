@@ -58,6 +58,8 @@ tests_ebpf_arm64:
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   artifacts:
     when: always
     paths:
