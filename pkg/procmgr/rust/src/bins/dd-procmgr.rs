@@ -659,3 +659,109 @@ async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_state_name_all_variants() {
+        assert_eq!(state_name(proto::ProcessState::Unknown as i32), "Unknown");
+        assert_eq!(state_name(proto::ProcessState::Created as i32), "Created");
+        assert_eq!(
+            state_name(proto::ProcessState::Starting as i32),
+            "Starting"
+        );
+        assert_eq!(state_name(proto::ProcessState::Running as i32), "Running");
+        assert_eq!(
+            state_name(proto::ProcessState::Stopping as i32),
+            "Stopping"
+        );
+        assert_eq!(state_name(proto::ProcessState::Stopped as i32), "Stopped");
+        assert_eq!(state_name(proto::ProcessState::Crashed as i32), "Crashed");
+        assert_eq!(state_name(proto::ProcessState::Exited as i32), "Exited");
+        assert_eq!(state_name(proto::ProcessState::Failed as i32), "Failed");
+    }
+
+    #[test]
+    fn test_state_name_invalid() {
+        assert_eq!(state_name(9999), "Unknown");
+        assert_eq!(state_name(-1), "Unknown");
+    }
+
+    #[test]
+    fn test_short_uuid_normal() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(short_uuid(uuid), "550e8400");
+    }
+
+    #[test]
+    fn test_short_uuid_exactly_8() {
+        assert_eq!(short_uuid("abcdefgh"), "abcdefgh");
+    }
+
+    #[test]
+    fn test_short_uuid_shorter_than_8() {
+        assert_eq!(short_uuid("abc"), "abc");
+    }
+
+    #[test]
+    fn test_short_uuid_empty() {
+        assert_eq!(short_uuid(""), "");
+    }
+
+    #[test]
+    fn test_format_duration_hours_mins_secs() {
+        assert_eq!(format_duration(3 * 3600 + 24 * 60 + 15), "3h 24m 15s");
+    }
+
+    #[test]
+    fn test_format_duration_mins_secs() {
+        assert_eq!(format_duration(5 * 60 + 30), "5m 30s");
+    }
+
+    #[test]
+    fn test_format_duration_secs_only() {
+        assert_eq!(format_duration(42), "42s");
+    }
+
+    #[test]
+    fn test_format_duration_zero() {
+        assert_eq!(format_duration(0), "0s");
+    }
+
+    #[test]
+    fn test_format_duration_exact_hour() {
+        assert_eq!(format_duration(3600), "1h 0m 0s");
+    }
+
+    #[test]
+    fn test_parse_env_args_valid() {
+        let args = vec!["KEY=value".to_string(), "FOO=bar".to_string()];
+        let map = parse_env_args(&args).unwrap();
+        assert_eq!(map.get("KEY").unwrap(), "value");
+        assert_eq!(map.get("FOO").unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_parse_env_args_value_with_equals() {
+        let args = vec!["PATH=/usr/bin:/usr/local/bin".to_string()];
+        let map = parse_env_args(&args).unwrap();
+        assert_eq!(map.get("PATH").unwrap(), "/usr/bin:/usr/local/bin");
+    }
+
+    #[test]
+    fn test_parse_env_args_empty() {
+        let args: Vec<String> = vec![];
+        let map = parse_env_args(&args).unwrap();
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_parse_env_args_missing_equals() {
+        let args = vec!["INVALID".to_string()];
+        let err = parse_env_args(&args).unwrap_err();
+        assert!(err.contains("INVALID"));
+        assert!(err.contains("KEY=VALUE"));
+    }
+}
