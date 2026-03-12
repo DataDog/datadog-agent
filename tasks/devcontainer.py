@@ -89,6 +89,8 @@ def setup(
         "--name",
         "datadog-agent-devcontainer",
     ]
+    if devcontainer.get("image") and devcontainer["image"].endswith("amd64"):
+        devcontainer["runArgs"].append("--platform=linux/amd64")
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
