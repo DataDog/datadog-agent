@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import MagicMock
 
 from tasks.libs.testing.utof import UTOFMetadata, format_report
 from tasks.libs.testing.utof.metadata import generate_metadata
@@ -159,28 +160,35 @@ class TestUTOFModels(unittest.TestCase):
 class TestGenerateMetadata(unittest.TestCase):
     """Test metadata generation from environment context."""
 
+    def setUp(self):
+        self.ctx = MagicMock()
+        result = MagicMock()
+        result.ok = True
+        result.stdout = ""
+        self.ctx.run.return_value = result
+
     def test_test_system_unit(self):
-        self.assertEqual(generate_metadata("unit").test_system, "unit")
+        self.assertEqual(generate_metadata(self.ctx, "unit").test_system, "unit")
 
     def test_test_system_e2e(self):
-        self.assertEqual(generate_metadata("e2e").test_system, "e2e")
+        self.assertEqual(generate_metadata(self.ctx, "e2e").test_system, "e2e")
 
     def test_test_system_kmt(self):
-        self.assertEqual(generate_metadata("kmt").test_system, "kmt")
+        self.assertEqual(generate_metadata(self.ctx, "kmt").test_system, "kmt")
 
     def test_test_system_smp(self):
-        self.assertEqual(generate_metadata("smp").test_system, "smp")
+        self.assertEqual(generate_metadata(self.ctx, "smp").test_system, "smp")
 
     def test_environment_populated(self):
-        meta = generate_metadata("unit")
+        meta = generate_metadata(self.ctx, "unit")
         self.assertIsInstance(meta.environment, UTOFEnvironmentMetadata)
         self.assertGreater(len(meta.environment.os), 0)
 
     def test_timestamp_set(self):
-        self.assertGreater(len(generate_metadata("unit").timestamp), 0)
+        self.assertGreater(len(generate_metadata(self.ctx, "unit").timestamp), 0)
 
     def test_flavor_stored(self):
-        meta = generate_metadata("unit", flavor="heroku")
+        meta = generate_metadata(self.ctx, "unit", flavor="heroku")
         self.assertEqual(meta.environment.agent_flavor, "heroku")
 
 

@@ -35,7 +35,7 @@ def _status_badge(status: str) -> str:
         "fail": color_message(" FAIL ", "red"),
         "skip": color_message(" SKIP ", "grey"),
         "flaky_pass": color_message(" FLAKY PASS ", "orange"),
-        "flaky_fail": color_message(" FLAKY FAIL ", "orange"),
+        "flaky_fail": color_message(" FLAKY FAIL ", "magenta"),
     }
     return badges.get(status, status.upper())
 
