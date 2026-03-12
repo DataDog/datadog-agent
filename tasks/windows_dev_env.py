@@ -27,26 +27,26 @@ _DD_MODULE_PREFIX = "github.com/DataDog/datadog-agent/"
 # ---------------------------------------------------------------------------
 
 
-def _state_file_path(name: str) -> str:
-    return f"/tmp/windev_{name}_state.json"
+def _state_file_path(name: str, command_type: str) -> str:
+    return f"/tmp/windev_{name}_{command_type}_state.json"
 
 
-def _output_file_path(name: str) -> str:
-    return f"/tmp/windev_{name}_output.txt"
+def _output_file_path(name: str, command_type: str) -> str:
+    return f"/tmp/windev_{name}_{command_type}_output.txt"
 
 
 def _write_state(name: str, state: dict) -> None:
     """Atomically write the state JSON (write to temp file then rename)."""
-    path = _state_file_path(name)
+    path = _state_file_path(name, state["command"])
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(state, f)
     os.rename(tmp, path)
 
 
-def _read_state(name: str) -> dict | None:
+def _read_state(name: str, command_type: str) -> dict | None:
     try:
-        with open(_state_file_path(name)) as f:
+        with open(_state_file_path(name, command_type)) as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
@@ -540,10 +540,10 @@ def _test_runner_loop(
     When the process is killed by _enqueue (negative returncode on Unix), the run is
     treated as cancelled: no 'finished' state is written and the loop moves on immediately.
     """
-    output_path = _output_file_path(name)
     while True:
         command_type, packages, ssh_cmd = work_queue.get()
         sorted_packages = sorted(packages)
+        output_path = _output_file_path(name, command_type)
         start_time = datetime.now()
         _write_state(
             name,
@@ -657,7 +657,7 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
     """
     norm_packages = _normalize_packages(packages)
 
-    state = _read_state(name)
+    state = _read_state(name, command_type)
     if state:
         pid = state.get("watcher_pid")
         if pid and not _pid_alive(pid):
@@ -702,7 +702,7 @@ def _attach_to_output(name: str, state: dict) -> int:
                     sys.stdout.write(chunk)
                     sys.stdout.flush()
                 else:
-                    current = _read_state(name)
+                    current = _read_state(name, state["command"])
                     if current and current["status"] == "finished":
                         remaining = f.read()
                         if remaining:
