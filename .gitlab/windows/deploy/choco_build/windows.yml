@@ -10,6 +10,9 @@
   extends: .windows_docker_default
   variables:
     ARCH: "x64"
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
