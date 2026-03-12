@@ -21,8 +21,17 @@ def load_and_validate(
     result: dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
         for key, value in yaml.safe_load(file_stream).items():
-            if not (isinstance(key, str) and isinstance(value, str)):
-                raise ValueError(f"File {file_name} contains a non-string key or value. Key: {key}, Value: {value}")
+            if not isinstance(key, str):
+                raise ValueError(f"File {file_name} contains a non-string key. Key: {key}")
+            # Support dict values with a 'name' field (e.g. {name: '#channel'})
+            if isinstance(value, dict):
+                if 'name' not in value:
+                    raise ValueError(
+                        f"File {file_name} has a dict value without 'name' key. Key: {key}, Value: {value}"
+                    )
+                value = value['name']
+            if not isinstance(value, str):
+                raise ValueError(f"File {file_name} contains a non-string value. Key: {key}, Value: {value}")
             result[key] = default_value if value == default_placeholder else value
     return result
 

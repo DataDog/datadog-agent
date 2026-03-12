@@ -4,57 +4,111 @@
 # Note that the values must be quoted if they contain a '#' symbol, because
 # YAML interprets that as the beginning of a comment. Keys must also be quoted
 # because the '@' symbol is reserved in YAML.
-'@datadog/action-platform': '#action-platform-reviews'
-'@datadog/agent-all': '#datadog-agent-pipelines'
-'@datadog/agent-apm': '#apm-agent'
-'@datadog/agent-build': '#agent-build-reviews'
-'@datadog/agent-configuration': '#agent-configuration-ops'
-'@datadog/agent-cspm': '#security-and-compliance-agent'
-'@datadog/agent-delivery': '#agent-delivery-reviews'
-'@datadog/agent-devx': '#agent-devx-reviews'
-'@datadog/agent-discovery': '#agent-discovery'
-'@datadog/agent-health': '#agent-health'
-'@datadog/agent-integrations': '#agent-integrations-reviews'
-'@datadog/agent-log-pipelines': '#agent-log-pipelines'
-'@datadog/agent-metric-pipelines': '#agent-metric-pipelines'
-'@datadog/agent-metrics-logs': '#agent-metrics-logs'
-'@datadog/agent-onboarding': '#agent-onboarding-ops'
-'@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
-'@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
-'@datadog/agent-runtimes': '#agent-runtimes-reviews'
-'@datadog/agent-security': '#security-and-compliance-agent'
-'@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
-'@datadog/apm-onboarding': '#apm-onboarding'
-'@datadog/apm-trace-storage': '#apm-trace-storage'
-'@datadog/asm-go': '#k9-library-go'
-'@datadog/cloud-network-monitoring': '#cnm-agent'
-'@datadog/container-autoscaling': '#container-autoscaling'
-'@datadog/container-experiences': '#container-experiences'
-'@datadog/container-integrations': '#container-integrations'
-'@datadog/container-platform': '#container-platform'
-'@datadog/core-authn': '#aaa-authn'
-'@datadog/data-jobs-monitoring': '#data-jobs-monitoring'
-'@datadog/data-streams-monitoring': '#data-streams-monitoring'
-'@datadog/database-monitoring': '#database-monitoring'
-'@datadog/debugger-go': '#debugger-go'
-'@datadog/documentation': '#documentation'
-'@datadog/ecs-experiences': '#ecs-experiences'
-'@datadog/ebpf-platform': '#ebpf-platform'
-'@datadog/fleet': '#fleet-automation'
-'@datadog/injection-platform': '#injection-platform'
-'@datadog/kubernetes-experiences': '#kubernetes-experiences'
-'@datadog/metrics-aggregation': '#metrics-aggregation'
-'@datadog/network-device-monitoring-core': '#ndm-core'
-'@datadog/ndm-integrations': '#ndm-integrations'
-'@datadog/network-path': '#network-path-dev'
-'@datadog/opentelemetry': '#opentelemetry-ops'
-'@datadog/opentelemetry-agent': '#opentelemetry-agent'
-'@datadog/profiling-full-host': '#profiling-full-host-project'
-'@datadog/remote-config': '#remote-config-platform'
-'@datadog/sdlc-security': '#sdlc-security'
-'@datadog/serverless': '#serverless-agent'
-'@datadog/serverless-azure-gcp': '#serverless-azure-gcp-team'
-'@datadog/single-machine-performance': '#single-machine-performance'
-'@datadog/synthetics-executing': '#synthetics'
-'@datadog/universal-service-monitoring': '#universal-service-monitoring'
-'@datadog/windows-products': '#windows-products-reviews'
+'@datadog/action-platform':
+  name: '#action-platform-reviews'
+'@datadog/agent-all':
+  name: '#datadog-agent-pipelines'
+'@datadog/agent-apm':
+  name: '#apm-agent'
+'@datadog/agent-build':
+  name: '#agent-build-reviews'
+'@datadog/agent-configuration':
+  name: '#agent-configuration-ops'
+'@datadog/agent-cspm':
+  name: '#security-and-compliance-agent'
+'@datadog/agent-delivery':
+  name: '#agent-delivery-reviews'
+'@datadog/agent-devx':
+  name: '#agent-devx-reviews'
+'@datadog/agent-discovery':
+  name: '#agent-discovery'
+'@datadog/agent-health':
+  name: '#agent-health'
+'@datadog/agent-integrations':
+  name: '#agent-integrations-reviews'
+'@datadog/agent-log-pipelines':
+  name: '#agent-log-pipelines'
+'@datadog/agent-metric-pipelines':
+  name: '#agent-metric-pipelines'
+'@datadog/agent-metrics-logs':
+  name: '#agent-metrics-logs'
+'@datadog/agent-onboarding':
+  name: '#agent-onboarding-ops'
+'@datadog/agent-platform':
+  name: DEFAULT_SLACK_CHANNEL
+'@datadog/agent-processing-and-routing':
+  name: '#agent-processing-and-routing'
+'@datadog/agent-runtimes':
+  name: '#agent-runtimes-reviews'
+'@datadog/agent-security':
+  name: '#security-and-compliance-agent'
+'@datadog/apm-ecosystems-performance':
+  name: '#apm-benchmarking-platform'
+'@datadog/apm-onboarding':
+  name: '#apm-onboarding'
+'@datadog/apm-trace-storage':
+  name: '#apm-trace-storage'
+'@datadog/asm-go':
+  name: '#k9-library-go'
+'@datadog/cloud-network-monitoring':
+  name: '#cnm-agent'
+'@datadog/container-autoscaling':
+  name: '#container-autoscaling'
+'@datadog/container-experiences':
+  name: '#container-experiences'
+'@datadog/container-integrations':
+  name: '#container-integrations'
+'@datadog/container-platform':
+  name: '#container-platform'
+'@datadog/core-authn':
+  name: '#aaa-authn'
+'@datadog/data-jobs-monitoring':
+  name: '#data-jobs-monitoring'
+'@datadog/data-streams-monitoring':
+  name: '#data-streams-monitoring'
+'@datadog/database-monitoring':
+  name: '#database-monitoring'
+'@datadog/debugger-go':
+  name: '#debugger-go'
+'@datadog/documentation':
+  name: '#documentation'
+'@datadog/ecs-experiences':
+  name: '#ecs-experiences'
+'@datadog/ebpf-platform':
+  name: '#ebpf-platform'
+'@datadog/fleet':
+  name: '#fleet-automation'
+'@datadog/injection-platform':
+  name: '#injection-platform'
+'@datadog/kubernetes-experiences':
+  name: '#kubernetes-experiences'
+'@datadog/metrics-aggregation':
+  name: '#metrics-aggregation'
+'@datadog/network-device-monitoring-core':
+  name: '#ndm-core'
+'@datadog/ndm-integrations':
+  name: '#ndm-integrations'
+'@datadog/network-path':
+  name: '#network-path-dev'
+'@datadog/opentelemetry':
+  name: '#opentelemetry-ops'
+'@datadog/opentelemetry-agent':
+  name: '#opentelemetry-agent'
+'@datadog/profiling-full-host':
+  name: '#profiling-full-host-project'
+'@datadog/remote-config':
+  name: '#remote-config-platform'
+'@datadog/sdlc-security':
+  name: '#sdlc-security'
+'@datadog/serverless':
+  name: '#serverless-agent'
+'@datadog/serverless-azure-gcp':
+  name: '#serverless-azure-gcp-team'
+'@datadog/single-machine-performance':
+  name: '#single-machine-performance'
+'@datadog/synthetics-executing':
+  name: '#synthetics'
+'@datadog/universal-service-monitoring':
+  name: '#universal-service-monitoring'
+'@datadog/windows-products':
+  name: '#windows-products-reviews'
