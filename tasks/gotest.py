@@ -219,8 +219,10 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
         print(f"Unified test output written to {utof_path}")
         with gitlab_section("Unified test report", collapsed=True):
             print(format_report(utof))
-    except Exception as e:
-        print(f"Warning: Failed to generate unified test output: {e}")
+    except Exception:
+        import traceback
+
+        print(f"Warning: Failed to generate unified test output:\n{traceback.format_exc()}")
 
 
 def process_test_result(
@@ -230,6 +232,7 @@ def process_test_result(
         produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
+    tw = None
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -245,16 +248,14 @@ def process_test_result(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
         should_succeed = tw.process_result(test_result)
-        _generate_unified_output(test_result, flavor, tw=tw)
         if should_succeed:
             print(
                 color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
             )
+            _generate_unified_output(test_result, flavor, tw=tw)
             return True
 
-    else:
-        _generate_unified_output(test_result, flavor, tw=None)
-
+    _generate_unified_output(test_result, flavor, tw=tw)
     return False
 
 

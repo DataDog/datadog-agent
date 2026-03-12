@@ -14,7 +14,6 @@ from tasks.libs.testing.utof.go_parser.failure_parser import (
     _extract_stacktrace_from_raw_output,
     _parse_assertion_blocks,
 )
-from tasks.libs.testing.utof.go_parser.run_parser import count_leaves
 from tasks.libs.testing.utof.go_unit import convert_unit_test_results
 from tasks.libs.testing.utof.models import (
     UTOFAttempt,

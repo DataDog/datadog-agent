@@ -1,11 +1,5 @@
 """Shared Go test2json output parsing — used by all Go-based UTOF converters."""
 
-from tasks.libs.testing.utof.go_parser.failure_parser import (
-    _extract_failure_info,
-    _extract_message_from_raw_output,
-    _extract_stacktrace_from_raw_output,
-    _parse_assertion_blocks,
-)
 from tasks.libs.testing.utof.go_parser.run_parser import (
     build_attempts,
     build_summary,
@@ -22,12 +16,6 @@ from tasks.libs.testing.utof.go_parser.run_parser import (
 )
 
 __all__ = [
-    # failure_parser
-    "_extract_failure_info",
-    "_extract_message_from_raw_output",
-    "_extract_stacktrace_from_raw_output",
-    "_parse_assertion_blocks",
-    # run_parser
     "build_attempts",
     "build_summary",
     "build_test_tree",

@@ -119,73 +119,52 @@ def build_test_tree(
     Returns only root-level tests; subtests are nested inside via the
     ``subtests`` field.  When a parent entry is missing from the results,
     a synthetic node is created using ``suite_fn`` to derive its suite field.
+    Handles arbitrary nesting depth.
     """
     by_full_name: dict[str, UTOFTestResult] = {r.full_name: r for r in flat_results}
-    synthetics: dict[str, UTOFTestResult] = {}
     attached: set[str] = set()
 
-    for result in flat_results:
-        full = result.full_name
-        idx = full.rfind("/")
-        if idx < 0:
-            continue  # top-level test, will be a root
+    def _get_or_create(full_name: str, ref_result: UTOFTestResult) -> UTOFTestResult:
+        """Return an existing node or create a synthetic one."""
+        existing = by_full_name.get(full_name)
+        if existing is not None:
+            return existing
+        synthetic = UTOFTestResult(
+            id=generate_test_id(ref_result.package, full_name),
+            name=leaf_name(full_name),
+            full_name=full_name,
+            package=ref_result.package,
+            suite=suite_fn(full_name),
+            type=ref_result.type,
+            status="pass",
+        )
+        by_full_name[full_name] = synthetic
+        return synthetic
 
-        parent_full = full[:idx]
-        parent = by_full_name.get(parent_full)
-        if parent is None:
-            parent = UTOFTestResult(
-                id=generate_test_id(result.package, parent_full),
-                name=leaf_name(parent_full),
-                full_name=parent_full,
-                package=result.package,
-                suite=suite_fn(parent_full),
-                type=result.type,
-                status="pass",
-            )
-            by_full_name[parent_full] = parent
-            synthetics[parent_full] = parent
+    # Attach each result to its parent, creating synthetic ancestors as needed.
+    # Process all names (including newly created synthetics) by iterating until
+    # no new attachments are made.
+    to_attach = [r.full_name for r in flat_results]
+    while to_attach:
+        next_round: list[str] = []
+        for full in to_attach:
+            idx = full.rfind("/")
+            if idx < 0:
+                continue  # root node
+            parent_full = full[:idx]
+            parent = _get_or_create(parent_full, by_full_name[full])
+            if parent.subtests is None:
+                parent.subtests = []
+            child = by_full_name[full]
+            if child not in parent.subtests:
+                parent.subtests.append(child)
+            attached.add(full)
+            # If the parent was just created, it also needs attaching
+            if parent_full not in attached and "/" in parent_full:
+                next_round.append(parent_full)
+        to_attach = next_round
 
-        if parent.subtests is None:
-            parent.subtests = []
-        parent.subtests.append(result)
-        attached.add(full)
-
-    # Attach synthetic nodes to their own parents
-    for syn_full, syn_result in list(synthetics.items()):
-        idx = syn_full.rfind("/")
-        if idx < 0:
-            continue
-        grandparent_full = syn_full[:idx]
-        grandparent = by_full_name.get(grandparent_full)
-        if grandparent is None:
-            grandparent = UTOFTestResult(
-                id=generate_test_id(syn_result.package, grandparent_full),
-                name=leaf_name(grandparent_full),
-                full_name=grandparent_full,
-                package=syn_result.package,
-                suite=suite_fn(grandparent_full),
-                type=syn_result.type,
-                status="pass",
-            )
-            by_full_name[grandparent_full] = grandparent
-            synthetics[grandparent_full] = grandparent
-        if grandparent.subtests is None:
-            grandparent.subtests = []
-        grandparent.subtests.append(syn_result)
-        attached.add(syn_full)
-
-    roots: list[UTOFTestResult] = []
-    seen: set[str] = set()
-    for result in flat_results:
-        if result.full_name not in attached and result.full_name not in seen:
-            roots.append(result)
-            seen.add(result.full_name)
-    for syn_full, syn_result in synthetics.items():
-        if syn_full not in attached and syn_full not in seen:
-            roots.append(syn_result)
-            seen.add(syn_full)
-
-    return roots
+    return [r for r in by_full_name.values() if r.full_name not in attached]
 
 
 def count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
@@ -201,9 +180,9 @@ def count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
                 _walk(sub)
         else:
             counts["total"] += 1
-            if t.status == "pass":
+            if t.status in ("pass", "flaky_pass"):
                 counts["passed"] += 1
-            elif t.status == "fail":
+            elif t.status in ("fail", "flaky_fail"):
                 counts["failed"] += 1
             elif t.status == "skip":
                 counts["skipped"] += 1
