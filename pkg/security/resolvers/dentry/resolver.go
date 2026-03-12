@@ -371,6 +371,11 @@ func (dr *Resolver) computeSegmentCount() int {
 }
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
+func isRetryableERPCError(err error) bool {
+	// Only retry on request not processed - indicates kernel hasn't processed request yet
+	return errors.Is(err, errERPCRequestNotProcessed)
+}
+
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
 	var resolutionErr error
 	depth := int64(0)
@@ -459,15 +464,28 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		t := time.Now()
-		path, err = dr.ResolveFromERPC(pathKey, cache)
-		durationMicrosec := time.Since(t).Microseconds()
+		maxRetries := dr.config.ERPCDentryResolutionRetries
+		if maxRetries < 0 {
+			maxRetries = 0
+		}
 
-		// update in-line average
-		dr.erpcResolutionTimesLock.Lock()
-		dr.erpcResolutionNumValues++
-		dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
-		dr.erpcResolutionTimesLock.Unlock()
+		// Try initial attempt + retries
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			t := time.Now()
+			path, err = dr.ResolveFromERPC(pathKey, cache)
+			durationMicrosec := time.Since(t).Microseconds()
+
+			// update in-line average
+			dr.erpcResolutionTimesLock.Lock()
+			dr.erpcResolutionNumValues++
+			dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
+			dr.erpcResolutionTimesLock.Unlock()
+
+			// If success or non-retryable error, stop retrying
+			if err == nil || !isRetryableERPCError(err) {
+				break
+			}
+		}
 	}
 	return path, err
 }
