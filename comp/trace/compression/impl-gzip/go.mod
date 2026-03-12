@@ -49,6 +49,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/host-profiler => ../../../../comp/host-profiler
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
