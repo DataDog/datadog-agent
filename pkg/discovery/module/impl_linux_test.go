@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -101,8 +102,11 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	socketDir := t.TempDir()
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
+	cfg := &splite.Config{Socket: socketPath}
+	cmdArgs := cfg.Args()
+
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binaryPath, "--socket", socketPath)
+	cmd := exec.CommandContext(ctx, binaryPath, cmdArgs[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Start())

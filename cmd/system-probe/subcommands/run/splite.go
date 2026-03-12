@@ -14,6 +14,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
@@ -49,15 +50,13 @@ type spLiteExecCmd struct {
 
 // buildSPLiteArgs builds the command-line arguments for the system-probe-lite binary.
 func buildSPLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string) []string {
-	args := []string{"system-probe-lite",
-		"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		"--log-level", sysprobeConfig.GetString("log_level"),
-		"--log-file", sysprobeConfig.GetString("log_file"),
+	cfg := &splite.Config{
+		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		LogLevel: sysprobeConfig.GetString("log_level"),
+		LogFile:  sysprobeConfig.GetString("log_file"),
+		PIDFile:  pidFilePath,
 	}
-	if pidFilePath != "" {
-		args = append(args, "--pid", pidFilePath)
-	}
-	return args
+	return cfg.Args()
 }
 
 // resolveSPLiteExecCmd resolves the system-probe-lite binary path and builds the exec arguments.

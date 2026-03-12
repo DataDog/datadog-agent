@@ -117,41 +117,17 @@ func TestShouldExecSPLite(t *testing.T) {
 }
 
 func TestBuildSPLiteArgs(t *testing.T) {
-	t.Run("no pid", func(t *testing.T) {
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		args := buildSPLiteArgs(sysprobeConfig, "")
-		assert.Equal(t, []string{
-			"system-probe-lite",
-			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-			"--log-level", sysprobeConfig.GetString("log_level"),
-			"--log-file", sysprobeConfig.GetString("log_file"),
-		}, args)
-	})
+	sysprobeConfig := sysprobeconfigimpl.NewMock(t)
+	sysprobeConfig.Set("system_probe_config.sysprobe_socket", "/custom/path.sock", model.SourceCLI)
+	sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
 
-	t.Run("with pid", func(t *testing.T) {
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		args := buildSPLiteArgs(sysprobeConfig, "/opt/datadog-agent/run/system-probe.pid")
-		assert.Equal(t, []string{
-			"system-probe-lite",
-			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-			"--log-level", sysprobeConfig.GetString("log_level"),
-			"--log-file", sysprobeConfig.GetString("log_file"),
-			"--pid", "/opt/datadog-agent/run/system-probe.pid",
-		}, args)
-	})
+	args := buildSPLiteArgs(sysprobeConfig, "/var/run/sp.pid")
 
-	t.Run("with custom socket and log level", func(t *testing.T) {
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		sysprobeConfig.Set("system_probe_config.sysprobe_socket", "/custom/path.sock", model.SourceCLI)
-		sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
-		args := buildSPLiteArgs(sysprobeConfig, "")
-		assert.Equal(t, []string{
-			"system-probe-lite",
-			"--socket", "/custom/path.sock",
-			"--log-level", "debug",
-			"--log-file", sysprobeConfig.GetString("log_file"),
-		}, args)
-	})
+	assert.Equal(t, "system-probe-lite", args[0])
+	assert.Contains(t, args, "/custom/path.sock")
+	assert.Contains(t, args, "debug")
+	assert.Contains(t, args, sysprobeConfig.GetString("log_file"))
+	assert.Contains(t, args, "/var/run/sp.pid")
 }
 
 func TestResolveSPLiteExecCmd(t *testing.T) {
