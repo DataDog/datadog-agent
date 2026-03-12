@@ -23,11 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/awsutil"
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/internal/vaulthttp"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
-	"github.com/hashicorp/vault/api"
-	"github.com/hashicorp/vault/api/auth/approle"
-	"github.com/hashicorp/vault/api/auth/ldap"
-	"github.com/hashicorp/vault/api/auth/userpass"
 	"github.com/mitchellh/mapstructure"
 	"github.com/qri-io/jsonpointer"
 )
@@ -73,7 +70,7 @@ type VaultTLSConfig struct {
 // VaultBackend is a backend to fetch secrets from Hashicorp vault
 type VaultBackend struct {
 	Config VaultBackendConfig
-	Client *api.Client
+	Client *vaulthttp.Client
 }
 
 func getKubernetesJWTToken(sessionConfig VaultSessionBackendConfig) (string, error) {
@@ -98,65 +95,83 @@ func getKubernetesJWTToken(sessionConfig VaultSessionBackendConfig) (string, err
 	return strings.TrimSpace(string(tokenBytes)), nil
 }
 
-func newAuthenticationFromBackendConfig(bc VaultBackendConfig, client *api.Client) (api.AuthMethod, string, error) {
+// authenticateVaultClient performs authentication against Vault and sets the
+// client token. It returns the token string (or implicitAuthToken sentinel).
+func authenticateVaultClient(ctx context.Context, bc VaultBackendConfig, client *vaulthttp.Client) (string, error) {
 	sessionConfig := bc.VaultSession
-	var auth api.AuthMethod
-	var err error
 
 	implicitAuthRaw := os.Getenv("DD_SECRETS_IMPLICIT_AUTH")
 	if implicitAuthRaw == "" {
 		implicitAuthRaw = sessionConfig.ImplicitAuth
 	}
 	if slices.Contains([]string{"true", "t", "1"}, strings.ToLower(implicitAuthRaw)) {
-		// Skip authentication when implicit auth is enabled
-		return nil, implicitAuthToken, nil
+		return implicitAuthToken, nil
 	}
 
+	// AppRole
 	if sessionConfig.VaultRoleID != "" && sessionConfig.VaultSecretID != "" {
-		secretID := &approle.SecretID{FromString: sessionConfig.VaultSecretID}
-		auth, err = approle.NewAppRoleAuth(sessionConfig.VaultRoleID, secretID)
+		sec, err := client.Write(ctx, "auth/approle/login", map[string]interface{}{
+			"role_id":   sessionConfig.VaultRoleID,
+			"secret_id": sessionConfig.VaultSecretID,
+		})
 		if err != nil {
-			return nil, "", err
+			return "", fmt.Errorf("approle login failed: %w", err)
 		}
+		token, err := sec.TokenID()
+		if err != nil {
+			return "", fmt.Errorf("approle: unable to extract token: %w", err)
+		}
+		return token, nil
 	}
 
+	// Userpass
 	if sessionConfig.VaultUserName != "" && sessionConfig.VaultPassword != "" {
-		password := &userpass.Password{FromString: sessionConfig.VaultPassword}
-		auth, err = userpass.NewUserpassAuth(sessionConfig.VaultUserName, password)
+		sec, err := client.Write(ctx, "auth/userpass/login/"+sessionConfig.VaultUserName, map[string]interface{}{
+			"password": sessionConfig.VaultPassword,
+		})
 		if err != nil {
-			return nil, "", err
+			return "", fmt.Errorf("userpass login failed: %w", err)
 		}
+		token, err := sec.TokenID()
+		if err != nil {
+			return "", fmt.Errorf("userpass: unable to extract token: %w", err)
+		}
+		return token, nil
 	}
 
+	// LDAP
 	if sessionConfig.VaultLDAPUserName != "" && sessionConfig.VaultLDAPPassword != "" {
-		password := &ldap.Password{FromString: sessionConfig.VaultLDAPPassword}
-		auth, err = ldap.NewLDAPAuth(sessionConfig.VaultLDAPUserName, password)
+		sec, err := client.Write(ctx, "auth/ldap/login/"+sessionConfig.VaultLDAPUserName, map[string]interface{}{
+			"password": sessionConfig.VaultLDAPPassword,
+		})
 		if err != nil {
-			return nil, "", err
+			return "", fmt.Errorf("ldap login failed: %w", err)
 		}
+		token, err := sec.TokenID()
+		if err != nil {
+			return "", fmt.Errorf("ldap: unable to extract token: %w", err)
+		}
+		return token, nil
 	}
 
+	// AWS
 	if sessionConfig.VaultAuthType == "aws" && sessionConfig.VaultAWSRole != "" {
-		auth = &vaultAWSAuth{
-			role:   sessionConfig.VaultAWSRole,
-			region: sessionConfig.AWSRegion,
-		}
-		return auth, "", nil
+		return vaultAWSLogin(ctx, client, sessionConfig.VaultAWSRole, sessionConfig.AWSRegion)
 	}
 
-	// Kubernetes: perform manual login and return token.
+	// Kubernetes
 	if sessionConfig.VaultAuthType == "kubernetes" {
 		role := os.Getenv("DD_SECRETS_VAULT_ROLE")
 		if role == "" {
 			role = sessionConfig.VaultKubernetesRole
 		}
 		if role == "" {
-			return nil, "", errors.New("kubernetes role not specified")
+			return "", errors.New("kubernetes role not specified")
 		}
 
 		jwtToken, err := getKubernetesJWTToken(sessionConfig)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to get Kubernetes JWT token: %w", err)
+			return "", fmt.Errorf("failed to get Kubernetes JWT token: %w", err)
 		}
 
 		authPath := os.Getenv("DD_SECRETS_VAULT_AUTH_PATH")
@@ -164,26 +179,26 @@ func newAuthenticationFromBackendConfig(bc VaultBackendConfig, client *api.Clien
 			authPath = sessionConfig.VaultKubernetesMountPath
 		}
 
-		secret, err := client.Logical().Write(authPath, map[string]interface{}{
+		sec, err := client.Write(ctx, authPath, map[string]interface{}{
 			"jwt":  jwtToken,
 			"role": role,
 		})
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to authenticate to Vault: %w", err)
+			return "", fmt.Errorf("failed to authenticate to Vault: %w", err)
 		}
 
-		token, err := secret.TokenID()
+		token, err := sec.TokenID()
 		if err != nil {
-			return nil, "", fmt.Errorf("unable to extract token from Vault login response: %w", err)
+			return "", fmt.Errorf("unable to extract token from Vault login response: %w", err)
 		}
 		if token == "" {
-			return nil, "", errors.New("vault login response did not return a token")
+			return "", errors.New("vault login response did not return a token")
 		}
 
-		return nil, token, nil
+		return token, nil
 	}
 
-	return auth, "", err
+	return "", nil
 }
 
 // NewVaultBackend returns a new backend for Hashicorp vault
@@ -203,10 +218,9 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 		}
 	}
 
-	clientConfig := &api.Config{Address: vaultAddress}
-
+	var tlsCfg *vaulthttp.TLSConfig
 	if backendConfig.VaultTLS != nil {
-		tlsConfig := &api.TLSConfig{
+		tlsCfg = &vaulthttp.TLSConfig{
 			CACert:        backendConfig.VaultTLS.CACert,
 			CAPath:        backendConfig.VaultTLS.CAPath,
 			ClientCert:    backendConfig.VaultTLS.ClientCert,
@@ -214,37 +228,25 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 			TLSServerName: backendConfig.VaultTLS.TLSServer,
 			Insecure:      backendConfig.VaultTLS.Insecure,
 		}
-		err := clientConfig.ConfigureTLS(tlsConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize vault tls configuration: %s", err)
-		}
 	}
 
-	client, err := api.NewClient(clientConfig)
+	client, err := vaulthttp.NewClient(vaultAddress, tlsCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vault client: %s", err)
 	}
 
-	authMethod, authToken, err := newAuthenticationFromBackendConfig(backendConfig, client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	authToken, err := authenticateVaultClient(ctx, backendConfig, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize vault authentication: %w", err)
 	}
 
-	if authMethod != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		authInfo, err := client.Auth().Login(ctx, authMethod)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create auth info: %s", err)
-		}
-		if authInfo == nil {
-			return nil, errors.New("no auth info returned")
-		}
+	if authToken != "" && authToken != implicitAuthToken {
+		client.SetToken(authToken)
 	} else if authToken != implicitAuthToken {
-		if authToken != "" {
-			client.SetToken(authToken)
-		} else if backendConfig.VaultToken != "" {
+		if backendConfig.VaultToken != "" {
 			client.SetToken(backendConfig.VaultToken)
 		} else {
 			return nil, errors.New("no auth method or token provided")
@@ -293,7 +295,7 @@ func (b *VaultBackend) handleVaultURIFormat(ctx context.Context, secretString st
 		return secret.Output{Value: nil, Error: &es}
 	}
 
-	sec, err := b.Client.Logical().ReadWithContext(ctx, secretPath)
+	sec, err := b.Client.Read(ctx, secretPath)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
@@ -384,14 +386,14 @@ func (b *VaultBackend) handleTypicalFormat(ctx context.Context, secretString str
 	// KV version detection:
 	// If the mount path is set as /Example/Path, and the secret path is set at /Example/Path/Secret,
 	// then we need to query from /Example/Path/data/Secret in kv v2, and /Example/Path/Secret in kv v1.
-	isKVv2, mountPrefix := isKVv2Mount(b.Client, secretPath)
+	isKVv2, mountPrefix := isKVv2Mount(ctx, b.Client, secretPath)
 
 	readPath := secretPath
 	if isKVv2 {
 		readPath = insertDataPath(secretPath, mountPrefix)
 	}
 
-	sec, err := b.Client.Logical().ReadWithContext(ctx, readPath)
+	sec, err := b.Client.Read(ctx, readPath)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
@@ -431,8 +433,8 @@ func (b *VaultBackend) handleTypicalFormat(ctx context.Context, secretString str
 	return secret.Output{Value: nil, Error: &es}
 }
 
-func isKVv2Mount(client *api.Client, secretPath string) (bool, string) {
-	mounts, err := client.Sys().ListMounts()
+func isKVv2Mount(ctx context.Context, client *vaulthttp.Client, secretPath string) (bool, string) {
+	mounts, err := client.ListMounts(ctx)
 	if err != nil {
 		return false, ""
 	}
@@ -476,31 +478,24 @@ func insertDataPath(secretPath, mountPrefix string) string {
 	return trimmedMount + "data/" + relative
 }
 
-// vaultAWSAuth implements api.AuthMethod using raw STS GetCallerIdentity
-// signed with AWS SigV4, avoiding the vault/api/auth/aws dependency (which
-// transitively pulls in the entire AWS SDK credential chain a second time).
-type vaultAWSAuth struct {
-	role   string
-	region string
-}
-
-func (a *vaultAWSAuth) Login(ctx context.Context, client *api.Client) (*api.Secret, error) {
-	// Build AWS config using the SDK's default credential chain.
+// vaultAWSLogin performs AWS IAM auth against Vault using raw STS
+// GetCallerIdentity signed with AWS SigV4.
+func vaultAWSLogin(ctx context.Context, client *vaulthttp.Client, role, region string) (string, error) {
 	var options []func(*config.LoadOptions) error
-	if a.region != "" {
+	if region != "" {
 		options = append(options, func(o *config.LoadOptions) error {
-			o.Region = a.region
+			o.Region = region
 			return nil
 		})
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, options...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config for Vault auth: %w", err)
+		return "", fmt.Errorf("failed to load AWS config for Vault auth: %w", err)
 	}
 
 	creds, err := cfg.Credentials.Retrieve(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve AWS credentials for Vault auth: %w", err)
+		return "", fmt.Errorf("failed to retrieve AWS credentials for Vault auth: %w", err)
 	}
 
 	stsRegion := cfg.Region
@@ -514,7 +509,7 @@ func (a *vaultAWSAuth) Login(ctx context.Context, client *api.Client) (*api.Secr
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	awsutil.SignRequest(req, creds, stsRegion, "sts", body)
@@ -522,19 +517,25 @@ func (a *vaultAWSAuth) Login(ctx context.Context, client *api.Client) (*api.Secr
 	// Encode the signed request for Vault.
 	headersJSON, err := json.Marshal(req.Header)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	loginData := map[string]interface{}{
-		"role":                    a.role,
+		"role":                    role,
 		"iam_http_request_method": "POST",
 		"iam_request_url":         base64.StdEncoding.EncodeToString([]byte(endpoint)),
 		"iam_request_body":        base64.StdEncoding.EncodeToString(body),
 		"iam_request_headers":     base64.StdEncoding.EncodeToString(headersJSON),
 	}
 
-	return client.Logical().WriteWithContext(ctx, "auth/aws/login", loginData)
-}
+	sec, err := client.Write(ctx, "auth/aws/login", loginData)
+	if err != nil {
+		return "", fmt.Errorf("aws auth login failed: %w", err)
+	}
 
-// ensure vaultAWSAuth satisfies the interface at compile time.
-var _ api.AuthMethod = (*vaultAWSAuth)(nil)
+	token, err := sec.TokenID()
+	if err != nil {
+		return "", fmt.Errorf("aws auth: unable to extract token: %w", err)
+	}
+	return token, nil
+}
