@@ -23,7 +23,7 @@ func TestConfigArgs(t *testing.T) {
 			name:   "socket only",
 			config: Config{Socket: "/path.sock"},
 			expected: []string{
-				"system-probe-lite", "--socket", "/path.sock",
+				"system-probe-lite", "run", "--socket", "/path.sock",
 			},
 		},
 		{
@@ -35,7 +35,7 @@ func TestConfigArgs(t *testing.T) {
 				PIDFile:  "/var/run/splite.pid",
 			},
 			expected: []string{
-				"system-probe-lite",
+				"system-probe-lite", "run",
 				"--socket", "/var/run/sysprobe.sock",
 				"--log-level", "debug",
 				"--log-file", "/var/log/splite.log",
@@ -49,7 +49,7 @@ func TestConfigArgs(t *testing.T) {
 				PIDFile: "/var/run/splite.pid",
 			},
 			expected: []string{
-				"system-probe-lite",
+				"system-probe-lite", "run",
 				"--socket", "/path.sock",
 				"--pid", "/var/run/splite.pid",
 			},
@@ -62,7 +62,7 @@ func TestConfigArgs(t *testing.T) {
 				LogFile:  "/var/log/splite.log",
 			},
 			expected: []string{
-				"system-probe-lite",
+				"system-probe-lite", "run",
 				"--socket", "/path.sock",
 				"--log-level", "info",
 				"--log-file", "/var/log/splite.log",

@@ -18,7 +18,7 @@ type Config struct {
 
 // Args returns the command-line arguments for the system-probe-lite binary.
 func (c *Config) Args() []string {
-	args := []string{"system-probe-lite", "--socket", c.Socket}
+	args := []string{"system-probe-lite", "run", "--socket", c.Socket}
 	if c.LogLevel != "" {
 		args = append(args, "--log-level", c.LogLevel)
 	}

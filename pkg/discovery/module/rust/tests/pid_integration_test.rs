@@ -23,6 +23,7 @@ fn test_pid_file_cleaned_up_on_sigterm() {
     let log_path = temp_dir.path().join("system-probe.log");
 
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .arg("run")
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-file")
@@ -71,6 +72,7 @@ fn test_pid_file_cleaned_up_on_sigint() {
     let log_path = temp_dir.path().join("system-probe.log");
 
     let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
+        .arg("run")
         .arg("--socket")
         .arg(&socket_path)
         .arg("--log-file")

@@ -155,7 +155,7 @@ func TestResolveSPLiteExecCmd(t *testing.T) {
 		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
 		assert.Equal(t, testBinary, cmd.Path)
 		assert.Equal(t, []string{
-			"system-probe-lite",
+			"system-probe-lite", "run",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
 			"--log-file", sysprobeConfig.GetString("log_file"),

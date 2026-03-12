@@ -36,23 +36,33 @@ pub struct Args {
 
 impl Args {
     pub fn parse(args: impl Iterator<Item = String>) -> Result<Self> {
-        let all_args: Vec<String> = args.collect();
+        let mut iter = args;
+
+        // Skip program name.
+        iter.next();
+
+        // Expect subcommand as first real argument.
+        match iter.next().as_deref() {
+            Some("run") => {}
+            Some(other) => bail!("unknown command: {other}. Available commands: run"),
+            None => bail!("missing command. Available commands: run"),
+        }
+
         let mut socket_path = None;
         let mut log_level = None;
         let mut log_file = None;
         let mut pid_path = None;
-        let mut iter = all_args.iter();
 
         while let Some(arg) = iter.next() {
             if arg == "--socket" {
                 if let Some(next) = iter.next() {
-                    socket_path = Some(next.clone());
+                    socket_path = Some(next);
                 }
                 continue;
             }
             if arg == "--log-level" {
                 if let Some(next) = iter.next() {
-                    log_level = Some(next.clone());
+                    log_level = Some(next);
                 }
                 continue;
             }
@@ -94,9 +104,10 @@ mod tests {
 
     #[test]
     fn test_parse_required_args() {
-        let a =
-            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter())
-                .unwrap_or_else(|e| panic!("{e}"));
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
         assert_eq!(a.log_level, log::Level::Info);
         assert!(a.log_file.is_none());
@@ -108,6 +119,7 @@ mod tests {
         let a = Args::parse(
             args(&[
                 "system-probe-lite",
+                "run",
                 "--socket",
                 "/run/sysprobe.sock",
                 "--log-level",
@@ -132,6 +144,7 @@ mod tests {
         let a = Args::parse(
             args(&[
                 "system-probe-lite",
+                "run",
                 "--socket",
                 "/run/sysprobe.sock",
                 "--log-level",
@@ -158,7 +171,8 @@ mod tests {
 
     #[test]
     fn test_parse_missing_socket() {
-        let result = Args::parse(args(&["system-probe-lite", "--log-level", "info"]).into_iter());
+        let result =
+            Args::parse(args(&["system-probe-lite", "run", "--log-level", "info"]).into_iter());
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(
@@ -169,10 +183,41 @@ mod tests {
 
     #[test]
     fn test_parse_log_level_defaults_to_info() {
-        let a =
-            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter())
-                .unwrap_or_else(|e| panic!("{e}"));
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.log_level, log::Level::Info);
+    }
+
+    #[test]
+    fn test_parse_missing_subcommand() {
+        let result = Args::parse(args(&["system-probe-lite"]).into_iter());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("missing command"),
+            "error should mention missing command: {err}"
+        );
+        assert!(
+            err.contains("Available commands: run"),
+            "error should list available commands: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_unknown_subcommand() {
+        let result = Args::parse(args(&["system-probe-lite", "bogus"]).into_iter());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("unknown command: bogus"),
+            "error should mention unknown command: {err}"
+        );
+        assert!(
+            err.contains("Available commands: run"),
+            "error should list available commands: {err}"
+        );
     }
 
     #[test]
