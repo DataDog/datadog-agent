@@ -51,12 +51,12 @@ repos:
     - id: python-linter
       name: python-linter
       description: run python linter (ruff)
-      entry: dda inv linter.python
+      entry: dda inv linter.python --read-only
       language: system
       require_serial: true
       files: \.py$
       pass_filenames: false
-      # TODO: Append files as arg
+      fix: dda inv linter.python
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
