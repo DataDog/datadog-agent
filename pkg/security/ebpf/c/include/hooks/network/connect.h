@@ -68,10 +68,14 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     }
 
     // v2: sample connect events for security profiles
-    if (syscall->state == DISCARDED && !(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
+    if (!(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
         if (approve_connect_sample(event.process.pid, event.family, event.port, event.protocol, event.addr) == SAMPLED) {
-            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
-        } else {
+            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+            if (syscall->state == DISCARDED) {
+                event.event.flags |= EVENT_FLAGS_SAVED_BY_AD;
+            }
+
+        } else if (syscall->state == DISCARDED) {
             return 0;
         }
     }
