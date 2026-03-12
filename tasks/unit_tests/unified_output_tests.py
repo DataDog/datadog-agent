@@ -48,7 +48,11 @@ def _make_fail_doc() -> UTOFDocument:
                 package="testpackage1",
                 type="unit",
                 status="fail",
-                attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="expected 1, got 2", type="assertion"))],
+                attempts=[
+                    UTOFAttempt(
+                        attempt=1, status="fail", failure=UTOFFailure(message="expected 1, got 2", type="assertion")
+                    )
+                ],
             ),
             UTOFTestResult(
                 id="c3", name="TestBaz", full_name="TestBaz", package="testpackage1", type="unit", status="skip"
@@ -235,7 +239,13 @@ class TestFormatReport(unittest.TestCase):
             package="pkg/example",
             type="unit",
             status="fail",
-            attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="panic: nil pointer dereference", type="panic", direct=True))],
+            attempts=[
+                UTOFAttempt(
+                    attempt=1,
+                    status="fail",
+                    failure=UTOFFailure(message="panic: nil pointer dereference", type="panic", direct=True),
+                )
+            ],
             subtests=[
                 UTOFTestResult(
                     id="s1",
@@ -244,7 +254,13 @@ class TestFormatReport(unittest.TestCase):
                     package="pkg/example",
                     type="unit",
                     status="fail",
-                    attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="expected 1 got 2", type="assertion", direct=True))],
+                    attempts=[
+                        UTOFAttempt(
+                            attempt=1,
+                            status="fail",
+                            failure=UTOFFailure(message="expected 1 got 2", type="assertion", direct=True),
+                        )
+                    ],
                 ),
             ],
         )

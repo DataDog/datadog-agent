@@ -29,7 +29,7 @@ class UTOFEnvironmentMetadata:
     os_version: str = ""
     arch: str = ""
     kernel: str = ""
-    runtime_version: str = ""
+    runtime_version: str = ""  # noqa: F841
     agent_flavor: str = ""
 
 
