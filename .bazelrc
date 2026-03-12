@@ -63,6 +63,10 @@ common:ci --config=adms
 common:ci --config=cache
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
+# Our CI Runners don't have hard limits set for CPUs
+# but do have for RAM. Therefore, bazel tends to schedule
+# 128 actions concurrently ignoring memory limits.
+common:ci --jobs=HOST_RAM*.8
 
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/rust.bazelrc
