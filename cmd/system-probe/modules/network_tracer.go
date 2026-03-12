@@ -126,7 +126,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 				nt.restartTimer.Reset(inactivityRestartDuration)
 			}
 			count := runCounter.Add(1)
-			logRequests(id, count, len(cs.Conns), start)
+			logRequests(id, count, cs.Conns, start)
 		}))
 
 		httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -243,9 +243,19 @@ func (nt *networkTracer) Close() {
 	nt.cancelFunc()
 }
 
-func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Since(start)}
+func logRequests(client string, count uint64, conns []network.ConnectionStats, start time.Time) {
+	portCounts := make(map[uint16]int)
+	for i := range conns {
+		dport := conns[i].DPort
+		if dport == 8081 || dport == 8082 {
+			portCounts[dport]++
+		}
+	}
+	args := []interface{}{client, count, len(conns), time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+	if len(portCounts) > 0 {
+		msg += fmt.Sprintf(" [port8081=%d port8082=%d]", portCounts[8081], portCounts[8082])
+	}
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
