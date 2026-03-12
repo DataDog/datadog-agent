@@ -227,8 +227,20 @@ func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) 
 }
 
 // ResolveName resolves an inode/mount ID pair to a file basename
-func (dr *Resolver) ResolveName(pathKey model.PathKey, _ bool) string {
-	name, _ := dr.ResolveNameFromCache(pathKey)
+func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
+	name, err := dr.ResolveNameFromCache(pathKey)
+	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		// If cache lookup failed, try full path resolution via ERPC and extract basename
+		fullPath, err := dr.Resolve(pathKey, cache)
+		if err == nil && fullPath != "" {
+			// Extract basename from full path
+			if idx := strings.LastIndex(fullPath, "/"); idx >= 0 {
+				name = fullPath[idx+1:]
+			} else {
+				name = fullPath
+			}
+		}
+	}
 
 	return name
 }
@@ -484,6 +496,12 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 			// If success or non-retryable error, stop retrying
 			if err == nil || !isRetryableERPCError(err) {
 				break
+			}
+
+			// Sleep before retry to give kernel time to process the ERPC request
+			// Only sleep if we're going to retry (not on the last attempt)
+			if attempt < maxRetries {
+				time.Sleep(2 * time.Millisecond)
 			}
 		}
 	}
