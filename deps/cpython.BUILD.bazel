@@ -258,7 +258,7 @@ configure_make(
         "@bzip2//:bz2",
         "@sqlite3//:sqlite3",
         "@xz//:lzma",
-        "@zlib//:z",
+        "@zlib//:z_so",
     ],
     includes = ["python{}".format(VERSION_STR)],
     targets = [
