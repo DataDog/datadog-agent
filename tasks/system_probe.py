@@ -1915,24 +1915,59 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         return
 
     # crane does not accept 'x86_64' as a valid architecture
+    crane_arch = arch
     if arch == "x86_64":
-        arch = "amd64"
+        crane_arch = "amd64"
 
-    # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
+    vmconfig_paths = [
+        "test/new-e2e/system-probe/config/vmconfig-system-probe.json",
+        "test/new-e2e/system-probe/config/vmconfig-security-agent.json",
+    ]
+    urls = set()
+    for vmconfig_path in vmconfig_paths:
+        with open(vmconfig_path) as vmconfig:
+            vmjson = json.load(vmconfig)
+            if "vmsets" not in vmjson:
+                continue
 
-    # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
-    # from the AWS mirror instead of dockerhub to avoid rate limits
-    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
+            for vmset in vmjson["vmsets"]:
+                if "disks" not in vmset:
+                    continue
+                if vmset["arch"] != arch:
+                    continue
+
+                for disk in vmset["disks"]:
+                    if "source" not in disk:
+                        continue
+
+                    root = disk["source"].removesuffix(f"/docker-{arch}.qcow2.xz")
+                    urls.add(f"{root}/docker.ls")
+
+    docker_ls = set()
+    for u in urls:
+        # only download images not present in preprepared vm disk
+        resp = requests.get(u)
+
+        # remove mirror prefixes as we might be downloading official images
+        # from the AWS or DD mirror instead of dockerhub to avoid rate limits
+        for line in resp.text.split('\n'):
+            if not line.strip():
+                continue
+
+            docker_ls.add(
+                line.removeprefix("public.ecr.aws/docker/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/")
+            )
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:
-            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+            ctx.run(f"crane pull --platform linux/{crane_arch} {image} {output_file}")
         else:
-            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker pull --platform linux/{crane_arch} {image}")
             ctx.run(f"docker save {image} > {output_file}")
 
 
@@ -1964,7 +1999,7 @@ def _test_docker_image_list():
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
 
     # Add images used in docker run commands
-    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+    images.add("alpine:3.20.3")
 
     return images
 
