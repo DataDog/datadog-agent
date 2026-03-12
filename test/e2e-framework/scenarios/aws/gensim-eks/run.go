@@ -487,8 +487,12 @@ var agentValuesTmpl string
 
 // renderAgentValues renders the agent Helm values template with the given image.
 func renderAgentValues(agentImage string) (string, error) {
-	repo := agentImage[:strings.LastIndex(agentImage, ":")]
-	tag := agentImage[strings.LastIndex(agentImage, ":")+1:]
+	idx := strings.LastIndex(agentImage, ":")
+	if idx < 0 {
+		return "", fmt.Errorf("invalid image reference %q: expected repo:tag format", agentImage)
+	}
+	repo := agentImage[:idx]
+	tag := agentImage[idx+1:]
 
 	tmpl, err := template.New("agent-values").Parse(agentValuesTmpl)
 	if err != nil {
@@ -923,13 +927,20 @@ func buildEpisodeImages(
 		return err
 	}
 
-	// Compute a hash of the local services directory so Pulumi can detect when
-	// source files change. Without this Trigger, DependsOn only controls ordering
-	// and the build command would never re-run after the initial create, even if
-	// app.py or a Dockerfile changed.
+	// Compute a hash of the local services directory and docker-compose.yaml so
+	// Pulumi can detect when source files change. Without this Trigger, DependsOn
+	// only controls ordering and the build command would never re-run after the
+	// initial create, even if app.py, a Dockerfile, or docker-compose.yaml changed.
 	servicesHash, err := hashDir(filepath.Join(episodePath, "services"))
 	if err != nil {
 		return fmt.Errorf("hashing services directory for %s: %w", episodeName, err)
+	}
+	// Include docker-compose.yaml in the hash so adding/removing images or
+	// changing build contexts also triggers a rebuild.
+	composeFile := filepath.Join(episodePath, "docker-compose.yaml")
+	if composeContent, err := os.ReadFile(composeFile); err == nil {
+		h := sha256.Sum256(composeContent)
+		servicesHash = servicesHash + hex.EncodeToString(h[:])
 	}
 
 	// Build all images and push to ECR.
