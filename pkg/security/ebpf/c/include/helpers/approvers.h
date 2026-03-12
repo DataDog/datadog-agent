@@ -86,7 +86,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
 
     monitor_event_sample_total(EVENT_BIND);
 
-    struct bind_sample_key_t key;
+    struct bind_connect_sample_key_t key;
     __builtin_memset(&key, 0, sizeof(key));
     key.pid = pid;
     key.family = family;
@@ -145,7 +145,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
 
     monitor_event_sample_total(EVENT_CONNECT);
 
-    struct bind_sample_key_t key;
+    struct bind_connect_sample_key_t key;
     __builtin_memset(&key, 0, sizeof(key));
     key.pid = pid;
     key.family = family;

@@ -27,7 +27,7 @@ struct process_path_key_t {
     struct path_key_t file_path_key;
 };
 
-struct bind_sample_key_t {
+struct bind_connect_sample_key_t {
     u32 pid;
     u16 family;
     u16 port;
