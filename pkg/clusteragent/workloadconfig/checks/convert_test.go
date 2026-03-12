@@ -19,16 +19,16 @@ import (
 )
 
 func TestConvertCR_SingleCheck(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "nginx-check",
 			Namespace: "web-team",
 		},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "nginx"},
 			},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration:    "nginx",
@@ -55,16 +55,16 @@ func TestConvertCR_SingleCheck(t *testing.T) {
 }
 
 func TestConvertCR_MultipleChecks(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "multi-check",
 			Namespace: "default",
 		},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "myapp"},
 			},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration:    "http_check",
@@ -94,11 +94,11 @@ func TestConvertCR_MultipleChecks(t *testing.T) {
 }
 
 func TestConvertCR_NilInitConfig(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "http_check",
@@ -117,11 +117,11 @@ func TestConvertCR_NilInitConfig(t *testing.T) {
 }
 
 func TestConvertCR_WithLogs(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "http_check",
@@ -142,16 +142,16 @@ func TestConvertCR_WithLogs(t *testing.T) {
 }
 
 func TestConvertCR_WithAnnotationSelector(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{
 				MatchAnnotations: map[string]string{
 					"team": "web",
 					"env":  "prod",
 				},
 			},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "nginx",
@@ -173,13 +173,13 @@ func TestConvertCR_WithAnnotationSelector(t *testing.T) {
 }
 
 func TestConvertCR_WithLabelSelector(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels: map[string]string{"app": "nginx"},
 			},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "nginx",
@@ -200,14 +200,14 @@ func TestConvertCR_WithLabelSelector(t *testing.T) {
 }
 
 func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "web-team"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{
 				MatchLabels:      map[string]string{"app": "nginx"},
 				MatchAnnotations: map[string]string{"team": "web"},
 			},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "nginx",
@@ -228,11 +228,11 @@ func TestConvertCR_WithBothLabelAndAnnotationSelector(t *testing.T) {
 }
 
 func TestConvertCR_NoSelector(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "check", Namespace: "default"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration:    "nginx",
@@ -257,11 +257,11 @@ func TestConfigMapKey(t *testing.T) {
 }
 
 func TestConvertCR_InvalidJSON(t *testing.T) {
-	dwc := &datadoghq.DatadogWorkloadConfig{
+	dwc := &datadoghq.DatadogInstrumentation{
 		ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: "default"},
-		Spec: datadoghq.DatadogWorkloadConfigSpec{
+		Spec: datadoghq.DatadogInstrumentationSpec{
 			Selector: datadoghq.PodSelector{MatchLabels: map[string]string{"app": "x"}},
-			Config: datadoghq.WorkloadConfig{
+			Config: datadoghq.InstrumentationConfig{
 				Checks: []datadoghq.CheckConfig{
 					{
 						Integration: "test",

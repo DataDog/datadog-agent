@@ -28,11 +28,11 @@ const (
 	reconcileKey = "reconcile"
 )
 
-var gvrDWC = datadoghq.GroupVersion.WithResource("datadogworkloadconfigs")
+var gvrDDI = datadoghq.GroupVersion.WithResource("datadoginstrumentations")
 
-// WorkloadConfigCRDController watches DatadogWorkloadConfig CRDs and delegates reconciliation
+// InstrumentationController watches DatadogInstrumentation CRDs and delegates reconciliation
 // to registered ConfigSectionHandler implementations.
-type WorkloadConfigCRDController struct {
+type InstrumentationController struct {
 	lister                cache.GenericLister
 	synced                cache.InformerSynced
 	workqueue             workqueue.TypedRateLimitingInterface[string]
@@ -41,16 +41,16 @@ type WorkloadConfigCRDController struct {
 	handlers              []ConfigSectionHandler
 }
 
-// NewWorkloadConfigCRDController creates a new WorkloadConfigCRDController.
-func NewWorkloadConfigCRDController(
+// NewInstrumentationCRDController creates a new InstrumentationController.
+func NewInstrumentationCRDController(
 	informerFactory dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	leadershipChangeNotif <-chan struct{},
 	handlers []ConfigSectionHandler,
-) (*WorkloadConfigCRDController, error) {
-	dwcInformer := informerFactory.ForResource(gvrDWC)
+) (*InstrumentationController, error) {
+	dwcInformer := informerFactory.ForResource(gvrDDI)
 
-	c := &WorkloadConfigCRDController{
+	c := &InstrumentationController{
 		lister: dwcInformer.Lister(),
 		synced: dwcInformer.Informer().HasSynced,
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -74,7 +74,7 @@ func NewWorkloadConfigCRDController(
 }
 
 // Run starts the controller workers and blocks until stopCh is closed.
-func (c *WorkloadConfigCRDController) Run(stopCh <-chan struct{}) {
+func (c *InstrumentationController) Run(stopCh <-chan struct{}) {
 	defer c.workqueue.ShutDown()
 
 	log.Info("Starting WorkloadConfig CRD controller (waiting for cache sync)")
@@ -91,14 +91,14 @@ func (c *WorkloadConfigCRDController) Run(stopCh <-chan struct{}) {
 	log.Info("Stopping WorkloadConfig CRD controller")
 }
 
-func (c *WorkloadConfigCRDController) enqueue() {
+func (c *InstrumentationController) enqueue() {
 	c.workqueue.AddRateLimited(reconcileKey)
 }
 
 // watchLeadershipChanges watches for leadership changes and enqueues a reconcile
 // when this instance becomes leader, ensuring CRs that existed before leadership
 // acquisition are processed promptly.
-func (c *WorkloadConfigCRDController) watchLeadershipChanges(stopCh <-chan struct{}) {
+func (c *InstrumentationController) watchLeadershipChanges(stopCh <-chan struct{}) {
 	for {
 		select {
 		case <-c.leadershipChangeNotif:
@@ -112,12 +112,12 @@ func (c *WorkloadConfigCRDController) watchLeadershipChanges(stopCh <-chan struc
 	}
 }
 
-func (c *WorkloadConfigCRDController) worker() {
+func (c *InstrumentationController) worker() {
 	for c.processNext() {
 	}
 }
 
-func (c *WorkloadConfigCRDController) processNext() bool {
+func (c *InstrumentationController) processNext() bool {
 	key, shutdown := c.workqueue.Get()
 	if shutdown {
 		return false
@@ -140,21 +140,21 @@ func (c *WorkloadConfigCRDController) processNext() bool {
 }
 
 // reconcile lists all CRs, converts them, and fans out to each handler.
-func (c *WorkloadConfigCRDController) reconcile() error {
+func (c *InstrumentationController) reconcile() error {
 	if !c.isLeader() {
 		return nil
 	}
 
 	objects, err := c.lister.List(labels.Everything())
 	if err != nil {
-		return fmt.Errorf("failed to list DatadogWorkloadConfigs: %w", err)
+		return fmt.Errorf("failed to list DatadogInstrumentations: %w", err)
 	}
 
-	crs := make([]*datadoghq.DatadogWorkloadConfig, 0, len(objects))
+	crs := make([]*datadoghq.DatadogInstrumentation, 0, len(objects))
 	for _, obj := range objects {
 		dwc, err := unstructuredToWorkloadConfig(obj)
 		if err != nil {
-			log.Warnf("Skipping malformed DatadogWorkloadConfig: %v", err)
+			log.Warnf("Skipping malformed DatadogInstrumentation: %v", err)
 			continue
 		}
 		crs = append(crs, dwc)
@@ -172,15 +172,15 @@ func (c *WorkloadConfigCRDController) reconcile() error {
 	return firstErr
 }
 
-// unstructuredToWorkloadConfig converts an unstructured object to a DatadogWorkloadConfig.
-func unstructuredToWorkloadConfig(obj interface{}) (*datadoghq.DatadogWorkloadConfig, error) {
+// unstructuredToWorkloadConfig converts an unstructured object to a DatadogInstrumentation.
+func unstructuredToWorkloadConfig(obj interface{}) (*datadoghq.DatadogInstrumentation, error) {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return nil, fmt.Errorf("could not cast to Unstructured: %T", obj)
 	}
-	dwc := &datadoghq.DatadogWorkloadConfig{}
+	dwc := &datadoghq.DatadogInstrumentation{}
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), dwc); err != nil {
-		return nil, fmt.Errorf("failed to convert unstructured to DatadogWorkloadConfig: %w", err)
+		return nil, fmt.Errorf("failed to convert unstructured to DatadogInstrumentation: %w", err)
 	}
 	return dwc, nil
 }

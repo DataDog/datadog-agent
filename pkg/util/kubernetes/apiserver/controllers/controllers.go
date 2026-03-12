@@ -198,7 +198,7 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 }
 
 // startWorkloadConfigCRDController starts the WorkloadConfig CRD controller that watches
-// DatadogWorkloadConfig CRDs and delegates to registered config section handlers.
+// DatadogInstrumentation CRDs and delegates to registered config section handlers.
 func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error) {
 	configMapNamespace := namespace.GetResourcesNamespace()
 	leaderNotif, _ := ctx.LeaderNotifier()
@@ -207,7 +207,7 @@ func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error
 		checks.NewChecksHandler(ctx.Client, checks.DefaultConfigMapName, configMapNamespace),
 	}
 
-	controller, err := workloadconfig.NewWorkloadConfigCRDController(
+	controller, err := workloadconfig.NewInstrumentationCRDController(
 		ctx.DynamicInformerFactory,
 		ctx.IsLeaderFunc,
 		leaderNotif,

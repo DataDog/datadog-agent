@@ -166,7 +166,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260311193159-56ca33852447
+	github.com/DataDog/datadog-operator/api v0.0.0-20260312201613-877d28ec5510
 	github.com/DataDog/datadog-traceroute v1.0.13
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
@@ -407,7 +407,7 @@ require (
 	istio.io/api v1.27.3
 	istio.io/client-go v1.27.3
 	k8s.io/api v0.35.1
-	k8s.io/apiextensions-apiserver v0.35.0
+	k8s.io/apiextensions-apiserver v0.35.1
 	k8s.io/apimachinery v0.35.1
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/cli-runtime v0.34.1

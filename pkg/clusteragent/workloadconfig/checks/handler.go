@@ -25,7 +25,7 @@ import (
 const DefaultConfigMapName = "datadog-crd-check-conf"
 
 // Handler implements ConfigSectionHandler for the checks section.
-// It converts DatadogWorkloadConfig CRs into AD-compatible check configs
+// It converts DatadogInstrumentation CRs into AD-compatible check configs
 // and writes them to a ConfigMap that the Node Agent reads via file-based AD.
 type Handler struct {
 	kubeClient         kubernetes.Interface
@@ -48,12 +48,12 @@ func (h *Handler) Name() string {
 }
 
 // Reconcile processes all CRs and writes their check configs to the ConfigMap.
-func (h *Handler) Reconcile(crs []*datadoghq.DatadogWorkloadConfig) error {
+func (h *Handler) Reconcile(crs []*datadoghq.DatadogInstrumentation) error {
 	data := make(map[string]string)
 	for _, dwc := range crs {
 		entries, err := convertCR(dwc)
 		if err != nil {
-			log.Warnf("Skipping DatadogWorkloadConfig %s/%s: %v", dwc.Namespace, dwc.Name, err)
+			log.Warnf("Skipping DatadogInstrumentation %s/%s: %v", dwc.Namespace, dwc.Name, err)
 			continue
 		}
 

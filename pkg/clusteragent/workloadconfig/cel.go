@@ -16,8 +16,8 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
 
-// BuildCELSelector builds a CEL selector from a DatadogWorkloadConfig's Selector and namespace.
-func BuildCELSelector(dwc *datadoghq.DatadogWorkloadConfig) workloadfilter.Rules {
+// BuildCELSelector builds a CEL selector from a DatadogInstrumentation's Selector and namespace.
+func BuildCELSelector(dwc *datadoghq.DatadogInstrumentation) workloadfilter.Rules {
 	hasAnnotations := len(dwc.Spec.Selector.MatchAnnotations) > 0
 	hasLabels := len(dwc.Spec.Selector.MatchLabels) > 0
 	var rules []string

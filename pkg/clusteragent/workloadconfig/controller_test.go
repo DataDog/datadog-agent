@@ -27,19 +27,19 @@ import (
 var testGVR = schema.GroupVersionResource{
 	Group:    "datadoghq.com",
 	Version:  "v1alpha1",
-	Resource: "datadogworkloadconfigs",
+	Resource: "datadoginstrumentations",
 }
 
 // fakeHandler records calls from the controller for testing.
 type fakeHandler struct {
 	name      string
 	callCount int
-	lastCRs   []*datadoghq.DatadogWorkloadConfig
+	lastCRs   []*datadoghq.DatadogInstrumentation
 	err       error
 }
 
 func (f *fakeHandler) Name() string { return f.name }
-func (f *fakeHandler) Reconcile(crs []*datadoghq.DatadogWorkloadConfig) error {
+func (f *fakeHandler) Reconcile(crs []*datadoghq.DatadogInstrumentation) error {
 	f.callCount++
 	f.lastCRs = crs
 	return f.err
@@ -58,7 +58,7 @@ func newUnstructuredWorkloadConfig(namespace, name string, labels map[string]str
 	return &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "datadoghq.com/v1alpha1",
-			"kind":       "DatadogWorkloadConfig",
+			"kind":       "DatadogInstrumentation",
 			"metadata": map[string]interface{}{
 				"name":      name,
 				"namespace": namespace,
@@ -85,7 +85,7 @@ func makeCheck(integration string, containerImages []interface{}, instances []in
 	return check
 }
 
-func setupTestController(t *testing.T, existingCRs []*unstructured.Unstructured, handlers ...ConfigSectionHandler) *WorkloadConfigCRDController {
+func setupTestController(t *testing.T, existingCRs []*unstructured.Unstructured, handlers ...ConfigSectionHandler) *InstrumentationController {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -96,14 +96,14 @@ func setupTestController(t *testing.T, existingCRs []*unstructured.Unstructured,
 	}
 	dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
 		map[schema.GroupVersionResource]string{
-			testGVR: "DatadogWorkloadConfigList",
+			testGVR: "DatadogInstrumentationList",
 		},
 		objs...,
 	)
 
 	informerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 
-	controller, err := NewWorkloadConfigCRDController(
+	controller, err := NewInstrumentationCRDController(
 		informerFactory,
 		func() bool { return true },
 		make(chan struct{}, 1),

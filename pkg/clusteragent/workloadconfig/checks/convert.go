@@ -28,14 +28,14 @@ type adConfig struct {
 	Logs          interface{}          `yaml:"logs,omitempty"`
 }
 
-// configMapKey returns the ConfigMap data key for a check within a DatadogWorkloadConfig CR.
+// configMapKey returns the ConfigMap data key for a check within a DatadogInstrumentation CR.
 func configMapKey(namespace, crName, checkName string) string {
 	return fmt.Sprintf("%s_%s_%s.yaml", namespace, crName, checkName)
 }
 
-// convertCR converts a DatadogWorkloadConfig CR into a set of ConfigMap entries (key -> YAML).
+// convertCR converts a DatadogInstrumentation CR into a set of ConfigMap entries (key -> YAML).
 // Each CheckConfig in the CR produces one entry.
-func convertCR(dwc *datadoghq.DatadogWorkloadConfig) (map[string]string, error) {
+func convertCR(dwc *datadoghq.DatadogInstrumentation) (map[string]string, error) {
 	celRules := workloadconfig.BuildCELSelector(dwc)
 
 	entries := make(map[string]string, len(dwc.Spec.Config.Checks))
