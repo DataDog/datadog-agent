@@ -23,8 +23,10 @@ struct tstamp_data {
     __u32 flags;
 };
 
-/* Per-TID hash map for sleeping lock timestamps (mutex, rwsem, rt_mutex) */
-BPF_PERCPU_HASH_MAP(tstamp, __u32, struct tstamp_data, MAX_TSTAMP_ENTRIES)
+/* Per-TID hash map for sleeping lock timestamps (mutex, rwsem, rt_mutex).
+ * Must NOT be per-CPU: sleeping locks can migrate between CPUs, so
+ * contention_end may run on a different CPU than contention_begin. */
+BPF_HASH_MAP(tstamp, __u32, struct tstamp_data, MAX_TSTAMP_ENTRIES)
 
 /* Per-CPU array for spinlock timestamps (one slot per CPU, preemption disabled) */
 BPF_PERCPU_ARRAY_MAP(tstamp_cpu, struct tstamp_data, 1)
