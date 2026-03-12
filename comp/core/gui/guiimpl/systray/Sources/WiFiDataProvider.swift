@@ -267,6 +267,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
     /// Returns the Datadog app icon for use in dialogs (same icon as DMG installation / Finder).
     /// Uses only Agent.icns so the dialog never shows the tray icon (agent.png) or other wrong assets.
+    /// Picks the 32×32 or 16×16 full-color representation; the 128×128 in Agent.icns is a sketch and would show as grey.
     private static func datadogIconImage() -> NSImage? {
         var imagePath: String?
         // 1) DMG/app icon: Agent.icns in Contents/Resources (official build and build-app-bundle.sh)
@@ -284,6 +285,21 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
         guard let path = imagePath else { return nil }
         guard let image = NSImage(contentsOfFile: path), image.isValid else { return nil }
+        // Prefer 32×32 or 16×16 full-color representation; avoid 128×128 (sketch) which draws as grey in the alert.
+        let preferredSizes: [(Int, Int)] = [(32, 32), (64, 64), (16, 16)]
+        for (w, h) in preferredSizes {
+            for rep in image.representations {
+                let pw = rep.pixelsWide
+                let ph = rep.pixelsHigh
+                if pw == w && ph == h {
+                    let out = NSImage(size: NSSize(width: w, height: h))
+                    out.addRepresentation(rep)
+                    out.isTemplate = false
+                    return out
+                }
+            }
+        }
+        // Fallback: use loaded image as-is (e.g. if representation sizes differ)
         image.isTemplate = false
         return image
     }
