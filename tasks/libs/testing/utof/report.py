@@ -44,13 +44,13 @@ def _render_failure(failure: UTOFFailure, prefix: str) -> list[str]:
     """Render a failure block as indented lines.
 
     For assertion failures the file locations are already embedded in the
-    message (e.g. "[1] value_test.go:62: ..."), so we only show the
-    stacktrace for panics where it contains a goroutine trace.
+    message, so we only show the stacktrace for panics where it contains
+    a runtime crash trace.
 
-    When a failure has no message and isn't a panic, it's just Go
-    propagating a subtest failure to the parent — skip it entirely.
+    When a failure has no message and no type, the failure carries no
+    useful diagnostic information — skip it entirely.
     """
-    if not failure.message and failure.type != "panic":
+    if not failure.message and not failure.type:
         return []
     out: list[str] = []
     if failure.type:
