@@ -154,7 +154,7 @@ pkg_filegroup(
         ":all_libs",
     ],
     prefix = "embedded",
-    visibility = ["@@//packages:__subpackages__"],
+    visibility = ["@@//packages:__subpackages__", "@@//deps/msodbcsql18:__pkg__"],
 )
 
 pkg_install(
