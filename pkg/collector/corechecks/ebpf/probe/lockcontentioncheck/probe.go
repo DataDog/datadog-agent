@@ -142,8 +142,11 @@ func (p *Probe) GetAndFlush() []model.LockContentionStats {
 		})
 
 		// Reset max_time_ns for per-interval semantics.
-		// We zero the entire per-CPU entry's max field by writing back zeros.
-		// total_time_ns and count are monotonic — the agent computes deltas.
+		// Note: there is a small race between Lookup and Put — the eBPF program
+		// may increment total_time_ns/count on some CPUs in between. The Put
+		// overwrites those CPUs with stale values, so the "lost" increments
+		// will appear in the next interval's delta. This is acceptable for
+		// monotonic counters submitted via MonotonicCount.
 		for j := range perCPUStats {
 			perCPUStats[j].Max_time_ns = 0
 		}
