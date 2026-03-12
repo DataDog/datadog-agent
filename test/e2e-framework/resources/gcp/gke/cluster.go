@@ -8,10 +8,11 @@ package gke
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/pulumi/pulumi-gcp/sdk/v7/go/gcp/container"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 )
 
 const (
@@ -57,6 +58,10 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 					DisplayName: pulumi.String("ddbuild vpn private ips"),
 				},
 			},
+		},
+		IpAllocationPolicy: &container.ClusterIpAllocationPolicyArgs{
+			ClusterIpv4CidrBlock:  pulumi.String("/22"),
+			ServicesIpv4CidrBlock: pulumi.String("/24"),
 		},
 		ResourceLabels: clusterLabels,
 	}
