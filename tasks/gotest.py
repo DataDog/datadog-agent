@@ -508,11 +508,12 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
             modules_to_test[module].test_targets = default_modules[module].test_targets
 
     if not modules_to_test:
-        print("No modules to test")
+        print("No modules to lint" if lint else "No modules to test")
     else:
-        print("Running tests for the following modules:")
+        print("Running linter for the following modules:" if lint else "Running tests for the following modules:")
         for module in modules_to_test:
-            print(f"- {module}: {modules_to_test[module].test_targets}")
+            targets = modules_to_test[module].lint_targets if lint else modules_to_test[module].test_targets
+            print(f"- {module}: {targets}")
 
     return list(modules_to_test.values())
 

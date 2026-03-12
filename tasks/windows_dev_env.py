@@ -217,12 +217,15 @@ def watch(
     runners: list[tuple[queue_module.Queue, list, threading.Lock]] = []
     any_seeded = False
 
+    from tasks.gotest import find_modified_packages
+
+    initial_raw_packages = find_modified_packages(ctx)
     for cmd in command:
         work_queue: queue_module.Queue[tuple[str, frozenset[str], str]] = queue_module.Queue(maxsize=1)
         current_proc: list[subprocess.Popen | None] = [None]
         proc_lock = threading.Lock()
 
-        initial_work = _build_watch_work(ctx, remote_host, cmd)
+        initial_work = _build_watch_work(remote_host, cmd, initial_raw_packages)
         _, initial_packages, _ = initial_work
         if initial_packages:
             work_queue.put_nowait(initial_work)
@@ -240,8 +243,9 @@ def watch(
         print(f"[{datetime.now().strftime('%H:%M:%S')}] No modified packages, waiting for file changes...")
 
     def _enqueue() -> None:
+        raw_packages = find_modified_packages(ctx)
         for cmd, (work_queue, current_proc, proc_lock) in zip(command, runners, strict=False):
-            work = _build_watch_work(ctx, remote_host, cmd)
+            work = _build_watch_work(remote_host, cmd, raw_packages)
             _, packages, _ = work
             if not packages:
                 continue  # no modified packages for this command — skip
@@ -512,25 +516,24 @@ def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
 
 
 def _build_watch_work(
-    ctx: Context, remote_host: "RemoteHost", fallback_command: str
+    remote_host: "RemoteHost", fallback_command: str, raw_packages: list
 ) -> tuple[str, frozenset[str], str]:
     """
     Compute the (command_type, packages, ssh_cmd) triple for the next test run.
 
-    Calls find_modified_packages() to build a targeted `inv test --targets=...` command
-    covering only the packages that differ from the base branch.
-    Falls back to `fallback_command` when no modified packages are found (e.g. for
-    non-test commands like `inv linter.go`, or when nothing has changed yet).
+    `raw_packages` is the output of find_modified_packages() — callers should call it once
+    and pass the result here so that multiple commands sharing the same sync event don't
+    each trigger a separate git query.
+
+    Falls back to `fallback_command` when raw_packages is empty (e.g. when nothing has
+    changed yet, or for the linter when there are no modified packages).
 
     Returns:
         command_type – "test" or "linter", stored in the state file.
         packages     – frozenset of bare relative package names (e.g. "pkg/util/json").
         ssh_cmd      – full SSH + docker exec command passed to subprocess.Popen.
     """
-    from tasks.gotest import find_modified_packages
-
     command_type = "linter" if "linter" in fallback_command else "test"
-    raw_packages = find_modified_packages(ctx)
     if raw_packages:
         packages = _normalize_packages(raw_packages)
         targets = ','.join(f'./{p}' for p in sorted(packages))
@@ -690,7 +693,7 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
         if packages_covered:
             status = state.get("status")
             if status == "running":
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] Attaching to running test...")
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Attaching to running {command_type}...")
                 return _attach_to_output(name, state)
             if status == "finished":
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Replaying result from {state['end_time']}...")
