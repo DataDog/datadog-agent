@@ -30,6 +30,9 @@ replace (
 // AIX: patched gopsutil with AIX process monitoring support
 replace github.com/DataDog/gopsutil => github.com/DataDog/gopsutil v1.2.5-0.20260303142149-85b991b13594
 
+// AIX: upstream gopsutil with unreleased AIX fixes
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.26.3-0.20260309145323-2b09fc45803c
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
