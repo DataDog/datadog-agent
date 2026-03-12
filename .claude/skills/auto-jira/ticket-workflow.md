@@ -21,7 +21,7 @@ project = <BOARD>
   AND assignee is EMPTY
   AND "Parent" is EMPTY
   AND created <= "<BEFORE_DATE>"
-  AND labels != "do-not-autosolve"
+  AND (labels is EMPTY OR labels != "do-not-autosolve")
 ORDER BY created ASC
 ```
 

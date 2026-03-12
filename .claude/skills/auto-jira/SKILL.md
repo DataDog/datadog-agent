@@ -116,12 +116,12 @@ All calls use `cloudId: datadoghq.atlassian.net`.
 
 ## Repository Location
 
-The datadog-agent repository is at:
-```
-~/go/src/github.com/DataDog/datadog-agent
+Discover the repository root from the current working tree:
+```bash
+git rev-parse --show-toplevel
 ```
 
-Always work from this directory. If the repo is not there, stop and inform the user.
+Always work from this directory. If this command fails (not in a git repo), stop and inform the user.
 
 ---
 
