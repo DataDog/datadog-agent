@@ -59,6 +59,8 @@
       - E2E_MSI_TEST: TestInstallFail
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
+      - E2E_MSI_TEST: TestInstallWithAutologger
+      - E2E_MSI_TEST: TestInstallWithoutAutologger
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
