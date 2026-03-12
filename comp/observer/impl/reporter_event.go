@@ -31,6 +31,7 @@ func (r *EventReporter) Report(output observerdef.ReportOutput) {
 	}
 
 	activeCorrelations := output.ActiveCorrelations
+	r.logger.Infof("[observer] event_reporter: active_correlations=%d seen=%d", len(activeCorrelations), len(r.seenCorrelations))
 
 	// Build the set of currently active patterns.
 	currentlyActive := make(map[string]bool, len(activeCorrelations))
@@ -41,16 +42,20 @@ func (r *EventReporter) Report(output observerdef.ReportOutput) {
 	// Send an event for each newly-seen correlation.
 	for _, ac := range activeCorrelations {
 		if !r.seenCorrelations[ac.Pattern] {
+			r.logger.Infof("[observer] event_reporter: new correlation pattern=%s title=%q, sending event", ac.Pattern, ac.Title)
 			if err := r.sender.send(ac); err != nil {
 				r.logger.Errorf("[observer] failed to send event for pattern %s: %v", ac.Pattern, err)
 			}
 			r.seenCorrelations[ac.Pattern] = true
+		} else {
+			r.logger.Infof("[observer] event_reporter: skipping already-seen correlation pattern=%s", ac.Pattern)
 		}
 	}
 
 	// Remove correlations that are no longer active so they can fire again if they recur.
 	for pattern := range r.seenCorrelations {
 		if !currentlyActive[pattern] {
+			r.logger.Infof("[observer] event_reporter: correlation expired pattern=%s", pattern)
 			delete(r.seenCorrelations, pattern)
 		}
 	}

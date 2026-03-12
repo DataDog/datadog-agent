@@ -177,7 +177,17 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
+	cfg := pkgconfigsetup.Datadog()
+
 	catalog := defaultCatalog()
+	if tf := cfg.GetFloat64("observer.cusum.threshold_factor"); tf > 0 {
+		deps.Log.Infof("[observer] cusum threshold_factor set to %.2f from config", tf)
+		catalog = catalog.WithOverride("cusum", func() any {
+			d := NewCUSUMDetector()
+			d.ThresholdFactor = tf
+			return d
+		})
+	}
 	detectors, correlators, _ := catalog.Instantiate(nil)
 
 	extractors := []observerdef.LogMetricsExtractor{
@@ -220,8 +230,6 @@ func NewComponent(deps Requires) Provides {
 		obsCh:  make(chan observation, 1000),
 	}
 
-	cfg := pkgconfigsetup.Datadog()
-
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
 	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
@@ -238,6 +246,7 @@ func NewComponent(deps Requires) Provides {
 
 	// Optionally add the event reporter when sending is enabled via config.
 	if deps.Config != nil && deps.Config.GetBool("observer.event_reporter.sending_enabled") {
+		deps.Log.Infof("[observer] event_reporter: sending_enabled=true, initialising sender")
 		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
@@ -246,7 +255,10 @@ func NewComponent(deps Requires) Provides {
 				reporters: []observerdef.Reporter{eventReporter},
 				state:     eng.StateView(),
 			})
+			deps.Log.Infof("[observer] event_reporter: registered successfully")
 		}
+	} else {
+		deps.Log.Infof("[observer] event_reporter: sending_enabled=false, no events will be sent (set observer.event_reporter.sending_enabled: true to enable)")
 	}
 
 	go obs.run()

@@ -10,6 +10,7 @@ import (
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CUSUMDetector uses the Cumulative Sum (CUSUM) algorithm to detect when a
@@ -112,6 +113,9 @@ func (c *CUSUMDetector) Detect(series observer.Series) observer.DetectionResult 
 	// CUSUM parameters
 	k := slackFactor * baselineStddev     // slack: ignore small deviations
 	h := thresholdFactor * baselineStddev // threshold: trigger level
+
+	pkglog.Infof("[observer] cusum: series=%s n=%d baseline_mean=%.4f baseline_stddev=%.4f threshold_factor=%.2f threshold_h=%.4f slack_k=%.4f",
+		series.Name, n, baselineMean, baselineStddev, thresholdFactor, h, k)
 
 	// Build debug info
 	debugInfo := &observer.AnomalyDebugInfo{

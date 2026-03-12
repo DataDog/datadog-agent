@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -62,7 +63,7 @@ type engine struct {
 	// every correlation ever seen, keyed by Pattern string, updating
 	// existing entries when the correlator reports a newer version.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
-	correlationMu          sync.RWMutex
+	correlationMu           sync.RWMutex
 
 	// Accumulated telemetry from detection runs (for StateView access).
 	accumulatedTelemetry []observerdef.ObserverTelemetry
@@ -237,6 +238,8 @@ func (e *engine) runDetectorsAndCorrelators(upTo int64) advanceResult {
 	for _, detector := range e.detectors {
 		result := detector.Detect(e.storage, upTo)
 		for _, anomaly := range result.Anomalies {
+			pkglog.Infof("[observer] anomaly detected: detector=%s source=%s timestamp=%d description=%q",
+				anomaly.DetectorName, anomaly.Source, anomaly.Timestamp, anomaly.Description)
 			e.captureRawAnomaly(anomaly)
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)

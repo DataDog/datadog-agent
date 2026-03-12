@@ -7,8 +7,10 @@ package observerimpl
 
 import (
 	"sort"
+	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CorrelatorConfig configures the CrossSignalCorrelator.
@@ -111,6 +113,9 @@ func (c *CrossSignalCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 		anomaly:  anomaly,
 	})
 
+	pkglog.Infof("[observer] correlator: buffered anomaly source=%s detector=%s timestamp=%d buffer_size=%d",
+		anomaly.Source, anomaly.DetectorName, dataTime, len(c.buffer))
+
 	// Evict old entries based on data time
 	c.evictOldEntries()
 }
@@ -145,6 +150,13 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 		sourceSet[entry.anomaly.Source] = struct{}{}
 	}
 
+	sourceNames := make([]string, 0, len(sourceSet))
+	for src := range sourceSet {
+		sourceNames = append(sourceNames, string(src))
+	}
+	pkglog.Infof("[observer] correlator: advance dataTime=%d buffer_size=%d active_sources=[%s]",
+		dataTime, len(c.buffer), strings.Join(sourceNames, ", "))
+
 	// Track which patterns are currently active
 	currentlyActive := make(map[string]bool)
 
@@ -162,6 +174,7 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 				existing.Anomalies = matchingAnomalies
 				existing.MemberSeriesIDs = sortedUniqueSeriesIDs(matchingAnomalies)
 				existing.MetricNames = c.getSortedMetricNames(sourceSet)
+				pkglog.Infof("[observer] correlator: pattern=%s still active anomalies=%d", pattern.name, len(matchingAnomalies))
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
@@ -173,13 +186,26 @@ func (c *CrossSignalCorrelator) Advance(dataTime int64) {
 					FirstSeen:       c.currentDataTime,
 					LastUpdated:     c.currentDataTime,
 				}
+				pkglog.Infof("[observer] correlator: NEW pattern matched pattern=%s title=%q anomalies=%d",
+					pattern.name, pattern.reportTitle, len(matchingAnomalies))
 			}
+		} else {
+			// Build a list of which required sources are missing for this pattern to aid debugging.
+			var missing []string
+			for _, req := range pattern.requiredSources {
+				if _, ok := sourceSet[req]; !ok {
+					missing = append(missing, string(req))
+				}
+			}
+			pkglog.Infof("[observer] correlator: pattern=%s not matched, missing sources=[%s]",
+				pattern.name, strings.Join(missing, ", "))
 		}
 	}
 
 	// Remove patterns that are no longer active (signals expired)
 	for name := range c.activeCorrelations {
 		if !currentlyActive[name] {
+			pkglog.Infof("[observer] correlator: pattern=%s expired (signals left window)", name)
 			delete(c.activeCorrelations, name)
 		}
 	}
