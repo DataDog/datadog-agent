@@ -2095,9 +2095,10 @@ func (u *unresolvedPointeeType) encodeValueFields(
 }
 
 func (u *unresolvedPointeeType) formatValueFields(
-	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
+	_ *encodingContext, buf *bytes.Buffer, _ []byte, limits *formatLimits,
 ) error {
-	return errors.New("depth limit reached")
+	writeBoundedString(buf, limits, "{...}")
+	return nil
 }
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
