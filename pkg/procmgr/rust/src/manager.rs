@@ -12,7 +12,7 @@ use crate::ordering;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use anyhow::Result;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::sync::Arc;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{RwLock, mpsc, oneshot};
@@ -141,8 +141,8 @@ impl ProcessManager {
             return;
         };
         if !proc.state().is_alive() {
-            info!(
-                "[{}] ignoring exit event (state: {})",
+            debug!(
+                "[{}] exit event after stop, skipping restart (state: {})",
                 proc.name(),
                 proc.state()
             );
