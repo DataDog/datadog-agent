@@ -148,8 +148,8 @@ int tracepoint__contention_end(u64 *ctx)
     __u32 lock_type = classify_lock_type(pelem->flags);
     lock_contention_stats_t *stats = bpf_map_lookup_elem(&lock_contention_stats, &lock_type);
     if (stats) {
-        __sync_fetch_and_add(&stats->total_time_ns, duration);
-        __sync_fetch_and_add(&stats->count, 1);
+        stats->total_time_ns += duration;
+        stats->count += 1;
         /* max_time_ns: not atomic, but acceptable — worst case we miss
          * an update, which is fine for a gauge that resets each interval */
         if (stats->max_time_ns < duration)
