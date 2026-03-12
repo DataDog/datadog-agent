@@ -108,6 +108,24 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	assert.Equal(t, 30.0, series.Points[2].Value)
 }
 
+func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", 10.0, 1000, nil)
+	s.Add("test", "my.metric", 20.0, 1002, nil)
+	s.Add("test", "my.metric", 30.0, 1001, nil) // inserted in order
+	s.Add("test", "my.metric", 40.0, 1002, nil) // same bucket: aggregated
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 3)
+	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
+	assert.Equal(t, int64(1001), series.Points[1].Timestamp)
+	assert.Equal(t, int64(1002), series.Points[2].Timestamp)
+	assert.Equal(t, 30.0, series.Points[1].Value)
+	assert.Equal(t, 30.0, series.Points[2].Value)
+}
+
 func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -374,7 +392,7 @@ func TestPointCount_ColumnarLayout(t *testing.T) {
 
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Insert out of order — columnar storage should maintain sorted order.
+	// Insert out of order — storage keeps buckets sorted.
 	s.Add("ns", "m", 30.0, 30, nil)
 	s.Add("ns", "m", 10.0, 10, nil)
 	s.Add("ns", "m", 20.0, 20, nil)
@@ -527,4 +545,17 @@ func TestFindingM5_NegativeMaxFloat64NotFiltered(t *testing.T) {
 		"sum of two -MaxFloat64 values is -Inf (%v), storage should filter -MaxFloat64 like it filters +MaxFloat64", sum)
 	assert.False(t, math.IsNaN(sum),
 		"sum of two -MaxFloat64 values is NaN (%v), storage should filter -MaxFloat64", sum)
+}
+
+func TestTimeBoundsSkipsNonPositivePrefixOnly(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "metric", 1, 0, nil)
+	s.Add("test", "metric", 2, 10, nil)
+	s.Add("test", "metric", 3, 20, nil)
+
+	minTs, maxTs, ok := s.TimeBounds()
+	assert.True(t, ok)
+	assert.Equal(t, int64(10), minTs)
+	assert.Equal(t, int64(20), maxTs)
 }

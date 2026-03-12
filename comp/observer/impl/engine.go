@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"math"
 	"sync"
+	"sync/atomic"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -79,6 +80,13 @@ type engine struct {
 	// Event subscription management.
 	sinks   []eventSink
 	sinksMu sync.RWMutex
+
+	// Replay progress counters (atomic, lock-free reads).
+	replayTimestampsDone  atomic.Int64
+	replayTimestampsTotal atomic.Int64
+	replayAdvances        atomic.Int64
+	replayAnomalies       atomic.Int64
+	replayPhase           atomic.Value // string: "", "loading", "detecting", "done"
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -536,6 +544,27 @@ func (e *engine) resetFull() {
 	e.resetCorrelations()
 }
 
+// ReplayProgress holds lock-free replay progress counters.
+type ReplayProgress struct {
+	Phase           string `json:"phase"` // "", "loading", "detecting", "done"
+	TimestampsDone  int64  `json:"timestampsDone"`
+	TimestampsTotal int64  `json:"timestampsTotal"`
+	Advances        int64  `json:"advances"`
+	Anomalies       int64  `json:"anomalies"`
+}
+
+// GetReplayProgress returns the current replay progress (lock-free).
+func (e *engine) GetReplayProgress() ReplayProgress {
+	phase, _ := e.replayPhase.Load().(string)
+	return ReplayProgress{
+		Phase:           phase,
+		TimestampsDone:  e.replayTimestampsDone.Load(),
+		TimestampsTotal: e.replayTimestampsTotal.Load(),
+		Advances:        e.replayAdvances.Load(),
+		Anomalies:       e.replayAnomalies.Load(),
+	}
+}
+
 // ReplayStoredData replays all data in storage through the scheduler policy,
 // using the same timing semantics as live ingestion. For each unique data
 // timestamp, it consults the scheduler to decide when to advance analysis.
@@ -545,14 +574,26 @@ func (e *engine) ReplayStoredData() advanceResult {
 	var allTelemetry []observerdef.ObserverTelemetry
 
 	timestamps := e.storage.DataTimestamps()
-	for _, ts := range timestamps {
+
+	e.replayPhase.Store("detecting")
+	e.replayTimestampsTotal.Store(int64(len(timestamps)))
+	e.replayTimestampsDone.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
+
+	advances := 0
+	for i, ts := range timestamps {
 		e.trackLatestDataTime(ts)
 		requests := e.scheduler.onObservation(ts, e.schedulerState())
 		for _, req := range requests {
 			result := e.advanceWithReason(req.upToSec, req.reason)
 			allAnomalies = append(allAnomalies, result.anomalies...)
 			allTelemetry = append(allTelemetry, result.telemetry...)
+			advances++
 		}
+		e.replayTimestampsDone.Store(int64(i + 1))
+		e.replayAdvances.Store(int64(advances))
+		e.replayAnomalies.Store(int64(len(allAnomalies)))
 	}
 
 	// Final flush for any remaining data not yet analyzed.
@@ -561,7 +602,12 @@ func (e *engine) ReplayStoredData() advanceResult {
 		result := e.advanceWithReason(req.upToSec, req.reason)
 		allAnomalies = append(allAnomalies, result.anomalies...)
 		allTelemetry = append(allTelemetry, result.telemetry...)
+		advances++
 	}
+
+	e.replayAdvances.Store(int64(advances))
+	e.replayAnomalies.Store(int64(len(allAnomalies)))
+	e.replayPhase.Store("done")
 
 	return advanceResult{
 		anomalies: allAnomalies,

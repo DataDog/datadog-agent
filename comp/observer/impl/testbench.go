@@ -113,6 +113,16 @@ type TestBench struct {
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
+	// Cached compressed correlations (expensive to recompute)
+	compCorrCache      []CompressedGroup
+	compCorrThreshold  float64
+	compCorrGeneration uint64
+	corrGeneration     uint64 // bumped after each rerunDetectorsLocked
+
+	// SSE broadcast hub for pushing events to connected browsers.
+	sse     *sseHub
+	sseStop chan struct{}
+
 	// API server
 	api *TestBenchAPI
 }
@@ -190,6 +200,9 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		scheduler:   &currentBehaviorPolicy{},
 	})
 
+	hub := newSSEHub()
+	stop := make(chan struct{})
+
 	tb := &TestBench{
 		config:                 config,
 		engine:                 eng,
@@ -197,9 +210,28 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		components:             components,
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
+		sse:                    hub,
+		sseStop:                stop,
 	}
 
+	// Heartbeat goroutine — lets SSE clients detect stale connections.
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				hub.broadcast(sseEvent{Event: "heartbeat", Data: []byte(`{}`)})
+			case <-stop:
+				return
+			}
+		}
+	}()
+
 	tb.api = NewTestBenchAPI(tb)
+
+	// Seed the SSE hub with initial status so the first subscriber gets it.
+	tb.broadcastStatus()
 
 	return tb, nil
 }
@@ -209,9 +241,25 @@ func (tb *TestBench) Start() error {
 	return tb.api.Start(tb.config.HTTPAddr)
 }
 
-// Stop stops the test bench HTTP server.
+// Stop stops the test bench HTTP server and background goroutines.
 func (tb *TestBench) Stop() error {
+	close(tb.sseStop)
 	return tb.api.Stop()
+}
+
+// broadcastStatus sends the current status to all SSE clients.
+// Must be called without holding tb.mu (GetStatus acquires its own read lock).
+func (tb *TestBench) broadcastStatus() {
+	status := tb.GetStatus()
+	data, _ := json.Marshal(status)
+	tb.sse.broadcast(sseEvent{Event: "status", Data: data})
+}
+
+// broadcastProgress sends current replay progress to all SSE clients.
+func (tb *TestBench) broadcastProgress() {
+	progress := tb.engine.GetReplayProgress()
+	data, _ := json.Marshal(progress)
+	tb.sse.broadcast(sseEvent{Event: "progress", Data: data})
 }
 
 // ListScenarios returns all available scenarios.
@@ -277,7 +325,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 
 	tb.mu.Lock()
-	defer tb.mu.Unlock()
 
 	// Clear existing data
 	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
@@ -286,6 +333,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = name
+	tb.engine.replayPhase.Store("loading")
 
 	// Try to read optional episode.json metadata
 	tb.episodeInfo = nil
@@ -299,6 +347,36 @@ func (tb *TestBench) LoadScenario(name string) error {
 	// Reset ALL components so disabled ones clear stale state
 	tb.resetAllState()
 
+	// Release lock briefly to broadcast "loading" status to all SSE clients,
+	// then reacquire for the heavy work.
+	tb.mu.Unlock()
+	tb.broadcastStatus()
+	tb.mu.Lock()
+
+	// Broadcast progress to SSE clients while loading (reads atomic counters, no lock needed).
+	progressDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				tb.broadcastProgress()
+			case <-progressDone:
+				return
+			}
+		}
+	}()
+
+	loadFailed := func(err error) error {
+		tb.engine.replayPhase.Store("")
+		tb.loadedScenario = "" // roll back so status doesn't look like "loading"
+		close(progressDone)
+		tb.mu.Unlock()
+		tb.broadcastStatus() // notify clients of failure
+		return err
+	}
+
 	// Load data from scenario
 	scenarioStart := time.Now()
 	fmt.Printf("Loading scenario: %s\n", name)
@@ -308,13 +386,13 @@ func (tb *TestBench) LoadScenario(name string) error {
 	parquetStart := time.Now()
 	if _, err := os.Stat(parquetDir); err == nil {
 		if err := tb.loadParquetDir(parquetDir); err != nil {
-			return fmt.Errorf("failed to load parquet data: %w", err)
+			return loadFailed(fmt.Errorf("failed to load parquet data: %w", err))
 		}
 	} else {
 		// Check for parquet files directly in scenario directory
 		if files, _ := filepath.Glob(filepath.Join(scenarioPath, "*.parquet")); len(files) > 0 {
 			if err := tb.loadParquetDir(scenarioPath); err != nil {
-				return fmt.Errorf("failed to load parquet data: %w", err)
+				return loadFailed(fmt.Errorf("failed to load parquet data: %w", err))
 			}
 		}
 	}
@@ -326,6 +404,12 @@ func (tb *TestBench) LoadScenario(name string) error {
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+
+	close(progressDone)
+	tb.mu.Unlock()
+
+	// Broadcast final status to SSE clients (outside lock).
+	tb.broadcastStatus()
 
 	return nil
 }
@@ -584,6 +668,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{t}, detName, dataTime)
 	}
 
+	// Invalidate compressed correlations cache
+	tb.corrGeneration++
+
 	// Mark scenario ready now that all analysis is complete
 	tb.ready = true
 }
@@ -782,12 +869,31 @@ func (tb *TestBench) GetCorrelations() []observerdef.ActiveCorrelation {
 // GetCompressedCorrelations returns compressed group descriptions for all correlations.
 func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGroup {
 	tb.mu.RLock()
-	defer tb.mu.RUnlock()
+
+	// Check cache: same threshold and generation means the result is still valid.
+	if tb.compCorrCache != nil && tb.compCorrThreshold == threshold && tb.compCorrGeneration == tb.corrGeneration {
+		cached := tb.compCorrCache
+		tb.mu.RUnlock()
+		return cached
+	}
+	tb.mu.RUnlock()
+
+	// Cache miss — need write lock to compute and store.
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+
+	// Double-check after acquiring write lock.
+	if tb.compCorrCache != nil && tb.compCorrThreshold == threshold && tb.compCorrGeneration == tb.corrGeneration {
+		return tb.compCorrCache
+	}
 
 	correlations := tb.engine.StateView().CorrelationHistory()
 	storage := tb.engine.Storage()
 	if storage == nil || len(correlations) == 0 {
-		return []CompressedGroup{}
+		tb.compCorrCache = []CompressedGroup{}
+		tb.compCorrThreshold = threshold
+		tb.compCorrGeneration = tb.corrGeneration
+		return tb.compCorrCache
 	}
 
 	// Build universe from storage
@@ -837,6 +943,11 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 		cg.LastUpdated = corr.LastUpdated
 		groups = append(groups, cg)
 	}
+
+	// Store in cache
+	tb.compCorrCache = groups
+	tb.compCorrThreshold = threshold
+	tb.compCorrGeneration = tb.corrGeneration
 
 	return groups
 }
@@ -933,10 +1044,10 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
 func (tb *TestBench) ToggleComponent(name string) error {
 	tb.mu.Lock()
-	defer tb.mu.Unlock()
 
 	ci, ok := tb.components[name]
 	if !ok {
+		tb.mu.Unlock()
 		return fmt.Errorf("unknown component: %s", name)
 	}
 
@@ -947,13 +1058,17 @@ func (tb *TestBench) ToggleComponent(name string) error {
 		tb.rerunDetectorsLocked()
 	}
 
+	tb.mu.Unlock()
+
+	// Notify SSE clients of the state change (outside lock).
+	tb.broadcastStatus()
+
 	return nil
 }
 
 // loadDemoScenario generates synthetic demo data directly into storage.
 func (tb *TestBench) loadDemoScenario() error {
 	tb.mu.Lock()
-	defer tb.mu.Unlock()
 
 	// Clear existing data
 	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
@@ -1105,6 +1220,8 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.rerunDetectorsLocked()
 	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
 
+	tb.mu.Unlock()
+	tb.broadcastStatus()
 	return nil
 }
 

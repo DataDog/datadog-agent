@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"os"
@@ -23,9 +24,16 @@ type timeSeriesStorage struct {
 	series map[string]*seriesStats
 
 	// observationTimestamps tracks all timestamps where observations occurred,
-	// including log timestamps that produced no virtual metrics. This ensures
-	// DataTimestamps() includes all observation times for replay fidelity.
+	// even if no metric series was written for that timestamp.
 	observationTimestamps map[int64]struct{}
+
+	// Compact numeric IDs for API responses; unrelated to generation tracking.
+	seriesIDs    map[string]int // internal key → numeric ID
+	seriesIDKeys []string       // numeric ID → internal key (index = ID)
+
+	// Global generation for the series catalog; increments only when a new
+	// series key is created, not on every write to an existing series.
+	seriesGen uint64
 
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
@@ -36,14 +44,14 @@ type timeSeriesStorage struct {
 
 // seriesStats contains accumulated statistics for a time series (internal).
 // Data is stored in columnar layout: parallel arrays indexed by point position.
-// Timestamps are sorted and append-only, enabling binary search for range queries.
+// Timestamps are stored in sorted order, enabling binary search for range queries.
 type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
 
-	// writeGeneration increments on every Add (including same-bucket merges).
-	// Used by detectors to detect value changes that don't create new buckets.
+	// writeGeneration is per-series and increments on every Add, including
+	// same-bucket merges into an existing point.
 	writeGeneration int64
 
 	// Columnar storage — all slices have the same length, indexed by point position.
@@ -183,6 +191,7 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
 		series:                make(map[string]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
+		seriesIDs:             make(map[string]int),
 		droppedByMetric:       make(map[string]int64),
 		sampledDrops:          make(map[string]int),
 	}
@@ -190,6 +199,8 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 
 // Add records a data point for a named metric in a namespace.
 // Invalid values are dropped at ingest with accounting and sampled logging.
+// Timestamps are maintained in sorted order so replay and live ingestion remain
+// correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -211,13 +222,18 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		stats = &seriesStats{
 			Namespace: namespace,
 			Name:      name,
-			Tags:      copyTags(tags),
+			Tags:      canonicalizeTags(tags),
 		}
 		s.series[key] = stats
+		// Assign a compact numeric ID for API responses.
+		id := len(s.seriesIDKeys)
+		s.seriesIDs[key] = id
+		s.seriesIDKeys = append(s.seriesIDKeys, key)
+		s.seriesGen++
 	}
 	stats.writeGeneration++
 
-	// Bucket by second
+	// Bucket by second.
 	bucket := timestamp
 
 	// Binary search for the bucket in the sorted timestamps array.
@@ -235,14 +251,14 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		if value > stats.maxes[idx] {
 			stats.maxes[idx] = value
 		}
-	} else {
-		// Insert new bucket at sorted position.
-		stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
-		stats.sums = insertFloat64(stats.sums, idx, value)
-		stats.counts = insertInt64(stats.counts, idx, 1)
-		stats.mins = insertFloat64(stats.mins, idx, value)
-		stats.maxes = insertFloat64(stats.maxes, idx, value)
+		return
 	}
+
+	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
+	stats.sums = insertFloat64(stats.sums, idx, value)
+	stats.counts = insertInt64(stats.counts, idx, 1)
+	stats.mins = insertFloat64(stats.mins, idx, value)
+	stats.maxes = insertFloat64(stats.maxes, idx, value)
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -401,8 +417,13 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 		if n == 0 {
 			continue
 		}
-		// Timestamps are sorted, so first and last give bounds.
-		first := stats.timestamps[0]
+		// Timestamps are sorted, but some series may start with default/non-data
+		// zero timestamps. Ignore only the non-positive prefix, not the series.
+		firstIdx := searchAfter(stats.timestamps, 0)
+		if firstIdx >= n {
+			continue
+		}
+		first := stats.timestamps[firstIdx]
 		last := stats.timestamps[n-1]
 		if !found {
 			min = first
@@ -439,9 +460,10 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 
 // seriesKey creates a unique key for a series.
 func seriesKey(namespace, name string, tags []string) string {
-	sortedTags := copyTags(tags)
-	sort.Strings(sortedTags)
-	return namespace + "|" + name + "|" + strings.Join(sortedTags, ",")
+	if len(tags) > 1 && !tagsSorted(tags) {
+		tags = canonicalizeTags(tags)
+	}
+	return namespace + "|" + name + "|" + joinTags(tags)
 }
 
 // parseSeriesKey parses a series key back into its parts.
@@ -467,6 +489,93 @@ func copyTags(tags []string) []string {
 	result := make([]string, len(tags))
 	copy(result, tags)
 	return result
+}
+
+func canonicalizeTags(tags []string) []string {
+	if len(tags) <= 1 {
+		return copyTags(tags)
+	}
+	result := copyTags(tags)
+	sort.Strings(result)
+	return result
+}
+
+func tagsSorted(tags []string) bool {
+	for i := 1; i < len(tags); i++ {
+		if tags[i-1] > tags[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func joinTags(tags []string) string {
+	switch len(tags) {
+	case 0:
+		return ""
+	case 1:
+		return tags[0]
+	default:
+		return strings.Join(tags, ",")
+	}
+}
+
+// seriesMeta is lightweight series metadata including point count,
+// used for API listing without materializing point data.
+type seriesMeta struct {
+	ID         int // compact numeric ID
+	Namespace  string
+	Name       string
+	Tags       []string
+	PointCount int
+}
+
+// ListSeriesMetadata returns lightweight metadata for all series in a namespace.
+// Unlike AllSeries, this does not materialize point data — it only reads point counts.
+func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []seriesMeta
+	for key, stats := range s.series {
+		if stats.Namespace == namespace {
+			result = append(result, seriesMeta{
+				ID:         s.seriesIDs[key],
+				Namespace:  stats.Namespace,
+				Name:       stats.Name,
+				Tags:       copyTags(stats.Tags),
+				PointCount: stats.pointCount(),
+			})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].ID != result[j].ID {
+			return result[i].ID < result[j].ID
+		}
+		if result[i].Name != result[j].Name {
+			return result[i].Name < result[j].Name
+		}
+		return strings.Join(result[i].Tags, ",") < strings.Join(result[j].Tags, ",")
+	})
+	return result
+}
+
+// GetSeriesByNumericID looks up a series by its compact numeric ID and returns
+// the data using the specified aggregation.
+func (s *timeSeriesStorage) GetSeriesByNumericID(id int, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id < 0 || id >= len(s.seriesIDKeys) {
+		return nil
+	}
+	key := s.seriesIDKeys[id]
+	stats := s.series[key]
+	if stats == nil {
+		return nil
+	}
+	series := stats.toSeries(agg)
+	return &series
 }
 
 // ListAllSeriesCompact returns lightweight metadata for every stored series.
@@ -553,6 +662,60 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	}
 	sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
 	return timestamps
+}
+
+// SeriesGeneration returns a counter that increments whenever a new series key
+// is created. Callers can use this to safely cache ListSeries results.
+func (s *timeSeriesStorage) SeriesGeneration() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.seriesGen
+}
+
+// CompactSeriesID translates a full series key (as used in SourceSeriesID) to its
+// compact numeric ID string. The full key format is "namespace|name:agg|tags" where
+// the storage key is "namespace|name|tags" (without the agg suffix). This method
+// strips the agg suffix, looks up the numeric ID, and returns "numericID:agg".
+// Returns the original key unchanged if no mapping exists.
+func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	namespace, nameWithAgg, tags, ok := parseSeriesKey(fullKey)
+	if !ok {
+		return fullKey
+	}
+
+	// Split off the aggregation suffix from the name.
+	baseName := nameWithAgg
+	aggStr := ""
+	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
+		baseName = nameWithAgg[:idx]
+		aggStr = nameWithAgg[idx+1:]
+	}
+
+	// Look up the storage key (without agg suffix).
+	storageKey := seriesKey(namespace, baseName, tags)
+	numID, found := s.seriesIDs[storageKey]
+	if !found {
+		return fullKey
+	}
+
+	if aggStr != "" {
+		return fmt.Sprintf("%d:%s", numID, aggStr)
+	}
+	return fmt.Sprintf("%d", numID)
+}
+
+// FullKeyForNumericID returns the internal storage key for a compact numeric ID.
+func (s *timeSeriesStorage) FullKeyForNumericID(id int) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id < 0 || id >= len(s.seriesIDKeys) {
+		return "", false
+	}
+	return s.seriesIDKeys[id], true
 }
 
 // StorageReader interface implementation
