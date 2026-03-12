@@ -47,9 +47,8 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 	var errMsg *C.char
 	result := C.queryLoginWindowTimestamp(fvEnabled, &errMsg)
 	if errMsg != nil {
-		msg := C.GoString(errMsg)
-		C.free(unsafe.Pointer(errMsg))
-		return time.Time{}, errors.New(msg)
+		defer C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
 	return cTimestampToTime(result), nil
 }
@@ -61,9 +60,8 @@ func GetLoginTime() (time.Time, error) {
 	var errMsg *C.char
 	result := C.queryLoginTimestamp(&errMsg)
 	if errMsg != nil {
-		msg := C.GoString(errMsg)
-		C.free(unsafe.Pointer(errMsg))
-		return time.Time{}, errors.New(msg)
+		defer C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
 	return cTimestampToTime(result), nil
 }
@@ -75,9 +73,8 @@ func GetDesktopReadyTime() (time.Time, error) {
 	var errMsg *C.char
 	result := C.queryDesktopReadyTimestamp(&errMsg)
 	if errMsg != nil {
-		msg := C.GoString(errMsg)
-		C.free(unsafe.Pointer(errMsg))
-		return time.Time{}, errors.New(msg)
+		defer C.free(unsafe.Pointer(errMsg))
+		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
 	return cTimestampToTime(result), nil
 }
@@ -88,9 +85,8 @@ func IsFileVaultEnabled() (bool, error) {
 	var errMsg *C.char
 	result := C.checkFileVaultEnabled(&errMsg)
 	if errMsg != nil {
-		msg := C.GoString(errMsg)
-		C.free(unsafe.Pointer(errMsg))
-		return false, errors.New(msg)
+		defer C.free(unsafe.Pointer(errMsg))
+		return false, errors.New(C.GoString(errMsg))
 	}
 	return result == 1, nil
 }
