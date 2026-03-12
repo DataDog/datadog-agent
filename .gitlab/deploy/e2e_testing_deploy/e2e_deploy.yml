@@ -88,7 +88,7 @@ deploy_deb_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64", "ddot_deb-arm64"]
+  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-x64", "ddot_deb-arm64"]
   script:
     # setup_signing_keys_package must be done *before* setup_signing
     # because setup_signing replaces gpg with gpg-vault
@@ -143,7 +143,7 @@ deploy_rpm_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64", "ddot_rpm-arm64"]
+  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-x64", "ddot_rpm-arm64"]
   script:
     - *setup_signing
     - |
@@ -190,7 +190,7 @@ deploy_suse_rpm_testing_arm64-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]
-  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64", "ddot_suse_rpm-arm64"]
+  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-x64", "ddot_suse_rpm-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
