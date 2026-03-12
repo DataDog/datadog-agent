@@ -16,7 +16,6 @@ from tasks.libs.testing.utof.go_parser.run_parser import (
     determine_status,
     generate_test_id,
     leaf_name,
-    resolve_failure,
     set_total_duration,
 )
 from tasks.libs.testing.utof.metadata import generate_metadata
@@ -61,13 +60,9 @@ def convert_unit_test_results(
             duration = compute_duration(actions)
             retry_count = compute_retry_count(actions)
             attempts = build_attempts(actions)
-            failure = resolve_failure(status, attempts)
-
             flaky = None
             if test_washer:
                 status, flaky = classify_flaky(status, package, test_name, actions, flaky_failures, test_washer)
-                if flaky and failure is None and status == "flaky_fail":
-                    failure = resolve_failure("fail", attempts)
 
             tests.append(
                 UTOFTestResult(
@@ -80,7 +75,6 @@ def convert_unit_test_results(
                     status=status,
                     duration_seconds=round(duration, 6),
                     retry_count=retry_count,
-                    failure=failure,
                     flaky=flaky,
                     attempts=attempts,
                 )

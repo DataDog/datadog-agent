@@ -237,24 +237,6 @@ def build_summary(counts: dict[str, int]) -> UTOFSummary:
     )
 
 
-def resolve_failure(status: str, attempts: list[UTOFAttempt]) -> UTOFFailure | None:
-    """Pick the right UTOFFailure to surface at the top-level test result.
-
-    For a final fail: surface the last failed attempt's failure.
-    For a final pass (after retries): surface the first failed attempt's failure
-    so users see why a retry was needed.
-    """
-    if status == "fail":
-        for attempt in reversed(attempts):
-            if attempt.status == "fail" and attempt.failure:
-                return attempt.failure
-    else:
-        for attempt in attempts:
-            if attempt.status == "fail" and attempt.failure:
-                return attempt.failure
-    return None
-
-
 def classify_flaky(
     status: str,
     package: str,
