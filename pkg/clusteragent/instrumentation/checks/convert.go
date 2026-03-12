@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"gopkg.in/yaml.v2"
@@ -36,7 +36,7 @@ func configMapKey(namespace, crName, checkName string) string {
 // convertCR converts a DatadogInstrumentation CR into a set of ConfigMap entries (key -> YAML).
 // Each CheckConfig in the CR produces one entry.
 func convertCR(dwc *datadoghq.DatadogInstrumentation) (map[string]string, error) {
-	celRules := workloadconfig.BuildCELSelector(dwc)
+	celRules := instrumentation.BuildCELSelector(dwc)
 
 	entries := make(map[string]string, len(dwc.Spec.Config.Checks))
 	for i, check := range dwc.Spec.Config.Checks {

@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workloadconfig
+package instrumentation
 
 import (
 	"context"

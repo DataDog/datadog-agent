@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workloadconfig
+package instrumentation
 
 import (
 	"fmt"
@@ -55,7 +55,7 @@ func NewInstrumentationCRDController(
 		synced: dwcInformer.Informer().HasSynced,
 		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedItemBasedRateLimiter[string](),
-			workqueue.TypedRateLimitingQueueConfig[string]{Name: "workloadconfig"},
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "instrumentation"},
 		),
 		isLeader:              isLeader,
 		leadershipChangeNotif: leadershipChangeNotif,
@@ -67,7 +67,7 @@ func NewInstrumentationCRDController(
 		UpdateFunc: func(_, _ interface{}) { c.enqueue() },
 		DeleteFunc: func(_ interface{}) { c.enqueue() },
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to workloadconfig informer: %w", err)
+		return nil, fmt.Errorf("cannot add event handler to instrumentation informer: %w", err)
 	}
 
 	return c, nil

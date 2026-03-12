@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workloadconfig
+package instrumentation
 
 import datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 

@@ -26,8 +26,8 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/workloadconfig/checks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/checks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -203,11 +203,11 @@ func startWorkloadConfigCRDController(ctx *ControllerContext, errChan chan error
 	configMapNamespace := namespace.GetResourcesNamespace()
 	leaderNotif, _ := ctx.LeaderNotifier()
 
-	handlers := []workloadconfig.ConfigSectionHandler{
+	handlers := []instrumentation.ConfigSectionHandler{
 		checks.NewChecksHandler(ctx.Client, checks.DefaultConfigMapName, configMapNamespace),
 	}
 
-	controller, err := workloadconfig.NewInstrumentationCRDController(
+	controller, err := instrumentation.NewInstrumentationCRDController(
 		ctx.DynamicInformerFactory,
 		ctx.IsLeaderFunc,
 		leaderNotif,
