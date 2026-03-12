@@ -11,21 +11,10 @@ import (
 	"strings"
 )
 
-// AppKeyURLRegex matches a valid Datadog application key embedded as a query
-// parameter named "application_key" in a URL. It can be used to detect or
-// scrub app keys from log lines and HTTP requests.
-//
-// Accepted key formats:
-//   - [pub]<34 hex chars>def789   (legacy hex key, optional "pub" prefix)
-//   - ddapp_<28 alphanumeric chars>def789  (new-style key)
-var AppKeyURLRegex = regexp.MustCompile(`.*\?(.*&)?(?i:application_key)=(?:(?i:pub)?[0-9A-Fa-f]{34}|ddapp_[0-9A-Za-z]{28})(?i:def789)(&.*)?`)
-
-// appKeyRegex validates a standalone application key value.
-// It accepts the same two formats as AppKeyURLRegex.
-var appKeyRegex = regexp.MustCompile(`^(?:(?i:pub)?[0-9A-Fa-f]{34}|ddapp_[0-9A-Za-z]{28})(?i:def789)$`)
-
-// apiKeyRegex matches valid Datadog API keys (32 hexadecimal characters).
-var apiKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
+var (
+	apiKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
+	appKeyRegex = regexp.MustCompile(`^([a-f0-9]{40}|ddapp_[a-zA-Z0-9]{34})$`)
+)
 
 // isEncrypted reports whether s is an unresolved secret placeholder in the
 // ENC[...] format used by the Datadog secret backend.

@@ -20,28 +20,13 @@ func TestValidateAppKey(t *testing.T) {
 	}{
 		// --- valid keys ---
 		{
-			name:   "valid hex key (34 hex + def789)",
-			key:    "1234567890abcdef1234567890abcdef12def789",
+			name:   "valid 40-char lowercase hex key",
+			key:    "1234567890abcdef1234567890abcdef12345678",
 			wantOK: true,
 		},
 		{
-			name:   "valid hex key with pub prefix",
-			key:    "pub1234567890abcdef1234567890abcdef12def789",
-			wantOK: true,
-		},
-		{
-			name:   "valid hex key with PUB prefix (case-insensitive)",
-			key:    "PUB1234567890abcdef1234567890abcdef12def789",
-			wantOK: true,
-		},
-		{
-			name:   "valid hex key ending DEF789 (case-insensitive suffix)",
-			key:    "1234567890abcdef1234567890abcdef12DEF789",
-			wantOK: true,
-		},
-		{
-			name:   "valid ddapp_ key",
-			key:    "ddapp_1234567890ABCDEFabcdef1234abdef789",
+			name:   "valid ddapp_ key (ddapp_ + 34 alphanum)",
+			key:    "ddapp_1234567890ABCDEFabcdef1234abcdef12",
 			wantOK: true,
 		},
 		// --- soft failures (false, nil) ---
@@ -55,23 +40,28 @@ func TestValidateAppKey(t *testing.T) {
 			wantOK: false,
 		},
 		{
-			name:   "wrong length hex (40 chars but no def789 suffix)",
-			key:    "1234567890abcdef1234567890abcdef12345678",
+			name:   "uppercase hex rejected (must be lowercase)",
+			key:    "1234567890ABCDEF1234567890ABCDEF12345678",
+			wantOK: false,
+		},
+		{
+			name:   "pub prefix rejected",
+			key:    "pub1234567890abcdef1234567890abcdef12def789",
 			wantOK: false,
 		},
 		{
 			name:   "invalid characters in hex section",
-			key:    "1234567890abcdef1234567890abcdefXXdef789",
+			key:    "1234567890abcdef1234567890abcdefXXYYZZWW",
 			wantOK: false,
 		},
 		{
-			name:   "ddapp_ wrong suffix",
-			key:    "ddapp_1234567890ABCDEFabcdef1234xxxxxx",
+			name:   "ddapp_ too short (33 alphanum instead of 34)",
+			key:    "ddapp_1234567890ABCDEFabcdef1234abc",
 			wantOK: false,
 		},
 		{
-			name:   "ddapp_ too short",
-			key:    "ddapp_short",
+			name:   "ddapp_ too long (35 alphanum instead of 34)",
+			key:    "ddapp_1234567890ABCDEFabcdef1234abcde",
 			wantOK: false,
 		},
 		// --- hard failures (false, error) ---
@@ -158,56 +148,6 @@ func TestValidateAPIKey(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-		})
-	}
-}
-
-func TestAppKeyURLRegex(t *testing.T) {
-	tests := []struct {
-		name      string
-		url       string
-		wantMatch bool
-	}{
-		{
-			name:      "hex key in URL",
-			url:       "https://example.com/api?application_key=1234567890abcdef1234567890abcdef12def789",
-			wantMatch: true,
-		},
-		{
-			name:      "case-insensitive param name",
-			url:       "https://example.com/api?APPLICATION_KEY=1234567890abcdef1234567890abcdef12def789",
-			wantMatch: true,
-		},
-		{
-			name:      "key with pub prefix in URL",
-			url:       "https://example.com/api?application_key=pub1234567890abcdef1234567890abcdef12def789",
-			wantMatch: true,
-		},
-		{
-			name:      "ddapp_ key in URL",
-			url:       "https://example.com/api?application_key=ddapp_1234567890ABCDEFabcdef1234abdef789",
-			wantMatch: true,
-		},
-		{
-			name:      "key among multiple params",
-			url:       "https://example.com/api?foo=bar&application_key=1234567890abcdef1234567890abcdef12def789&baz=qux",
-			wantMatch: true,
-		},
-		{
-			name:      "invalid key value",
-			url:       "https://example.com/api?application_key=tooshort",
-			wantMatch: false,
-		},
-		{
-			name:      "no query string",
-			url:       "https://example.com/api",
-			wantMatch: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantMatch, AppKeyURLRegex.MatchString(tc.url))
 		})
 	}
 }
