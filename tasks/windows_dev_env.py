@@ -169,21 +169,30 @@ def run(
 
 
 @task(
+    iterable=['command'],
     help={
         'name': 'Override the default name of the development environment (windows-dev-env).',
-        'command': 'Command to run after each sync (e.g. "inv test --build-stdlib --targets=./pkg/util/json").',
+        'command': (
+            'Command(s) to run after each sync. Pass multiple times to run in parallel '
+            '(e.g. --command "inv test" --command "inv linter.go"). '
+            'Defaults to both test and linter.'
+        ),
     },
 )
 def watch(
     ctx: Context,
     name: str = "windows-dev-env",
-    command: str = "inv test --build-stdlib",
+    command: list[str] | None = None,
 ):
     """
-    Watch for local changes, sync them to the remote Windows VM and run a command after each sync.
-    Writes results to a state file so that `dda inv test --host windows` can attach to a running
-    test or replay a recent result instead of launching a redundant remote run.
+    Watch for local changes, sync them to the remote Windows VM and run commands after each sync.
+    Multiple --command flags run in parallel, each with its own runner thread and state file.
+    Writes results to state files so that `dda inv test --host windows` / `dda inv linter.go
+    --host windows` can attach to a running job or replay a recent result.
     """
+    if not command:
+        command = ["inv test", "inv linter.go"]
+
     with ctx.cd('./test/e2e-framework'):
         result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", warn=True, hide=True)
         if result is None or result.exited != 0 or not result.stdout.strip():
@@ -204,46 +213,49 @@ def watch(
     ctx.run(_build_rsync_command(host))
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Initial sync done, watching for local changes...")
 
-    # Queue carries (command_type, packages, ssh_cmd) triples.
-    # maxsize=1: at most one pending run at a time; _enqueue drains before inserting so
-    # the runner always executes the freshest command.
-    work_queue: queue_module.Queue[tuple[str, frozenset[str], str]] = queue_module.Queue(maxsize=1)
+    # One (queue, current_proc, proc_lock) triple per command — runners are fully independent.
+    runners: list[tuple[queue_module.Queue, list, threading.Lock]] = []
+    any_seeded = False
 
-    # Only seed on startup if there are already modified packages — avoids launching the
-    # full test suite just because the watcher was started before any file changes.
-    initial_work = _build_watch_work(ctx, remote_host, command)
-    _, initial_packages, _ = initial_work
-    if initial_packages:
-        work_queue.put_nowait(initial_work)
-    else:
+    for cmd in command:
+        work_queue: queue_module.Queue[tuple[str, frozenset[str], str]] = queue_module.Queue(maxsize=1)
+        current_proc: list[subprocess.Popen | None] = [None]
+        proc_lock = threading.Lock()
+
+        initial_work = _build_watch_work(ctx, remote_host, cmd)
+        _, initial_packages, _ = initial_work
+        if initial_packages:
+            work_queue.put_nowait(initial_work)
+            any_seeded = True
+
+        threading.Thread(
+            target=_test_runner_loop,
+            args=(name, work_queue, current_proc, proc_lock),
+            daemon=True,
+        ).start()
+
+        runners.append((work_queue, current_proc, proc_lock))
+
+    if not any_seeded:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] No modified packages, waiting for file changes...")
 
-    # Shared reference to the currently running subprocess so _enqueue can kill it.
-    current_proc: list[subprocess.Popen | None] = [None]
-    proc_lock = threading.Lock()
-
-    threading.Thread(
-        target=_test_runner_loop,
-        args=(name, work_queue, current_proc, proc_lock),
-        daemon=True,
-    ).start()
-
     def _enqueue() -> None:
-        work = _build_watch_work(ctx, remote_host, command)
-        _, packages, _ = work
-        if not packages:
-            return  # no modified packages — nothing to run
-        # Kill the in-flight process so the runner picks up the fresh command immediately.
-        with proc_lock:
-            proc = current_proc[0]
-            if proc is not None and proc.poll() is None:
-                proc.kill()
-        # Replace any pending (not-yet-started) item with the freshest command.
-        try:
-            work_queue.get_nowait()
-        except queue_module.Empty:
-            pass
-        work_queue.put_nowait(work)
+        for cmd, (work_queue, current_proc, proc_lock) in zip(command, runners, strict=False):
+            work = _build_watch_work(ctx, remote_host, cmd)
+            _, packages, _ = work
+            if not packages:
+                continue  # no modified packages for this command — skip
+            # Kill the in-flight process so the runner picks up the fresh command immediately.
+            with proc_lock:
+                proc = current_proc[0]
+                if proc is not None and proc.poll() is None:
+                    proc.kill()
+            # Replace any pending (not-yet-started) item with the freshest command.
+            try:
+                work_queue.get_nowait()
+            except queue_module.Empty:
+                pass
+            work_queue.put_nowait(work)
 
     _run_command_on_local_changes(ctx, host, on_sync=_enqueue)
 
@@ -517,15 +529,19 @@ def _build_watch_work(
     """
     from tasks.gotest import find_modified_packages
 
+    command_type = "linter" if "linter" in fallback_command else "test"
     raw_packages = find_modified_packages(ctx)
     if raw_packages:
         packages = _normalize_packages(raw_packages)
-        inv_cmd = f"inv test --build-stdlib --targets={','.join(f'./{p}' for p in sorted(packages))}"
-        command_type = "test"
+        targets = ','.join(f'./{p}' for p in sorted(packages))
+        inv_cmd = (
+            f"inv linter.go --targets={targets}"
+            if command_type == "linter"
+            else f"inv test --build-stdlib --targets={targets}"
+        )
     else:
         packages = frozenset()
         inv_cmd = fallback_command
-        command_type = "linter" if "linter" in fallback_command else "test"
     wrapped = f'. ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallDeps \\$false -CheckGoVersion \\$false -Command {{{inv_cmd}}}'
     return command_type, packages, _build_remote_command(remote_host, wrapped)
 
@@ -683,7 +699,7 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
     # Fresh run: reconstruct the inv command from command_type + packages.
     if norm_packages:
         targets = ",".join(f"./{p}" for p in sorted(norm_packages))
-        inv_cmd = f"inv test --build-stdlib --targets={targets}"
+        inv_cmd = f"inv linter.go --targets={targets}" if command_type == "linter" else f"inv test --targets={targets}"
     elif command_type == "test":
         inv_cmd = "inv test --build-stdlib"
     else:

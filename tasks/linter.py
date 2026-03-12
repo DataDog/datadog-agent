@@ -78,6 +78,7 @@ def go(
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    host=None,
     debug=False,
 ):
     """Runs go linters on the given module and targets.
@@ -115,6 +116,17 @@ def go(
     if not modules:
         print(color_message("No modules to lint", "yellow"))
         return
+
+    if host == "windows":
+        print("Running linter on Windows development environment")
+        from tasks.windows_dev_env import attach_or_run
+
+        package_list = [
+            f"./{os.path.join(m.path, t)}" if not os.path.join(m.path, t).startswith("./") else os.path.join(m.path, t)
+            for m in modules
+            for t in m.lint_targets
+        ]
+        exit(attach_or_run(ctx, name="windows-dev-env", command_type="linter", packages=package_list))
 
     # Detect cross-OS linting from environment variables
     goos = os.getenv("GOOS")
