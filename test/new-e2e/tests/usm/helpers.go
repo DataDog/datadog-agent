@@ -24,6 +24,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// httpServerScript is a minimal HTTP server using only the socket module.
+// It supports keep-alive connections and is used on both Linux and Windows.
+const httpServerScript = `import socket, sys
+port = int(sys.argv[1])
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("0.0.0.0", port))
+s.listen(8192)
+while True:
+    conn, addr = s.accept()
+    conn.recv(4096)
+    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok")
+    conn.close()
+`
+
 // repoRoot returns the absolute path to the datadog-agent repository root.
 func repoRoot() string {
 	_, thisFile, _, _ := runtime.Caller(0)
@@ -120,17 +135,22 @@ func deployLinuxBinaries(t *testing.T, host *components.RemoteHost) {
 	t.Logf("datadog services:\n%s", out)
 }
 
-// sendPythonHTTPRequests sends requestsPerPort HTTP GET requests to each of ports
-// 8081 and 8082 using Python's urllib. pythonCmd is the command to invoke Python
-// (e.g. "python3" on Linux, `& "C:\...\python.exe"` on Windows).
+// sendPythonHTTPRequests sends requestsPerPort keep-alive HTTP GET requests to each
+// of ports 8081 and 8082, then holds the process alive for 20 seconds so the agent
+// has time to capture all connections before they are cleaned up at process exit.
 func sendPythonHTTPRequests(host *components.RemoteHost, pythonCmd string, requestsPerPort int) {
 	host.MustExecute(fmt.Sprintf(`%s -c "
-import urllib.request
+import http.client, time
 
+conns = []
 for port in [8081, 8082]:
     for i in range(%d):
-        urllib.request.urlopen('http://127.0.0.1:{}/'.format(port))
+        c = http.client.HTTPConnection('127.0.0.1', port)
+        c.request('GET', '/')
+        c.getresponse()
+        conns.append(c)
 
+time.sleep(20)
 print('done')
 "`, pythonCmd, requestsPerPort))
 }
@@ -179,8 +199,31 @@ func sendWindowsKeepAliveRequestsToPort(host *components.RemoteHost, port, count
 
 // fetchAndAssertTaggedConnections waits for the agent to forward connections to
 // fakeintake, then asserts that connections on ports 8081/8082 have the expected tags.
-func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, minPerPort int) {
+func fetchAndAssertTaggedConnections(t *testing.T, host *components.RemoteHost, fi *fi.Client, label string, minPerPort int) {
 	t.Helper()
+
+	// On Linux, query system-probe directly to see how many connections it captured,
+	// before waiting for process-agent to forward them to fakeintake.
+	if host != nil {
+		spOut, err := host.Execute(`sudo curl -s -H 'Accept: application/json' --unix-socket /opt/datadog-agent/run/sysprobe.sock -o /tmp/sp_conns.json http://unix/connections?client_id=e2e-debug && python3 -c "
+raw = open('/tmp/sp_conns.json','rb').read()
+print(f'response size={len(raw)} first_bytes={raw[:64]!r}')
+import json
+data = json.loads(raw[raw.index(b'{'):])
+conns = data.get('conns', [])
+port_counts = {}
+for c in conns:
+    rport = c.get('raddr', {}).get('port', 0)
+    if rport in (8081, 8082):
+        port_counts[rport] = port_counts.get(rport, 0) + 1
+print(f'system-probe: total_conns={len(conns)} port8081={port_counts.get(8081,0)} port8082={port_counts.get(8082,0)}')
+"`)
+		if err != nil {
+			t.Logf("%s: failed to query system-probe connections: %v", label, err)
+		} else {
+			t.Logf("%s: %s", label, strings.TrimSpace(spOut))
+		}
+	}
 
 	time.Sleep(60 * time.Second)
 
