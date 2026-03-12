@@ -19,8 +19,7 @@ import (
 )
 
 // shouldExecSPLite returns true if system-probe should exec into system-probe-lite.
-// This is the case when use_system_probe_lite is enabled and the full system-probe is not needed
-// (either no modules are enabled, or only the discovery module is enabled).
+// This is the case when use_system_probe_lite is enabled and only the discovery module is active.
 func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
 	if !sysprobeConfig.GetBool("discovery.use_system_probe_lite") {
 		return false
