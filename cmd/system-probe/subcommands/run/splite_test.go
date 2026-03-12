@@ -14,166 +14,130 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestShouldExecSPLite(t *testing.T) {
+// createFakeSPLiteBinary creates a fake system-probe-lite binary next to the
+// test binary and returns cleanup func.
+func createFakeSPLiteBinary(t *testing.T) string {
+	t.Helper()
+	execPath, err := os.Executable()
+	require.NoError(t, err)
+	fakeBinary := filepath.Join(filepath.Dir(execPath), "system-probe-lite")
+	require.NoError(t, os.WriteFile(fakeBinary, []byte("#!/bin/sh\n"), 0755))
+	t.Cleanup(func() { os.Remove(fakeBinary) })
+	return fakeBinary
+}
+
+// newMockSysprobeConfig creates a sysprobeconfig mock with overrides applied
+// before the config is loaded, so SysProbeObject() reflects them.
+func newMockSysprobeConfig(t *testing.T, overrides map[string]interface{}) sysprobeconfig.Component {
+	return fxutil.Test[sysprobeconfig.Component](t,
+		sysprobeconfigimpl.MockModule(),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: overrides}),
+	)
+}
+
+func TestMaybeSPLite(t *testing.T) {
 	tests := []struct {
-		name                string
-		useSystemProbeLite  bool
-		discoveryEnabled    *bool // nil = not configured
-		externalSystemProbe bool
-		enabledModules      map[sysconfigtypes.ModuleName]struct{}
-		enabled             bool
-		expected            bool
+		name       string
+		overrides  map[string]interface{}
+		fakeBinary bool
+		expectNil  bool
 	}{
 		{
-			name:               "use_system_probe_lite disabled (default)",
-			useSystemProbeLite: false,
-			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{systemprobeconfig.DiscoveryModule: {}},
-			enabled:            true,
-			expected:           false,
-		},
-		{
-			name:               "only discovery module enabled",
-			useSystemProbeLite: true,
-			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{systemprobeconfig.DiscoveryModule: {}},
-			enabled:            true,
-			expected:           true,
-		},
-		{
-			name:               "no modules enabled",
-			useSystemProbeLite: true,
-			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{},
-			enabled:            false,
-			expected:           false,
-		},
-		{
-			name:               "multiple modules enabled",
-			useSystemProbeLite: true,
-			enabledModules: map[sysconfigtypes.ModuleName]struct{}{
-				systemprobeconfig.DiscoveryModule:     {},
-				systemprobeconfig.NetworkTracerModule: {},
+			name: "feature disabled",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": false,
+				"discovery.enabled":               true,
 			},
-			enabled:  true,
-			expected: false,
+			fakeBinary: true,
+			expectNil:  true,
 		},
 		{
-			name:               "only non-discovery module enabled",
-			useSystemProbeLite: true,
-			enabledModules: map[sysconfigtypes.ModuleName]struct{}{
-				systemprobeconfig.NetworkTracerModule: {},
+			name: "only discovery module",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               true,
 			},
-			enabled:  true,
-			expected: false,
+			fakeBinary: true,
+			expectNil:  false,
 		},
 		{
-			name:                "external system-probe",
-			useSystemProbeLite:  true,
-			externalSystemProbe: true,
-			enabledModules:      map[sysconfigtypes.ModuleName]struct{}{systemprobeconfig.DiscoveryModule: {}},
-			enabled:             true,
-			expected:            false,
+			name: "multiple modules",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               true,
+				"network_config.enabled":          true,
+			},
+			fakeBinary: true,
+			expectNil:  true,
 		},
 		{
-			name:               "discovery explicitly disabled, nothing else enabled",
-			useSystemProbeLite: true,
-			discoveryEnabled:   boolPtr(false),
-			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{},
-			enabled:            false,
-			expected:           false,
+			name: "external system-probe",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               true,
+				"system_probe_config.external":    true,
+			},
+			fakeBinary: true,
+			expectNil:  true,
 		},
 		{
-			name:               "discovery explicitly enabled",
-			useSystemProbeLite: true,
-			discoveryEnabled:   boolPtr(true),
-			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{systemprobeconfig.DiscoveryModule: {}},
-			enabled:            true,
-			expected:           true,
+			name: "discovery explicitly disabled",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               false,
+			},
+			fakeBinary: true,
+			expectNil:  true,
+		},
+		{
+			name: "binary not found",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.enabled":               true,
+			},
+			fakeBinary: false,
+			expectNil:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-			sysprobeConfig.SetWithoutSource("discovery.use_system_probe_lite", tc.useSystemProbeLite)
-			if tc.discoveryEnabled != nil {
-				sysprobeConfig.SetWithoutSource("discovery.enabled", *tc.discoveryEnabled)
+			var fakeBinaryPath string
+			if tc.fakeBinary {
+				fakeBinaryPath = createFakeSPLiteBinary(t)
 			}
 
-			cfg := &sysconfigtypes.Config{
-				Enabled:             tc.enabled,
-				EnabledModules:      tc.enabledModules,
-				ExternalSystemProbe: tc.externalSystemProbe,
+			sysprobeConfig := newMockSysprobeConfig(t, tc.overrides)
+			log := logmock.New(t)
+			cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", log)
+
+			if tc.expectNil {
+				assert.Nil(t, cmd)
+				return
 			}
-			assert.Equal(t, tc.expected, shouldExecSPLite(sysprobeConfig, cfg))
+
+			require.NotNil(t, cmd)
+			assert.Equal(t, fakeBinaryPath, cmd.Path)
+			assert.Equal(t, fakeBinaryPath, cmd.Args[0])
+
+			// Verify args match what the splite package produces (source of truth)
+			expectedArgs := (&splite.Config{
+				Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+				LogLevel: sysprobeConfig.GetString("log_level"),
+				LogFile:  sysprobeConfig.GetString("log_file"),
+				PIDFile:  "/test/sp.pid",
+			}).Args()
+			assert.Equal(t, expectedArgs, cmd.Args[1:])
+			assert.NotEmpty(t, cmd.Env)
 		})
 	}
-}
-
-func TestBuildSPLiteArgs(t *testing.T) {
-	sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-	sysprobeConfig.Set("system_probe_config.sysprobe_socket", "/custom/path.sock", model.SourceCLI)
-	sysprobeConfig.Set("log_level", "debug", model.SourceCLI)
-
-	args := buildSPLiteArgs(sysprobeConfig, "/var/run/sp.pid")
-
-	assert.Equal(t, "run", args[0])
-	assert.Contains(t, args, "/custom/path.sock")
-	assert.Contains(t, args, "debug")
-	assert.Contains(t, args, sysprobeConfig.GetString("log_file"))
-	assert.Contains(t, args, "/var/run/sp.pid")
-}
-
-func TestResolveSPLiteExecCmd(t *testing.T) {
-	t.Run("returns nil when system-probe-lite binary not found", func(t *testing.T) {
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		log := logmock.New(t)
-
-		// The test binary's directory won't have a system-probe-lite binary
-		cmd := resolveSPLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
-		assert.Nil(t, cmd, "should return nil when system-probe-lite binary is not found next to the test binary")
-	})
-
-	t.Run("returns valid command when system-probe-lite binary exists", func(t *testing.T) {
-		// Place a fake system-probe-lite binary next to the test binary
-		execPath, err := os.Executable()
-		require.NoError(t, err)
-		testBinary := filepath.Join(filepath.Dir(execPath), "system-probe-lite")
-		require.NoError(t, os.WriteFile(testBinary, []byte("#!/bin/sh\n"), 0755))
-		t.Cleanup(func() { os.Remove(testBinary) })
-
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		log := logmock.New(t)
-
-		cmd := resolveSPLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
-		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
-		assert.Equal(t, testBinary, cmd.Path)
-		assert.Equal(t, append([]string{testBinary, "run",
-			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-			"--log-level", sysprobeConfig.GetString("log_level"),
-			"--log-file", sysprobeConfig.GetString("log_file"),
-			"--pid", "/var/run/sp.pid",
-		}), cmd.Args)
-		assert.NotEmpty(t, cmd.Env)
-	})
-
-	t.Run("graceful fallback for maybeSPLite", func(t *testing.T) {
-		sysprobeConfig := sysprobeconfigimpl.NewMock(t)
-		sysprobeConfig.SetWithoutSource("discovery.use_system_probe_lite", true)
-		log := logmock.New(t)
-
-		// maybeSPLite should return (not panic) when binary is missing,
-		// allowing system-probe to fall back to the Go discovery module.
-		maybeSPLite(sysprobeConfig, "/var/run/sp.pid", log)
-	})
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

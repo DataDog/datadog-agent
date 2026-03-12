@@ -12,5 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
-func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) {
+func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) *spLiteExecCmd {
+	return nil
 }

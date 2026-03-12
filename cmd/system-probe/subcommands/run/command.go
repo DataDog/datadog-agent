@@ -85,6 +85,13 @@ import (
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
 
+// spLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
+type spLiteExecCmd struct {
+	Path string
+	Args []string
+	Env  []string
+}
+
 const configPrefix = systemprobeconfig.Namespace + "."
 
 type cliParams struct {
@@ -196,7 +203,13 @@ func run(
 	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
-	maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log)
+	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
+		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		deps.Log.Flush()
+		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
 
 	defer stopSystemProbe()
 

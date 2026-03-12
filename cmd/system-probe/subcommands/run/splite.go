@@ -10,7 +10,6 @@ package run
 import (
 	"os"
 	"path/filepath"
-	"syscall"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -41,28 +40,17 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
 }
 
-// spLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.
-type spLiteExecCmd struct {
-	Path string
-	Args []string
-	Env  []string
-}
-
-// buildSPLiteArgs builds the command-line arguments for the system-probe-lite binary.
-func buildSPLiteArgs(sysprobeConfig sysprobeconfig.Component, pidFilePath string) []string {
-	cfg := &splite.Config{
-		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		LogLevel: sysprobeConfig.GetString("log_level"),
-		LogFile:  sysprobeConfig.GetString("log_file"),
-		PIDFile:  pidFilePath,
+// maybeSPLite checks if system-probe should exec into system-probe-lite,
+// and if so, returns the resolved command. Returns nil if splite is not
+// applicable or the binary was not found.
+func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) *spLiteExecCmd {
+	cfg := sysprobeConfig.SysProbeObject()
+	if !shouldExecSPLite(sysprobeConfig, cfg) {
+		return nil
 	}
-	return cfg.Args()
-}
+	log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
 
-// resolveSPLiteExecCmd resolves the system-probe-lite binary path and builds the exec arguments.
-// Returns nil if the binary cannot be found (graceful fallback).
-func resolveSPLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) *spLiteExecCmd {
-	// system-probe-lite binary is expected in the same directory as system-probe
+	// Resolve binary path — system-probe-lite is expected next to system-probe
 	execPath, err := os.Executable()
 	if err != nil {
 		log.Warnf("cannot determine system-probe executable path: %s, falling back to running discovery in system-probe", err)
@@ -75,30 +63,17 @@ func resolveSPLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath s
 		return nil
 	}
 
+	// Build args via splite package (source of truth for CLI format)
+	args := (&splite.Config{
+		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		LogLevel: sysprobeConfig.GetString("log_level"),
+		LogFile:  sysprobeConfig.GetString("log_file"),
+		PIDFile:  pidFilePath,
+	}).Args()
+
 	return &spLiteExecCmd{
 		Path: systemProbeLitePath,
-		Args: append([]string{systemProbeLitePath}, buildSPLiteArgs(sysprobeConfig, pidFilePath)...),
+		Args: append([]string{systemProbeLitePath}, args...),
 		Env:  os.Environ(),
-	}
-}
-
-// maybeSPLite checks if system-probe should exec into system-probe-lite,
-// and if so, replaces the current process. If splite is not applicable,
-// the binary was not found, or exec fails, it returns and system-probe
-// continues with normal startup.
-func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) {
-	cfg := sysprobeConfig.SysProbeObject()
-	if !shouldExecSPLite(sysprobeConfig, cfg) {
-		return
-	}
-	log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
-	cmd := resolveSPLiteExecCmd(sysprobeConfig, pidFilePath, log)
-	if cmd == nil {
-		return
-	}
-	log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-	log.Flush()
-	if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
-		log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
 	}
 }
