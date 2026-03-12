@@ -371,10 +371,7 @@ fn looks_like_uuid_prefix(s: &str) -> bool {
 }
 
 #[allow(clippy::result_large_err)]
-fn resolve_by_uuid_prefix(
-    procs: &[ManagedProcess],
-    prefix: &str,
-) -> Option<Result<usize, Status>> {
+fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
     let mut matches: Vec<usize> = procs
         .iter()
         .enumerate()

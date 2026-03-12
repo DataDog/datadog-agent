@@ -619,7 +619,10 @@ mod tests {
             "start response should report actual Running state"
         );
         assert!(start_resp.pid > 0, "start response should include pid");
-        assert!(!start_resp.uuid.is_empty(), "start response should include uuid");
+        assert!(
+            !start_resp.uuid.is_empty(),
+            "start response should include uuid"
+        );
 
         // Cross-check via list
         let resp = client
@@ -725,7 +728,10 @@ mod tests {
             proto::ProcessState::Stopped as i32,
             "stop response should report actual Stopped state"
         );
-        assert!(!stop_resp.uuid.is_empty(), "stop response should include uuid");
+        assert!(
+            !stop_resp.uuid.is_empty(),
+            "stop response should include uuid"
+        );
 
         // Cross-check via describe
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
