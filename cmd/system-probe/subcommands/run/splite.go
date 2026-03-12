@@ -48,7 +48,6 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 	if !shouldExecSPLite(sysprobeConfig, cfg) {
 		return nil
 	}
-	log.Info("only discovery module enabled with use_system_probe_lite=true, will exec into system-probe-lite")
 
 	// Resolve binary path — system-probe-lite is expected next to system-probe
 	execPath, err := os.Executable()
