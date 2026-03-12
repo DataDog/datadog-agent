@@ -49,9 +49,6 @@ generator:
           tag_values:
             - value{{0-1}}
 
-telemetry:
-  path: "nong"
-
 target_metrics:
   - prometheus: #core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
