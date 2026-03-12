@@ -130,6 +130,14 @@ register_toolchains(
     dev_dependency = True,
 )
 
+find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
+use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
+
+register_toolchains(
+    "@rules_pkg_rpmbuild//:all",
+    dev_dependency = True,
+)
+
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 ######################################
