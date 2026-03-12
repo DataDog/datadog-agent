@@ -20,7 +20,7 @@ type EnhancedMetricSender interface{}
 
 type Collector struct{}
 
-func NewCollector(_ EnhancedMetricSender, _ metrics.MetricSource, _ string, _ time.Duration) (*Collector, error) {
+func NewCollector(_ EnhancedMetricSender, _ metrics.MetricSource, _ string, _ string, _ time.Duration) (*Collector, error) {
 	return nil, errors.New("Collector is only supported on Linux")
 }
 
