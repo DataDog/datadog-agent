@@ -32,9 +32,17 @@ import (
 
 type testFixture struct {
 	t                 *testing.T
-	sysProbeClient    *mockSysProbeClient
+	sysProbeClient    sysProbeClient
 	eventPlatformMock *mockEventPlatform
 	reqs              Requires
+}
+
+func (tf *testFixture) sysProbeClientAsMock() *mockSysProbeClient {
+	return tf.sysProbeClient.(*mockSysProbeClient)
+}
+
+type callCounter interface {
+	GetCallCount() int
 }
 
 type mockEventPlatform struct {
@@ -111,7 +119,7 @@ type softwareInventoryTestHelper struct {
 // WaitForSystemProbe waits for the GetCheck method to be called on the sys probe client
 func (h *softwareInventoryTestHelper) WaitForSystemProbe() *softwareInventoryTestHelper {
 	require.Eventually(h.fixture.t, func() bool {
-		return h.fixture.sysProbeClient.GetCallCount() > 0
+		return h.fixture.sysProbeClient.(callCounter).GetCallCount() > 0
 	}, time.Second, 10*time.Millisecond, "Expected GetCheck to be called")
 	return h
 }
@@ -170,8 +178,9 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 
 func TestFlareProviderOutputFailed(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
-	f.sysProbeClient = &mockSysProbeClient{}
-	f.sysProbeClient.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
+	sp := &mockSysProbeClient{}
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
+	f.sysProbeClient = sp
 	sut := f.sut().WaitForSystemProbe()
 
 	flareProvider := sut.FlareProvider()
