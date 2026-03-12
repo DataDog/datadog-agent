@@ -7,13 +7,25 @@ use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 
+fn parse_log_level(level: &str) -> log::Level {
+    match level.to_lowercase().as_str() {
+        "trace" => log::Level::Trace,
+        "debug" => log::Level::Debug,
+        "info" => log::Level::Info,
+        "warn" | "warning" => log::Level::Warn,
+        "error" | "critical" => log::Level::Error,
+        "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
+        _ => log::Level::Info,
+    }
+}
+
 #[derive(Debug)]
 pub struct Args {
     /// Unix socket path (--socket, required)
     pub socket_path: String,
 
-    /// Log level (--log-level, required)
-    pub log_level: String,
+    /// Log level (--log-level, default: info)
+    pub log_level: log::Level,
 
     /// Log file path (--log-file, optional)
     pub log_file: Option<PathBuf>,
@@ -61,9 +73,7 @@ impl Args {
         let Some(socket_path) = socket_path else {
             bail!("missing required argument: --socket");
         };
-        let Some(log_level) = log_level else {
-            bail!("missing required argument: --log-level");
-        };
+        let log_level = parse_log_level(log_level.as_deref().unwrap_or("info"));
 
         Ok(Args {
             socket_path,
@@ -84,24 +94,15 @@ mod tests {
 
     #[test]
     fn test_parse_required_args() {
-        let a = Args::parse(
-            args(&[
-                "system-probe-lite",
-                "--socket",
-                "/run/sysprobe.sock",
-                "--log-level",
-                "info",
-            ])
-            .into_iter(),
-        )
-        .unwrap_or_else(|e| panic!("{e}"));
+        let a =
+            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter())
+                .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
-        assert_eq!(a.log_level, "info");
+        assert_eq!(a.log_level, log::Level::Info);
         assert!(a.log_file.is_none());
         assert!(a.pid_path.is_none());
     }
 
-    #[test]
     #[test]
     fn test_parse_with_log_file() {
         let a = Args::parse(
@@ -118,7 +119,7 @@ mod tests {
         )
         .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
-        assert_eq!(a.log_level, "info");
+        assert_eq!(a.log_level, log::Level::Info);
         assert_eq!(
             a.log_file,
             Some(PathBuf::from("/var/log/datadog/system-probe.log"))
@@ -144,7 +145,7 @@ mod tests {
         )
         .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.socket_path, "/run/sysprobe.sock");
-        assert_eq!(a.log_level, "warn");
+        assert_eq!(a.log_level, log::Level::Warn);
         assert_eq!(
             a.log_file,
             Some(PathBuf::from("/var/log/datadog/system-probe.log"))
@@ -167,20 +168,24 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_missing_log_level() {
-        let result =
-            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter());
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(
-            err.contains("--log-level"),
-            "error should mention --log-level: {err}"
-        );
+    fn test_parse_log_level_defaults_to_info() {
+        let a =
+            Args::parse(args(&["system-probe-lite", "--socket", "/run/sysprobe.sock"]).into_iter())
+                .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.log_level, log::Level::Info);
     }
 
     #[test]
-    fn test_parse_missing_both_required() {
-        let result = Args::parse(args(&["system-probe-lite"]).into_iter());
-        assert!(result.is_err());
+    fn test_parse_log_level() {
+        assert_eq!(parse_log_level("trace"), log::Level::Trace);
+        assert_eq!(parse_log_level("debug"), log::Level::Debug);
+        assert_eq!(parse_log_level("info"), log::Level::Info);
+        assert_eq!(parse_log_level("warn"), log::Level::Warn);
+        assert_eq!(parse_log_level("warning"), log::Level::Warn);
+        assert_eq!(parse_log_level("error"), log::Level::Error);
+        assert_eq!(parse_log_level("critical"), log::Level::Error);
+        assert_eq!(parse_log_level("off"), log::Level::Error);
+        assert_eq!(parse_log_level("INFO"), log::Level::Info);
+        assert_eq!(parse_log_level("unknown"), log::Level::Info);
     }
 }

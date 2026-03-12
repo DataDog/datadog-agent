@@ -48,18 +48,6 @@ use cli::Args;
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
 
-fn parse_log_level(level: &str) -> log::Level {
-    match level.to_lowercase().as_str() {
-        "trace" => log::Level::Trace,
-        "debug" => log::Level::Debug,
-        "info" => log::Level::Info,
-        "warn" | "warning" => log::Level::Warn,
-        "error" | "critical" => log::Level::Error,
-        "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
-        _ => log::Level::Info,
-    }
-}
-
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
         error!("Failed to remove PID file: {}", e);
@@ -267,10 +255,9 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args())?;
-    let log_level = parse_log_level(&args.log_level);
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "SYS-PROBE-LITE",
-        level: log_level,
+        level: args.log_level,
         log_file: args.log_file.clone(),
     })?;
     info!("Starting system-probe-lite");
@@ -292,20 +279,6 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
-
-    #[test]
-    fn test_parse_log_level() {
-        assert_eq!(parse_log_level("trace"), log::Level::Trace);
-        assert_eq!(parse_log_level("debug"), log::Level::Debug);
-        assert_eq!(parse_log_level("info"), log::Level::Info);
-        assert_eq!(parse_log_level("warn"), log::Level::Warn);
-        assert_eq!(parse_log_level("warning"), log::Level::Warn);
-        assert_eq!(parse_log_level("error"), log::Level::Error);
-        assert_eq!(parse_log_level("critical"), log::Level::Error);
-        assert_eq!(parse_log_level("off"), log::Level::Error);
-        assert_eq!(parse_log_level("INFO"), log::Level::Info);
-        assert_eq!(parse_log_level("unknown"), log::Level::Info);
-    }
 
     #[test]
     fn test_remove_pid_file_deletes_file() {
