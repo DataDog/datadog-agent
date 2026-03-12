@@ -102,11 +102,9 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binaryPath, "--", "/bin/true", "-c", "/dev/null")
-	cmd.Env = append(os.Environ(),
-		"DD_DISCOVERY_ENABLED=true",
-		"DD_DISCOVERY_USE_SYSTEM_PROBE_LITE=true",
-		"DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET="+socketPath,
+	cmd := exec.CommandContext(ctx, binaryPath,
+		"--socket", socketPath,
+		"--log-level", "info",
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
