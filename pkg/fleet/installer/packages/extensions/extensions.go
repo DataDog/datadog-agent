@@ -57,8 +57,13 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 	span.SetTag("package_name", pkg)
 	span.SetTag("is_experiment", isExperiment)
 
+	dbPath := filepath.Join(ExtensionsDBDir, "extensions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil
+	}
+
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
+	db, err := newExtensionsDB(dbPath)
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
