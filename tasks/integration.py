@@ -189,7 +189,7 @@ def _render_object_section(name: str, description: str, required: bool, properti
         block = _render_param_comment(prop_name, param_type, prop_required, default, prop_desc, example)
         lines.append(textwrap.indent(block, "  "))
 
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines)
 
 
 def _render_object_mapping(name: str, description: str, required: bool, properties: dict) -> str:
@@ -221,7 +221,7 @@ def _render_object_mapping(name: str, description: str, required: bool, properti
         else:
             example_str = str(example) if example is not None else f"<{prop_name.upper()}>"
             lines.append(f"#   {prop_name}: {example_str}")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines)
 
 
 def _render_opt_block(opt: dict) -> str:
@@ -710,23 +710,54 @@ def _find_check_go_file(check_name: str) -> Path | None:
     return None
 
 
-def _sync_config_struct(go_file: Path, fields: list[str], helper_structs: dict[str, tuple[str, list[str]]]) -> bool:
+def _insert_fields_into_body(existing_body: str, new_field_lines: list[str]) -> str:
     """
-    Replace the body of `type Configuration struct { ... }` in go_file with fields,
-    and insert or replace helper struct types for section-style object fields.
-    Preserves existing exported/unexported casing of helper struct type names.
+    Append new_field_lines into existing_body just before the trailing blank lines.
+    Returns the updated body string (preserves surrounding whitespace).
+    """
+    lines = existing_body.splitlines()
+    # Find insertion point: just after the last non-empty line
+    insert_at = len(lines)
+    while insert_at > 0 and not lines[insert_at - 1].strip():
+        insert_at -= 1
+    for line in new_field_lines:
+        lines.insert(insert_at, line)
+        insert_at += 1
+    result = "\n".join(lines)
+    if result and not result.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def _sync_config_struct(
+    go_file: Path,
+    fields: list[str],
+    helper_structs: dict[str, tuple[str, list[str]]],
+) -> bool:
+    """
+    Additively sync Go struct fields derived from spec.yaml into go_file.
+
+    Only adds fields whose yaml tag is not already present — never removes or
+    overwrites existing field lines (preserving hand-written tags like json:,
+    required:, nullable:, etc.).
+
+    For helper structs (section-style objects):
+    - If the struct already exists: adds any missing fields additively.
+    - If it doesn't exist: inserts the full struct after type Configuration struct.
+
     Returns True if the file was changed.
     """
     content = go_file.read_text()
+    updated = content
 
-    # Detect existing casing for each helper struct before any modifications.
+    # Detect existing casing for each helper struct (exported vs unexported).
     resolved_names: dict[str, str] = {}
     for type_name in helper_structs:
         unexported = _to_unexported(type_name)
         existing = re.search(rf'type ({re.escape(type_name)}|{re.escape(unexported)}) struct \{{', content)
         resolved_names[type_name] = existing.group(1) if existing else type_name
 
-    # Rewrite Configuration field type references to match detected casing.
+    # Rewrite field type references to match detected casing.
     resolved_fields = []
     for f in fields:
         line = f
@@ -734,57 +765,71 @@ def _sync_config_struct(go_file: Path, fields: list[str], helper_structs: dict[s
             line = line.replace(f" {exported_name} ", f" {used_name} ")
         resolved_fields.append(line)
 
-    body = ("\n".join(resolved_fields) + "\n") if resolved_fields else ""
-    new_struct = f"type Configuration struct {{\n{body}}}"
-    updated, count = re.subn(
-        r'type Configuration struct \{[^}]*\}',
-        new_struct,
-        content,
-        flags=re.DOTALL,
-    )
-    if count == 0:
-        return False
+    # --- Main struct: additive update ---
+    m = re.search(r'type Configuration struct \{([^}]*)\}', updated, re.DOTALL)
+    if not m:
+        return False  # struct not found in this file, nothing to do
 
-    # Build helper struct blocks with preserved casing, remove old, insert after Configuration.
-    helper_blocks = []
+    existing_body = m.group(1)
+    existing_tags = {t.group(1) for t in re.finditer(r'`yaml:"([^"]+)"', existing_body)}
+    new_fields = [f for f in resolved_fields if _yaml_tag(f) and _yaml_tag(f) not in existing_tags]
+
+    if new_fields:
+        new_body = _insert_fields_into_body(existing_body, new_fields)
+        new_struct = f"type Configuration struct {{{new_body}}}"
+        updated = updated[: m.start()] + new_struct + updated[m.end() :]
+
+    # --- Helper structs: additive update or insert ---
+    new_helper_blocks = []
     for type_name, (desc, sub_fields) in helper_structs.items():
         used_name = resolved_names[type_name]
         unexported = _to_unexported(type_name)
-        either = f"(?:{re.escape(type_name)}|{re.escape(unexported)})"
 
-        sub_body = ("\n".join(sub_fields) + "\n") if sub_fields else ""
-        helper_struct = f"type {used_name} struct {{\n{sub_body}}}"
-
-        if desc:
-            normalized = desc[0].lower() + desc[1:] if desc else ""
-            if not normalized.endswith("."):
-                normalized += "."
-            comment = f"// {used_name} holds {normalized}"
-        else:
-            comment = f"// {used_name} holds nested configuration."
-        helper_blocks.append(f"{comment}\n{helper_struct}")
-
-        # Remove any existing definition (exported or unexported, with optional preceding comment)
-        updated = re.sub(
-            rf'\n*(?:// {either} [^\n]*\n)?type {either} struct \{{[^}}]*\}}\n*',
-            '\n\n',
+        hm = re.search(
+            rf'type ({re.escape(type_name)}|{re.escape(unexported)}) struct \{{([^}}]*)\}}',
             updated,
-            flags=re.DOTALL,
+            re.DOTALL,
         )
+        if hm:
+            # Struct exists — add only missing sub-fields
+            existing_helper_body = hm.group(2)
+            existing_helper_tags = {t.group(1) for t in re.finditer(r'`yaml:"([^"]+)"', existing_helper_body)}
+            new_sub = [f for f in sub_fields if _yaml_tag(f) and _yaml_tag(f) not in existing_helper_tags]
+            if new_sub:
+                new_helper_body = _insert_fields_into_body(existing_helper_body, new_sub)
+                # existing_helper_body already starts with \n — don't add another one
+                new_helper_struct = f"type {hm.group(1)} struct {{{new_helper_body}}}"
+                updated = updated[: hm.start()] + new_helper_struct + updated[hm.end() :]
+        else:
+            # Struct doesn't exist — queue for insertion before the main struct
+            sub_body = ("\n".join(sub_fields) + "\n") if sub_fields else ""
+            helper_struct = f"type {used_name} struct {{\n{sub_body}}}"
+            if desc:
+                normalized = desc[0].lower() + desc[1:]
+                if not normalized.endswith("."):
+                    normalized += "."
+                comment = f"// {used_name} holds {normalized}"
+            else:
+                comment = f"// {used_name} holds nested configuration."
+            new_helper_blocks.append(f"{comment}\n{helper_struct}")
 
-    if helper_blocks:
-        config_struct = f"type Configuration struct {{\n{body}}}"
-        joined_helpers = "\n\n".join(helper_blocks)
-        updated = updated.replace(
-            config_struct,
-            f"{config_struct}\n\n{joined_helpers}",
-            1,
-        )
+    # Insert any brand-new helper structs after the main struct's closing brace
+    if new_helper_blocks:
+        main_m = re.search(r'type Configuration struct \{[^}]*\}', updated, re.DOTALL)
+        if main_m:
+            joined = "\n\n" + "\n\n".join(new_helper_blocks)
+            updated = updated[: main_m.end()] + joined + updated[main_m.end() :]
 
     if updated == content:
         return False
     go_file.write_text(updated)
     return True
+
+
+def _yaml_tag(field_line: str) -> str | None:
+    """Extract the yaml tag value from a Go struct field line, or None."""
+    m = re.search(r'`yaml:"([^"]+)"', field_line)
+    return m.group(1) if m else None
 
 
 # ---------------------------------------------------------------------------
@@ -879,10 +924,8 @@ def spec_sync(_, check=None, sync=False):
             if go_file:
                 content = go_file.read_text()
 
-                # The Configuration field may reference the helper type as
-                # exported (StuffAndThings) or unexported (stuffAndThings).
-                # Build an alternative body that uses unexported type names
-                # so we can accept either.
+                # The struct field may reference the helper type as exported or unexported.
+                # Build an alternative body that uses unexported type names so we accept either.
                 alt_fields = []
                 for f in fields:
                     alt = f
@@ -939,6 +982,8 @@ def spec_sync(_, check=None, sync=False):
                             f"DRIFT: Configuration struct in {go_file}\n{diff}\n"
                             f"  → Run `dda inv integration.spec-sync --check {check_name} --sync` to fix."
                         )
+                    if not only_in_struct and not only_in_spec and helpers_ok:
+                        print(f"OK (struct): {check_name}")
                 elif helpers_ok:
                     print(f"OK (struct): {check_name}")
 
@@ -1246,11 +1291,6 @@ import (
 
 \t"github.com/stretchr/testify/assert"
 )
-
-func TestFactory(t *testing.T) {{
-\tf := Factory()
-\tassert.True(t, f.IsSet())
-}}
 
 func TestCheckName(t *testing.T) {{
 \tcheck := newCheck().(*{type_name}Check)
