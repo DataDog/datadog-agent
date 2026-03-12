@@ -118,6 +118,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 				return
 			}
 			defer cleanup()
+			count := runCounter.Add(1)
+			logRequests(id, count, cs.Conns, start)
+
 			contentType := req.Header.Get("Accept")
 			marshaler := marshal.GetMarshaler(contentType)
 			writeConnections(w, marshaler, cs)
@@ -125,8 +128,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			if nt.restartTimer != nil {
 				nt.restartTimer.Reset(inactivityRestartDuration)
 			}
-			count := runCounter.Add(1)
-			logRequests(id, count, cs.Conns, start)
 		}))
 
 		httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
