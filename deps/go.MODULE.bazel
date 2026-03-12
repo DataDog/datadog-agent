@@ -493,3 +493,5 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_stringer:repo.bzl", "go_stringer")(name = "go_stringer")

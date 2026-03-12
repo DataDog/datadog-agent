@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "compiler",
+    srcs = [
+        "opcode.go",
+        "opcode_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/compiler",
+    visibility = ["//visibility:public"],
+)
+
+go_stringer(
+    name = "opcode_string",
+    src = "opcode.go",
+    output = "opcode_string.go",
+    trimprefix = "Opcode",
+    types = ["Opcode"],
+)
