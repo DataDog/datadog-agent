@@ -105,7 +105,7 @@ func TestFailoverRouterDistribution(t *testing.T) {
 
 	// Router channels are not direct pipeline InputChans
 	for i, pl := range p.pipelines {
-		assert.NotEqual(t, pl.InputChan, ch1, "Router channel should differ from pipeline %d InputChan", i)
+		assert.NotEqual(t, pl.GetInputChan(), ch1, "Router channel should differ from pipeline %d InputChan", i)
 	}
 
 	// Monitor is nil when failover enabled; forwarder handles ingress

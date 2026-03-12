@@ -19,6 +19,8 @@ type ExtractionResult struct {
 	IsJSON bool
 	// Message is the extracted message field (empty if not found or not JSON)
 	Message string
+	// MessageKey is the JSON key the message was extracted from (e.g. "msg", "message")
+	MessageKey string
 	// JSONContext is the ordered, serialized remaining JSON fields (nil if not JSON or extraction failed)
 	JSONContext []byte
 }
@@ -67,9 +69,9 @@ func PreprocessJSON(content []byte) ExtractionResult {
 	// If no fields remain after removing the message, keep json_context nil (avoid sending "{}").
 	if len(data) == 0 {
 		return ExtractionResult{
-			IsJSON:      true,
-			Message:     message,
-			JSONContext: nil,
+			IsJSON:     true,
+			Message:    message,
+			MessageKey: extractedPath,
 		}
 	}
 
@@ -83,6 +85,7 @@ func PreprocessJSON(content []byte) ExtractionResult {
 	return ExtractionResult{
 		IsJSON:      true,
 		Message:     message,
+		MessageKey:  extractedPath,
 		JSONContext: jsonContext,
 	}
 }

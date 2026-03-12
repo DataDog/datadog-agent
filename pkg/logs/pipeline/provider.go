@@ -63,7 +63,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 	sender                    sender.PipelineComponent
 
-	pipelines            []*Pipeline
+	pipelines            []pipelineEntry
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
@@ -98,6 +98,10 @@ func NewProvider(
 	if endpoints.UseGRPC {
 		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression)
 	} else if endpoints.UseHTTP {
+		if _, ok := firstGRPCAdditionalEndpoint(endpoints); ok {
+			endpoints.Main.ExtraHeaders = map[string]string{"dd-shadow-ingest": "true"}
+			endpoints.Endpoints[0].ExtraHeaders = map[string]string{"dd-shadow-ingest": "true"}
+		}
 		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
 	} else {
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
@@ -227,7 +231,7 @@ func newProvider(
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
 		sender:                    senderImpl,
-		pipelines:                 []*Pipeline{},
+		pipelines:                 []pipelineEntry{},
 		currentPipelineIndex:      atomic.NewUint32(0),
 		serverlessMeta:            serverlessMeta,
 		hostname:                  hostname,
@@ -310,7 +314,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 		// Legacy: direct pipeline access
 		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 		nextPipeline := p.pipelines[index]
-		return nextPipeline.InputChan
+		return nextPipeline.GetInputChan()
 	}
 
 	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
@@ -336,7 +340,7 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 		// Legacy behavior: direct pipeline access with pipeline monitor
 		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 		nextPipeline := p.pipelines[index]
-		return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
+		return nextPipeline.GetInputChan(), nextPipeline.GetPipelineMonitor().GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
 	}
 
 	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
@@ -355,8 +359,8 @@ func (p *provider) forwardWithFailover(routerIndex int) {
 		if !p.trySendToPipeline(msg, primaryPipelineIndex) {
 			// All pipelines blocked, apply backpressure via blocking
 			// and AddIngress on the primary pipeline
-			p.pipelines[primaryPipelineIndex].InputChan <- msg // Blocks until pipeline accepts
-			monitor := p.pipelines[primaryPipelineIndex].pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryPipelineIndex)))
+			p.pipelines[primaryPipelineIndex].GetInputChan() <- msg // Blocks until pipeline accepts
+			monitor := p.pipelines[primaryPipelineIndex].GetPipelineMonitor().GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryPipelineIndex)))
 			monitor.AddIngress(msg)
 		}
 	}
@@ -372,9 +376,9 @@ func (p *provider) trySendToPipeline(msg *message.Message, primaryPipelineIndex 
 		pipeline := p.pipelines[idx]
 
 		select {
-		case pipeline.InputChan <- msg:
+		case pipeline.GetInputChan() <- msg:
 			// Ingress tracking on the pipeline
-			monitor := pipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(idx)))
+			monitor := pipeline.GetPipelineMonitor().GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(idx)))
 			monitor.AddIngress(msg)
 			return true
 		default:
@@ -386,12 +390,12 @@ func (p *provider) trySendToPipeline(msg *message.Message, primaryPipelineIndex 
 
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *provider) Flush(ctx context.Context) {
-	for _, p := range p.pipelines {
+	for _, entry := range p.pipelines {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			p.Flush(ctx)
+			entry.Flush(ctx)
 		}
 	}
 	if p.serverlessMeta.IsEnabled() {

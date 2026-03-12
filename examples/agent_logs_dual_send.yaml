@@ -1,0 +1,47 @@
+## Configuration to enable dual-send: logs are sent via the primary HTTP transport
+## and simultaneously forwarded to a secondary gRPC stateful transport for validation.
+##
+## The gRPC path is fire-and-forget — it does not block or retry, and payloads are
+## dropped if the gRPC pipeline falls behind. Use this during gRPC rollout to compare
+## delivery side-by-side without affecting reliability of the primary HTTP path.
+
+## @env DD_API_KEY - string - required
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+api_key:
+
+## The site of the Datadog intake to send Agent data to.
+site: datadoghq.com
+
+## The environment name where the agent is running.
+env:
+
+## List of host tags.
+tags:
+  - example:changeme
+
+logs_enabled: true
+
+logs_config:
+  ## Primary transport: HTTP (required for dual-send).
+  use_http: true
+
+  ## Secondary gRPC endpoint added as an additional_endpoints entry with use_grpc: true.
+  ## This activates the DualStrategy, which fans each log message to both the HTTP
+  ## batch pipeline and the gRPC stateful pipeline before encoding.
+  ##
+  ## The api_key below should match your primary api_key (or use a separate one if
+  ## you want to route gRPC traffic to a different org).
+  additional_endpoints:
+    - api_key:
+      host: agent-http-intake.logs.datadoghq.com
+      port: 443
+      use_ssl: true
+      use_grpc: true
+
+      ## Optional: enable compression on the gRPC path.
+      # use_compression: true
+      # compression_kind: zstd
+      # zstd_compression_level: 1
+
+apm_config:
+  enabled: false

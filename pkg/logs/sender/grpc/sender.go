@@ -17,13 +17,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -64,6 +64,10 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 		headers["dd-content-encoding"] = h.endpoint.CompressionKind
 	} else {
 		headers["dd-content-encoding"] = "identity"
+	}
+
+	for k, v := range h.endpoint.ExtraHeaders {
+		headers[k] = v
 	}
 
 	return headers, nil
@@ -182,37 +186,32 @@ func NewSender(
 	return sender
 }
 
-// createConnection establishes the shared gRPC connection
-func (s *Sender) createConnection() error {
-	log.Infof("Creating gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
-
-	// Build connection options
+// newGRPCClient creates a gRPC connection and client stub for the given endpoint.
+func newGRPCClient(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*grpc.ClientConn, statefulpb.StatefulLogsServiceClient, error) {
 	var opts []grpc.DialOption
 
-	// Configure TLS
-	if s.endpoint.UseSSL() {
+	if endpoint.UseSSL() {
 		tlsConfig := &tls.Config{
-			ServerName: s.endpoint.Host,
+			ServerName:         endpoint.Host,
+			InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"), //nolint:gosec
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	} else {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	// Configure keepalive
-	keepaliveParams := keepalive.ClientParameters{
-		Time:                30 * time.Second,
+	opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+		Time:                5 * time.Minute,
 		Timeout:             5 * time.Second,
 		PermitWithoutStream: true,
-	}
-	opts = append(opts, grpc.WithKeepaliveParams(keepaliveParams))
+	}))
 
 	// Add user agent
 	userAgent := "datadog-agent/" + version.AgentVersion
 	opts = append(opts, grpc.WithUserAgent(userAgent))
 
 	// Add headers via per-RPC credentials
-	headerCreds := &headerCredentials{endpoint: s.endpoint}
+	headerCreds := &headerCredentials{endpoint: endpoint}
 	opts = append(opts, grpc.WithPerRPCCredentials(headerCreds))
 
 	// Add load balancing configuration, to utilize all available LB IPs
@@ -220,17 +219,27 @@ func (s *Sender) createConnection() error {
 		`{"loadBalancingPolicy":"round_robin"}`,
 	))
 
-	// Create connection, lazy connection establishment, does not block
-	address := fmt.Sprintf("%s:%d", s.endpoint.Host, s.endpoint.Port)
+	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 	conn, err := grpc.NewClient(address, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to create gRPC connection: %w", err)
+		return nil, nil, fmt.Errorf("failed to create gRPC connection: %w", err)
 	}
 
-	s.conn = conn
-	s.client = statefulpb.NewStatefulLogsServiceClient(conn)
+	return conn, statefulpb.NewStatefulLogsServiceClient(conn), nil
+}
 
-	log.Infof("Successfully created gRPC connection to %s", address)
+// createConnection establishes the shared gRPC connection
+func (s *Sender) createConnection() error {
+	log.Infof("Creating gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
+
+	conn, client, err := newGRPCClient(s.endpoint, s.cfg)
+	if err != nil {
+		return err
+	}
+	s.conn = conn
+	s.client = client
+
+	log.Infof("Successfully created gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
 	return nil
 }
 

@@ -12,10 +12,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,9 +61,10 @@ type batchStrategy struct {
 	grpcDatums []*statefulpb.Datum
 
 	// Delta encoding state - tracks previous values within current batch
-	lastTimestamp     int64  // milliseconds since epoch
-	lastPatternID     uint64 // pattern identifier
-	lastTagsDictIndex uint64 // dictionary index of tag string
+	lastTimestamp           int64  // milliseconds since epoch
+	lastPatternID           uint64 // pattern identifier
+	lastTagsDictIndex       uint64 // dictionary index of tag string
+	lastMessageKeyDictIndex uint64 // dictionary index of json_message_key
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -206,6 +207,19 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 		}
 	}
 
+	// JsonMessageKey delta encoding (for structured logs with json_context)
+	if structured := logDatum.GetStructured(); structured != nil {
+		if mk := structured.JsonMessageKey; mk != nil {
+			if dictIndex := mk.GetDictIndex(); dictIndex != 0 {
+				if dictIndex == s.lastMessageKeyDictIndex {
+					structured.JsonMessageKey = nil // omit unchanged message key
+				} else {
+					s.lastMessageKeyDictIndex = dictIndex
+				}
+			}
+		}
+	}
+
 	// Tag delta encoding (extract dict index from TagSet)
 	if tagSet := logDatum.Tags; tagSet != nil {
 		if tagSetValue := tagSet.Tagset; tagSetValue != nil {
@@ -262,6 +276,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.lastTimestamp = 0
 	s.lastPatternID = 0
 	s.lastTagsDictIndex = 0
+	s.lastMessageKeyDictIndex = 0
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }

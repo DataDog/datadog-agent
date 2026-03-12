@@ -167,11 +167,17 @@ func (l *LogsConfigKeys) useCompression() bool {
 
 func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	endpoints, _ := l.getAdditionalEndpoints()
-	return len(endpoints) > 0
+	for _, e := range endpoints {
+		if !e.UseGRPC {
+			return true
+		}
+	}
+	return false
 }
 
 // shouldUseTCP returns true if the configuration should use TCP.
 // This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
+// gRPC additional endpoints do not force TCP since they use their own transport.
 func (l *LogsConfigKeys) shouldUseTCP() bool {
 	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
 }

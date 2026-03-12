@@ -546,7 +546,7 @@ func newHTTPPassthroughPipeline(
 			"X-Datadog-Additional-Tags": tags,
 		}
 		for i := range endpoints.Endpoints {
-			endpoints.Endpoints[i].ExtraHTTPHeaders = extraHeaders
+			endpoints.Endpoints[i].ExtraHeaders = extraHeaders
 		}
 	}
 
