@@ -96,16 +96,19 @@ func (s *testExtensionsSuite) verifyDDOTRunning(expectedVersion string) {
 		if err != nil {
 			return false
 		}
-		return strings.Contains(output, "Running")
-	}, 60*time.Second, 2*time.Second, "DDOT service should be running")
-
-	if expectedVersion != "" {
+		if !strings.Contains(output, "Running") {
+			return false
+		}
+		if expectedVersion == "" {
+			return true
+		}
 		binaryPath, err := s.Env().RemoteHost.Execute(
 			`(Get-WmiObject -Class Win32_Service -Filter "Name='datadog-otel-agent'").PathName`)
-		s.Require().NoError(err, "failed to get DDOT service binary path")
-		s.Require().Contains(binaryPath, expectedVersion,
-			"DDOT binary path should contain version %s", expectedVersion)
-	}
+		if err != nil {
+			return false
+		}
+		return strings.Contains(binaryPath, expectedVersion)
+	}, 5*time.Minute, 2*time.Second, "DDOT service should be running at version %s", expectedVersion)
 }
 
 // verifyDDOTServiceNotRunning verifies that the DDOT service is not present.
@@ -117,23 +120,22 @@ func (s *testExtensionsSuite) verifyDDOTServiceNotRunning() {
 }
 
 // setAgentConfig creates the agent configuration with the given OCI registry URL.
-// If registryURL is empty, the default pipeline registry is used.
-func (s *testExtensionsSuite) setAgentConfig(registryURL ...string) {
-	url := consts.PipelineOCIRegistry
-	if len(registryURL) > 0 && registryURL[0] != "" {
-		url = registryURL[0]
-	}
+func (s *testExtensionsSuite) setAgentConfig(registryURL string) {
 	configPath := `C:\ProgramData\Datadog\datadog.yaml`
 	s.Env().RemoteHost.MkdirAll(`C:\ProgramData\Datadog`)
 	apiKey := installer.GetAPIKey()
+	registryBlock := ""
+	if registryURL != "" {
+		registryBlock = `
+installer:
+  registry:
+    url: ` + registryURL
+	}
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: `+apiKey+`
 site: datadoghq.com
 remote_updates: true
-log_level: debug
-installer:
-  registry:
-    url: `+url+`
+log_level: debug`+registryBlock+`
 `))
 }
 
@@ -173,7 +175,7 @@ func (s *testExtensionsSuite) installCurrentAgentVersion(opts ...installerwindow
 //
 // Scenario: Install previous MSI -> install extension -> upgrade MSI -> verify extension restored
 func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
-	s.setAgentConfig()
+	s.setAgentConfig(consts.PipelineOCIRegistry)
 	s.installPreviousAgentVersion()
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
@@ -189,14 +191,11 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 // Scenario: Install previous MSI -> install extension -> upgrade with WIXFAILWHENDEFERRED=1
 // -> verify rollback restores old version -> verify extension is restored
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
-	// Install the previous agent first (starts the daemon, which caches the registry config
-	// from datadog.yaml at startup). Then switch to the beta registry: the daemon won't
-	// reload it, so StartExperiment still downloads the experiment OCI from the pipeline
-	// registry. restoreAgentExtensions, however, re-reads datadog.yaml fresh at call time,
-	// so it will use the beta registry to find the stable OCI (7.78.0-beta-fleet-ext-1).
-	s.setAgentConfig()
+	// Start with no registry override so the daemon and install-experiment subprocess
+	// both start with RegistryOverride = "". This ensures StartExperiment successfully
+	// downloads the pipeline package from the catalog URL (installtesting.datad0g.com).
+	s.setAgentConfig("")
 	s.installPreviousAgentVersion()
-	s.setAgentConfig(consts.BetaS3OCIRegistry)
 	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
@@ -205,12 +204,21 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 
 	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost,
 		`HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs",
-		[]string{"WIXFAILWHENDEFERRED=1"})
+		[]string{"WIXFAILWHENDEFERRED=1", "DD_INSTALLER_REGISTRY_URL=" + consts.PipelineOCIRegistry})
 	s.Require().NoError(err)
 
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
+
+		// Set installer.registry.url to BetaS3OCIRegistry so that restoreAgentExtensions
+		// (called from the MSI postinst hook during stable reinstatement after rollback)
+		// uses the correct registry for the stable beta package.
+		// The experiment MSI's rollback postinst already has DD_INSTALLER_REGISTRY_URL=PipelineOCIRegistry
+		// (from StartExperimentMSIArgs), which takes precedence over datadog.yaml for that subprocess.
+		// The stable MSI's postinst has no DD_INSTALLER_REGISTRY_URL, so it reads from datadog.yaml
+		// and uses BetaS3OCIRegistry to download agent-package:<stableVersion>.
+		s.setAgentConfig(consts.BetaS3OCIRegistry)
 	})
 
 	// After MSI rollback, postStartExperimentBackground detects the failure and calls
@@ -234,7 +242,7 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 //
 // Scenario: Install MSI -> install extension -> uninstall MSI -> verify extension removed
 func (s *testExtensionsSuite) TestExtensionRemovedOnUninstall() {
-	s.setAgentConfig()
+	s.setAgentConfig(consts.PipelineOCIRegistry)
 
 	// 1. Install current agent version
 	s.installCurrentAgentVersion()
