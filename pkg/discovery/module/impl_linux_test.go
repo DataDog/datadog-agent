@@ -103,10 +103,9 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
 	cfg := &splite.Config{Socket: socketPath}
-	cmdArgs := cfg.Args()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, binaryPath, cmdArgs[1:]...)
+	cmd := exec.CommandContext(ctx, binaryPath, cfg.Args()...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Start())

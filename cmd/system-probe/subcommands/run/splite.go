@@ -77,7 +77,7 @@ func resolveSPLiteExecCmd(sysprobeConfig sysprobeconfig.Component, pidFilePath s
 
 	return &spLiteExecCmd{
 		Path: systemProbeLitePath,
-		Args: buildSPLiteArgs(sysprobeConfig, pidFilePath),
+		Args: append([]string{systemProbeLitePath}, buildSPLiteArgs(sysprobeConfig, pidFilePath)...),
 		Env:  os.Environ(),
 	}
 }

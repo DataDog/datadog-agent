@@ -123,7 +123,7 @@ func TestBuildSPLiteArgs(t *testing.T) {
 
 	args := buildSPLiteArgs(sysprobeConfig, "/var/run/sp.pid")
 
-	assert.Equal(t, "system-probe-lite", args[0])
+	assert.Equal(t, "run", args[0])
 	assert.Contains(t, args, "/custom/path.sock")
 	assert.Contains(t, args, "debug")
 	assert.Contains(t, args, sysprobeConfig.GetString("log_file"))
@@ -154,13 +154,12 @@ func TestResolveSPLiteExecCmd(t *testing.T) {
 		cmd := resolveSPLiteExecCmd(sysprobeConfig, "/var/run/sp.pid", log)
 		require.NotNil(t, cmd, "should return exec cmd when system-probe-lite binary exists")
 		assert.Equal(t, testBinary, cmd.Path)
-		assert.Equal(t, []string{
-			"system-probe-lite", "run",
+		assert.Equal(t, append([]string{testBinary, "run",
 			"--socket", sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 			"--log-level", sysprobeConfig.GetString("log_level"),
 			"--log-file", sysprobeConfig.GetString("log_file"),
 			"--pid", "/var/run/sp.pid",
-		}, cmd.Args)
+		}), cmd.Args)
 		assert.NotEmpty(t, cmd.Env)
 	})
 
