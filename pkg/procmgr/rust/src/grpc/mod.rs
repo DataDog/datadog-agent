@@ -90,7 +90,7 @@ mod tests {
                         match cmd {
                             Command::Create { name, config, reply } => {
                                 let _ = reply.send(
-                                    mgr_loop.handle_create(name, *config).await,
+                                    mgr_loop.handle_create(name, *config, &exit_tx_loop).await,
                                 );
                             }
                             Command::Start { name_or_uuid, reply } => {
@@ -839,6 +839,7 @@ mod tests {
                 name: "new-svc".to_string(),
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
+                auto_start: Some(false),
                 ..Default::default()
             })
             .await
@@ -872,6 +873,98 @@ mod tests {
             nix::sys::signal::Signal::SIGKILL,
         )
         .ok();
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        client
+            .create(proto::CreateRequest {
+                name: "auto-svc".to_string(),
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        let resp = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.processes.len(), 1);
+        assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
+        assert!(
+            resp.processes[0].pid > 0,
+            "auto-started process should have a PID"
+        );
+
+        nix::sys::signal::kill(
+            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
+            nix::sys::signal::Signal::SIGKILL,
+        )
+        .ok();
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_false_stays_created() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        client
+            .create(proto::CreateRequest {
+                name: "manual-svc".to_string(),
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let resp = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(resp.total_processes, 1);
+        assert_eq!(
+            resp.created_processes, 1,
+            "auto_start=false should leave process in created state"
+        );
+        assert_eq!(resp.running_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_bad_command() {
+        let (mut client, _shutdown) = start_test_server(vec![]).await;
+
+        let resp = client
+            .create(proto::CreateRequest {
+                name: "bad-cmd".to_string(),
+                command: "/nonexistent/binary".to_string(),
+                auto_start: Some(true),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(!resp.uuid.is_empty(), "process should still be created");
+
+        let status = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(status.total_processes, 1);
+        assert_eq!(
+            status.running_processes, 0,
+            "process with bad command should not be running"
+        );
     }
 
     #[tokio::test]

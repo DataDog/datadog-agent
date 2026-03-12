@@ -92,7 +92,7 @@ impl ProcessManager {
                 Some(cmd) = cmd_rx.recv() => {
                     match cmd {
                         Command::Create { name, config, reply } => {
-                            let _ = reply.send(self.handle_create(name, *config).await);
+                            let _ = reply.send(self.handle_create(name, *config, &exit_tx).await);
                         }
                         Command::Start { name_or_uuid, reply } => {
                             let _ = reply.send(self.handle_start(&name_or_uuid, &exit_tx).await);
@@ -180,6 +180,7 @@ impl ProcessManager {
         &self,
         name: String,
         config: config::ProcessConfig,
+        exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<CreateResult, Status> {
         if name.is_empty() {
             return Err(Status::invalid_argument("name must not be empty"));
@@ -207,6 +208,13 @@ impl ProcessManager {
             uuid = proc.uuid().to_owned();
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
+            let proc = procs.last_mut().unwrap();
+            if proc.should_start() {
+                match proc.spawn() {
+                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
+                    Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
+                }
+            }
         }
         self.update_startup_order().await;
         Ok(CreateResult { uuid })
@@ -596,7 +604,11 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        let err = mgr.handle_create("".to_string(), config).await.unwrap_err();
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let err = mgr
+            .handle_create("".to_string(), config, &exit_tx)
+            .await
+            .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
     }
 
@@ -607,8 +619,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
         let err = mgr
-            .handle_create("bad name!".to_string(), config)
+            .handle_create("bad name!".to_string(), config, &exit_tx)
             .await
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
@@ -621,7 +634,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        mgr.handle_create("my-svc_v2.0".to_string(), config).await?;
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create("my-svc_v2.0".to_string(), config, &exit_tx)
+            .await?;
         let procs = mgr.processes().await;
         assert_eq!(procs[0].name(), "my-svc_v2.0");
         Ok(())
@@ -634,9 +649,9 @@ mod tests {
             command: "/bin/echo".to_string(),
             ..Default::default()
         };
-        mgr.handle_create("runtime-svc".to_string(), config).await?;
-
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create("runtime-svc".to_string(), config, &exit_tx)
+            .await?;
 
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(
@@ -716,8 +731,10 @@ mod tests {
             ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
+                auto_start: false,
                 ..Default::default()
             },
+            &exit_tx,
         )
         .await?;
         mgr.handle_start("runtime-svc", &exit_tx).await?;
@@ -754,14 +771,17 @@ mod tests {
     #[tokio::test]
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
         mgr.handle_create(
             "svc-b".to_string(),
             ProcessConfig {
                 command: "/bin/sleep".to_string(),
                 args: vec!["60".to_string()],
                 after: vec!["svc-a".to_string()],
+                auto_start: false,
                 ..Default::default()
             },
+            &exit_tx,
         )
         .await?;
 
@@ -772,6 +792,117 @@ mod tests {
             names,
             vec!["svc-a", "svc-b"],
             "runtime process with after-dep should appear in startup order"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create(
+            "auto-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: true,
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        {
+            let procs = mgr.processes().await;
+            assert_eq!(procs.len(), 1);
+            assert!(
+                procs[0].is_running(),
+                "process with auto_start=true should be running after create"
+            );
+            assert!(
+                procs[0].pid().is_some(),
+                "running process should have a PID"
+            );
+        }
+
+        mgr.shutdown().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create(
+            "manual-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: false,
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert!(
+            !procs[0].is_running(),
+            "process with auto_start=false should not be running after create"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr
+            .handle_create(
+                "bad-cmd".to_string(),
+                ProcessConfig {
+                    command: "/nonexistent/binary".to_string(),
+                    auto_start: true,
+                    ..Default::default()
+                },
+                &exit_tx,
+            )
+            .await;
+
+        assert!(result.is_ok(), "create should succeed even if spawn fails");
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert_eq!(procs[0].name(), "bad-cmd");
+        assert!(
+            !procs[0].is_running(),
+            "process with bad command should not be running"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]));
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        mgr.handle_create(
+            "cond-svc".to_string(),
+            ProcessConfig {
+                command: "/bin/sleep".to_string(),
+                args: vec!["60".to_string()],
+                auto_start: true,
+                condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
+                ..Default::default()
+            },
+            &exit_tx,
+        )
+        .await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1);
+        assert!(
+            !procs[0].is_running(),
+            "process should not start when condition_path_exists is not met"
         );
         Ok(())
     }
