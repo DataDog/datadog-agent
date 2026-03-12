@@ -5,3 +5,12 @@ bzl_library(
     srcs = ["dd_packaging_info.bzl"],
     visibility = ["//visibility:public"],
 )
+
+bzl_library(
+    name = "dd_cc_shared_library_bzl",
+    srcs = ["dd_cc_shared_library.bzl"],
+    deps = [
+        "//bazel/rules/rewrite_rpath:rewrite_rpath_bzl",
+    ],
+    visibility = ["//visibility:public"],
+)
