@@ -55,21 +55,9 @@ func (s *httpRemoteTagsWindowsSuite) SetupSuite() {
 	out, err := host.Execute(`Test-Path "` + pythonExe + `"`)
 	require.Contains(s.T(), out, "True", "embedded Python not found at %s", pythonExe)
 
-	// Write a minimal HTTP server script using only the built-in socket module.
+	// Write the shared socket-based HTTP server script.
 	host.MustExecute(`New-Item -ItemType Directory -Force -Path C:\temp | Out-Null`)
-	serverScript := `import socket, sys
-port = int(sys.argv[1])
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(("0.0.0.0", port))
-s.listen(200)
-while True:
-    conn, addr = s.accept()
-    conn.recv(4096)
-    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok")
-    conn.close()
-`
-	_, err = host.WriteFile(`C:\temp\httpserver.py`, []byte(serverScript))
+	_, err = host.WriteFile(`C:\temp\httpserver.py`, []byte(httpServerScript))
 	require.NoError(s.T(), err, "failed to write HTTP server script")
 
 	// Start servers using WMI to create truly detached processes that survive SSH session cleanup.
@@ -111,5 +99,5 @@ func (s *httpRemoteTagsWindowsSuite) TestHTTPRemoteServiceTags() {
 
 	const requestsPerPort = 4000
 	sendWindowsKeepAliveRequests(host, requestsPerPort, 20)
-	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", requestsPerPort)
+	fetchAndAssertTaggedConnections(t, nil, s.Env().FakeIntake.Client(), "http", requestsPerPort)
 }

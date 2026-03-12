@@ -6,6 +6,7 @@
 package usm
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -50,20 +51,22 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 	_, err := host.Execute("python3 --version")
 	require.NoError(s.T(), err, "python3 not found on remote host")
 
-	// Start two Python HTTP servers on different ports.
-	host.MustExecute("nohup python3 -m http.server 8081 --bind 0.0.0.0 > /tmp/http8081.log 2>&1 </dev/null &")
-	host.MustExecute("nohup python3 -m http.server 8082 --bind 0.0.0.0 > /tmp/http8082.log 2>&1 </dev/null &")
+	// Write and start socket-based HTTP servers on ports 8081 and 8082.
+	_, err = host.WriteFile("/tmp/httpserver.py", []byte(httpServerScript))
+	require.NoError(s.T(), err, "failed to write HTTP server script")
+	host.MustExecute("nohup python3 /tmp/httpserver.py 8081 > /tmp/http8081.log 2>&1 </dev/null &")
+	host.MustExecute("nohup python3 /tmp/httpserver.py 8082 > /tmp/http8082.log 2>&1 </dev/null &")
 
 	time.Sleep(2 * time.Second)
 
 	_, err = host.Execute(`python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/')"`)
-	require.NoError(s.T(), err, "Python HTTP server on port 8081 not responding")
+	require.NoError(s.T(), err, "HTTP server on port 8081 not responding")
 	_, err = host.Execute(`python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/')"`)
-	require.NoError(s.T(), err, "Python HTTP server on port 8082 not responding")
+	require.NoError(s.T(), err, "HTTP server on port 8082 not responding")
 
 	// In CI, the provisioner installs the agent built from the current branch.
 	// For local dev, uncomment to deploy locally-built binaries:
-	//deployLinuxBinaries(s.T(), host)
+	deployLinuxBinaries(s.T(), host)
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
@@ -82,5 +85,17 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 
 	const requestsPerPort = 4000
 	sendPythonHTTPRequests(host, "python3", requestsPerPort)
-	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", requestsPerPort)
+	fetchAndAssertTaggedConnections(t, host, s.Env().FakeIntake.Client(), "python", requestsPerPort)
+
+	// Download agent logs for debugging.
+	outputDir := s.SessionOutputDir()
+	for _, logFile := range []string{"system-probe.log", "process-agent.log"} {
+		remotePath := "/var/log/datadog/" + logFile
+		tmpPath := "/tmp/" + logFile
+		localPath := filepath.Join(outputDir, logFile)
+		host.MustExecute("sudo cp " + remotePath + " " + tmpPath + " && sudo chmod 644 " + tmpPath)
+		if err := host.GetFile(tmpPath, localPath); err != nil {
+			t.Logf("failed to download %s: %v", logFile, err)
+		}
+	}
 }

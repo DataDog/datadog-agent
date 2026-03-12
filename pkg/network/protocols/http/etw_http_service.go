@@ -283,8 +283,10 @@ var (
 	// Used to expose IIS-specific tags (sitename, app_pool, service, env, version) to the
 	// process-agent for remote service tag enrichment on same-host connections.
 	// Entries expire after iisTagsCacheTTL.
-	iisTagsCacheMu  sync.Mutex
-	iisTagsCacheMap = make(map[[2]uint16]iisTagsCacheEntry)
+	iisTagsCacheMu       sync.Mutex
+	iisTagsCacheMap      = make(map[[2]uint16]iisTagsCacheEntry)
+	iisTagsEvictTotal    int64
+	iisTagsEvictLastLog  time.Time
 )
 
 const (
@@ -369,6 +371,12 @@ func storeIISTagsCache(key [2]uint16, tags []string) {
 				}
 			}
 			delete(iisTagsCacheMap, oldestKey)
+			iisTagsEvictTotal++
+			if now.Sub(iisTagsEvictLastLog) >= 30*time.Second {
+				log.Warnf("iis tags cache at capacity (%d): %d non-expired evictions", iisTagsCacheMaxSize, iisTagsEvictTotal)
+				iisTagsEvictTotal = 0
+				iisTagsEvictLastLog = now
+			}
 		}
 	}
 
