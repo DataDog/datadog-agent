@@ -690,53 +690,78 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if testMod != nil && ebpfLessEnabled {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.opts.staticOpts = opts.staticOpts
-		testMod.statsdClient.Flush()
+		// Check if the runtime security state in the existing testMod matches what we need
+		// This prevents reusing a testMod with stale RuntimeEnabled config
+		runtimeEnabledInTestMod := testMod.probe != nil && testMod.probe.Config.RuntimeSecurity.RuntimeEnabled
+		runtimeEnabledNeeded := !opts.staticOpts.disableRuntimeSecurity
 
-		if opts.staticOpts.preStartCallback != nil {
-			opts.staticOpts.preStartCallback(testMod)
-		}
+		if runtimeEnabledInTestMod != runtimeEnabledNeeded {
+			// Runtime security state mismatch - force recreation even in ebpfless mode
+			testMod.cleanup()
+			testMod = nil
+			// Fall through to create new testMod below
+		} else {
+			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
+			testMod.t = t
+			testMod.opts.dynamicOpts = opts.dynamicOpts
+			testMod.opts.staticOpts = opts.staticOpts
+			testMod.statsdClient.Flush()
 
-		if !opts.staticOpts.disableRuntimeSecurity {
-			if err = testMod.reloadPolicies(); err != nil {
-				return testMod, err
+			if opts.staticOpts.preStartCallback != nil {
+				opts.staticOpts.preStartCallback(testMod)
 			}
+
+			if !opts.staticOpts.disableRuntimeSecurity {
+				if err = testMod.reloadPolicies(); err != nil {
+					return testMod, err
+				}
+			}
+			return testMod, nil
 		}
-		return testMod, nil
 
 	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.statsdClient.Flush()
+		// Check if the runtime security state in the existing testMod matches what we need
+		// This prevents reusing a testMod with stale RuntimeEnabled config when tests run in shuffled order
+		runtimeEnabledInTestMod := testMod.probe != nil && testMod.probe.Config.RuntimeSecurity.RuntimeEnabled
+		runtimeEnabledNeeded := !opts.staticOpts.disableRuntimeSecurity
 
-		if !disableTracePipe && !ebpfLessEnabled {
-			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-				return testMod, err
+		if runtimeEnabledInTestMod != runtimeEnabledNeeded {
+			// Runtime security state mismatch - force recreation
+			testMod.cleanup()
+			testMod = nil
+		} else {
+			// Can safely reuse testMod
+			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
+			testMod.t = t
+			testMod.opts.dynamicOpts = opts.dynamicOpts
+			testMod.statsdClient.Flush()
+
+			if !disableTracePipe && !ebpfLessEnabled {
+				if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+					return testMod, err
+				}
 			}
-		}
 
-		if opts.staticOpts.preStartCallback != nil {
-			opts.staticOpts.preStartCallback(testMod)
-		}
-
-		if !opts.staticOpts.disableRuntimeSecurity {
-			if err = testMod.reloadPolicies(); err != nil {
-				return testMod, err
+			if opts.staticOpts.preStartCallback != nil {
+				opts.staticOpts.preStartCallback(testMod)
 			}
-		}
 
-		if ruleDefs != nil && logStatusMetrics {
-			t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+			if !opts.staticOpts.disableRuntimeSecurity {
+				if err = testMod.reloadPolicies(); err != nil {
+					return testMod, err
+				}
+			}
+
+			if ruleDefs != nil && logStatusMetrics {
+				t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+			}
+			return testMod, nil
 		}
-		return testMod, nil
 	} else if testMod != nil {
 		testMod.cleanup()
+		testMod = nil
 	}
 
 	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
