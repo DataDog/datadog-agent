@@ -462,7 +462,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
     }
 
-    if (approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
+    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
         return SAMPLED;
     }
 
