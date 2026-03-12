@@ -525,3 +525,37 @@ func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 	assert.Contains(t, allKeys, "new_key", "new_key should be in health cache")
 	assert.NotContains(t, allKeys, "old_key", "old_key should have been removed from health cache")
 }
+
+// TestLabelForKeyCollision verifies that two API keys sharing the same 4-char suffix
+// receive unique display labels without exposing more key material than necessary.
+func TestLabelForKeyCollision(t *testing.T) {
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
+	fh.init()
+
+	// Two keys that share the last 4 chars but differ only in earlier characters,
+	// so even longer suffixes would not disambiguate without eventually exposing the full key.
+	key1 := "aXXXX1234"
+	key2 := "bXXXX1234"
+
+	fh.keyMapMutex.Lock()
+	label1 := fh.labelForKey(key1)
+	label2 := fh.labelForKey(key2)
+	fh.keyMapMutex.Unlock()
+
+	// Labels must be distinct so the two keys don't overwrite each other in the expvar maps.
+	assert.NotEqual(t, label1, label2, "colliding keys must get distinct display labels")
+
+	// The counter-based disambiguation always limits exposure to the last 4 chars:
+	// first key gets the base label, second gets the base label with a counter suffix.
+	assert.Equal(t, "API key ending with 1234", label1)
+	assert.Equal(t, "API key ending with 1234 (2)", label2)
+
+	// Verify the labels are stable: looking up the same key again returns the same label.
+	fh.keyMapMutex.Lock()
+	assert.Equal(t, label1, fh.labelForKey(key1))
+	assert.Equal(t, label2, fh.labelForKey(key2))
+	fh.keyMapMutex.Unlock()
+}

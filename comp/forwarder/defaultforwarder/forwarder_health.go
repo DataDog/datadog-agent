@@ -76,6 +76,7 @@ type forwarderHealth struct {
 	timeout               time.Duration
 	domainResolvers       map[string]resolver.DomainResolver
 	keysPerAPIEndpoint    map[string][]string
+	keyLabelMap           map[string]string // full API key → display label, protected by keyMapMutex
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
 	keyMapMutex           sync.Mutex
@@ -87,6 +88,7 @@ func (fh *forwarderHealth) init() {
 
 	// build map of keys based upon the domain resolvers
 	fh.keysPerAPIEndpoint = make(map[string][]string)
+	fh.keyLabelMap = make(map[string]string)
 	fh.computeDomainURLAPIKeyMap()
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
@@ -191,7 +193,7 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 		// Even if it has been replaced here, it may still belong to another
 		// resolver sharing the same api endpoint and so shouldn't be removed.
 		if !slices.Contains(newList, oldKey) {
-			fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
+			fh.setAPIKeyStatusLocked(oldKey, &apiKeyRemove)
 		}
 	}
 	fh.keyMapMutex.Unlock()
@@ -220,21 +222,65 @@ func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	fh.keyMapMutex.Unlock()
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
+// labelForKey returns a unique display label for apiKey (e.g. "API key ending with XXXX").
+// On suffix collision, appends a counter ("... (2)") rather than exposing more key material.
+// Must be called with keyMapMutex held.
+func (fh *forwarderHealth) labelForKey(apiKey string) string {
+	if label, ok := fh.keyLabelMap[apiKey]; ok {
+		return label
+	}
+	labelToKey := make(map[string]string, len(fh.keyLabelMap))
+	for k, v := range fh.keyLabelMap {
+		labelToKey[v] = k
+	}
+	suffix := apiKey
 	if len(apiKey) > 4 {
-		apiKey = apiKey[len(apiKey)-4:]
+		suffix = apiKey[len(apiKey)-4:]
 	}
-	obfuscatedKey := "API key ending with " + apiKey
+	baseLabel := "API key ending with " + suffix
+	if owner, taken := labelToKey[baseLabel]; !taken || owner == apiKey {
+		fh.keyLabelMap[apiKey] = baseLabel
+		return baseLabel
+	}
+	for i := 2; ; i++ {
+		label := fmt.Sprintf("%s (%d)", baseLabel, i)
+		if owner, taken := labelToKey[label]; !taken || owner == apiKey {
+			fh.keyLabelMap[apiKey] = label
+			return label
+		}
+	}
+}
+
+func applyAPIKeyStatus(label string, status *expvar.String) {
 	if status == &apiKeyRemove {
-		apiKeyStatus.Delete(obfuscatedKey)
-		apiKeyFailure.Delete(obfuscatedKey)
+		apiKeyStatus.Delete(label)
+		apiKeyFailure.Delete(label)
 	} else if status == &apiKeyInvalid {
-		apiKeyFailure.Set(obfuscatedKey, status)
-		apiKeyStatus.Delete(obfuscatedKey)
+		apiKeyFailure.Set(label, status)
+		apiKeyStatus.Delete(label)
 	} else {
-		apiKeyStatus.Set(obfuscatedKey, status)
-		apiKeyFailure.Delete(obfuscatedKey)
+		apiKeyStatus.Set(label, status)
+		apiKeyFailure.Delete(label)
 	}
+}
+
+// setAPIKeyStatusLocked is setAPIKeyStatus for callers that already hold keyMapMutex.
+func (fh *forwarderHealth) setAPIKeyStatusLocked(apiKey string, status *expvar.String) {
+	label := fh.labelForKey(apiKey)
+	if status == &apiKeyRemove {
+		delete(fh.keyLabelMap, apiKey)
+	}
+	applyAPIKeyStatus(label, status)
+}
+
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
+	fh.keyMapMutex.Lock()
+	label := fh.labelForKey(apiKey)
+	if status == &apiKeyRemove {
+		delete(fh.keyLabelMap, apiKey)
+	}
+	fh.keyMapMutex.Unlock()
+	applyAPIKeyStatus(label, status)
 }
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
