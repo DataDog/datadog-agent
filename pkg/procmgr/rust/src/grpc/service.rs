@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#![allow(clippy::result_large_err)]
+
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::proto;
@@ -280,7 +282,6 @@ fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
-#[allow(clippy::result_large_err)]
 fn resolve_process<'a>(
     procs: &'a [ManagedProcess],
     name_or_uuid: &str,

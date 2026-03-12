@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#![allow(clippy::result_large_err)]
+
 use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
@@ -370,7 +372,6 @@ fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
-#[allow(clippy::result_large_err)]
 fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
     let mut matches: Vec<usize> = procs
         .iter()
@@ -388,7 +389,6 @@ fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Resu
     }
 }
 
-#[allow(clippy::result_large_err)]
 fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
     if looks_like_uuid_prefix(name_or_uuid)
         && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
