@@ -12,6 +12,77 @@ from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH, GITHUB
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.releasing.version import current_version
 
+# TODO: migrate to preferred AI Gateway client (ai_gateway_py) once included
+# in dda as a dependency.
+_AI_GATEWAY_URL = "https://ai-gateway.us1.staging.dog/v1"
+_AI_GATEWAY_MODEL = "anthropic/claude-haiku-4-5"
+
+_REVIEW_SYSTEM_PROMPT = """\
+You are a technical writer reviewing Datadog Agent release note fragments.
+Each fragment is a YAML file with one or more of these sections:
+  upgrade, features, enhancements, issues, known_issues, deprecations, security, fixes, critical, other
+
+Evaluate the fragment and give concise, actionable feedback on:
+1. Clarity and usefulness to an end-user reading a changelog (avoid jargon, be specific about impact)
+2. Correct section choice (e.g. a bug fix should not be under 'features'; an API change belongs in 'upgrade')
+3. RST formatting issues (e.g. broken links, improperly indented blocks, missing blank lines)
+4. If an 'upgrade' section is present, whether it includes concrete steps for affected users
+
+Keep your response short — a few bullet points is ideal. Start with an overall verdict (LGTM / Needs work).
+"""
+
+
+def _get_ai_gateway_token() -> str:
+    """Retrieve an AI Gateway auth token via ddtool."""
+    import subprocess
+
+    result = subprocess.run(
+        ["ddtool", "auth", "token", "rapid-ai-platform", "--datacenter", "us1.ddbuild.io"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ddtool auth token failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def review_fragment(content: str) -> str:
+    """Send a release note fragment to AI Gateway for LLM review.
+
+    Returns the LLM's feedback as a string, or a warning message if the
+    call fails (so callers can continue without blocking the workflow).
+    """
+    import httpx
+
+    try:
+        token = _get_ai_gateway_token()
+    except Exception as e:  # noqa: BLE001
+        return f"WARNING: could not obtain AI Gateway token ({e}); skipping AI review."
+
+    try:
+        response = httpx.post(
+            f"{_AI_GATEWAY_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "source": "datadog-agent-release-notes",
+                "org-id": "2",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": _AI_GATEWAY_MODEL,
+                "messages": [
+                    {"role": "system", "content": _REVIEW_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Please review this release note fragment:\n\n```yaml\n{content}\n```"},
+                ],
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:  # noqa: BLE001
+        return f"WARNING: AI Gateway request failed ({e}); skipping AI review."
+
+
 # Section ordering and display names for the Markdown changelog assembler.
 # This is the canonical list of sections. tasks/libs/linter/releasenotes_md.py
 # derives its CHANGELOG_SECTIONS frozenset from this list (plus 'prelude').
