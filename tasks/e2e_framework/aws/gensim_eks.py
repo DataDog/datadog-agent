@@ -13,12 +13,23 @@ from invoke.tasks import task
 from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws.common import get_aws_wrapper
 from tasks.e2e_framework.aws.deploy import deploy
-from tasks.e2e_framework.config import get_api_key, get_app_key
 from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/gensim-eks"
 
 _DEFAULT_STACK_NAME = "gensim-eks"
+
+
+def _get_api_key(cfg):
+    from tasks.e2e_framework.config import get_api_key
+
+    return get_api_key(cfg)
+
+
+def _get_app_key(cfg):
+    from tasks.e2e_framework.config import get_app_key
+
+    return get_app_key(cfg)
 
 
 @task(
@@ -188,8 +199,8 @@ def submit_gensim_eks(
         "gensim:imageRegistry": ecr_registry,
         "gensim:episodeDataDir": str(gensim_repo_path),
         # Datadog keys -- must be explicit since install_agent=False
-        "ddagent:apiKey": get_api_key(local_config),
-        "ddagent:appKey": get_app_key(local_config),
+        "ddagent:apiKey": _get_api_key(local_config),
+        "ddagent:appKey": _get_app_key(local_config),
     }
 
     full_stack_name = deploy(
