@@ -53,11 +53,7 @@ pkg_tar(
     owner = "0.0",
 )
 
-pkg_deb(
-    name = "debian",
-    conflicts = ["datadog-agent"],
-    data = ":whole_distro_tar",
-    description = """Datadog IoT Agent
+_DESCRIPTION = """Datadog IoT Agent
 The Datadog IoT Agent is a lightweight process that monitors system
 processes and services, and sends information back to your Datadog account.
 .
@@ -65,7 +61,13 @@ This package installs and runs the advanced Agent daemon, which queues and
 forwards metrics from your applications as well as system services.
 .
 See http://www.datadoghq.com/ for more information
-""",
+"""
+
+pkg_deb(
+    name = "debian",
+    conflicts = ["datadog-agent"],
+    data = ":whole_distro_tar",
+    description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
     license = "Apache License Version 2.0",
@@ -87,15 +89,7 @@ pkg_rpm(
     package_name = "datadog-iot-agent",
     srcs = [":whole_distro"],
     conflicts = ["datadog-agent"],
-    description = """Datadog IoT Agent
-The Datadog IoT Agent is a lightweight process that monitors system
-processes and services, and sends information back to your Datadog account.
-
-This package installs and runs the advanced Agent daemon, which queues and
-forwards metrics from your applications as well as system services.
-
-See http://www.datadoghq.com/ for more information
-""",
+    description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",

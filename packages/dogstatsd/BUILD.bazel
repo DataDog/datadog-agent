@@ -53,10 +53,7 @@ pkg_tar(
     owner = "0.0",
 )
 
-pkg_deb(
-    name = "debian",
-    data = ":whole_distro_tar",
-    description = """Datadog dogstatsd agent
+_DESCRIPTION = """Datadog dogstatsd agent
 Dogstatsd is a lightweight process that will receive dogstatsd packet, aggregate
 them and forward them to Datadog backend. Its main purpose is to handle custom
 metrics from external processes.
@@ -64,7 +61,12 @@ metrics from external processes.
 This package installs and runs Dogstatsd.
 .
 See http://www.datadoghq.com/ for more information
-""",
+"""
+
+pkg_deb(
+    name = "debian",
+    data = ":whole_distro_tar",
+    description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
     license = "Apache License Version 2.0",
@@ -85,15 +87,7 @@ pkg_rpm(
     name = "rpm",
     package_name = "datadog-dogstatsd",
     srcs = [":whole_distro"],
-    description = """Datadog dogstatsd agent
-Dogstatsd is a lightweight process that will receive dogstatsd packet, aggregate
-them and forward them to Datadog backend. Its main purpose is to handle custom
-metrics from external processes.
-
-This package installs and runs Dogstatsd.
-
-See http://www.datadoghq.com/ for more information
-""",
+    description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",

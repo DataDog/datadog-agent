@@ -53,6 +53,8 @@ pkg_tar(
     owner = "0.0",
 )
 
+_DESCRIPTION = "Datadog Distribution of OpenTelemetry Collector"
+
 pkg_deb(
     name = "debian",
     data = ":whole_distro_tar",
@@ -61,7 +63,7 @@ pkg_deb(
     # TODO: stamp datadog-agent dep version from pipeline:
     #   "datadog-agent (= 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1)"
     depends = ["datadog-agent"],
-    description = "Datadog Distribution of OpenTelemetry Collector",
+    description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
     license = "Apache License Version 2.0",
@@ -81,7 +83,7 @@ pkg_rpm(
     name = "rpm",
     package_name = "datadog-agent-ddot",
     srcs = [":whole_distro"],
-    description = "Datadog Distribution of OpenTelemetry Collector",
+    description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",

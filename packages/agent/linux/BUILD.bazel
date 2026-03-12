@@ -91,12 +91,7 @@ pkg_tar(
     owner = "0.0",
 )
 
-# TODO: Look at omnibus/config/projects/agent.rb for more content here.
-pkg_deb(
-    name = "debian",
-    conflicts = ["datadog-iot-agent"],
-    data = ":whole_distro_tar",
-    description = """Datadog Monitoring Agent
+_DESCRIPTION = """Datadog Monitoring Agent
 The Datadog Monitoring Agent is a lightweight process that monitors system
 processes and services, and sends information back to your Datadog account.
 .
@@ -104,7 +99,14 @@ This package installs and runs the advanced Agent daemon, which queues and
 forwards metrics from your applications as well as system services.
 .
 See http://www.datadoghq.com/ for more information
-""",
+"""
+
+# TODO: Look at omnibus/config/projects/agent.rb for more content here.
+pkg_deb(
+    name = "debian",
+    conflicts = ["datadog-iot-agent"],
+    data = ":whole_distro_tar",
+    description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
     # vendor = "Datadog <package@datadoghq.com>",
@@ -138,15 +140,7 @@ pkg_rpm(
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
-    description = """Datadog Monitoring Agent
-The Datadog Monitoring Agent is a lightweight process that monitors system
-processes and services, and sends information back to your Datadog account.
-
-This package installs and runs the advanced Agent daemon, which queues and
-forwards metrics from your applications as well as system services.
-
-See http://www.datadoghq.com/ for more information
-""",
+    description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
