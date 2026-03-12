@@ -1825,17 +1825,21 @@ def save_build_outputs(ctx, destfile):
                 outfiles.append(relpath)
                 count += 1
 
-        # Include inplace targets (e.g. uprobe-trigger.o) that live in
-        # their source directories rather than the central build dir.
-        for _, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
-            for obj in glob.glob(os.path.join(dest_dir, "*.o")):
-                relpath = os.path.relpath(obj)
-                filedir, _ = os.path.split(relpath)
-                outdir = os.path.join(stagedir, filedir)
-                os.makedirs(outdir, exist_ok=True)
-                shutil.copy2(obj, outdir)
-                outfiles.append(relpath)
-                count += 1
+        # Include inplace targets (e.g. uprobe-trigger.o, detect-seccomp-bug)
+        # that live in their source directories rather than the central build dir.
+        for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+            name = target.rsplit(":", 1)[1]
+            # eBPF targets produce .o files, native cc_binary targets produce bare binaries
+            for candidate in [os.path.join(dest_dir, f"{name}.o"), os.path.join(dest_dir, name)]:
+                if os.path.exists(candidate):
+                    relpath = os.path.relpath(candidate)
+                    filedir, _ = os.path.split(relpath)
+                    outdir = os.path.join(stagedir, filedir)
+                    os.makedirs(outdir, exist_ok=True)
+                    shutil.copy2(candidate, outdir)
+                    outfiles.append(relpath)
+                    count += 1
+                    break
 
         if count == 0:
             raise Exit(message="no build outputs captured")
