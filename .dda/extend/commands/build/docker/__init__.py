@@ -210,20 +210,19 @@ def _build_quick_image(
     "--base-image",
     default=None,
     help=(
-        "Base agent image to build from (only used with --build-method=quick). "
+        "Base agent image to build from (ignored with --full). "
         "Accepts a version (e.g. '7.63.0', resolved to datadog/agent:7.63.0) or a full image reference. "
         "Defaults to the latest successful build from main on registry.ddbuild.io."
     ),
 )
 @click.option(
-    "--build-method",
-    type=click.Choice(["quick", "full"]),
-    default="quick",
-    show_default=True,
+    "--full",
+    is_flag=True,
+    default=False,
     help=(
-        "Build method: 'quick' (default) uses agent.hacky-dev-image-build for fast iteration (~1-2 min), "
-        "layers local binaries on a base image. 'full' uses omnibus.docker-build for production-like "
-        "builds from scratch (~10-30 min), includes full dependency compilation."
+        "Use full omnibus build instead of quick build. "
+        "Quick (default): agent.hacky-dev-image-build for fast iteration (~1-2 min), layers local binaries on a base image. "
+        "Full: omnibus.docker-build for production-like builds from scratch (~10-30 min), includes full dependency compilation."
     ),
 )
 @option_env_type()
@@ -249,7 +248,7 @@ def cmd(
     tag: str | None,
     registry: str,
     base_image: str | None,
-    build_method: str,
+    full: bool,
     env_type: str,
     instance: str,
     arch: str | None,
@@ -258,17 +257,15 @@ def cmd(
     """
     Build an Agent Docker image and push it to the agent-sandbox ECR registry, used in E2E testing local runs.
 
-    Two build methods are supported:
-    - 'quick' (default): Fast iteration using agent.hacky-dev-image-build (~1-2 min)
-    - 'full': Production-like build using omnibus.docker-build (~10-30 min)
+    By default uses quick build for fast iteration. Pass --full for production-like omnibus build.
 
-    Quick method workflow:
+    Quick build workflow (default):
     1. Ensures the dev environment is running (starts it if needed).
     2. Builds the Agent binary and Docker image via `dda inv agent.hacky-dev-image-build`.
     3. Logs in to the agent-sandbox ECR registry using aws-vault.
     4. Pushes the image to `376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests`.
 
-    Full method workflow:
+    Full build workflow (--full):
     1. Builds the Agent using full omnibus build inside a Docker container.
     2. Creates a Docker image from the omnibus build output.
     3. Logs in to the registry and pushes the image.
@@ -284,7 +281,7 @@ def cmd(
     target_image = f"{repository}:{tag or getpass.getuser()}"
 
     # Build the image using the selected method
-    if build_method == "full":
+    if full:
         _build_full_image(app, target_image=target_image, arch=arch)
     else:
         _build_quick_image(
