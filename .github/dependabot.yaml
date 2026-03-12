@@ -217,18 +217,6 @@ updates:
       - dependency-name: golang.org/x/*
       # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
       - dependency-name: go.opentelemetry.io/*
-  - package-ecosystem: docker
-    directory: /test/fakeintake
-    labels:
-      - dependencies
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    schedule:
-      interval: weekly
-      day: saturday
-    open-pull-requests-limit: 100
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:

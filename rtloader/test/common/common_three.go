@@ -10,9 +10,13 @@ package testcommon
 import "C"
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"unsafe"
+
+	"github.com/bazelbuild/rules_go/go/runfiles"
 )
 
 // GetRtLoader returns a RtLoader instance
@@ -23,16 +27,53 @@ func GetRtLoader() *C.rtloader_t {
 	defer C.free(unsafe.Pointer(executablePath))
 
 	var pythonHome *C.char
-	// Use an explicit "Python Home" (the root directory of the Python installation)
-	// Intended for driving the tests from Bazel
-	if pythonBin := os.Getenv("PYTHON_BIN"); pythonBin != "" {
-		// PYTHON_BIN points to the python executable under bin
-		// Get the full path based on Bazel-provided variables
-		absPath := filepath.Join(os.Getenv("TEST_SRCDIR"), os.Getenv("TEST_WORKSPACE"), pythonBin)
-		// And then walk back to get the "Python Home"
-		pythonHome = C.CString(filepath.Dir(filepath.Dir(absPath)))
-		defer C.free(unsafe.Pointer(pythonHome))
+
+	// Specific setup for when we're running the tests with bazel
+	if isBazel() {
+		if runtime.GOOS == "windows" {
+			// Temporarily add the path to where the "three" dll is available to PATH
+			// so that it can be found by `LoadLibrary`
+			oldPath := os.Getenv("PATH")
+			defer os.Setenv("PATH", oldPath)
+			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
+			// On Windows, the python library file sits at the root of the Python Home
+			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
+			defer C.free(unsafe.Pointer(pythonHome))
+		} else {
+			// Python Home is a level up from the path to the binary
+			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
+			defer C.free(unsafe.Pointer(pythonHome))
+		}
 	}
 
-	return C.make3(pythonHome, executablePath, &err)
+	rtloader := C.make3(pythonHome, executablePath, &err)
+	if err != nil {
+		fmt.Printf("Error: %s\n", C.GoString(err))
+		return rtloader
+	}
+	addStubsToPythonPath(rtloader)
+	return rtloader
+}
+
+// addStubsToPythonPath puts Python stubs to the PYTHONPATH, based on whether tests
+// are running from bazel and OS
+func addStubsToPythonPath(rtloader *C.rtloader_t) {
+	if isBazel() {
+		C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
+	} else {
+		// Pre-bazel default
+		C.add_python_path(rtloader, C.CString("../python"))
+	}
+}
+
+func isBazel() bool {
+	return os.Getenv("BAZEL_TEST") == "1"
+}
+
+func rlocationPathFromEnv(envvar string) string {
+	resolved, err := runfiles.Rlocation(os.Getenv(envvar))
+	if err != nil {
+		panic(fmt.Sprintf("error: failed to get location for `three` library: %s", err))
+	}
+	return resolved
 }

@@ -4,9 +4,6 @@ rtloader_test_go_library(
     name = "uutil",
     srcs = ["uutil.go"],
     cgo = True,
-    copts = [
-        "-Wno-deprecated-declarations",  # keep
-    ],
     importpath = "github.com/DataDog/datadog-agent/rtloader/test/uutil",
     visibility = ["//visibility:public"],
     deps = [

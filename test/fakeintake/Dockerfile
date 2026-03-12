@@ -1,7 +1,7 @@
 ## Based on https://docs.docker.com/language/golang/build-images/
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.25.7
+ARG GO_VERSION=1.25.8
 
 ## Build
 FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build

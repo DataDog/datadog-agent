@@ -51,6 +51,7 @@ def _generate(ctx: Context):
     ctx.run("gopatch -p imports.gopatch ./...")
     ctx.run("gopatch -p godebug.gopatch ./...")
     ctx.run("git apply types.patch")
+    ctx.run("git apply godebug-stub.patch")
 
     print("Code generation completed successfully!")
 
