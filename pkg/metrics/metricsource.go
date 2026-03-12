@@ -1132,6 +1132,8 @@ func (ms MetricSource) String() string {
 		return "battery"
 	case MetricSourcePinot:
 		return "pinot"
+	case MetricSourceDellPowerFlex:
+		return "dell_powerflex"
 	default:
 		return "<unknown>"
 	}
