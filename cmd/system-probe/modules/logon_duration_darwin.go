@@ -35,10 +35,10 @@ type logonDurationModule struct {
 }
 
 func (m *logonDurationModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, r *http.Request) {
 		log.Infof("Got check request in logon_duration module")
 		timestamps := logonduration.GetLoginTimestamps()
-		utils.WriteAsJSON(w, timestamps, utils.CompactOutput)
+		utils.WriteAsJSON(r, w, timestamps, utils.CompactOutput)
 	}))
 
 	return nil
