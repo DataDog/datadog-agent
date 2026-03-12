@@ -256,7 +256,11 @@ def get_build_flags(
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
         if embedded_path is None:
-            raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+            if sys.platform == "aix":
+                # On AIX, embedded_path may not exist; rtloader is resolved via --rtloader-root.
+                pass
+            else:
+                raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
     # setting the install path, allowing the agent to be installed in a custom location
@@ -284,6 +288,8 @@ def get_build_flags(
             )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
+        if sys.platform == "aix":
+            env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
     if sys.platform == 'win32':
@@ -305,7 +311,8 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        ldflags += f"-r {':'.join(rtloader_lib)} "
+        if sys.platform != "aix":  # AIX uses full-path linking in pkg/collector/python/init.go
+            ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"

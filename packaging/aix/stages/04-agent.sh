@@ -113,20 +113,10 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
 #
-# Build tags used:
-#   python            : enable CPython embedding via rtloader
-#   otlp              : OpenTelemetry trace/metrics ingestion
-#   grpcnotrace       : disable grpc tracing (avoids unnecessary dependency)
-#   retrynotrace      : disable retry tracing
-#   no_dynamic_plugins: disable dynamic plugin loading (not supported on AIX)
-#   trivy_no_javadb   : disable Trivy Java DB (container scanning, not needed)
-#   osusergo          : use pure-Go user/group lookups (avoids CGO for getpwuid)
-#   datadog.no_waf    : disable the WAF module (Linux-only eBPF dependency)
-#   zstd              : enable zstd compression (requires CGO)
-
-log "Building agent binary"
-cd /opt/datadog-agent
-
+# Build tags come from tasks/build_tags.py AIX_AGENT_TAGS + COMMON_TAGS:
+#   python, otlp, osusergo, datadog.no_waf, zstd
+#   + grpcnotrace, retrynotrace, no_dynamic_plugins, trivy_no_javadb (COMMON_TAGS)
+#
 # Note: pythonHome3 must be set explicitly here.
 # The agent binary computes Python home as filepath.Join(executableFolder, "../../embedded").
 # On Linux (standard omnibus), the binary lives at bin/agent/agent so "../../embedded"
@@ -135,34 +125,31 @@ cd /opt/datadog-agent
 # would resolve to /opt/embedded — which does not exist.
 # Setting pythonHome3 via -ldflags overrides the relative calculation.
 
-go build \
-    -tags "python otlp grpcnotrace retrynotrace no_dynamic_plugins trivy_no_javadb osusergo datadog.no_waf zstd" \
-    -ldflags="-s -w \
-      -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION} \
-      -X github.com/DataDog/datadog-agent/pkg/version.Commit=${COMMIT} \
-      -X github.com/DataDog/datadog-agent/pkg/collector/python.pythonHome3=${EMBEDDED}" \
-    -o "$STAGING/opt/datadog-agent/bin/agent" \
-    ./cmd/agent/
+log "Building agent binary via inv agent.build"
+cd /opt/datadog-agent
+rm -f "$STAGING/opt/datadog-agent/bin/agent"
+python3.12 -m invoke agent.build \
+    --rebuild \
+    --skip-assets \
+    --exclude-rtloader \
+    --rtloader-root=/opt/datadog-agent/rtloader \
+    --embedded-path="$EMBEDDED_DESTDIR" \
+    --python-home-3="$EMBEDDED" \
+    --agent-bin="$STAGING/opt/datadog-agent/bin/agent"
 
+strip -X64 "$STAGING/opt/datadog-agent/bin/agent"
 log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent"
 
 # ─── Step 5: Build the trace-agent binary ─────────────────────────────────────
 #
-# Build tags used:
-#   datadog.no_waf : disable the WAF module (Linux-only eBPF dependency)
-#   otlp           : OpenTelemetry trace ingestion
+# Build tags come from tasks/build_tags.py AGENT_TAGS minus AIX_EXCLUDE_TAGS, plus COMMON_TAGS.
 
-log "Building trace-agent binary"
+log "Building trace-agent binary via inv trace-agent.build"
 cd /opt/datadog-agent
-
-go build \
-    -tags "datadog.no_waf otlp" \
-    -ldflags="-s -w \
-      -X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=${AGENT_VERSION} \
-      -X github.com/DataDog/datadog-agent/pkg/version.Commit=${COMMIT}" \
-    -o "$STAGING/opt/datadog-agent/bin/trace-agent" \
-    ./cmd/trace-agent/
-
+python3.12 -m invoke trace-agent.build --rebuild
+rm -f "$STAGING/opt/datadog-agent/bin/trace-agent"
+cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/bin/trace-agent"
+strip -X64 "$STAGING/opt/datadog-agent/bin/trace-agent"
 log "trace-agent binary build complete: $STAGING/opt/datadog-agent/bin/trace-agent"
 
 # ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────

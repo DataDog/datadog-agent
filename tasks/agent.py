@@ -158,9 +158,10 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
+        # On AIX, rtloader is built natively in advance (see packaging/aix/stages/03-rtloader.sh).
         with gitlab_section("Install embedded rtloader", collapsed=True):
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
@@ -237,7 +238,8 @@ def build(
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
+        if sys.platform != "aix":
+            assert embedded_path, "Failed to find embedded path"
 
     for build in bundled_agents:
         if build == "agent":
