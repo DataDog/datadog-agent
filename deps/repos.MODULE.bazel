@@ -162,6 +162,19 @@ http_archive(
 )
 
 http_archive(
+    name = "libseccomp",
+    files = {
+        "BUILD.bazel": "//deps/libseccomp:overlay.BUILD.bazel",
+        "src/configure.h": "//deps/libseccomp:configure.h",
+    },
+    sha256 = "83b6085232d1588c379dc9b9cae47bb37407cf262e6e74993c61ba72d2a784dc",
+    strip_prefix = "libseccomp-2.6.0",
+    urls = [
+        "https://github.com/seccomp/libseccomp/releases/download/v2.6.0/libseccomp-2.6.0.tar.gz",
+    ],
+)
+
+http_archive(
     name = "libselinux",
     build_file = "//deps:libselinux.BUILD.bazel",
     sha256 = "9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",
