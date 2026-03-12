@@ -1261,7 +1261,13 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     """
     import shutil
 
-    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(_BAZEL_EBPF_INPLACE_TARGETS.keys())
+    # detect-seccomp-bug is x86-only (has target_compatible_with in Bazel)
+    if arch == Arch.from_str("arm64"):
+        inplace_targets = {t: d for t, d in _BAZEL_EBPF_INPLACE_TARGETS.items() if "detect-seccomp-bug" not in t}
+    else:
+        inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
+
+    all_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(inplace_targets.keys())
     targets_str = " ".join(all_targets)
 
     print(f"Building {len(all_targets)} eBPF targets via Bazel...")
@@ -1302,7 +1308,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     for target in _BAZEL_EBPF_CORE_TARGETS:
         _copy_output(target, co_re_dir)
 
-    for target, dest in _BAZEL_EBPF_INPLACE_TARGETS.items():
+    for target, dest in inplace_targets.items():
         os.makedirs(dest, exist_ok=True)
         _copy_output(target, dest)
 
