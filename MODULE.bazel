@@ -176,6 +176,7 @@ git_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
+        "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
