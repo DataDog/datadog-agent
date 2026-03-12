@@ -221,8 +221,8 @@ func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 }
 
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
-	if len(apiKey) > 5 {
-		apiKey = apiKey[len(apiKey)-5:]
+	if len(apiKey) > 4 {
+		apiKey = apiKey[len(apiKey)-4:]
 	}
 	obfuscatedKey := "API key ending with " + apiKey
 	if status == &apiKeyRemove {

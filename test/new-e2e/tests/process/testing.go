@@ -467,8 +467,8 @@ func assertAPIKeyStatus(collect *assert.CollectT, apiKey string, agentClient age
 	found := false
 	for _, epKeys := range endpoints {
 		for _, key := range epKeys {
-			// Original key is obfuscated to the last 5 characters
-			if key == apiKey[len(apiKey)-5:] {
+			// Original key is obfuscated to the last 4 characters
+			if key == apiKey[len(apiKey)-4:] {
 				found = true
 				break
 			}

@@ -55,8 +55,8 @@ func TestCheckValidAPIKey(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
 
@@ -145,9 +145,9 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.checkValidAPIKey())
 
-	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))
 }
@@ -300,13 +300,13 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 
 	// Check the new keys are now valid
 	for _, key := range expectAfter {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 	}
 
 	// Check removed keys are not valid
 	for _, key := range expectBefore {
 		if !slices.Contains(expectAfter, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 		}
 	}
 
@@ -326,13 +326,13 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 	}
 
 	// Check added keys are now not valid
 	for _, key := range expectAfter {
 		if !slices.Contains(expectBefore, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 		}
 	}
 }
