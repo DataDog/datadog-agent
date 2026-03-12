@@ -13,7 +13,7 @@ import (
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -84,7 +84,7 @@ func runAgentSidekicks(ag component) error {
 		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
 		ag.ipc.HTTPMiddleware(
 			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				res, err := ag.secrets.Refresh(true)
+				res, err := ag.secrets.RefreshNow()
 				if err != nil {
 					log.Errorf("error while refresing secrets: %s", err)
 					w.Header().Set("Content-Type", "application/json")
@@ -113,7 +113,7 @@ func runAgentSidekicks(ag component) error {
 	return nil
 }
 
-func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface, disableInternalProfiling bool) {
+func stopAgentSidekicks(cfg traceconfigdef.Component, statsd statsd.ClientInterface, disableInternalProfiling bool) {
 	defer watchdog.LogOnPanic(statsd)
 
 	log.Flush()

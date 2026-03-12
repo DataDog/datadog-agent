@@ -10,8 +10,10 @@ sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
 http_archive(
     name = "sqlite3",
-    build_file = "//deps:sqlite3.BUILD.bazel",
-    files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
+    files = {
+        "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
+        "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
+    },
     sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
@@ -22,7 +24,6 @@ http_file(
     downloaded_file_path = "LICENSE.md",
     sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
     urls = [url.format(".".join([v.lstrip("0") for v in sqlite_ver])) for url in (
-        "https://cdn.jsdelivr.net/gh/sqlite/sqlite@version-{}/LICENSE.md",
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
