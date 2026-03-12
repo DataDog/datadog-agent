@@ -37,8 +37,8 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 		return false
 	}
 
-	// Exec system-probe-lite if no modules are enabled, or only discovery is enabled
-	return !cfg.Enabled || (len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule))
+	// Exec system-probe-lite if only the discovery module is enabled
+	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
 }
 
 // spLiteExecCmd holds the resolved path and arguments for execing into system-probe-lite.

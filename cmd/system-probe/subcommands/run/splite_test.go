@@ -51,7 +51,7 @@ func TestShouldExecSPLite(t *testing.T) {
 			useSystemProbeLite: true,
 			enabledModules:     map[sysconfigtypes.ModuleName]struct{}{},
 			enabled:            false,
-			expected:           true,
+			expected:           false,
 		},
 		{
 			name:               "multiple modules enabled",
