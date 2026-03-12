@@ -16,7 +16,7 @@ require (
 	go.opentelemetry.io/collector/component v1.53.0
 	go.opentelemetry.io/collector/component/componenttest v0.147.0
 	go.opentelemetry.io/collector/pdata v1.53.0
-	go.opentelemetry.io/otel v1.40.0
+	go.opentelemetry.io/otel v1.41.0
 	go.uber.org/zap v1.27.1
 	google.golang.org/protobuf v1.36.11
 )
@@ -46,10 +46,10 @@ require (
 	github.com/tinylib/msgp v1.6.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/featuregate v1.53.0 // indirect
-	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
-	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect

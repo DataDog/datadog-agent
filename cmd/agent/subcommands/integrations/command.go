@@ -575,13 +575,16 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	if err := downloaderCmd.Start(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
-	lastLine := ""
+	// Buffered so the goroutine can send even if we return early on error.
+	lastLineCh := make(chan string, 1)
 	go func() {
+		var last string
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			lastLine = in.Text()
-			fmt.Println(lastLine)
+			last = in.Text()
+			fmt.Println(last)
 		}
+		lastLineCh <- last
 	}()
 
 	if err := downloaderCmd.Wait(); err != nil {
@@ -589,7 +592,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	}
 
 	// The path to the wheel will be at the last line of the output
-	wheelPath := lastLine
+	wheelPath := <-lastLineCh
 
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {
