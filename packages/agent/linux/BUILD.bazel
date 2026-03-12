@@ -23,7 +23,6 @@ pkg_filegroup(
         "//packages/agent/dependencies:all_files",
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
-        "@libpcap//:all_files",
     ],
     prefix = "/opt/datadog-agent",
 )
