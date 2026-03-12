@@ -129,6 +129,7 @@ func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) (map[string
 
 	usageTags := map[string]string{
 		"name":            tags["app_name"],
+		"origin":          tags["origin"],
 		"resource_group":  tags["resource_group"],
 		"subscription_id": tags["subscription_id"],
 		"replica":         tags["replica_name"],

@@ -251,7 +251,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 }
 
 func setupMetricAgent(tags map[string]string, enhancedMetricTags map[string]string, enhancedUsageMetricTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
-	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", true, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)

@@ -130,6 +130,7 @@ func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) (map[string]str
 	usageTags := map[string]string{
 		"instance":     tags["container_id"],
 		"location":     tags["location"],
+		"origin":       tags["origin"],
 		"project_id":   tags["project_id"],
 		"service_name": tags["service_name"],
 	}
