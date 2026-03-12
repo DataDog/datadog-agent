@@ -5,8 +5,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -497,6 +496,7 @@ cc_shared_library(
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
+        "@gpg-error//:gpg-error",
         "@libselinux//:selinux",
         "@libsepol//:sepol",
         "@libxslt//:exslt",
@@ -542,6 +542,7 @@ cc_binary(
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
         "@gcrypt//:gcrypt",
+        "@gpg-error//:gpg-error",
         "@libselinux//:selinux",
         "@libsepol//:sepol",
         "@libxslt//:xslt",
@@ -586,6 +587,7 @@ cc_binary(
         "@bzip2//:bz2",
         "@curl//:curl",
         "@gcrypt//:gcrypt",
+        "@gpg-error//:gpg-error",
         "@libselinux//:selinux",
         "@libsepol//:sepol",
         "@libxslt//:xslt",

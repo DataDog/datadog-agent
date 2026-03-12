@@ -503,6 +503,9 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
+                           "DD_APP_KEY=[DD_APP_KEY]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ENABLED=[DD_PRIVATE_ACTION_RUNNER_ENABLED]," +
+                           "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=[DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
@@ -772,7 +775,8 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
-                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
+                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
                 .HideTarget(true);
         }
     }
