@@ -105,6 +105,7 @@ build do
   # We must do this to prevent a copy command below from picking it up again.
   copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
   delete 'bin/agent/dist/conf.d'
+  delete 'bin/agent/dist/datadog.yaml'
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"

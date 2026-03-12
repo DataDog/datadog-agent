@@ -1,19 +1,23 @@
+    if build_type == "system-probe":
+        args["template_file"] = "./pkg/config/system-probe_template.yaml"
+    elif build_type == "security-agent":
+        args["template_file"] = "./pkg/config/security-agent_template.yaml"
 # Rule for generating the Agent config file from the template
 
 def _agent_config_impl(ctx):
     build_type = ctx.attr.build_type
     out = ctx.actions.declare_file(ctx.attr.out)
-    template = ctx.files._template
+    templates = ctx.attr._templates
 
     args = ctx.actions.args()
     args.add(build_type)
-    args.add_all(template)
+    args.add_all(templates)
     args.add(out)
     ctx.actions.run(
         mnemonic = "GenerateConfig",
         executable = ctx.executable._renderer,
         arguments = [args],
-        inputs = template,
+        inputs = templates,
         outputs = [out],
     )
     return DefaultInfo(files = depset([out]))
@@ -32,9 +36,8 @@ agent_config = rule(
             executable = True,
             cfg = "exec",
         ),
-        "_template": attr.label(
-            default = Label("//pkg/config:template"),
-            allow_single_file = True,
+        "_templates": attr.label(
+            default = Label("//pkg/config:templates"),
         ),
     },
 )
