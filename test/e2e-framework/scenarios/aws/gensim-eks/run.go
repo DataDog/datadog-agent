@@ -54,6 +54,28 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
 
+// episodeSubdirs lists the subdirectories within the gensim-episodes repo
+// that may contain episode directories.
+var episodeSubdirs = []string{"postmortems", "synthetics"}
+
+// findEpisodeDir locates an episode directory by searching known subdirectories
+// within the gensim-episodes repo root. Also supports legacy episodeDataDir
+// pointing directly at a subdirectory (e.g. .../postmortems).
+func findEpisodeDir(repoRoot, episodeName string) (string, error) {
+	// Direct child (legacy: episodeDataDir=.../postmortems)
+	direct := filepath.Join(repoRoot, episodeName)
+	if info, err := os.Stat(direct); err == nil && info.IsDir() {
+		return direct, nil
+	}
+	for _, subdir := range episodeSubdirs {
+		candidate := filepath.Join(repoRoot, subdir, episodeName)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("episode %q not found in %v under %s", episodeName, episodeSubdirs, repoRoot)
+}
+
 // Run is the Pulumi entry point for the aws/gensim-eks scenario.
 // It is registered in registry/scenarios.go and invoked by the e2e-framework runner.
 func Run(ctx *pulumi.Context) error {
@@ -146,7 +168,10 @@ func Run(ctx *pulumi.Context) error {
 				continue
 			}
 			episode := strings.SplitN(p, ":", 2)[0]
-			episodePath := filepath.Join(episodeDataDir, episode)
+			episodePath, findErr := findEpisodeDir(episodeDataDir, episode)
+			if findErr != nil {
+				return findErr
+			}
 			dockerComposePath := filepath.Join(episodePath, "docker-compose.yaml")
 			if _, statErr := os.Stat(dockerComposePath); statErr == nil {
 				if buildVM == nil {
@@ -283,17 +308,21 @@ func deployOrchestratorJob(
 	var episodeConfigMaps []pulumi.Resource
 
 	for _, ep := range parsed {
-		playScriptContent, err := os.ReadFile(filepath.Join(episodeDataDir, ep.episode, "play-episode.sh"))
+		epDir, findErr := findEpisodeDir(episodeDataDir, ep.episode)
+		if findErr != nil {
+			return findErr
+		}
+		playScriptContent, err := os.ReadFile(filepath.Join(epDir, "play-episode.sh"))
 		if err != nil {
 			return fmt.Errorf("reading play-episode.sh for episode %q: %w", ep.episode, err)
 		}
-		scenarioContent, err := os.ReadFile(filepath.Join(episodeDataDir, ep.episode, "episodes", ep.scenario+".yaml"))
+		scenarioContent, err := os.ReadFile(filepath.Join(epDir, "episodes", ep.scenario+".yaml"))
 		if err != nil {
 			return fmt.Errorf("reading scenario %q for episode %q: %w", ep.scenario, ep.episode, err)
 		}
 
 		// Create chart tarball from the episode's chart/ directory.
-		chartDir := filepath.Join(episodeDataDir, ep.episode, "chart")
+		chartDir := filepath.Join(epDir, "chart")
 		chartTarball, err := createTarGz(chartDir)
 		if err != nil {
 			return fmt.Errorf("creating chart tarball for episode %q: %w", ep.episode, err)
@@ -582,58 +611,14 @@ emit_dd_metrics() {
     }" || echo "WARN: Failed to emit DD metrics" >&2
 }
 
-# ── extract_check_configs: pull datadog-checks ConfigMap from rendered YAML ──
-# Uses yq (ships in alpine/k8s:1.31.0) to robustly parse multi-document YAML
-# and extract per-episode check configurations for the official Helm chart.
-extract_check_configs() {
-  local rendered="$1"
-  local output="/workspace/agent-checks.yaml"
-
-  local checks_data
-  checks_data=$(yq eval-all \
-    'select(.kind == "ConfigMap" and .metadata.name == "datadog-checks") | .data' \
-    "$rendered")
-
-  if [ "$checks_data" = "null" ] || [ -z "$checks_data" ]; then
-    rm -f "$output"
-    return
-  fi
-
-  # Wrap under datadog.confd for the official Helm chart
-  echo "datadog:" > "$output"
-  echo "  confd:" >> "$output"
-  echo "$checks_data" | sed 's/^/    /' >> "$output"
-}
-
-# ── awk_filter: strip stub agent resources + patch imagePullPolicy ───────
-# Reads multi-document YAML from stdin, drops resources that the official
-# Datadog Helm chart manages (DaemonSet, Deployment, Service, ServiceAccount,
-# ClusterRole, ClusterRoleBinding, ConfigMap named datadog-agent or
-# datadog-checks), and patches imagePullPolicy: Never -> Always.
-awk_filter() {
-  awk '
-BEGIN { doc=""; first=1 }
-/^---$/ {
-  if (doc != "") { process_doc(doc) }
-  doc = ""
-  next
-}
-{ doc = doc (doc=="" ? "" : "\n") $0 }
-END { if (doc != "") process_doc(doc) }
-
-function process_doc(d) {
-  if (d ~ /kind:[[:space:]]*(DaemonSet|Deployment|Service|ServiceAccount|ClusterRole|ClusterRoleBinding|ConfigMap)/ &&
-      (d ~ /name:[[:space:]]*(datadog-agent|datadog-checks)[[:space:]]*\n/ ||
-       d ~ /name:[[:space:]]*(datadog-agent|datadog-checks)[[:space:]]*$/)) {
-    return
-  }
-  gsub(/imagePullPolicy: Never/, "imagePullPolicy: Always", d)
-  if (!first) printf "\n---\n"
-  printf "%s", d
-  first = 0
-}
-'
-}
+# ── Post-renderer: fix imagePullPolicy: Never -> Always ──────────────────
+# Some episodes (e.g. 678_heroku) set imagePullPolicy: Never for local dev.
+# This post-renderer patches it to Always for EKS.
+cat > /workspace/fix-pull-policy.sh <<'FIXEOF'
+#!/bin/sh
+sed 's/imagePullPolicy: Never/imagePullPolicy: Always/g'
+FIXEOF
+chmod +x /workspace/fix-pull-policy.sh
 
 # ── Main loop ───────────────────────────────────────────────────────────
 IFS=',' read -ra EP_LIST <<< "$EPISODES"
@@ -647,9 +632,9 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   echo "=== Episode: $EPISODE / $SCENARIO ==="
 
-  update_episode_status "$EP_SPEC" "running" '{"phase":"rendering-episode"}'
+  update_episode_status "$EP_SPEC" "running" '{"phase":"episode-install"}'
 
-  # 1. Unpack and render episode chart
+  # 1. Install episode chart with agent resources disabled
   EP_RELEASE=""
   if [ -f "/episodes/$EPISODE/chart.tar.gz" ]; then
     mkdir -p "/workspace/chart-$EPISODE"
@@ -661,8 +646,8 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
     EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
 
-    # Pass 1: Render to disk (don't apply yet)
-    helm template "$EP_RELEASE" "$CHART_DIR" \
+    helm install "$EP_RELEASE" "$CHART_DIR" \
+      --set agent.enabled=false \
       --set imageRegistry="$IMAGE_REGISTRY" \
       --set namespace="$KUBE_NAMESPACE" \
       --set datadog.apiKey="$DD_API_KEY" \
@@ -670,38 +655,22 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       --set datadog.site="$DD_SITE" \
       --set datadog.env="$EP_RELEASE" \
       -n "$KUBE_NAMESPACE" \
-      > /workspace/rendered.yaml
-
-    # Pass 1.5: Extract check configs from the rendered episode chart
-    extract_check_configs /workspace/rendered.yaml
+      --post-renderer /workspace/fix-pull-policy.sh \
+      --wait --timeout 3m
   fi
 
   update_episode_status "$EP_SPEC" "running" '{"phase":"agent-install"}'
 
-  # 2. Copy pre-rendered agent values (rendered at deploy time from agent-values.yaml.tmpl)
+  # 2. Install agent (autodiscovery handles check configs)
   cp /config/agent-values.yaml /workspace/agent-values.yaml
-
-  # 3. Install agent (with episode check configs if extracted)
-  AGENT_EXTRA_VALUES=""
-  if [ -f /workspace/agent-checks.yaml ]; then
-    AGENT_EXTRA_VALUES="-f /workspace/agent-checks.yaml"
-  fi
   helm upgrade --install datadog-agent datadog/datadog \
-    -f /workspace/agent-values.yaml $AGENT_EXTRA_VALUES \
+    -f /workspace/agent-values.yaml \
     -n "$KUBE_NAMESPACE" \
     --wait --timeout 5m
 
-  update_episode_status "$EP_SPEC" "running" '{"phase":"episode-install"}'
-
-  # 4. Apply episode chart (filtered: no stub agent resources)
-  if [ -f /workspace/rendered.yaml ]; then
-    awk_filter < /workspace/rendered.yaml > /workspace/episode-filtered.yaml
-    kubectl apply -f /workspace/episode-filtered.yaml
-  fi
-
   update_episode_status "$EP_SPEC" "running" '{"phase":"episode-running"}'
 
-  # 5. Run play-episode.sh
+  # 3. Run play-episode.sh
   # play-episode.sh uses SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd) and looks
   # for episodes/<scenario>.yaml relative to SCRIPT_DIR. Copy files so paths work.
   cp "/episodes/$EPISODE/play-episode.sh" /workspace/play-episode.sh
@@ -720,7 +689,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   update_episode_status "$EP_SPEC" "running" '{"phase":"collecting-parquet"}'
 
-  # 6. Collect parquet from agent pod
+  # 4. Collect parquet from agent pod
   PARQUET_COUNT=0
   AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
   if [ -z "$AGENT_POD" ]; then
@@ -736,7 +705,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     fi
   fi
 
-  # 7. Upload to S3
+  # 5. Upload to S3
   if [ -n "$S3_BUCKET" ]; then
     EP_SCENARIO="${EPISODE}--${SCENARIO}"
     S3_PATH="${IMAGE_TAG}/${EP_SCENARIO}/gensim-$(date -u +%Y%m%d)-${GENSIM_SHA}"
@@ -749,17 +718,17 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   EP_END=$(date +%s)
   EP_DURATION=$((EP_END - EP_START))
 
-  # 8. Emit DD event + metrics
+  # 6. Emit DD event + metrics
   emit_dd_event "$EPISODE" "$SCENARIO" "$EP_DURATION" "$PARQUET_COUNT" "$EP_OUTCOME"
   emit_dd_metrics "$EPISODE" "$SCENARIO" "$EP_DURATION" "$PARQUET_COUNT"
 
-  # 9. Update status
+  # 7. Update status
   update_episode_status "$EP_SPEC" "done" "{\"parquetFiles\":$PARQUET_COUNT,\"durationSeconds\":$EP_DURATION}"
 
-  # 10. Teardown episode + agent
+  # 8. Teardown episode + agent
   echo "Tearing down episode and agent..."
-  if [ -f /workspace/episode-filtered.yaml ]; then
-    kubectl delete -f /workspace/episode-filtered.yaml --ignore-not-found 2>/dev/null || true
+  if [ -n "$EP_RELEASE" ]; then
+    helm uninstall "$EP_RELEASE" -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
   fi
   helm uninstall datadog-agent -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
 
@@ -768,7 +737,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   kubectl wait --for=delete pod -l app=datadog-agent -n "$KUBE_NAMESPACE" --timeout=120s 2>/dev/null || true
 
   # Clean workspace for next episode
-  rm -rf /workspace/results /workspace/chart-* /workspace/agent-values.yaml /workspace/agent-checks.yaml /workspace/play-episode.sh /workspace/episodes /workspace/rendered.yaml /workspace/episode-filtered.yaml
+  rm -rf /workspace/results /workspace/chart-* /workspace/agent-values.yaml /workspace/play-episode.sh /workspace/episodes
 
   echo "=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s) ==="
 done
@@ -932,7 +901,7 @@ func buildEpisodeImages(
 	dockerComposeCopy, err := buildHost.OS.Runner().Command(
 		awsEnv.Namer.ResourceName("write-compose-"+episodeName),
 		&command.Args{
-			Create: pulumi.Sprintf("cat > %s/docker-compose.yaml <<'COMPOSE_EOF'\n%s\nCOMPOSE_EOF", buildDir, string(composeContent)),
+			Create: pulumi.Sprintf("tee %s/docker-compose.yaml > /dev/null <<'COMPOSE_EOF'\n%s\nCOMPOSE_EOF", buildDir, string(composeContent)),
 			Sudo:   true,
 		},
 		utils.PulumiDependsOn(servicesCopy...),

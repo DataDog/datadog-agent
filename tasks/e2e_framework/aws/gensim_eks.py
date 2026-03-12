@@ -81,12 +81,10 @@ def submit_gensim_eks(
     # ── 2. Validate episode directories ───────────────────────────────────
     gensim_repo_path = _get_gensim_repo_path()
     for ep_name, scen_name in episode_pairs:
-        ep_dir = gensim_repo_path / ep_name
+        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         chart_dir = ep_dir / "chart"
         scenario_file = ep_dir / "episodes" / f"{scen_name}.yaml"
 
-        if not ep_dir.exists():
-            raise Exit(f"Episode directory not found: {ep_dir}")
         if not chart_dir.exists():
             raise Exit(f"Chart directory not found: {chart_dir}")
         if not scenario_file.exists():
@@ -166,7 +164,7 @@ def submit_gensim_eks(
     # ── 7. Compute ECR registry URL if any episode has docker-compose.yaml
     ecr_registry = ""
     for ep_name, _ in episode_pairs:
-        ep_dir = gensim_repo_path / ep_name
+        ep_dir = _find_episode_dir(gensim_repo_path, ep_name)
         if (ep_dir / "docker-compose.yaml").exists():
             ecr_registry, _ = _get_ecr_registry(ctx, aws_wrapper)
             tool.info(f"ECR registry: {ecr_registry}")
@@ -339,12 +337,12 @@ def _find_kubeconfig(stack_name: str) -> str:
 
 
 def _get_gensim_repo_path() -> Path:
-    """Locate the gensim-episodes/postmortems directory.
+    """Locate the gensim-episodes repository root.
 
     Checks, in order:
       1. GENSIM_REPO_PATH environment variable
-      2. Sibling directory: ../gensim-episodes/postmortems
-      3. Go workspace: ~/go/src/github.com/DataDog/gensim-episodes/postmortems
+      2. Sibling directory: ../gensim-episodes
+      3. Go workspace: ~/go/src/github.com/DataDog/gensim-episodes
     """
     env_path = os.getenv("GENSIM_REPO_PATH")
     if env_path:
@@ -357,14 +355,37 @@ def _get_gensim_repo_path() -> Path:
     parent_dir = repo_root.parent
 
     candidates = [
-        parent_dir / "gensim-episodes" / "postmortems",
-        Path.home() / "go" / "src" / "github.com" / "DataDog" / "gensim-episodes" / "postmortems",
+        parent_dir / "gensim-episodes",
+        Path.home() / "go" / "src" / "github.com" / "DataDog" / "gensim-episodes",
     ]
     for path in candidates:
         if path.exists():
             return path
 
     raise Exit("Could not find gensim-episodes repository. Set GENSIM_REPO_PATH environment variable.")
+
+
+# Episode subdirectories to search within the gensim-episodes repo.
+_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
+
+
+def _find_episode_dir(repo_path: Path, ep_name: str) -> Path:
+    """Find an episode directory by searching known subdirectories.
+
+    Also supports legacy GENSIM_REPO_PATH pointing directly at a subdirectory
+    (e.g. .../postmortems) by checking for a direct child match first.
+    """
+    # Direct child (legacy: GENSIM_REPO_PATH=.../postmortems)
+    direct = repo_path / ep_name
+    if direct.exists():
+        return direct
+    # Search known subdirectories
+    for subdir in _EPISODE_SUBDIRS:
+        candidate = repo_path / subdir / ep_name
+        if candidate.exists():
+            return candidate
+    searched = ", ".join(f"{subdir}/" for subdir in _EPISODE_SUBDIRS)
+    raise Exit(f"Episode '{ep_name}' not found. Searched: {repo_path} and {searched} under {repo_path}")
 
 
 def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
