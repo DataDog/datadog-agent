@@ -235,39 +235,26 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// Shows a modal dialog with Deny/Allow buttons; if user taps Allow, calls requestWhenInUseAuthorization().
-    /// Must be called on the main thread. Marks attempt as used and persists after showing (single attempt).
+    /// Shows an informational dialog telling the user to enable Location in System Settings.
+    /// Must be called on the main thread. Single attempt per installation.
     private func showLocationPermissionAlertAndRequestIfAllowed() {
         let alert = NSAlert()
-        alert.messageText = "Enable Location Permission"
-        alert.informativeText = "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID). When you tap Allow, the system may show a second dialog to grant permission."
+        alert.messageText = "Location Permission Required"
+        alert.informativeText = "Datadog Agent needs Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease enable it in:\nSystem Settings → Privacy & Security → Location Services → Datadog Agent.app"
         alert.alertStyle = .informational
-        // Only set icon when we have a proper color image; otherwise leave unset to avoid grey/blank.
         if let icon = Self.datadogIconImage() {
             alert.icon = icon
         }
-        // First button added is rightmost (primary). Allow = primary, Deny = secondary.
-        alert.addButton(withTitle: "Allow")
-        alert.addButton(withTitle: "Deny")
+        alert.addButton(withTitle: "OK")
 
-        let response = alert.runModal()
+        alert.runModal()
 
-        // NSAlert.alertFirstButtonReturn = Allow (first button added), alertSecondButtonReturn = Deny
-        if response == .alertFirstButtonReturn {
-            if #available(macOS 10.15, *) {
-                locationManager.requestWhenInUseAuthorization()
-                Logger.debug("requestWhenInUseAuthorization() called (system may show its own dialog)", context: "WiFiDataProvider")
-            }
-        } else {
-            Logger.info("User chose Deny in location permission dialog", context: "WiFiDataProvider")
-        }
-
-        Logger.info("Location permission prompt completed (single attempt)", context: "WiFiDataProvider")
+        Logger.info("Location permission info dialog dismissed", context: "WiFiDataProvider")
     }
 
     /// Returns the Datadog app icon for use in dialogs (same icon as DMG installation / Finder).
     /// Uses only Agent.icns so the dialog never shows the tray icon (agent.png) or other wrong assets.
-    /// Picks the 32×32 or 16×16 full-color representation; the 128×128 in Agent.icns is a sketch and would show as grey.
+    /// Picks the largest available representation for a crisp dialog icon.
     private static func datadogIconImage() -> NSImage? {
         var imagePath: String?
         // 1) DMG/app icon: Agent.icns in Contents/Resources (official build and build-app-bundle.sh)
@@ -285,21 +272,14 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
         guard let path = imagePath else { return nil }
         guard let image = NSImage(contentsOfFile: path), image.isValid else { return nil }
-        // Prefer 32×32 or 16×16 full-color representation; avoid 128×128 (sketch) which draws as grey in the alert.
-        let preferredSizes: [(Int, Int)] = [(32, 32), (64, 64), (16, 16)]
-        for (w, h) in preferredSizes {
-            for rep in image.representations {
-                let pw = rep.pixelsWide
-                let ph = rep.pixelsHigh
-                if pw == w && ph == h {
-                    let out = NSImage(size: NSSize(width: w, height: h))
-                    out.addRepresentation(rep)
-                    out.isTemplate = false
-                    return out
-                }
-            }
+        // Pick the largest representation for a crisp dialog icon (NSAlert displays at ~64pt).
+        if let best = image.representations.max(by: { $0.pixelsWide < $1.pixelsWide }) {
+            let size = NSSize(width: best.pixelsWide, height: best.pixelsHigh)
+            let out = NSImage(size: size)
+            out.addRepresentation(best)
+            out.isTemplate = false
+            return out
         }
-        // Fallback: use loaded image as-is (e.g. if representation sizes differ)
         image.isTemplate = false
         return image
     }
