@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -241,4 +242,275 @@ func TestBOCPDDetector_DefaultAggregations(t *testing.T) {
 func TestBOCPDDetector_DefaultWarmup120(t *testing.T) {
 	d := NewBOCPDDetector()
 	assert.Equal(t, 120, d.WarmupPoints, "default warmup should be 120 points")
+}
+
+func TestFindingH2_MinVarianceZeroNotGuarded(t *testing.T) {
+	// ensureDefaults has no guard against MinVariance <= 0.
+	// After ensureDefaults runs, MinVariance should be >= some positive floor.
+	// This test verifies the config guard is missing.
+	d := &BOCPDDetector{
+		MinVariance: 0,
+	}
+	d.ensureDefaults()
+	assert.Greater(t, d.MinVariance, 0.0,
+		"ensureDefaults should reject MinVariance=0 and set a positive floor, but it does not")
+
+	dNeg := &BOCPDDetector{
+		MinVariance: -1.0,
+	}
+	dNeg.ensureDefaults()
+	assert.Greater(t, dNeg.MinVariance, 0.0,
+		"ensureDefaults should reject MinVariance<0 and set a positive floor, but it does not")
+}
+
+func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.T) {
+	// Confirmed as bug by author (lukesteensen) -- cascading shift detection
+	// is intended. Prior-only formula was a shortcut, not a design choice.
+
+	// Test strategy: snapshot posterior state, call updatePosterior, then
+	// independently compute both standard and prior-only formulas through
+	// normalization and compare against the implementation's actual output.
+
+	warmup := 120
+	d := &BOCPDDetector{
+		WarmupPoints:       warmup,
+		Hazard:             0.05,
+		CPThreshold:        0.6,
+		ShortRunLength:     5,
+		CPMassThreshold:    0.7,
+		MaxRunLength:       200,
+		PriorVarianceScale: 100.0,
+		MinVariance:        1.0,
+		RecoveryPoints:     10,
+		Aggregations:       []observer.Aggregate{observer.AggregateAverage},
+		series:             make(map[string]*bocpdSeriesState),
+	}
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < warmup; i++ {
+		storage.Add("ns", "metric", 10.0, int64(i+1), nil)
+	}
+	for i := warmup; i < warmup+150; i++ {
+		storage.Add("ns", "metric", 12.0, int64(i+1), nil)
+	}
+	d.Detect(storage, int64(warmup+150))
+
+	var state *bocpdSeriesState
+	for _, s := range d.series {
+		state = s
+		break
+	}
+	require.NotNil(t, state)
+	require.True(t, state.initialized)
+
+	x := 14.0
+	hazard := d.Hazard
+
+	// Snapshot state before updatePosterior mutates it.
+	snapRunProbs := make([]float64, len(state.runProbs))
+	copy(snapRunProbs, state.runProbs)
+	snapMeans := make([]float64, len(state.means))
+	copy(snapMeans, state.means)
+	snapPrecisions := make([]float64, len(state.precisions))
+	copy(snapPrecisions, state.precisions)
+
+	// Call the implementation.
+	_, implCpProb, _ := d.updatePosterior(state, x)
+
+	// Independently compute the standard BOCPD formula from the snapshot.
+	newLen := len(snapRunProbs) + 1
+	standardProbs := make([]float64, newLen)
+	var cpMass float64
+	for r := range snapRunProbs {
+		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		standardProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
+		cpMass += snapRunProbs[r] * pred
+	}
+	standardProbs[0] = hazard * cpMass
+	normalizeProbs(standardProbs)
+	expectedCpProb := standardProbs[0]
+
+	// Independently compute the prior-only formula from the snapshot.
+	priorProbs := make([]float64, newLen)
+	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
+	for r := range snapRunProbs {
+		pred := gaussianPDF(x, snapMeans[r], state.obsVar+1.0/snapPrecisions[r])
+		priorProbs[r+1] = snapRunProbs[r] * (1.0 - hazard) * pred
+	}
+	priorProbs[0] = hazard * predPrior
+	normalizeProbs(priorProbs)
+	priorOnlyCpProb := priorProbs[0]
+
+	t.Logf("standard cpProb:   %e", expectedCpProb)
+	t.Logf("prior-only cpProb: %e", priorOnlyCpProb)
+	t.Logf("impl cpProb:       %e", implCpProb)
+
+	// The two formulas should differ for this scenario.
+	require.Greater(t, math.Abs(expectedCpProb-priorOnlyCpProb), 1e-6,
+		"test setup: standard and prior-only formulas should differ")
+
+	// Assert the implementation matches the standard formula.
+	assert.InDelta(t, expectedCpProb, implCpProb, 1e-10,
+		"implementation cpProb should match standard BOCPD recurrence, not prior-only")
+}
+
+func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
+	// When two values arrive at the same timestamp, storage merges them into
+	// one bucket. But PointCountUpTo doesn't change (still 1 bucket), so
+	// BOCPD's cache check skips the series on the second Detect call.
+	//
+	// Steps:
+	// 1. Add first value at timestamp T, call Detect
+	// 2. Add second value at same timestamp T (storage merges), call Detect again
+	// 3. Assert the detector processed the updated merged value
+
+	d := NewBOCPDDetector()
+	d.WarmupPoints = 5
+	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
+	storage := newTimeSeriesStorage()
+
+	// Build warmup data (timestamps 1-4)
+	for i := 1; i <= 4; i++ {
+		storage.Add("ns", "metric", 100.0, int64(i), nil)
+	}
+
+	// Add first value at timestamp 5 (this completes warmup)
+	storage.Add("ns", "metric", 100.0, 5, nil)
+	d.Detect(storage, 5)
+
+	// Add a second value at timestamp 5 -- storage merges into the same bucket.
+	// Average of {100, 200} = 150.
+	storage.Add("ns", "metric", 200.0, 5, nil)
+
+	// Verify storage actually merged: average should be 150, not 100.
+	key := observer.SeriesKey{Namespace: "ns", Name: "metric"}
+	series := storage.GetSeriesRange(key, 4, 5, observer.AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, 150.0, series.Points[0].Value,
+		"storage should have merged the two values at timestamp 5")
+
+	// Now Detect again. The detector should process the updated merged value.
+	// But the bug is: PointCountUpTo still returns 5 (same as before), so the
+	// detector's lastProcessedCount check causes it to skip this series.
+
+	// To detect whether the detector re-processed, we check its internal state.
+	// After processing x=100 at t=5, the posterior was updated with x=100.
+	// After re-processing x=150 (merged average), it should update with x=150.
+	// But if skipped, the posterior still reflects x=100.
+
+	// Snapshot the writeGeneration the detector saw after first Detect.
+	var stateBefore *bocpdSeriesState
+	for _, s := range d.series {
+		stateBefore = s
+		break
+	}
+	require.NotNil(t, stateBefore)
+	genBefore := stateBefore.lastWriteGen
+
+	d.Detect(storage, 5)
+
+	var stateAfter *bocpdSeriesState
+	for _, s := range d.series {
+		stateAfter = s
+		break
+	}
+	genAfter := stateAfter.lastWriteGen
+
+	pointCount := storage.PointCountUpTo(key, 5)
+	t.Logf("genBefore=%d, genAfter=%d, PointCountUpTo=%d, writeGen=%d",
+		genBefore, genAfter, pointCount, storage.WriteGeneration(key))
+
+	// The detector should notice the merge via writeGeneration even though
+	// PointCountUpTo didn't change. If it re-processed, genAfter > genBefore.
+	assert.Greater(t, genAfter, genBefore,
+		"detector should re-process when a same-bucket merge changes the value; "+
+			"lastWriteGen should advance but didn't (%d == %d)", genBefore, genAfter)
+}
+
+func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
+	d := NewBOCPDDetector()
+	d.WarmupPoints = 1
+	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
+	storage := newTimeSeriesStorage()
+
+	// Feed a few points. With WarmupPoints=1, the first point triggers
+	// initializeFromWarmup with warmupCount=1, causing 0/0 = NaN in
+	// variance = warmupM2 / (warmupCount - 1).
+	for i := 0; i < 10; i++ {
+		storage.Add("ns", "metric", 100.0+float64(i), int64(i+1), nil)
+	}
+
+	result := d.Detect(storage, 10)
+
+	// Check that no anomaly has NaN in its debug info.
+	for _, a := range result.Anomalies {
+		if a.DebugInfo != nil {
+			assert.False(t, math.IsNaN(a.DebugInfo.BaselineMean),
+				"NaN in BaselineMean due to WarmupPoints=1")
+			assert.False(t, math.IsNaN(a.DebugInfo.BaselineStddev),
+				"NaN in BaselineStddev due to WarmupPoints=1")
+			assert.False(t, math.IsNaN(a.DebugInfo.CurrentValue),
+				"NaN in CurrentValue due to WarmupPoints=1")
+			assert.False(t, math.IsNaN(a.DebugInfo.DeviationSigma),
+				"NaN in DeviationSigma due to WarmupPoints=1")
+		}
+	}
+
+	// Also verify the detector's internal state is not corrupted with NaN.
+	for key, state := range d.series {
+		assert.False(t, math.IsNaN(state.baselineMean),
+			"NaN baselineMean in series state %s", key)
+		assert.False(t, math.IsNaN(state.baselineStddev),
+			"NaN baselineStddev in series state %s", key)
+		assert.False(t, math.IsNaN(state.obsVar),
+			"NaN obsVar in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorMean),
+			"NaN priorMean in series state %s", key)
+		assert.False(t, math.IsNaN(state.priorPrecision),
+			"NaN priorPrecision in series state %s", key)
+		if state.initialized {
+			for i, p := range state.runProbs {
+				assert.False(t, math.IsNaN(p),
+					"NaN in runProbs[%d] for series %s", i, key)
+			}
+		}
+	}
+}
+
+func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
+	// shortRunLengthMass should sum runProbs[1] through runProbs[ShortRunLength],
+	// excluding runProbs[0] (cpProb). The two trigger conditions (peak cpProb
+	// vs short-run mass) should be independent.
+
+	runProbs := make([]float64, 20)
+	runProbs[0] = 0.55 // cpProb
+	runProbs[1] = 0.05
+	runProbs[2] = 0.04
+	runProbs[3] = 0.04
+	runProbs[4] = 0.04
+	runProbs[5] = 0.04
+	remaining := 1.0 - (0.55 + 0.05 + 0.04*4)
+	for i := 6; i < len(runProbs); i++ {
+		runProbs[i] = remaining / float64(len(runProbs)-6)
+	}
+
+	shortRunLength := 5
+
+	mass := shortRunLengthMass(runProbs, shortRunLength)
+
+	// Expected: sum of runProbs[1..5] = 0.05 + 0.04*4 = 0.21
+	expectedMass := 0.05 + 0.04*4
+	t.Logf("shortRunMass = %.4f, expected = %.4f (excluding cpProb=%.2f)", mass, expectedMass, runProbs[0])
+
+	assert.InDelta(t, expectedMass, mass, 0.001,
+		"shortRunLengthMass should exclude runProbs[0] (cpProb); "+
+			"got %.4f but expected %.4f", mass, expectedMass)
+
+	// Confirm this mass is below CPMassThreshold -- proving the short-run
+	// trigger would NOT fire on its own without cpProb inflating it.
+	assert.Less(t, mass, 0.7,
+		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
 }

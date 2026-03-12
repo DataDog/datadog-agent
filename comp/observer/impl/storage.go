@@ -22,6 +22,11 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
+	// observationTimestamps tracks all timestamps where observations occurred,
+	// including log timestamps that produced no virtual metrics. This ensures
+	// DataTimestamps() includes all observation times for replay fidelity.
+	observationTimestamps map[int64]struct{}
+
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
 	droppedExtreme   int64
@@ -36,6 +41,10 @@ type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
+
+	// writeGeneration increments on every Add (including same-bucket merges).
+	// Used by detectors to detect value changes that don't create new buckets.
+	writeGeneration int64
 
 	// Columnar storage — all slices have the same length, indexed by point position.
 	timestamps []int64
@@ -172,9 +181,10 @@ func searchAtOrAfter(timestamps []int64, value int64) int {
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series:          make(map[string]*seriesStats),
-		droppedByMetric: make(map[string]int64),
-		sampledDrops:    make(map[string]int),
+		series:                make(map[string]*seriesStats),
+		observationTimestamps: make(map[int64]struct{}),
+		droppedByMetric:       make(map[string]int64),
+		sampledDrops:          make(map[string]int),
 	}
 }
 
@@ -190,7 +200,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
-	if value == math.MaxFloat64 {
+	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
@@ -205,6 +215,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		}
 		s.series[key] = stats
 	}
+	stats.writeGeneration++
 
 	// Bucket by second
 	bucket := timestamp
@@ -269,6 +280,9 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 }
 
 func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	byMetric = make(map[string]int64, len(s.droppedByMetric))
 	for k, v := range s.droppedByMetric {
 		byMetric[k] = v
@@ -344,6 +358,9 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 
 // Namespaces returns the set of namespaces that have data.
 func (s *timeSeriesStorage) Namespaces() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	seen := make(map[string]struct{})
 	for _, stats := range s.series {
 		seen[stats.Namespace] = struct{}{}
@@ -372,6 +389,9 @@ func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observe
 
 // TimeBounds returns the minimum and maximum timestamps across all stored points.
 func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var min int64
 	var max int64
 	found := false
@@ -403,6 +423,9 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 
 // MaxTimestamp returns the latest timestamp across all series in storage.
 func (s *timeSeriesStorage) MaxTimestamp() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var max int64
 	for _, stats := range s.series {
 		if n := stats.pointCount(); n > 0 {
@@ -448,6 +471,9 @@ func copyTags(tags []string) []string {
 
 // ListAllSeriesCompact returns lightweight metadata for every stored series.
 func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	result := make([]seriesCompact, 0, len(s.series))
 	for _, st := range s.series {
 		result = append(result, seriesCompact{
@@ -516,6 +542,10 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 			seen[ts] = struct{}{}
 		}
 	}
+	// Include observation timestamps (e.g., from logs that produced no virtual metrics).
+	for ts := range s.observationTimestamps {
+		seen[ts] = struct{}{}
+	}
 
 	timestamps := make([]int64, 0, len(seen))
 	for ts := range seen {
@@ -581,6 +611,29 @@ func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64
 
 	// Binary search for the first timestamp > endTime.
 	return searchAfter(stats.timestamps, endTime)
+}
+
+// RecordObservationTime records that an observation occurred at the given timestamp.
+// This is used for log observations that may not produce virtual metrics but still
+// need to appear in DataTimestamps for replay fidelity.
+func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.observationTimestamps[timestamp] = struct{}{}
+}
+
+// WriteGeneration returns a counter that increments on every Add call
+// (including same-bucket merges). Detectors use this to detect value
+// changes that don't create new buckets.
+func (s *timeSeriesStorage) WriteGeneration(key observer.SeriesKey) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	if stats, ok := s.series[k]; ok {
+		return stats.writeGeneration
+	}
+	return 0
 }
 
 // matchTags checks if tags contain all required key=value pairs.
