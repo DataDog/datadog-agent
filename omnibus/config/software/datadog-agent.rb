@@ -84,10 +84,12 @@ build do
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
-
+    command_on_repo_root "bazelisk run -- //rtloader:install --destdir='#{install_dir}/embedded'"
+    sh_ext = if linux_target? then "so" else "dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix" \
+      " --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
+      " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
