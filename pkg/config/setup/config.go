@@ -370,13 +370,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.recording.parquet_flush_interval", 60*time.Second)          // File rotation interval
 	config.BindEnvAndSetDefault("observer.recording.parquet_retention", 24*time.Hour)                 // Cleanup after 24 hours
 
-	// Pipeline sink: forwards signal data over Unix socket to the Rust pipelinerecorder sidecar
-	config.BindEnvAndSetDefault("pipelinesink.enabled", false)
-	config.BindEnvAndSetDefault("pipelinesink.socket_path", "/var/run/pipelinesink/pipeline.sock")
-	config.BindEnvAndSetDefault("pipelinesink.flush_interval", 100*time.Millisecond)
-	config.BindEnvAndSetDefault("pipelinesink.buffer_capacity", 5000)
-	config.BindEnvAndSetDefault("pipelinesink.hook_buffer_size", 4096)
-	config.BindEnvAndSetDefault("pipelinesink.reconnect_max_interval", 30*time.Second)
+	// Flight recorder: forwards signal data over Unix socket to the Rust flightrecorder sidecar
+	config.BindEnvAndSetDefault("flightrecorder.enabled", false)
+	config.BindEnvAndSetDefault("flightrecorder.socket_path", "/var/run/flightrecorder/pipeline.sock")
+	config.BindEnvAndSetDefault("flightrecorder.flush_interval", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("flightrecorder.buffer_capacity", 5000)
+	config.BindEnvAndSetDefault("flightrecorder.hook_buffer_size", 4096)
+	config.BindEnvAndSetDefault("flightrecorder.reconnect_max_interval", 30*time.Second)
 
 	// Observer component configuration for anomaly detection
 	config.BindEnvAndSetDefault("observer.analysis.enabled", true)
