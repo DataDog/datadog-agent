@@ -6,5 +6,8 @@
         "pkg/network/usm/tests": {
             "exclude": false
         }
-    }
+    },
+    "additional_test_args": [
+        "-test.shuffle=on"
+    ]
 }
