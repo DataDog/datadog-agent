@@ -472,26 +472,25 @@ func (a *seriesDetectorAdapter) Reset() {
 }
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
-	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
+	allSeries := storage.ListSeries(observerdef.SeriesFilter{})
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, key := range seriesKeys {
-		keyStr := seriesKey(key.Namespace, key.Name, key.Tags)
-		visibleCount := storage.PointCountUpTo(key, dataTime)
+	for _, meta := range allSeries {
+		keyStr := seriesKey(meta.Namespace, meta.Name, meta.Tags)
+		visibleCount := storage.PointCountUpTo(meta.Handle, dataTime)
 		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
 		}
 		a.lastVisibleCount[keyStr] = visibleCount
 
-		// Series has new data — run detector on each aggregation.
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(key, start, dataTime, agg)
+			series := storage.GetSeriesRange(meta.Handle, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -511,10 +510,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 		}
 	}
 
-	return observerdef.DetectionResult{
-		Anomalies: allAnomalies,
-		Telemetry: allTelemetry,
-	}
+	return observerdef.DetectionResult{Anomalies: allAnomalies, Telemetry: allTelemetry}
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.

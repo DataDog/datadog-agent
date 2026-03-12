@@ -23,14 +23,14 @@ func (e *engine) StateView() *stateView {
 
 // --- Storage access ---
 
-// ListSeries returns keys of all series matching the filter.
-func (sv *stateView) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesKey {
+// ListSeries returns metadata for all series matching the filter.
+func (sv *stateView) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	return sv.engine.storage.ListSeries(filter)
 }
 
 // GetSeriesRange returns points within a time range for a series.
-func (sv *stateView) GetSeriesRange(key observerdef.SeriesKey, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
-	return sv.engine.storage.GetSeriesRange(key, start, end, agg)
+func (sv *stateView) GetSeriesRange(handle observerdef.SeriesHandle, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
+	return sv.engine.storage.GetSeriesRange(handle, start, end, agg)
 }
 
 // ScenarioBounds returns the time bounds of stored data.

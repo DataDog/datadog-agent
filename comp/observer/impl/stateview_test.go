@@ -28,8 +28,14 @@ func TestStateView_StorageAccess(t *testing.T) {
 		t.Fatalf("expected 2 series, got %d", len(keys))
 	}
 
-	// GetSeriesRange
-	series := sv.GetSeriesRange(observerdef.SeriesKey{Namespace: "ns", Name: "cpu"}, 0, 200, observerdef.AggregateAverage)
+	// GetSeriesRange — find the "cpu" series ID from ListSeries
+	cpuHandle := observerdef.SeriesHandle(-1)
+	for _, m := range keys {
+		if m.Name == "cpu" {
+			cpuHandle = m.Handle
+		}
+	}
+	series := sv.GetSeriesRange(cpuHandle, 0, 200, observerdef.AggregateAverage)
 	if series == nil {
 		t.Fatal("expected series data, got nil")
 	}

@@ -283,7 +283,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
 		Aggregations:       []observer.Aggregate{observer.AggregateAverage},
-		series:             make(map[string]*bocpdSeriesState),
+		series:             make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 
 	storage := newTimeSeriesStorage()
@@ -384,8 +384,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	storage.Add("ns", "metric", 200.0, 5, nil)
 
 	// Verify storage actually merged: average should be 150, not 100.
-	key := observer.SeriesKey{Namespace: "ns", Name: "metric"}
-	series := storage.GetSeriesRange(key, 4, 5, observer.AggregateAverage)
+	series := storage.GetSeriesRange(observer.SeriesHandle(0), 4, 5, observer.AggregateAverage)
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, 150.0, series.Points[0].Value,
@@ -418,9 +417,9 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	}
 	genAfter := stateAfter.lastWriteGen
 
-	pointCount := storage.PointCountUpTo(key, 5)
+	pointCount := storage.PointCountUpTo(observer.SeriesHandle(0), 5)
 	t.Logf("genBefore=%d, genAfter=%d, PointCountUpTo=%d, writeGen=%d",
-		genBefore, genAfter, pointCount, storage.WriteGeneration(key))
+		genBefore, genAfter, pointCount, storage.WriteGeneration(observer.SeriesHandle(0)))
 
 	// The detector should notice the merge via writeGeneration even though
 	// PointCountUpTo didn't change. If it re-processed, genAfter > genBefore.

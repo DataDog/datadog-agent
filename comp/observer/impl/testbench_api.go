@@ -413,7 +413,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request
 		for _, m := range metas {
 			for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 				nameWithAgg := m.Name + ":" + aggSuffix(agg)
-				compactID := strconv.Itoa(m.ID) + ":" + aggSuffix(agg)
+				compactID := strconv.Itoa(int(m.Handle)) + ":" + aggSuffix(agg)
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
 					Namespace:  m.Namespace,
@@ -447,7 +447,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		prefix := seriesID[:colonIdx]
 		if numericID, parseErr := strconv.Atoi(prefix); parseErr == nil {
 			aggStr := seriesID[colonIdx+1:]
-			api.handleNumericSeriesData(w, numericID, aggStr, seriesID)
+			api.handleNumericSeriesData(w, observerdef.SeriesHandle(numericID), aggStr, seriesID)
 			return
 		}
 	}
@@ -462,7 +462,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
-func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID int, aggStr string, originalID string) {
+func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesHandle, aggStr string, originalID string) {
 	var agg Aggregate
 	switch aggStr {
 	case "avg":
