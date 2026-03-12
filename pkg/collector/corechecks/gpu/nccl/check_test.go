@@ -232,51 +232,6 @@ func TestSocketListenerNvidiaNestedFormatPreservesRank(t *testing.T) {
 	assert.Equal(t, "socket:rank1-pid48", events[0].Filename)
 }
 
-func TestNetworkTransferMetrics_AggregatesPerRankDirection(t *testing.T) {
-	snd := new(mocksender.MockSender)
-	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-	events := []ParsedEvent{
-		// Rank 0, send, channel 0 — 5000us
-		{Event: NCCLInspectorEvent{Rank: 0, ProxyOp: &ProxyOpPerf{IsSend: 1, ChannelID: 0, Peer: 1, NetTimeUS: 5000}}},
-		// Rank 0, send, channel 1 — 8000us (max)
-		{Event: NCCLInspectorEvent{Rank: 0, ProxyOp: &ProxyOpPerf{IsSend: 1, ChannelID: 1, Peer: 1, NetTimeUS: 8000}}},
-		// Rank 0, recv, channel 0 — 3000us
-		{Event: NCCLInspectorEvent{Rank: 0, ProxyOp: &ProxyOpPerf{IsSend: 0, ChannelID: 0, Peer: 2, NetTimeUS: 3000}}},
-		// Rank 1, send — 2000us
-		{Event: NCCLInspectorEvent{Rank: 1, ProxyOp: &ProxyOpPerf{IsSend: 1, ChannelID: 0, Peer: 0, NetTimeUS: 2000}}},
-		// Coll event should be ignored
-		{Event: NCCLInspectorEvent{Rank: 0, CollPerf: &CollectivePerf{Collective: "AllReduce"}}},
-	}
-
-	c := &Check{}
-	c.emitNetworkTransferMetrics(snd, events)
-
-	// Rank 0 send: max(5000, 8000) = 8000; includes workload tags (pid:0 without processTagger)
-	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
-		[]string{"rank:0", "direction:send", "pid:0"})
-	// Rank 0 recv: 3000
-	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
-		[]string{"rank:0", "direction:recv", "pid:0"})
-	// Rank 1 send: 2000
-	snd.AssertMetricTaggedWith(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
-		[]string{"rank:1", "direction:send", "pid:0"})
-}
-
-func TestNetworkTransferMetrics_NoProxyOpsNoMetric(t *testing.T) {
-	snd := new(mocksender.MockSender)
-
-	events := []ParsedEvent{
-		{Event: NCCLInspectorEvent{Rank: 0, CollPerf: &CollectivePerf{Collective: "AllReduce"}}},
-	}
-
-	c := &Check{}
-	c.emitNetworkTransferMetrics(snd, events)
-
-	snd.AssertNotCalled(t, "Gauge", ncclMetricsNs+networkMaxTransferTimeMetric,
-		mock.Anything, mock.Anything, mock.Anything)
-}
-
 func TestBuildTagsWithExtraTags(t *testing.T) {
 	c := &Check{}
 

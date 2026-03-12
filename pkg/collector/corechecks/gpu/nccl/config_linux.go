@@ -21,11 +21,6 @@ const (
 	// Value is the number of seconds since that rank last produced an event.
 	// Use for hang detection (e.g. alert when > 30s).
 	hangDetectionMetric = "rank.seconds_since_last_event"
-
-	// networkMaxTransferTimeMetric is the maximum proxy operation network time
-	// observed for a rank in a check interval, aggregated across all proxy operations.
-	// Tags: rank, direction (send/recv). Cardinality: 2N.
-	networkMaxTransferTimeMetric = "proxy_op.max_network_time_us"
 )
 
 // rankStalenessMaxAge is the TTL for lastSeenRank entries. A rank that has not
