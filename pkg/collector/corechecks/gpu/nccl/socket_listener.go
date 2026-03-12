@@ -115,7 +115,7 @@ func (sl *SocketListener) handleConn(conn *net.UnixConn) {
 			continue
 		}
 
-		if event.CollPerf == nil && event.ProxyOp == nil {
+		if event.CollPerf == nil {
 			continue
 		}
 

@@ -32,9 +32,6 @@ type NCCLInspectorEvent struct {
 
 	// Collective performance data
 	CollPerf *CollectivePerf `json:"coll_perf,omitempty"`
-
-	// Proxy operation performance data (network transfer timing)
-	ProxyOp *ProxyOpPerf `json:"proxy_op,omitempty"`
 }
 
 // CollectivePerf contains performance metrics for a collective operation
@@ -48,25 +45,12 @@ type CollectivePerf struct {
 	BusBandwidthGB  float64 `json:"coll_busbw_gbs"`      // Bus bandwidth in GB/s
 }
 
-// ProxyOpPerf contains performance metrics for a proxy operation (network transfer)
-type ProxyOpPerf struct {
-	ChannelID int   `json:"channel_id"`               // Channel ID
-	Peer      int   `json:"peer"`                     // Remote rank
-	NSteps    int   `json:"n_steps"`                  // Number of steps
-	ChunkSize int   `json:"chunk_size"`               // Chunk size in bytes
-	IsSend    int   `json:"is_send"`                  // 1=send, 0=recv
-	StartUS   int64 `json:"start_us"`                 // Start timestamp (microseconds)
-	StopUS    int64 `json:"stop_us"`                  // Stop timestamp (microseconds)
-	NetTimeUS int64 `json:"proxy_op_network_time_us"` // Proxy operation network time (stop - start)
-}
-
 // nvidiaInspectorEvent is the output format of NVIDIA's official NCCL Inspector
 // plugin (format version v4.0+). It uses a nested header/metadata structure.
 type nvidiaInspectorEvent struct {
 	Header   nvidiaHeader    `json:"header"`
 	Metadata nvidiaMetadata  `json:"metadata"`
 	CollPerf *CollectivePerf `json:"coll_perf,omitempty"`
-	ProxyOp  *ProxyOpPerf    `json:"proxy_op,omitempty"`
 }
 
 type nvidiaHeader struct {
@@ -98,7 +82,6 @@ func (e *nvidiaInspectorEvent) toNCCLInspectorEvent() NCCLInspectorEvent {
 		DumpTimestampUS: e.Metadata.DumpTimestampUS,
 		ExtraTags:       e.Metadata.ExtraTags,
 		CollPerf:        e.CollPerf,
-		ProxyOp:         e.ProxyOp,
 	}
 }
 

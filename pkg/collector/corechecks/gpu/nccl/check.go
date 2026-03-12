@@ -174,27 +174,19 @@ func (c *Check) Run() error {
 	events := c.socketListener.Drain()
 
 	// Process events and emit per-rank metrics
-	collCount, proxyOpCount := 0, 0
 	for _, parsed := range events {
 		if parsed.Event.CollPerf != nil {
-			collCount++
 			log.Debugf("NCCL coll_perf: rank=%d coll=%s exec_time_us=%.1f algobw=%.3f busbw=%.3f msg_bytes=%d timing=%s tags=%v",
 				parsed.Event.Rank, parsed.Event.CollPerf.Collective, parsed.Event.CollPerf.ExecTimeUS,
 				parsed.Event.CollPerf.AlgoBandwidthGB, parsed.Event.CollPerf.BusBandwidthGB,
 				parsed.Event.CollPerf.MsgSizeBytes, parsed.Event.CollPerf.TimingSource, c.buildTags(parsed))
-		}
-		if parsed.Event.ProxyOp != nil {
-			proxyOpCount++
-			log.Debugf("NCCL proxy_op: rank=%d peer=%d ch=%d is_send=%d net_time_us=%d tags=%v",
-				parsed.Event.Rank, parsed.Event.ProxyOp.Peer, parsed.Event.ProxyOp.ChannelID,
-				parsed.Event.ProxyOp.IsSend, parsed.Event.ProxyOp.NetTimeUS, c.buildTags(parsed))
 		}
 		if err := c.processEvent(snd, parsed); err != nil {
 			log.Debugf("error processing NCCL event: %v", err)
 		}
 		c.checkTelemetry.eventsProcessed.Inc()
 	}
-	log.Debugf("NCCL check: %d events (%d coll_perf, %d proxy_op)", len(events), collCount, proxyOpCount)
+	log.Debugf("NCCL check: %d events", len(events))
 
 	// Hang detection: update last-seen timestamps and emit staleness metrics.
 	// Key by rank only (not rank+PID) so that training restarts reset staleness
@@ -206,14 +198,10 @@ func (c *Check) Run() error {
 	}
 	c.emitStalenessMetrics(snd, now)
 
-	// Network transfer time: aggregate ProxyOp events per (rank, direction)
-	c.emitNetworkTransferMetrics(snd, events)
-
 	return nil
 }
 
 // processEvent emits metrics for a single NCCL collective event.
-// ProxyOp events are not processed here — they are aggregated by emitNetworkTransferMetrics.
 func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) error {
 	event := parsed.Event
 	perf := event.CollPerf
@@ -271,50 +259,6 @@ func (c *Check) processEvent(snd sender.Sender, parsed ParsedEvent) error {
 	}
 
 	return nil
-}
-
-// networkTransferKey groups proxy operations by rank and direction for aggregation.
-type networkTransferKey struct {
-	rank      int
-	direction string // "send" or "recv"
-}
-
-// emitNetworkTransferMetrics aggregates ProxyOp events from this check interval
-// and emits one nccl.network.max_transfer_time_us per (rank, direction).
-// Cardinality: 2N (one send + one recv per rank observed on this node).
-func (c *Check) emitNetworkTransferMetrics(snd sender.Sender, events []ParsedEvent) {
-	type netTransferAgg struct {
-		maxTime int64
-		sample  ParsedEvent // representative event for workload tags
-	}
-	agg := make(map[networkTransferKey]*netTransferAgg)
-	for _, parsed := range events {
-		proxyOp := parsed.Event.ProxyOp
-		if proxyOp == nil {
-			continue
-		}
-		dir := "recv"
-		if proxyOp.IsSend != 0 {
-			dir = "send"
-		}
-		key := networkTransferKey{rank: parsed.Event.Rank, direction: dir}
-		if a, ok := agg[key]; ok {
-			if proxyOp.NetTimeUS > a.maxTime {
-				a.maxTime = proxyOp.NetTimeUS
-			}
-		} else {
-			agg[key] = &netTransferAgg{maxTime: proxyOp.NetTimeUS, sample: parsed}
-		}
-	}
-	for key, a := range agg {
-		tags := c.buildTags(a.sample)
-		tags = append(tags,
-			fmt.Sprintf("rank:%d", key.rank),
-			"direction:"+key.direction,
-		)
-		snd.Gauge(ncclMetricsNs+networkMaxTransferTimeMetric, float64(a.maxTime), "", tags)
-		log.Debugf("NCCL network_transfer: rank=%d dir=%s max_time_us=%d tags=%v", key.rank, key.direction, a.maxTime, tags)
-	}
 }
 
 // buildTags correlates PID to container/pod and builds tags.
