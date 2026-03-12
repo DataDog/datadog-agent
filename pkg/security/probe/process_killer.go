@@ -335,7 +335,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 		pendingKillsTick := time.NewTicker(pendingKillsTicker)
 
 		defer ticker.Stop()
-		defer killQueue.Stop()
+		defer pendingKillsTick.Stop()
 		state := stopped
 		for {
 			switch state {
