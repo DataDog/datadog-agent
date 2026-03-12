@@ -1,5 +1,6 @@
 import sys
 from datetime import date
+from pathlib import Path
 
 from invoke import Failure, task
 from invoke.exceptions import Exit
@@ -13,13 +14,14 @@ from tasks.libs.releasing.notes import (
     _add_dca_prelude,
     _add_prelude,
     _new_fragment_path,
+    review_fragment,
     update_changelog_generic,
 )
 from tasks.libs.releasing.version import deduce_version
 
 
 @task
-def new(ctx, slug, dca=False, installscript=False):  # noqa: U100
+def new(ctx, slug, dca=False, installscript=False, review=False):  # noqa: U100
     """Create a new release note fragment.
 
     Creates a YAML template in releasenotes/notes/ (or releasenotes-dca/notes/
@@ -59,6 +61,34 @@ def new(ctx, slug, dca=False, installscript=False):  # noqa: U100
 
     print(f"Created release note: {note_path}")
     print("Edit the file, fill in the relevant sections, and commit it with your PR.")
+
+    if review:
+        import os
+        import subprocess
+
+        editor = os.environ.get('VISUAL') or os.environ.get('EDITOR')
+        if not editor:
+            print("NOTE: $EDITOR not set; skipping review. Run: dda inv notes.review <path>")
+            return
+        subprocess.run(f"{editor} {note_path}", shell=True, check=False)
+        feedback = review_fragment(note_path.read_text(encoding='utf-8'))
+        print(f"\n--- AI Review ---\n{feedback}")
+
+
+@task
+def review(ctx, path):  # noqa: U100
+    """Review a release note fragment using AI Gateway.
+
+    Reads the YAML fragment at PATH and sends it to the Datadog AI Gateway for
+    LLM-driven feedback on clarity, section correctness, and RST formatting.
+
+    Example::
+
+        dda inv notes.review releasenotes/notes/my-feature-abc123.yaml
+    """
+    content = Path(path).read_text(encoding='utf-8')
+    feedback = review_fragment(content)
+    print(feedback)
 
 
 @task
