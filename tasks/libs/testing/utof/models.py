@@ -31,6 +31,8 @@ class UTOFEnvironmentMetadata:
     kernel: str = ""
     runtime_version: str = ""  # noqa: F841
     agent_flavor: str = ""
+    runner_cpu_request: str = ""  # noqa: F841
+    runner_memory_request: str = ""  # noqa: F841
 
 
 @dataclass

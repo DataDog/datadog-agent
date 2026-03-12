@@ -49,6 +49,8 @@ def generate_metadata(ctx: Context, test_system: str, flavor: str = "") -> UTOFM
         arch=platform.machine(),
         kernel=platform.version() if platform.system() == "Linux" else "",
         agent_flavor=flavor,
+        runner_cpu_request=os.environ.get("KUBERNETES_CPU_REQUEST", ""),
+        runner_memory_request=os.environ.get("KUBERNETES_MEMORY_REQUEST", ""),
     )
 
     return UTOFMetadata(

@@ -90,21 +90,6 @@ def _has_matching_descendant(t: UTOFTestResult, predicate: Callable[[UTOFTestRes
     return False
 
 
-def _collect_all_tests(tests: list[UTOFTestResult]) -> list[UTOFTestResult]:
-    """Flatten a tree of tests into a single list (for backward-compat counting)."""
-    result: list[UTOFTestResult] = []
-
-    def _walk(t: UTOFTestResult):
-        result.append(t)
-        if t.subtests:
-            for sub in t.subtests:
-                _walk(sub)
-
-    for t in tests:
-        _walk(t)
-    return result
-
-
 def _render_subtests(
     subtests: list[UTOFTestResult],
     predicate: Callable[[UTOFTestResult], bool],
@@ -116,6 +101,94 @@ def _render_subtests(
     matching = [s for s in subtests if _has_matching_descendant(s, predicate)]
     for sub in matching:
         out.extend(render_fn(sub, depth))
+    return out
+
+
+def _tree_prefix(depth: int) -> str:
+    return "    " * depth + "└─ " if depth > 0 else "  "
+
+
+def _failure_prefix(depth: int) -> str:
+    return "    " * depth + "         "
+
+
+def _test_name(t: UTOFTestResult, depth: int) -> str:
+    if depth == 0:
+        return color_message(f"{_short_package(t.package)} :: {t.name}", "bold")
+    return color_message(t.name, "bold")
+
+
+def _fail_pred(t: UTOFTestResult) -> bool:
+    return t.status == "fail"
+
+
+def _retry_pred(t: UTOFTestResult) -> bool:
+    return t.retry_count > 0
+
+
+def _flaky_pred(t: UTOFTestResult) -> bool:
+    return t.status in ("flaky_pass", "flaky_fail") and t.retry_count == 0
+
+
+def _render_failed(t: UTOFTestResult, depth: int = 0) -> list[str]:
+    out: list[str] = []
+    prefix = _tree_prefix(depth)
+    fp = _failure_prefix(depth)
+    out.append(f"{prefix}{_status_badge(t.status)}  {_test_name(t, depth)}")
+    # Suppress parent failure when subtests already explain the cause,
+    # but only if the failure is inferred (not a direct assertion).
+    # A direct assertion (testify blocks, panic, infrastructure) on the
+    # parent must always be shown even when subtests also failed.
+    has_failing_subtests = t.subtests and any(_has_matching_descendant(s, _fail_pred) for s in t.subtests)
+    failure = _get_test_failure(t)
+    if failure and (not has_failing_subtests or failure.direct):
+        out.extend(_render_failure(failure, fp))
+    if t.subtests:
+        out.extend(_render_subtests(t.subtests, _fail_pred, depth + 1, _render_failed))
+    return out
+
+
+def _render_retried(t: UTOFTestResult, depth: int = 0) -> list[str]:
+    out: list[str] = []
+    prefix = _tree_prefix(depth)
+    fp = _failure_prefix(depth)
+    name = _test_name(t, depth)
+    badge = _status_badge(t.status)
+    if t.retry_count > 0:
+        retry_info = color_message(f"({t.retry_count} retry, final: {t.status})", "grey")
+        out.append(f"{prefix}{badge}  {name}  {retry_info}")
+        if not t.subtests:
+            for a in t.attempts:
+                if a.status == "fail":
+                    marker = color_message("[x]", "red")
+                    attempt_status = color_message(f"attempt {a.attempt}: fail", "red")
+                else:
+                    marker = color_message("[v]", "green")
+                    attempt_status = color_message(f"attempt {a.attempt}: pass", "green")
+                dur = color_message(f"({_format_duration(a.duration_seconds)})", "grey")
+                out.append(f"{fp}{marker} {attempt_status} {dur}")
+                if a.failure:
+                    out.extend(_render_failure(a.failure, fp + "     "))
+    else:
+        out.append(f"{prefix}{badge}  {name}")
+    if t.subtests:
+        out.extend(_render_subtests(t.subtests, _retry_pred, depth + 1, _render_retried))
+    return out
+
+
+def _render_flaky(t: UTOFTestResult, depth: int = 0) -> list[str]:
+    out: list[str] = []
+    prefix = _tree_prefix(depth)
+    fp = _failure_prefix(depth)
+    name = _test_name(t, depth)
+    source = color_message(f"(source: {t.flaky.source})", "grey") if t.flaky else ""
+    out.append(f"{prefix}{_status_badge(t.status)}  {name}  {source}")
+    has_flaky_subtests = t.subtests and any(_has_matching_descendant(s, _flaky_pred) for s in t.subtests)
+    failure = _get_test_failure(t)
+    if failure and (not has_flaky_subtests or failure.direct):
+        out.extend(_render_failure(failure, fp))
+    if t.subtests:
+        out.extend(_render_subtests(t.subtests, _flaky_pred, depth + 1, _render_flaky))
     return out
 
 
@@ -161,123 +234,28 @@ def format_report(doc: UTOFDocument) -> str:
     lines.append("  ".join(parts))
     lines.append("")
 
-    # -- Helper to render a test entry with subtests --
-    def _tree_prefix(depth: int) -> str:
-        return "    " * depth + "└─ " if depth > 0 else "  "
-
-    def _failure_prefix(depth: int) -> str:
-        return "    " * depth + "         "
-
     # -- Failed tests --
-    def fail_pred(t: UTOFTestResult) -> bool:
-        return t.status == "fail"
-
-    all_tests = _collect_all_tests(doc.tests)
-    fail_count = sum(1 for t in all_tests if fail_pred(t) and not t.subtests)
-    failed_roots = [t for t in doc.tests if _has_matching_descendant(t, fail_pred)]
+    failed_roots = [t for t in doc.tests if _has_matching_descendant(t, _fail_pred)]
     if failed_roots:
-
-        def _render_failed(t: UTOFTestResult, depth: int = 0) -> list[str]:
-            out: list[str] = []
-            prefix = _tree_prefix(depth)
-            fp = _failure_prefix(depth)
-            badge = _status_badge(t.status)
-            if depth == 0:
-                name = color_message(f"{_short_package(t.package)} :: {t.name}", "bold")
-            else:
-                name = color_message(t.name, "bold")
-            out.append(f"{prefix}{badge}  {name}")
-            # Suppress parent failure when subtests already explain the cause,
-            # but only if the failure is inferred (not a direct assertion).
-            # A direct assertion (testify blocks, panic, infrastructure) on the
-            # parent must always be shown even when subtests also failed.
-            has_failing_subtests = t.subtests and any(_has_matching_descendant(s, fail_pred) for s in t.subtests)
-            failure = _get_test_failure(t)
-            if failure and (not has_failing_subtests or failure.direct):
-                out.extend(_render_failure(failure, fp))
-            if t.subtests:
-                out.extend(_render_subtests(t.subtests, fail_pred, depth + 1, _render_failed))
-            return out
-
-        lines.append(color_message(f"--- Failures ({fail_count}) ---", "red"))
+        lines.append(color_message(f"--- Failures ({s.failed}) ---", "red"))
         lines.append("")
         for t in failed_roots:
             lines.extend(_render_failed(t))
         lines.append("")
 
     # -- Retried tests --
-    def retry_pred(t: UTOFTestResult) -> bool:
-        return t.retry_count > 0
-
-    retry_count = sum(1 for t in all_tests if retry_pred(t) and not t.subtests)
-    retried_roots = [t for t in doc.tests if _has_matching_descendant(t, retry_pred)]
+    retried_roots = [t for t in doc.tests if _has_matching_descendant(t, _retry_pred)]
     if retried_roots:
-
-        def _render_retried(t: UTOFTestResult, depth: int = 0) -> list[str]:
-            out: list[str] = []
-            prefix = _tree_prefix(depth)
-            fp = _failure_prefix(depth)
-            badge = _status_badge(t.status)
-            if depth == 0:
-                name = color_message(f"{_short_package(t.package)} :: {t.name}", "bold")
-            else:
-                name = color_message(t.name, "bold")
-            if t.retry_count > 0:
-                retry_info = color_message(f"({t.retry_count} retry, final: {t.status})", "grey")
-                out.append(f"{prefix}{badge}  {name}  {retry_info}")
-                # Skip per-attempt detail on parent tests — subtests show their own
-                if not t.subtests:
-                    for a in t.attempts:
-                        if a.status == "fail":
-                            marker = color_message("[x]", "red")
-                            attempt_status = color_message(f"attempt {a.attempt}: fail", "red")
-                        else:
-                            marker = color_message("[v]", "green")
-                            attempt_status = color_message(f"attempt {a.attempt}: pass", "green")
-                        dur = color_message(f"({_format_duration(a.duration_seconds)})", "grey")
-                        out.append(f"{fp}{marker} {attempt_status} {dur}")
-                        if a.failure:
-                            out.extend(_render_failure(a.failure, fp + "     "))
-            else:
-                out.append(f"{prefix}{badge}  {name}")
-            if t.subtests:
-                out.extend(_render_subtests(t.subtests, retry_pred, depth + 1, _render_retried))
-            return out
-
-        lines.append(color_message(f"--- Retried ({retry_count}) ---", "orange"))
+        lines.append(color_message(f"--- Retried ({s.retried}) ---", "orange"))
         lines.append("")
         for t in retried_roots:
             lines.extend(_render_retried(t))
         lines.append("")
 
     # -- Flaky tests (not already shown above) --
-    def flaky_pred(t: UTOFTestResult) -> bool:
-        return t.status in ("flaky_pass", "flaky_fail") and t.retry_count == 0
-
-    flaky_count = sum(1 for t in all_tests if flaky_pred(t) and not t.subtests)
-    flaky_roots = [t for t in doc.tests if _has_matching_descendant(t, flaky_pred)]
+    flaky_roots = [t for t in doc.tests if _has_matching_descendant(t, _flaky_pred)]
     if flaky_roots:
-
-        def _render_flaky(t: UTOFTestResult, depth: int = 0) -> list[str]:
-            out: list[str] = []
-            prefix = _tree_prefix(depth)
-            fp = _failure_prefix(depth)
-            badge = _status_badge(t.status)
-            if depth == 0:
-                name = color_message(f"{_short_package(t.package)} :: {t.name}", "bold")
-            else:
-                name = color_message(t.name, "bold")
-            source = color_message(f"(source: {t.flaky.source})", "grey") if t.flaky else ""
-            out.append(f"{prefix}{badge}  {name}  {source}")
-            has_flaky_subtests = t.subtests and any(_has_matching_descendant(s, flaky_pred) for s in t.subtests)
-            failure = _get_test_failure(t)
-            if failure and (not has_flaky_subtests or failure.direct):
-                out.extend(_render_failure(failure, fp))
-            if t.subtests:
-                out.extend(_render_subtests(t.subtests, flaky_pred, depth + 1, _render_flaky))
-            return out
-
-        lines.append(color_message(f"--- Flaky ({flaky_count}) ---", "orange"))
+        lines.append(color_message(f"--- Flaky ({s.flaky}) ---", "orange"))
         lines.append("")
         for t in flaky_roots:
             lines.extend(_render_flaky(t))
