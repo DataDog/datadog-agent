@@ -142,7 +142,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Unordered(host.SystemdEvents().
 			Started(agentUnitXP).
 			Started(traceUnitXP).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -156,7 +155,6 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -203,7 +201,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Unordered(host.SystemdEvents().
 			Started(agentUnitXP).
 			Started(traceUnitXP).
-			SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -221,7 +218,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
-			SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
@@ -259,7 +255,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Unordered(host.SystemdEvents().
 				Started(agentUnitXP).
 				Started(traceUnitXP).
-				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnitXP),
 			).
 
@@ -273,7 +268,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
@@ -299,7 +293,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		)
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
-		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible))
 
 		// stop experiment
 		timestamp = s.host.LastJournaldTimestamp()
@@ -316,7 +309,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Started(agentUnit).
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
-				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
