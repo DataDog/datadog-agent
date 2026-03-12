@@ -668,15 +668,9 @@ mod tests {
     fn test_state_name_all_variants() {
         assert_eq!(state_name(proto::ProcessState::Unknown as i32), "Unknown");
         assert_eq!(state_name(proto::ProcessState::Created as i32), "Created");
-        assert_eq!(
-            state_name(proto::ProcessState::Starting as i32),
-            "Starting"
-        );
+        assert_eq!(state_name(proto::ProcessState::Starting as i32), "Starting");
         assert_eq!(state_name(proto::ProcessState::Running as i32), "Running");
-        assert_eq!(
-            state_name(proto::ProcessState::Stopping as i32),
-            "Stopping"
-        );
+        assert_eq!(state_name(proto::ProcessState::Stopping as i32), "Stopping");
         assert_eq!(state_name(proto::ProcessState::Stopped as i32), "Stopped");
         assert_eq!(state_name(proto::ProcessState::Crashed as i32), "Crashed");
         assert_eq!(state_name(proto::ProcessState::Exited as i32), "Exited");
