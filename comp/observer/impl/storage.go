@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"os"
@@ -22,6 +23,18 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[string]*seriesStats
 
+	// observationTimestamps tracks all timestamps where observations occurred,
+	// even if no metric series was written for that timestamp.
+	observationTimestamps map[int64]struct{}
+
+	// Compact numeric IDs for API responses; unrelated to generation tracking.
+	seriesIDs    map[string]int // internal key → numeric ID
+	seriesIDKeys []string       // numeric ID → internal key (index = ID)
+
+	// Global generation for the series catalog; increments only when a new
+	// series key is created, not on every write to an existing series.
+	seriesGen uint64
+
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
 	droppedExtreme   int64
@@ -30,20 +43,28 @@ type timeSeriesStorage struct {
 }
 
 // seriesStats contains accumulated statistics for a time series (internal).
+// Data is stored in columnar layout: parallel arrays indexed by point position.
+// Timestamps are stored in sorted order, enabling binary search for range queries.
 type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	Points    []statPoint
+
+	// writeGeneration is per-series and increments on every Add, including
+	// same-bucket merges into an existing point.
+	writeGeneration int64
+
+	// Columnar storage — all slices have the same length, indexed by point position.
+	timestamps []int64
+	sums       []float64
+	counts     []int64
+	mins       []float64
+	maxes      []float64
 }
 
-// statPoint holds summary statistics for a single time bucket (internal).
-type statPoint struct {
-	Timestamp int64
-	Sum       float64
-	Count     int64
-	Min       float64
-	Max       float64
+// pointCount returns the number of stored points.
+func (s *seriesStats) pointCount() int {
+	return len(s.timestamps)
 }
 
 // Aggregate is an alias to the definition in the observer component for internal use.
@@ -58,22 +79,53 @@ const (
 	AggregateMax     = observer.AggregateMax
 )
 
-// aggregate extracts the specified statistic from this point.
-func (p *statPoint) aggregate(agg Aggregate) float64 {
+// aggregateColumn returns the pre-materialized column values for a given aggregate.
+// For Average, it computes sum/count on the fly. For others, it returns the column directly.
+func (s *seriesStats) aggregateColumn(agg Aggregate) []float64 {
+	switch agg {
+	case AggregateSum:
+		return s.sums
+	case AggregateMin:
+		return s.mins
+	case AggregateMax:
+		return s.maxes
+	case AggregateCount:
+		vals := make([]float64, len(s.counts))
+		for i, c := range s.counts {
+			vals[i] = float64(c)
+		}
+		return vals
+	case AggregateAverage:
+		vals := make([]float64, len(s.sums))
+		for i := range s.sums {
+			if s.counts[i] == 0 {
+				vals[i] = 0
+			} else {
+				vals[i] = s.sums[i] / float64(s.counts[i])
+			}
+		}
+		return vals
+	default:
+		return make([]float64, len(s.timestamps))
+	}
+}
+
+// aggregateAt extracts the specified statistic at index i.
+func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 	switch agg {
 	case AggregateAverage:
-		if p.Count == 0 {
+		if s.counts[i] == 0 {
 			return 0
 		}
-		return p.Sum / float64(p.Count)
+		return s.sums[i] / float64(s.counts[i])
 	case AggregateSum:
-		return p.Sum
+		return s.sums[i]
 	case AggregateCount:
-		return float64(p.Count)
+		return float64(s.counts[i])
 	case AggregateMin:
-		return p.Min
+		return s.mins[i]
 	case AggregateMax:
-		return p.Max
+		return s.maxes[i]
 	default:
 		return 0
 	}
@@ -81,12 +133,14 @@ func (p *statPoint) aggregate(agg Aggregate) float64 {
 
 // toSeries converts internal stats to the simplified Series for analyses.
 func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
-	points := make([]observer.Point, 0, len(s.Points))
-	for _, p := range s.Points {
-		points = append(points, observer.Point{
-			Timestamp: p.Timestamp,
-			Value:     p.aggregate(agg),
-		})
+	n := s.pointCount()
+	points := make([]observer.Point, n)
+	col := s.aggregateColumn(agg)
+	for i := 0; i < n; i++ {
+		points[i] = observer.Point{
+			Timestamp: s.timestamps[i],
+			Value:     col[i],
+		}
 	}
 	return observer.Series{
 		Namespace: s.Namespace,
@@ -97,14 +151,17 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 }
 
 // toSeriesUpTo returns a Series with only points where Timestamp <= upTo.
+// Uses binary search on the sorted timestamps column.
 func (s *seriesStats) toSeriesUpTo(agg Aggregate, upTo int64) observer.Series {
-	points := make([]observer.Point, 0, len(s.Points))
-	for _, p := range s.Points {
-		if p.Timestamp <= upTo {
-			points = append(points, observer.Point{
-				Timestamp: p.Timestamp,
-				Value:     p.aggregate(agg),
-			})
+	end := sort.Search(len(s.timestamps), func(i int) bool {
+		return s.timestamps[i] > upTo
+	})
+	points := make([]observer.Point, end)
+	col := s.aggregateColumn(agg)
+	for i := 0; i < end; i++ {
+		points[i] = observer.Point{
+			Timestamp: s.timestamps[i],
+			Value:     col[i],
 		}
 	}
 	return observer.Series{
@@ -115,17 +172,35 @@ func (s *seriesStats) toSeriesUpTo(agg Aggregate, upTo int64) observer.Series {
 	}
 }
 
+// searchAfter returns the index of the first timestamp > value using binary search.
+func searchAfter(timestamps []int64, value int64) int {
+	return sort.Search(len(timestamps), func(i int) bool {
+		return timestamps[i] > value
+	})
+}
+
+// searchAtOrAfter returns the index of the first timestamp >= value using binary search.
+func searchAtOrAfter(timestamps []int64, value int64) int {
+	return sort.Search(len(timestamps), func(i int) bool {
+		return timestamps[i] >= value
+	})
+}
+
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series:          make(map[string]*seriesStats),
-		droppedByMetric: make(map[string]int64),
-		sampledDrops:    make(map[string]int),
+		series:                make(map[string]*seriesStats),
+		observationTimestamps: make(map[int64]struct{}),
+		seriesIDs:             make(map[string]int),
+		droppedByMetric:       make(map[string]int64),
+		sampledDrops:          make(map[string]int),
 	}
 }
 
 // Add records a data point for a named metric in a namespace.
 // Invalid values are dropped at ingest with accounting and sampled logging.
+// Timestamps are maintained in sorted order so replay and live ingestion remain
+// correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -136,7 +211,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
-	if value == math.MaxFloat64 {
+	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
@@ -147,48 +222,59 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		stats = &seriesStats{
 			Namespace: namespace,
 			Name:      name,
-			Tags:      copyTags(tags),
-			Points:    nil,
+			Tags:      canonicalizeTags(tags),
 		}
 		s.series[key] = stats
+		// Assign a compact numeric ID for API responses.
+		id := len(s.seriesIDKeys)
+		s.seriesIDs[key] = id
+		s.seriesIDKeys = append(s.seriesIDKeys, key)
+		s.seriesGen++
 	}
+	stats.writeGeneration++
 
-	// Bucket by second
+	// Bucket by second.
 	bucket := timestamp
 
-	// Find or create the bucket
-	idx := -1
-	for i, p := range stats.Points {
-		if p.Timestamp == bucket {
-			idx = i
-			break
+	// Binary search for the bucket in the sorted timestamps array.
+	idx := sort.Search(len(stats.timestamps), func(i int) bool {
+		return stats.timestamps[i] >= bucket
+	})
+
+	if idx < len(stats.timestamps) && stats.timestamps[idx] == bucket {
+		// Update existing bucket in-place.
+		stats.sums[idx] += value
+		stats.counts[idx]++
+		if value < stats.mins[idx] {
+			stats.mins[idx] = value
 		}
+		if value > stats.maxes[idx] {
+			stats.maxes[idx] = value
+		}
+		return
 	}
 
-	if idx >= 0 {
-		// Update existing bucket
-		stats.Points[idx].Sum += value
-		stats.Points[idx].Count++
-		if value < stats.Points[idx].Min {
-			stats.Points[idx].Min = value
-		}
-		if value > stats.Points[idx].Max {
-			stats.Points[idx].Max = value
-		}
-	} else {
-		// Create new bucket
-		stats.Points = append(stats.Points, statPoint{
-			Timestamp: bucket,
-			Sum:       value,
-			Count:     1,
-			Min:       value,
-			Max:       value,
-		})
-		// Keep points sorted by timestamp
-		sort.Slice(stats.Points, func(i, j int) bool {
-			return stats.Points[i].Timestamp < stats.Points[j].Timestamp
-		})
-	}
+	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
+	stats.sums = insertFloat64(stats.sums, idx, value)
+	stats.counts = insertInt64(stats.counts, idx, 1)
+	stats.mins = insertFloat64(stats.mins, idx, value)
+	stats.maxes = insertFloat64(stats.maxes, idx, value)
+}
+
+// insertInt64 inserts v at position idx in s, maintaining order.
+func insertInt64(s []int64, idx int, v int64) []int64 {
+	s = append(s, 0)
+	copy(s[idx+1:], s[idx:])
+	s[idx] = v
+	return s
+}
+
+// insertFloat64 inserts v at position idx in s, maintaining order.
+func insertFloat64(s []float64, idx int, v float64) []float64 {
+	s = append(s, 0)
+	copy(s[idx+1:], s[idx:])
+	s[idx] = v
+	return s
 }
 
 func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
@@ -210,6 +296,9 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 }
 
 func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	byMetric = make(map[string]int64, len(s.droppedByMetric))
 	for k, v := range s.droppedByMetric {
 		byMetric[k] = v
@@ -263,15 +352,16 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 		return &series
 	}
 
-	// Filter points to only those after 'since'
-	var points []observer.Point
-	for _, p := range stats.Points {
-		if p.Timestamp > since {
-			points = append(points, observer.Point{
-				Timestamp: p.Timestamp,
-				Value:     p.aggregate(agg),
-			})
-		}
+	// Binary search for the first timestamp > since.
+	startIdx := searchAfter(stats.timestamps, since)
+
+	n := stats.pointCount()
+	points := make([]observer.Point, 0, n-startIdx)
+	for i := startIdx; i < n; i++ {
+		points = append(points, observer.Point{
+			Timestamp: stats.timestamps[i],
+			Value:     stats.aggregateAt(i, agg),
+		})
 	}
 
 	return &observer.Series{
@@ -284,6 +374,9 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 
 // Namespaces returns the set of namespaces that have data.
 func (s *timeSeriesStorage) Namespaces() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	seen := make(map[string]struct{})
 	for _, stats := range s.series {
 		seen[stats.Namespace] = struct{}{}
@@ -312,23 +405,36 @@ func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observe
 
 // TimeBounds returns the minimum and maximum timestamps across all stored points.
 func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var min int64
 	var max int64
 	found := false
 
 	for _, stats := range s.series {
-		for _, p := range stats.Points {
-			if !found {
-				min = p.Timestamp
-				max = p.Timestamp
-				found = true
-				continue
+		n := stats.pointCount()
+		if n == 0 {
+			continue
+		}
+		// Timestamps are sorted, but some series may start with default/non-data
+		// zero timestamps. Ignore only the non-positive prefix, not the series.
+		firstIdx := searchAfter(stats.timestamps, 0)
+		if firstIdx >= n {
+			continue
+		}
+		first := stats.timestamps[firstIdx]
+		last := stats.timestamps[n-1]
+		if !found {
+			min = first
+			max = last
+			found = true
+		} else {
+			if first < min {
+				min = first
 			}
-			if p.Timestamp < min {
-				min = p.Timestamp
-			}
-			if p.Timestamp > max {
-				max = p.Timestamp
+			if last > max {
+				max = last
 			}
 		}
 	}
@@ -338,10 +444,13 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 
 // MaxTimestamp returns the latest timestamp across all series in storage.
 func (s *timeSeriesStorage) MaxTimestamp() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var max int64
 	for _, stats := range s.series {
-		if n := len(stats.Points); n > 0 {
-			if t := stats.Points[n-1].Timestamp; t > max {
+		if n := stats.pointCount(); n > 0 {
+			if t := stats.timestamps[n-1]; t > max {
 				max = t
 			}
 		}
@@ -351,9 +460,10 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 
 // seriesKey creates a unique key for a series.
 func seriesKey(namespace, name string, tags []string) string {
-	sortedTags := copyTags(tags)
-	sort.Strings(sortedTags)
-	return namespace + "|" + name + "|" + strings.Join(sortedTags, ",")
+	if len(tags) > 1 && !tagsSorted(tags) {
+		tags = canonicalizeTags(tags)
+	}
+	return namespace + "|" + name + "|" + joinTags(tags)
 }
 
 // parseSeriesKey parses a series key back into its parts.
@@ -381,8 +491,98 @@ func copyTags(tags []string) []string {
 	return result
 }
 
+func canonicalizeTags(tags []string) []string {
+	if len(tags) <= 1 {
+		return copyTags(tags)
+	}
+	result := copyTags(tags)
+	sort.Strings(result)
+	return result
+}
+
+func tagsSorted(tags []string) bool {
+	for i := 1; i < len(tags); i++ {
+		if tags[i-1] > tags[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func joinTags(tags []string) string {
+	switch len(tags) {
+	case 0:
+		return ""
+	case 1:
+		return tags[0]
+	default:
+		return strings.Join(tags, ",")
+	}
+}
+
+// seriesMeta is lightweight series metadata including point count,
+// used for API listing without materializing point data.
+type seriesMeta struct {
+	ID         int // compact numeric ID
+	Namespace  string
+	Name       string
+	Tags       []string
+	PointCount int
+}
+
+// ListSeriesMetadata returns lightweight metadata for all series in a namespace.
+// Unlike AllSeries, this does not materialize point data — it only reads point counts.
+func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []seriesMeta
+	for key, stats := range s.series {
+		if stats.Namespace == namespace {
+			result = append(result, seriesMeta{
+				ID:         s.seriesIDs[key],
+				Namespace:  stats.Namespace,
+				Name:       stats.Name,
+				Tags:       copyTags(stats.Tags),
+				PointCount: stats.pointCount(),
+			})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].ID != result[j].ID {
+			return result[i].ID < result[j].ID
+		}
+		if result[i].Name != result[j].Name {
+			return result[i].Name < result[j].Name
+		}
+		return strings.Join(result[i].Tags, ",") < strings.Join(result[j].Tags, ",")
+	})
+	return result
+}
+
+// GetSeriesByNumericID looks up a series by its compact numeric ID and returns
+// the data using the specified aggregation.
+func (s *timeSeriesStorage) GetSeriesByNumericID(id int, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id < 0 || id >= len(s.seriesIDKeys) {
+		return nil
+	}
+	key := s.seriesIDKeys[id]
+	stats := s.series[key]
+	if stats == nil {
+		return nil
+	}
+	series := stats.toSeries(agg)
+	return &series
+}
+
 // ListAllSeriesCompact returns lightweight metadata for every stored series.
 func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	result := make([]seriesCompact, 0, len(s.series))
 	for _, st := range s.series {
 		result = append(result, seriesCompact{
@@ -420,13 +620,14 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			Name:      st.Name,
 			Tags:      st.Tags,
 		}
-		for _, p := range st.Points {
+		n := st.pointCount()
+		for i := 0; i < n; i++ {
 			ds.Points = append(ds.Points, dumpPoint{
-				Timestamp: p.Timestamp,
-				Sum:       p.Sum,
-				Count:     p.Count,
-				Min:       p.Min,
-				Max:       p.Max,
+				Timestamp: st.timestamps[i],
+				Sum:       st.sums[i],
+				Count:     st.counts[i],
+				Min:       st.mins[i],
+				Max:       st.maxes[i],
 			})
 		}
 		out = append(out, ds)
@@ -437,6 +638,84 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+// DataTimestamps returns all unique timestamps that have data, sorted ascending.
+func (s *timeSeriesStorage) DataTimestamps() []int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	seen := make(map[int64]struct{})
+	for _, stats := range s.series {
+		for _, ts := range stats.timestamps {
+			seen[ts] = struct{}{}
+		}
+	}
+	// Include observation timestamps (e.g., from logs that produced no virtual metrics).
+	for ts := range s.observationTimestamps {
+		seen[ts] = struct{}{}
+	}
+
+	timestamps := make([]int64, 0, len(seen))
+	for ts := range seen {
+		timestamps = append(timestamps, ts)
+	}
+	sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
+	return timestamps
+}
+
+// SeriesGeneration returns a counter that increments whenever a new series key
+// is created. Callers can use this to safely cache ListSeries results.
+func (s *timeSeriesStorage) SeriesGeneration() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.seriesGen
+}
+
+// CompactSeriesID translates a full series key (as used in SourceSeriesID) to its
+// compact numeric ID string. The full key format is "namespace|name:agg|tags" where
+// the storage key is "namespace|name|tags" (without the agg suffix). This method
+// strips the agg suffix, looks up the numeric ID, and returns "numericID:agg".
+// Returns the original key unchanged if no mapping exists.
+func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	namespace, nameWithAgg, tags, ok := parseSeriesKey(fullKey)
+	if !ok {
+		return fullKey
+	}
+
+	// Split off the aggregation suffix from the name.
+	baseName := nameWithAgg
+	aggStr := ""
+	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
+		baseName = nameWithAgg[:idx]
+		aggStr = nameWithAgg[idx+1:]
+	}
+
+	// Look up the storage key (without agg suffix).
+	storageKey := seriesKey(namespace, baseName, tags)
+	numID, found := s.seriesIDs[storageKey]
+	if !found {
+		return fullKey
+	}
+
+	if aggStr != "" {
+		return fmt.Sprintf("%d:%s", numID, aggStr)
+	}
+	return fmt.Sprintf("%d", numID)
+}
+
+// FullKeyForNumericID returns the internal storage key for a compact numeric ID.
+func (s *timeSeriesStorage) FullKeyForNumericID(id int) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id < 0 || id >= len(s.seriesIDKeys) {
+		return "", false
+	}
+	return s.seriesIDKeys[id], true
 }
 
 // StorageReader interface implementation
@@ -476,7 +755,46 @@ func (s *timeSeriesStorage) PointCount(key observer.SeriesKey) int {
 
 	k := seriesKey(key.Namespace, key.Name, key.Tags)
 	if stats, ok := s.series[k]; ok {
-		return len(stats.Points)
+		return stats.pointCount()
+	}
+	return 0
+}
+
+// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
+// Uses binary search since timestamps are sorted.
+func (s *timeSeriesStorage) PointCountUpTo(key observer.SeriesKey, endTime int64) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats, ok := s.series[k]
+	if !ok || stats.pointCount() == 0 {
+		return 0
+	}
+
+	// Binary search for the first timestamp > endTime.
+	return searchAfter(stats.timestamps, endTime)
+}
+
+// RecordObservationTime records that an observation occurred at the given timestamp.
+// This is used for log observations that may not produce virtual metrics but still
+// need to appear in DataTimestamps for replay fidelity.
+func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.observationTimestamps[timestamp] = struct{}{}
+}
+
+// WriteGeneration returns a counter that increments on every Add call
+// (including same-bucket merges). Detectors use this to detect value
+// changes that don't create new buckets.
+func (s *timeSeriesStorage) WriteGeneration(key observer.SeriesKey) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	if stats, ok := s.series[k]; ok {
+		return stats.writeGeneration
 	}
 	return 0
 }
@@ -502,6 +820,7 @@ func matchTags(tags []string, matchers map[string]string) bool {
 
 // GetSeriesRange returns points within a time range (start, end].
 // Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
+// Uses binary search on the timestamps column for O(log N) range lookup.
 func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end int64, agg Aggregate) *observer.Series {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -512,15 +831,54 @@ func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end in
 		return nil
 	}
 
-	points := make([]observer.Point, 0)
-	for _, p := range stats.Points {
-		if p.Timestamp > start && p.Timestamp <= end {
-			points = append(points, observer.Point{
-				Timestamp: p.Timestamp,
-				Value:     p.aggregate(agg),
-			})
+	// Binary search: find first index where timestamp > start
+	lo := searchAfter(stats.timestamps, start)
+	// Binary search: find first index where timestamp > end
+	hi := searchAfter(stats.timestamps, end)
+
+	// Range is [lo, hi) in the arrays, corresponding to (start, end] in time.
+	resultLen := hi - lo
+	points := make([]observer.Point, resultLen)
+
+	// For aggregates that map directly to a column, avoid per-point switch.
+	switch agg {
+	case AggregateSum:
+		for i := 0; i < resultLen; i++ {
+			points[i] = observer.Point{
+				Timestamp: stats.timestamps[lo+i],
+				Value:     stats.sums[lo+i],
+			}
+		}
+	case AggregateMin:
+		for i := 0; i < resultLen; i++ {
+			points[i] = observer.Point{
+				Timestamp: stats.timestamps[lo+i],
+				Value:     stats.mins[lo+i],
+			}
+		}
+	case AggregateMax:
+		for i := 0; i < resultLen; i++ {
+			points[i] = observer.Point{
+				Timestamp: stats.timestamps[lo+i],
+				Value:     stats.maxes[lo+i],
+			}
+		}
+	case AggregateCount:
+		for i := 0; i < resultLen; i++ {
+			points[i] = observer.Point{
+				Timestamp: stats.timestamps[lo+i],
+				Value:     float64(stats.counts[lo+i]),
+			}
+		}
+	default: // AggregateAverage and any unknown
+		for i := 0; i < resultLen; i++ {
+			points[i] = observer.Point{
+				Timestamp: stats.timestamps[lo+i],
+				Value:     stats.aggregateAt(lo+i, agg),
+			}
 		}
 	}
+
 	return &observer.Series{
 		Namespace: stats.Namespace,
 		Name:      stats.Name,

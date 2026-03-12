@@ -7,14 +7,24 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"google.golang.org/protobuf/proto"
+)
+
+// resourceQuantizer is reused across calls to avoid repeated allocation of internal buffers.
+// Protected by resourceQuantizerMu since URLQuantizer is not goroutine-safe.
+var (
+	resourceQuantizer   = httpprotocol.NewURLQuantizer()
+	resourceQuantizerMu sync.Mutex
 )
 
 // percentile quantiles and their metric name suffixes
@@ -37,26 +47,26 @@ func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsVie
 	rows := stats.GetRows()
 	for rows.Next() {
 		row := rows.Row()
-		// Convert bucket start from nanoseconds to seconds for metric timestamp
-		timestamp := float64(row.GetBucketStart()) / 1e9
+		// Metrics storage uses Unix seconds.
+		timestampUnix := int64(row.GetBucketStartUnixNano() / 1e9)
 		tags := buildStatsTagsFromRow(agentHostname, agentEnv, row)
 
-		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDuration()), tags: tags, timestamp: timestamp})
-		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestamp: timestamp})
+		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDurationNano()), tags: tags, timestampUnix: timestampUnix})
+		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestampUnix: timestampUnix})
 
 		if okSummary := row.GetOkSummary(); len(okSummary) > 0 {
-			emitPercentiles(handle, "trace.latency.ok", okSummary, tags, timestamp)
+			emitPercentiles(handle, "trace.latency.ok", okSummary, tags, timestampUnix)
 		}
 		if errSummary := row.GetErrorSummary(); len(errSummary) > 0 {
-			emitPercentiles(handle, "trace.latency.error", errSummary, tags, timestamp)
+			emitPercentiles(handle, "trace.latency.error", errSummary, tags, timestampUnix)
 		}
 	}
 }
 
 // emitPercentiles extracts percentiles from a DDSketch and emits them as metrics.
-func emitPercentiles(handle observerdef.Handle, metricPrefix string, sketchBytes []byte, tags []string, timestamp float64) {
+func emitPercentiles(handle observerdef.Handle, metricPrefix string, sketchBytes []byte, tags []string, timestampUnix int64) {
 	sketch, err := decodeSketch(sketchBytes)
 	if err != nil {
 		pkglog.Debugf("[observer] failed to decode ddsketch: %v", err)
@@ -75,10 +85,10 @@ func emitPercentiles(handle observerdef.Handle, metricPrefix string, sketchBytes
 
 		metricName := fmt.Sprintf("%s.%s", metricPrefix, pq.suffix)
 		handle.ObserveMetric(&statsMetricView{
-			name:      metricName,
-			value:     value,
-			tags:      tags,
-			timestamp: timestamp,
+			name:          metricName,
+			value:         value,
+			tags:          tags,
+			timestampUnix: timestampUnix,
 		})
 	}
 }
@@ -108,7 +118,7 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 		tags = append(tags, "operation:"+row.GetName())
 	}
 	if row.GetResource() != "" {
-		tags = append(tags, "resource:"+row.GetResource())
+		tags = append(tags, "resource:"+quantizeResource(row.GetResource()))
 	}
 	if row.GetType() != "" {
 		tags = append(tags, "type:"+row.GetType())
@@ -147,18 +157,37 @@ func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.Trace
 	return tags
 }
 
-// statsMetricView implements the MetricView interface for stats-derived metrics.
-type statsMetricView struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp float64
+// quantizeResource applies URL quantization to a trace resource string.
+// Only resources that look like HTTP resources ("METHOD /path") are quantized;
+// non-HTTP resources (SQL queries, Redis commands, etc.) are returned as-is
+// since the URL tokenizer assumes slash-delimited paths and would mangle them.
+func quantizeResource(resource string) string {
+	method, path, hasMethod := strings.Cut(resource, " ")
+	if !hasMethod || !strings.HasPrefix(path, "/") {
+		return resource
+	}
+
+	resourceQuantizerMu.Lock()
+	defer resourceQuantizerMu.Unlock()
+
+	quantized := resourceQuantizer.Quantize([]byte(path))
+	return method + " " + string(quantized)
 }
 
-func (m *statsMetricView) GetName() string        { return m.name }
-func (m *statsMetricView) GetValue() float64      { return m.value }
-func (m *statsMetricView) GetRawTags() []string   { return m.tags }
-func (m *statsMetricView) GetTimestamp() float64  { return m.timestamp }
+// statsMetricView implements the MetricView interface for stats-derived metrics.
+type statsMetricView struct {
+	name          string
+	value         float64
+	tags          []string
+	timestampUnix int64
+}
+
+func (m *statsMetricView) GetName() string      { return m.name }
+func (m *statsMetricView) GetValue() float64    { return m.value }
+func (m *statsMetricView) GetRawTags() []string { return m.tags }
+func (m *statsMetricView) GetTimestampUnix() int64 {
+	return m.timestampUnix
+}
 func (m *statsMetricView) GetSampleRate() float64 { return 1.0 }
 
 // statsPayloadView adapts a *pb.StatsPayload to the TraceStatsView interface.
@@ -215,24 +244,24 @@ type statsRowView struct {
 	group  *pb.ClientGroupedStats
 }
 
-func (r *statsRowView) GetClientHostname() string    { return r.client.Hostname }
-func (r *statsRowView) GetClientEnv() string         { return r.client.Env }
-func (r *statsRowView) GetClientVersion() string     { return r.client.Version }
-func (r *statsRowView) GetClientContainerID() string { return r.client.ContainerID }
-func (r *statsRowView) GetBucketStart() uint64       { return r.bucket.Start }
-func (r *statsRowView) GetBucketDuration() uint64    { return r.bucket.Duration }
-func (r *statsRowView) GetService() string           { return r.group.Service }
-func (r *statsRowView) GetName() string              { return r.group.Name }
-func (r *statsRowView) GetResource() string          { return r.group.Resource }
-func (r *statsRowView) GetType() string              { return r.group.Type }
-func (r *statsRowView) GetHTTPStatusCode() uint32    { return r.group.HTTPStatusCode }
-func (r *statsRowView) GetSpanKind() string          { return r.group.SpanKind }
-func (r *statsRowView) GetIsTraceRoot() int32        { return int32(r.group.IsTraceRoot) }
-func (r *statsRowView) GetSynthetics() bool          { return r.group.Synthetics }
-func (r *statsRowView) GetHits() uint64              { return r.group.Hits }
-func (r *statsRowView) GetErrors() uint64            { return r.group.Errors }
-func (r *statsRowView) GetTopLevelHits() uint64      { return r.group.TopLevelHits }
-func (r *statsRowView) GetDuration() uint64          { return r.group.Duration }
-func (r *statsRowView) GetOkSummary() []byte         { return r.group.OkSummary }
-func (r *statsRowView) GetErrorSummary() []byte      { return r.group.ErrorSummary }
-func (r *statsRowView) GetPeerTags() []string        { return r.group.PeerTags }
+func (r *statsRowView) GetClientHostname() string      { return r.client.Hostname }
+func (r *statsRowView) GetClientEnv() string           { return r.client.Env }
+func (r *statsRowView) GetClientVersion() string       { return r.client.Version }
+func (r *statsRowView) GetClientContainerID() string   { return r.client.ContainerID }
+func (r *statsRowView) GetBucketStartUnixNano() uint64 { return r.bucket.Start }
+func (r *statsRowView) GetBucketDurationNano() uint64  { return r.bucket.Duration }
+func (r *statsRowView) GetService() string             { return r.group.Service }
+func (r *statsRowView) GetName() string                { return r.group.Name }
+func (r *statsRowView) GetResource() string            { return r.group.Resource }
+func (r *statsRowView) GetType() string                { return r.group.Type }
+func (r *statsRowView) GetHTTPStatusCode() uint32      { return r.group.HTTPStatusCode }
+func (r *statsRowView) GetSpanKind() string            { return r.group.SpanKind }
+func (r *statsRowView) GetIsTraceRoot() int32          { return int32(r.group.IsTraceRoot) }
+func (r *statsRowView) GetSynthetics() bool            { return r.group.Synthetics }
+func (r *statsRowView) GetHits() uint64                { return r.group.Hits }
+func (r *statsRowView) GetErrors() uint64              { return r.group.Errors }
+func (r *statsRowView) GetTopLevelHits() uint64        { return r.group.TopLevelHits }
+func (r *statsRowView) GetDurationNano() uint64        { return r.group.Duration }
+func (r *statsRowView) GetOkSummary() []byte           { return r.group.OkSummary }
+func (r *statsRowView) GetErrorSummary() []byte        { return r.group.ErrorSummary }
+func (r *statsRowView) GetPeerTags() []string          { return r.group.PeerTags }

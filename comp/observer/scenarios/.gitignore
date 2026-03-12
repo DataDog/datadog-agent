@@ -1,0 +1,3 @@
+# Parquet data is fetched from S3 on demand (dda inv q.eval-scenarios)
+*/parquet/
+*/metadata.json

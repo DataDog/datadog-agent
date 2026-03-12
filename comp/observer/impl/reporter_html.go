@@ -39,12 +39,13 @@ func sanitizeFloat(v float64) float64 {
 
 const maxReportBuffer = 100
 
-// timestampedReport wraps a ReportOutput with a timestamp.
+// timestampedReport wraps a ReportOutput with a wall-clock timestamp.
 type timestampedReport struct {
-	Title     string            `json:"title"`
-	Body      string            `json:"body"`
-	Timestamp time.Time         `json:"timestamp"`
-	Metadata  map[string]string `json:"metadata"`
+	AdvancedToSec      int64                        `json:"advanced_to_sec"`
+	NewAnomalyCount    int                          `json:"new_anomaly_count"`
+	CorrelationCount   int                          `json:"correlation_count"`
+	Timestamp          time.Time                    `json:"timestamp"`
+	ActiveCorrelations []observer.ActiveCorrelation `json:"active_correlations,omitempty"`
 }
 
 // HTMLReporter is an HTTP server that displays reports and metrics on a local webpage.
@@ -52,7 +53,7 @@ type HTMLReporter struct {
 	mu                    sync.RWMutex
 	reports               []timestampedReport
 	storage               *timeSeriesStorage
-	correlationState      observer.CorrelationState
+	correlationState      observer.Correlator
 	rawAnomalyState       observer.RawAnomalyState
 	timeClusterCorrelator *TimeClusterCorrelator
 	server                *http.Server
@@ -76,10 +77,11 @@ func (r *HTMLReporter) Report(report observer.ReportOutput) {
 	defer r.mu.Unlock()
 
 	tr := timestampedReport{
-		Title:     report.Title,
-		Body:      report.Body,
-		Timestamp: time.Now(),
-		Metadata:  report.Metadata,
+		AdvancedToSec:      report.AdvancedToSec,
+		NewAnomalyCount:    len(report.NewAnomalies),
+		CorrelationCount:   len(report.ActiveCorrelations),
+		Timestamp:          time.Now(),
+		ActiveCorrelations: report.ActiveCorrelations,
 	}
 
 	// Prepend to keep most recent first
@@ -99,7 +101,7 @@ func (r *HTMLReporter) SetStorage(storage *timeSeriesStorage) {
 }
 
 // SetCorrelationState sets the correlation state source for querying active correlations.
-func (r *HTMLReporter) SetCorrelationState(state observer.CorrelationState) {
+func (r *HTMLReporter) SetCorrelationState(state observer.Correlator) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.correlationState = state
@@ -1161,7 +1163,7 @@ func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
 	return out
 }
 
-// handleAPIRawAnomalies returns all raw anomalies from MetricsDetector implementations.
+// handleAPIRawAnomalies returns all raw anomalies from detector implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
 	rawState := r.rawAnomalyState

@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
@@ -61,23 +59,22 @@ type ObserverAnomaly struct {
 // If score is non-nil, it is included in the output.
 func (tb *TestBench) WriteObserverOutput(path string, verbose bool, score *ScoreResult) error {
 	tb.mu.RLock()
-	correlations := make([]observerdef.ActiveCorrelation, len(tb.correlations))
-	copy(correlations, tb.correlations)
+	correlations := tb.engine.StateView().CorrelationHistory()
 
 	scenario := tb.loadedScenario
-	timelineStart, timelineEnd, hasBounds := tb.storage.TimeBounds()
+	timelineStart, timelineEnd, hasBounds := tb.engine.Storage().TimeBounds()
 
 	// Collect enabled detector and correlator names
 	var detectorNames []string
 	var correlatorNames []string
-	for name, comp := range tb.components {
-		if !comp.Enabled {
+	for name, ci := range tb.components {
+		if !ci.enabled {
 			continue
 		}
-		switch comp.Registration.Category {
-		case "detector":
+		switch ci.entry.kind {
+		case componentDetector:
 			detectorNames = append(detectorNames, name)
-		case "correlator":
+		case componentCorrelator:
 			correlatorNames = append(correlatorNames, name)
 		}
 	}

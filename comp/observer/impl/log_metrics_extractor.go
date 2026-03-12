@@ -33,14 +33,14 @@ type LogMetricsExtractor struct {
 
 func (a *LogMetricsExtractor) Name() string { return "log_metrics_extractor" }
 
-func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectionResult {
+func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) []observer.MetricOutput {
 	content := log.GetContent()
 	tags := log.GetTags()
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.MaxEvalBytes)
 	if patternSig == "" {
-		return observer.LogDetectionResult{}
+		return nil
 	}
 
 	metrics := []observer.MetricOutput{{
@@ -54,7 +54,7 @@ func (a *LogMetricsExtractor) Process(log observer.LogView) observer.LogDetectio
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogDetectionResult{Metrics: metrics}
+	return metrics
 }
 
 func isJSONObject(b []byte) bool {

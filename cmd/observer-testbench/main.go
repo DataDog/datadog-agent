@@ -39,6 +39,9 @@ type CLIParams struct {
 	Verbose  bool    // include full detail in JSON output (headless mode only)
 	Score    bool    // include scoring in output (headless mode only)
 	Sigma    float64 // Gaussian width for scoring
+
+	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
+	SendAnomalyEvent string // scenario name to run (empty = disabled)
 }
 
 func main() {
@@ -51,6 +54,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	score := flag.Bool("score", false, "Score analysis against ground truth (headless mode only)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds for scoring")
+	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	flag.Parse()
 
 	overrides := make(map[string]bool)
@@ -87,14 +91,15 @@ func main() {
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:    *scenariosDir,
-			HTTPAddr:        *httpAddr,
-			EnableOverrides: overrides,
-			Headless:        *headless,
-			Output:          *output,
-			Verbose:         *verbose,
-			Score:           *score,
-			Sigma:           *sigma,
+			ScenariosDir:     *scenariosDir,
+			HTTPAddr:         *httpAddr,
+			EnableOverrides:  overrides,
+			Headless:         *headless,
+			Output:           *output,
+			Verbose:          *verbose,
+			Score:            *score,
+			Sigma:            *sigma,
+			SendAnomalyEvent: *sendAnomalyEvent,
 		}),
 	)
 	if err != nil {
@@ -103,17 +108,24 @@ func main() {
 	}
 }
 
-func run(recorder recorderdef.Component, params CLIParams) error {
+func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
 	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
 		ScenariosDir:    params.ScenariosDir,
 		HTTPAddr:        params.HTTPAddr,
 		Recorder:        recorder,
+		Cfg:             cfg,
+		Logger:          logger,
 		EnableOverrides: params.EnableOverrides,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
 		return err
+	}
+
+	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation, then exit.
+	if params.SendAnomalyEvent != "" {
+		return tb.RunSendAnomalyEvents(params.SendAnomalyEvent)
 	}
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)

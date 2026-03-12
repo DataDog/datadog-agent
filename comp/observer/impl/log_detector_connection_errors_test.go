@@ -23,12 +23,12 @@ func TestConnectionErrorExtractor_Process_ConnectionRefused(t *testing.T) {
 		tags:    []string{"env:prod", "service:api"},
 	}
 
-	result := e.Process(log)
+	result := e.ProcessLog(log)
 
-	assert.Len(t, result.Metrics, 1)
-	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
-	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:prod", "service:api"}, result.Metrics[0].Tags)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "connection.errors", result[0].Name)
+	assert.Equal(t, 1.0, result[0].Value)
+	assert.Equal(t, []string{"env:prod", "service:api"}, result[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
@@ -38,12 +38,12 @@ func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
 		tags:    []string{"env:staging"},
 	}
 
-	result := e.Process(log)
+	result := e.ProcessLog(log)
 
-	assert.Len(t, result.Metrics, 1)
-	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
-	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:staging"}, result.Metrics[0].Tags)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "connection.errors", result[0].Name)
+	assert.Equal(t, 1.0, result[0].Value)
+	assert.Equal(t, []string{"env:staging"}, result[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
@@ -53,9 +53,9 @@ func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
 		tags:    []string{"env:test"},
 	}
 
-	result := e.Process(log)
+	result := e.ProcessLog(log)
 
-	assert.Empty(t, result.Metrics)
+	assert.Empty(t, result)
 }
 
 func TestConnectionErrorExtractor_Process_CaseInsensitive(t *testing.T) {
@@ -65,12 +65,12 @@ func TestConnectionErrorExtractor_Process_CaseInsensitive(t *testing.T) {
 		tags:    []string{"env:prod"},
 	}
 
-	result := e.Process(log)
+	result := e.ProcessLog(log)
 
-	assert.Len(t, result.Metrics, 1)
-	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
-	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:prod"}, result.Metrics[0].Tags)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "connection.errors", result[0].Name)
+	assert.Equal(t, 1.0, result[0].Value)
+	assert.Equal(t, []string{"env:prod"}, result[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_TagsCopied(t *testing.T) {
@@ -81,10 +81,10 @@ func TestConnectionErrorExtractor_Process_TagsCopied(t *testing.T) {
 		tags:    inputTags,
 	}
 
-	result := e.Process(log)
+	result := e.ProcessLog(log)
 
-	assert.Len(t, result.Metrics, 1)
-	assert.Equal(t, inputTags, result.Metrics[0].Tags)
+	assert.Len(t, result, 1)
+	assert.Equal(t, inputTags, result[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_AllPatterns(t *testing.T) {
@@ -109,11 +109,11 @@ func TestConnectionErrorExtractor_Process_AllPatterns(t *testing.T) {
 				tags:    []string{"test:pattern"},
 			}
 
-			result := e.Process(log)
+			result := e.ProcessLog(log)
 
-			assert.Len(t, result.Metrics, 1, "Expected metric for pattern: %s", tc.name)
-			assert.Equal(t, "connection.errors", result.Metrics[0].Name)
-			assert.Equal(t, 1.0, result.Metrics[0].Value)
+			assert.Len(t, result, 1, "Expected metric for pattern: %s", tc.name)
+			assert.Equal(t, "connection.errors", result[0].Name)
+			assert.Equal(t, 1.0, result[0].Value)
 		})
 	}
 }

@@ -252,7 +252,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	h.inner.ObserveMetric(sample)
 
 	// Record to parquet if writer is available
-	timestamp := int64(sample.GetTimestamp())
+	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
@@ -297,10 +297,10 @@ func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
 			h.name,
 			agentHostname, agentEnv,
 			row.GetClientHostname(), row.GetClientEnv(), row.GetClientVersion(), row.GetClientContainerID(),
-			row.GetBucketStart(), row.GetBucketDuration(),
+			row.GetBucketStartUnixNano(), row.GetBucketDurationNano(),
 			row.GetService(), row.GetName(), row.GetResource(), row.GetType(),
 			row.GetHTTPStatusCode(), row.GetSpanKind(), row.GetIsTraceRoot(), row.GetSynthetics(),
-			row.GetHits(), row.GetErrors(), row.GetTopLevelHits(), row.GetDuration(),
+			row.GetHits(), row.GetErrors(), row.GetTopLevelHits(), row.GetDurationNano(),
 			row.GetOkSummary(), row.GetErrorSummary(),
 			row.GetPeerTags(),
 		)
@@ -323,11 +323,11 @@ func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
 			h.name,
 			traceIDHigh, traceIDLow,
 			trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
-			trace.GetTimestamp(), trace.GetDuration(),
+			trace.GetTimestampUnixNano(), trace.GetDurationNano(),
 			trace.GetPriority(), trace.IsError(), traceTags,
 			span.GetSpanID(), span.GetParentID(),
 			span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
-			span.GetStart(), span.GetDuration(), span.GetError(),
+			span.GetStartUnixNano(), span.GetDurationNano(), span.GetError(),
 			mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
 		)
 	}
@@ -342,7 +342,7 @@ func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
 		profile.GetProfileID(), profile.GetProfileType(),
 		profile.GetService(), profile.GetEnv(), profile.GetVersion(),
 		profile.GetHostname(), profile.GetContainerID(),
-		profile.GetTimestamp(), profile.GetDuration(),
+		profile.GetTimestampUnixNano(), profile.GetDurationNano(),
 		profile.GetContentType(),
 		profile.GetRawData(),
 		mapToTagSlice(profile.GetTags()),
