@@ -58,6 +58,7 @@ tests_linux-x64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
 
@@ -69,6 +70,7 @@ tests_nodetreemodel:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.except_mergequeue]
@@ -122,6 +124,7 @@ tests_linux-arm64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   variables:
@@ -210,6 +213,7 @@ tests_gpu:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
+    - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
