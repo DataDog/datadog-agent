@@ -99,7 +99,7 @@ func run(collector collector.Component) error {
 
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
-		ipcfx.ModuleReadOnly(),
+		ipcfx.ModuleReadWrite(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 	}
 }

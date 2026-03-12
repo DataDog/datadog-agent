@@ -8,7 +8,7 @@ package kubernetesagentparams
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -346,6 +346,17 @@ datadog:
 func WithTimeout(timeoutSeconds int) func(*Params) error {
 	return func(p *Params) error {
 		p.TimeoutSeconds = timeoutSeconds
+		return nil
+	}
+}
+
+func WithKubernetesUseEndpointSlices() func(*Params) error {
+	return func(p *Params) error {
+		values := `
+datadog:
+  kubernetesUseEndpointSlices: true
+`
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
 		return nil
 	}
 }

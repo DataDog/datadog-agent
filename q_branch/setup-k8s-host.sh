@@ -71,7 +71,7 @@ fi
 
 # Wait for Docker
 echo "==> Waiting for Docker..."
-for i in {1..60}; do
+for _i in {1..60}; do
     if limactl shell "$VM_NAME" -- docker info &>/dev/null; then
         break
     fi
@@ -95,7 +95,6 @@ nodes:
         hostPort: 30080
       - containerPort: 30443
         hostPort: 30443
-  - role: worker
   - role: worker
 EOF
 
