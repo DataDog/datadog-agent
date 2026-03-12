@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package splite provides shared CLI argument definitions for the system-probe-lite binary.
 package splite
 
 // Config holds the CLI arguments for the system-probe-lite binary.
