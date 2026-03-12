@@ -20,13 +20,14 @@ type bocpdSeriesState struct {
 	// Cursor: how many points we've processed so far (count-based for safety).
 	lastProcessedTime  int64
 	lastProcessedCount int
+	lastWriteGen       int64 // storage writeGeneration at last Detect
 
 	// Warmup: Welford online mean/variance accumulation.
-	initialized    bool
-	warmupCount    int
-	warmupMean     float64
-	warmupM2       float64     // sum of squared deviations (Welford)
-	warmupBuffer   []float64   // buffered values for posterior replay after init
+	initialized  bool
+	warmupCount  int
+	warmupMean   float64
+	warmupM2     float64   // sum of squared deviations (Welford)
+	warmupBuffer []float64 // buffered values for posterior replay after init
 
 	// Baseline (set once after warmup).
 	baselineMean   float64
@@ -46,9 +47,9 @@ type bocpdSeriesState struct {
 	newPrecisions []float64
 
 	// Alert lifecycle.
-	inAlert        bool
-	alertStart     int64
-	recoveryCount  int // consecutive non-triggering points since last trigger
+	inAlert       bool
+	alertStart    int64
+	recoveryCount int // consecutive non-triggering points since last trigger
 }
 
 // BOCPDDetector detects changepoints using Bayesian Online Changepoint Detection.
@@ -98,6 +99,11 @@ type BOCPDDetector struct {
 
 	// per-series state keyed by "namespace|name|tags|agg"
 	series map[string]*bocpdSeriesState
+
+	// Cache the discovered series list across Detect calls. Refresh when storage
+	// reports that new series were added.
+	cachedKeys []observer.SeriesKey
+	cachedGen  uint64
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with sensible defaults.
@@ -125,12 +131,20 @@ func (b *BOCPDDetector) Name() string {
 	return "bocpd_detector"
 }
 
-// Detect implements Detector. It discovers series, reads only new points,
-// and updates per-series BOCPD posterior state incrementally.
+// Detect implements Detector. It discovers series, reads only newly visible
+// points, and updates per-series BOCPD posterior state incrementally.
+//
+// Correctness takes priority over positional cursoring: storage may insert
+// points into existing history, so this detector gates incremental work on
+// visible point counts rather than raw slice positions.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	b.ensureDefaults()
-
-	seriesKeys := storage.ListSeries(observer.SeriesFilter{})
+	gen := storage.SeriesGeneration()
+	if b.cachedKeys == nil || gen != b.cachedGen {
+		b.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+		b.cachedGen = gen
+	}
+	seriesKeys := b.cachedKeys
 
 	var allAnomalies []observer.Anomaly
 	var allTelemetry []observer.ObserverTelemetry
@@ -146,9 +160,38 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[stateKey] = state
 			}
 
-			// Check if there are new points.
+			// Check if there are new points or merged values.
 			visibleCount := storage.PointCountUpTo(key, dataTime)
-			if visibleCount <= state.lastProcessedCount {
+			currentGen := storage.WriteGeneration(key)
+			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
+			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
+				continue
+			}
+
+			if mergeOccurred {
+				// A same-bucket merge changed values we already processed.
+				// Re-read from the start of the last processed timestamp
+				// (inclusive) by using lastProcessedTime-1 as start.
+				startTime := state.lastProcessedTime - 1
+				if startTime < 0 {
+					startTime = 0
+				}
+				series := storage.GetSeriesRange(key, startTime, dataTime, agg)
+				if series == nil || len(series.Points) == 0 {
+					state.lastWriteGen = currentGen
+					continue
+				}
+				// Re-process points from the merged timestamp onward.
+				for _, p := range series.Points {
+					anomaly, telemetry := b.processPoint(state, p, series)
+					if anomaly != nil {
+						allAnomalies = append(allAnomalies, *anomaly)
+					}
+					allTelemetry = append(allTelemetry, telemetry...)
+				}
+				state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
 				continue
 			}
 
@@ -170,6 +213,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			// Update cursor.
 			state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
 			state.lastProcessedCount = visibleCount
+			state.lastWriteGen = currentGen
 		}
 	}
 
@@ -179,6 +223,8 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 // Reset clears all per-series state for replay/reanalysis.
 func (b *BOCPDDetector) Reset() {
 	b.series = make(map[string]*bocpdSeriesState)
+	b.cachedKeys = nil
+	b.cachedGen = 0
 }
 
 // processPoint handles a single new observation for a series.
@@ -297,16 +343,21 @@ func (b *BOCPDDetector) initializeFromWarmup(state *bocpdSeriesState) {
 // Returns (triggered, cpProb, shortRunMass).
 func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (bool, float64, float64) {
 	hazard := b.Hazard
-	predPrior := gaussianPDF(x, state.priorMean, state.obsVar+1.0/state.priorPrecision)
 
-	// Compute new run-length probabilities.
+	// Standard BOCPD recurrence (Adams & MacKay 2007):
+	// cpMass = hazard * sum_r(runProbs[r] * pred(x|r))
+	// This weighs the observation against all run-length hypotheses so the
+	// detector can catch cascading shifts, not just the first deviation from
+	// the warmup baseline.
 	newLen := len(state.runProbs) + 1
 	state.newRunProbs = state.newRunProbs[:newLen]
-	state.newRunProbs[0] = hazard * predPrior
+	var cpMass float64
 	for r := range state.runProbs {
 		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
 		state.newRunProbs[r+1] = state.runProbs[r] * (1.0 - hazard) * pred
+		cpMass += state.runProbs[r] * pred
 	}
+	state.newRunProbs[0] = hazard * cpMass
 
 	normalizeProbs(state.newRunProbs)
 	cpProb := state.newRunProbs[0]
@@ -392,7 +443,7 @@ func (b *BOCPDDetector) newSeriesState(key observer.SeriesKey, agg observer.Aggr
 
 // ensureDefaults fills in zero-valued config fields with sensible defaults.
 func (b *BOCPDDetector) ensureDefaults() {
-	if b.WarmupPoints <= 0 {
+	if b.WarmupPoints < 2 {
 		b.WarmupPoints = 120
 	}
 	if b.Hazard <= 0 || b.Hazard >= 1 {
@@ -412,6 +463,9 @@ func (b *BOCPDDetector) ensureDefaults() {
 	}
 	if b.PriorVarianceScale <= 0 {
 		b.PriorVarianceScale = 10.0
+	}
+	if b.MinVariance <= 0 {
+		b.MinVariance = 1.0
 	}
 	if b.RecoveryPoints <= 0 {
 		b.RecoveryPoints = 10
@@ -433,7 +487,10 @@ func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {
 		maxIdx = len(runProbs) - 1
 	}
 	var mass float64
-	for i := 0; i <= maxIdx; i++ {
+	// Start from index 1: index 0 is cpProb (changepoint probability),
+	// which is tested separately via CPThreshold. Including it here
+	// makes the two trigger conditions non-independent.
+	for i := 1; i <= maxIdx; i++ {
 		mass += runProbs[i]
 	}
 	return mass

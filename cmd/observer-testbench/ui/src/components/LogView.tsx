@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
-import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
+import { api } from '../api/client';
+import type { ScenarioInfo, LogAnomaly, LogEntry, LogsSummary } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
-import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
+import { parseTagFilter, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
 interface TimeRange {
@@ -99,6 +100,8 @@ function LogRateChart({
   timeRange,
   onTimeRangeChange,
   phaseMarkers = [],
+  logsSummary,
+  totalLogCount,
 }: {
   logs: LogEntry[];
   anomalies: LogAnomaly[];
@@ -109,6 +112,8 @@ function LogRateChart({
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   phaseMarkers?: PhaseMarker[];
+  logsSummary?: LogsSummary | null;
+  totalLogCount?: number;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +127,23 @@ function LogRateChart({
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   const buckets = useMemo(() => {
+    // When summary histogram is available, use pre-computed server-side data
+    if (logsSummary?.histogram && logsSummary.histogram.length > 0) {
+      const hist = logsSummary.histogram;
+      // Compute bucket size from consecutive timestamps (assume uniform)
+      const bucketSizeMs = hist.length > 1 ? hist[1].timestampMs - hist[0].timestampMs : 1000;
+      return hist.map((h) => ({
+        total: h.count,
+        error: 0,
+        warn: 0,
+        info: 0,
+        debug: h.count, // Without per-level histogram data, attribute all to debug (neutral color)
+        startTs: h.timestampMs / 1000,
+        endTs: (h.timestampMs + bucketSizeMs) / 1000,
+      }));
+    }
+
+    // Fallback: compute from provided logs array (used when summary is not yet available)
     let displayStart = timeRange?.start ?? scenarioStart;
     let displayEnd = timeRange?.end ?? scenarioEnd;
     // Fall back to log timestamp bounds when no other bounds are available
@@ -155,12 +177,13 @@ function LogRateChart({
       startTs: displayStart + i * bucketSize,
       endTs: displayStart + (i + 1) * bucketSize,
     }));
-  }, [logs, scenarioStart, scenarioEnd, timeRange]);
+  }, [logs, logsSummary, scenarioStart, scenarioEnd, timeRange]);
 
   const detectors = useMemo(
     () => Array.from(new Set(anomalies.map((a) => a.detectorName))),
     [anomalies]
   );
+  const usesSummaryHistogram = Boolean(logsSummary?.histogram && logsSummary.histogram.length > 0);
 
   // D3 chart drawing
   useEffect(() => {
@@ -193,7 +216,6 @@ function LogRateChart({
     const maxTotal = Math.max(1, ...buckets.map((b) => b.total));
     const barsG = g.append('g').attr('clip-path', 'url(#log-rate-clip)');
 
-    // Status layers — bottom to top: debug, info, warn, error
     const STATUS_LAYERS = [
       { key: 'debug' as const, color: 'rgba(100, 116, 139, 0.6)' },
       { key: 'info'  as const, color: 'rgba(59, 130, 246, 0.65)' },
@@ -201,7 +223,8 @@ function LogRateChart({
       { key: 'error' as const, color: 'rgba(239, 68, 68, 0.85)'  },
     ] as const;
 
-    // Stacked bars per bucket
+    // Stacked bars per bucket when per-level data exists; otherwise render a
+    // single-color volume bar so the chart does not imply a level breakdown.
     buckets.forEach((b) => {
       const x = xScale(b.startTs * 1000);
       const bw = Math.max(0, xScale(b.endTs * 1000) - x - 1);
@@ -216,6 +239,14 @@ function LogRateChart({
       }
 
       const totalH = Math.max(4, (b.total / maxTotal) * innerHeight);
+      if (usesSummaryHistogram) {
+        barsG.append('rect')
+          .attr('x', x).attr('width', bw)
+          .attr('y', innerHeight - totalH).attr('height', totalH)
+          .attr('fill', 'rgba(45, 212, 191, 0.65)');
+        return;
+      }
+
       let yBottom = innerHeight;
       for (const { key, color } of STATUS_LAYERS) {
         const count = b[key];
@@ -337,7 +368,7 @@ function LogRateChart({
       .attr('fill', 'rgba(45, 212, 191, 0.2)')
       .attr('stroke', '#2dd4bf')
       .attr('stroke-width', 1);
-  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex, phaseMarkers]);
+  }, [buckets, anomalies, scenarioStart, scenarioEnd, timeRange, hoveredTimestamp, hoveredAnomalyIndex, phaseMarkers, usesSummaryHistogram]);
 
   // Panning (middle-click or cmd+left-drag)
   useEffect(() => {
@@ -416,13 +447,20 @@ function LogRateChart({
   return (
     <div className="bg-slate-800/60 rounded p-3 mb-4">
       <div className="flex items-center gap-4 text-xs text-slate-400 mb-1.5">
-        <span>Log rate ({logs.length} log{logs.length !== 1 ? 's' : ''} total)</span>
-        <span className="flex items-center gap-2">
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-500/80" />error</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-500/75" />warn</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-blue-500/65" />info</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-slate-500/60" />debug</span>
-        </span>
+        <span>Log rate ({totalLogCount ?? logs.length} log{(totalLogCount ?? logs.length) !== 1 ? 's' : ''} total)</span>
+        {usesSummaryHistogram ? (
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-sm bg-teal-400/70" />
+            total volume
+          </span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-500/80" />error</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-amber-500/75" />warn</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-blue-500/65" />info</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-slate-500/60" />debug</span>
+          </span>
+        )}
         {detectors.map((name) => (
           <span key={name} className="flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: detectorLineColor(name) }} />
@@ -600,15 +638,8 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle, onHoverEnter, onHoverLe
 
 const LOG_PAGE_SIZE = 50;
 
-/** Synthesize a `status:<value>` tag from the entry's status field so it can be filtered like any other tag. */
-function getEffectiveTags(tags: string[], status: string): string[] {
-  const statusTag = `status:${status.toLowerCase()}`;
-  return tags.includes(statusTag) ? tags : [statusTag, ...tags];
-}
-
 export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
-  const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
   const [tagFilterInput, setTagFilterInput] = useState('');
@@ -624,6 +655,69 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [expandedTelemetryLogIndex, setExpandedTelemetryLogIndex] = useState<number | null>(null);
   const initializedScenarioRef = useRef<string | null>(null);
 
+  const [rawLogsPage, setRawLogsPage] = useState<LogEntry[]>([]);
+  const [rawLogsTotal, setRawLogsTotal] = useState(0);
+  const [telemetryLogsPage, setTelemetryLogsPage] = useState<LogEntry[]>([]);
+  const [telemetryLogsTotal, setTelemetryLogsTotal] = useState(0);
+  const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(state.logsSummary);
+
+  // Fetch raw and telemetry pages independently so pagination matches the UI panes.
+  useEffect(() => {
+    if (state.connectionState !== 'ready') return;
+
+    let cancelled = false;
+    const baseParams: { start?: number; end?: number; tags?: string } = {};
+    if (timeRange) {
+      baseParams.start = Math.floor(timeRange.start * 1000);
+      baseParams.end = Math.floor(timeRange.end * 1000);
+    }
+    const trimmedTagFilter = tagFilterInput.trim();
+    if (trimmedTagFilter) {
+      baseParams.tags = trimmedTagFilter;
+    }
+
+    api.getLogs({
+      ...baseParams,
+      kind: 'raw',
+      limit: LOG_PAGE_SIZE,
+      offset: (logPage - 1) * LOG_PAGE_SIZE,
+    }).then((resp) => {
+      if (!cancelled) {
+        setRawLogsPage(resp.logs);
+        setRawLogsTotal(resp.total);
+      }
+    }).catch((err) => {
+      console.error('Failed to fetch raw logs page:', err);
+    });
+
+    api.getLogs({
+      ...baseParams,
+      kind: 'telemetry',
+      limit: LOG_PAGE_SIZE,
+      offset: (telemetryLogPage - 1) * LOG_PAGE_SIZE,
+    }).then((resp) => {
+      if (!cancelled) {
+        setTelemetryLogsPage(resp.logs);
+        setTelemetryLogsTotal(resp.total);
+      }
+    }).catch((err) => {
+      console.error('Failed to fetch telemetry logs page:', err);
+    });
+
+    api.getLogsSummary({
+      ...baseParams,
+      kind: 'all',
+    }).then((resp) => {
+      if (!cancelled) {
+        setLogsSummary(resp);
+      }
+    }).catch((err) => {
+      console.error('Failed to fetch logs summary:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [logPage, telemetryLogPage, timeRange, tagFilterInput, state.connectionState, state.activeScenario, state.scenarioDataVersion]);
+
   // Reset state when scenario changes
   useEffect(() => {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
@@ -634,32 +728,29 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       setLogPage(1);
       setTelemetryLogPage(1);
       setExpandedTelemetryLogIndex(null);
+      setRawLogsPage([]);
+      setRawLogsTotal(0);
+      setTelemetryLogsPage([]);
+      setTelemetryLogsTotal(0);
+      setLogsSummary(null);
     }
   }, [state.activeScenario]);
 
   const logTagGroups = useMemo(() => {
-    const all = extractTagGroups(allLogs.map((l) => getEffectiveTags(l.tags ?? [], l.status)));
+    const all = new Map<string, string[]>(
+      Object.entries(logsSummary?.tagGroups ?? {}).map(([key, values]) => [key, [...values]])
+    );
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
-  }, [allLogs]);
-
-  const filteredLogs = useMemo(() => {
-    const filter = parseTagFilter(tagFilterInput);
-    return allLogs
-      .filter((l) => {
-        if (filter.include.size === 0 && filter.exclude.size === 0) return true;
-        return matchesTagFilter(getEffectiveTags(l.tags ?? [], l.status), filter);
-      })
-      .sort((a, b) => a.timestampMs - b.timestampMs);
-  }, [allLogs, tagFilterInput]);
+  }, [logsSummary]);
 
   const regularLogs = useMemo(
-    () => filteredLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')),
-    [filteredLogs]
+    () => [...rawLogsPage].sort((a, b) => a.timestampMs - b.timestampMs),
+    [rawLogsPage]
   );
 
   const telemetryLogs = useMemo(
-    () => filteredLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')),
-    [filteredLogs]
+    () => [...telemetryLogsPage].sort((a, b) => a.timestampMs - b.timestampMs),
+    [telemetryLogsPage]
   );
 
   const sortedAnomalies = useMemo(() => {
@@ -672,16 +763,6 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
 
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
-
-  const visibleRegularLogs = useMemo(() => {
-    if (!timeRange) return regularLogs;
-    return regularLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
-  }, [regularLogs, timeRange]);
-
-  const visibleTelemetryLogs = useMemo(() => {
-    if (!timeRange) return telemetryLogs;
-    return telemetryLogs.filter((l) => l.timestampMs / 1000 >= timeRange.start && l.timestampMs / 1000 <= timeRange.end);
-  }, [telemetryLogs, timeRange]);
 
   const visibleAnomalies = useMemo(() => {
     if (!timeRange) return sortedAnomalies;
@@ -714,13 +795,14 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                 setTagFilterInput(e.target.value);
                 setExpandedLogIndex(null);
                 setLogPage(1);
+                setTelemetryLogPage(1);
               }}
               placeholder="host:web-1 service:api"
               className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono pr-6"
             />
             {tagFilterInput && (
               <button
-                onClick={() => { setTagFilterInput(''); setLogPage(1); }}
+                onClick={() => { setTagFilterInput(''); setLogPage(1); setTelemetryLogPage(1); }}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
               >
                 ×
@@ -734,6 +816,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
               setExpandedLogIndex(null);
               setLogPage(1);
+              setTelemetryLogPage(1);
             }}
             accentColor="teal"
             statusAware
@@ -747,12 +830,15 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
           </h2>
           <div className="space-y-1.5">
             <div className="text-sm text-slate-300">
-              {allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length} log{allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length !== 1 ? 's' : ''} total
+              {logsSummary?.totalCount ?? rawLogsTotal + telemetryLogsTotal} log{(logsSummary?.totalCount ?? rawLogsTotal + telemetryLogsTotal) !== 1 ? 's' : ''} total
             </div>
-            {allLogs.some((l) => (l.tags ?? []).includes('telemetry:true')) && (
-              <div className="text-sm text-purple-400 flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-purple-600 text-white text-[8px] font-bold">T</span>
-                {allLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')).length} telemetry log{allLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')).length !== 1 ? 's' : ''}
+            {logsSummary?.countByLevel && Object.keys(logsSummary.countByLevel).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(logsSummary.countByLevel).map(([level, count]) => (
+                  <span key={level} className={`text-xs px-1.5 py-0.5 rounded font-medium ${levelBadgeColor(level)}`}>
+                    {level}: {count}
+                  </span>
+                ))}
               </div>
             )}
             <div className="text-sm text-slate-300">
@@ -792,7 +878,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
           <div>
             {/* Log rate + anomaly timeline */}
             <LogRateChart
-              logs={allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true'))}
+              logs={[]}
               anomalies={sortedAnomalies}
               scenarioStart={scenarioStart ?? null}
               scenarioEnd={scenarioEnd ?? null}
@@ -801,6 +887,8 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
               timeRange={timeRange}
               onTimeRangeChange={onTimeRangeChange}
               phaseMarkers={phaseMarkers}
+              logsSummary={logsSummary}
+              totalLogCount={logsSummary?.totalCount ?? rawLogsTotal + telemetryLogsTotal}
             />
 
             {/* Detected Anomalies collapsible section */}
@@ -839,22 +927,22 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                 className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
               >
                 <span className="text-slate-500">{logsExpanded ? '▼' : '▶'}</span>
-                Raw Logs ({visibleRegularLogs.length}{visibleRegularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
+                Raw Logs (page {logPage} of {Math.max(1, Math.ceil(rawLogsTotal / LOG_PAGE_SIZE))}, {rawLogsTotal} total)
               </button>
 
               {logsExpanded && (
-                allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length === 0 ? (
+                rawLogsTotal === 0 && rawLogsPage.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No log entries. Load a scenario with log files or the demo scenario.
                   </div>
-                ) : visibleRegularLogs.length === 0 ? (
+                ) : regularLogs.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No logs match the selected filters.
                   </div>
                 ) : (
                   <>
                     <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                      {visibleRegularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                      {regularLogs.map((entry, idx) => (
                         <LogEntryRow
                           key={`${entry.timestampMs}-${idx}`}
                           entry={entry}
@@ -865,21 +953,33 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                         />
                       ))}
                     </div>
-                    {visibleRegularLogs.length > logPage * LOG_PAGE_SIZE && (
+                    {/* Pagination controls */}
+                    <div className="flex items-center justify-between mt-2">
+                      <button
+                        onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                        disabled={logPage <= 1}
+                        className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        {rawLogsTotal === 0 ? 0 : (logPage - 1) * LOG_PAGE_SIZE + 1}&ndash;{Math.min(logPage * LOG_PAGE_SIZE, rawLogsTotal)} of {rawLogsTotal}
+                      </span>
                       <button
                         onClick={() => setLogPage((p) => p + 1)}
-                        className="mt-2 w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors"
+                        disabled={logPage * LOG_PAGE_SIZE >= rawLogsTotal}
+                        className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        Show more ({visibleRegularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
+                        Next
                       </button>
-                    )}
+                    </div>
                   </>
                 )
               )}
             </div>
 
             {/* Telemetry log entries */}
-            {(allLogs.some((l) => (l.tags ?? []).includes('telemetry:true')) || telemetryLogs.length > 0) && (
+            {(telemetryLogsTotal > 0 || telemetryLogs.length > 0) && (
               <div>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex-1 border-t border-purple-800/50" />
@@ -889,20 +989,20 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                   >
                     <span className="text-purple-600">{telemetryLogsExpanded ? '▼' : '▶'}</span>
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
-                    Telemetry Logs ({visibleTelemetryLogs.length}{visibleTelemetryLogs.length !== telemetryLogs.length ? ` of ${telemetryLogs.length}` : ''})
+                    Telemetry Logs (page {telemetryLogPage} of {Math.max(1, Math.ceil(telemetryLogsTotal / LOG_PAGE_SIZE))}, {telemetryLogsTotal} total)
                   </button>
                   <div className="flex-1 border-t border-purple-800/50" />
                 </div>
 
                 {telemetryLogsExpanded && (
-                  visibleTelemetryLogs.length === 0 ? (
+                  telemetryLogsTotal === 0 && telemetryLogs.length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
                       No telemetry logs match the current filters.
                     </div>
                   ) : (
                     <>
                       <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                        {visibleTelemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                        {telemetryLogs.map((entry, idx) => (
                           <LogEntryRow
                             key={`telem-${entry.timestampMs}-${idx}`}
                             entry={entry}
@@ -914,14 +1014,25 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
                           />
                         ))}
                       </div>
-                      {visibleTelemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
+                      <div className="flex items-center justify-between mt-2">
+                        <button
+                          onClick={() => setTelemetryLogPage((p) => Math.max(1, p - 1))}
+                          disabled={telemetryLogPage <= 1}
+                          className="px-3 py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-xs text-slate-500">
+                          {telemetryLogsTotal === 0 ? 0 : (telemetryLogPage - 1) * LOG_PAGE_SIZE + 1}&ndash;{Math.min(telemetryLogPage * LOG_PAGE_SIZE, telemetryLogsTotal)} of {telemetryLogsTotal}
+                        </span>
                         <button
                           onClick={() => setTelemetryLogPage((p) => p + 1)}
-                          className="mt-2 w-full py-1.5 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors"
+                          disabled={telemetryLogPage * LOG_PAGE_SIZE >= telemetryLogsTotal}
+                          className="px-3 py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          Show more ({visibleTelemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
+                          Next
                         </button>
-                      )}
+                      </div>
                     </>
                   )
                 )}

@@ -6,6 +6,8 @@
 package observerimpl
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -205,3 +207,99 @@ func (c *mockCorrelator) ProcessAnomaly(_ observerdef.Anomaly)                {}
 func (c *mockCorrelator) Advance(_ int64)                                     {}
 func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { return nil }
 func (c *mockCorrelator) Reset()                                              {}
+
+func TestFindingM11_StateViewListDetectorsRace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
+	})
+	sv := e.StateView()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.SetDetectors([]observerdef.Detector{
+				&mockDetector{name: fmt.Sprintf("det_%d", i)},
+			})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = sv.ListDetectors()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM11_StateViewListCorrelatorsRace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	e := newEngine(engineConfig{
+		storage:     storage,
+		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
+	})
+	sv := e.StateView()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.SetCorrelators([]observerdef.Correlator{
+				&mockCorrelator{name: fmt.Sprintf("corr_%d", i)},
+			})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = sv.ListCorrelators()
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestFindingM11_StateViewActiveCorrelationsRace(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	storage.Add("ns", "cpu", 1.0, 1, nil)
+
+	e := newEngine(engineConfig{
+		storage:     storage,
+		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
+	})
+	sv := e.StateView()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			e.SetCorrelators([]observerdef.Correlator{
+				&mockCorrelator{name: fmt.Sprintf("corr_%d", i)},
+			})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			_ = sv.ActiveCorrelations()
+		}
+	}()
+
+	wg.Wait()
+}

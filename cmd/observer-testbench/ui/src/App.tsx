@@ -475,6 +475,32 @@ function App() {
         </div>
       </header>
 
+      {/* Loading progress bar */}
+      {state.connectionState === 'loading' && state.loadProgress && state.loadProgress.phase !== '' && (
+        <div className="px-4 py-2 bg-slate-800 border-b border-slate-700">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-blue-400">
+              {state.loadProgress.phase === 'loading' ? 'Loading data...' :
+               state.loadProgress.phase === 'detecting' ? 'Running detectors...' : 'Finishing...'}
+            </span>
+            {state.loadProgress.phase === 'detecting' && state.loadProgress.timestampsTotal > 0 && (
+              <>
+                <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${(state.loadProgress.timestampsDone / state.loadProgress.timestampsTotal) * 100}%` }}
+                  />
+                </div>
+                <span className="text-slate-400 tabular-nums">
+                  {state.loadProgress.timestampsDone}/{state.loadProgress.timestampsTotal} timestamps,{' '}
+                  {state.loadProgress.advances} advances, {state.loadProgress.anomalies} anomalies
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Episode info panel (shown when episode.json is present) */}
       {episodeInfo && <EpisodeInfoPanel info={episodeInfo} />}
 

@@ -418,10 +418,9 @@ var defaultAggregations = []observerdef.Aggregate{
 // seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
 // It runs the wrapped detector on all series, handling aggregation suffixes.
 //
-// The adapter tracks the point count per series/aggregation so it can skip
-// re-running the detector when no new data has arrived. This is important
-// because stateless detectors re-analyze the full series from scratch each
-// call — without this guard, per-second advancement would be O(N²).
+// The adapter tracks the visible point count per series so it can skip
+// re-running the detector when no new data has arrived. This keeps the
+// stateless detector path simple and correct even as storage internals evolve.
 type seriesDetectorAdapter struct {
 	detector     observerdef.SeriesDetector
 	aggregations []observerdef.Aggregate
@@ -431,10 +430,6 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// Per-series caching: PointCountUpTo (binary search, no copying) tells us
-	// cheaply whether a series has new visible data. When it hasn't changed,
-	// we skip detection entirely so callers do not see duplicate anomaly or
-	// telemetry events for unchanged data.
 	lastVisibleCount map[string]int
 }
 
@@ -466,20 +461,14 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 	var allTelemetry []observerdef.ObserverTelemetry
 
 	for _, key := range seriesKeys {
-		k := seriesKey(key.Namespace, key.Name, key.Tags)
-
-		// Cheap check: has this series gained any newly visible points?
+		keyStr := seriesKey(key.Namespace, key.Name, key.Tags)
 		visibleCount := storage.PointCountUpTo(key, dataTime)
-		if prev, ok := a.lastVisibleCount[k]; ok && prev == visibleCount {
-			// No new data — do not re-run the detector or re-emit prior outputs.
+		if prev, ok := a.lastVisibleCount[keyStr]; ok && prev == visibleCount {
 			continue
 		}
-		a.lastVisibleCount[k] = visibleCount
+		a.lastVisibleCount[keyStr] = visibleCount
 
 		// Series has new data — run detector on each aggregation.
-		var seriesAnomalies []observerdef.Anomaly
-		var seriesTelemetry []observerdef.ObserverTelemetry
-
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
@@ -494,18 +483,15 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 			seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
 
 			result := a.detector.Detect(seriesWithAgg)
-			for i := range result.Anomalies {
-				result.Anomalies[i].Type = observerdef.AnomalyTypeMetric
-				result.Anomalies[i].DetectorName = a.detector.Name()
-				result.Anomalies[i].Source = observerdef.MetricName(seriesWithAgg.Name)
-				result.Anomalies[i].SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
+			for j := range result.Anomalies {
+				result.Anomalies[j].Type = observerdef.AnomalyTypeMetric
+				result.Anomalies[j].DetectorName = a.detector.Name()
+				result.Anomalies[j].Source = observerdef.MetricName(seriesWithAgg.Name)
+				result.Anomalies[j].SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			}
-			seriesAnomalies = append(seriesAnomalies, result.Anomalies...)
-			seriesTelemetry = append(seriesTelemetry, result.Telemetry...)
+			allAnomalies = append(allAnomalies, result.Anomalies...)
+			allTelemetry = append(allTelemetry, result.Telemetry...)
 		}
-
-		allAnomalies = append(allAnomalies, seriesAnomalies...)
-		allTelemetry = append(allTelemetry, seriesTelemetry...)
 	}
 
 	return observerdef.DetectionResult{
