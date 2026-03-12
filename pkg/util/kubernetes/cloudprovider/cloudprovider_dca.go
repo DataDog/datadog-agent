@@ -32,15 +32,24 @@ func DCAGetName(ctx context.Context) string {
 	}
 
 	nl, sysInfo := getNodeMeta(ctx, nodeName)
+	if nl == nil && sysInfo == nil {
+		return ""
+	}
+	kubeletVersion := ""
+	kernelVersion := ""
+	if sysInfo != nil {
+		kubeletVersion = sysInfo.KubeletVersion
+		kernelVersion = sysInfo.KernelVersion
+	}
 
-	providerName := getKubeDistributionName(nl, sysInfo.KubeletVersion, sysInfo.KernelVersion)
+	providerName := getKubeDistributionName(nl, kubeletVersion, kernelVersion)
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.
 	cache.Cache.Set(cacheKey, providerName, cache.NoExpiration)
 	return providerName
 }
 
-// getNodeMeta retrieves node labels for provided nodeName in cluster agent.
+// getNodeMeta retrieves node labels and system info for provided nodeName in cluster agent.
 func getNodeMeta(ctx context.Context, nodeName string) (map[string]string, *corev1.NodeSystemInfo) {
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {

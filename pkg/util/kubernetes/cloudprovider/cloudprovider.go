@@ -45,16 +45,20 @@ func GetName(ctx context.Context) (string, error) {
 	}
 
 	nl, err := dcaClient.GetNodeLabels(nodeName)
-	if err != nil {
-		return "", err
+	nsi, err1 := dcaClient.GetNodeInfo(nodeName)
+	if err != nil && err1 != nil {
+		// Return second error because NodeInfo is the primary source for detection
+		return "", err1
 	}
 
-	nsi, err := dcaClient.GetNodeInfo(nodeName)
-	if err != nil {
-		return "", err
+	kubeletVersion := ""
+	kernelVersion := ""
+	if nsi != nil {
+		kubeletVersion = nsi.KubeletVersion
+		kernelVersion = nsi.KernelVersion
 	}
 
-	kubeDistro := getKubeDistributionName(nl, nsi.KubeletVersion, nsi.KernelVersion)
+	kubeDistro := getKubeDistributionName(nl, kubeletVersion, kernelVersion)
 
 	cache.Cache.Set(cacheKey, kubeDistro, cache.NoExpiration)
 	return kubeDistro, nil
