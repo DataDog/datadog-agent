@@ -17,7 +17,6 @@ from tasks.libs.testing.utof.go_parser.run_parser import (
     determine_status,
     generate_test_id,
     leaf_name,
-    resolve_failure,
     set_total_duration,
     split_into_attempts,
 )
@@ -39,7 +38,6 @@ __all__ = [
     "determine_status",
     "generate_test_id",
     "leaf_name",
-    "resolve_failure",
     "set_total_duration",
     "split_into_attempts",
 ]
