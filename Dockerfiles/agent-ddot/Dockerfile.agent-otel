@@ -77,8 +77,6 @@ RUN GO_VERSION=$(cat .go-version) && \
 ENV PATH="/usr/local/go/bin:${PATH}"
 RUN mkdir /go
 ENV GOPATH=/go
-ENV GOPROXY=$GOPROXY
-ENV GONOSUMDB=$GONOSUMDB
 
 # Verify installations
 RUN go version && \
@@ -100,15 +98,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files and clean up go cache to free space
-RUN dda inv collector.generate && \
+RUN GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
     go clean -cache; \
     else \
-    dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
     go clean -cache; \
     fi
 
