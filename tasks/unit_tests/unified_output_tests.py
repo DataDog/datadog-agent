@@ -955,17 +955,20 @@ class TestE2EFailureExtraction(unittest.TestCase):
 
     def test_failing_test_has_failure(self):
         test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestUnprotectedProcessCheckIO")
-        self.assertIsNotNone(test.failure)
+        failure = next((a.failure for a in test.attempts if a.failure), None)
+        self.assertIsNotNone(failure)
 
     def test_failure_message_extracted(self):
         test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestUnprotectedProcessCheckIO")
-        self.assertIsNotNone(test.failure.message)
-        self.assertGreater(len(test.failure.message), 0)
-        self.assertNotIn("--- FAIL:", test.failure.message)
+        failure = next((a.failure for a in test.attempts if a.failure), None)
+        self.assertIsNotNone(failure.message)
+        self.assertGreater(len(failure.message), 0)
+        self.assertNotIn("--- FAIL:", failure.message)
 
     def test_passing_test_has_no_failure(self):
         test = next(t for t in self.leaves if t.full_name == "TestWindowsTestSuite/TestAPIKeyRefresh")
-        self.assertIsNone(test.failure)
+        failure = next((a.failure for a in test.attempts if a.failure), None)
+        self.assertIsNone(failure)
 
 
 class TestE2EJsonSerialization(unittest.TestCase):
