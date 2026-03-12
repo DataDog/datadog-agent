@@ -142,7 +142,7 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", finalFilter)
 }
 
-func getNodeInfo(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("getNodeInfo: unable to get apiserver: %v", err)
