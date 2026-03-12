@@ -3458,6 +3458,13 @@ api_key:
 #
 # kubernetes_collect_metadata_tags: true
 
+## @param kubernetes_use_endpoint_slices - boolean - optional - default: false
+## @env DD_KUBERNETES_USE_ENDPOINT_SLICES - boolean - optional - default: false
+## Enable this to map Kubernetes services to EndpointSlices instead of Endpoints. (Requires Cluster Agent 7.62.0+).
+## EndpointSlices are GA since 1.21. Kubernetes Endpoint API is depreceated in 1.33.
+#
+# kubernetes_use_endpoint_slices: false
+
 ## @param auto_team_tag_collection - boolean - optional - default: true
 ## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
 ## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.

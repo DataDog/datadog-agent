@@ -280,7 +280,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceN8N,
 		metrics.MetricSourceNutanix,
 		metrics.MetricSourcePaloAltoPanorama,
-		metrics.MetricSourcePerfect,
+		metrics.MetricSourcePrefect,
 		metrics.MetricSourceNagios,
 		metrics.MetricSourceNfsstat,
 		metrics.MetricSourceNginx,
@@ -366,7 +366,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceIbmSpectrumLsf,
 		metrics.MetricSourceDatadogOperator,
 		metrics.MetricSourceBattery,
-		metrics.MetricSourcePinot:
+		metrics.MetricSourcePinot,
+		metrics.MetricSourceDellPowerFlex:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -1132,12 +1133,14 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 502
 	case metrics.MetricSourcePaloAltoPanorama:
 		return 503
-	case metrics.MetricSourcePerfect:
+	case metrics.MetricSourcePrefect:
 		return 504
 	case metrics.MetricSourceBattery:
 		return 511
 	case metrics.MetricSourcePinot:
 		return 512
+	case metrics.MetricSourceDellPowerFlex:
+		return 514
 	default:
 		return 0
 	}

@@ -117,6 +117,13 @@ select_file(
     subpath = "build/include",
 )
 
+select_file(
+    name = "python_win_lib",
+    srcs = "python_win",
+    subpath = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:public"],
+)
+
 cc_import(
     name = "_python313_dll",
     shared_library = "build/python{}.dll".format(VERSION_STR_FLAT),

@@ -1,8 +1,33 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 # gazelle:map_kind go_test rtloader_go_test //rtloader/test:defs.bzl
 # gazelle:map_kind go_library rtloader_test_go_library //rtloader/test:defs.bzl
 
 filegroup(
     name = "python_stubs",
     srcs = glob(["python/**/*.py"]),
+    visibility = ["//rtloader/test:__subpackages__"],
+)
+
+# A directory where we only have the "three" library .dll, for the purpose of
+# being able to load it dynamically in windows tests. Given the lack of sandboxing,
+# limited runfiles support, and the limited ways in which we can influence the search
+# for dynamic loaded libraries, this is the safest way to make the library available.
+copy_to_directory(
+    name = "dir_with_three",
+    srcs = ["//rtloader:datadog-agent-three"],
+    out = "three",
+    root_paths = ["rtloader"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//rtloader/test:__subpackages__"],
+)
+
+# Directory for making it easier to reference to the python stubs when passing
+# the location to the tests
+copy_to_directory(
+    name = "dir_with_python_stubs",
+    srcs = ["//rtloader/test:python_stubs"],
+    out = "python",
+    root_paths = ["rtloader/test/python"],
+    tags = ["manual"],
     visibility = ["//rtloader/test:__subpackages__"],
 )

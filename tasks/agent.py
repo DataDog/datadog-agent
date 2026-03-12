@@ -936,7 +936,7 @@ def generate_config(ctx, build_type, output_file, env=None):
     Generates the datadog.yaml configuration file.
     """
     args = {
-        "go_file": "./pkg/config/render_config.go",
+        "go_file": "./pkg/config/render_config/render_config.go",
         "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,

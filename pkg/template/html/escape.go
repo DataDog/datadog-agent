@@ -164,7 +164,19 @@ func (e *escaper) escape(c context, n parse.Node) context {
 	panic("escaping " + n.String() + " is unimplemented")
 }
 
+// godebugStub is a minimal stub for internal/godebug.Setting, which cannot be
+// imported outside the standard library. It provides the Value and IncNonDefault
+// methods used by security-related GODEBUG switches in html/template.
+type godebugStub struct{ value string }
+
+func (g godebugStub) Value() string  { return g.value }
+func (g godebugStub) IncNonDefault() {}
+
 var debugAllowActionJSTmpl = 0
+
+// Always enable the secure behavior (URL filtering in meta content attributes),
+// matching the intent of CVE-2026-27142's fix.
+var htmlmetacontenturlescape = godebugStub{value: "1"}
 
 // escapeAction escapes an action template node.
 func (e *escaper) escapeAction(c context, n *parse.ActionNode) context {
@@ -222,6 +234,18 @@ func (e *escaper) escapeAction(c context, n *parse.ActionNode) context {
 			}
 		default:
 			panic(c.urlPart.String())
+		}
+	case stateMetaContent:
+		// Handled below in delim check.
+	case stateMetaContentURL:
+		if htmlmetacontenturlescape.Value() != "0" {
+			s = append(s, "_html_template_urlfilter")
+		} else {
+			// We don't have a great place to increment this, since it's hard to
+			// know if we actually escape any urls in _html_template_urlfilter,
+			// since it has no information about what context it is being
+			// executed in etc. This is probably the best we can do.
+			htmlmetacontenturlescape.IncNonDefault()
 		}
 	case stateJS:
 		s = append(s, "_html_template_jsvalescaper")
