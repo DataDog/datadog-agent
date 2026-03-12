@@ -48,7 +48,7 @@ def _make_fail_doc() -> UTOFDocument:
                 package="testpackage1",
                 type="unit",
                 status="fail",
-                failure=UTOFFailure(message="expected 1, got 2", type="assertion"),
+                attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="expected 1, got 2", type="assertion"))],
             ),
             UTOFTestResult(
                 id="c3", name="TestBaz", full_name="TestBaz", package="testpackage1", type="unit", status="skip"
@@ -81,12 +81,14 @@ class TestUTOFModels(unittest.TestCase):
             self.assertNotIn("failure", test)
             self.assertNotIn("flaky", test)
 
-    def test_failure_field_present_when_set(self):
+    def test_failure_in_attempt_when_set(self):
         d = _make_fail_doc().to_dict()
         failing = next(t for t in d["tests"] if t["status"] == "fail")
-        self.assertIn("failure", failing)
-        self.assertEqual(failing["failure"]["message"], "expected 1, got 2")
-        self.assertEqual(failing["failure"]["type"], "assertion")
+        self.assertIn("attempts", failing)
+        failed_attempt = next(a for a in failing["attempts"] if a["status"] == "fail")
+        self.assertIn("failure", failed_attempt)
+        self.assertEqual(failed_attempt["failure"]["message"], "expected 1, got 2")
+        self.assertEqual(failed_attempt["failure"]["type"], "assertion")
 
     def test_write_json(self):
         doc = _make_pass_doc()
@@ -233,7 +235,7 @@ class TestFormatReport(unittest.TestCase):
             package="pkg/example",
             type="unit",
             status="fail",
-            failure=UTOFFailure(message="panic: nil pointer dereference", type="panic", direct=True),
+            attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="panic: nil pointer dereference", type="panic", direct=True))],
             subtests=[
                 UTOFTestResult(
                     id="s1",
@@ -242,7 +244,7 @@ class TestFormatReport(unittest.TestCase):
                     package="pkg/example",
                     type="unit",
                     status="fail",
-                    failure=UTOFFailure(message="expected 1 got 2", type="assertion", direct=True),
+                    attempts=[UTOFAttempt(attempt=1, status="fail", failure=UTOFFailure(message="expected 1 got 2", type="assertion", direct=True))],
                 ),
             ],
         )

@@ -40,6 +40,23 @@ def _status_badge(status: str) -> str:
     return badges.get(status, status.upper())
 
 
+def _get_test_failure(t: UTOFTestResult) -> UTOFFailure | None:
+    """Resolve the most relevant failure for a test from its attempts list.
+
+    For a final fail: the last failed attempt's failure (most recent signal).
+    For a pass/flaky after retries: the first failed attempt's failure (initial cause).
+    """
+    if t.status == "fail":
+        for attempt in reversed(t.attempts):
+            if attempt.status == "fail" and attempt.failure:
+                return attempt.failure
+    else:
+        for attempt in t.attempts:
+            if attempt.status == "fail" and attempt.failure:
+                return attempt.failure
+    return None
+
+
 def _render_failure(failure: UTOFFailure, prefix: str) -> list[str]:
     """Render a failure block as indented lines.
 
@@ -175,8 +192,9 @@ def format_report(doc: UTOFDocument) -> str:
             # A direct assertion (testify blocks, panic, infrastructure) on the
             # parent must always be shown even when subtests also failed.
             has_failing_subtests = t.subtests and any(_has_matching_descendant(s, fail_pred) for s in t.subtests)
-            if t.failure and (not has_failing_subtests or t.failure.direct):
-                out.extend(_render_failure(t.failure, fp))
+            failure = _get_test_failure(t)
+            if failure and (not has_failing_subtests or failure.direct):
+                out.extend(_render_failure(failure, fp))
             if t.subtests:
                 out.extend(_render_subtests(t.subtests, fail_pred, depth + 1, _render_failed))
             return out
@@ -209,20 +227,17 @@ def format_report(doc: UTOFDocument) -> str:
                 out.append(f"{prefix}{badge}  {name}  {retry_info}")
                 # Skip per-attempt detail on parent tests — subtests show their own
                 if not t.subtests:
-                    if t.attempts:
-                        for a in t.attempts:
-                            if a.status == "fail":
-                                marker = color_message("[x]", "red")
-                                attempt_status = color_message(f"attempt {a.attempt}: fail", "red")
-                            else:
-                                marker = color_message("[v]", "green")
-                                attempt_status = color_message(f"attempt {a.attempt}: pass", "green")
-                            dur = color_message(f"({_format_duration(a.duration_seconds)})", "grey")
-                            out.append(f"{fp}{marker} {attempt_status} {dur}")
-                            if a.failure:
-                                out.extend(_render_failure(a.failure, fp + "     "))
-                    elif t.failure and t.failure.message:
-                        out.append(f"{fp}initial failure: {t.failure.message}")
+                    for a in t.attempts:
+                        if a.status == "fail":
+                            marker = color_message("[x]", "red")
+                            attempt_status = color_message(f"attempt {a.attempt}: fail", "red")
+                        else:
+                            marker = color_message("[v]", "green")
+                            attempt_status = color_message(f"attempt {a.attempt}: pass", "green")
+                        dur = color_message(f"({_format_duration(a.duration_seconds)})", "grey")
+                        out.append(f"{fp}{marker} {attempt_status} {dur}")
+                        if a.failure:
+                            out.extend(_render_failure(a.failure, fp + "     "))
             else:
                 out.append(f"{prefix}{badge}  {name}")
             if t.subtests:
@@ -255,8 +270,9 @@ def format_report(doc: UTOFDocument) -> str:
             source = color_message(f"(source: {t.flaky.source})", "grey") if t.flaky else ""
             out.append(f"{prefix}{badge}  {name}  {source}")
             has_flaky_subtests = t.subtests and any(_has_matching_descendant(s, flaky_pred) for s in t.subtests)
-            if t.failure and (not has_flaky_subtests or t.failure.direct):
-                out.extend(_render_failure(t.failure, fp))
+            failure = _get_test_failure(t)
+            if failure and (not has_flaky_subtests or failure.direct):
+                out.extend(_render_failure(failure, fp))
             if t.subtests:
                 out.extend(_render_subtests(t.subtests, flaky_pred, depth + 1, _render_flaky))
             return out

@@ -96,7 +96,6 @@ class UTOFTestResult:
     status: str = "pass"  # pass, fail, skip, flaky_pass, flaky_fail
     duration_seconds: float = 0.0
     retry_count: int = 0
-    failure: UTOFFailure | None = None
     flaky: UTOFFlaky | None = None
     attempts: list[UTOFAttempt] = field(default_factory=list)
     subtests: list[UTOFTestResult] | None = None
