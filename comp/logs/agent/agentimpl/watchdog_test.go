@@ -88,6 +88,23 @@ func TestDecideAutoProfileAction_SenderLadder(t *testing.T) {
 	assert.Equal(t, 10, action.changes["logs_config.batch_max_concurrent_send"])
 }
 
+func TestDecideAutoProfileAction_SenderTakesPrecedenceOverStrategy(t *testing.T) {
+	summary := testSummary(0.1, 0.9, 0.9)
+	current := autoProfileRuntimeValues{
+		pipelines:              4,
+		batchMaxConcurrentSend: 0,
+		useCompression:         false,
+		compressionKind:        "gzip",
+		zstdCompressionLevel:   1,
+		gzipCompressionLevel:   6,
+	}
+
+	action := decideAutoProfileAction(summary, current, testLimits())
+	assert.Equal(t, "increase_concurrency", action.name)
+	assert.Equal(t, autoReasonSender, action.reason)
+	assert.Equal(t, 5, action.changes["logs_config.batch_max_concurrent_send"])
+}
+
 func TestDecideAutoProfileAction_ProcessorIncreasesPipelines(t *testing.T) {
 	summary := testSummary(0.9, 0.1, 0.1)
 	current := autoProfileRuntimeValues{

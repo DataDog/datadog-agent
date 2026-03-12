@@ -480,23 +480,6 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 		summary.MaxFill5m[logsmetrics.ProcessorTlmName] <= autoSaturationLowThreshold
 
 	switch {
-	case isStrategySaturated:
-		if !compressionNormalized(current) {
-			return autoProfileAction{
-				name:    "normalize_compression",
-				reason:  autoReasonStrategy,
-				changes: normalizeCompressionChanges(),
-			}
-		}
-		if current.pipelines < limits.maxPipelines {
-			return autoProfileAction{
-				name:   "increase_pipelines",
-				reason: autoReasonStrategy,
-				changes: map[string]interface{}{
-					"logs_config.pipelines": current.pipelines + 1,
-				},
-			}
-		}
 	case isSenderSaturated:
 		nextConcurrency := nextConcurrencyUp(current.batchMaxConcurrentSend)
 		if nextConcurrency > current.batchMaxConcurrentSend {
@@ -512,6 +495,23 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 			return autoProfileAction{
 				name:   "increase_pipelines",
 				reason: autoReasonSender,
+				changes: map[string]interface{}{
+					"logs_config.pipelines": current.pipelines + 1,
+				},
+			}
+		}
+	case isStrategySaturated:
+		if !compressionNormalized(current) {
+			return autoProfileAction{
+				name:    "normalize_compression",
+				reason:  autoReasonStrategy,
+				changes: normalizeCompressionChanges(),
+			}
+		}
+		if current.pipelines < limits.maxPipelines {
+			return autoProfileAction{
+				name:   "increase_pipelines",
+				reason: autoReasonStrategy,
 				changes: map[string]interface{}{
 					"logs_config.pipelines": current.pipelines + 1,
 				},
