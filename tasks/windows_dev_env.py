@@ -476,7 +476,7 @@ def _run_command_on_local_changes(ctx: Context, host: str, on_sync=None):
                 print(
                     f"[{datetime.now().strftime('%H:%M:%S')}] Syncing changes to the remote Windows development environment done"
                 )
-                if self._on_sync is not None:
+                if self._on_sync is not None and any(f.endswith(".go") for f in files):
                     self._on_sync()
             except UnexpectedExit as e:
                 print(
