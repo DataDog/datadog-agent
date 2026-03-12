@@ -13,10 +13,39 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-// MannWhitneyDetector uses the Mann-Whitney U test as a sliding-window
-// changepoint detector. For each candidate split point it compares the
-// "before" and "after" windows using the rank-based U statistic and
-// picks the split with the lowest p-value.
+// mwSeriesState holds per-series streaming state for the Mann-Whitney detector.
+type mwSeriesState struct {
+	key observer.SeriesKey
+	agg observer.Aggregate
+
+	// Cursor: how many points we've processed so far.
+	lastProcessedTime  int64
+	lastProcessedCount int
+
+	// Warmup: accumulate points before running detection.
+	initialized  bool
+	warmupCount  int
+	warmupBuffer []float64
+
+	// Baseline: the first WindowSize points from warmup (fixed after init).
+	baselineValues []float64
+	baselineMean   float64
+	baselineStddev float64
+
+	// Sliding window: the most recent WindowSize points (rolling buffer).
+	recentBuffer []float64
+	recentPos    int // next write position in circular buffer
+	recentFull   bool
+
+	// Alert lifecycle.
+	inAlert       bool
+	alertStart    int64
+	recoveryCount int
+}
+
+// MannWhitneyDetector uses the Mann-Whitney U test as a streaming changepoint
+// detector. It maintains per-series state and processes only new points on
+// each advance, comparing a fixed baseline window against a sliding recent window.
 //
 // Reference: Mann & Whitney (1947). Non-parametric two-sample test.
 //
@@ -24,18 +53,16 @@ import (
 //   - Non-parametric: no Gaussian assumption
 //   - Rank-based, robust to outliers
 //   - Distribution-free under H0
-//   - Score output: -log10(p_value) as confidence
 //
 // Precision-focused: uses multiple layered filters (statistical significance,
 // effect size, deviation sigma, and relative change) to ensure only
 // practically meaningful changepoints are reported.
 type MannWhitneyDetector struct {
-	// MinPoints is the minimum number of points required for analysis.
-	// Default: 50
+	// MinPoints is the minimum number of points in the after-window before
+	// detection runs. Default: 50
 	MinPoints int
 
-	// WindowSize is the number of points in each half-window (before/after).
-	// Larger windows require more sustained shifts, reducing false positives.
+	// WindowSize is the number of points in each comparison window.
 	// Default: 60
 	WindowSize int
 
@@ -43,25 +70,31 @@ type MannWhitneyDetector struct {
 	// Default: 1e-12
 	SignificanceThreshold float64
 
-	// MinEffectSize is the minimum |rank-biserial correlation| (effect size)
-	// required to report. Filters out statistically significant but tiny shifts.
+	// MinEffectSize is the minimum |rank-biserial correlation| (effect size).
 	// Default: 0.95
 	MinEffectSize float64
 
 	// MinDeviationSigma is the minimum |median_after - median_before| / MAD_before.
-	// Uses robust statistics (median/MAD) for outlier resistance.
-	// Default: 3.0 (lowered from 5.0 to detect TP metrics with 3-4σ shifts)
+	// Default: 3.0
 	MinDeviationSigma float64
 
 	// MinRelativeChange is the minimum |mean_after - mean_before| / max(|mean_before|, 1e-6).
-	// Ensures the shift represents a meaningful fraction of the signal level.
-	// Default: 0.20 (20% change)
+	// Default: 0.20
 	MinRelativeChange float64
 
-	// StepSize controls how many points to skip between candidate splits.
-	// 1 = check every point. Higher = faster but coarser.
-	// Default: 3
-	StepSize int
+	// WarmupPoints is the number of initial points before detection begins.
+	// Default: WindowSize * 2 + MinPoints
+	WarmupPoints int
+
+	// RecoveryPoints is how many consecutive non-triggering checks are needed
+	// to exit alert state. Default: 10
+	RecoveryPoints int
+
+	// Aggregations to run detection on. Default: [Average, Count]
+	Aggregations []observer.Aggregate
+
+	// per-series state keyed by "namespace|name|tags|agg"
+	series map[string]*mwSeriesState
 }
 
 // NewMannWhitneyDetector creates a MannWhitneyDetector with default settings.
@@ -73,7 +106,12 @@ func NewMannWhitneyDetector() *MannWhitneyDetector {
 		MinEffectSize:         0.95,
 		MinDeviationSigma:     3.0,
 		MinRelativeChange:     0.20,
-		StepSize:              3,
+		RecoveryPoints:        10,
+		Aggregations: []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		},
+		series: make(map[string]*mwSeriesState),
 	}
 }
 
@@ -82,154 +120,310 @@ func (m *MannWhitneyDetector) Name() string {
 	return "mannwhitney_detector"
 }
 
-// Detect runs the Mann-Whitney sliding window changepoint detection on the series.
-// It reports at most one changepoint: the split with the lowest p-value.
-// Multiple layered filters ensure only practically significant shifts are reported.
-func (m *MannWhitneyDetector) Detect(series observer.Series) observer.DetectionResult {
-	minPoints := m.MinPoints
-	if minPoints <= 0 {
-		minPoints = 50
-	}
-	windowSize := m.WindowSize
-	if windowSize <= 0 {
-		windowSize = 60
-	}
-	sigThreshold := m.SignificanceThreshold
-	if sigThreshold <= 0 {
-		sigThreshold = 1e-12
-	}
-	minEffect := m.MinEffectSize
-	if minEffect <= 0 {
-		minEffect = 0.95
-	}
-	minDevSigma := m.MinDeviationSigma
-	if minDevSigma <= 0 {
-		minDevSigma = 3.0
-	}
-	minRelChange := m.MinRelativeChange
-	if minRelChange < 0 {
-		minRelChange = 0.20
-	}
-	stepSize := m.StepSize
-	if stepSize <= 0 {
-		stepSize = 3
-	}
+// Detect implements Detector. It discovers series, reads only new points,
+// and updates per-series state incrementally.
+func (m *MannWhitneyDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+	m.ensureDefaults()
 
-	n := len(series.Points)
-	if n < minPoints {
-		return observer.DetectionResult{}
-	}
+	seriesKeys := storage.ListSeries(observer.SeriesFilter{})
 
-	// Adaptive window: use min of configured window and what fits
-	maxWindow := (n - 1) / 2
-	if windowSize > maxWindow {
-		windowSize = maxWindow
-	}
-	if windowSize < 10 {
-		return observer.DetectionResult{}
-	}
+	var allAnomalies []observer.Anomaly
 
-	bestPValue := 1.0
-	bestSplit := -1
-	bestU := 0.0
-	bestEffect := 0.0
+	for _, key := range seriesKeys {
+		for _, agg := range m.Aggregations {
+			stateKey := m.stateKey(key, agg)
 
-	// Slide split point from windowSize to n-windowSize
-	for t := windowSize; t <= n-windowSize; t += stepSize {
-		before := extractValues(series.Points[t-windowSize : t])
-		after := extractValues(series.Points[t : t+windowSize])
+			state, exists := m.series[stateKey]
+			if !exists {
+				state = m.newSeriesState(key, agg)
+				m.series[stateKey] = state
+			}
 
-		u, pValue := mannWhitneyU(before, after)
+			visibleCount := storage.PointCountUpTo(key, dataTime)
+			if visibleCount <= state.lastProcessedCount {
+				continue
+			}
 
-		if pValue < bestPValue {
-			effectSize := rankBiserialCorrelation(u, len(before), len(after))
-			bestPValue = pValue
-			bestSplit = t
-			bestU = u
-			bestEffect = effectSize
+			series := storage.GetSeriesRange(key, state.lastProcessedTime, dataTime, agg)
+			if series == nil || len(series.Points) == 0 {
+				continue
+			}
+
+			for _, p := range series.Points {
+				anomaly := m.processPoint(state, p, series)
+				if anomaly != nil {
+					allAnomalies = append(allAnomalies, *anomaly)
+				}
+			}
+
+			state.lastProcessedTime = series.Points[len(series.Points)-1].Timestamp
+			state.lastProcessedCount = visibleCount
 		}
 	}
 
-	// Filter 1: statistical significance
-	if bestSplit < 0 || bestPValue >= sigThreshold {
-		return observer.DetectionResult{}
+	return observer.DetectionResult{Anomalies: allAnomalies}
+}
+
+// Reset clears all per-series state for replay/reanalysis.
+func (m *MannWhitneyDetector) Reset() {
+	m.series = make(map[string]*mwSeriesState)
+}
+
+// processPoint handles a single new observation for a series.
+func (m *MannWhitneyDetector) processPoint(state *mwSeriesState, p observer.Point, series *observer.Series) *observer.Anomaly {
+	x := p.Value
+
+	// Phase 1: Warmup — accumulate baseline + initial recent window.
+	if !state.initialized {
+		return m.warmupPoint(state, x)
 	}
 
-	// Filter 2: effect size (rank-biserial correlation)
-	if math.Abs(bestEffect) < minEffect {
-		return observer.DetectionResult{}
+	// Phase 2: Add point to sliding recent window.
+	m.addToRecentBuffer(state, x)
+
+	// Phase 3: Run detection if we have enough recent points.
+	if !state.recentFull {
+		return nil
 	}
 
-	// Compute baseline and after stats using robust statistics
-	beforeStart := bestSplit - windowSize
-	if beforeStart < 0 {
-		beforeStart = 0
-	}
-	beforeVals := extractValues(series.Points[beforeStart:bestSplit])
-	afterVals := extractValues(series.Points[bestSplit : bestSplit+windowSize])
+	triggered := m.runTest(state)
 
+	// Phase 4: Alert lifecycle.
+	if triggered {
+		state.recoveryCount = 0
+		if !state.inAlert {
+			state.inAlert = true
+			state.alertStart = p.Timestamp
+			return m.makeAnomaly(state, p, series)
+		}
+		return nil
+	}
+
+	if state.inAlert {
+		state.recoveryCount++
+		if state.recoveryCount >= m.RecoveryPoints {
+			state.inAlert = false
+			state.recoveryCount = 0
+		}
+	}
+	return nil
+}
+
+// warmupPoint accumulates a point during warmup.
+func (m *MannWhitneyDetector) warmupPoint(state *mwSeriesState, x float64) *observer.Anomaly {
+	state.warmupCount++
+	state.warmupBuffer = append(state.warmupBuffer, x)
+
+	if state.warmupCount >= m.WarmupPoints {
+		m.initializeFromWarmup(state)
+	}
+	return nil
+}
+
+// initializeFromWarmup sets up baseline and recent window from warmup data.
+func (m *MannWhitneyDetector) initializeFromWarmup(state *mwSeriesState) {
+	ws := m.WindowSize
+
+	// Baseline: first WindowSize points.
+	state.baselineValues = make([]float64, ws)
+	copy(state.baselineValues, state.warmupBuffer[:ws])
+	state.baselineMean = detectorMeanValues(state.baselineValues)
+	state.baselineStddev = detectorSampleStddev(state.baselineValues, state.baselineMean)
+
+	// Recent buffer: circular buffer of WindowSize.
+	state.recentBuffer = make([]float64, ws)
+	remaining := state.warmupBuffer[ws:]
+	if len(remaining) >= ws {
+		// Fill from the tail of remaining.
+		copy(state.recentBuffer, remaining[len(remaining)-ws:])
+		state.recentPos = 0
+		state.recentFull = true
+	} else {
+		copy(state.recentBuffer, remaining)
+		state.recentPos = len(remaining)
+		state.recentFull = false
+	}
+
+	state.warmupBuffer = nil // free memory
+	state.initialized = true
+}
+
+// addToRecentBuffer adds a value to the circular recent buffer.
+func (m *MannWhitneyDetector) addToRecentBuffer(state *mwSeriesState, x float64) {
+	state.recentBuffer[state.recentPos] = x
+	state.recentPos++
+	if state.recentPos >= m.WindowSize {
+		state.recentPos = 0
+		state.recentFull = true
+	}
+}
+
+// recentValues returns the current recent window values in order.
+func (m *MannWhitneyDetector) recentValues(state *mwSeriesState) []float64 {
+	ws := m.WindowSize
+	vals := make([]float64, ws)
+	if state.recentFull {
+		// Circular buffer: pos..end then 0..pos-1
+		copy(vals, state.recentBuffer[state.recentPos:])
+		copy(vals[ws-state.recentPos:], state.recentBuffer[:state.recentPos])
+	} else {
+		copy(vals, state.recentBuffer[:state.recentPos])
+	}
+	return vals
+}
+
+// runTest runs the Mann-Whitney U test: baseline vs recent window.
+// Returns true if all 4 filters pass.
+func (m *MannWhitneyDetector) runTest(state *mwSeriesState) bool {
+	afterVals := m.recentValues(state)
+	beforeVals := state.baselineValues
+
+	u, pValue := mannWhitneyU(beforeVals, afterVals)
+
+	// Filter 1: statistical significance.
+	if pValue >= m.SignificanceThreshold {
+		return false
+	}
+
+	// Filter 2: effect size.
+	effectSize := rankBiserialCorrelation(u, len(beforeVals), len(afterVals))
+	if math.Abs(effectSize) < m.MinEffectSize {
+		return false
+	}
+
+	// Filter 3: robust deviation (median/MAD).
 	beforeMedian := detectorMedian(beforeVals)
-	beforeMAD := detectorMAD(beforeVals, beforeMedian, true) // scaled for σ-deviation comparison
+	beforeMAD := detectorMAD(beforeVals, beforeMedian, true)
 	afterMedian := detectorMedian(afterVals)
 
-	// Also compute means for relative change check
-	baselineMean := detectorMeanValues(beforeVals)
-	baselineStddev := detectorSampleStddev(beforeVals, baselineMean)
-	afterMean := detectorMeanValues(afterVals)
-
-	// Filter 3: robust deviation check using median/MAD
 	deviation := 0.0
 	if beforeMAD > 1e-10 {
 		deviation = (afterMedian - beforeMedian) / beforeMAD
 	} else if math.Abs(beforeMedian) > 1e-10 {
-		// For constant baselines, use relative change scaled to sigma-like units
 		deviation = (afterMedian - beforeMedian) / (math.Abs(beforeMedian) * 0.05)
 	}
-
-	if math.Abs(deviation) < minDevSigma {
-		return observer.DetectionResult{}
+	if math.Abs(deviation) < m.MinDeviationSigma {
+		return false
 	}
 
-	// Filter 4: minimum relative change
-	absBaseline := math.Abs(baselineMean)
+	// Filter 4: relative change.
+	afterMean := detectorMeanValues(afterVals)
+	absBaseline := math.Abs(state.baselineMean)
 	if absBaseline < 1e-6 {
 		absBaseline = 1e-6
 	}
-	relChange := math.Abs(afterMean-baselineMean) / absBaseline
-	if relChange < minRelChange {
-		return observer.DetectionResult{}
+	relChange := math.Abs(afterMean-state.baselineMean) / absBaseline
+	if relChange < m.MinRelativeChange {
+		return false
 	}
 
-	score := -math.Log10(bestPValue)
-	if math.IsInf(score, 1) {
-		score = 300.0 // cap for extremely small p-values
+	return true
+}
+
+// makeAnomaly constructs an Anomaly for a new alert onset.
+func (m *MannWhitneyDetector) makeAnomaly(state *mwSeriesState, p observer.Point, series *observer.Series) *observer.Anomaly {
+	afterVals := m.recentValues(state)
+	afterMean := detectorMeanValues(afterVals)
+	beforeMedian := detectorMedian(state.baselineValues)
+	beforeMAD := detectorMAD(state.baselineValues, beforeMedian, true)
+	afterMedian := detectorMedian(afterVals)
+
+	deviation := 0.0
+	if beforeMAD > 1e-10 {
+		deviation = (afterMedian - beforeMedian) / beforeMAD
+	} else if math.Abs(beforeMedian) > 1e-10 {
+		deviation = (afterMedian - beforeMedian) / (math.Abs(beforeMedian) * 0.05)
 	}
+
+	u, pValue := mannWhitneyU(state.baselineValues, afterVals)
+	effectSize := rankBiserialCorrelation(u, len(state.baselineValues), len(afterVals))
+
+	absBaseline := math.Abs(state.baselineMean)
+	if absBaseline < 1e-6 {
+		absBaseline = 1e-6
+	}
+	relChange := math.Abs(afterMean-state.baselineMean) / absBaseline
 
 	direction := "increased"
-	if afterMean < baselineMean {
+	if afterMean < state.baselineMean {
 		direction = "decreased"
 	}
 
-	anomaly := observer.Anomaly{
-		Source: observer.MetricName(series.Name),
-		Title:  fmt.Sprintf("Mann-Whitney changepoint: %s", series.Name),
+	seriesName := series.Name + ":" + aggSuffix(state.agg)
+	score := -math.Log10(pValue)
+	if math.IsInf(score, 1) {
+		score = 300.0
+	}
+
+	return &observer.Anomaly{
+		Type:           observer.AnomalyTypeMetric,
+		Source:         observer.MetricName(seriesName),
+		SourceSeriesID: observer.SeriesID(seriesKey(series.Namespace, seriesName, series.Tags)),
+		DetectorName:   m.Name(),
+		Title:          fmt.Sprintf("Mann-Whitney changepoint: %s", seriesName),
 		Description: fmt.Sprintf("%s %s from %.2f to %.2f (p=%.2e, U=%.0f, effect=%.2f, %.1fσ, relΔ=%.1f%%)",
-			series.Name, direction, baselineMean, afterMean, bestPValue, bestU, bestEffect, deviation, relChange*100),
+			seriesName, direction, state.baselineMean, afterMean, pValue, u, effectSize, deviation, relChange*100),
 		Tags:      series.Tags,
-		Timestamp: series.Points[bestSplit].Timestamp,
+		Timestamp: p.Timestamp,
 		Score:     &score,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineStart:  series.Points[beforeStart].Timestamp,
-			BaselineEnd:    series.Points[bestSplit-1].Timestamp,
-			BaselineMean:   baselineMean,
-			BaselineStddev: baselineStddev,
-			Threshold:      sigThreshold,
+			BaselineMean:   state.baselineMean,
+			BaselineStddev: state.baselineStddev,
+			Threshold:      m.SignificanceThreshold,
 			CurrentValue:   afterMean,
 			DeviationSigma: deviation,
 		},
 	}
+}
 
-	return observer.DetectionResult{Anomalies: []observer.Anomaly{anomaly}}
+// stateKey returns a unique key for per-series state tracking.
+func (m *MannWhitneyDetector) stateKey(key observer.SeriesKey, agg observer.Aggregate) string {
+	return seriesKey(key.Namespace, key.Name, key.Tags) + "|" + aggSuffix(agg)
+}
+
+// newSeriesState creates a fresh per-series state entry.
+func (m *MannWhitneyDetector) newSeriesState(key observer.SeriesKey, agg observer.Aggregate) *mwSeriesState {
+	return &mwSeriesState{
+		key: key,
+		agg: agg,
+	}
+}
+
+// ensureDefaults fills in zero-valued config fields with sensible defaults.
+func (m *MannWhitneyDetector) ensureDefaults() {
+	if m.MinPoints <= 0 {
+		m.MinPoints = 50
+	}
+	if m.WindowSize <= 0 {
+		m.WindowSize = 60
+	}
+	if m.SignificanceThreshold <= 0 {
+		m.SignificanceThreshold = 1e-12
+	}
+	if m.MinEffectSize <= 0 {
+		m.MinEffectSize = 0.95
+	}
+	if m.MinDeviationSigma <= 0 {
+		m.MinDeviationSigma = 3.0
+	}
+	if m.MinRelativeChange < 0 {
+		m.MinRelativeChange = 0.20
+	}
+	if m.WarmupPoints <= 0 {
+		m.WarmupPoints = m.WindowSize*2 + m.MinPoints
+	}
+	if m.RecoveryPoints <= 0 {
+		m.RecoveryPoints = 10
+	}
+	if m.series == nil {
+		m.series = make(map[string]*mwSeriesState)
+	}
+	if len(m.Aggregations) == 0 {
+		m.Aggregations = []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		}
+	}
 }
 
 // extractValues extracts float64 values from a slice of Points.
