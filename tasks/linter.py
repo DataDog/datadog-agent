@@ -164,7 +164,7 @@ def update_go(_):
 
 # === PYTHON === #
 @task()
-def python(ctx, show_versions=False):
+def python(ctx, show_versions=False, read_only=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
@@ -174,7 +174,6 @@ def python(ctx, show_versions=False):
         files: Optional list of files to lint (space-separated). If not provided, lints all files.
         show_versions: Show the versions of the linters that are being used.
     """
-
     print(
         "Remember to set up pre-commit to lint your files before committing: "
         "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
@@ -186,6 +185,9 @@ def python(ctx, show_versions=False):
         print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
+        read_only = True
+
+    if read_only:
         # We want to the CI to fail if there are any issues, lint everything in CI
         ctx.run("ruff format --check .")
         ctx.run("ruff check --no-fix .")
