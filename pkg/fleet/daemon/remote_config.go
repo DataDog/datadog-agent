@@ -301,6 +301,7 @@ type installPackageTaskParams struct {
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
 func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+	var mu sync.Mutex
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		requests := map[string]remoteAPIRequest{}
@@ -315,11 +316,16 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 			requests[id] = request
 		}
 		for configID, request := range requests {
-			if _, ok := executedRequests[request.ID]; ok {
+			mu.Lock()
+			_, ok := executedRequests[request.ID]
+			if !ok {
+				executedRequests[request.ID] = struct{}{}
+			}
+			mu.Unlock()
+			if ok {
 				log.Debugf("request %s already executed", request.ID)
 				continue
 			}
-			executedRequests[request.ID] = struct{}{}
 			err := h(request)
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
