@@ -47,7 +47,7 @@ func TestTagsSetup(t *testing.T) {
 
 	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceTags), []string{versionTag}), serverlessTag.MapToArray(metricTags))
 	assert.ElementsMatch(t, slices.Concat(configuredTags, baseTags, serverlessTag.MapToArray(cloudServiceEnhancedMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedMetricTags))
-	assert.ElementsMatch(t, serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), serverlessTag.MapToArray(enhancedUsageMetricTags))
+	assert.ElementsMatch(t, slices.Concat(serverlessTag.MapToArray(cloudServiceEnhancedUsageMetricTags), enhancedMetricVersionTags), serverlessTag.MapToArray(enhancedUsageMetricTags))
 }
 
 func TestFxApp(t *testing.T) {

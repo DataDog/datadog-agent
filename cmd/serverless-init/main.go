@@ -196,6 +196,9 @@ func configureTags(cloudService cloudservice.CloudService) ([]string, map[string
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
+	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
+
 	return configuredTags, tags, enhancedMetricTags, enhancedUsageMetricTags
 }
 
