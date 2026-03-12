@@ -924,6 +924,9 @@ func (p *WindowsProbe) Start() error {
 				buf := make([]byte, 1<<20)
 				n := runtime.Stack(buf, true)
 				log.Criticalf("panic in event processing goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
 				os.Exit(2)
 			}
 		}()
