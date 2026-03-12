@@ -21,12 +21,13 @@ copy_to_directory(
     visibility = ["//rtloader/test:__subpackages__"],
 )
 
-# Directory for making it easier to make the stubs available on Windows (without runfiles support)
+# Directory for making it easier to reference to the python stubs when passing
+# the location to the tests
 copy_to_directory(
     name = "dir_with_python_stubs",
     srcs = ["//rtloader/test:python_stubs"],
     out = "python",
     root_paths = ["rtloader/test/python"],
-    target_compatible_with = ["@platforms//os:windows"],
+    tags = ["manual"],
     visibility = ["//rtloader/test:__subpackages__"],
 )

@@ -59,11 +59,7 @@ func GetRtLoader() *C.rtloader_t {
 // are running from bazel and OS
 func addStubsToPythonPath(rtloader *C.rtloader_t) {
 	if isBazel() {
-		// On bazel, we set the PYTHONPATH on the rule, except on Windows where
-		// we need to pass the rlocation to make it work without runfiles support
-		if runtime.GOOS == "windows" {
-			C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
-		}
+		C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
 	} else {
 		// Pre-bazel default
 		C.add_python_path(rtloader, C.CString("../python"))

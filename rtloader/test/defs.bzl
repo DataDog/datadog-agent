@@ -28,7 +28,6 @@ def rtloader_go_test(**kwargs):
     """
     unix_data = [
         "//rtloader:datadog-agent-three",
-        "//rtloader/test:python_stubs",
         "@cpython//:python_unix",
         "@cpython//:python3_bin",
     ]
@@ -36,7 +35,6 @@ def rtloader_go_test(**kwargs):
     unix_env = {
         "LD_LIBRARY_PATH": ".",
         "PYTHON_BIN": "$(rlocationpath @cpython//:python3_bin)",
-        "PYTHONPATH": "test/python",
     }
 
     go_test(
@@ -44,24 +42,26 @@ def rtloader_go_test(**kwargs):
         # at runtime for macos, where we can't modify the library search path as easily.
         # Note: this has no effect on windows
         rundir = "rtloader",
-        data = kwargs.pop("data", []) + select({
-            "@platforms//os:linux": unix_data,
-            "@platforms//os:macos": unix_data,
-            "@platforms//os:windows": [
-                "//rtloader/test:dir_with_three",
-                "//rtloader/test:dir_with_python_stubs",
-                "@cpython//:python_win",
-                "@cpython//:python_win_lib",
-            ],
-        }),
-        env = kwargs.pop("env", {}) | select({
-            "@platforms//os:linux": unix_env,
-            "@platforms//os:macos": unix_env,
-            "@platforms//os:windows": {
-                "THREE_PATH": "$(rlocationpath //rtloader/test:dir_with_three)",
-                "PYTHON_LIB": "$(rlocationpath @cpython//:python_win_lib)",
-                "STUBS_LOCATION": "$(rlocationpath //rtloader/test:dir_with_python_stubs)",
-            },
-        }),
+        data = kwargs.pop("data", []) +
+               ["//rtloader/test:dir_with_python_stubs"] +
+               select({
+                   "@platforms//os:linux": unix_data,
+                   "@platforms//os:macos": unix_data,
+                   "@platforms//os:windows": [
+                       "//rtloader/test:dir_with_three",
+                       "@cpython//:python_win",
+                       "@cpython//:python_win_lib",
+                   ],
+               }),
+        env = kwargs.pop("env", {}) |
+              {"STUBS_LOCATION": "$(rlocationpath //rtloader/test:dir_with_python_stubs)"} |
+              select({
+                  "@platforms//os:linux": unix_env,
+                  "@platforms//os:macos": unix_env,
+                  "@platforms//os:windows": {
+                      "THREE_PATH": "$(rlocationpath //rtloader/test:dir_with_three)",
+                      "PYTHON_LIB": "$(rlocationpath @cpython//:python_win_lib)",
+                  },
+              }),
         **kwargs
     )
