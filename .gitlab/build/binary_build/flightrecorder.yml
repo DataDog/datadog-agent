@@ -1,0 +1,26 @@
+---
+.build_flightrecorder_binary_common:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - mkdir -p bin/flightrecorder
+    - cargo build --release --manifest-path tools/flightrecorder/Cargo.toml
+    - cp tools/flightrecorder/target/release/flightrecorder bin/flightrecorder/flightrecorder
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/bin/flightrecorder/flightrecorder
+
+build_flightrecorder_binary_x64:
+  extends: [.build_flightrecorder_binary_common]
+  tags: ["arch:amd64", "specific:true"]
+
+build_flightrecorder_binary_arm64:
+  extends: [.build_flightrecorder_binary_common]
+  tags: ["arch:arm64", "specific:true"]

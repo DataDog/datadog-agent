@@ -1,0 +1,28 @@
+---
+#
+# Flight recorder image tagging & manifest publication
+#
+
+.deploy_containers-flightrecorder-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$FLIGHTRECORDER_REPOSITORY" == "" ]]; then export FLIGHTRECORDER_REPOSITORY="flightrecorder"; fi
+    - export IMG_BASE_SRC="${SRC_FLIGHTRECORDER}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
+    - export IMG_DESTINATIONS="${FLIGHTRECORDER_REPOSITORY}:${VERSION}"
+
+deploy_containers-flightrecorder:
+  extends: .deploy_containers-flightrecorder-base
+  rules: !reference [.on_deploy_manual_auto_on_rc]
+  needs: []
+
+deploy_containers-flightrecorder_internal-rc:
+  extends: .deploy_containers-flightrecorder-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs: []
+
+deploy_containers-flightrecorder_internal:
+  extends: .deploy_containers-flightrecorder-base
+  rules: !reference [.on_deploy_internal_manual_final]

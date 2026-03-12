@@ -194,6 +194,6 @@ use (
 	test/otel
 	tools/build-ddot-byoc
 	tools/retry_file_dump
-	schema/pipelinesink
-	comp/pipelinesink/def
+	schema/flightrecorder
+	comp/flightrecorder/def
 )

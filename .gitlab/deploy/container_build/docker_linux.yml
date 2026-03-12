@@ -544,29 +544,29 @@ docker_build_dogstatsd_arm64:
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
 
-# build the pipelinerecorder image (signal recording sidecar)
-.docker_build_pipelinerecorder:
+# build the flightrecorder image (signal recording sidecar)
+.docker_build_flightrecorder:
   extends: .docker_build_job_definition
   before_script:
-    - cp bin/pipelinerecorder/pipelinerecorder $BUILD_CONTEXT/
+    - cp bin/flightrecorder/flightrecorder $BUILD_CONTEXT/
     - ls -l $BUILD_CONTEXT/
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/pipelinerecorder
-    BUILD_CONTEXT: Dockerfiles/pipelinerecorder
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/flightrecorder
+    BUILD_CONTEXT: Dockerfiles/flightrecorder
     FLATTEN_IMAGE: false
     BUILD_ARG: --target release
 
-docker_build_pipelinerecorder_amd64:
+docker_build_flightrecorder_amd64:
   extends:
-    [.docker_build_pipelinerecorder, .docker_build_amd64]
+    [.docker_build_flightrecorder, .docker_build_amd64]
   needs:
-    - job: build_pipelinerecorder_binary_x64
+    - job: build_flightrecorder_binary_x64
 
-docker_build_pipelinerecorder_arm64:
+docker_build_flightrecorder_arm64:
   extends:
-    [.docker_build_pipelinerecorder, .docker_build_arm64]
+    [.docker_build_flightrecorder, .docker_build_arm64]
   needs:
-    - job: build_pipelinerecorder_binary_arm64
+    - job: build_flightrecorder_binary_arm64
