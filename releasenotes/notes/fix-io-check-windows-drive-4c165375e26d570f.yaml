@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug on windows where the io check was reporting metrics for the ``C:``
-    drive only.

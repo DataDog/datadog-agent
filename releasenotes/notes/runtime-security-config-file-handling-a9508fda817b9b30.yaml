@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    There are two default config files. Optionally, you can provide override config files.
-    The change in this release is that for both sets, if the first config is inaccessible, the security agent startup process fails. Previously, the security agent would continue to attempt to start up even if the first config file is inaccessible.
-    To illustrate this, in the default case, the config files are datadog.yaml and security-agent.yaml, and in that order. If datadog.yaml is inaccessible, the security agent fails immediately. If you provide overrides, like foo.yaml and bar.yaml, the security agent fails immediately if foo.yaml is inaccessible.
-    In both sets, if any additional config files are missing, the security agent continues to attempt to start up, with a log message about an inaccessible config file. This is not a change from previous behavior.

@@ -1,3 +1,0 @@
-otelcollector:
-  converter:
-    features: [pprof, zpages, health_check, datadog]

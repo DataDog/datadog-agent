@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed a bug on file tailing causing the logs-agent to reprocess multiple times the same data when restarted because of a wrong file offset management when lines are trimmed.

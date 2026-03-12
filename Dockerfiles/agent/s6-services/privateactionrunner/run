@@ -1,4 +1,0 @@
-#!/usr/bin/execlineb -P
-
-foreground { /initlog.sh "starting privateactionrunner" }
-privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml

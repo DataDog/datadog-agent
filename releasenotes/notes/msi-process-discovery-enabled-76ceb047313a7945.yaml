@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    On Windows, allow enabling process discovery in the process agent by providing PROCESS_DISCOVERY_ENABLED=true to the msiexec command.

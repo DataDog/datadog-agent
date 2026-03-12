@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue with docker tailing on restart of monitored containers.
-    Previously, at each container restart the agent would re submit all logs.
-    Now, on restart we use tracked offsets properly, and as a result submit only
-    new logs

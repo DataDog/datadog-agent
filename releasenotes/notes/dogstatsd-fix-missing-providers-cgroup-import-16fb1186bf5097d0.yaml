@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix panic in the dogstatsd standalone package when running in a containerized environment.

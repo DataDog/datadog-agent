@@ -1,3 +1,0 @@
-fixes:
-  - |
-    APM: Fix the `trace-agent -info` command when remote configuration is enabled.

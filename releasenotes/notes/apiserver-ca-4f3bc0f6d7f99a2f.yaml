@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add two new parameters to allow customizing APIServer connection parameters (CAPath, TLSVerify) without requiring to use a fully custom kubeconfig.

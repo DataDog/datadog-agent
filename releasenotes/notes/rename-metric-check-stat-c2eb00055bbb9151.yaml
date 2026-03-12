@@ -1,6 +1,0 @@
----
-other:
-  - |
-    On the status and check command outputs, rename checks' ``Metrics`` to ``Metric Samples``
-    to reflect that the number represents the number of samples submitted by the check, not
-    the number of metrics after aggregation.

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    APM: improve performance of NormalizeTag function.

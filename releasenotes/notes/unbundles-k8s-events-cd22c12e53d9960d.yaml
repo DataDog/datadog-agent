@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Introduces an `unbundle_events` config to the `kubernetes_apiserver`
-    integration. When set to `true`, Kubernetes events are no longer bundled
-    together by InvolvedObject, and instead generate separate Datadog events.

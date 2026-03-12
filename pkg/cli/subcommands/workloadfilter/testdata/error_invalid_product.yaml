@@ -1,7 +1,0 @@
----
-# Invalid product name
-- products:
-    - invalid_product
-  rules:
-    containers:
-      - container.name == "redis"

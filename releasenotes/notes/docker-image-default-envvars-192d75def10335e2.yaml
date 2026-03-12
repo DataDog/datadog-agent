@@ -1,8 +1,0 @@
----
-upgrade:
-  - |
-    Docker image: we moved the default configuration from the docker image's default
-    environment variables to the `datadog-*.yaml` files. This allows users to easily
-    mount a custom `datadog.yaml` configuration file to set all options.
-    If you already did so, you will need to update your `datadog.yaml` to include
-    these new defaults. If you only used envvars, no change is needed.

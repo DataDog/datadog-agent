@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Ships updated integrations from `integrations-core 6.0.0-rc.2`_, including new ``kubelet`` check
-
-    .. _integrations-core 6.0.0-rc.2: https://github.com/DataDog/integrations-core/releases/tag/6.0.0-rc.2

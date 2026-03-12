@@ -1,9 +1,0 @@
----
-upgrade:
-  - |
-    Normal installations: APM now listens to localhost only by default, you need to set
-    `apm_config.apm_non_local_traffic = true` to enable listening on the network
-  - |
-    Docker image: APM is now disabled by default, you need to set `DD_APM_ENABLED=true`
-    to run the trace agent. It listens on all interfaces by default when running, you can
-    set `DD_APM_NON_LOCAL_TRAFFIC=false` to only listen on localhost

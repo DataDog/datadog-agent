@@ -1,4 +1,0 @@
----
-features:
-  - |
-    system-probe: Add optional runtime compilation of eBPF programs.

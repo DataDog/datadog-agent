@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Collect oshift_deployment_config and oshift_deployment tags on OpenShift

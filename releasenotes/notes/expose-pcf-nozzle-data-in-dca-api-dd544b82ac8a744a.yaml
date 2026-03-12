@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Expose additional CloudFoundry metadata in the DCA API that the
-    PCF firehose nozzles can use to reduce the load on the CC API.

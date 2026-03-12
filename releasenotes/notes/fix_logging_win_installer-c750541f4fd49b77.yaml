@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix some string logging in the Windows installer.

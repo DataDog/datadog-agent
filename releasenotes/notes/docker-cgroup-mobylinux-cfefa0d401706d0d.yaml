@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix docker metrics collection on Moby Linux hosts (default Swarm AMI)

@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Add the ``DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED`` env variable to set the ``process_config.internal_profiling.enabled``.

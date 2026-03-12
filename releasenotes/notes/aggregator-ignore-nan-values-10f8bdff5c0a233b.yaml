@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    The aggregator now discards metric samples with ``NaN`` values. Also solves a serializing error
-    on metric payloads.

@@ -1,8 +1,0 @@
----
-enhancements:
-  - |
-    The Agent now supports a single "ad.datadoghq.com/$IDENTIFIER.checks"
-    annotation in Kubernetes Pods and Services to configure Autodiscovery
-    checks. It merges the contents of the existing "check_names",
-    "init_configs" (now optional), and "instances" annotations into a single
-    JSON value.

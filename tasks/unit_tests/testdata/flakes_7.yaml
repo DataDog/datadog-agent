@@ -1,4 +1,0 @@
-pkg/serverless/trace:
-  - test: TestLoadConfigShouldBeFast
-    on-log:
-      - "panic.*toto"

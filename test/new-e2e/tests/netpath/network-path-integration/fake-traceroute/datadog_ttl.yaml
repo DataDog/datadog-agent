@@ -1,3 +1,0 @@
-network_path:
-  collector:
-    max_ttl: 10 # reduce the max TTL to make the test run faster

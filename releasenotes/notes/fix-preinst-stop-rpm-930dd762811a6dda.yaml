@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    On RHEL/SUSE, stop the Agent properly in the pre-install RPM script on systems where
-    ``/lib`` is not a symlink to ``/usr/lib``.

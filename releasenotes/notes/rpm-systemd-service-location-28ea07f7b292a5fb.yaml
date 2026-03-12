@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    The RPM packages now write systemd service files to `/usr/lib/systemd/system/`
-    (recommended path on RHEL/SUSE) instead of `/lib/systemd/system/`

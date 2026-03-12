@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Menu in system tray reports wrong version (6.0.0) for all versions of Agent.  This fixes the system tray menu to report the correct version.

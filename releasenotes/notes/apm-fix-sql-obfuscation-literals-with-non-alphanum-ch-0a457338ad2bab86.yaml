@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fix SQL obfuscation failures on queries with literals that include non alpha-numeric characters

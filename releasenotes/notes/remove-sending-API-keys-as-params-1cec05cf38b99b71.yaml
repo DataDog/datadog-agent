@@ -1,8 +1,0 @@
----
-security:
-  - |
-    Some HTTP requests sent by the Datadog Agent to Datadog endpoints were including the Datadog API key in the query parameters (in the URL).
-    This meant that the keys could potentially have been logged in various locations, for example, in a forward or a reverse proxy server logs the Agent connected to.
-    We have updated all requests to not send the API key as a query parameter.
-    Anyone who uses a proxy to connect the Agent to Datadog endpoints should make sure their proxy forwards all Datadog headers (patricularly ``DD-Api-Key``).
-    Failure to not send all Datadog headers could cause payloads to be rejected by our endpoints.

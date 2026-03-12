@@ -1,7 +1,0 @@
-binary: busyloop
-probes:
-- id: a
-  type: LOG_PROBE
-  captureSnapshot: true
-  where:
-    methodName: main.noop

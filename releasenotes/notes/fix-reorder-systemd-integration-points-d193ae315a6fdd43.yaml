@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Systemd integration points are re-ordered so that ``dbus`` is used in
-    preference to the systemd private API at ``/run/systemd/private``, as per
-    the systemd documentation. This prevents unnecessary logging to the system
-    journal when datadog-agent is run without root permissions.

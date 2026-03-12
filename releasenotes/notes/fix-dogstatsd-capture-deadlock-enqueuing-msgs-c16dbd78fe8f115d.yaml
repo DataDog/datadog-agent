@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixed a deadlock in the DogStatsD when running the capture (`agent dogstatsd-capture`). The Agent now flushes the
-    captured messages properly when the capture stops.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Experimental: The Datadog Admission Controller can inject the Node and Java APM libraries into Kubernetes containers for auto-instrumentation.

@@ -1,4 +1,0 @@
-datadog:
-  securityAgent:
-    compliance:
-      enabled: true

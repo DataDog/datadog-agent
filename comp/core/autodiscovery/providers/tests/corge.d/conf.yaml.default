@@ -1,5 +1,0 @@
-init_config:
-
-instances:
-  # No configuration is needed for this check.
-  - foo: bar

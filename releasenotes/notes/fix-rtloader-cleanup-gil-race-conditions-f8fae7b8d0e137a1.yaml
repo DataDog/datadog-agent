@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fix agent crashes from Python interpreter being freed too early. This was
-    most likely to occur as an edge case during a shutdown of the agent where
-    the interpreter was destroyed before the finalizers for a check were
-    invoked by finalizers.

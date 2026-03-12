@@ -1,3 +1,0 @@
----
-fixes:
-  - Better handling of docker return values to avoid errors

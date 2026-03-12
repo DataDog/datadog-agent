@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Kubernetes State Core check: Job metrics corresponding to a Cron Job are tagged with a ``kube_cronjob`` tag.

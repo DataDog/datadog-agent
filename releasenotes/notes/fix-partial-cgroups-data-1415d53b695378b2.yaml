@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Allow to report all gathered data in case of partial failure of container metrics retrieval.

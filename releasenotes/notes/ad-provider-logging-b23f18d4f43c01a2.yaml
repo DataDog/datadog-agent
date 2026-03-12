@@ -1,3 +1,0 @@
-enhancements:
-  - | 
-    Kubelet Autodiscovery: reduce logging when no change is detected

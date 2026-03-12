@@ -1,3 +1,0 @@
-features:
-  - |
-    Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics

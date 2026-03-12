@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Windows installer can now use the command line key ``EC2_USE_WINDOWS_PREFIX_DETECTION`` to set the config
-    value of ``ec2_use_windows_prefix_detection``

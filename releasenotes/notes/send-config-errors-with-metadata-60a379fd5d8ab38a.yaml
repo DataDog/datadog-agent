@@ -1,6 +1,0 @@
-enhancements:
-  - |
-    Errors that arise while loading checks configuration
-    files are now send with metadata along with checks
-    loading errors and running errors so they will show
-    up on the infrastructure list in the DataDog app.

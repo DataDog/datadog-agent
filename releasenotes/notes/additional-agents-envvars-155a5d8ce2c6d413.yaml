@@ -1,5 +1,0 @@
----
-features:
-  - |
-    APM / Process / Log agents can be enabled/disabled via the DD_*_ENABLED
-    environment variables, see the agent docker image readme for details

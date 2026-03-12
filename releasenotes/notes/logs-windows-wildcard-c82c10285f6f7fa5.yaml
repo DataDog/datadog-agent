@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    fixes an issue with wildcard tailing of logs files on windows

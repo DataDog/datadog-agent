@@ -1,5 +1,0 @@
-other:
-  - |
-    The system information collected from gohai no longer includes network information
-    when the agent is running in a container since the network information is for the
-    the container and not the host itself.

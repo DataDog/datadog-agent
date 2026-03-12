@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixing docker network metrics collection for the docker check and the process agent on some network configurations.

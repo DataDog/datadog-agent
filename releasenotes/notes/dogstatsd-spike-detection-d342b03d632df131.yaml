@@ -1,3 +1,0 @@
-other:
-  - |
-    In Debug mode, DogStatsD log a warning message when a burst of metrics is detected.

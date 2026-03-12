@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Upgraded Go runtime to `1.9.4` on Linux builds

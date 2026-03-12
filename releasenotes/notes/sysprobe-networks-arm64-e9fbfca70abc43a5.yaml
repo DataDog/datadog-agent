@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add unofficial arm64 support to network tracer in system-probe.

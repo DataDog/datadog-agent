@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug in the log scanning logic of the JMXFetch wrapper that would make
-    JMXFetch hang if it logged a very large log entry

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Take into account empty hosts on metrics coming from dogstatsd, instead of
-    ignoring them and applying the Agent's hostname.

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes tag extraction from Kubernetes pod labels when using patterns on
-    certain non-alphanumeric label names (e.g. app.kubernetes.io/managed-by).

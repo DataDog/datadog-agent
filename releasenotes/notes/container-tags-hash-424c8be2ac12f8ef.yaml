@@ -1,3 +1,0 @@
-features:
-  - |
-    pkg/trace/api: Container tags hash is returned as a response header of the info endpoint.

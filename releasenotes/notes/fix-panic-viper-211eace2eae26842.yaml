@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix panics within the agent when using non thread safe method from Viper
-    library (Unmarshall).

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes panic on concurrent map access in Kubernetes metadata tag collector.
-

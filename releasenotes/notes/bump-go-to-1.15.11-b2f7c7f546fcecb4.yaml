@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The Agent, Logs Agent and the system-probe are now compiled with Go ``1.15.11``

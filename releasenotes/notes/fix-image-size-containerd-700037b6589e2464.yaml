@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Corrected a bug in calculating the total size of a container image, now accounting for the configuration file size.

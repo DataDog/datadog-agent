@@ -1,4 +1,0 @@
----
-issues:
-  - |
-    If the kubelet is not configured with TLS auth, the agent will fail to communicate with the API when it should still try HTTP.

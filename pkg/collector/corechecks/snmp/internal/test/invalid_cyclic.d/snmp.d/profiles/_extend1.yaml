@@ -1,4 +1,0 @@
-# Generic network interfaces metrics.
-#
-extends:
-  - _extend2.yaml

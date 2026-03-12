@@ -1,8 +1,0 @@
----
-features:
-  - This release ships full support of Kubernetes 1.3+
-enhancements:
-  - |
-    The `kube_service` tag is now collected on Kubernetes 1.3.x versions. The matching uses
-    a new logic. If it were to fail, reverting to the previous logic is possible by setting
-    the kubernetes_map_services_on_ip option to true.

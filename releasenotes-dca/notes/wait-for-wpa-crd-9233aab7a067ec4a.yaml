@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Addresses the problem with missing WPA CRD causing a lot of error output in the logs.
-    Wait for the WPA CRD to become available before entering the controller loop.

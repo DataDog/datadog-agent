@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Docker images are now signed with Content Trust to ensure their integrity when pulling

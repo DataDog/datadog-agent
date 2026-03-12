@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Autodiscovery of integrations now works with containerd.

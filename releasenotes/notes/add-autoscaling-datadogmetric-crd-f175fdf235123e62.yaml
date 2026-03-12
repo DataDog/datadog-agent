@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add support of new DatadogMetric CRD in DCA. Allows to autoscale based on any valid Datadog query.

@@ -1,5 +1,0 @@
----
-install_method:
-  tool: docker
-  tool_version: docker
-  installer_version: docker

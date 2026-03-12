@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Windows Agent Installer gives a better error message when a gMSA
-    account is provided for ``ddagentuser`` that Windows does not recognize.

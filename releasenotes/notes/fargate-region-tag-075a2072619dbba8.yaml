@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Added a ``region`` tag to Fargate containers, indicating the AWS region
-    they run in

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add `process-agent status` output to the core Agent status command.

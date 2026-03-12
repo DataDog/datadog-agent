@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Updating the data type of the CPU of the task and the metadata name for Version to Revision.
- 

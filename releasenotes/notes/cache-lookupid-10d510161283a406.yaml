@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Added optional config flag `process_config.cache_lookupid` to cache calls to `user.LookupId` in the process Agent.
-    Use to minimize the number of calls to `user.LookupId` and avoid potential leak.

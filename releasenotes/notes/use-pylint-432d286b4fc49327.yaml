@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Use pylint directly for py3 validation, removing dependency on a7.

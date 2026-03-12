@@ -1,6 +1,0 @@
-DD_AGENT_1.0 {
-    global:
-        nvml*;
-    local:
-        *;
-};

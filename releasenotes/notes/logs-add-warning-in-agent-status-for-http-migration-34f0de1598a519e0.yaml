@@ -1,5 +1,0 @@
-
----
-features:
-  - |
-    Add a warning in the logs-agent section of the agent status to incite users to switch over HTTP transport.

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add a new command 'datadog-cluster-agent telemetry' to print the telemetry payload.
-    Add the telemetry payload to the flare.

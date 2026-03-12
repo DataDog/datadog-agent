@@ -1,6 +1,0 @@
-enhancements:
-  - |
-    The authentication token file is now only created
-    when the agent is launched with the ``agent start`` command
-    It prevents command such as ``agent status`` to create
-    an authentication token file owned by a wrong user.

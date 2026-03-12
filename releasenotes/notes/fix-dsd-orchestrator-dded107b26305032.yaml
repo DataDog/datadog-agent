@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix missing tags on Dogstatsd metrics when DD_DOGSTATSD_TAG_CARDINALITY=orchestrator (for instance, task_arn on Fargate)

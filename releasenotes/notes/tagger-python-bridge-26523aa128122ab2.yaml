@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Support the new `kubelet` integration by providing the container tags to it    

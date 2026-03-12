@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Allows the user to blacklist source and destination connections by passing IPs or CIDRs as well as port numbers.

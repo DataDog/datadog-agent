@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Upgrade the embedded pip version to 20.3.3 to get a newer vendored version of urllib3. 
- 

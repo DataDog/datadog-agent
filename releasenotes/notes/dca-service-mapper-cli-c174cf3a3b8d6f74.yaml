@@ -1,3 +1,0 @@
----
-features:
-  - Add a svcmap command in the CLI of the Datadog Cluster Agent. Core components will also be used for the flare.

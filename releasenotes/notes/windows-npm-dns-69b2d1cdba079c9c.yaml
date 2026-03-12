@@ -1,3 +1,0 @@
-features:
-  - |
-    Network Performance Monitoring for Windows instruments DNS.  Network data from Windows hosts will be tagged with the domain tag, and the DNS page will show data for Windows hosts.

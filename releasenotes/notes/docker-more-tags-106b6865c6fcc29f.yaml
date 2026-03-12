@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Extract the swarm_namespace tag for docker swarm containers, in addition
-    to the already present swarm_service tag.

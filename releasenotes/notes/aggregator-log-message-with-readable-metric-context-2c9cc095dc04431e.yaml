@@ -1,5 +1,0 @@
----
-other:
-  - |
-    In the metrics aggregator, log readable context information (metric name,
-    host, tags) instead of the raw context key to help troubleshooting

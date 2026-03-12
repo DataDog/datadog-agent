@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Experimental: The Datadog Admission Controller can inject the .NET APM library into Kubernetes containers for auto-instrumentation.
-

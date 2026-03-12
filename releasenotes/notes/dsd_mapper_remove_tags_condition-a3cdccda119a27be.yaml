@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Make DSD Mapper also map metrics that already contain tags.

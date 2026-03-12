@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Experimental: Support Ruby library injection through the Admission Controller on Kubernetes.

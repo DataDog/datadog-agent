@@ -1,4 +1,0 @@
-api_key: api_key_test
-dd_url: https://app.datadoghq.com
-apm_config:
-  apm_dd_url: some.other.datadoghq.eu

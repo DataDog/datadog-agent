@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix truncated cgroup name on copy with bpf_probe_read_str in OOM kill and TCP queue length checks.
-

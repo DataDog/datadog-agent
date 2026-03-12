@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix warning about unknown setting "StartLimitIntervalSecs" in the agent
-    service file with systemd version <=229.

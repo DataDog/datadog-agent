@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fixes bug in enrich tags logic while a dogstatsd capture replay is in
-    process; previously when a live traffic originID was not found in the
-    captured state, no tags were enriched and the live traffic tagger was
-    wrongfully skipped.

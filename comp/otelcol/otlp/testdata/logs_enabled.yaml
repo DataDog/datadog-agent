@@ -1,7 +1,0 @@
-otlp_config:
-  logs:
-    enabled: true
-    batch:
-      min_size: 100
-      max_size: 200
-      flush_timeout: 5001ms

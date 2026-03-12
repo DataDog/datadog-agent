@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Endpoint Checks can now be enabled without enabling a Service Check on the same service.
-    Endpoint Checks on Endpoints that are not backed by pods are now considered as Cluster Level Checks
-    and can be scheduled on Agent workers that have the clusterchecks config provider enabled.

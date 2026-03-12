@@ -1,7 +1,0 @@
----
-# Type mismatch - comparing string field with number
-- products:
-    - metrics
-  rules:
-    containers:
-      - container.name == 123

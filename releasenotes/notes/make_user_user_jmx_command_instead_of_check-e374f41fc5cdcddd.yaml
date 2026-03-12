@@ -1,4 +1,0 @@
-fixes:
-  - |
-    The parameter ``jmx`` is not supported with the command ``check``, the ``jmx`` command should be used instead.
-

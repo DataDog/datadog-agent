@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue that would prevent the agent from stopping when it was tailing logs
-    of a container that had no logs.

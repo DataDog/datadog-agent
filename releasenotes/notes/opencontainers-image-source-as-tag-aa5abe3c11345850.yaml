@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Automatically extract the ``org.opencontainers.image.source`` container label into the ``git.repository_url`` tag.

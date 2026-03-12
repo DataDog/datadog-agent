@@ -1,6 +1,0 @@
----
-fixes:
-  - Run the service mapper on all the agents running the apiserver check.
-    Exit before running the rest of the check if the agent is not the leader.
-other:
-  - Avoid logging an error if the agent is not a leader.

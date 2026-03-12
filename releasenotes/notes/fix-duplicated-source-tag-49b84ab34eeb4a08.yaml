@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    The agent would send the source twice when protobuf enabled (default),
-    once in the source field and once in tags. As a result, we would see the
-    source twice in the app. This PR fixes it, by sending it only in the source
-    field.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    The Cluster Agent can now be configured to use tls 1.2 via DD_FORCE_TLS_12=true

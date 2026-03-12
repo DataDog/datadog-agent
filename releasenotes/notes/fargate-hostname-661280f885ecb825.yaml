@@ -1,9 +1,0 @@
----
-features:
-  - |
-    Add ECS & ECS Fargate metadata API connectivity diagnose
-fixes:
-  - |
-    Strip hostname if running inside ECS Fargate and disable core checks (not relevant
-    without host infos)
-    Fix hostname caching consistency

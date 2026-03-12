@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fix obfuscation error on SQL queries using the '!' operator.

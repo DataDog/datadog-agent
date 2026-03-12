@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The Datadog Cluster Agent exposes a new metric ``endpoint_checks_configs_dispatched``.

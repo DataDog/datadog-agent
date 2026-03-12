@@ -1,8 +1,0 @@
-#!/bin/bash
-set -euo pipefail
-
-if [[ $$ == 1 ]]; then
-    exec /etc/s6/init/init-stage3-original
-else
-    exec /etc/s6/init/init-stage3-host-pid
-fi

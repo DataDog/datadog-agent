@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Upgrade Docker base image to ubuntu:21.04 as new stable release.

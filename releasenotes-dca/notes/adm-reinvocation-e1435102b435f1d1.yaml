@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The admission controller's reinvocation policy is now set to ``IfNeeded`` by default.
-    It can be changed using the ``admission_controller.reinvocation_policy`` parameter.

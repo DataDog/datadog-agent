@@ -1,4 +1,0 @@
----
-features:
-  - |
-    [preview] Checks can now send histogram buckets to the agent to be sent as distribution metrics.

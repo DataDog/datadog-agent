@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    It's possible now to have different poll intervals for
-    each autodiscovery configuration providers

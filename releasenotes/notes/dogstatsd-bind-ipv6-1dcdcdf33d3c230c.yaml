@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Dogstatsd now support listening on an IPv6 address when using ``bind_host``
-    config option.
-

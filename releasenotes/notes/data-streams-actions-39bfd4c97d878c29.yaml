@@ -1,4 +1,0 @@
-features:
-  - Checks can be scheduled only once with run_once configuration
-  - Data Streams Kafka actions perform actions on Kafka clusters
-

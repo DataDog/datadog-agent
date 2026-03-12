@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    The agent can now expose its healthcheck on a dedicated http port.
-    The Kubernetes daemonset uses this by defaut, on port 5555.

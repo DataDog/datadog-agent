@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-exec /opt/datadog-agent/embedded/bin/system-probe --config=/etc/datadog-agent/system-probe.yaml

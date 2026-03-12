@@ -1,7 +1,0 @@
-hostname: thing
-api_key: apikey_12
-bind_host: 0.0.0.0
-dogstatsd_port: 28125
-log_level: DEBUG
-apm_config:
-  env: STAGING

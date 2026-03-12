@@ -1,3 +1,0 @@
----
-enhancements:
-  - Sensitive information is now scrubbed from pod annotations.

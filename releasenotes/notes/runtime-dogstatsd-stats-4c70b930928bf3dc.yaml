@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    You can now enable or disable the dogstatsd-stats troubleshooting feature at
-    runtime using the ``config set dogstatsd_stats`` command of the Agent.

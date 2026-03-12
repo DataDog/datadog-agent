@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Prevent an empty response body from being marked as a "successful call to the GCE metadata api".
-    Fixes a bug where hostnames became an empty string when using docker swarm and a non GCE environment.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Enable collection of Ingresses by default in the orchestrator check.

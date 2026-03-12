@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Allow setting ``is_jmx`` at the instance level, thereby enabling integrations
-    to utilize JMXFetch and Python/Go.

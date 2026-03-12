@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Implement API that allows Python checks to send metadata using
-    the ``inventories`` provider.

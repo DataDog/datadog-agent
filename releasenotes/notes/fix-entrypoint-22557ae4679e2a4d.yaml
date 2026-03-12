@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix the use of "docker restart" with the agent image

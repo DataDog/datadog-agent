@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes missing container stats in ECS Fargate 1.4.0.

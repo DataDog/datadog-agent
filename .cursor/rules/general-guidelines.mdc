@@ -1,4 +1,0 @@
----
-alwaysApply: true
----
-@AGENTS.md

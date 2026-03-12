@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Try to connect to Docker even `/var/run/docker.sock` is absent, to honor the
-    $DOCKER_HOST environment variable.
-  - |
-    Get the docker server version in the debug logs for troubleshooting

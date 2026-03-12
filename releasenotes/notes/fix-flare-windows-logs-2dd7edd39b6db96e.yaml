@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix path of logs collected by flare on Windows, was breaking flare command

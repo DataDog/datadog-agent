@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fix SQL obfuscation error on statements using bind variables starting with digits

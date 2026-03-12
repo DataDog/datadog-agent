@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    The logs agent now uses the container image name as logs source instead of 
-    `kubernetes` when a standard service value was defined for the container.

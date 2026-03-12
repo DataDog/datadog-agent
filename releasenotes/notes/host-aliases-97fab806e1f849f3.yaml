@@ -1,4 +1,0 @@
-features:
-  - |
-    New `host_aliases` setting can be used to add custom host aliases in
-    addition to aliases obtained from cloud providers automatically.

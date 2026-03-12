@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Create an inferred span to represent the entire duration of a Cloud Run Job task.

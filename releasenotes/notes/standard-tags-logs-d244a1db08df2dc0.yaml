@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Use the standard tag 'service' as a log collection attribute for container's logs
-    collected from both kubernetes and docker log sources.

@@ -1,3 +1,0 @@
-# enable security agent
-runtime_security_config:
-  enabled: false

@@ -1,8 +1,0 @@
----
-features:
-  - |
-    Add options to exclude specific payloads from being sent to Datadog. In
-    some environments, some of the gathered information is considered too
-    sensitive to be sent to Datadog (i.e. IP addresses in events or service
-    checks). This feature adds to option to exclude specific payload types from
-    being sent to the backend.

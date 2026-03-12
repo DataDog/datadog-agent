@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixed an edge case in which the Cluster Agent's Admission Controller
-    doesn't update the Webhook object according to specified configuration.

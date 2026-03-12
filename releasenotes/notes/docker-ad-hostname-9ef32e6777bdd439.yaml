@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Autodiscovery now supports the %%hostname%% tag on the docker listener
-    This tag will resolve to the containers' hostname value if present in
-    the container inspect. It is useful if the container IP is not available
-    or erroneous.

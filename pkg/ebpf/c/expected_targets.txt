@@ -1,4 +1,0 @@
-  Registered Targets:
-    bpf   - BPF (host endian)
-    bpfeb - BPF (big endian)
-    bpfel - BPF (little endian)

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Allow empty message for DogStatsD events (e.g. "_e{10,0}:test title|")

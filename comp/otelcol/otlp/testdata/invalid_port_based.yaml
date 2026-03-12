@@ -1,3 +1,0 @@
-otlp_config:
-  grpc_port: 1234
-  http_port: 5678

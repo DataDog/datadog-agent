@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes truncated output for status of compliance checks in Security Agent.

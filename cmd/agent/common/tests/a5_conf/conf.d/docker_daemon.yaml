@@ -1,6 +1,0 @@
-init_config:
-  docker_root: /host
-  timeout: 10
-
-instances:
-  - url: "unix://var/run/docker.sock"

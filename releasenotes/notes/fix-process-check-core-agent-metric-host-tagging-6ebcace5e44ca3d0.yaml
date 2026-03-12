@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Metrics sent from the process check on the core agent now have the host tag.

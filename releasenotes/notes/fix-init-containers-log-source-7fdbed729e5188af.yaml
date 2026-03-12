@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug that prevented the logs Agent from discovering the correct init containers `source` and `service` on Kubernetes.

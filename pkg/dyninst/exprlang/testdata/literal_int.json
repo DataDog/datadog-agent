@@ -1,5 +1,0 @@
-{
-  "type": "error",
-  "operation": "",
-  "error": "parse error: malformed DSL: got token 42 (number), expected {"
-}

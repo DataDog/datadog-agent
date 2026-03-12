@@ -1,4 +1,0 @@
-fixes:
-  - |
-    APM: The agent now exits with code 0 when the API key is not specified. This is so to prevent the Windows SCM 
-    from restarting the process. 

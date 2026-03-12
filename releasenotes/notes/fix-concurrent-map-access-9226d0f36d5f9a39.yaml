@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix panic due to concurrent map access in Docker AD provider

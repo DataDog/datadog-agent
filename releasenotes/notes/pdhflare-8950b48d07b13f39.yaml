@@ -1,5 +1,0 @@
----
-other:
-  - |
-    Adds collection of PDH counter information to the flare; saves the
-    step of always asking the customer for this information.

@@ -1,9 +1,0 @@
----
-enhancements:
-  - |
-    Add host tag to associate host to a NodePool
-  - |
-    Add annotation to associate a replica NodePool to its target
-fixes:
-  - |
-    Ensure NodePool spec hash has not changed before updating

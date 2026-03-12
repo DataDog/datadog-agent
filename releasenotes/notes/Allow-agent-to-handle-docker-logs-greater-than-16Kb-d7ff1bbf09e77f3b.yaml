@@ -1,4 +1,0 @@
-fixes:
-  - |
-    Fixes presence of invalid UTF-8 characters when docker log message is greater than 16Kb
-

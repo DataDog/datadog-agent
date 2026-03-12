@@ -1,7 +1,0 @@
----
-features:
-  - |
-    Log lines starting with the special character `<` were considered rfc5424
-    formatted, and any further formatting was skipped. This commit updates the
-    detection rule to match logs starting with `<pri>version `, to reduce
-    false positives

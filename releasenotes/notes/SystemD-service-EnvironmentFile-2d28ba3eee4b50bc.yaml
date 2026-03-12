@@ -1,6 +1,0 @@
-enhancements:
-  - |
-    Datadog Agent running as a systemd service can optionally read
-    environment variables from a text file `/etc/datadog-agent/environment`
-    containing newline-separated variable assignments.
-    See https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Environment

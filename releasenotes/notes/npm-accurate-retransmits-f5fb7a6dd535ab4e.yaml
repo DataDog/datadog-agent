@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    NPM - Improve accuracy of retransmits tracking on kernels >=4.7

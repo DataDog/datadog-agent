@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Lowercase the cluster names discovered from cloud providers
-    to ease moving between different Datadog products.

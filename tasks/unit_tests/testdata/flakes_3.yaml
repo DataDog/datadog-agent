@@ -1,2 +1,0 @@
-test/new-e2e/tests/containers:
-  - test: TestEKSSuite/Ifail

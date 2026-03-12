@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add a new "tagger-list" command that outputs the tagger content of a running agent.

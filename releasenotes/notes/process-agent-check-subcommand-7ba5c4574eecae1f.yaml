@@ -1,8 +1,0 @@
----
-enhancements:
-  - |
-    Add the ``check`` subcommand in the Process Agent replacing ``--check`` (``-check``).
-    Only warn once if the ``-version`` flag is used.
-deprecations:
-  - |
-    Deprecate the ``--check`` (``-check``) parameter (show warning on usage).

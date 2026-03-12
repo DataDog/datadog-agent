@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    The collector will no longer block when the number of runners is lower than
-    the number of long running check. We now start a new runner for those
-    checks.

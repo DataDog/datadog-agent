@@ -1,3 +1,0 @@
----
-.if_main_branch: &if_main_branch
-  if: $CI_COMMIT_BRANCH == "main"

@@ -1,4 +1,0 @@
----
-features:
-    - |
-      Kubernetes events: setting event host tags to the related hosts, instead of the host collecting the events.

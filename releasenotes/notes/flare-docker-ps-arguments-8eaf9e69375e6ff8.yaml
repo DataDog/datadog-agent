@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Removed the command arguments from the flare's container list
-    to avoid collecting sensitive information

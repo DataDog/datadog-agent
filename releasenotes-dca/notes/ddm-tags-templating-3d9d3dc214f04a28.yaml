@@ -1,8 +1,0 @@
----
-features:
-  - |
-    It's now possible to template the kube_cluster_name tag in DatadogMetric queries
-    Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%tag_kube_cluster_name%%}
-  - |
-    It's now possible to template any environment variable (as seen by the Datadog Cluster Agent) as tag in DatadogMetric queries
-    Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%env_DD_CLUSTER_NAME%%}

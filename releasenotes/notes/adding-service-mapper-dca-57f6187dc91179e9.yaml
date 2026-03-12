@@ -1,9 +1,0 @@
----
-features:
-  - |
-    Introducing the service mapper strategy for the DCA. We periodically hit the API server,
-    to get the list of pods, nodes and services. Then we proceed to match which endpoint (i.e. pod)
-    is covered by which service.
-    We create a map of pod name to service names, cache it and expose a public method.
-    This method is called when the Service Mapper endpoint of the DCA API is hit.
-    We also query the cache instead of the API Server if a cache miss happens, to separate the concerns.

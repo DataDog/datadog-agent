@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Adds the device mapper logical volume name as a tag
-    in the system.io infos.

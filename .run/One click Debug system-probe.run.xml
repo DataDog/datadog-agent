@@ -1,7 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="One click Debug system-probe" type="CompoundRunConfigurationType">
-    <toRun name="Debug system-probe" type="GoRemoteDebugConfigurationType" />
-    <toRun name="Run system-probe" type="ShConfigurationType" />
-    <method v="2" />
-  </configuration>
-</component>

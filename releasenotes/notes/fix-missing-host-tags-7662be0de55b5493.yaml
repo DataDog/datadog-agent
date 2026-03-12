@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Add retries to Kubernetes host tags retrievals, minimize the chance of missing/changing host tags every 30mins

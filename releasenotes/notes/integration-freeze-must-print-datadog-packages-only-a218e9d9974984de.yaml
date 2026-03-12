@@ -1,5 +1,0 @@
-other:
-  - |
-    The 'integration freeze' cli subcommand now only
-    displays datadog packages instead of the complete
-    result of the 'pip freeze' command.

@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Improve performance of system-probe conntracker.
-  - |
-    Throttle netlink socket on workloads with high connection churn.

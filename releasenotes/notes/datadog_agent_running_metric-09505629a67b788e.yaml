@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds in a `datadog.agent.running` metric that showcases a value of 1 if the Agent is currently reporting to Datadog.

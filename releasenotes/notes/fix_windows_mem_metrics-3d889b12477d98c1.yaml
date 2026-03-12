@@ -1,4 +1,0 @@
----
-fixes:
-  - Replaces the system.mem.free metric with gopsutil's 'available' and splits the windows and linux memory checks. Previously this reported
-    with a value of 0 and `system.mem.used` was reporting the same as `system.mem.total`

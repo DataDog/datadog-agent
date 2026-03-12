@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Escape message when using JSON log format. This, for example, fixes
-    multiline JSON payload when logging a Exception from Python.

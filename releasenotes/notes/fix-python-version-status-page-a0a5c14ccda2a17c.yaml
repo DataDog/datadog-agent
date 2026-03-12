@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Display embedded Python version in the status page instead of the version
-    from the system Python.

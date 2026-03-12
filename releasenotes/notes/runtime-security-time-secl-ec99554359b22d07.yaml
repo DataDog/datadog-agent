@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add time comparison support in SECL allow to write rules
-    such as: `open.file.path == "/etc/secret" && process.created_at > 5s`

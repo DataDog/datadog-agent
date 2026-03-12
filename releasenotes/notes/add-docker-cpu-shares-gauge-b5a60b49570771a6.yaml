@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Introduce new docker cpu shares gauge.

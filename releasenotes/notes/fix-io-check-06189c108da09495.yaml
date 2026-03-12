@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fix the IO check behavior on unix based on 'iostat' tool:
-    - Most metrics are an average time, so we don't need to divide again by
-      'delta' (ex: number of read/time doing read operations)
-    - time is based on the millisecond and not the second

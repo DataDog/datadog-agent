@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Make the check_sampler bucket expiry configurable

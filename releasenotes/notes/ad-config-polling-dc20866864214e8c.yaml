@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add a setting to configure the interval at which configs should be polled
-    for autodiscovery.

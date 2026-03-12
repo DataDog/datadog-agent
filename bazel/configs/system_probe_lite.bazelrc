@@ -1,7 +1,0 @@
-# system-probe-lite build config ---------------------------------------------------------------------------------------------------
-# Matches system-probe-lite Cargo.toml [profile.release] settings
-build:system-probe-lite-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
-build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
-build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
-build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
-build:system-probe-lite-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding

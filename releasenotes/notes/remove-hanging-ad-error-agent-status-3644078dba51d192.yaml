@@ -1,4 +1,0 @@
-fixes:
-  - |
-    Remove occasionally hanging autodiscovery errors 
-    from the agent status once a pod is deleted.

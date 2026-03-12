@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Added a new implementation of the `containerd` check based on the `container` check. Several metrics are not emitted anymore: `containerd.mem.current.max`, `containerd.mem.kernel.limit`, `containerd.mem.kernel.max`, `containerd.mem.kernel.failcnt`, `containerd.mem.swap.limit`, `containerd.mem.swap.max`, `containerd.mem.swap.failcnt`, `containerd.hugetlb.max`, `containerd.hugetlb.failcount`, `containerd.hugetlb.usage`, `containerd.mem.rsshuge`, `containerd.mem.dirty`, `containerd.blkio.merged_recursive`, `containerd.blkio.queued_recursive`, `containerd.blkio.sectors_recursive`, `containerd.blkio.service_recursive_bytes`, `containerd.blkio.time_recursive`, `containerd.blkio.serviced_recursive`, `containerd.blkio.wait_time_recursive`, `containerd.blkio.service_time_recursive`.
-    The `containerd.image.size` now reports all images present on the host, container tags are removed.

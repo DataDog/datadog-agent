@@ -1,5 +1,0 @@
-name: e2elocal
-runtime: go
-description: Generic scenario (check scenario variable)
-config:
-  pulumi:disable-default-providers: ["*"]

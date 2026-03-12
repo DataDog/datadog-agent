@@ -1,8 +1,0 @@
----
-features:
-  - |
-    Support tagging on Nomad 0.6.0+ clusters
-upgrade:
-  - |
-    If you run a Nomad agent older than 0.6.0, the `nomad_group`
-    tag will be absent until you upgrade your orchestrator.

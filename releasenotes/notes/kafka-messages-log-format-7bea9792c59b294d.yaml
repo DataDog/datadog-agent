@@ -1,1 +1,0 @@
-fixes: The Kafka messages feature is not working in some cases when using K8s labels because config is translated to yaml.

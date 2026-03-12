@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Log file byte count now works correctly on windows. 

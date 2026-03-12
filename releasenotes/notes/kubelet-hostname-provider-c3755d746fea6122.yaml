@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added ability to retrieve the hostname from the Kubernetes kubelet API.

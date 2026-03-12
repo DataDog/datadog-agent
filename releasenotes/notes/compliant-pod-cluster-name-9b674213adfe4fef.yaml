@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix an issue on the pod collection where the cluster name would not
-    be consistently RFC1123 compliant.

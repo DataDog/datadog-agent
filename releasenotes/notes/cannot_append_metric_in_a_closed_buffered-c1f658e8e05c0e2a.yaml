@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    When ``enable_payloads.series`` or ``enable_payloads.sketches`` are set to 
-    false, don't log the error ``Cannot append a metric in a closed buffered channel``.

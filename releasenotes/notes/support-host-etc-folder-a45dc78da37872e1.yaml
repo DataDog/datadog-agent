@@ -1,5 +1,0 @@
----
-features:
-  - |
-    When running inside a container with the host `/etc` folder mounted to `/host/etc`, the agent will now report the
-    distro informations of the host instead of the one from the container.

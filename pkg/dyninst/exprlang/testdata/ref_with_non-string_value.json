@@ -1,5 +1,0 @@
-{
-  "type": "error",
-  "operation": "",
-  "error": "parse error: malformed ref: got value token 123 (number), expected string"
-}

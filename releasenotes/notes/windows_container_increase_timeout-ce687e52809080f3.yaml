@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Increase the timeout for starting the Agent in a Windows Container

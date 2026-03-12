@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    In order to ensure compatibility with systemd < 229,
-    ``StartLimitBurst`` and ``StartLimitInterval`` have been
-    moved to the Service section of the service files.

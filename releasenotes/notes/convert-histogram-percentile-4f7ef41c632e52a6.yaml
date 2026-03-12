@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add support for histogram_percentile when importing config options from agent5 to agent6

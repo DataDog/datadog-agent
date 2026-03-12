@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes a misleading log line on windows for logs file tailing

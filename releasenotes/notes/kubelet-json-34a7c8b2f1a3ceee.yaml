@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    The agent is now more resilient to incomplete responses from the kubelet

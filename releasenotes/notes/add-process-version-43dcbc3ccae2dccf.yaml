@@ -1,5 +1,0 @@
----
-enhancements:
-  - Added a `process-agent version` command, and made the output mimic the core agent.
-deprecations:
-  - Deprecated `process-agent --vesion` in favor of `process-agent version`.

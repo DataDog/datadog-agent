@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Universal Service Monitoring now requires a Linux kernel version of 4.14 or greater.

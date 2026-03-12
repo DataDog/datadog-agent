@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix an issue preventing logs-agent to tail container logs when docker API version is prior to 1.25

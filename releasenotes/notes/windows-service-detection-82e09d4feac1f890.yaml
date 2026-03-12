@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix Windows Service detection by replacing ``svc.IsAnInteractiveSession()`` (deprecated) with ``svc.IsWindowsService()``

@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Upgraded the WDK version used by ddnpm.

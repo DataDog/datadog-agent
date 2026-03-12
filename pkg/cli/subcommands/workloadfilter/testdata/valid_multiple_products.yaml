@@ -1,9 +1,0 @@
----
-# Valid configuration with multiple products
-- products:
-    - metrics
-    - logs
-  rules:
-    containers:
-      - container.pod.annotations["monitoring"] == "false"
-      - container.pod.namespace.matches("-dev")

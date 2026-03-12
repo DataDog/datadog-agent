@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    remove `.pdh` suffix from system.io.wkb_s, system.io_w_s, system.io.rkb_s,
-    system.io.r_s, system.io.avg_q_sz
-  - |
-    ".pdh" suffix was added to `system.io` metrics on windows for side-by-side
-    testing when changed the collection mechanism, and inadvertently left.

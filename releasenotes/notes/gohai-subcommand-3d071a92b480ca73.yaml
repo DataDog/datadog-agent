@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add subcommand `diagnose show-metadata gohai` for gohai data

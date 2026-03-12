@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Reduce CPU usage when logs agent is unable to reach an http endpoint.

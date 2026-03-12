@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Removing `vsphere` and `sqlserver` from the blacklist. The former is 
-    available on all platforms, `sqlserver` is currently windows-only.

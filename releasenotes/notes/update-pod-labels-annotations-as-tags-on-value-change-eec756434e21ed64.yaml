@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Allow tracking pod labels and annotations value change to update labels/annotations_as_tags.
-    Make the explicit tagging feature dynamic (introduced in https://github.com/DataDog/datadog-agent/pull/3024).

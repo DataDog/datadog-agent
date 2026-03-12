@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add the ``config`` and ``configcheck`` command to the cluster agent CLI.

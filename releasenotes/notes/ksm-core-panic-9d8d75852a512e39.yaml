@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a risk of panic when multiple KSM Core check instances run concurrently.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    allow auth token path to be set in the config file

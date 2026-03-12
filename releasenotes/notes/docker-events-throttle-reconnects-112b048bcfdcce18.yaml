@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix docker event reconnection logic to gracefully wait if docker daemon is unresponsive

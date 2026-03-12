@@ -1,102 +1,0 @@
-
-ubuntu-paulcacheux-vmruntime-security-agent"“
-7.39.0-rc.2+git.16.3bd53e8
-3bd53e80e45.15.39"Ubuntu 22.04.1 LTS*activity-dump-YYOOqLSQPZ2v18Bpython3PÖ³“ú† ‹†Xéˆø®ˆ ‹†jarm64rprotobuf*host:ubuntu-paulcacheux-vm*source:runtime-security-agent2¨F
-Ğ“‚“‚‡‚ „­íª	2D(íƒ0ÆÔ™©Ï„8€ÄØŸÇÍÅş@ HøZ/usr/bin/python3.10b
-python3.10jext4Rpts0Zpython3`¶â™ü† ‹†pŞ–®ü† ‹†zHèèvagrant"vagrant(è0è:vagrantBvagrantHèPèZvagrantbvagrant‚$./dev/dist/activity_dumps/trigger.pyŠpython3šSHELLšPWDšLOGNAMEšXDG_SESSION_TYPEš
-MOTD_SHOWNšHOMEšLANGš	LS_COLORSšLC_TERMINALšSSH_CONNECTIONšGOROOTšXDG_SESSION_CLASSšTERMšUSERšLC_TERMINAL_VERSIONšSHLVLšXDG_SESSION_IDšXDG_RUNTIME_DIRš
-SSH_CLIENTšXDG_DATA_DIRSš§PATH=/home/vagrant/go/bin:/usr/local/go/bin:/home/vagrant/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/binšDBUS_SESSION_BUS_ADDRESSšSSH_TTYšGOPATHš_ í
-¡”‚”‚“‚ ³°•±28(íƒ0§Ì¤—™©Ï„8€¼¸ĞÏÖÁï@ H–Z/usr/bin/dashbdashjext4Rpts0Zsh`ªÚ§ƒ‡ ‹†p­­±ƒ‡ ‹†zHèèvagrant"vagrant(è0è:vagrantBvagrantHèPèZvagrantbvagrant‚-c‚exit 1ŠshšSHELLšPWDšLOGNAMEšXDG_SESSION_TYPEš
-MOTD_SHOWNšHOMEšLANGš	LS_COLORSšLC_TERMINALšSSH_CONNECTIONšGOROOTšXDG_SESSION_CLASSšTERMšUSERšLC_TERMINAL_VERSIONšSHLVLšXDG_SESSION_IDšXDG_RUNTIME_DIRš
-SSH_CLIENTšXDG_DATA_DIRSš§PATH=/home/vagrant/go/bin:/usr/local/go/bin:/home/vagrant/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/binšDBUS_SESSION_BUS_ADDRESSšSSH_TTYšGOPATHš_ "t
-etc2k
-ld.so.cacheHroot"root(¤ƒ0‰èïƒ•Ÿ„†8‰èïƒ•Ÿ„†@ H—Z/etc/ld.so.cachebld.so.cache €ê¹ƒ‡ ‹†*€€ @@"¦
-usr2œ
-lib2’
-aarch64-linux-gnu2{
-	libc.so.6Zroot"root(¤ƒ0¢şàå¡©Ï„8€Ü±›ôØÿ@ H„,Z$/usr/lib/aarch64-linux-gnu/libc.so.6b	libc.so.6 ì¤»ƒ‡ ‹†*€€ @@@@:&089?O^`c†¬­®¯°±Ö×İŞâ…–¥@"Ã
-etc2k
-ld.so.cacheHroot"root(¤ƒ0‰èïƒ•Ÿ„†8‰èïƒ•Ÿ„†@ H—Z/etc/ld.so.cachebld.so.cache Ù¹ºü† ‹†*€€ @2n
-locale.aliasJroot"root(¤ƒ0ëÂÖ“˜©Ï„8€ô˜èè½Ãì@ H³Z/etc/locale.aliasblocale.alias ‘•êü† ‹†*€€ @2]
-passwd?root"root(¤ƒ0«¾ÔÒ²ü„8«¾ÔÒ²ü„@ Hô¿Z/etc/passwdbpasswd ñ‰£ƒ‡ ‹†*€€ @@"Ÿ/
-usr2Ø,
-lib2ÿ
-aarch64-linux-gnu2Š
-libz.so.1.2.11droot"root(¤ƒ0ÿÚÕä©Ï„8€Œ¸¦‘Èçï@ H•Z)/usr/lib/aarch64-linux-gnu/libz.so.1.2.11blibz.so.1.2.11 ®‰Áü† ‹†*€€ @2{
-	libc.so.6Zroot"root(¤ƒ0¢şàå¡©Ï„8€Ü±›ôØÿ@ H„,Z$/usr/lib/aarch64-linux-gnu/libc.so.6b	libc.so.6 ²¹Ãü† ‹†*€€ @2§
-gconv2›
-gconv-modules.cachetroot"root(¤ƒ0Îµíà©Ï„8€Ü±›ôØÿ@ HZ4/usr/lib/aarch64-linux-gnu/gconv/gconv-modules.cachebgconv-modules.cache €Ôîü† ‹†*@@2
-libbz2.so.1.0.4froot"root(¤ƒ0¢¯ôï©Ï„8€øÇù”¬¾ï@ Hà%Z*/usr/lib/aarch64-linux-gnu/libbz2.so.1.0.4blibbz2.so.1.0.4 ÆÑÊ‚‡ ‹†*€€ @2
-liblzma.so.5.2.5hroot"root(¤ƒ0ãÄ•ÿ©Ï„8€ˆ˜çôšûñ@ H‚&Z+/usr/lib/aarch64-linux-gnu/liblzma.so.5.2.5bliblzma.so.5.2.5 É¡ã‚‡ ‹†*€€ @2{
-	libm.so.6Zroot"root(¤ƒ0úÕç¡©Ï„8€Ü±›ôØÿ@ H‡,Z$/usr/lib/aarch64-linux-gnu/libm.so.6b	libm.so.6 Ìò»ü† ‹†*€€ @2“
-libexpat.so.1.8.7jroot"root(¤ƒ0èİ‚ò©Ï„8€Ğé§¦éÙì@ HŸZ,/usr/lib/aarch64-linux-gnu/libexpat.so.1.8.7blibexpat.so.1.8.7 ›¦¾ü† ‹†*€€ @@2
-locale2
-locale-archiveYroot"root(¤ƒ0 Ì†€¤©Ï„8ø¶É¬Û¦Ï„@ Hì2Z/usr/lib/locale/locale-archiveblocale-archive òµçü† ‹†*€€ @2€
-C.utf82t
-LC_CTYPETroot"root(¤ƒ0øŞú¤©Ï„8€Ü±›ôØÿ@ Hò2Z/usr/lib/locale/C.utf8/LC_CTYPEbLC_CTYPE óŠìü† ‹†*€€ @@@2ÿ
-
-python3.10Jroot"root(íƒ0ûøä¥©Ï„8²ŸÜ¢Ï„@ Hû2Z/usr/lib/python3.10b
-python3.10 £ãı† ‹†*€!2Ö
-	encodings Íë…ş† ‹†*€!2´
-__pycache__2¯
-utf_8.cpython-310.pycroot"root(¤ƒ0•²Ò±¤©Ï„8ô­Ã«Ê Ï„@ HÏ5Z?/usr/lib/python3.10/encodings/__pycache__/utf_8.cpython-310.pycbutf_8.cpython-310.pyc Ò®™ş† ‹†*€€ @2¸
-__init__.cpython-310.pyc‡root"root(¤ƒ0„Â™¦¤©Ï„8–ùÅ¯É Ï„@ HÛ4ZB/usr/lib/python3.10/encodings/__pycache__/__init__.cpython-310.pycb__init__.cpython-310.pyc £Ìïı† ‹†*€€ @2µ
-aliases.cpython-310.pyc…root"root(¤ƒ0¬¯¥¤¤©Ï„8Û‹º±É Ï„@ HØ4ZA/usr/lib/python3.10/encodings/__pycache__/aliases.cpython-310.pycbaliases.cpython-310.pyc Éş† ‹†*€€ @@@2
-__pycache__2§
-bisect.cpython-310.pycyroot"root(¤ƒ0¾†ñ¼¥©Ï„8¿ÓâšÈ Ï„@ H€<Z6/usr/lib/python3.10/__pycache__/bisect.cpython-310.pycbbisect.cpython-310.pyc «şÿ‚‡ ‹†*€€ @2ª
-weakref.cpython-310.pyc{root"root(¤ƒ0áˆ¹¥©Ï„8°¬ÚÃÍ Ï„@ Hå;Z7/usr/lib/python3.10/__pycache__/weakref.cpython-310.pycbweakref.cpython-310.pyc ¿ı‹ƒ‡ ‹†*€€ @2
-bz2.cpython-310.pycsroot"root(¤ƒ0ŸÑÁÄ¥©Ï„8ÿ¹¼ÏŞ Ï„@ H«<Z3/usr/lib/python3.10/__pycache__/bz2.cpython-310.pycbbz2.cpython-310.pyc ì®±‚‡ ‹†*€€ @2¡
-lzma.cpython-310.pycuroot"root(¤ƒ0Ğö©È¥©Ï„8ê÷šà Ï„@ HÂ<Z4/usr/lib/python3.10/__pycache__/lzma.cpython-310.pycblzma.cpython-310.pyc ›•Õ‚‡ ‹†*€€ @2§
-random.cpython-310.pycyroot"root(¤ƒ0ï«ÙÀ¥©Ï„8“ƒ”Ì Ï„@ H‘<Z6/usr/lib/python3.10/__pycache__/random.cpython-310.pycbrandom.cpython-310.pyc ì¢ö‚‡ ‹†*€€ @2·
-_weakrefset.cpython-310.pycƒroot"root(¤ƒ0¾†ñ¼¥©Ï„8š©óîÇ Ï„@ Hş;Z;/usr/lib/python3.10/__pycache__/_weakrefset.cpython-310.pycb_weakrefset.cpython-310.pyc è “ƒ‡ ‹†*€€ @2°
-functools.cpython-310.pycroot"root(¤ƒ0æóüº¥©Ï„8©ŒµÂÊ Ï„@ Hğ;Z9/usr/lib/python3.10/__pycache__/functools.cpython-310.pycbfunctools.cpython-310.pyc «Ü’€‡ ‹†*€€ @2›
-re.cpython-310.pycqroot"root(¤ƒ0ï«ÙÀ¥©Ï„8Ø•‘–Ì Ï„@ H’<Z2/usr/lib/python3.10/__pycache__/re.cpython-310.pycbre.cpython-310.pyc ¤²Ö‡ ‹†*€€ @2º
-_compression.cpython-310.pyc…root"root(¤ƒ0Ç¾ÍÂ¥©Ï„8ä³º–İ Ï„@ H <Z</usr/lib/python3.10/__pycache__/_compression.cpython-310.pycb_compression.cpython-310.pyc ®‡·‚‡ ‹†*€€ @@2†
-	importlib ½ŒÀÿ† ‹†*€!2ä
-__pycache__2¸
-__init__.cpython-310.pyc‡root"root(¤ƒ0íÄÆ³¤©Ï„8ˆâÏÊ Ï„@ HÖ5ZB/usr/lib/python3.10/importlib/__pycache__/__init__.cpython-310.pycb__init__.cpython-310.pyc šå´ÿ† ‹†*€€ @2«
-util.cpython-310.pycroot"root(¤ƒ0íÄÆ³¤©Ï„8è¥İùÊ Ï„@ HŞ5Z>/usr/lib/python3.10/importlib/__pycache__/util.cpython-310.pycbutil.cpython-310.pyc ¨üÂÿ† ‹†*€€ @2«
-_abc.cpython-310.pycroot"root(¤ƒ0íÄÆ³¤©Ï„8Ì ÖÑÊ Ï„@ HÔ5Z>/usr/lib/python3.10/importlib/__pycache__/_abc.cpython-310.pycb_abc.cpython-310.pyc °†Èÿ† ‹†*€€ @2»
-machinery.cpython-310.pyc‰root"root(¤ƒ0íÄÆ³¤©Ï„8Å‘¼êÊ Ï„@ HÛ5ZC/usr/lib/python3.10/importlib/__pycache__/machinery.cpython-310.pycbmachinery.cpython-310.pyc ­Ò±€‡ ‹†*€€ @@@2Ş
-collections2Ì
-__pycache__2º
-__init__.cpython-310.pyc‰root"root(¤ƒ0©„ã…¤©Ï„8ô±Ô±È Ï„@ H€3ZD/usr/lib/python3.10/collections/__pycache__/__init__.cpython-310.pycb__init__.cpython-310.pyc ÂêÓÿ† ‹†*€€ @@@2­
-lib-dynloadWroot"root(íƒ0‡íÛÄ¤©Ï„8éÈê²»¡Ï„@ Hú5Z/usr/lib/python3.10/lib-dynloadblib-dynload Ã’Ä€‡ ‹†*€!2Õ
-%_bz2.cpython-310-aarch64-linux-gnu.so—root"root(¤ƒ0öü¢¹¤©Ï„8€ÄØŸÇÍÅş@ Hÿ5ZE/usr/lib/python3.10/lib-dynload/_bz2.cpython-310-aarch64-linux-gnu.sob%_bz2.cpython-310-aarch64-linux-gnu.so ª÷Å‚‡ ‹†*€€ @2Ø
-&_lzma.cpython-310-aarch64-linux-gnu.so™root"root(¤ƒ0×ÇóÀ¤©Ï„8€ÄØŸÇÍÅş@ H6ZF/usr/lib/python3.10/lib-dynload/_lzma.cpython-310-aarch64-linux-gnu.sob&_lzma.cpython-310-aarch64-linux-gnu.so Íñß‚‡ ‹†*€€ @@@2¹
-python32«
-dist-packagesXroot"root(íƒ0Á¥ğøÍ„†8Á¥ğøÍ„†@ Hë?Z/usr/lib/python3/dist-packagesbdist-packages Ä…“ÿ† ‹†*€!2¿
-zope.interface-5.4.0-nspkg.pthˆroot"root(¤ƒ0¯ıÊ¾¦©Ï„8€œ•­äÏî@ HòBZ=/usr/lib/python3/dist-packages/zope.interface-5.4.0-nspkg.pthbzope.interface-5.4.0-nspkg.pth ûĞ™ÿ† ‹†*€€ @2é
-__pycache__2×
-"apport_python_hook.cpython-310.pycœroot"root(¤ƒ0·İÎ³­©Ï„8”»‘¾Ÿ¥Ï„@ H½rZM/usr/lib/python3/dist-packages/__pycache__/apport_python_hook.cpython-310.pycb"apport_python_hook.cpython-310.pyc äéÍ€‡ ‹†*€€ @@@@@2‰
-share2~
-zoneinfo2p
-Etc2g
-UTCLroot"root(¤ƒ0„è³ûÃ©Ï„8€èÃ÷™ï@ Hí…Z/usr/share/zoneinfo/Etc/UTCbUTC …ÌÛı† ‹†*€€ @@@@2®
-local2¢
-lib2˜
-
-python3.102‡
-dist-packagesbroot"root(íƒ0µçùÓÜ©Ï„8è¦ÙÆƒÏ„@ HÉÂZ'/usr/local/lib/python3.10/dist-packagesbdist-packages ø¿‘ÿ† ‹†*€!@@@@@"
-home2“
-vagrant2Å
-.local2¸
-lib2®
-
-python3.102
-site-packagesxèvagrantè"vagrant(ıƒ0¥áãØô´ü„8¥áãØô´ü„@ H’ü.Z1/home/vagrant/.local/lib/python3.10/site-packagesbsite-packages Ã³ÿ† ‹†*€!@@@@2½
-go2´
-src2ª
-
-github.com2™
-DataDog2‹
-datadog-agent2÷
-dev2í
-dist2â
-activity_dumps Ù£¢‡ ‹†*€!2»
-
-trigger.pyœèvagrantè"vagrant(¤ƒ0ŸŸõÆù©»8ŸŸõÆù©»@„H¡ZX/home/vagrant/go/src/github.com/DataDog/datadog-agent/dev/dist/activity_dumps/trigger.pyb
-trigger.py ·Ğí€‡ ‹†*@@@@@@@@@@@"Ÿ
-tmp2ƒ
-aaaaa*bèvagrantè"vagrant(€ƒ0È“Ü«‡ ‹†8È“Ü«‡ ‹†@ H§Z/tmp/aaaaa4hr3qugabbbbbbaaaaa4hr3qugabbbbb ù÷ ¬‡ ‹†*	Â"€@2
-aaaaao7v255habbbbbbèvagrantè"vagrant(€ƒ0È“Ü«‡ ‹†8È“Ü«‡ ‹†@ H§Z/tmp/aaaaao7v255habbbbbbaaaaao7v255habbbbb œê¸¬‡ ‹†*	Â"€@@:6‡†İ#089=>?@NO^`bc¬®¯°±³Ö×ÜŞâ„…–¥@

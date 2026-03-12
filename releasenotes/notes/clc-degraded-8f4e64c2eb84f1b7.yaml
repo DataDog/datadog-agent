@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The Agent maintains scheduled cluster and endpoint checks when the Cluster Agent is unavailable.

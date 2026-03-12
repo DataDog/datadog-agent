@@ -1,3 +1,0 @@
----
-features:
-  - Config parsing errors are now displayed in the output of the 'status' command and on the web ui.

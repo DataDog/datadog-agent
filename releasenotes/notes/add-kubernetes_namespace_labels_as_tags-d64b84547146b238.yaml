@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds support for Kubernetes namespace labels as tags extraction (kubernetes_namespace_labels_as_tags).

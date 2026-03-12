@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug in dogstatsd metrics parsing where the Agent would leave the host tag
-    empty instead of applying its hostname on metrics with a tag metadata
-    field but no tags (i.e. the tags field is only one `#` character).
-    Regression introduced in 6.3.0

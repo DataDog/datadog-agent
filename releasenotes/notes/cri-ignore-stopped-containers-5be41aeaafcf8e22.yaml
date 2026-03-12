@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    The cri check no longer sends metrics for stopped containers, in line with
-    containerd and docker checks. These metrics were all zeros in the first
-    place, so no impact is expected.

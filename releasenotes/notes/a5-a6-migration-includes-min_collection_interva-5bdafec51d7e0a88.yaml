@@ -1,6 +1,0 @@
-enhancements:
-  - |
-    The min_collection_interval check setting has been
-    relocated since Agent 6/7 release. The agent import
-    command now include in the right section this setting
-    when importing configuration from Agent 5.   

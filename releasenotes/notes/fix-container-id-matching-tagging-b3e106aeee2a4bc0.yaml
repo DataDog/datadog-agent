@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixes the matching of container id in Tagger (due to runtime prefix) by matching on the 'id' part only

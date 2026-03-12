@@ -1,8 +1,0 @@
-## Provides defaults for CI environments,
-## please see datadog.yaml.example for all supported options
-
-hostname: "none"
-
-apm_config:
-  enabled: true
-  apm_non_local_traffic: true

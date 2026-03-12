@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    In case of internal problem to the tagger, flag the `tagger-pull` and
-    `tagger-store` components as unhealthy (in the output of `agent health`)
-    instead of leaking goroutines.

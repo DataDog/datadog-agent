@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a panic in the Docker check when a failure happens early (when listing containers)

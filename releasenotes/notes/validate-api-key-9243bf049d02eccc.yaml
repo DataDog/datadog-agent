@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    API keys are now properly validated and will no longer show as valid if they
-    have the correct length but do not exist in datadog.

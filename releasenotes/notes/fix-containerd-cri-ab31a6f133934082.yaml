@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixes limitation of runtime autodiscovery which would not allow to run containerd check without cri check enabled. Fixes error logs in non-Kubernetes environments.

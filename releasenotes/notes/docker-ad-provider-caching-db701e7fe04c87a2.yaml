@@ -1,6 +1,0 @@
----
-features:
-  - |
-    The Docker label AD provider now watches container events and
-    only updates when containers start/die to save resources
- 

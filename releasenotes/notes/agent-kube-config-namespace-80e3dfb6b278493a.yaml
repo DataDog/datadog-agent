@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add ability to configure the namespace in which the resources related to the kubernetes check are created.

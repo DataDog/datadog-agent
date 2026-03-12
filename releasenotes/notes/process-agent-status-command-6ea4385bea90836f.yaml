@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added new `process-agent status` command to help with troubleshooting and for better consistency with the core Agent. This command is intended to eventually replace `process-agent --info`.

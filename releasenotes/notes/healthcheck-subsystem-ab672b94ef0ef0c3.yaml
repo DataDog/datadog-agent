@@ -1,6 +1,0 @@
----
-features:
-  - |
-    The agent has internal healthchecks on all subsystems. The result is exposed
-    via the `agent health` command and used in the docker image as a healthcheck.
-    The `/probe.sh` wrapper is provided for compatibility with agent5 and future-proofing.    

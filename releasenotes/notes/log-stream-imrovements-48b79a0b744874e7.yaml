@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Minor improvements to agent log-stream command. Fixed timestamp, added host name, 
-    use redacted log message instead of raw message. 

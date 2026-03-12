@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add language detection API handler to the cluster-agent.

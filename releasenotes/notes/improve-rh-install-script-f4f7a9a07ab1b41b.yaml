@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Make yum revalidate the cache before installing the rpm package when using
-    the install script.

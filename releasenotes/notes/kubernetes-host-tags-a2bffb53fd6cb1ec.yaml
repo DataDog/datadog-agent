@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add kubernetes node label collection as host tags 

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug, when a check have its init configuration before that all the tagger collector report tags.

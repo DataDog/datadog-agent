@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Add missing support for UDPv6 receive path to NPM.

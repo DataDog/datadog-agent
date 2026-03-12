@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Improve logging for the metamap, avoid spammy error when no cluster level metadata is found.

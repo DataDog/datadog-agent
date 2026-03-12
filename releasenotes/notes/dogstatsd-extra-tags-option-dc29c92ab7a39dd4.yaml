@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Added new dogstatsd_tags variable which can be used to specify
-    additional tags to append to all metrics received by dogstatsd.

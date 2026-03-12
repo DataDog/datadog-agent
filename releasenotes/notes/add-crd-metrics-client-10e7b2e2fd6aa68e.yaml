@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Added support for custom resource definitions metrics: `crd.count` and `crd.condition`.

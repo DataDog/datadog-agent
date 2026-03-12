@@ -1,3 +1,0 @@
----
-enhancements:
-  - Docker disk IO metrics are now tagged by ``device``

@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Adds complete workloadmeta process-entity information to workload-list command logs (datadog-agent workload-list)

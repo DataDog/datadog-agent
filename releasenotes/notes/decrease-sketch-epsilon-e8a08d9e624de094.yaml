@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Decrease epsilon and increase incoming buffer size for improved accuracy of
-    distribution metrics.

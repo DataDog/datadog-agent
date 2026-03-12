@@ -1,9 +1,0 @@
-*.gem
-.bundle
-vendor/bundle
-pkg/*
-.vagrant
-bin/*
-files/**/cache/
-vendor/cookbooks
-Gemfile.lock

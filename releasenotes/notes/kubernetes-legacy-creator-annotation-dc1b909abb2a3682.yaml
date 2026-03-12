@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Extract creator tags from kubernetes legacy `created-by` annotation if
-    the new `ownerReferences` field is not found

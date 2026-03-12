@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add Kind, ApiVersion, and NodeName to manifests. Add HostName to CollectorManifest.

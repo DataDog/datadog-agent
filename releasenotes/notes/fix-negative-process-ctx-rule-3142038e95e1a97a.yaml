@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes CWS rules with 'process.file.name !=""' expression.

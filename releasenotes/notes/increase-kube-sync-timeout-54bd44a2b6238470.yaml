@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Increase default timeout to sync Kubernetes Informers from 2 to 5 seconds.

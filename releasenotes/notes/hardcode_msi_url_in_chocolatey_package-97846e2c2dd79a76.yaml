@@ -1,3 +1,0 @@
-fixes:
-  - |
-    The Chocolatey package now uses a fixed URL to the MSI installer.

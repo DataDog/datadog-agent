@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    The agent configcheck command output now scrubs sensitive
-    data and prevents API keys, password, token, etc. to
-    appear in the console.

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Increase default timeout to collect metadata from GCE endpoint.

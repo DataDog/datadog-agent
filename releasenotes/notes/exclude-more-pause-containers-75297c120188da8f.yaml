@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    More pause containers from ``ecr``, ``gcr`` and ``mcr`` are excluded automatically by the Agent.

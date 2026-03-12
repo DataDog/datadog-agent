@@ -1,8 +1,0 @@
-{
-  "type": "unsupported",
-  "operation": "count",
-  "argument": {
-    "ref": "payload"
-  },
-  "error": ""
-}

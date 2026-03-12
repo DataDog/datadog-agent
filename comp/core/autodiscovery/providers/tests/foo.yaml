@@ -1,6 +1,0 @@
-init_config:
-  - this: IsNotOnTheDefaultFile
-
-instances:
-  # No configuration is needed for this check.
-  - foo: bar

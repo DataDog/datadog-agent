@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Add an ETW component for ETW tracing.
-  - |
-    Add an ETW APM tracer component to forward .Net ETW events to the Tracer Agent.

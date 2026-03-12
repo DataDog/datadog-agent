@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Support AD on Rancher 1.x by getting the container port through the
-    image's exposed ports as a fallback mechanism    

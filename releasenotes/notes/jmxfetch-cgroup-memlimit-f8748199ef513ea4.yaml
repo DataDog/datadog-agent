@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Add a jmx_use_cgroup_memory_limit option to set jmxfetch to use cgroup
-    memory limits when calculating its heap size. It is enabled by default
-    in the docker image.

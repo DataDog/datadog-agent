@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Adds a new histogram metric `admission_webhooks_response_duration` to monitor the admission-webhook's response time. The existing metric `admission_webhooks_webhooks_received` is now a counter.

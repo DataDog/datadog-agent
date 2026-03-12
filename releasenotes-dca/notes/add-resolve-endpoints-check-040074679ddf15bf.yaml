@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add resolve option to endpoint checks through new annotation `ad.datadoghq.com/endpoints.resolve`. With `ip` value, it allows endpoint checks to target static pods

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a possible panic in the kubernetes event watcher.

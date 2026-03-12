@@ -1,6 +1,0 @@
----
-features:
-  - |
-    ALPHA - Adding new tooling to securely upgrade integration packages/wheels
-    from our private TUF repository. Please note any third party dependencies will
-    still be downloaded from PyPI with no additional security validation.

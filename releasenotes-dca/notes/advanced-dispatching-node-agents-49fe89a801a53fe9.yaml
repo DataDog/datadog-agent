@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The Cluster Agent now supports Cluster Level Checks advanced dispatching when using the DaemonSet Agent to run Cluster Level Checks

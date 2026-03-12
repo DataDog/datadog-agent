@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    Tags and sources in the tagger-list command are now sorted to ease troubleshooting.
-fixes:
-  - |
-    Fix a verbose debug log caused by rescheduling services with no checks associated with them.

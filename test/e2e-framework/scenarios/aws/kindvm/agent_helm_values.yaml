@@ -1,7 +1,0 @@
-datadog:
-  kubelet:
-    tlsVerify: false
-  csi:
-    enabled: true
-agents:
-  useHostNetwork: true

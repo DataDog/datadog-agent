@@ -1,4 +1,0 @@
-log_level: 'debug'
-discovery:
-  enabled: true
-  use_system_probe_lite: true

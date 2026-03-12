@@ -1,4 +1,0 @@
-features:
-  - |
-    New `extra_tags` setting and `DD_EXTRA_TAGS` environment variable can be
-    used to specify additional host tags.

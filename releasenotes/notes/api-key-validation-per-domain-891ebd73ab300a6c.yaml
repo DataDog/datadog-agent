@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix API_KEY validation for 'additional_endpoints' by using their respective
-    endpoint instead of the main one all the time.

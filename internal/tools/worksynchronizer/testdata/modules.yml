@@ -1,5 +1,0 @@
-modules:
-  ./comp/core:
-  ./pkg/util/log:
-  ./test/integration:
-  ./ignored/module: ignored

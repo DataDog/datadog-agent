@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Disable debug log lines for the 'hostname' command since it's directly called
-    by some Agent components. Fixes hostname resolution issues for APM and Live Process.

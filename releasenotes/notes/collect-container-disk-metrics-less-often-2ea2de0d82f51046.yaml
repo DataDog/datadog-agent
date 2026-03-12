@@ -1,3 +1,0 @@
-features:
-  - |
-    Collect container disk metrics less often in the docker check, decreasing its effect on performance when enabled.

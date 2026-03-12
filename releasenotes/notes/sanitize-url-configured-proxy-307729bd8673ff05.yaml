@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Sanitize logged Datadog URLs when proxies are configured.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    APM: Fixes bug where long service names and operation names were not normalized correctly.

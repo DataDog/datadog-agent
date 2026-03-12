@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix the extraction of the environment variables in the pkg/tagger/collectors/docker_extract.go when the variable is
-    like "KEY="

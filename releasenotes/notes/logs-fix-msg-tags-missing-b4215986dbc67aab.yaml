@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed the issue preventing from having docker tags when collecting logs from containers.

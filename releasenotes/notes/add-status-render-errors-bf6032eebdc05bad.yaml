@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The status page now includes a ``Status render errors`` section to highlight errors that occurred while rendering it.

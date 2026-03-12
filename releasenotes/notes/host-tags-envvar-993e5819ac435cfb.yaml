@@ -1,9 +1,0 @@
----
-features:
-  - |
-    The DD_TAGS environment variable allows to set host tags, in addition
-    to the `tags` option in datadog.yaml
-upgrade:
-  - |
-    Tags in the DD_TAGS environment variable are now separated by spaces
-    instead of commas in agent5

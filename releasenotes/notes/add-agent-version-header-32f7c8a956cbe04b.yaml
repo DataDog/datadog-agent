@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add a HTTP header containing the agent version to every transaction sent by
-    the agent.

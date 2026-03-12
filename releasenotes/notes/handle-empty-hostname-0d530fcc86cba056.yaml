@@ -1,8 +1,0 @@
----
-enhancements:
-  - |
-    All python and go checks support the new ``empty_default_hostname`` option
-    to send metrics with no hostname. This is used for cluster-level checks
-  - |
-    All go checks now support the ``min_collection_interval`` option, as python
-    check already do

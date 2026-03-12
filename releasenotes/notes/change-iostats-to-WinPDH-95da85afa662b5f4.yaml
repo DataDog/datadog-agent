@@ -1,7 +1,0 @@
----
-prelude: >
-    Changes implementation of IOStats in Windows to use the Performance Data
-    Helper API, rather than WMI.
-fixes:
-  - |
-    Relieves CPU consumption of the WMI service by using PDH rather than WMI

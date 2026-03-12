@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix a race condition in the kubernetes service tagging logic

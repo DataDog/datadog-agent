@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Ignore CollectorStatus response from orchestrator-intake in the process-agent to prevent changing realtime mode interval to default 2s.
-

@@ -1,4 +1,0 @@
-otelcollector:
-  converter:
-    enabled: true
-    features: ["infraattributes"]

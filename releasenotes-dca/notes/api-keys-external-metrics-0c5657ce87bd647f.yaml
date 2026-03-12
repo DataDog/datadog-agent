@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Add `external_metrics_provider.api_key` and `external_metrics_provider.app_key` parameters overriding default `api_key` and `app_key` if set.

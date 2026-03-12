@@ -1,8 +1,0 @@
-#!/bin/sh
-#
-# Perform necessary datadog-agent setup steps before package is installed.
-#
-
-## NOTHING HERE
-
-exit 0

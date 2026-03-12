@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Configurations of unscheduled checks are now properly removed from the configcheck command display.

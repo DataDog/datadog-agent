@@ -1,5 +1,0 @@
-
-fixes:
-  - |
-    If no NTP servers are reachable, `datadog-agent status` now displays `ERROR` for the NTP check, rather than `OK`.
-

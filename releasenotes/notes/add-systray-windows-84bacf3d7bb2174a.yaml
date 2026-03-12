@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Adds windows systray icon.  System tray icon includes menu options for 
-    starting/stopping/restarting services, creating a flare, and launching the
-    browser-based GUI.

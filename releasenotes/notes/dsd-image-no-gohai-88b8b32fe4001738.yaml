@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    datadog/dogstatsd image: gohai metadata collection is now disabled by default

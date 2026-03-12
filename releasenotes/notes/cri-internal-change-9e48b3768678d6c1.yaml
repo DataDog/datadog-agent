@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Migrate the cri check to generic check infrastructure. No changes expected in metrics.

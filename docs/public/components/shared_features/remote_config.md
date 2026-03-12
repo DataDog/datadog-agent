@@ -1,3 +1,0 @@
-# Remote Config
-
-<!-- TODO -->

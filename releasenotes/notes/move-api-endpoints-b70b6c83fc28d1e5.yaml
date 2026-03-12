@@ -1,6 +1,0 @@
----
-deprecations:
-  - Removed `API_KEY` environment variable from the process agent. Use `DD_API_KEY` instead
-enhancements:
-  - Added `DD_PROCESS_CONFIG_PROCESS_DD_URL` and `DD_PROCESS_AGENT_PROCESS_DD_URL` environment variables
-  - Added `DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS` and `DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS` environment variables

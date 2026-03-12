@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Adding logging for when the agent fails to detect the origin of a packet in dogstatsd socket mode because of namespace issues.

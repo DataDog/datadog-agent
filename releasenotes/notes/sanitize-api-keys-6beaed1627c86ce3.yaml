@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    API Keys are now sanitized for `logs_config` and `additional_endpoints`.

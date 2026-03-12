@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Config option specified in `syslog_pem` if syslog logging is enabled with
-    TLS should be a path to the certificate, not a textual certificate in the 
-    configuration.

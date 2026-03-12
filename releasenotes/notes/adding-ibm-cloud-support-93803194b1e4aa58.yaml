@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Adding support for IBM cloud. The agent will now detect that he're running on IBM cloud and collecto host aliased
-    (vm name and ID).

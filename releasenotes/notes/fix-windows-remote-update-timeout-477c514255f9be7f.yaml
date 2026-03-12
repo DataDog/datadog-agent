@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Windows Agent remote updates now submit the remote config task state to the backend.
-    This reduces the time it takes for a remote update to complete.

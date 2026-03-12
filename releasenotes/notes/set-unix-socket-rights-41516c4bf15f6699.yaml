@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix dogstatsd unix socket rights so every user could write to it.

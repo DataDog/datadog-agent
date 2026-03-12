@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixing an issue with Prometheus scrape feature when `service_endpoints` option is used where endpoint updates were missed by the Agent, causing checks to not be scheduled on endpoints created after Agent start.

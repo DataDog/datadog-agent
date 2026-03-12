@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix clusterchecks dispatching on the Cloud Foundry Cluster Agent

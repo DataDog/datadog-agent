@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a small leak where the Agent in some cases keeps in memory identifiers corresponding to dead objects (pods, containers).

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    The Windows installer now prioritizes user name from the command line over stored registry entries

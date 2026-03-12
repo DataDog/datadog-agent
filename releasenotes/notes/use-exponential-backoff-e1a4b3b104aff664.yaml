@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Implement a circuit breaker and use jittered, truncated exponential backoff for network error retries.

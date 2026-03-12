@@ -1,3 +1,0 @@
----
-features:
-  - Enable to set collect_ec2_tags from environment variable DD_COLLECT_EC2_TAGS

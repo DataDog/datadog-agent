@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Shipping protobuf C++ implementation for the protobuf package, this should
-    help us be more performant when parsing larger/binary protobuf messages in
-    relevant integrations.

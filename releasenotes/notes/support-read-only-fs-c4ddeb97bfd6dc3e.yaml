@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Docker image: running with a read-only root filesystem is now supported

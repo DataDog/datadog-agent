@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add `unsafe-disable-verification` flag to skip TUF/in-toto verification when downloading and installing wheels with the `integrations install` command

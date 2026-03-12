@@ -1,2 +1,0 @@
-datadog:
-  containerExclude: "kube_namespace:filtered-ns name:redis*"

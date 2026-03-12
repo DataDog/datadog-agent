@@ -1,5 +1,0 @@
-enhancements:
-  - |
-    Added a ``kubelet_wait_on_missing_container`` option to handle hosts where
-    the kubelet's podlist is slow to update, leading to missing tags
-    or failing Autodiscovery. Set it to 1 for a 1 second maximum wait

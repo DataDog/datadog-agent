@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes the inclusion of the ``security-agent.yaml`` file in the flare.

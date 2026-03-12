@@ -1,3 +1,0 @@
-datadog:
-  namespaceLabelsAsTags:
-    related_team: team

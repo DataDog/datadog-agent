@@ -1,6 +1,0 @@
----
-other:
-  - |
-    The ``statsd_metric_namespace`` option now ignores the following metric
-    prefixes: ``airflow``, ``confluent``, ``hazelcast``, ``hive``, ``ignite``,
-    ``jboss``, ``sidekiq``

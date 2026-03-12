@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    The agent now fetches a hostname alias from kubernetes when possible. It fixes some duplicated
-    host issues that could happen when metrics were using kubernetes host names, as the
-    kubernetes_state integration

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Docker network metrics are now tagged by interface name as a fallback if a
-    docker network name cannot be determined (affects some Swarm stack deployments)

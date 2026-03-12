@@ -1,6 +1,0 @@
-features:
-  - |
-    Added new option "container_labels_as_tags" that allows the Agent to
-    extract container label values and set them as metric tags values. It's
-    equivalent to the existing "docker_labels_as_tags", but it also works with
-    containerd.

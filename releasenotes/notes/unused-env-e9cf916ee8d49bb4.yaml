@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    If unrecognized ``DD_..`` environment variables are set, the agent will now log a warning at startup, to help catch deployment typos.

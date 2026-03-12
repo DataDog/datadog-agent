@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug which causes certain configuration options to be ignored by the ``process-agent`` in the presence of a ``system-probe.yaml``.

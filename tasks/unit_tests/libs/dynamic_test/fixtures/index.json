@@ -1,5 +1,0 @@
-{
-    "test_job": {
-        "pkg/util/log": ["TestLog"]
-    }
-}

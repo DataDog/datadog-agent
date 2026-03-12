@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-for script in /etc/cont-init.d/*.sh; do
-    bash "$script"
-done

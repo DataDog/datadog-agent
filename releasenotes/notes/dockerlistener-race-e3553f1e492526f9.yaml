@@ -1,3 +1,0 @@
----
-fixes:
-  - Fix a possible race exception in the Docker AD listener

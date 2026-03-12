@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    The Agent starts faster on a Windows Docker host with many containers running by fetching the containers in parallel.

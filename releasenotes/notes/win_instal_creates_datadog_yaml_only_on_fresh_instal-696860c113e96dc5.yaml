@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The Windows installer only create the datadog.yaml file on new installs.

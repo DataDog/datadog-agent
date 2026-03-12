@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Include APIVersion and Kind to Kubernetes manifests.

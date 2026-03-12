@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix https://github.com/DataDog/datadog-agent/issues/1159 where error was not
-    explicit when the check had invalid configuration or code

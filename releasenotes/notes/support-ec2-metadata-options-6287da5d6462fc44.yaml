@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add support for collect_ec2_tags configuration option.

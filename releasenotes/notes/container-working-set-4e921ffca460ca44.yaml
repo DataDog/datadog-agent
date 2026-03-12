@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add `container.memory.working_set` metric on Linux (computed as Usage - InactiveFile) and Windows (mapped to Private Working Set)

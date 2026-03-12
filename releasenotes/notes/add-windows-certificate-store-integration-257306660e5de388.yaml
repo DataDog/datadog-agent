@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Windows: Added the Windows Certificate Store integration to monitor the expiration of certificates in the local machine certificate store.

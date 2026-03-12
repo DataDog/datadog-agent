@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Allow overriding procfs path. Should allow to collect relevant host metrics
-    in containerized environments. The override will affect python checks and
-    will result in psutil using the overriding path.

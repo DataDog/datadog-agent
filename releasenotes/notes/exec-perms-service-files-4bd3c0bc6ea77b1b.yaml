@@ -1,5 +1,0 @@
----
-other:
-  - |
-    Remove executable permission bits from systemd/upstart/launchd service definition
-    files.

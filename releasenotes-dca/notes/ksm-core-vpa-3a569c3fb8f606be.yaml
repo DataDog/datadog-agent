@@ -1,7 +1,0 @@
----
-enhancements:
-  - |
-    The Kube State Metrics Core check uses ksm v2.1.
-fixes:
-  - |
-    The Kube State Metrics Core check supports VerticalPodAutoscaler metrics.

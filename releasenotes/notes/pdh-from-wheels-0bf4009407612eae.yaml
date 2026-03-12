@@ -1,6 +1,0 @@
----
-deprecations:
-  - |
-    Removing python PDH code bundled with the agent in favor of code already included
-    in the integrations-core` repository and bundled with datadog_checks_base wheel. 
-    This provides a single source of truth for the python PDH logic.

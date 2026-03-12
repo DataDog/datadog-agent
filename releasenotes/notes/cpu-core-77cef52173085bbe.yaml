@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Add system.cpu.num_cores metric with the number of CPU cores (windows/linux)

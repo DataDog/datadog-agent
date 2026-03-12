@@ -1,3 +1,0 @@
-pkg/serverless/trace:
-  - test: TestLoadConfigShouldBeFast
-    on-log: "This text won't be found in the log"

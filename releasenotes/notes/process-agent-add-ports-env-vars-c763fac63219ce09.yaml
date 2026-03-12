@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Add the ``DD_PROCESS_CONFIG_EXPVAR_PORT`` and ``DD_PROCESS_AGENT_EXPVAR_PORT`` env variables to set the ``process_config.expvar_port``.
-    Add the ``DD_PROCESS_CONFIG_CMD_PORT`` env variable to set the ``process_config.cmd_port``.

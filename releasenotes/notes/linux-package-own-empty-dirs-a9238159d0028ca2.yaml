@@ -1,5 +1,0 @@
----
-other:
-  - |
-    The linux packages now own the custom check directory (``/etc/datadog-agent/checks.d/``)
-    and the log directory (``/var/log/datadog/``)

@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Add a new configuration option, named `tag_value_split_separator`, allowing the specified list of raw tags to have its value split by a given separator.
-    Only applies to host tags, tags coming from container integrations. Does not apply to tags on dogstatsd metrics, and tags collected by other integrations.

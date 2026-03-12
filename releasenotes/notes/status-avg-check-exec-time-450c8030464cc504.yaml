@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add average check run time to ``datadog-agent status`` and to the GUI.
-

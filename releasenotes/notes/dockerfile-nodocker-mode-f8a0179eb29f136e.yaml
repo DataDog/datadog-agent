@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Docker image: enable an orchestrator-only mode disabling the docker integration
-    if the docker socket is not found in /var/run/docker.sock AND the DOCKER_HOST
-    environment variable is not set.

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a bug where the Agent would not remove tags for pods that no longer
-    exist, potentially causing unbounded memory growth.

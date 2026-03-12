@@ -1,6 +1,0 @@
-/Dockerfile
-/.gitignore
-/.dockerignore
-/client
-**/fixtures
-**/*_test.go
