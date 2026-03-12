@@ -1,5 +1,6 @@
 """Bazel rules for compiling eBPF programs (.c -> .bc -> .o)."""
 
+load("@bazel_lib//lib:resource_sets.bzl", "resource_set_for")
 load("@linux_headers//:defs.bzl", "KERNEL_ARCH", "KERNEL_HEADER_DIRS")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
@@ -139,6 +140,7 @@ def _ebpf_prog_impl(ctx):
         executable = tc.clang_bpf,
         arguments = [clang_args],
         mnemonic = "EbpfClang",
+        resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
         progress_message = "Compiling eBPF %{label} (.c -> .bc)",
     )
 
@@ -157,6 +159,7 @@ def _ebpf_prog_impl(ctx):
         executable = tc.llc_bpf,
         arguments = [llc_args],
         mnemonic = "EbpfLlc",
+        resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
         progress_message = "Linking eBPF %{label} (.bc -> .o)",
     )
 
