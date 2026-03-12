@@ -559,3 +559,35 @@ func TestLabelForKeyCollision(t *testing.T) {
 	assert.Equal(t, label2, fh.labelForKey(key2))
 	fh.keyMapMutex.Unlock()
 }
+
+// TestLabelForKeyMonotonicAfterRemoval verifies that removing a key keeps its label entry in the
+// map so that a subsequent key sharing the same suffix gets a new counter ("(3)"), not a reused one.
+func TestLabelForKeyMonotonicAfterRemoval(t *testing.T) {
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
+	fh.init()
+
+	key1 := "aXXXX1234"
+	key2 := "bXXXX1234"
+	key3 := "cXXXX1234"
+
+	fh.keyMapMutex.Lock()
+	// Assign labels to key1 and key2.
+	label1 := fh.labelForKey(key1) // "API key ending with 1234"
+	label2 := fh.labelForKey(key2) // "API key ending with 1234 (2)"
+	fh.keyMapMutex.Unlock()
+
+	// "Remove" key1 — its expvar entries are cleared but we intentionally keep the keyLabelMap entry.
+	fh.setAPIKeyStatus(key1, "", &apiKeyRemove)
+
+	// A brand-new key with the same suffix must not reuse label1; it should get counter (3).
+	fh.keyMapMutex.Lock()
+	label3 := fh.labelForKey(key3)
+	fh.keyMapMutex.Unlock()
+
+	assert.Equal(t, "API key ending with 1234", label1)
+	assert.Equal(t, "API key ending with 1234 (2)", label2)
+	assert.Equal(t, "API key ending with 1234 (3)", label3, "new key must not reuse the label of a removed key")
+}

@@ -229,25 +229,25 @@ func (fh *forwarderHealth) labelForKey(apiKey string) string {
 	if label, ok := fh.keyLabelMap[apiKey]; ok {
 		return label
 	}
-	labelToKey := make(map[string]string, len(fh.keyLabelMap))
-	for k, v := range fh.keyLabelMap {
-		labelToKey[v] = k
-	}
 	suffix := apiKey
 	if len(apiKey) > 4 {
 		suffix = apiKey[len(apiKey)-4:]
 	}
 	baseLabel := "API key ending with " + suffix
-	if owner, taken := labelToKey[baseLabel]; !taken || owner == apiKey {
-		fh.keyLabelMap[apiKey] = baseLabel
-		return baseLabel
-	}
+	label := baseLabel
 	for i := 2; ; i++ {
-		label := fmt.Sprintf("%s (%d)", baseLabel, i)
-		if owner, taken := labelToKey[label]; !taken || owner == apiKey {
+		taken := false
+		for k, v := range fh.keyLabelMap {
+			if v == label && k != apiKey {
+				taken = true
+				break
+			}
+		}
+		if !taken {
 			fh.keyLabelMap[apiKey] = label
 			return label
 		}
+		label = fmt.Sprintf("%s (%d)", baseLabel, i)
 	}
 }
 
@@ -267,18 +267,12 @@ func applyAPIKeyStatus(label string, status *expvar.String) {
 // setAPIKeyStatusLocked is setAPIKeyStatus for callers that already hold keyMapMutex.
 func (fh *forwarderHealth) setAPIKeyStatusLocked(apiKey string, status *expvar.String) {
 	label := fh.labelForKey(apiKey)
-	if status == &apiKeyRemove {
-		delete(fh.keyLabelMap, apiKey)
-	}
 	applyAPIKeyStatus(label, status)
 }
 
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
 	fh.keyMapMutex.Lock()
 	label := fh.labelForKey(apiKey)
-	if status == &apiKeyRemove {
-		delete(fh.keyLabelMap, apiKey)
-	}
 	fh.keyMapMutex.Unlock()
 	applyAPIKeyStatus(label, status)
 }
