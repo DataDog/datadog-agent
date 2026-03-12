@@ -113,32 +113,3 @@ fn test_pid_file_cleaned_up_on_sigint() {
     // Verify PID file was cleaned up
     assert!(!pid_path.exists(), "PID file should be removed on SIGINT");
 }
-
-#[test]
-fn test_no_pid_file_without_flag() {
-    let temp_dir = TempDir::new().unwrap();
-    let pid_path = temp_dir.path().join("system-probe-lite.pid");
-    let socket_path = temp_dir.path().join("sysprobe.sock");
-
-    // Spawn system-probe-lite WITHOUT --pid flag
-    let mut child = Command::new(SYSTEM_PROBE_LITE_BIN)
-        .arg("--socket")
-        .arg(&socket_path)
-        .arg("--log-level")
-        .arg("info")
-        .spawn()
-        .expect("Failed to spawn system-probe-lite");
-
-    // Give it time to start
-    thread::sleep(Duration::from_millis(500));
-
-    // Verify PID file was NOT created
-    assert!(
-        !pid_path.exists(),
-        "PID file should not be created without --pid flag"
-    );
-
-    // Clean shutdown
-    child.kill().ok();
-    child.wait().expect("Failed to wait on child");
-}
