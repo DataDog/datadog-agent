@@ -51,6 +51,8 @@ docker_image_build_otel:
       --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
+      --build-arg GOPROXY=$GOPROXY \
+      --build-arg GONOSUMDB=$GONOSUMDB \
       --tag agent-byoc:latest \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
@@ -118,6 +120,8 @@ datadog_otel_components_ocb_build:
       --build-arg OUTPUT_OCI=$OUTPUT_OCI \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
+      --build-arg GOPROXY=$GOPROXY \
+      --build-arg GONOSUMDB=$GONOSUMDB \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
     # Verify the OCI image index was pushed and the replaced binary is present in the ddot layer
@@ -178,6 +182,8 @@ ddot_byoc_binary_build_test_ubuntu2004:
       --build-arg UBUNTU_VERSION=20.04 \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
+      --build-arg GOPROXY=$GOPROXY \
+      --build-arg GONOSUMDB=$GONOSUMDB \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
     - mkdir -p ddot-byoc
