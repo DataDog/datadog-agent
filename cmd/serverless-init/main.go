@@ -242,6 +242,12 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 		log.Debugf("otlp endpoint disabled")
 		return
 	}
+
+	if metricAgent == nil || metricAgent.Demux == nil {
+		log.Warn("metric agent or demux not ready, skipping OTLP agent setup")
+		return
+	}
+
 	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 }
