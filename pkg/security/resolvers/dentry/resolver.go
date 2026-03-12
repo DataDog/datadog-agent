@@ -501,7 +501,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 			// Sleep before retry to give kernel time to process the ERPC request
 			// Only sleep if we're going to retry (not on the last attempt)
 			if attempt < maxRetries {
-				time.Sleep(200 * time.Nanosecond)
+				time.Sleep(2 * time.Millisecond)
 			}
 		}
 	}
