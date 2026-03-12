@@ -82,35 +82,27 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 		delete(collSpec.Maps, "who_recvmsg")
 		delete(collSpec.Maps, "who_sendmsg")
 
-		fentryProg := collSpec.Programs["check_sock_prog"]
+		tcpRecvEntry := collSpec.Programs["tcp_recvmsg_entry"]
 
-		tcpRecvEntry := fentryProg.Copy()
-		tcpRecvEntry.AttachType = ebpflib.AttachTraceFEntry
-		tcpRecvEntry.AttachTo = "tcp_recvmsg"
-		tcpRecvEntry.SectionName = "fentry/tcp_recvmsg"
-		collSpec.Programs["tcp_recvmsg_entry"] = tcpRecvEntry
-
-		tcpRecvExit := fentryProg.Copy()
+		tcpRecvExit := tcpRecvEntry.Copy()
 		tcpRecvExit.AttachType = ebpflib.AttachTraceFExit
 		tcpRecvExit.AttachTo = "tcp_recvmsg"
 		tcpRecvExit.SectionName = "fexit/tcp_recvmsg"
 		collSpec.Programs["tcp_recvmsg_exit"] = tcpRecvExit
 
-		tcpSendEntry := fentryProg.Copy()
+		tcpSendEntry := tcpRecvEntry.Copy()
 		tcpSendEntry.AttachType = ebpflib.AttachTraceFEntry
 		tcpSendEntry.AttachTo = "tcp_sendmsg"
 		tcpSendEntry.SectionName = "fentry/tcp_sendmsg"
 		collSpec.Programs["tcp_sendmsg_entry"] = tcpSendEntry
 
-		tcpSendExit := fentryProg.Copy()
+		tcpSendExit := tcpRecvEntry.Copy()
 		tcpSendExit.AttachType = ebpflib.AttachTraceFExit
 		tcpSendExit.AttachTo = "tcp_sendmsg"
 		tcpSendExit.SectionName = "fexit/tcp_sendmsg"
 		collSpec.Programs["tcp_sendmsg_exit"] = tcpSendExit
-
-		delete(collSpec.Programs, "check_sock_prog")
 	} else {
-		delete(collSpec.Programs, "check_sock_prog")
+		delete(collSpec.Programs, "tcp_recvmsg_entry")
 	}
 
 	coll, err := ebpflib.NewCollectionWithOptions(collSpec, managerOptions.VerifierOptions)

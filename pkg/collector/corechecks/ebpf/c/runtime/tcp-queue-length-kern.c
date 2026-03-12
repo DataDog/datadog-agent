@@ -78,7 +78,9 @@ static __always_inline void check_sock(struct sock *sk) {
     log_debug("check_sock: name=%s read_max=%d write_max=%d", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
 }
 
-int BPF_PROG(check_sock_prog, struct sock *sk) {
+// this program will be copied to handle fexit/tcp_recvmsg and fentry+fexit/tcp_sendmsg
+SEC("fentry/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_entry, struct sock *sk) {
     check_sock(sk);
     return 0;
 }
