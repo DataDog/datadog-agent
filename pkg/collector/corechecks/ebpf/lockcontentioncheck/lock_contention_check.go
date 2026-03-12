@@ -66,7 +66,7 @@ func (m *LockContentionCheck) Configure(senderManager sender.SenderManager, _ ui
 func (m *LockContentionCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[[]model.LockContentionStats](m.sysProbeClient, sysconfig.LockContentionCheckModule)
 	if err != nil {
-		return fmt.Errorf("get lock_contention check: %s", err)
+		return sysprobeclient.IgnoreStartupError(err)
 	}
 
 	s, err := m.GetSender()
