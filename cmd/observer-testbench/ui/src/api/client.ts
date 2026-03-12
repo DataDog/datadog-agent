@@ -128,6 +128,25 @@ export interface LogEntry {
   tags: string[];
 }
 
+// LogsResponse is the paginated response from /api/logs.
+export interface LogsResponse {
+  logs: LogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type LogKind = 'all' | 'raw' | 'telemetry';
+
+// LogsSummary is the summary response from /api/logs/summary.
+export interface LogsSummary {
+  totalCount: number;
+  countByLevel: Record<string, number>;
+  timeRange: { start: number; end: number };
+  histogram: { timestampMs: number; count: number }[];
+  tagGroups: Record<string, string[]>;
+}
+
 // LogAnomaly is an anomaly emitted directly by a log detector (not via metrics detection).
 export interface LogAnomaly {
   source: string;
@@ -202,6 +221,15 @@ export interface ComponentDataResponse {
   data: unknown;
 }
 
+// Replay progress (lock-free, available during load).
+export interface ReplayProgress {
+  phase: string; // "", "loading", "detecting", "done"
+  timestampsDone: number;
+  timestampsTotal: number;
+  advances: number;
+  anomalies: number;
+}
+
 // Stats response from correlators
 export interface CorrelatorStats {
   [key: string]: Record<string, unknown>;
@@ -219,6 +247,10 @@ class ApiClient {
 
   async getStatus(): Promise<StatusResponse> {
     return this.fetch('/status');
+  }
+
+  async getProgress(): Promise<ReplayProgress> {
+    return this.fetch('/progress');
   }
 
   async getScenarios(): Promise<ScenarioInfo[]> {
@@ -258,9 +290,28 @@ class ApiClient {
     return this.fetch(`/anomalies${params}`);
   }
 
-  async getLogs(level?: string): Promise<LogEntry[]> {
-    const params = level ? `?level=${encodeURIComponent(level)}` : '';
-    return this.fetch(`/logs${params}`);
+  async getLogs(params?: { kind?: LogKind; level?: string; start?: number; end?: number; limit?: number; offset?: number; tags?: string }): Promise<LogsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.kind) searchParams.set('kind', params.kind);
+    if (params?.level) searchParams.set('level', params.level);
+    if (params?.start !== undefined) searchParams.set('start', String(params.start));
+    if (params?.end !== undefined) searchParams.set('end', String(params.end));
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+    if (params?.tags) searchParams.set('tags', params.tags);
+    const qs = searchParams.toString();
+    return this.fetch(`/logs${qs ? '?' + qs : ''}`);
+  }
+
+  async getLogsSummary(params?: { kind?: LogKind; level?: string; start?: number; end?: number; tags?: string }): Promise<LogsSummary> {
+    const searchParams = new URLSearchParams();
+    if (params?.kind) searchParams.set('kind', params.kind);
+    if (params?.level) searchParams.set('level', params.level);
+    if (params?.start !== undefined) searchParams.set('start', String(params.start));
+    if (params?.end !== undefined) searchParams.set('end', String(params.end));
+    if (params?.tags) searchParams.set('tags', params.tags);
+    const qs = searchParams.toString();
+    return this.fetch(`/logs/summary${qs ? '?' + qs : ''}`);
   }
 
   async getLogAnomalies(detector?: string): Promise<LogAnomaly[]> {

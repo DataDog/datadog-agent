@@ -99,6 +99,11 @@ type BOCPDDetector struct {
 
 	// per-series state keyed by "namespace|name|tags|agg"
 	series map[string]*bocpdSeriesState
+
+	// Cache the discovered series list across Detect calls. Refresh when storage
+	// reports that new series were added.
+	cachedKeys []observer.SeriesKey
+	cachedGen  uint64
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with sensible defaults.
@@ -126,12 +131,20 @@ func (b *BOCPDDetector) Name() string {
 	return "bocpd_detector"
 }
 
-// Detect implements Detector. It discovers series, reads only new points,
-// and updates per-series BOCPD posterior state incrementally.
+// Detect implements Detector. It discovers series, reads only newly visible
+// points, and updates per-series BOCPD posterior state incrementally.
+//
+// Correctness takes priority over positional cursoring: storage may insert
+// points into existing history, so this detector gates incremental work on
+// visible point counts rather than raw slice positions.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	b.ensureDefaults()
-
-	seriesKeys := storage.ListSeries(observer.SeriesFilter{})
+	gen := storage.SeriesGeneration()
+	if b.cachedKeys == nil || gen != b.cachedGen {
+		b.cachedKeys = storage.ListSeries(observer.SeriesFilter{})
+		b.cachedGen = gen
+	}
+	seriesKeys := b.cachedKeys
 
 	var allAnomalies []observer.Anomaly
 	var allTelemetry []observer.ObserverTelemetry
@@ -210,6 +223,8 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 // Reset clears all per-series state for replay/reanalysis.
 func (b *BOCPDDetector) Reset() {
 	b.series = make(map[string]*bocpdSeriesState)
+	b.cachedKeys = nil
+	b.cachedGen = 0
 }
 
 // processPoint handles a single new observation for a series.
