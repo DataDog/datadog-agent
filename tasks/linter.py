@@ -29,7 +29,7 @@ from tasks.libs.common.git import (
     get_file_modifications,
     get_staged_files,
 )
-from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci, running_in_workspace
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -454,6 +454,12 @@ def gitlab_ci(
         test: The context preset to test the gitlab ci file with containing environment variables.
         custom_context: A custom context to test the gitlab ci file with.
     """
+    if running_in_workspace():
+        print(
+            f"[{color_message('INFO', Color.BLUE)}] Running in a workspace (WORKSPACE_NAME is set), skipping gitlab_ci linter"
+        )
+        return
+
     # If we have to generate a gitlabci config object, use a minimally-resolved one
     # We do not need the fully-resolved one here, and this is much faster
     configs = load_or_generate_gitlab_ci_configs(
