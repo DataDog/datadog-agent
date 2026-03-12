@@ -11,6 +11,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_PM_CONFIG_DIR=/etc/datadog-agent-exp/processes.d"
+RuntimeDirectory=datadog
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/dd-procmgrd
 StartLimitInterval=10
 StartLimitBurst=5
