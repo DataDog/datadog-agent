@@ -6,6 +6,7 @@
   SRC_CWS_INSTRUMENTATION: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
   SRC_OTEL_AGENT: registry.ddbuild.io/ci/datadog-agent/otel-agent
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
+  SRC_PIPELINERECORDER: registry.ddbuild.io/ci/datadog-agent/pipelinerecorder
 
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
