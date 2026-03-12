@@ -243,3 +243,22 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, p.Metadata.Software, 0)
 }
+
+func TestSendPayloadSetsIngestionTimestamp(t *testing.T) {
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+
+	var capturedMsg *message.Message
+	f.eventPlatformMock.ExpectedCalls = nil
+	f.eventPlatformMock.On("SendEventPlatformEvent", mock.Anything, eventplatform.EventTypeSoftwareInventory).
+		Run(func(args mock.Arguments) {
+			capturedMsg = args.Get(0).(*message.Message)
+		}).
+		Return(nil)
+
+	sut := f.sut().WaitForPayload()
+	_ = sut
+
+	require.NotNil(t, capturedMsg, "expected SendEventPlatformEvent to be called")
+	assert.Greater(t, capturedMsg.IngestionTimestamp, int64(0),
+		"IngestionTimestamp must be set to a valid non-zero value (nanoseconds since epoch)")
+}
