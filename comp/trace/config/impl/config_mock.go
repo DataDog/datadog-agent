@@ -5,29 +5,28 @@
 
 //go:build test
 
-package config
+package configimpl
 
 import (
-	"testing"
-
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// newMock exported mock builder to allow modifying mocks that might be
+// NewMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
-func newMock(deps Dependencies, _ testing.TB) (Component, error) {
-	deps.Config.SetWithoutSource("api_key", "apikey")
-	traceCfg, err := setupConfigCommon(deps)
+func NewMock(reqs Requires) (traceconfig.Component, error) {
+	reqs.Config.SetWithoutSource("api_key", "apikey")
+	traceCfg, err := setupConfigCommon(reqs)
 	if err != nil {
 		return nil, err
 	}
 
 	c := cfg{
 		warnings:    &model.Warnings{},
-		coreConfig:  deps.Config,
+		coreConfig:  reqs.Config,
 		AgentConfig: traceCfg,
-		ipc:         deps.IPC,
+		ipc:         reqs.IPC,
 	}
 
 	c.SetMaxMemCPU(env.IsContainerized())

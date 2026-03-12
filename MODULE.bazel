@@ -136,6 +136,14 @@ register_toolchains(
     dev_dependency = True,
 )
 
+find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
+use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
+
+register_toolchains(
+    "@rules_pkg_rpmbuild//:all",
+    dev_dependency = True,
+)
+
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 ######################################
@@ -182,6 +190,7 @@ git_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
+        "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
