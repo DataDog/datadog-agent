@@ -43,7 +43,7 @@ func (s *configHistorySuite) SetupTest() {
 
 // enableHistory appends config_history.enabled: true to the stable datadog.yaml.
 func (s *configHistorySuite) enableHistory() {
-	_, err := s.Env().RemoteHost.Execute(`printf '\nconfig_history:\n  enabled: true\n' >> /etc/datadog-agent/datadog.yaml`)
+	_, err := s.Env().RemoteHost.Execute(`printf '\nconfig_history:\n  enabled: true\n' | sudo tee -a /etc/datadog-agent/datadog.yaml > /dev/null`)
 	require.NoError(s.T(), err)
 }
 
