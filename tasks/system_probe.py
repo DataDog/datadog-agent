@@ -37,7 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
+from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -119,13 +119,6 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter):
     )
 
 
-def ninja_define_binary_compiler(nw: NinjaWriter):
-    nw.rule(
-        name="cbin",
-        command="$cc $cflags -o $out $in $ldflags",
-    )
-
-
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
     strip_object_files=False,
@@ -164,29 +157,6 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
-
-
-def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
-    arch = Arch.from_str(arch)
-
-    # do not build for arm64
-    if arch == ARCH_ARM64:
-        return
-
-    ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
-    embedded_bins = ["detect-seccomp-bug"]
-
-    for binary in embedded_bins:
-        infile = os.path.join(ebpf_c_dir, f"{binary}.c")
-        outfile = os.path.join(ebpf_c_dir, binary)
-        cc = "gcc"
-
-        nw.build(
-            inputs=[infile],
-            outputs=[outfile],
-            rule="cbin",
-            variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
-        )
 
 
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
@@ -420,9 +390,7 @@ def ninja_generate(
         else:
             gobin = get_gobin(ctx)
 
-            # Native C binaries and runtime bundles (eBPF .o compilation is handled by Bazel)
-            ninja_define_binary_compiler(nw)
-            ninja_kernel_bug_binaries(nw, arch)
+            # Runtime bundles (eBPF .o and native binaries are handled by Bazel)
             ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw)
@@ -1281,6 +1249,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
 
@@ -1309,15 +1278,23 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
 
     def _copy_output(target: str, dest_dir: str):
         label_path, name = target.lstrip("/").rsplit(":", 1)
-        src = os.path.join(bazel_bin, label_path, f"{name}.o")
-        dst = os.path.join(dest_dir, f"{name}.o")
 
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
+        # eBPF targets produce .o files, native cc_binary targets produce bare binaries
+        src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
+        src_bin = os.path.join(bazel_bin, label_path, name)
+
+        if os.path.exists(src_o):
+            dst = os.path.join(dest_dir, f"{name}.o")
+            shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
             copied_files.append(dst)
+        elif os.path.exists(src_bin):
+            dst = os.path.join(dest_dir, name)
+            shutil.copy2(src_bin, dst)
+            os.chmod(dst, 0o755)
+            copied_files.append(dst)
         else:
-            print(f"Warning: expected output {src} not found")
+            print(f"Warning: expected output {src_o} or {src_bin} not found")
 
     for target in _BAZEL_EBPF_PREBUILT_TARGETS:
         _copy_output(target, build_dir)
@@ -1332,6 +1309,8 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     if strip:
         llvm_strip = "/opt/datadog-agent/embedded/bin/llvm-strip"
         for f in copied_files:
+            if not f.endswith(".o"):
+                continue
             ctx.run(f"{llvm_strip} -g {f}")
             ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
 
