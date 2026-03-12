@@ -31,7 +31,8 @@ pkg_filegroup(
 # They are really deps of things that the agent binary or python3 depends
 # on. We should pick up the dependencies from the build graph.
 # https://datadoghq.atlassian.net/browse/ABLD-363 will resolve that.
-# This is good enough for today.
+# This is good enough for today, and the list will shrink over time
+# as the rest of the graph becomes pure bazel.
 pkg_filegroup(
     name = "transitive_deps",
     srcs = [
@@ -39,7 +40,6 @@ pkg_filegroup(
         "//deps/nfsiostat:all_files",
         "//deps/openscap:all_files",
         "@freetds//:all_files",
-        "@krb5//:all_files",
         "@nghttp2//:all_files",
         "@xz//:all_files",
     ],
