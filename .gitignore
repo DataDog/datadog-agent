@@ -186,8 +186,10 @@ pkg/network/netlink/testdata/message_dump*
 cscope.out
 
 tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/obj/
 tools/windows/DatadogAgentInstaller/packages/
 tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+
 *.wixobj
 *.obj
 *.g.wxs

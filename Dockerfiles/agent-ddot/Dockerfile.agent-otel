@@ -1,9 +1,14 @@
+# check=skip=SecretsUsedInArgOrEnv
 ARG AGENT_DOCKER_REPO=datadog/agent
 ARG AGENT_VERSION=7.72.2
 ARG UBUNTU_VERSION=24.04
 ARG AGENT_DOCKER_TAG=${AGENT_VERSION}-full
 ARG AGENT_GIT_REF=${AGENT_VERSION}
 ARG BASE_IMAGE_REGISTRY=docker.io
+
+# Required for PACKAGE_TYPE=linux or windows: source agent OCI URL and output OCI URL.
+ARG AGENT_OCI
+ARG OUTPUT_OCI
 
 # Use the Ubuntu Slim AMD64 base image
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$UBUNTU_VERSION AS builder
@@ -27,7 +32,6 @@ RUN apt-get update && \
     software-properties-common \
     build-essential \
     git \
-    rpm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -104,57 +108,65 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     go clean -cache; \
     fi
 
-# Install nfpm if package type is specified (not needed for windows)
-RUN if [ -n "$PACKAGE_TYPE" ] && [ "$PACKAGE_TYPE" != "windows" ]; then \
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
-    curl -fsSL --retry 4 "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/nfpm; \
+# Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
+RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
-# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary
-RUN <<'RUNSCRIPT'
+# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.
+# For PACKAGE_TYPE=linux or windows, provide registry credentials for build-ddot-byoc via one of:
+#
+#   Docker config file (default):
+#     docker build --secret id=dockerconfig,src=$HOME/.docker/config.json ...
+#
+#   Google Application Default Credentials (GCE / Workload Identity):
+#     docker build --build-arg REGISTRY_AUTH=gcr ...
+#
+#   Static username/password:
+#     docker build \
+#       --build-arg REGISTRY_AUTH=password \
+#       --secret id=registry_username,env=REGISTRY_USERNAME \
+#       --secret id=registry_password,env=REGISTRY_PASSWORD ...
+ARG AGENT_OCI
+ARG OUTPUT_OCI
+ARG REGISTRY_AUTH=""
+RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
+    --mount=type=secret,id=registry_username,required=false \
+    --mount=type=secret,id=registry_password,required=false \
+    <<'RUNSCRIPT'
+set -e
+export REGISTRY_USERNAME=$(cat /run/secrets/registry_username 2>/dev/null || true)
+export REGISTRY_PASSWORD=$(cat /run/secrets/registry_password 2>/dev/null || true)
 ARCH=$(dpkg --print-architecture)
-mkdir -p /dist
-if [ "$PACKAGE_TYPE" = "windows" ]; then
-  cp /workspace/datadog-agent/bin/otel-agent/otel-agent.exe /dist/
-elif [ -n "$PACKAGE_TYPE" ]; then
-  if [ "$PACKAGE_TYPE" != "deb" ] && [ "$PACKAGE_TYPE" != "rpm" ]; then
-    echo "PACKAGE_TYPE must be 'deb', 'rpm', or 'windows', got: $PACKAGE_TYPE" >&2
+case "$PACKAGE_TYPE" in
+  linux)
+    if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
+      echo "AGENT_OCI and OUTPUT_OCI are required for PACKAGE_TYPE=linux" >&2
+      exit 1
+    fi
+    build-ddot-byoc \
+      --agent-oci  "$AGENT_OCI" \
+      --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent \
+      --output-oci "$OUTPUT_OCI" \
+      --os linux --arch "$ARCH"
+    ;;
+  windows)
+    if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
+      echo "AGENT_OCI and OUTPUT_OCI are required for PACKAGE_TYPE=windows" >&2
+      exit 1
+    fi
+    build-ddot-byoc \
+      --agent-oci  "$AGENT_OCI" \
+      --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent.exe \
+      --output-oci "$OUTPUT_OCI" \
+      --os windows --arch amd64
+    ;;
+  ?*)
+    echo "PACKAGE_TYPE must be 'linux' or 'windows', got: $PACKAGE_TYPE" >&2
     exit 1
-  fi
-  cd /workspace/datadog-agent
-  cat > nfpm.yaml <<EOF
-name: datadog-agent-ddot-byoc
-version: "${AGENT_VERSION}"
-arch: "${ARCH}"
-description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
-contents:
-  - src: bin/otel-agent/otel-agent
-    dst: /opt/datadog-agent/embedded/bin/otel-agent
-    file_info:
-      mode: 0755
-  - src: bin/otel-agent/dist/otel-config.yaml
-    dst: /etc/datadog-agent/otel-config.yaml.example
-conflicts:
-  - datadog-agent-ddot
-overrides:
-  deb:
-    depends:
-      - "datadog-agent (= 1:${AGENT_VERSION}-1)"
-  rpm:
-    depends:
-      - "datadog-agent = 1:${AGENT_VERSION}-1"
-EOF
-  nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
-else
-  cp /workspace/datadog-agent/bin/otel-agent/otel-agent /dist/
-fi
+    ;;
+esac
 RUNSCRIPT
-
-# Create a stage for extracting the built artifact (binary or packages)
-FROM scratch AS artifact
-COPY --from=builder /dist/* /ddot-byoc/
 
 # Use the final Datadog agent image
 FROM ${AGENT_DOCKER_REPO}:${AGENT_DOCKER_TAG} AS result
