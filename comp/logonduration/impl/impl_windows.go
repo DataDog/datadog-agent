@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
