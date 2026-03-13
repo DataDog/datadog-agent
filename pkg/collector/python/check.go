@@ -327,6 +327,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	defer C.call_free(unsafe.Pointer(cInitConfig))
 	defer C.call_free(unsafe.Pointer(cInstance))
 	defer C.call_free(unsafe.Pointer(cCheckID))
+	defer C.call_free(unsafe.Pointer(cCheckName))
 	defer C.call_free(unsafe.Pointer(cProvider))
 
 	var check *C.rtloader_pyobject_t
