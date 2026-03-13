@@ -134,10 +134,13 @@ func (w *timeSamplerWorker) processSamples(ms []metrics.MetricSample) {
 	w.metricSamplePool.PutBatch(ms)
 }
 
-// drainSamples processes all samples currently buffered in samplesChan.
+// drainSamples processes samples currently buffered in samplesChan.
+// It drains at most the number of batches buffered at the time of the call,
+// so concurrent producers cannot starve the subsequent flush.
 // This must be called from the worker goroutine (same goroutine as run()).
 func (w *timeSamplerWorker) drainSamples() {
-	for {
+	n := len(w.samplesChan)
+	for i := 0; i < n; i++ {
 		select {
 		case ms := <-w.samplesChan:
 			w.processSamples(ms)
