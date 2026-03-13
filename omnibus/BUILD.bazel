@@ -1,0 +1,6 @@
+"""Package lifecycle scripts for the debian and rpm packages."""
+
+exports_files(
+    glob(["package-scripts/**"]),
+    visibility = ["//packages:__subpackages__"],
+)

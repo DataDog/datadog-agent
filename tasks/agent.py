@@ -554,7 +554,7 @@ def hacky_dev_image_build(
 
         copy_extra_agents += (
             "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
-            "COPY pkg/discovery/module/rust/embedded/bin/sd-agent /opt/datadog-agent/embedded/bin/sd-agent\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/system-probe-lite /opt/datadog-agent/embedded/bin/system-probe-lite\n"
         )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
@@ -936,7 +936,7 @@ def generate_config(ctx, build_type, output_file, env=None):
     Generates the datadog.yaml configuration file.
     """
     args = {
-        "go_file": "./pkg/config/render_config.go",
+        "go_file": "./pkg/config/render_config/render_config.go",
         "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,

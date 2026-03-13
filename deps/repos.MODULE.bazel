@@ -73,14 +73,18 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
+# Pinned to main commit e4068330a799ba6090d8247cf34d470f722b32c4 to get:
+# - bazel-contrib/rules_foreign_cc#1451: out_data_dirs in output groups
+# - bazel-contrib/rules_foreign_cc#1465: resource_set integration (fixes overcommitting)
+# - bazel-contrib/rules_foreign_cc#1470: -isystem forwarding to configure scripts
+# Patch 0002 is still carried locally (bazel-contrib/rules_foreign_cc#1452 not yet merged).
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-single_version_override(
+git_override(
     module_name = "rules_foreign_cc",
+    commit = "e4068330a799ba6090d8247cf34d470f722b32c4",
     patch_strip = 1,
-    patches = [
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
-        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
-    ],
+    patches = ["//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch"],
+    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )
 
 register_toolchains(

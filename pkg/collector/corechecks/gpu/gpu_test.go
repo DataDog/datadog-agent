@@ -240,6 +240,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 		}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 		testutil.WithMIGDisabled(),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
@@ -328,6 +329,12 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			}
 			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions()), nvml.SUCCESS
 		}
+		d.GpmMigSampleGetFunc = func(_ int, _ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
+		d.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
 	})
 
 	// Setup NVML mock with single parent device
@@ -336,6 +343,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS
 		}),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 	)
 	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
 	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
@@ -851,11 +859,6 @@ func TestMetricsFollowSpec(t *testing.T) {
 		specMetrics[name] = struct{}{}
 	}
 
-	// XID metrics require real device events.
-	notExpectedOnBasicRun := map[string]bool{
-		"errors.xid.total": true,
-	}
-
 	deviceModes := []gpuspec.DeviceMode{
 		gpuspec.DeviceModePhysical,
 		gpuspec.DeviceModeMIG,
@@ -877,14 +880,13 @@ func TestMetricsFollowSpec(t *testing.T) {
 							assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
 
 							metricSpec := metricsSpec.Metrics[metricName]
-							assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
 							assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
 							assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
 						}
 					})
 
 					for name, m := range metricsSpec.Metrics {
-						if notExpectedOnBasicRun[name] || !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
+						if !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
 							continue
 						}
 
@@ -990,10 +992,6 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	require.True(t, ok)
 
 	WithGPUConfigEnabled(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{"device_events"})
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
-	})
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
 	check.containerProvider = mockContainerProvider
@@ -1039,9 +1037,16 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	check.spCache = spCache
 
 	runCollection := func() {
-		// Some metrics require a second run to be collected, so we run it twice and clear
-		// the mock sender between runs.
+		// Some metrics require a second run to be collected, so we run it twice.
+		// XID events are injected between runs, after collectors have registered devices.
 		require.NoError(t, checkGeneric.Run())
+		if mode == gpuspec.DeviceModePhysical {
+			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
+				DeviceUUID: testutil.DefaultGpuUUID,
+				EventType:  nvml.EventTypeXidCriticalError,
+				EventData:  31,
+			}}))
+		}
 		mockSender.ResetCalls()
 		require.NoError(t, checkGeneric.Run())
 	}
@@ -1051,6 +1056,8 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		"gpu_device":         strings.ToLower(strings.ReplaceAll(testutil.DefaultGPUName, " ", "_")),
 		"gpu_vendor":         "nvidia",
 		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
+		"type":               "31",
+		"origin":             "hardware",
 	}
 
 	return metricCollectionSetup{
