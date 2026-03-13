@@ -10,7 +10,7 @@ import (
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
-// NoopFilterList is a Noop FilterList to be used for tests.
+// noopFilterList is a Noop FilterList to be used for tests.
 type noopFilterList struct{}
 
 func NewNoopFilterList() filterlist.Component {

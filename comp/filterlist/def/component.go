@@ -13,6 +13,7 @@ package filterlist
 
 import utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
+// Component is the component type
 type Component interface {
 	OnUpdateMetricFilterList(func(utilstrings.Matcher, utilstrings.Matcher))
 	OnUpdateTagFilterList(func(TagMatcher))

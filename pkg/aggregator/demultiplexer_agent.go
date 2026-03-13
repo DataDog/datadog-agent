@@ -167,8 +167,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval,
-		filterList.GetMetricFilterList(), filterList.GetTagFilterList())
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
 
 	// statsd samplers
 	// ---------------
@@ -516,7 +515,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -526,10 +525,10 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.Ta
 		return
 	}
 
-	d.aggregator.tagfilterListChan <- tagmatcher
+	d.aggregator.tagFilterListChan <- tagMatcher
 
 	for _, worker := range d.statsd.workers {
-		worker.tagFilterListChan <- tagmatcher
+		worker.tagFilterListChan <- tagMatcher
 	}
 }
 

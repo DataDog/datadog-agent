@@ -278,7 +278,7 @@ type BufferedAggregator struct {
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
 
-	tagfilterListChan chan filterlist.TagMatcher
+	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
 }
 
@@ -297,7 +297,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -359,9 +359,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan:    make(chan utilstrings.Matcher),
-		flushFilterList:   flushFilterList,
-		tagfilterListChan: make(chan filterlist.TagMatcher),
-		tagFilterList:     tagFilterList,
+		flushFilterList:   filterList.GetMetricFilterList(),
+		tagFilterListChan: make(chan filterlist.TagMatcher),
+		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
 	return aggregator
@@ -804,7 +804,7 @@ func (agg *BufferedAggregator) run() {
 
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
-		case matcher := <-agg.tagfilterListChan:
+		case matcher := <-agg.tagFilterListChan:
 			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:

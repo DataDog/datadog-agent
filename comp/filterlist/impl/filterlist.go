@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,7 +31,7 @@ type Requires struct {
 
 // Provides contains the RC component
 type Provides struct {
-	Comp       filterlist.Component
+	Comp       filterlistdef.Component
 	RCListener rctypes.ListenerProvider
 }
 
@@ -46,7 +46,7 @@ type FilterList struct {
 
 	log           log.Component
 	config        config.Component
-	telemetrycomp telemetry.Component
+	telemetryComp telemetry.Component
 
 	updateMetricMtx        sync.RWMutex
 	metricFilterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
@@ -54,7 +54,7 @@ type FilterList struct {
 	histoFilterList        utilstrings.Matcher
 
 	updateTagMtx        sync.RWMutex
-	tagFilterListUpdate []func(filterlist.TagMatcher)
+	tagFilterListUpdate []func(filterlistdef.TagMatcher)
 	tagFilterList       tagMatcher
 
 	tlmMetricFilterListUpdates telemetry.SimpleCounter
@@ -64,8 +64,11 @@ type FilterList struct {
 	tlmTagFilterListSize    telemetry.SimpleGauge
 }
 
-// Load the config, registers with RC
-func NewFilterList(log log.Component, config config.Component, telemetrycomp telemetry.Component) *FilterList {
+// NewFilterList loads the local config.
+// Note that registering with RC happens via separate methods
+// (OnUpdateMetricFilterList, OnUpdateTagFilterList) called from
+// the packages that use FilterList.
+func NewFilterList(log log.Component, config config.Component, telemetryComp telemetry.Component) *FilterList {
 	// init the metric names filterlist
 	filterlist := config.GetStringSlice("metric_filterlist")
 	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
@@ -88,16 +91,16 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		tagFilterList: tagFilterListEntries,
 	}
 
-	tlmMetricFilterListUpdates := telemetrycomp.NewSimpleCounter("filterlist", "updates",
+	tlmMetricFilterListUpdates := telemetryComp.NewSimpleCounter("filterlist", "updates",
 		"Incremented when a reconfiguration of the metric filterlist happened",
 	)
-	tlmMetricFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "size",
+	tlmMetricFilterListSize := telemetryComp.NewSimpleGauge("filterlist", "size",
 		"Metric filter list size",
 	)
-	tlmTagFilterListUpdates := telemetrycomp.NewSimpleCounter("tag_filterlist", "updates",
+	tlmTagFilterListUpdates := telemetryComp.NewSimpleCounter("tag_filterlist", "updates",
 		"Incremented when a reconfiguration of the tag filterlist happened",
 	)
-	tlmTagFilterListSize := telemetrycomp.NewSimpleGauge("tag_filterlist", "size",
+	tlmTagFilterListSize := telemetryComp.NewSimpleGauge("tag_filterlist", "size",
 		"Tag filter list size",
 	)
 
@@ -105,7 +108,7 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		localFilterListConfig:      localFilterListConfig,
 		config:                     config,
 		log:                        log,
-		telemetrycomp:              telemetrycomp,
+		telemetryComp:              telemetryComp,
 		tlmMetricFilterListUpdates: tlmMetricFilterListUpdates,
 		tlmMetricFilterListSize:    tlmMetricFilterListSize,
 		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
@@ -162,24 +165,24 @@ func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatch
 		}
 	}
 
-	return newTagMatcher(tagFilterList)
+	return newTagMatcher(tagFilterList, log)
 }
 
-// GetTagFilterList returns the current tag filterlist.
-func (fl *FilterList) GetTagFilterList() filterlist.TagMatcher {
+// GetTagFilterList returns the current tag filterlistdef.
+func (fl *FilterList) GetTagFilterList() filterlistdef.TagMatcher {
 	fl.updateTagMtx.RLock()
 	defer fl.updateTagMtx.RUnlock()
 	return fl.tagFilterList
 }
 
-// GetMetricFilterList returns the current metric filterlist.
+// GetMetricFilterList returns the current metric filterlistdef.
 func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 	return fl.filterList
 }
 
-// GetHistoFilterList returns the current histogram-specific metric filterlist.
+// GetHistoFilterList returns the current histogram-specific metric filterlistdef.
 // This is a subset of the full metric filterlist containing only entries that
 // match histogram aggregate suffixes. It is used by DogStatsD workers which
 // pre-filter regular metrics in listeners; only histogram-derived names need
@@ -201,7 +204,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
 	}
 
-	histoMetricNames := []string{}
+	var histoMetricNames []string
 	for _, metricName := range metricNames {
 		// metric names ending with a histogram aggregates
 		for _, aggr := range aggrs {
@@ -217,7 +220,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 		}
 	}
 
-	fl.log.Debugf("SetMetricFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
+	fl.log.Debugf("SetMetricFilterList created a histograms subset of %d metric names", len(histoMetricNames))
 	return histoMetricNames
 }
 
@@ -230,9 +233,9 @@ func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 
 		var action action
 		if tags.Action == "exclude" {
-			action = Exclude
+			action = exclude
 		} else {
-			action = Include
+			action = include
 		}
 
 		hashedTags[name] = hashedMetricTagList{
@@ -325,7 +328,7 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 
 // OnUpdateTagFilterList is called to register a callback to be called when the
 // metric tag list is updated.
-func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)) {
+func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlistdef.TagMatcher)) {
 	fl.updateTagMtx.Lock()
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
 	fl.updateTagMtx.Unlock()

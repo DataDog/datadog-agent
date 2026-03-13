@@ -19,11 +19,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -42,7 +42,7 @@ func TestProfileMetadata_f5(t *testing.T) {
 	setupHostname(t)
 	cfg := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, utilstrings.Matcher{}, nil)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	cfg.SetWithoutSource("confd_path", invalidPath)
 

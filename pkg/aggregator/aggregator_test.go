@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -168,7 +167,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, utilstrings.Matcher{}, nil)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -201,7 +200,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, utilstrings.Matcher{}, nil)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -251,7 +250,7 @@ func TestDefaultData(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, utilstrings.Matcher{}, nil)
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	start := time.Now()
 
@@ -297,7 +296,7 @@ func TestDefaultSeries(t *testing.T) {
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
 
-	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, utilstrings.Matcher{}, nil)
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	start := time.Now()
 
@@ -652,7 +651,7 @@ func TestTags(t *testing.T) {
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, utilstrings.Matcher{}, nil)
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, filterlistmock.NewMockFilterList())
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -684,7 +683,7 @@ func TestConfigIDTags(t *testing.T) {
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, utilstrings.Matcher{}, nil)
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList())
 			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
@@ -716,7 +715,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, utilstrings.Matcher{}, nil)
+	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",
