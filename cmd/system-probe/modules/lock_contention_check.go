@@ -63,7 +63,7 @@ func (m lockContentionCheckModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		m.lastCheck.Store(time.Now().Unix())
 		stats := m.Probe.GetAndFlush()
-		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 
 	return nil
