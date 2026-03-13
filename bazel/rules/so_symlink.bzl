@@ -52,7 +52,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
     return platform, ":{}".format(name)
 
-def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None):
+def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None, visibility = None):
     """Creates shared library symlink chain following Unix conventions.
 
     Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
@@ -71,8 +71,10 @@ def so_symlink(name, src, libname = None, version = None, prefix = "", attribute
         prefix: Installation directory prefix (default: "")
         version: Full version string (e.g., "3.0", ignored on Windows)
         attributes: pkg_attributes
+        visibility: Bazel visibility for the generated alias target
     """
     native.alias(
         name = name,
         actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec, attributes) for spec in _SPECS])),
+        visibility = visibility,
     )
