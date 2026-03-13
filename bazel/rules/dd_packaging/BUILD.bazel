@@ -7,12 +7,14 @@ bzl_library(
 )
 
 bzl_library(
-    name = "dd_cc_shared_library_bzl",
-    srcs = ["dd_cc_shared_library.bzl"],
+    name = "dd_cc_packaged_bzl",
+    srcs = ["dd_cc_packaged.bzl"],
     deps = [
         ":dd_packaging_info_bzl",
         "//bazel/rules:so_symlink_bzl",
         "//bazel/rules/rewrite_rpath:rewrite_rpath_bzl",
+        "@rules_cc//cc/common:cc_info.bzl",
+        "@rules_cc//cc/common:cc_shared_library_info.bzl",
         "@rules_pkg//pkg:mappings.bzl",
         "@rules_pkg//pkg:providers.bzl",
     ],
