@@ -1,0 +1,15 @@
+# E2E CI Artifact Dependencies for FIPS compliance tests
+# Generate CI config: dda e2e generate-ci-deps --area fips-compliance
+# Validate: dda e2e generate-ci-deps --validate
+
+area: fips-compliance
+
+# Default artifacts for FIPS compliance tests
+# FIPS tests require FIPS-certified agent builds
+default_artifacts:
+  - agent_deb-x64-a7-fips    # FIPS Debian package
+  - qa_agent_fips_linux      # FIPS Linux agent Docker image
+  - qa_dca_fips              # FIPS cluster agent
+
+# Test-specific overrides
+# Add specific patterns for different FIPS test scenarios

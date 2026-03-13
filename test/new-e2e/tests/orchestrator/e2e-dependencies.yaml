@@ -1,0 +1,17 @@
+# E2E CI Artifact Dependencies for orchestrator (Kubernetes monitoring) tests
+# Generate CI config: dda e2e generate-ci-deps --area orchestrator
+# Validate: dda e2e generate-ci-deps --validate
+
+area: orchestrator
+
+# Default artifacts for orchestrator tests
+# These tests validate Kubernetes resource monitoring and orchestrator explorer
+# Uses .new_e2e_template_needs_container_deploy_linux template
+default_artifacts:
+  - qa_agent_linux         # Base Linux agent
+  - qa_agent_linux_jmx     # Linux agent with JMX support
+  - qa_dca                 # Cluster agent for K8s orchestration
+  - qa_dogstatsd           # DogStatsD standalone binary
+
+# Test-specific overrides
+# Add optimizations here after verifying test requirements

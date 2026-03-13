@@ -1,0 +1,39 @@
+# E2E CI Artifact Dependencies for containers tests
+# This file defines which GitLab CI build artifacts (qa_* jobs) are needed
+# for E2E tests in this area.
+#
+# Generated from: .gitlab/test/e2e/e2e.yml
+# Validate: dda e2e generate-ci-deps --validate
+# Regenerate: dda e2e generate-manifests --area containers --force
+
+area: containers
+
+# Default artifacts used by tests in this area
+# Generated from current CI configuration
+default_artifacts:
+  - qa_agent_linux                 # Base Linux agent Docker image
+  - qa_agent_linux_jmx             # Linux agent with JMX support
+  - qa_dca                         # Datadog Cluster Agent
+  - qa_dogstatsd                   # DogStatsD standalone binary
+
+# Test-specific overrides
+# These patterns match specific tests that need different artifacts
+test_specific:
+  - pattern: "TestECSSuite"
+    artifacts:
+      - qa_agent
+      - qa_agent_jmx
+      - qa_agent_linux
+      - qa_agent_linux_jmx
+      - qa_dca
+      - qa_dogstatsd
+    comment: "From job: new-e2e-containers-ecs"
+  - pattern: "TestEKSSuite"
+    artifacts:
+      - qa_agent
+      - qa_agent_jmx
+      - qa_agent_linux
+      - qa_agent_linux_jmx
+      - qa_dca
+      - qa_dogstatsd
+    comment: "From job: new-e2e-containers-eks"
