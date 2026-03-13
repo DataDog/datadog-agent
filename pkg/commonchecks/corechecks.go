@@ -131,5 +131,6 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
+
 	registerSystemProbeChecks(tagger)
 }
