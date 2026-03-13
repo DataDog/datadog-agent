@@ -143,7 +143,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 			UseProcFS:              true,
 			SnapshotUsingListMount: config.Probe.SnapshotUsingListmount,
 		}
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, resolverOpts)
+		mountResolver, err = mount.NewResolver(statsdClient, dentryResolver, resolverOpts)
 		if err != nil {
 			return nil, err
 		}

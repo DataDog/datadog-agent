@@ -44,12 +44,13 @@ cc_library(
 pkg_files(
     name = "hdr_files",
     srcs = _HEADERS,
-    prefix = "embedded/include/systemd",
+    prefix = "include/systemd",
 )
 
 pkg_filegroup(
     name = "all_files",
     srcs = [":hdr_files"],
+    prefix = "embedded",
     visibility = ["@@//packages:__subpackages__"],
 )
 

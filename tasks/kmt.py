@@ -74,7 +74,6 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
-    bazel_build_ebpf,
     build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
@@ -1046,11 +1045,8 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 
 def build_object_files(ctx, fp, arch: Arch):
-    info("[+] Building eBPF object files via Bazel...")
-    build_dir = get_ebpf_build_dir(arch)
-    bazel_build_ebpf(ctx, arch, str(build_dir), strip=False)
-
-    info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
+    setup_runtime_clang(ctx)
+    info(f"[+] Generating eBPF object files... {fp}")
     ninja_generate(ctx, fp, arch=arch)
     ctx.run(f"ninja -d explain -f {fp}")
 

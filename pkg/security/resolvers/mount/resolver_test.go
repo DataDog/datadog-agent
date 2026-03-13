@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -365,10 +364,8 @@ func TestMountResolver(t *testing.T) {
 		pid uint32 = 1
 	)
 
-	cr, _ := cgroup.NewResolver(nil, nil, nil)
-
 	// Create mount resolver
-	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
+	mr, _ := NewResolver(nil, nil, ResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
@@ -430,13 +427,12 @@ func TestMountGetParentPath(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil, nil)
-	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
+	mr, _ := NewResolver(nil, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
 
-	parentPath, _, _, err := mr.getMountPath(model.PathKey{MountID: 4}, 1)
+	parentPath, _, _, err := mr.getMountPath(4, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
@@ -471,21 +467,19 @@ func TestMountLoop(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil, nil)
-	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
+	mr, _ := NewResolver(nil, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
 
-	parentPath, _, _, err := mr.getMountPath(model.PathKey{MountID: 3}, 1)
+	parentPath, _, _, err := mr.getMountPath(3, 1)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil, nil)
-	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
+	mr, _ := NewResolver(nil, nil, ResolverOpts{})
 
 	mr.mounts.Add(1, &model.Mount{
 		MountID:       1,
@@ -504,6 +498,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, _ = mr.getMountPath(model.PathKey{MountID: 100}, 1)
+		_, _, _, _ = mr.getMountPath(100, 1)
 	}
 }

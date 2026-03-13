@@ -54,6 +54,7 @@
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
+/rust-toolchain.toml			@DataDog/agent-build
 /Cargo.toml                             @DataDog/agent-build
 /Cargo.lock                             @DataDog/agent-build
 
@@ -65,14 +66,14 @@
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
-/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
-/.github/workflows/gohai.yml                         @DataDog/agent-configuration
-/.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
-/.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
-/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations
-/.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
-/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
-/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
+/.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security @DataDog/agent-devx
+/.github/workflows/gohai.yml                         @DataDog/agent-configuration @DataDog/agent-devx
+/.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/update-dependencies.yml           @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/upgrade-python-patch-version.yml  @DataDog/agent-integrations @DataDog/agent-devx
+/.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes @DataDog/agent-devx
+/.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent @DataDog/agent-devx
+/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations @DataDog/agent-devx
 
 
 /.run                                                @DataDog/agent-devx

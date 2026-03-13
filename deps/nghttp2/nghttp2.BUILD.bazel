@@ -118,8 +118,6 @@ so_symlink(
     name = "lib_files",
     src = ":nghttp2_shared",
     libname = "libnghttp2",
-    # Lands in embedded/lib. so_symlink FR, prefix should be able to override the automatic 'lib/'.
-    prefix = "embedded",
     version = SO_VERSION,
     attributes = pkg_attributes(mode = "0755"),
 )
@@ -127,7 +125,7 @@ so_symlink(
 pkg_files(
     name = "header_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/nghttp2",
+    prefix = "include/nghttp2",
 )
 
 pkg_filegroup(
@@ -136,6 +134,7 @@ pkg_filegroup(
         ":header_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
