@@ -33,9 +33,9 @@ const (
 	// KillActionStatusQueued indicates the kill action was queued until the end of the first rule period
 	KillActionStatusQueued KillActionStatus = "kill_queued"
 	// KillActionStatusPartiallyPerformed indicates the kill action was performed on some processes but not all
-	KillActionStatusPartiallyPerformed = "partially_performed"
+	KillActionStatusPartiallyPerformed KillActionStatus = "partially_performed"
 	// KillActionStatusKillAborted indicates the kill action was aborted because the process exited before the kill was performed
-	KillActionStatusKillAborted = "kill_aborted"
+	KillActionStatusKillAborted KillActionStatus = "kill_aborted"
 
 	// maxRetryForMsgWithKillAction is the maximum number of retries for a kill action
 	// - a kill can be queued up to the end of the first disarmer period (1min by default)
