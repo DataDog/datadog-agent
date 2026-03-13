@@ -284,7 +284,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         if result is not None and result.exited == 0 and result.stdout.strip():
             remote_host = RemoteHost(result.stdout)
             host = f"{remote_host.user}@{remote_host.address}"
-            print(f"♻️ Windows dev env already exists at {host}")
+            print(f"Windows dev env already exists at {host}")
 
     if host is None:
         # VM does not exist yet: create it and run first-time setup.
@@ -308,7 +308,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             print("Host rebooted")
 
         # Start the Windows dev container
-        print("🐳 Starting Windows dev container")
+        print("Starting Windows dev container")
         ctx.run(
             f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'"
         )
@@ -346,12 +346,12 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
         # VM already exists: check if the container is running.
         result = ctx.run(f"ssh {host} 'docker ps -q --filter name={WIN_CONTAINER_NAME}'", warn=True, hide=True)
         if result is None or result.exited != 0 or not result.stdout.strip():
-            print("🐳 Container not running, starting it...")
+            print("Container not running, starting it...")
             ctx.run(
                 f"ssh {host} 'docker run -m 16384 -v C:\\mnt:c:\\mnt:rw -w C:\\mnt\\datadog-agent -t -d --name {WIN_CONTAINER_NAME} datadog/agent-buildimages-windows_x64:ltsc2022 tail -f /dev/null'"
             )
         else:
-            print("🐳 Windows dev env already running, resuming sync")
+            print("Windows dev env already running, resuming sync")
 
     print("Start the file sync with `dda inv windows-dev-env.sync` to only sync changes.")
     print("Start the file watcher with `dda inv windows-dev-env.watch`to sync changes and run tests.")
@@ -404,7 +404,6 @@ def _wait_for_windows_dev_env(ctx, host):
 def _build_rsync_command(host: str) -> str:
     # -a: archive mode; equals -rlptgoD (no -H)
     # -z: compress file data during the transfer
-    # -r: recurse into directories
     # -c: skip based on checksum, not mod-time & size
     # -I: --ignore-times
     # -P: same as --partial --progress, show partial progress during transfer
@@ -412,7 +411,7 @@ def _build_rsync_command(host: str) -> str:
     # --inplace: write directly to the destination file instead of temp+rename,
     #            avoids NTFS "Permission denied" when a file is locked by a running process
     return (
-        f"rsync --chmod=ugo=rwX -azrcIPR --delete --inplace --rsync-path='C:\\cygwin\\bin\\rsync.exe'"
+        f"rsync --chmod=ugo=rwX -azcIPR --delete --inplace --rsync-path='C:\\cygwin\\bin\\rsync.exe'"
         f" --filter=':- .gitignore'"
         f" --exclude /.git/"
         # Exclude the DatadogInterop folder entirely — the DLL is built separately and
@@ -428,8 +427,6 @@ def _build_remote_command(host: "RemoteHost", command: str) -> str:
         'docker',
         'exec',
         '-i',
-        '-e',
-        'PYTHONUTF8=1',
         WIN_CONTAINER_NAME,
         'powershell',
         f"'{command}'",
@@ -700,6 +697,8 @@ def attach_or_run(ctx: Context, name: str, command_type: str, packages) -> int:
                 return _replay_output(state)
 
     # Fresh run: reconstruct the inv command from command_type + packages.
+    print(f"Running {command_type} on Windows development environment")
+
     if norm_packages:
         targets = ",".join(f"./{p}" for p in sorted(norm_packages))
         inv_cmd = f"inv linter.go --targets={targets}" if command_type == "linter" else f"inv test --targets={targets}"

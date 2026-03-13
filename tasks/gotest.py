@@ -279,7 +279,6 @@ def test(
         dda inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         dda inv test --module=. --race
     """
-
     sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
@@ -321,11 +320,6 @@ def test(
             # The default is 1000ms, which adds minutes to the full test run
             gorace += " atexit_sleep_ms=50"
             env["GORACE"] = gorace.strip()
-
-    if host != "windows" and sys.platform != "win32" and result_json and os.path.isfile(result_json):
-        # Remove existing file since we append to it.
-        print(f"Removing existing '{result_json}' file")
-        os.remove(result_json)
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
@@ -380,7 +374,6 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     if host == "windows":
-        print("Running tests on Windows development environment")
         from tasks.windows_dev_env import attach_or_run
 
         package_list = [
@@ -390,6 +383,11 @@ def test(
             for t in m.test_targets
         ]
         exit(attach_or_run(ctx, name="windows-dev-env", command_type="test", packages=package_list))
+
+    if result_json and os.path.isfile(result_json):
+        # Remove existing file since we append to it.
+        print(f"Removing existing '{result_json}' file")
+        os.remove(result_json)
 
     with gitlab_section("Running unit tests", collapsed=True):
         result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
