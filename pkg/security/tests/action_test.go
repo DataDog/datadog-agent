@@ -1834,3 +1834,177 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 		assert.NotNil(t, err, "expected all retry attempts to complete without finding remediation_status")
 	})
 }
+
+func TestCustomEventContainer(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	// 1. Start a Docker container first
+	dockerInstance, err := newDockerCmdWrapper("/tmp", "/tmp", "alpine", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+	if _, err := dockerInstance.start(); err != nil {
+		t.Fatalf("failed to start docker: %v", err)
+	}
+	containerKilled := false
+	defer func() {
+		if !containerKilled {
+			dockerInstance.stop()
+		}
+	}()
+
+	// 2. Create a test file inside the container at a known path
+	testFilePath := "/tmp/test-rem-container-kill-broad-" + utils.RandString(8)
+	cmd := dockerInstance.Command("touch", []string{testFilePath}, []string{})
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create test file in container: %v", err)
+	}
+
+	// 3. Initialize the test module with the rule pointing to the correct path
+	// Use cat with the test file to uniquely identify our process
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rem_container_exec_trigger",
+			Expression: `exec.file.name == "cat" && exec.argv in ["` + testFilePath + `"] && process.container.id != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var cGroupID string
+	var catCmd *exec.Cmd
+
+	// Run cat inside the container and wait for the rule to trigger
+	// cat will exit immediately after reading the file, but that's fine for capturing the signature
+	test.WaitSignalFromRule(t, func() error {
+		catCmd = dockerInstance.Command("cat", []string{testFilePath}, []string{})
+		return catCmd.Start()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_rem_container_exec_trigger")
+		// Capture the cgroup of the exec event
+		cGroupID = string(event.ProcessContext.CGroup.CGroupID)
+	}, "test_rem_container_exec_trigger")
+
+	// Wait for cat to finish
+	if catCmd != nil && catCmd.Process != nil {
+		catCmd.Wait()
+	}
+
+	// Verify we got a valid cgroup ID
+	if cGroupID == "" {
+		t.Fatal("cgroup ID is empty")
+	}
+
+	// Create a new rule to kill the container using the captured cgroup ID
+	newRuleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_kill_container_cgroup_id",
+			Expression: `event.source == "replay" && exec.cgroup.id == "` + cGroupID + `"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal:                    "SIGKILL",
+						Scope:                     "cgroup",
+						DisableContainerDisarmer:  true,
+						DisableExecutableDisarmer: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Set the new policy and reload
+	if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+		t.Fatalf("failed to set new policy: %v", err)
+	}
+
+	// Reload the policy and wait for the kill rule to trigger
+	// The rule should match the replayed exec event for the container's entrypoint (cat)
+	err = test.reloadPolicies()
+	if err != nil {
+		t.Error("failed to reload policies: %w", err)
+	}
+
+	// Wait a bit for the rule to trigger
+	time.Sleep(2500 * time.Millisecond)
+
+	// Poll until a remediation_status message is received, then validate its fields (scope container).
+	err = retry.Do(func() error {
+		msg := test.msgSender.getMsg("remediation_status")
+		if msg == nil {
+			return errors.New("not found")
+		}
+
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_id`); err != nil || el != "remediation_status" {
+				t.Errorf("agent.rule_id should be 'remediation_status': %s => %v", el, err)
+			}
+
+			if el, err := jsonpath.JsonPathLookup(obj, `$.event_type`); err != nil || el != "remediation_status" {
+				t.Errorf("event_type should be 'remediation_status': %s => %v", el, err)
+			}
+
+			if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
+				t.Errorf("remediation_action should be 'kill': %s => %v", el, err)
+			}
+
+			if el, err := jsonpath.JsonPathLookup(obj, `$.status`); err != nil || el != "performed" {
+				t.Errorf("status should be 'performed': %s => %v", el, err)
+			}
+
+			if el, err := jsonpath.JsonPathLookup(obj, `$.scope`); err != nil || el != "cgroup" {
+				t.Errorf("scope should be 'cgroup': %s => %v", el, err)
+			}
+			// Validate container object: container.id and container.created_at
+			if el, err := jsonpath.JsonPathLookup(obj, `$.container.id`); err != nil || el != dockerInstance.containerID {
+				t.Errorf("container.id should be '%s': got %v, err %v", dockerInstance.containerID, el, err)
+			}
+			if _, err := jsonpath.JsonPathLookup(obj, `$.container.created_at`); err != nil {
+				t.Errorf("container.created_at should be present: %v", err)
+			}
+		})
+
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the container was killed by checking if it's still running
+	err = retry.Do(func() error {
+		cmd := exec.Command("docker", "inspect", "-f", "{{.State.Running}}", dockerInstance.containerID)
+		output, err := cmd.Output()
+		if err != nil {
+			// Container might not exist anymore, which is also fine
+			return nil
+		}
+		if strings.TrimSpace(string(output)) == "true" {
+			return errors.New("container still running")
+		}
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	if err != nil {
+		t.Fatal("container should have been killed but is still running")
+	}
+	containerKilled = true
+}
