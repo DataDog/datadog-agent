@@ -578,7 +578,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct sysca
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&connect_addr_family_approvers, &key);
     u64 family = syscall->connect.family;
-    return flag_approver(filter, syscall->type, family);
+    enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
+
+    if (state == DISCARDED) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        if (approve_connect_sample(pid, syscall->connect.family, syscall->connect.port, syscall->connect.protocol, syscall->connect.addr) == SAMPLED) {
+            return SAMPLED;
+        }
+    }
+
+    return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) prctl_approvers(struct syscall_cache_t *syscall) {

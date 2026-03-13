@@ -2000,6 +2000,17 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
+	if p.config.RuntimeSecurity.EventSamplingEnabled {
+		for _, e := range p.config.RuntimeSecurity.SecurityProfileV2EventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	switch eventType {
 	case model.DNSEventType.String():
@@ -2047,6 +2058,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
+			p.isNeededForEventSampling(eventType) ||
 			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 

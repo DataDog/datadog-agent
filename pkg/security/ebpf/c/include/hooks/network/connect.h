@@ -40,6 +40,10 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
+    if (syscall->state == DISCARDED) {
+        return 0;
+    }
+
     /* pre-fill the event */
     struct connect_event_t event = {
         .syscall.retval = retval,
@@ -48,6 +52,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .family = syscall->connect.family,
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
+        .event.flags = (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
     };
 
     struct proc_cache_t *entry;
@@ -64,19 +69,6 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_CONNECT)) {
             event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-        }
-    }
-
-    // v2: sample connect events for security profiles
-    if (!(event.event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        if (approve_connect_sample(event.process.pid, event.family, event.port, event.protocol, event.addr) == SAMPLED) {
-            event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-            if (syscall->state == DISCARDED) {
-                event.event.flags |= EVENT_FLAGS_SAVED_BY_AD;
-            }
-
-        } else if (syscall->state == DISCARDED) {
-            return 0;
         }
     }
 
