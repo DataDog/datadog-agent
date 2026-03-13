@@ -491,7 +491,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp 
 		).
 		Unordered(host.SystemdEvents().
 			Started(agentUnit).
-			Stopped(traceUnit),
+			Started(traceUnit),
 		),
 	)
 

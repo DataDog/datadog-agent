@@ -8,6 +8,7 @@
 package procutil
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,8 +17,6 @@ import (
 	"testing"
 	"time"
 
-	//nolint:depguard // disable logs from DataDog/gopsutil
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -164,7 +163,7 @@ func TestProcessesByPIDLocalFS(t *testing.T) {
 func testProcessesByPID(t *testing.T, probeOptions ...Option) {
 	// disable log output from gopsutil, the testFS doesn't have `cwd`, `fd` and `exe` dir setup,
 	// gopsutil print verbose debug log regarding this
-	seelog.UseLogger(seelog.Disabled)
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 
 	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
@@ -254,7 +253,7 @@ func TestStatsForPIDsLocalFS(t *testing.T) {
 func testStatsForPIDs(t *testing.T, probeOptions ...Option) {
 	// disable log output from gopsutil, the testFS doesn't have `cwd`, `fd` and `exe` dir setup,
 	// gopsutil print verbose debug log regarding this
-	seelog.UseLogger(seelog.Disabled)
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 
 	probe := getProbeWithPermission(probeOptions...)
 	defer probe.Close()
@@ -1375,7 +1374,7 @@ func BenchmarkGetProcsProcutilLocalFS(b *testing.B) {
 
 func benchmarkGetProcsGopsutil(b *testing.B) {
 	// disable log output from gopsutil
-	seelog.UseLogger(seelog.Disabled)
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
 		_, _ = process.AllProcesses()

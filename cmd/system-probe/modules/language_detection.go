@@ -99,7 +99,7 @@ func (l *languageDetectionModule) detectLanguage(writer http.ResponseWriter, req
 	resp := toDetectLanguageResponse(l.languageDetector.DetectWithPrivileges(procs))
 	b, err = proto.Marshal(resp)
 	if err != nil {
-		handleError(writer, http.StatusInternalServerError, fmt.Errorf("seralize response: %v", err))
+		handleError(writer, http.StatusInternalServerError, fmt.Errorf("serialize response: %v", err))
 		return
 	}
 

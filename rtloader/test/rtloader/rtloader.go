@@ -19,11 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"unsafe"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -48,9 +47,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString(filepath.Join("..", "python")))
 
 	ok := C.init(rtloader)
 	if ok != 1 {

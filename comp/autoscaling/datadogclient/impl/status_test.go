@@ -30,12 +30,12 @@ func TestStatusProvider(t *testing.T) {
 				"api_key":                           "apikey123",
 				"app_key":                           "appkey456",
 				"external_metrics_provider.enabled": true,
-				metricsRedundantEndpointConfig: []endpoint{
+				"external_metrics_provider.endpoints": []map[string]interface{}{
 					{
-						"api.datadoghq.eu",
-						"https://api.datadoghq.eu.",
-						"12345",
-						"67890",
+						"site":    "api.datadoghq.eu",
+						"url":     "https://api.datadoghq.eu.",
+						"api_key": "12345",
+						"app_key": "67890",
 					},
 				},
 			})

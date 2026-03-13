@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -65,13 +65,13 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	// run the check through the library loader
 	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig)
 	if err != nil {
-		return fmt.Errorf("Run failed: %s", err)
+		return fmt.Errorf("Run failed: %w", err)
 	}
 
 	if commitMetrics {
 		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
-			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+			return fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 		}
 		s.Commit()
 	}
@@ -164,7 +164,7 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 func (c *Check) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 	}
 	return sender.GetSenderStats(), nil
 }

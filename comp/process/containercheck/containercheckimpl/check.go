@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -33,9 +34,10 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	WMmeta workloadmeta.Component
-	Statsd statsd.ClientInterface
+	Config    config.Component
+	Sysconfig sysprobeconfig.Component
+	WMmeta    workloadmeta.Component
+	Statsd    statsd.ClientInterface
 }
 
 type result struct {
@@ -47,7 +49,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		containerCheck: checks.NewContainerCheck(deps.Config, deps.WMmeta, deps.Statsd),
+		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}
 	return result{
 		Check: types.ProvidesCheck{

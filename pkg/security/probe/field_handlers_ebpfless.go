@@ -418,12 +418,12 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 
 // ResolveHashes resolves the hash of the provided file
 func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveK8SUserSessionContext resolves and updates the provided user session context

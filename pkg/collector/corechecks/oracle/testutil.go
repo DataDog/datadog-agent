@@ -21,7 +21,7 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const dbmsTag = "dbms:oracle"

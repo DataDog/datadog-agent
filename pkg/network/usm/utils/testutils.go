@@ -66,24 +66,6 @@ func (r *CallbackRecorder) TotalCalls() int {
 	return total
 }
 
-// NewUSMEmptyConfig creates a new network config, with every USM protocols disabled.
-func NewUSMEmptyConfig() *config.Config {
-	cfg := config.New()
-	cfg.ServiceMonitoringEnabled = true
-	cfg.EnableHTTPMonitoring = false
-	cfg.EnableHTTP2Monitoring = false
-	cfg.EnableKafkaMonitoring = false
-	cfg.EnablePostgresMonitoring = false
-	cfg.EnableRedisMonitoring = false
-	cfg.EnableNativeTLSMonitoring = false
-	cfg.EnableIstioMonitoring = false
-	cfg.EnableNodeJSMonitoring = false
-	cfg.EnableGoTLSSupport = false
-	cfg.HTTPUseDirectConsumer = false
-
-	return cfg
-}
-
 // CountMapEntries counts entries in a specific BPF map.
 func CountMapEntries(t *testing.T, m *ebpf.Map) int {
 	t.Helper()

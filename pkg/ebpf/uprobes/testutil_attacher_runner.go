@@ -303,7 +303,10 @@ func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName Attache
 
 	cfg := GetAttacherTestConfig(t, configName)
 
-	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, &NativeBinaryInspector{}, procMon)
+	attacher, err := NewUprobeAttacher("test", "test", cfg, &mgr, r.onAttach, AttacherDependencies{
+		Inspector:      &NativeBinaryInspector{},
+		ProcessMonitor: procMon,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, attacher)
 

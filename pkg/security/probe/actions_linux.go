@@ -26,6 +26,10 @@ const (
 	HashTriggerTimeout = "timeout"
 	// HashTriggerProcessExit hash triggered on process exit
 	HashTriggerProcessExit = "process_exit"
+
+	// maxRetryForMsgWithHashAction is the maximum number of retries for a hash action
+	// the reports will be marked as resolved after MAX 5 sec (so it doesn't matter if this retry period lasts for longer)
+	maxRetryForMsgWithHashAction = 10
 )
 
 // HashActionReport defines a hash action reports
@@ -39,13 +43,14 @@ type HashActionReport struct {
 	Trigger string `json:"trigger"`
 
 	// internal
-	resolved  bool
-	rule      *rules.Rule
-	pid       uint32
-	seenAt    time.Time
-	fileEvent model.FileEvent
-	crtID     containerutils.ContainerID
-	eventType model.EventType
+	resolved    bool
+	rule        *rules.Rule
+	pid         uint32
+	seenAt      time.Time
+	fileEvent   model.FileEvent
+	cgroupID    containerutils.CGroupID
+	eventType   model.EventType
+	maxFileSize int64
 }
 
 // IsResolved return if the action is resolved
@@ -58,6 +63,11 @@ func (k *HashActionReport) IsResolved() error {
 	}
 
 	return fmt.Errorf("hash action current state: %+v", k)
+}
+
+// MaxRetry implements the DelayabledEvent interface for hash actions
+func (k *HashActionReport) MaxRetry() int {
+	return maxRetryForMsgWithHashAction
 }
 
 // ToJSON marshal the action
@@ -118,6 +128,11 @@ const (
 // IsResolved return if the action is resolved
 func (k *RawPacketActionReport) IsResolved() error {
 	return nil
+}
+
+// MaxRetry implements the DelayabledEvent interface for raw packet actions
+func (k *RawPacketActionReport) MaxRetry() int {
+	return 0
 }
 
 // ToJSON marshal the action

@@ -10,6 +10,7 @@ bin/
 __pycache__
 .pytest_cache
 venv*/
+target
 
 **/*.tmp
 **/debug.test
@@ -98,6 +99,9 @@ pkg/trace/info/git_version.go
 # process agent test artifacts
 pkg/process/config/logs
 
+# sd-agent
+/pkg/discovery/module/rust/sd-agent
+
 # sysprobe artifacts
 **/.ninja_log
 **/.ninja_deps
@@ -185,8 +189,10 @@ pkg/network/netlink/testdata/message_dump*
 cscope.out
 
 tools/windows/DatadogAgentInstaller/.vs/
+tools/windows/DatadogAgentInstaller/obj/
 tools/windows/DatadogAgentInstaller/packages/
 tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
+
 *.wixobj
 *.obj
 *.g.wxs
@@ -232,3 +238,9 @@ CLAUDE_PERSONAL.md
 # Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
+
+# Claude Code worktrees (local development, not for repo)
+.claude/worktrees/
+
+# Zed config
+.zed

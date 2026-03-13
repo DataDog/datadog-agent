@@ -1,5 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -7,26 +8,46 @@ pkg_filegroup(
     name = "embedded",
     srcs = [
         "//deps/gstatus:bin_files",
+        # have to include this explicitly because it is not hooked up with package_metadata
+        "//deps/gstatus:license_file",
+        "//packages/install_dir/embedded:all_files",
+    ],
+)
+
+# This is a placeholder for an eventual group containg (the future) top level binaries
+# such as //cmd/agent:agent
+filegroup(
+    name = "all_deps",
+    srcs = [
+        ":embedded",
+        "//deps:all_deps",
     ] + select({
-        "@platforms//os:linux": [
-            "//deps/compile_policy:bin_files",
+        "//packages/agent:linux_default": [
+            "//deps/nfsiostat:all_files",
+            "//deps/openscap:all_deps",
+            "@curl//:all_files",
+            "@freetds//:all_files",
         ],
-        "//conditions:default": [],
+        "//packages/agent:linux_fips": [
+            "//deps/nfsiostat:all_files",
+            "//deps/openscap:all_deps",
+            "@curl//:all_files",
+            "@freetds//:all_files",
+        ],
+        "//packages/agent:linux_heroku": [
+            "@curl//:all_files",
+        ],
+        "//conditions:default": [
+            # This will become "//deps/openscap:all_deps" in the future
+            "@popt",
+        ],
     }),
 )
 
-pkg_filegroup(
-    name = "licenses",
-    srcs = [
-        "//compliance:license_copies",
-        "//compliance:offer_copies",
-        "//deps/gstatus:license_file",
-    ] + select({
-        "@platforms//os:linux": [
-            "//deps/compile_policy:license_file",
-        ],
-        "//conditions:default": [],
-    }),
+# Walk the graph of all depths to collect license info.
+package_licenses(
+    name = "license_files",
+    src = ":all_deps",
 )
 
 # All the things that belong in /etc
@@ -39,7 +60,7 @@ pkg_filegroup(
 pkg_filegroup(
     name = "etc",
     srcs = [
-        "//deps/snmp_traps:all_files",
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
     ],
 )
 
@@ -49,7 +70,7 @@ pkg_install(
     srcs = [
         ":embedded",
         ":etc",
-        ":licenses",
+        ":license_files",
     ],
     destdir_flag = "//:install_dir",
 )

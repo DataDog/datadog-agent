@@ -10,10 +10,8 @@
 package imageresolver
 
 import (
-	"encoding/json"
-	"fmt"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -31,26 +29,10 @@ func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]struct{
 }
 
 // isValidDigest validates that a digest string follows the OCI image specification format
+// and is a sha256 digest.
 func isValidDigest(digestStr string) bool {
-	_, err := digest.Parse(digestStr)
-	return err == nil
-}
-
-func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]RepositoryConfig, map[string]error) {
-	validConfigs := make(map[string]RepositoryConfig)
-	errors := make(map[string]error)
-	for configKey, rawConfig := range configs {
-		var repo RepositoryConfig
-		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
-			errors[configKey] = fmt.Errorf("failed to unmarshal: %w", err)
-			continue
-		}
-
-		if repo.RepositoryName == "" {
-			errors[configKey] = fmt.Errorf("missing repository_name in config %s", configKey)
-			continue
-		}
-		validConfigs[configKey] = repo
+	if _, err := digest.Parse(digestStr); err != nil {
+		return false
 	}
-	return validConfigs, errors
+	return strings.HasPrefix(digestStr, "sha256:")
 }

@@ -638,8 +638,8 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.config.SetWithoutSource("api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig)
-	http := newHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig, true)
+	http := newHTTPEndpoint(logsConfig, true)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -671,8 +671,8 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetWithoutSource("logs_config.api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig)
-	http := newHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig, true)
+	http := newHTTPEndpoint(logsConfig, true)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -691,9 +691,9 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
 		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
-			return loadHTTPAdditionalEndpoints(main, l, "", "", "")
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
 		},
-		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l) },
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
 	}
 
 	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
@@ -719,7 +719,7 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			"is_reliable": false
 			}]`)
 
-			mainEndpoint := newHTTPEndpoint(logsConfig)
+			mainEndpoint := newHTTPEndpoint(logsConfig, true)
 			additionalEndpoints := additionalEndpointsLoader(mainEndpoint, logsConfig)
 			suite.Suite.Require().Len(additionalEndpoints, 2)
 
@@ -808,7 +808,7 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 
 	main := Endpoint{useSSL: true}
 	logsConfig := defaultLogsConfigKeys(suite.config)
-	endpoints := loadTCPAdditionalEndpoints(main, logsConfig)
+	endpoints := loadTCPAdditionalEndpoints(main, logsConfig, true)
 
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
@@ -877,6 +877,7 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 		"some track type",
 		"some intake protocol",
 		"some intake origin",
+		true,
 	)
 
 	suite.Suite.Require().Len(endpoints, 2)
@@ -956,7 +957,7 @@ func (suite *EndpointsTestSuite) TestMRFApiKeyUpdate() {
 		{
 			name: "TCP",
 			endpointGetter: func(cfg model.Reader) (*Endpoints, error) {
-				return buildTCPEndpoints(cfg, defaultLogsConfigKeys(cfg))
+				return buildTCPEndpoints(cfg, defaultLogsConfigKeys(cfg), true)
 			},
 		},
 	}

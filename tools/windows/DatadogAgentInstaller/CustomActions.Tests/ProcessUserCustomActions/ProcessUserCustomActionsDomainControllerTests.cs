@@ -1,6 +1,6 @@
 using AutoFixture.Xunit2;
 using FluentAssertions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Xunit;
 
 namespace CustomActions.Tests.ProcessUserCustomActions

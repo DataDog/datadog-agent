@@ -1,8 +1,165 @@
 # Global build settings
 
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
+
+# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
+# gazelle:exclude cmd
+# gazelle:exclude comp
+# gazelle:exclude internal/remote-agent
+# gazelle:exclude internal/third_party
+# gazelle:exclude internal/tools/gotest-custom
+# gazelle:exclude internal/tools/independent-lint
+# gazelle:exclude internal/tools/modformatter
+# gazelle:exclude pkg/aggregator
+# gazelle:exclude pkg/api
+# gazelle:exclude pkg/cli
+# gazelle:exclude pkg/cloudfoundry
+# gazelle:exclude pkg/clusteragent
+# gazelle:exclude pkg/collector
+# gazelle:exclude pkg/commonchecks
+# gazelle:exclude pkg/compliance
+# gazelle:exclude pkg/config
+# gazelle:exclude pkg/containerlifecycle
+# gazelle:exclude pkg/databasemonitoring
+# gazelle:exclude pkg/diagnose
+# gazelle:exclude pkg/discovery
+# gazelle:exclude pkg/dyninst/decode
+# gazelle:exclude pkg/dyninst/dispatcher
+# gazelle:exclude pkg/dyninst/dwarf
+# gazelle:exclude pkg/dyninst/dyninsttest
+# gazelle:exclude pkg/dyninst/ebpf
+# gazelle:exclude pkg/dyninst/ebpfbench
+# gazelle:exclude pkg/dyninst/exprlang
+# gazelle:exclude pkg/dyninst/gosym
+# gazelle:exclude pkg/dyninst/gotype
+# gazelle:exclude pkg/dyninst/htlhash
+# gazelle:exclude pkg/dyninst/irgen
+# gazelle:exclude pkg/dyninst/irprinter
+# gazelle:exclude pkg/dyninst/loader
+# gazelle:exclude pkg/dyninst/module
+# gazelle:exclude pkg/dyninst/object
+# gazelle:exclude pkg/dyninst/output
+# gazelle:exclude pkg/dyninst/process
+# gazelle:exclude pkg/dyninst/procsubscribe
+# gazelle:exclude pkg/dyninst/symbol
+# gazelle:exclude pkg/dyninst/symdb
+# gazelle:exclude pkg/dyninst/testdata
+# gazelle:exclude pkg/dyninst/testprogs
+# gazelle:exclude pkg/dyninst/trietest
+# gazelle:exclude pkg/dyninst/uploader
+# gazelle:exclude pkg/dyninst/uprobe
+# gazelle:exclude pkg/ebpf
+# gazelle:exclude pkg/errors
+# gazelle:exclude pkg/eventmonitor
+# gazelle:exclude pkg/fips
+# gazelle:exclude pkg/flare
+# gazelle:exclude pkg/fleet
+# gazelle:exclude pkg/gohai
+# gazelle:exclude pkg/gpu
+# gazelle:exclude pkg/hosttags
+# gazelle:exclude pkg/inventory
+# gazelle:exclude pkg/jmxfetch
+# gazelle:exclude pkg/kubestatemetrics
+# gazelle:exclude pkg/languagedetection
+# gazelle:exclude pkg/logs
+# gazelle:exclude pkg/metrics
+# gazelle:exclude pkg/network
+# gazelle:exclude pkg/networkconfigmanagement
+# gazelle:exclude pkg/networkdevice
+# gazelle:exclude pkg/networkpath
+# gazelle:exclude pkg/obfuscate
+# gazelle:exclude pkg/opentelemetry-mapping-go
+# gazelle:exclude pkg/orchestrator
+# gazelle:exclude pkg/persistentcache
+# gazelle:exclude pkg/pidfile
+# gazelle:exclude pkg/privateactionrunner
+# gazelle:exclude pkg/privileged-logs
+# gazelle:exclude pkg/process
+# gazelle:exclude pkg/procmgr
+# gazelle:exclude pkg/proto
+# gazelle:exclude pkg/redact
+# gazelle:exclude pkg/remoteconfig
+# gazelle:exclude pkg/runtime
+# gazelle:exclude pkg/sbom
+# gazelle:exclude pkg/security
+# gazelle:exclude pkg/serializer
+# gazelle:exclude pkg/serverless
+# gazelle:exclude pkg/snmp
+# gazelle:exclude pkg/ssi
+# gazelle:exclude pkg/status
+# gazelle:exclude pkg/system-probe
+# gazelle:exclude pkg/tagger
+# gazelle:exclude pkg/tagset
+# gazelle:exclude pkg/telemetry
+# gazelle:exclude pkg/template
+# gazelle:exclude pkg/trace
+# gazelle:exclude pkg/util
+# gazelle:exclude pkg/version
+# gazelle:exclude pkg/windowsdriver
+# TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
+# Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
+# support or we upgrade to a Bazel version containing a fix: https://github.com/bazelbuild/bazel/pull/26842
+# In the meantime, temporarily remove this exclusion locally if regeneration of BUILD files is required
+# gazelle:exclude rtloader
+# gazelle:exclude tasks
+# gazelle:exclude test
+# gazelle:exclude tools
+# gazelle:exclude .gitlab
+# gazelle:prefix github.com/DataDog/datadog-agent
+gazelle(
+    name = "gazelle",
+    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    gazelle = ":gazelle_binary",
+)
+
+gazelle_binary(
+    name = "gazelle_binary",
+    languages = DEFAULT_LANGUAGES + [
+        "//bazel/rules/go_stringer:gazelle_extension",
+    ],
+)
+
+# bazel run //:go -- ...
+alias(
+    name = "go",
+    actual = "@rules_go//go",
+)
+
+# bazel run //:go_mod_tidy_all -- -x
+alias(
+    name = "go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
+)
+
+run_binary(
+    name = "gen_go_work",
+    srcs = [
+        ":go.work",
+        ":modules.yml",
+    ],
+    outs = ["go.work.new"],
+    args = [
+        "--path",
+        "$(location go.work)",
+        "--modules-file",
+        "$(location modules.yml)",
+        "--output",
+        "$(location go.work.new)",
+    ],
+    tool = "//internal/tools/worksynchronizer",
+)
+
+# bazel run //:write_go_work
+write_source_file(
+    name = "write_go_work",
+    in_file = ":gen_go_work",
+    out_file = "go.work",
+)
 
 filegroup(
     name = "python_version",
@@ -65,6 +222,18 @@ string_flag(
     name = "install_dir",
     build_setting_default = "/opt/datadog-agent",
     make_variable = "INSTALL_DIR",
+)
+
+# Configuration value to determine if we are using the standard install path.
+# This can be used to detect custom builds, where we might not to create some pieces.
+# Currently this is used only for installer symlinks. It is likely that we should not
+# continue to do that. My hunch is that it was only done to prevent disk stomping in
+# developer builds.
+config_setting(
+    name = "is_standard_install",
+    flag_values = {
+        "//:install_dir": "/opt/datadog-agent",
+    },
 )
 
 # This seems to be the base of where to write config files during

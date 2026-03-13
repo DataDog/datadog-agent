@@ -16,7 +16,7 @@ import (
 
 func TestColumn(t *testing.T) {
 	cs := zlib.New()
-	cc := NewColumnCompressor(cs, 10, 62, 128)
+	cc := NewColumnCompressor(cs, 10, 67, 128)
 
 	txn := cc.NewTransaction()
 

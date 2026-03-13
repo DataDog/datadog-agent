@@ -2,7 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -102,6 +102,24 @@ namespace Datadog.CustomActions
                 env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
             }
 
+            var appKey = _session.Property("DD_APP_KEY");
+            if (!string.IsNullOrEmpty(appKey))
+            {
+                env["DD_APP_KEY"] = appKey;
+            }
+
+            var parEnabled = _session.Property("DD_PRIVATE_ACTION_RUNNER_ENABLED");
+            if (!string.IsNullOrEmpty(parEnabled))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_ENABLED"] = parEnabled;
+            }
+
+            var parActionsAllowlist = _session.Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST");
+            if (!string.IsNullOrEmpty(parActionsAllowlist))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"] = parActionsAllowlist;
+            }
+
             return env;
         }
         private Dictionary<string, string> PurgeEnvironmentVariables()
@@ -120,13 +138,14 @@ namespace Datadog.CustomActions
 
         private ActionResult InstallPackages()
         {
-            if (!ShouldInstall())
-            {
-                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
             try
             {
+                if (!ShouldInstall())
+                {
+                    _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                    return ActionResult.Success;
+                }
+
                 _session.Log("Running datadog-installer setup");
 
                 // add purge command to the rollback data store

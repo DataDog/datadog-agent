@@ -52,6 +52,7 @@
             "arguments": {
               "xs": {
                 "type": "[]main.structWithNoStrings",
+                "size": "0",
                 "elements": []
               },
               "a": {
@@ -62,6 +63,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",

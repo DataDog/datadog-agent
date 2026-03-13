@@ -1,0 +1,61 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-configuration"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+            "type": "timestamp",
+            "regex": "(?m)^! Last configuration change at (.*)$",
+            "format": "Jan 2 15:04:05 2006"
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "! Version (.*)?"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(password )(\\S+)",
+            "replacement": "${1}<secret hidden>"
+          },
+          {
+            "regex": "(?m)^! Version .*$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^! Last configuration change at .*$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-configuration"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "(?m)^hostname\\s+\\S+"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(password )(\\S+)",
+            "replacement": "${1}<secret hidden>"
+          }
+        ]
+      }
+    }
+  ]
+}

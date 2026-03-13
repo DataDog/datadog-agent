@@ -16,15 +16,14 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
-	"regexp"
-
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const flakyTestMessage = "flakytest: this is a known flaky test"
@@ -41,6 +40,22 @@ func Mark(t testing.TB) {
 	if shouldSkipFlake() {
 		t.Skip("flakytest: skip known flaky test")
 		return
+	}
+}
+
+// MarkOnJobName marks the test as flaky if the CI_JOB_NAME environment variable exists and
+// contains any of the job names provided. A partial match is considered a match.
+func MarkOnJobName(t testing.TB, jobNames ...string) {
+	t.Helper()
+	jobName := os.Getenv("CI_JOB_NAME")
+	if jobName == "" {
+		return
+	}
+	for _, jobNamePartial := range jobNames {
+		if strings.Contains(jobName, jobNamePartial) {
+			Mark(t)
+			return
+		}
 	}
 }
 

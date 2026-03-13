@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMount(t *testing.T) {
@@ -363,7 +364,7 @@ func testMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid)
+		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(model.PathKey{MountID: uint32(mntInfo.ID)}, pid)
 		if err != nil {
 			t.Error(err)
 			return
@@ -376,7 +377,7 @@ func testMountSnapshot(t *testing.T) {
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
 
-		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(mount.MountID, pid)
+		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(model.PathKey{MountID: mount.MountID}, pid)
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}
@@ -537,6 +538,7 @@ func TestMountEvent(t *testing.T) {
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")

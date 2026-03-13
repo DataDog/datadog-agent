@@ -13,6 +13,7 @@ type config struct {
 	objectLoader     object.Loader
 	typeIndexFactory goTypeIndexFactory
 	skipReturnEvents bool
+	additionalTypes  []string
 }
 
 var defaultConfig = config{
@@ -40,6 +41,14 @@ func WithOnDiskGoTypeIndexFactory(diskCache *object.DiskCache) Option {
 // WithSkipReturnEvents skips the generation of return events.
 func WithSkipReturnEvents(skip bool) Option {
 	return optionFunc(func(c *config) { c.skipReturnEvents = skip })
+}
+
+// WithAdditionalTypes provides a list of Go type names (as reported by
+// gotype) that should be resolved against the binary's Go runtime type
+// table and added to the IR type registry. This is used to include types
+// discovered at runtime through interface decoding.
+func WithAdditionalTypes(typeNames []string) Option {
+	return optionFunc(func(c *config) { c.additionalTypes = typeNames })
 }
 
 type optionFunc func(c *config)

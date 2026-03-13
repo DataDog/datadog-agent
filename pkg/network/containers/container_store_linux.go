@@ -107,7 +107,7 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 		errorLimit: errorLimit,
 		debugLimit: debugLimit,
 
-		containerReader: newContainerReader(makeResolvStripper(resolvConfInputMaxSizeBytes), debugLimit),
+		containerReader: newContainerReader(makeResolvStripper(resolvConfInputMaxSizeBytes)),
 	}
 	// this function is only ever replaced in tests for mocking purposes
 	cs.readContainerItem = cs.containerReader.readContainerItem
@@ -192,7 +192,9 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 func logEvictingID(containerID network.ContainerID) {
 	containerStr := "host"
 	if containerID != nil {
-		containerStr = containerID.Get().(string)
+		if s, ok := containerID.Get().(string); ok {
+			containerStr = s
+		}
 	}
 	log.Tracef("CNM ContainerStore evicting ID %s", containerStr)
 }

@@ -29,6 +29,7 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
+	// The URL to upload logs (with or without snapshots) to.
 	LogUploaderURL     string
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
@@ -48,8 +49,8 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
-	CircuitBreakerConfig actuator.CircuitBreakerConfig
+	// ActuatorConfig is the configuration for the actuator.
+	ActuatorConfig actuator.Config
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
@@ -77,7 +78,9 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
-		CircuitBreakerConfig:   getCircuitBreakerConfig(),
+		ActuatorConfig: actuator.Config{
+			CircuitBreakerConfig: getCircuitBreakerConfig(),
+		},
 	}
 	return c, nil
 }
@@ -145,7 +148,7 @@ const (
 
 	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
-	logUploaderPath   = "/debugger/v1/input"
+	logUploaderPath   = "/debugger/v2/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
 	symdbUploaderPath = "/symdb/v1/input"
 )

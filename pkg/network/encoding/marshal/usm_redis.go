@@ -12,6 +12,7 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
@@ -20,6 +21,7 @@ import (
 
 type redisEncoder struct {
 	redisAggregationsBuilder *model.DatabaseAggregationsBuilder
+	sketchBuilder            *ddsketch.DDSketchCollectionBuilder
 	byConnection             *USMConnectionIndex[redis.Key, *redis.RequestStats]
 }
 
@@ -30,17 +32,11 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 
 	return &redisEncoder{
 		redisAggregationsBuilder: model.NewDatabaseAggregationsBuilder(nil),
+		sketchBuilder:            ddsketch.NewDDSketchCollectionBuilder(nil),
 		byConnection: GroupByConnection("redis", redisPayloads, func(key redis.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}
-}
-
-func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection) (staticTags uint64, dynamicTags map[string]struct{}) {
-	var buf bytes.Buffer
-	staticTags = e.encodeData(c, &buf)
-	conn.DatabaseAggregations = buf.Bytes()
-	return
 }
 
 func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
@@ -73,6 +69,8 @@ func (e *redisEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
 				case redis.SetCommand:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisSetCommand))
+				case redis.PingCommand:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisPingCommand))
 				default:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}
@@ -96,7 +94,8 @@ func (e *redisEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64
 							statsBuilder.SetCount(uint32(stats.Count))
 							if latencies := stats.Latencies; latencies != nil {
 								statsBuilder.SetLatencies(func(b *bytes.Buffer) {
-									latencies.EncodeProto(b)
+									e.sketchBuilder.Reset(b)
+									e.sketchBuilder.AddSketch(latencies)
 								})
 							} else {
 								statsBuilder.SetFirstLatencySample(stats.FirstLatencySample)

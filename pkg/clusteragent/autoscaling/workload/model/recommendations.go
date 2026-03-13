@@ -10,6 +10,7 @@ package model
 import (
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -56,10 +57,37 @@ type VerticalScalingValues struct {
 	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources `json:"container_resources"`
 }
 
-// RecommenderConfiguration holds the configuration for a custom recommender
-type RecommenderConfiguration struct {
-	Endpoint string         `json:"endpoint"`
-	Settings map[string]any `json:"settings"`
+// DeepCopy returns a deep copy of the VerticalScalingValues.
+// We can't use mohae/deepcopy here because resource.Quantity has unexported fields.
+func (v *VerticalScalingValues) DeepCopy() *VerticalScalingValues {
+	if v == nil {
+		return nil
+	}
+	out := &VerticalScalingValues{
+		Source:        v.Source,
+		Timestamp:     v.Timestamp,
+		ResourcesHash: v.ResourcesHash,
+	}
+	if v.ContainerResources != nil {
+		out.ContainerResources = make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(v.ContainerResources))
+		for i, cr := range v.ContainerResources {
+			cp := datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: cr.Name}
+			if cr.Requests != nil {
+				cp.Requests = make(corev1.ResourceList, len(cr.Requests))
+				for k, q := range cr.Requests {
+					cp.Requests[k] = q.DeepCopy()
+				}
+			}
+			if cr.Limits != nil {
+				cp.Limits = make(corev1.ResourceList, len(cr.Limits))
+				for k, q := range cr.Limits {
+					cp.Limits[k] = q.DeepCopy()
+				}
+			}
+			out.ContainerResources[i] = cp
+		}
+	}
+	return out
 }
 
 // SumCPUMemoryRequests sums the CPU and memory requests of all containers
@@ -77,4 +105,10 @@ func (v *VerticalScalingValues) SumCPUMemoryRequests() (cpu, memory resource.Qua
 	}
 
 	return
+}
+
+// RecommenderConfiguration holds the configuration for a custom recommender
+type RecommenderConfiguration struct {
+	Endpoint string         `json:"endpoint"`
+	Settings map[string]any `json:"settings"`
 }

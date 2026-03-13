@@ -181,7 +181,6 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
-	ProcessAgent
 	Remote
 )
 
@@ -1540,6 +1539,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
@@ -1549,6 +1549,7 @@ type CompressedSBOM struct {
 	Bom                []byte
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
 }
@@ -1605,6 +1606,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
 			}
+			_, _ = fmt.Fprintln(&sb, "Method:", i.SBOM.GenerationMethod)
 		} else {
 			fmt.Fprintln(&sb, "SBOM is nil")
 		}
@@ -1675,9 +1677,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1740,6 +1739,7 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
+	UsesGPU        bool           // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1818,7 +1818,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -1906,6 +1905,11 @@ type Event struct {
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
 	Entity Entity
+
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For example, in Kubernetes, a pod is complete when both
+	// the kubelet and kubemetadata collectors have reported.
+	IsComplete bool
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -2195,6 +2199,10 @@ func (crd CRD) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
 
 	return sb.String()
+}
+
+func (crd CRD) BuildGVK() string {
+	return crd.Group + "/" + crd.Version + "/" + crd.Kind
 }
 
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate

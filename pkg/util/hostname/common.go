@@ -142,8 +142,10 @@ func resolveEC2Hostname(ctx context.Context, currentHostname string, legacyHostn
 	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
-	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if env.IsFeaturePresent(env.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+	// or ec2_prioritize_instance_id_as_hostname is set to true. For ECS Managed Instances, we only want to use
+	// the instance ID if we're in daemon mode.
+	ecsManaged := env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog())
+	if env.IsFeaturePresent(env.ECSEC2) || ecsManaged || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
 		log.Debugf("Trying to fetch hostname from EC2 metadata")
 		return getValidEC2Hostname(ctx, legacyHostnameResolution)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {

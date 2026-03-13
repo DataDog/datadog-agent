@@ -14,14 +14,14 @@ package tcpqueuelength
 import (
 	"fmt"
 
-	"golang.org/x/sys/unix"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,26 +59,46 @@ func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*Tracer, error) {
-	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
-	}
-
-	maps := []*manager.Map{
-		{Name: "tcp_queue_stats"},
-		{Name: "who_recvmsg"},
-		{Name: "who_sendmsg"},
-	}
-
 	m := &manager.Manager{
-		Probes: probes,
-		Maps:   maps,
+		Probes: []*manager.Probe{
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_recvmsg_entry", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_recvmsg_exit", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_sendmsg_entry", UID: "tcpq"}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tcp_sendmsg_exit", UID: "tcpq"}},
+		},
+		Maps: []*manager.Map{
+			{Name: "tcp_queue_stats"},
+			{Name: "who_recvmsg"},
+			{Name: "who_sendmsg"},
+		},
 	}
 
 	managerOptions.RemoveRlimit = true
-	managerOptions.DefaultKProbeMaxActive = maxActive
+
+	if features.SupportsFentry("tcp_recvmsg") {
+		managerOptions.ExcludedFunctions = append(managerOptions.ExcludedFunctions,
+			"kprobe__tcp_recvmsg",
+			"kretprobe__tcp_recvmsg",
+			"kprobe__tcp_sendmsg",
+			"kretprobe__tcp_sendmsg",
+		)
+		managerOptions.ExcludedMaps = append(managerOptions.ExcludedMaps,
+			"who_recvmsg",
+			"who_sendmsg",
+		)
+	} else {
+		managerOptions.DefaultKProbeMaxActive = maxActive
+		managerOptions.ExcludedFunctions = append(managerOptions.ExcludedFunctions,
+			"tcp_recvmsg_entry",
+			"tcp_recvmsg_exit",
+			"tcp_sendmsg_entry",
+			"tcp_sendmsg_exit",
+		)
+	}
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)

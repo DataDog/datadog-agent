@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -73,7 +74,7 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, NewUSMEmptyConfig()) {
 					t.Skip("GoTLS not supported for this setup")
 				}
 				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
@@ -100,7 +101,7 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 }
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -385,6 +386,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 			// The second and third requests for different endpoints should be captured. (The mismatch in the internal dynamic counter
 			// should not affect subsequent requests due to the mismatch.)
 			runClients: func(t *testing.T, clientsCount int) {
+				flake.MarkOnJobName(t, "ubuntu_25.10")
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
@@ -438,6 +440,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	if s.isTLS {
 		t.Skip("Skipping TestLargeBodiesGRPCScenarios for TLS due to flakiness")
 	}
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)

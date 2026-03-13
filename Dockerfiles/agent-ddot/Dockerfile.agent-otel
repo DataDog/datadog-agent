@@ -1,17 +1,24 @@
-ARG AGENT_DOCKER_REPO=registry.datadoghq.com/agent
+# check=skip=SecretsUsedInArgOrEnv
+ARG AGENT_DOCKER_REPO=datadog/agent
 ARG AGENT_VERSION=7.72.2
 ARG UBUNTU_VERSION=24.04
 ARG AGENT_DOCKER_TAG=${AGENT_VERSION}-full
 ARG AGENT_GIT_REF=${AGENT_VERSION}
+ARG BASE_IMAGE_REGISTRY=docker.io
+
+# Required for PACKAGE_TYPE=linux or windows: source agent OCI URL and output OCI URL.
+ARG AGENT_OCI
+ARG OUTPUT_OCI
 
 # Use the Ubuntu Slim AMD64 base image
-FROM ubuntu:${UBUNTU_VERSION} AS builder
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$UBUNTU_VERSION AS builder
 
 # Set environment variables
 ARG AGENT_VERSION
 ARG AGENT_GIT_REF
 ARG CI
 ARG DDA_VERSION=v0.29.0
+ARG PACKAGE_TYPE
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -25,9 +32,21 @@ RUN apt-get update && \
     software-properties-common \
     build-essential \
     git \
-    rpm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Windows cross-compilation tools if building for Windows
+RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        g++-mingw-w64-x86-64-posix \
+        gcc-mingw-w64 \
+        binutils-mingw-w64-x86-64 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix \
+    && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix; \
+    fi
 
 # We can't get tarballs for dev branches, so we can't just pull the tarball from github.
 # Instead we make a treeless clone at the reference provided, and build from the repo.
@@ -76,62 +95,78 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
-# Generate the files
-RUN dda inv collector.generate
+# Generate the files and clean up go cache to free space
+RUN dda inv collector.generate && \
+    go clean -cache -modcache
 
-# Build the OTel agent
-RUN dda inv otel-agent.build --byoc
-
-# Install nfpm if package type is specified
-ARG PACKAGE_TYPE
-RUN if [ -n "$PACKAGE_TYPE" ]; then \
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
-    curl -fsSL --retry 4 "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/nfpm; \
+# Build the OTel agent with cleanup
+RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    go clean -cache; \
+    else \
+    dda inv otel-agent.build --byoc && \
+    go clean -cache; \
     fi
 
-# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary
-RUN <<'RUNSCRIPT'
-ARCH=$(dpkg --print-architecture)
-mkdir -p /dist
-if [ -n "$PACKAGE_TYPE" ]; then
-  if [ "$PACKAGE_TYPE" != "deb" ] && [ "$PACKAGE_TYPE" != "rpm" ]; then
-    echo "PACKAGE_TYPE must be 'deb' or 'rpm', got: $PACKAGE_TYPE" >&2
-    exit 1
-  fi
-  cd /workspace/datadog-agent
-  cat > nfpm.yaml <<EOF
-name: datadog-agent-ddot-byoc
-version: "${AGENT_VERSION}"
-arch: "${ARCH}"
-description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
-contents:
-  - src: bin/otel-agent/otel-agent
-    dst: /opt/datadog-agent/embedded/bin/otel-agent
-    file_info:
-      mode: 0755
-  - src: bin/otel-agent/dist/otel-config.yaml
-    dst: /etc/datadog-agent/otel-config.yaml.example
-conflicts:
-  - datadog-agent-ddot
-overrides:
-  deb:
-    depends:
-      - "datadog-agent (= 1:${AGENT_VERSION}-1)"
-  rpm:
-    depends:
-      - "datadog-agent = 1:${AGENT_VERSION}-1"
-EOF
-  nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
-else
-  cp /workspace/datadog-agent/bin/otel-agent/otel-agent /dist/
-fi
-RUNSCRIPT
+# Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
+RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    fi
 
-# Create a stage for extracting the built artifact (binary or packages)
-FROM scratch AS artifact
-COPY --from=builder /dist/* /ddot-byoc/
+# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.
+# For PACKAGE_TYPE=linux or windows, provide registry credentials for build-ddot-byoc via one of:
+#
+#   Docker config file (default):
+#     docker build --secret id=dockerconfig,src=$HOME/.docker/config.json ...
+#
+#   Google Application Default Credentials (GCE / Workload Identity):
+#     docker build --build-arg REGISTRY_AUTH=gcr ...
+#
+#   Static username/password:
+#     docker build \
+#       --build-arg REGISTRY_AUTH=password \
+#       --secret id=registry_username,env=REGISTRY_USERNAME \
+#       --secret id=registry_password,env=REGISTRY_PASSWORD ...
+ARG AGENT_OCI
+ARG OUTPUT_OCI
+ARG REGISTRY_AUTH=""
+RUN --mount=type=secret,id=dockerconfig,target=/root/.docker/config.json,required=false \
+    --mount=type=secret,id=registry_username,required=false \
+    --mount=type=secret,id=registry_password,required=false \
+    <<'RUNSCRIPT'
+set -e
+export REGISTRY_USERNAME=$(cat /run/secrets/registry_username 2>/dev/null || true)
+export REGISTRY_PASSWORD=$(cat /run/secrets/registry_password 2>/dev/null || true)
+ARCH=$(dpkg --print-architecture)
+case "$PACKAGE_TYPE" in
+  linux)
+    if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
+      echo "AGENT_OCI and OUTPUT_OCI are required for PACKAGE_TYPE=linux" >&2
+      exit 1
+    fi
+    build-ddot-byoc \
+      --agent-oci  "$AGENT_OCI" \
+      --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent \
+      --output-oci "$OUTPUT_OCI" \
+      --os linux --arch "$ARCH"
+    ;;
+  windows)
+    if [ -z "$AGENT_OCI" ] || [ -z "$OUTPUT_OCI" ]; then
+      echo "AGENT_OCI and OUTPUT_OCI are required for PACKAGE_TYPE=windows" >&2
+      exit 1
+    fi
+    build-ddot-byoc \
+      --agent-oci  "$AGENT_OCI" \
+      --otel-agent /workspace/datadog-agent/bin/otel-agent/otel-agent.exe \
+      --output-oci "$OUTPUT_OCI" \
+      --os windows --arch amd64
+    ;;
+  ?*)
+    echo "PACKAGE_TYPE must be 'linux' or 'windows', got: $PACKAGE_TYPE" >&2
+    exit 1
+    ;;
+esac
+RUNSCRIPT
 
 # Use the final Datadog agent image
 FROM ${AGENT_DOCKER_REPO}:${AGENT_DOCKER_TAG} AS result

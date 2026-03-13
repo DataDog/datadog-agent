@@ -16,7 +16,6 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -38,7 +37,6 @@ func StartCompliance(log log.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
 	compression compression.Component,
-	ipc ipc.Component,
 	sysProbeClient SysProbeClient,
 ) (*Agent, error) {
 
@@ -78,7 +76,7 @@ func StartCompliance(log log.Component,
 	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := NewAgent(telemetrySender, wmeta, ipc, filterStore, AgentOptions{
+	agent := NewAgent(telemetrySender, wmeta, filterStore, hostname, AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

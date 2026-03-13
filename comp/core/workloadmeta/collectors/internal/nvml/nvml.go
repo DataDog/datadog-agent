@@ -101,7 +101,13 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
-	virtMode, err := device.GetVirtualizationMode()
+	migDevice, isMig := device.(*ddnvml.MIGDevice)
+	physicalDevice := device
+	if isMig {
+		physicalDevice = migDevice.Parent
+	}
+
+	virtMode, err := physicalDevice.GetVirtualizationMode()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -121,7 +127,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
 	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
-		maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+		maxSMClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_SM)
 		if err != nil {
 			if logLimiter.ShouldLog() {
 				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
@@ -130,7 +136,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
 		}
 
-		maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+		maxMemoryClock, err := physicalDevice.GetMaxClockInfo(nvml.CLOCK_MEM)
 		if err != nil {
 			if logLimiter.ShouldLog() {
 				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)

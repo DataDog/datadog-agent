@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -139,7 +141,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	if !ValidateBasicTypes(value) {
+	if !basic.ValidateBasicTypes(value) {
 		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
@@ -368,6 +370,45 @@ func (c *safeConfig) AllKeysLowercased() []string {
 	res := c.Viper.AllKeys()
 	slices.Sort(res)
 	return res
+}
+
+// collectAllLeafKeys returns leaf keys that match nodetreemodel semantics:
+// known leaf keys plus all tracked unknown keys.
+// The algorithm:
+// 1. Collect known keys and filter for parent-child relationships (keep only leaves)
+// 2. Add all unknown keys as-is
+// Must be called while holding at least a read lock.
+func (c *safeConfig) collectAllLeafKeys() []string {
+	knownKeys := c.Viper.GetKnownKeys()
+
+	// Start with all known keys
+	leafKeys := make(map[string]struct{}, len(knownKeys)+len(c.unknownKeys))
+	for key := range knownKeys {
+		key = strings.ToLower(key)
+		leafKeys[key] = struct{}{}
+	}
+
+	// Filter known keys for parent-child relationships to keep only leaves.
+	// Example: if "a.b.c" exists, remove "a" and "a.b" from the set.
+	for key := range knownKeys {
+		parent := strings.ToLower(key)
+
+		for {
+			dot := strings.LastIndexByte(parent, '.')
+			if dot == -1 {
+				break
+			}
+			parent = parent[:dot]
+			delete(leafKeys, parent)
+		}
+	}
+
+	// Add all unknown keys as-is (no parent-child filtering, matching NTM semantics)
+	for key := range c.unknownKeys {
+		leafKeys[strings.ToLower(key)] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(leafKeys))
 }
 
 // Get wraps Viper for concurrent access
@@ -789,11 +830,38 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllSettingsWithoutSecrets returns all settings from the config without the secret backend layer.
+// In the viper implementation, secrets are not stored as a separate layer, so this falls back
+// to AllSettings which should still run the scrubber
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// In the viper implementation, fall back to AllSettingsWithoutDefault
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
+}
+
+// GetSecretSettingPaths does not exist in the viper impl
+func (c *safeConfig) GetSecretSettingPaths() []string {
+	return nil
+}
+
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllSettings(), c.sequenceID
+
+	keys := c.collectAllLeafKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		val, _ := c.Viper.GetE(key)
+		settings[key] = val
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath wraps Viper for concurrent access

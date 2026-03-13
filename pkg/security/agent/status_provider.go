@@ -11,7 +11,6 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 //go:embed status_templates
@@ -74,18 +73,6 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 				base["selfTests"] = selfTests
 			}
 			base["policiesStatus"] = cfStatus.PoliciesStatus
-
-			base["seclGlobalVariables"] = cfStatus.GlobalVariables
-
-			scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-			for scope, scoped := range cfStatus.ScopedVariables {
-				scopeMap := make(map[string][]*api.SECLVariableState)
-				for key, value := range scoped.KeyValues {
-					scopeMap[key] = value.Variables
-				}
-				scopedVariables[scope] = scopeMap
-			}
-			base["seclScopedVariables"] = scopedVariables
 		}
 	}
 
