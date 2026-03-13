@@ -1,3 +1,4 @@
+---
 fixes:
   - |
     Windows: Fixed a crash path in the ``wlan`` check when ``wlanapi.dll`` is
