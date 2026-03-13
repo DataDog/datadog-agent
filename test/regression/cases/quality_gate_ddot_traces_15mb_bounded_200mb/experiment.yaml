@@ -3,16 +3,16 @@ erratic: false
 
 target:
   name: datadog-agent
-  cpu_allotment: 2
-  memory_allotment: 500 MiB
+  cpu_allotment: 4
+  memory_allotment: 1 GiB
 
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
-    # Set to 80% of memory_limiter.limit_mib (150 MiB).
-    GOMEMLIMIT: 120MiB
+    # Set to 80% of memory_limiter.limit_mib (200 MiB).
+    GOMEMLIMIT: 160MiB
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
@@ -28,8 +28,8 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_150mib_limit
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_150mib_limit
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_200mib_limit
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_ddot_1mb_traces_bounded_memory_limiter_200mib_limit
 
 checks:
   - name: memory_usage
