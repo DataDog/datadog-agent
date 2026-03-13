@@ -65,7 +65,6 @@ configure_make(
         "kinit",
     ],
     out_shared_libs = SHARED_LIBS.keys(),
-    out_data_dirs = ["lib/pkgconfig"],
 )
 
 # Unversioned lib handling:
@@ -117,18 +116,6 @@ configure_make(
 ]
 
 filegroup(
-    name = "_pc_files",
-    srcs = [":krb5"],
-    output_group = "pkgconfig",
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = ["_pc_files"],
-    prefix = "embedded/lib/",
-)
-
-filegroup(
     name = "_headers",
     srcs = [":krb5"],
     output_group = "include",
@@ -175,6 +162,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_files",
     ],
 )
