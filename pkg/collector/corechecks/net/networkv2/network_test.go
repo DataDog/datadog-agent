@@ -1944,7 +1944,7 @@ func TestFetchEthtoolStatsENODEVOnDriverInfo(t *testing.T) {
 	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1987,7 +1987,7 @@ func TestFetchEthtoolStatsENODEVOnStats(t *testing.T) {
 	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test", "")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

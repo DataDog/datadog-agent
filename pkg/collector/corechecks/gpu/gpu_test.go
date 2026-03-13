@@ -995,7 +995,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
 	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { checkGeneric.Cancel() })
 
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
