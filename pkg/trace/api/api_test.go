@@ -1345,7 +1345,6 @@ func TestHandleTraces(t *testing.T) {
 		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented when request context is cancelled")
 	})
 
-
 	t.Run("context_timeout_v10", func(t *testing.T) {
 		// Test the same scenario for V10 endpoint
 		strings := idx.NewStringTable()
