@@ -319,6 +319,7 @@ use_repo(
     "com_github_olekukonko_tablewriter",
     "com_github_oliveagle_jsonpath",
     "com_github_open_policy_agent_opa",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
