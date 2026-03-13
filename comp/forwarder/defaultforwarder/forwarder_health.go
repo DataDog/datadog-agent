@@ -270,7 +270,7 @@ func (fh *forwarderHealth) setAPIKeyStatusLocked(apiKey string, status *expvar.S
 	applyAPIKeyStatus(label, status)
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, status *expvar.String) {
 	fh.keyMapMutex.Lock()
 	label := fh.labelForKey(apiKey)
 	fh.keyMapMutex.Unlock()
@@ -279,7 +279,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expv
 
 func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	if apiKey == fakeAPIKey {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyFake)
+		fh.setAPIKeyStatus(apiKey, &apiKeyFake)
 		return true, nil
 	}
 
@@ -294,7 +294,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
+		fh.setAPIKeyStatus(apiKey, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 
@@ -302,21 +302,21 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyEndpointUnreachable)
+		fh.setAPIKeyStatus(apiKey, &apiKeyEndpointUnreachable)
 		return false, err
 	}
 	defer resp.Body.Close()
 
 	// Server will respond 200 if the key is valid or 403 if invalid
 	if resp.StatusCode == 200 {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
+		fh.setAPIKeyStatus(apiKey, &apiKeyValid)
 		return true, nil
 	} else if resp.StatusCode == 403 {
-		fh.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
+		fh.setAPIKeyStatus(apiKey, &apiKeyInvalid)
 		return false, nil
 	}
 
-	fh.setAPIKeyStatus(apiKey, domain, &apiKeyUnexpectedStatusCode)
+	fh.setAPIKeyStatus(apiKey, &apiKeyUnexpectedStatusCode)
 	return false, fmt.Errorf("unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 

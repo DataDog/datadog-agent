@@ -580,7 +580,7 @@ func TestLabelForKeyMonotonicAfterRemoval(t *testing.T) {
 	fh.keyMapMutex.Unlock()
 
 	// "Remove" key1 — its expvar entries are cleared but we intentionally keep the keyLabelMap entry.
-	fh.setAPIKeyStatus(key1, "", &apiKeyRemove)
+	fh.setAPIKeyStatus(key1, &apiKeyRemove)
 
 	// A brand-new key with the same suffix must not reuse label1; it should get counter (3).
 	fh.keyMapMutex.Lock()
