@@ -135,6 +135,8 @@ echo "$install_info_content" > $CONF_DIR/install_info
 
 echo "# Setting correct rights on conf"
 chown -vR _datadog:admin $CONF_DIR
+chmod -v 770 $CONF_DIR
+find $CONF_DIR -type f -exec chmod 660 {} \;
 
 # `datadog-agent` command line
 mkdir -vp /usr/local/bin
@@ -144,15 +146,15 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Get the user home directory (needed for both installation modes)
-USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+# Install agent as system-wide LaunchDaemon
+echo "# Installing agent as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
+launchctl load -w /Library/LaunchDaemons/com.datadoghq.agent.plist
+launchctl kickstart system/com.datadoghq.agent
 
-# Create agent plist in user's LaunchAgents; install_mac_os.sh will move it to /Library/LaunchDaemons/
-echo "# Configuring the agent as a launchd service"
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
-sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-
-# Install GUI LaunchAgent for all users (headless mode, system-wide)
+# Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"
 
 cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
@@ -160,6 +162,14 @@ cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.dat
 # Set proper ownership and permissions for system-wide LaunchAgent
 chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
 chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
+
+# Load GUI immediately if the installing user has an active GUI session
+if [ -n "$INSTALL_USER_UID" ] && sudo -u "$INSTALL_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+    echo "# Loading GUI app for current user session"
+    sudo -Hu "$INSTALL_USER" launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
+else
+    echo "# No GUI session detected; GUI app will launch at next user login"
+fi
 
 echo ""
 echo "=========================================="
