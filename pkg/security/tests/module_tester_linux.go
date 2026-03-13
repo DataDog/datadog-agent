@@ -688,7 +688,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			cmdWrapper = newStdCmdWrapper()
 		}
 	}
-	
+
 	if testMod != nil && ebpfLessEnabled {
 		testMod.resetTestState(t, st, cmdWrapper, opts)
 
@@ -998,6 +998,21 @@ func (tm *testModule) resetTestState(t testing.TB, st *simpleTest, cmdWrapper cm
 		tm.tracePipe.Stop()
 		tm.tracePipe = nil
 	}
+
+	// Clear event handlers FIRST under lock. The eBPF ring buffer goroutine
+	// calls HandleEvent/RuleMatch/SendEvent concurrently, which acquire
+	// eventHandlers.RLock(). We must never replace the struct wholesale
+	// (that would overwrite the embedded mutex while it may be held).
+	// Once handlers are nil, no callbacks fire, so subsequent field updates
+	// (tm.t, tm.st, etc.) are safe from concurrent reads via callbacks.
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onRuleMatch = nil
+	tm.eventHandlers.onProbeEvent = nil
+	tm.eventHandlers.onCustomSendEvent = nil
+	tm.eventHandlers.onSendEvent = nil
+	tm.eventHandlers.onDiscarderPushed = nil
+	tm.eventHandlers.Unlock()
+
 	tm.st = st
 	tm.cmdWrapper = cmdWrapper
 	tm.t = t
@@ -1007,7 +1022,6 @@ func (tm *testModule) resetTestState(t testing.TB, st *simpleTest, cmdWrapper cm
 	if tm.msgSender != nil {
 		tm.msgSender.flush()
 	}
-	tm.eventHandlers = eventHandlers{}
 }
 
 func (tm *testModule) cleanup() {
