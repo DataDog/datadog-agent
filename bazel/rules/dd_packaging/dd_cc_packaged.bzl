@@ -4,9 +4,9 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
+load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
-load("//bazel/rules:so_symlink.bzl", "so_symlink")
 
 def _dd_cc_packaged_rule_impl(ctx):
     installed = []
@@ -72,7 +72,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
         patched = ":{}".format(patched_name),
         installed_files = rule_installed_files,
         visibility = visibility,
-        **kwargs,
+        **kwargs
     )
 
 dd_cc_packaged = macro(
