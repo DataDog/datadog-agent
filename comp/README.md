@@ -509,8 +509,6 @@ Package ddprofilingextension defines the otel agent ddprofilingextension compone
 
 ### [comp/otelcol/dogtelextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension)
 
-*Datadog Team*: opentelemetry
-
 Package dogtelextension provides Datadog agent functionalities for OTel collector
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)

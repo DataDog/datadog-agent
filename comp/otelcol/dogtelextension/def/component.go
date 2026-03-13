@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
-// team: opentelemetry
+// team: opentelemetry-agent
 
 // Component provides Datadog agent functionalities for OTel collector including:
 // - Host metadata submission
