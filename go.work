@@ -7,6 +7,7 @@ godebug tlsmlkem=0
 
 use (
 	.
+	./cmd/anomaly_detection_investigator
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
