@@ -16,6 +16,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func randomString(n int) string {
@@ -69,7 +70,7 @@ func TestPayloadChunking(t *testing.T) {
 		select {
 		case p := <-r.Out():
 			if v, ok := p.(*pb.AgentPayload); ok {
-				fmt.Printf("Got a payload with %d chunks of size %d\n", len(v.IdxTracerPayloads[0].Chunks), v.IdxTracerPayloads[0].SizeVT())
+				fmt.Printf("Got a payload with %d chunks of size %d\n", len(v.IdxTracerPayloads[0].Chunks), proto.Size(v.IdxTracerPayloads[0]))
 				// ok
 				for _, tracerPayload := range v.IdxTracerPayloads {
 					got += len(tracerPayload.Chunks)
