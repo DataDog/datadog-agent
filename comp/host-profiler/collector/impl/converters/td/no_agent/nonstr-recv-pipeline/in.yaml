@@ -1,0 +1,13 @@
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - 123
+      - hostprofiler
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

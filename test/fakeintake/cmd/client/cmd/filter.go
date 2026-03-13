@@ -24,6 +24,7 @@ func NewFilterCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewFilterLogsCommand(cl),
 		NewFilterMetricsCommand(cl),
 		NewFilterSBOMCommand(cl),
+		NewFilterHostTagsCommand(cl),
 	)
 
 	return cmd

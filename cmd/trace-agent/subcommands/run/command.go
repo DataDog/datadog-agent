@@ -14,27 +14,36 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-trace"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -75,13 +84,14 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsfx.Module(),
+		delegatedauthfx.Module(),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
-			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 		statsd.Module(),
 		optionalRemoteTaggerfx.Module(
 			tagger.OptionalRemoteParams{
@@ -92,12 +102,14 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// that we do not need the container tagging provided by the
 				// remote tagger in this environment, so we can use the noop
 				// tagger instead.
-				Disable: serverlessenv.IsAzureAppServicesExtension,
+				Disable: func(_ coreconfig.Component) bool { return serverlessenv.IsAzureAppServicesExtension() },
 			},
 			tagger.NewRemoteParams()),
-		fx.Invoke(func(_ config.Component) {}),
+		fx.Invoke(func(_ traceconfigdef.Component) {}),
 		// Required to avoid cyclic imports.
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
+			return telemetry.NewCollector(cfg.Object())
+		}),
 		fx.Supply(&traceagentimpl.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
@@ -108,8 +120,15 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fxinstrumentation.Module(),
+		remoteagentfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
+		agenttelemetryfx.Module(),
+		fx.Invoke(func(tm coretelemetry.Component) {
+			api.InitTelemetry(tm)
+		}),
+		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil

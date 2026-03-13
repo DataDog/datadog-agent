@@ -36,21 +36,24 @@ const (
 	SystemProbe = "system_probe"
 	// HostProfiler is the Host Profiler flavor
 	HostProfiler = "host_profiler"
+	// PrivateActionRunner is the Private Action Runner flavor
+	PrivateActionRunner = "private_action_runner"
 )
 
 var agentFlavors = map[string]string{
-	DefaultAgent:    "Agent",
-	IotAgent:        "IoT Agent",
-	ClusterAgent:    "Cluster Agent",
-	Dogstatsd:       "DogStatsD",
-	SecurityAgent:   "Security Agent",
-	ServerlessAgent: "Serverless Agent",
-	HerokuAgent:     "Heroku Agent",
-	ProcessAgent:    "Process Agent",
-	TraceAgent:      "Trace Agent",
-	OTelAgent:       "OpenTelemetry Collector",
-	SystemProbe:     "System Probe",
-	HostProfiler:    "Host Profiler",
+	DefaultAgent:        "Agent",
+	IotAgent:            "IoT Agent",
+	ClusterAgent:        "Cluster Agent",
+	Dogstatsd:           "DogStatsD",
+	SecurityAgent:       "Security Agent",
+	ServerlessAgent:     "Serverless Agent",
+	HerokuAgent:         "Heroku Agent",
+	ProcessAgent:        "Process Agent",
+	TraceAgent:          "Trace Agent",
+	OTelAgent:           "OpenTelemetry Collector",
+	SystemProbe:         "System Probe",
+	HostProfiler:        "Host Profiler",
+	PrivateActionRunner: "Private Action Runner",
 }
 
 const unknownAgent = "Unknown Agent"

@@ -7,6 +7,7 @@ package oracle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,12 +37,8 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Oracle InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
-		}
-
 		endpoint := metadataURL + "/opc/v2/instance/id"
-		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+		res, err := getResponse(ctx, endpoint)
 		if err != nil {
 			return nil, fmt.Errorf("Oracle HostAliases: unable to query metadata endpoint: %s", err)
 		}
@@ -73,11 +70,23 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+func getResponse(ctx context.Context, url string) (string, error) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return "", errors.New("cloud provider is disabled by configuration")
+	}
+
+	res, err := httputils.Get(ctx, url, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+	if err != nil {
+		return "", err
+	}
+	return res, nil
+}
+
 var ccridFetcher = cachedfetch.Fetcher{
 	Name: "Oracle Host CCRID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		endpoint := metadataURL + "/opc/v2/instance/id"
-		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
+		res, err := getResponse(ctx, endpoint)
 		if err != nil {
 			return "", fmt.Errorf("Oracle CCRID: unable to query metadata endpoint: %s", err)
 		}
@@ -88,4 +97,26 @@ var ccridFetcher = cachedfetch.Fetcher{
 // GetHostCCRID return the CCRID for the current instance
 func GetHostCCRID(ctx context.Context) (string, error) {
 	return ccridFetcher.FetchString(ctx)
+}
+
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "Oracle Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		endpoint := metadataURL + "/opc/v2/instance/shape"
+		res, err := getResponse(ctx, endpoint)
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve instance shape from Oracle: %s", err)
+		}
+
+		if res == "" {
+			return "", fmt.Errorf("Oracle '%s' returned empty shape", endpoint)
+		}
+
+		return res, nil
+	},
+}
+
+// GetInstanceType returns the instance shape / type of the current Oracle Cloud instance
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
 }

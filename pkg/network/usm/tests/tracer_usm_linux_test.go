@@ -70,6 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var kv = kernel.MustHostVersion()
@@ -121,7 +122,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+	if !gotlstestutil.GoTLSSupported(t, usm.NewUSMEmptyConfig()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -163,8 +164,9 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.ServiceMonitoringEnabled = false
 	// Enabling all features, to ensure nothing is forcing USM enablement.
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
@@ -695,12 +697,12 @@ func TestFullMonitorWithTracer(t *testing.T) {
 		t.Skip("USM is not supported")
 	}
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := usm.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -2077,6 +2079,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				flake.Mark(t)
 				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
@@ -2567,6 +2570,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 }
 
 func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, redis.MinimumKernelVersion)
 	serverAddress := net.JoinHostPort(localhost, redisPort)
 	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
 
@@ -2642,12 +2646,12 @@ func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := usm.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.RedisTrackResources = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)

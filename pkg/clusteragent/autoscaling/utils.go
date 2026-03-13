@@ -36,10 +36,10 @@ var Semantic = conversion.EqualitiesOrDie(
 		return a.Cmp(b) == 0
 	},
 	func(a, b metav1.MicroTime) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b metav1.Time) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b labels.Selector) bool {
 		return a.String() == b.String()
@@ -72,7 +72,7 @@ func FromUnstructured(obj runtime.Object, structDest any) error {
 func ToUnstructured(structIn any) (*unstructured.Unstructured, error) {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to convert DatadogMetric %v: %w", structIn, err)
+		return nil, fmt.Errorf("Unable to convert object %v: %w", structIn, err)
 	}
 
 	unstructOut := &unstructured.Unstructured{}

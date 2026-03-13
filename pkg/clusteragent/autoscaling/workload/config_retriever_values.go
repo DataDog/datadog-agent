@@ -9,8 +9,8 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -32,7 +32,7 @@ type valuesItem struct {
 	namespace         string
 	name              string
 	receivedTimestamp time.Time
-	receivedVersion   string
+	receivedVersion   uint64
 	scalingValues     model.ScalingValues
 }
 
@@ -98,7 +98,7 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 		namespace:         values.Namespace,
 		name:              values.Name,
 		receivedTimestamp: timestamp,
-		receivedVersion:   strconv.FormatUint(receivedVersion, 10),
+		receivedVersion:   receivedVersion,
 		scalingValues:     scalingValues,
 	}
 
@@ -129,7 +129,7 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {
-		podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, false)
+		podAutoscaler, podAutoscalerFound, _ := p.store.LockRead(paID, false)
 		// If the PodAutoscaler is not found, it must be created through the controller
 		// discarding the values received here.
 		// The store is not locked as we call LockRead with lockOnMissing = false
@@ -144,8 +144,7 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 		}
 
 		// Update PodAutoscaler values with received values
-		podAutoscaler.UpdateFromMainValues(item.scalingValues)
-		trackPodAutoscalerReceivedValues(podAutoscaler, item.receivedVersion)
+		podAutoscaler.UpdateFromMainValues(item.scalingValues, item.receivedVersion)
 
 		p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
 	}
@@ -227,7 +226,7 @@ func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.Workl
 	if data.Replicas != nil {
 		horizontalValues.Replicas = *data.Replicas
 	} else {
-		return nil, fmt.Errorf("horizontal replicas value are missing")
+		return nil, errors.New("horizontal replicas value are missing")
 	}
 
 	return horizontalValues, nil

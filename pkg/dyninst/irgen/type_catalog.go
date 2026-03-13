@@ -9,6 +9,7 @@ package irgen
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -80,7 +81,7 @@ func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 				return t, nil
 			}
 			if pt != nil && ppt != pt {
-				return nil, fmt.Errorf("bug: multiple pointee placeholder types found")
+				return nil, errors.New("bug: multiple pointee placeholder types found")
 			}
 			pt = ppt
 		}
@@ -94,7 +95,7 @@ func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 			return nil, fmt.Errorf("failed to get next entry: %w", err)
 		}
 		if entry == nil {
-			return nil, fmt.Errorf("unexpected EOF while reading type")
+			return nil, errors.New("unexpected EOF while reading type")
 		}
 		if entry.Tag != dwarf.TagTypedef || entry.AttrField(dwAtGoKind) != nil {
 			break
@@ -104,7 +105,7 @@ func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 			return nil, fmt.Errorf("failed to get type for typedef: %w", err)
 		}
 		if numOffsets++; numOffsets > maxTypedefDepth {
-			return nil, fmt.Errorf("long typedef chain detected")
+			return nil, errors.New("long typedef chain detected")
 		}
 		offsets[numOffsets-1] = typeOffset
 	}
@@ -129,7 +130,7 @@ func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
 
 func (c *typeCatalog) buildType(
 	id ir.TypeID, entry *dwarf.Entry, childReader *dwarf.Reader,
-) (_ ir.Type, retErr error) {
+) (ret ir.Type, retErr error) {
 	name, err := getAttr[string](entry, dwarf.AttrName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name for array type: %w", err)
@@ -146,12 +147,9 @@ func (c *typeCatalog) buildType(
 	if size < 0 {
 		return nil, fmt.Errorf("size for type %q is negative: %d", name, size)
 	}
-	if size > math.MaxUint32 {
-		return nil, fmt.Errorf("size for type %q is too large: %d", name, size)
-	}
-	if size < 0 {
-		return nil, fmt.Errorf("size for type %q is negative: %d", name, size)
-	}
+	// Truncate the size to fit in a uint32. Variables of a size greater than
+	// this will be truncated.
+	size = min(math.MaxUint32, size)
 	common := ir.TypeCommon{
 		ID:       id,
 		Name:     name,
@@ -168,7 +166,7 @@ func (c *typeCatalog) buildType(
 		var haveCount bool
 		var count uint32
 		if !entry.Children {
-			return nil, fmt.Errorf("array type has no children")
+			return nil, errors.New("array type has no children")
 		}
 	arrayChildren:
 		for {
@@ -177,7 +175,7 @@ func (c *typeCatalog) buildType(
 				return nil, fmt.Errorf("failed to get next child: %w", err)
 			}
 			if child == nil {
-				return nil, fmt.Errorf(
+				return nil, errors.New(
 					"unexpected EOF while reading array type",
 				)
 			}
@@ -192,18 +190,16 @@ func (c *typeCatalog) buildType(
 				if countInt64 < 0 {
 					return nil, fmt.Errorf("count for subrange type is negative: %d", countInt64)
 				}
-				if countInt64 > math.MaxUint32 {
-					return nil, fmt.Errorf(
-						"count for subrange type is too large: %d", countInt64,
-					)
-				}
-				count = uint32(countInt64)
+				// Truncate the count to fit in a uint32. Arrays of a count
+				// greater than this will be truncated (we would never be able
+				// to collect them anyway).
+				count = uint32(min(math.MaxUint32, countInt64))
 				haveCount = true
 			case 0:
 				if haveCount {
 					break arrayChildren
 				}
-				return nil, fmt.Errorf("unexpected end of array type")
+				return nil, errors.New("unexpected end of array type")
 			}
 		}
 
@@ -240,7 +236,7 @@ func (c *typeCatalog) buildType(
 		}, nil
 	case dwarf.TagPointerType:
 		if entry.Children {
-			return nil, fmt.Errorf("unexpected children for pointer type")
+			return nil, errors.New("unexpected children for pointer type")
 		}
 		if common.ByteSize == 0 {
 			common.ByteSize = uint32(c.ptrSize)
@@ -276,7 +272,7 @@ func (c *typeCatalog) buildType(
 				return nil, err
 			}
 			if pointeeEntry == nil {
-				return nil, fmt.Errorf(
+				return nil, errors.New(
 					"unexpected EOF while reading pointee type",
 				)
 			}
@@ -297,7 +293,7 @@ func (c *typeCatalog) buildType(
 						return nil, err
 					}
 					if pointeeEntry == nil {
-						return nil, fmt.Errorf("unexpected EOF while reading pointee type")
+						return nil, errors.New("unexpected EOF while reading pointee type")
 					}
 				} else {
 					haveUnderlyingType = true
@@ -332,7 +328,7 @@ func (c *typeCatalog) buildType(
 
 	case dwarf.TagStructType:
 		if !entry.Children {
-			return nil, fmt.Errorf("structure type has no children")
+			return nil, errors.New("structure type has no children")
 		}
 		fields, err := collectMembers(childReader, c)
 		if err != nil {
@@ -467,7 +463,7 @@ func processInterfaceTypedef(
 			return nil, err
 		}
 		if nextEntry == nil {
-			return nil, fmt.Errorf(
+			return nil, errors.New(
 				"unexpected EOF while reading underlying type",
 			)
 		}
@@ -481,7 +477,7 @@ func processInterfaceTypedef(
 			return "", 0, nil, err
 		}
 		if underlyingEntry.Tag == 0 {
-			return "", 0, nil, fmt.Errorf("unexpected end of underlying type")
+			return "", 0, nil, errors.New("unexpected end of underlying type")
 		}
 	}
 	if underlyingEntry.Tag != dwarf.TagStructType {
@@ -513,7 +509,7 @@ func processInterfaceTypedef(
 			return "", 0, nil, fmt.Errorf("failed to get next child: %w", err)
 		}
 		if child == nil {
-			return "", 0, nil, fmt.Errorf(
+			return "", 0, nil, errors.New(
 				"unexpected EOF while reading underlying type",
 			)
 		}
@@ -602,7 +598,7 @@ structChildren:
 			return nil, fmt.Errorf("failed to get next child: %w", err)
 		}
 		if child == nil {
-			return nil, fmt.Errorf(
+			return nil, errors.New(
 				"unexpected EOF while reading structure type",
 			)
 		}

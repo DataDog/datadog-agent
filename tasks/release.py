@@ -594,15 +594,15 @@ def get_qualification_tags(ctx, release_branch, latest_tag=False):
 
 
 @task
-def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, start_qual=False):
+def build_rc(ctx, release_branch, patch_version=False, start_qual=False):
     """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
+    Staging k8s deployment PR will be created during the build pipeline.
 
     Args:
-        k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
         start_qual: Start the qualification phase for agent 6 release candidates.
     """
 
@@ -642,11 +642,6 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         # Step 1: Tag versions
 
         print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
-        print(
-            color_message(
-                "If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold"
-            )
-        )
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
@@ -667,7 +662,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, gitlab_tag.name)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -689,14 +684,13 @@ def get_qualification_rc_tag(ctx, release_branch):
 
 
 @task
-def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
+def run_rc_pipeline(ctx, gitlab_tag):
     run(
         ctx,
         git_ref=gitlab_tag,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
-        rc_k8s_deployments=k8s_deployments,
     )
 
 
@@ -862,9 +856,14 @@ def create_release_branches(
         with open(".gitlab-ci.yml") as f:
             content = f.read()
         with open(".gitlab-ci.yml", "w") as f:
-            f.write(
-                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            updated_content = content.replace(
+                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
             )
+            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
+            updated_content = updated_content.replace(
+                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
+            )
+            f.write(updated_content)
 
         # Step 1.3 - Commit new changes
         ctx.run("git add release.json .gitlab-ci.yml")
@@ -1212,7 +1211,15 @@ def chase_for_qa_cards(_, version):
     client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
-        team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
+        try:
+            team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
+        except StopIteration:
+            client.chat_postMessage(
+                channel="#agent-devx-ops",
+                text=f"Issue in qa_card chase, no team found for project {project} for cards {', '.join([card['key'] for card in cards])}",
+            )
+            print(f"No team found for project {project}")
+            continue
         channel = GITHUB_SLACK_MAP[team]
         print(f" - {channel} for {[card['key'] for card in cards]}")
         card_links = ", ".join(

@@ -27,6 +27,7 @@ const (
 
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	pauseContainerFargate    = "image:aws-fargate-pause"
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
 
@@ -106,8 +107,6 @@ type Filter struct {
 	Errors               map[string]struct{}
 }
 
-var sharedFilter *Filter
-
 func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string) {
 	for _, filter := range filters {
 		switch {
@@ -168,20 +167,6 @@ func filterToRegex(filter string, filterPrefix string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-// GetSharedMetricFilter allows to share the result of NewFilterFromConfig
-// for several user classes
-func GetSharedMetricFilter() (*Filter, error) {
-	if sharedFilter != nil {
-		return sharedFilter, nil
-	}
-	f, err := newMetricFilterFromConfig()
-	if err != nil {
-		return nil, err
-	}
-	sharedFilter = f
-	return f, nil
-}
-
 // GetPauseContainerExcludeList returns the exclude list for pause containers
 func GetPauseContainerExcludeList() []string {
 	return []string{
@@ -192,6 +177,7 @@ func GetPauseContainerExcludeList() []string {
 		pauseContainerGoogle,
 		pauseContainerAzure,
 		pauseContainerECS,
+		pauseContainerFargate,
 		pauseContainerEKS,
 		pauseContainerRancher,
 		pauseContainerRancherMirrored,
@@ -214,22 +200,6 @@ func GetPauseContainerFilter() (*Filter, error) {
 	}
 
 	return NewFilter(GlobalFilter, nil, excludeList)
-}
-
-// ResetSharedFilter is only to be used in unit tests: it resets the global
-// filter instance to force re-parsing of the configuration.
-func ResetSharedFilter() {
-	sharedFilter = nil
-}
-
-// GetFilterErrors retrieves a list of errors and warnings resulting from parseFilters
-func GetFilterErrors() map[string]struct{} {
-	filter, _ := newMetricFilterFromConfig()
-	logFilter := NewAutodiscoveryFilter(LogsFilter)
-	for err := range logFilter.Errors {
-		filter.Errors[err] = struct{}{}
-	}
-	return filter.Errors
 }
 
 // NewFilter creates a new container filter from two slices of
@@ -264,61 +234,6 @@ func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error
 		NamespaceExcludeList: nsExcl,
 		Errors:               errorsMap,
 	}, lastError
-}
-
-// newMetricFilterFromConfig creates a new container filter, sourcing patterns
-// from the pkg/config options, to be used only for metrics
-func newMetricFilterFromConfig() (*Filter, error) {
-	// We merge `container_include` and `container_include_metrics` as this filter
-	// is used by all core and python checks (so components sending metrics).
-	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
-	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
-	includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
-
-	if len(includeList) == 0 {
-		// support legacy "ac_include" config
-		includeList = pkgconfigsetup.Datadog().GetStringSlice("ac_include")
-	}
-	if len(excludeList) == 0 {
-		// support legacy "ac_exclude" config
-		excludeList = pkgconfigsetup.Datadog().GetStringSlice("ac_exclude")
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		excludeList = append(excludeList, GetPauseContainerExcludeList()...)
-	}
-	return NewFilter(MetricsFilter, includeList, excludeList)
-}
-
-// NewAutodiscoveryFilter creates a new container filter for Autodiscovery
-// It sources patterns from the pkg/config options but ignores the exclude_pause_container options
-// It allows to filter metrics and logs separately
-// For use in autodiscovery.
-func NewAutodiscoveryFilter(ft FilterType) *Filter {
-	includeList := []string{}
-	excludeList := []string{}
-	switch ft {
-	case GlobalFilter:
-		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include")
-		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
-		if len(includeList) == 0 {
-			// fallback and support legacy "ac_include" config
-			includeList = pkgconfigsetup.Datadog().GetStringSlice("ac_include")
-		}
-		if len(excludeList) == 0 {
-			// fallback and support legacy "ac_exclude" config
-			excludeList = pkgconfigsetup.Datadog().GetStringSlice("ac_exclude")
-		}
-	case MetricsFilter:
-		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")
-		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")
-	case LogsFilter:
-		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include_logs")
-		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude_logs")
-	}
-	filter, _ := NewFilter(ft, includeList, excludeList)
-	return filter
 }
 
 // GetResult returns a workloadfilter.Result indicating if the container should be included, excluded or unknown.

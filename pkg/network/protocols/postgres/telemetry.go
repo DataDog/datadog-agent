@@ -8,7 +8,6 @@
 package postgres
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -118,7 +117,7 @@ type Telemetry struct {
 func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*extractionFailureCounter {
 	var buckets [numberOfBuckets]*extractionFailureCounter
 	for i := 0; i < numberOfBuckets; i++ {
-		buckets[i] = newExtractionFailureCounter(metricGroup, "query_length_bucket"+fmt.Sprint(i+1), libtelemetry.OptStatsd)
+		buckets[i] = newExtractionFailureCounter(metricGroup, "query_length_bucket"+strconv.Itoa(i+1), libtelemetry.OptStatsd)
 	}
 	return buckets
 }

@@ -99,6 +99,15 @@ static __always_inline void increment_telemetry_registers_count() {
     __sync_fetch_and_add(&val->registers, 1);
 }
 
+#define RETURN_IF_NOT_NAT(orig, reply) \
+    if (!is_conn_nat(orig, reply)) {   \
+        return 0;                      \
+    }
 
+static __always_inline bool is_conn_nat(const conntrack_tuple_t *orig, const conntrack_tuple_t *reply) {
+    return orig->daddr_l != reply->saddr_l || orig->dport != reply->sport ||
+           orig->saddr_l != reply->daddr_l || orig->sport != reply->dport ||
+           orig->daddr_h != reply->saddr_h;
+}
 
 #endif /* __CONNTRACK_HELPERS_H */

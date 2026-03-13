@@ -7,7 +7,9 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,7 +22,7 @@ var (
 
 var (
 	// ErrPackageNotFound is returned when a package is not found
-	ErrPackageNotFound = fmt.Errorf("package not found")
+	ErrPackageNotFound = errors.New("package not found")
 )
 
 // Package represents a package
@@ -50,29 +52,46 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// New creates a new PackagesDB
-func New(dbPath string, opts ...Option) (*PackagesDB, error) {
+// New creates a new PackagesDB. The context can be used to cancel the file lock
+// acquisition if the database is held by another process, allowing the caller
+// to abort instead of waiting for the bbolt timeout (or indefinitely if none is set).
+func New(ctx context.Context, dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
 	for _, opt := range opts {
 		opt(&o)
 	}
-	db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
-		Timeout:      o.timeout,
-		FreelistType: bbolt.FreelistArrayType,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not open database: %w", err)
+
+	type result struct {
+		db  *bbolt.DB
+		err error
 	}
-	err = db.Update(func(tx *bbolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(bucketPackages)
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not create packages bucket: %w", err)
+	ch := make(chan result, 1)
+	go func() {
+		db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
+			Timeout:      o.timeout,
+			FreelistType: bbolt.FreelistArrayType,
+		})
+		ch <- result{db, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		if r.err != nil {
+			return nil, fmt.Errorf("could not open database: %w", r.err)
+		}
+		err := r.db.Update(func(tx *bbolt.Tx) error {
+			_, err := tx.CreateBucketIfNotExists(bucketPackages)
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create packages bucket: %w", err)
+		}
+		return &PackagesDB{
+			db: r.db,
+		}, nil
 	}
-	return &PackagesDB{
-		db: db,
-	}, nil
 }
 
 // Close closes the database
@@ -85,7 +104,7 @@ func (p *PackagesDB) SetPackage(pkg Package) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		rawPkg, err := json.Marshal(&pkg)
 		if err != nil {
@@ -104,7 +123,7 @@ func (p *PackagesDB) DeletePackage(name string) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		return b.Delete([]byte(name))
 	})
@@ -120,7 +139,7 @@ func (p *PackagesDB) HasPackage(name string) (bool, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		v := b.Get([]byte(name))
 		hasPackage = len(v) > 0
@@ -138,7 +157,7 @@ func (p *PackagesDB) GetPackage(name string) (Package, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		v := b.Get([]byte(name))
 		if len(v) == 0 {
@@ -162,7 +181,7 @@ func (p *PackagesDB) ListPackages() ([]Package, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		return b.ForEach(func(k, v []byte) error {
 			// support v0.0.7

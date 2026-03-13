@@ -28,11 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 
 	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -58,6 +59,9 @@ type Request struct {
 	Object []byte
 	// OldObject is the existing object. It is null for CREATE and CONNECT operations
 	OldObject []byte
+	// DryRun indicates whether the request is a dry-run
+	// If true, the webhook should not create any side effects
+	DryRun *bool
 	// DynamicClient holds a dynamic Kubernetes client
 	DynamicClient dynamic.Interface
 	// APIClient holds a Kubernetes client
@@ -70,14 +74,16 @@ type WebhookFunc func(request *Request) *admiv1.AdmissionResponse
 
 // Server TODO <container-integrations>
 type Server struct {
-	decoder runtime.Decoder
-	mux     *http.ServeMux
+	decoder       runtime.Decoder
+	mux           *http.ServeMux
+	secretsLister corelisters.SecretLister
 }
 
 // NewServer creates an admission webhook server.
-func NewServer() *Server {
+func NewServer(secretsLister corelisters.SecretLister) *Server {
 	s := &Server{
-		mux: http.NewServeMux(),
+		mux:           http.NewServeMux(),
+		secretsLister: secretsLister,
 	}
 
 	s.initDecoder()
@@ -110,7 +116,7 @@ func (s *Server) Register(uri string, webhookName string, webhookType admicommon
 }
 
 // Run starts the kubernetes admission webhook server.
-func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
+func (s *Server) Run(mainCtx context.Context) error {
 	var tlsMinVersion uint16 = tls.VersionTLS13
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsMinVersion = tls.VersionTLS10
@@ -123,9 +129,9 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
 			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				secretNs := common.GetResourcesNamespace()
+				secretNs := namespace.GetResourcesNamespace()
 				secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
-				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
+				cert, err := certificate.GetCertificateFromLister(s.secretsLister.Secrets(secretNs), secretName)
 				if err != nil {
 					log.Errorf("Couldn't fetch certificate: %v", err)
 				}
@@ -199,21 +205,27 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 		admissionReview := &admiv1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
-		admissionRequest := Request{
-			UID:           admissionReviewReq.Request.UID,
-			Kind:          admissionReviewReq.Request.Kind,
-			Name:          admissionReviewReq.Request.Name,
-			Namespace:     admissionReviewReq.Request.Namespace,
-			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-			UserInfo:      &admissionReviewReq.Request.UserInfo,
-			Object:        admissionReviewReq.Request.Object.Raw,
-			OldObject:     admissionReviewReq.Request.OldObject.Raw,
-			DynamicClient: dc,
-			APIClient:     apiClient,
+
+		var admissionResponse *admiv1.AdmissionResponse
+		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
+			admissionResponse = probeResp
+		} else {
+			admissionRequest := Request{
+				UID:           admissionReviewReq.Request.UID,
+				Kind:          admissionReviewReq.Request.Kind,
+				Name:          admissionReviewReq.Request.Name,
+				Namespace:     admissionReviewReq.Request.Namespace,
+				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+				UserInfo:      &admissionReviewReq.Request.UserInfo,
+				Object:        admissionReviewReq.Request.Object.Raw,
+				OldObject:     admissionReviewReq.Request.OldObject.Raw,
+				DryRun:        admissionReviewReq.Request.DryRun,
+				DynamicClient: dc,
+				APIClient:     apiClient,
+			}
+			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
-		// Generate admission response
-		admissionResponse := webhookFunc(&admissionRequest)
 		admissionReview.Response = admissionResponse
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
@@ -225,21 +237,27 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 
 		admissionReview := &admiv1beta1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
-		admissionRequest := Request{
-			UID:           admissionReviewReq.Request.UID,
-			Kind:          admissionReviewReq.Request.Kind,
-			Name:          admissionReviewReq.Request.Name,
-			Namespace:     admissionReviewReq.Request.Namespace,
-			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
-			UserInfo:      &admissionReviewReq.Request.UserInfo,
-			Object:        admissionReviewReq.Request.Object.Raw,
-			OldObject:     admissionReviewReq.Request.OldObject.Raw,
-			DynamicClient: dc,
-			APIClient:     apiClient,
+
+		var admissionResponse *admiv1.AdmissionResponse
+		if probeResp := probeResponse(admissionReviewReq.Request.Object.Raw); probeResp != nil {
+			admissionResponse = probeResp
+		} else {
+			admissionRequest := Request{
+				UID:           admissionReviewReq.Request.UID,
+				Kind:          admissionReviewReq.Request.Kind,
+				Name:          admissionReviewReq.Request.Name,
+				Namespace:     admissionReviewReq.Request.Namespace,
+				Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
+				UserInfo:      &admissionReviewReq.Request.UserInfo,
+				Object:        admissionReviewReq.Request.Object.Raw,
+				OldObject:     admissionReviewReq.Request.OldObject.Raw,
+				DryRun:        admissionReviewReq.Request.DryRun,
+				DynamicClient: dc,
+				APIClient:     apiClient,
+			}
+			admissionResponse = webhookFunc(&admissionRequest)
 		}
 
-		// Generate admission response
-		admissionResponse := webhookFunc(&admissionRequest)
 		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
@@ -255,6 +273,41 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		log.Warnf("Failed to encode the response: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
+	}
+}
+
+// probeMeta is used for lightweight partial unmarshalling of an object's metadata.
+type probeMeta struct {
+	Metadata struct {
+		Labels map[string]string `json:"labels"`
+	} `json:"metadata"`
+}
+
+// isProbe checks whether the raw object carries the admission probe label.
+func isProbe(raw []byte) bool {
+	var meta probeMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return false
+	}
+	return meta.Metadata.Labels[admicommon.ProbeLabelKey] == "true"
+}
+
+// probeResponse returns a short-circuit AdmissionResponse for probe objects,
+// adding the probe-received annotation without running any mutation logic.
+// Returns nil for non-probe objects.
+func probeResponse(raw []byte) *admiv1.AdmissionResponse {
+	if !isProbe(raw) {
+		return nil
+	}
+
+	patch := []byte(`[{"op":"add","path":"/metadata/annotations","value":{"` +
+		admicommon.ProbeReceivedAnnotationKey + `":"true"}}]`)
+	patchType := admiv1.PatchTypeJSONPatch
+
+	return &admiv1.AdmissionResponse{
+		Allowed:   true,
+		Patch:     patch,
+		PatchType: &patchType,
 	}
 }
 

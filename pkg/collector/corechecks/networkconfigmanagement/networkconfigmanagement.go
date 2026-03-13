@@ -103,7 +103,7 @@ func (c *Check) Run() error {
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, deviceTags, startupConfig))
 	}
 
-	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, "", configs, c.clock.Now().Unix()))
+	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
 	}
@@ -122,14 +122,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Load/parse the configuration for the device instance
 	c.checkContext, err = ncmconfig.NewNcmCheckContext(rawInstance, rawInitConfig)
 	if err != nil {
-		return fmt.Errorf("build config failed: %s", err)
+		return fmt.Errorf("build config failed: %w", err)
 	}
 
 	// Must be called before v.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 	err = c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
-		return fmt.Errorf("common configure failed: %s", err)
+		return fmt.Errorf("common configure failed: %w", err)
 	}
 
 	// Initialize the clock
@@ -144,7 +144,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
-	c.remoteClient = ncmremote.NewSSHClient(c.checkContext.Device)
+	c.remoteClient, err = ncmremote.NewSSHClient(c.checkContext.Device)
+	if err != nil {
+		return fmt.Errorf("create remote SSH client failed: %w", err)
+	}
 
 	return nil
 }

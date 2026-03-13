@@ -41,9 +41,9 @@
           "location": {
             "method": "main.noArgs"
           }
-        },
-        "captures": {}
-      }
+        }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]"

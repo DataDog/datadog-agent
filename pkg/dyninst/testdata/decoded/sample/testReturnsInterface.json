@@ -65,19 +65,17 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42"
   },
   {
     "service": "sample",
@@ -165,10 +163,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{s: foo}"
   },
   {
     "service": "sample",
@@ -257,9 +257,11 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{s: foo}"
   }
 ]

@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	awsLambdaFunctionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
 	googleCloudRunServiceNameEnvVar = "K_SERVICE"
 	azureContainerAppNameEnvVar     = "CONTAINER_APP_NAME"
 	azureAppServiceNameEnvVar       = "WEBSITE_STACK"
@@ -22,9 +21,6 @@ const (
 
 // GetDefaultMetricSource returns the default metric source based on build tags
 func GetDefaultMetricSource() metrics.MetricSource {
-	if _, ok := os.LookupEnv(awsLambdaFunctionNameEnvVar); ok {
-		return metrics.MetricSourceAwsLambdaCustom
-	}
 	if _, ok := os.LookupEnv(googleCloudRunServiceNameEnvVar); ok {
 		return metrics.MetricSourceGoogleCloudRunCustom
 	}

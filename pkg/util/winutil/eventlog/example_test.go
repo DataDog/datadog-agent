@@ -192,7 +192,7 @@ func TestSubscriptionExample(t *testing.T) {
 	eventSource := "dd-test-source-example"
 	numEvents := uint(10)
 	for _, tiName := range testInterfaceNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			if tiName == "Fake" {
 				t.Skip("Fake API does not implement EvtRenderValues")
 			}

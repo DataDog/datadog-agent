@@ -7,6 +7,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -15,15 +16,13 @@ BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
 BIN_DIR = os.path.join(".", "bin", "otel-agent")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("otel-agent"))
-DDOT_DEV_AGENT_TAG = "nightly-full-main-jmx"
-DDOT_DEV_AGENT_BRANCH = "main"
 DDOT_AGENT_IMAGE_NAME = "datadog/agent"
 DDOT_AGENT_TAG = "main-ddot"
 DDOT_BYOC_DOCKERFILE = os.path.join("Dockerfiles", "agent-ddot", "Dockerfile.agent-otel")
 
 
 @task
-def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, repo=DDOT_AGENT_IMAGE_NAME):
+def byoc_release(ctx, version: str):
     """
     Modify dockerfile
     """
@@ -32,27 +31,32 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
     with open(DDOT_BYOC_DOCKERFILE, 'w') as file:
         for line in contents:
-            if re.search("^ARG AGENT_REPO=.*$", line):
-                line = f"ARG AGENT_REPO={repo}\n"
-            elif re.search("^ARG AGENT_VERSION=.*$", line):
-                line = f"ARG AGENT_VERSION={image}\n"
-            elif re.search("^ARG AGENT_BRANCH=.*$", line):
-                line = f"ARG AGENT_BRANCH={branch}\n"
-
+            if re.search("^ARG AGENT_VERSION=.*$", line):
+                line = f"ARG AGENT_VERSION={version}\n"
             file.write(line)
 
 
 @task
-def build(ctx, byoc=False):
+def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
     """
     Build the otel agent
     """
 
-    if os.path.exists(BIN_PATH):
-        os.remove(BIN_PATH)
+    # When cross-compiling for Windows on Linux, bin_name() returns "otel-agent"
+    # (no .exe) because it checks sys.platform, not GOOS. Compute the correct
+    # output path here so Go writes otel-agent.exe for Windows targets.
+    cross_compiling_windows = sys.platform != 'win32' and os.environ.get('GOOS') == 'windows'
+    if cross_compiling_windows:
+        bin_path = os.path.join(BIN_DIR, "otel-agent.exe")
+    else:
+        bin_path = BIN_PATH
 
+    if os.path.exists(bin_path):
+        os.remove(bin_path)
+
+    flavor = AgentFlavor[flavor]
     env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="otel-agent")
+    build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
     ldflags = get_version_ldflags(ctx)
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
     if os.environ.get("DELVE"):
@@ -61,7 +65,7 @@ def build(ctx, byoc=False):
         gcflags = ""
 
     # generate windows resources
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' or cross_compiling_windows:
         build_messagetable(ctx)
         vars = versioninfo_vars(ctx)
         build_rc(
@@ -78,7 +82,7 @@ def build(ctx, byoc=False):
         build_tags=build_tags,
         ldflags=ldflags,
         gcflags=gcflags,
-        bin_path=BIN_PATH,
+        bin_path=bin_path,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         env=env,
     )

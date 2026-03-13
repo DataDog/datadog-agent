@@ -66,8 +66,10 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "10"
   }
 ]

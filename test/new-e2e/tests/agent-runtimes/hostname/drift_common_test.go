@@ -10,14 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	osVM "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	osVM "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 type baseHostnameDriftSuite struct {
@@ -25,14 +25,20 @@ type baseHostnameDriftSuite struct {
 }
 
 func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
+	agentConfig := "hostname_drift_initial_delay: 10s\nhostname_drift_recurring_interval: 15s"
+	if osInstance.Family() == osVM.WindowsFamily {
+		// Use EC2 hostname on Windows as well
+		agentConfig += "\nec2_use_windows_prefix_detection: true"
+	}
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(`hostname_drift_initial_delay: 10s
-hostname_drift_recurring_interval: 15s`),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentConfig),
+				),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 		),
 	))
 

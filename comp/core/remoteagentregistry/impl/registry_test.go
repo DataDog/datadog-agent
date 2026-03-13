@@ -52,7 +52,7 @@ func TestRegistration(t *testing.T) {
 	expectedRefreshIntervalSecs := uint32(27)
 
 	provides, _, config, _, ipcComp := buildComponent(t)
-	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
+	config.SetWithoutSource("remote_agent.registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
 	component := provides.Comp.(*remoteAgentRegistry)
 
@@ -73,8 +73,8 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	component := provides.Comp.(*remoteAgentRegistry)
 
 	// Overriding default config values to have a faster test
-	config.SetWithoutSource("remote_agent_registry.idle_timeout", time.Duration(time.Second*5))
-	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", time.Duration(time.Second*5))
+	config.SetWithoutSource("remote_agent.registry.idle_timeout", time.Duration(time.Second*5))
+	config.SetWithoutSource("remote_agent.registry.recommended_refresh_interval", time.Duration(time.Second*5))
 
 	lc.Start(context.Background())
 	defer lc.Stop(context.Background())
@@ -100,7 +100,7 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 
 func TestDisabled(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent_registry.enabled", false)
+	config.SetWithoutSource("remote_agent.registry.enabled", false)
 
 	provides, _, _, _ := buildComponentWithConfig(t, config)
 
@@ -111,6 +111,9 @@ func TestDisabled(t *testing.T) {
 
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
 	config := configmock.New(t)
+
+	// enable the remote agent registry
+	config.SetWithoutSource("remote_agent.registry.enabled", true)
 
 	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
 	return provides, lc, config, telemetry, ipc

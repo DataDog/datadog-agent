@@ -143,8 +143,16 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "map[{redacted-entries}, ...]: 3]"
   }
 ]

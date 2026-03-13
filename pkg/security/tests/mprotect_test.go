@@ -42,7 +42,7 @@ func TestMProtectEvent(t *testing.T) {
 	}
 
 	t.Run("mprotect", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			var data []byte
 			data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
 			if err != nil {
@@ -64,6 +64,6 @@ func TestMProtectEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMProtectSchema(t, event)
-		})
+		}, "test_mprotect")
 	})
 }

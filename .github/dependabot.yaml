@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -11,18 +12,18 @@ updates:
       # These dependencies are replaced in the main go.mod file.
       # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
-      - dependency-name: github.com/cihub/seelog  # https://github.com/DataDog/datadog-agent/pull/5647
       - dependency-name: github.com/spf13/cast
       # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry collector packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/collector/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
     groups:
       franz-go:
@@ -41,6 +42,7 @@ updates:
           - patch
   - package-ecosystem: gomod
     directory: /pkg/trace
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -53,14 +55,16 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-      # OpenTelemetry collector packages need to be updated with `dda inv` rather than dependabot
-      - dependency-name: go.opentelemetry.io/collector/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/gohai
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -73,11 +77,15 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/obfuscate
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -90,11 +98,15 @@ updates:
       - dependency-name: github.com/mailru/easyjson
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -105,11 +117,15 @@ updates:
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -126,24 +142,31 @@ updates:
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/networkdevice/profile
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
-      - team/network-device-monitoring
+      - team/network-device-monitoring-core
       - changelog/no-changelog
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/new-e2e
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -161,6 +184,8 @@ updates:
       - dependency-name: github.com/pulumi*
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
     groups:
       aws-sdk-go-v2:
         patterns:
@@ -171,9 +196,11 @@ updates:
 
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/fakeintake
+    rebase-strategy: disabled
     labels:
       - dependencies
       - dependencies-go
@@ -183,33 +210,13 @@ updates:
       - dev/testing
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
       - dependency-name: golang.org/x/*
-  - package-ecosystem: docker
-    directory: /test/fakeintake
-    labels:
-      - dependencies
-      - team/agent-e2e-test
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/testing
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: github-actions
-    directory: /
-    labels:
-      - dependencies
-      - dependencies-github-actions
-      - team/agent-devx
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/tooling
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 100
+      # OpenTelemetry packages need to be updated with `dda inv` rather than dependabot
+      - dependency-name: go.opentelemetry.io/*
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:
@@ -218,6 +225,7 @@ updates:
       - changelog/no-changelog
     schedule:
       interval: weekly
+      day: saturday
     ignore:
       - dependency-name: org.bouncycaslte:*
         # Ignore preview versions

@@ -6,9 +6,12 @@
 package checks
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -86,4 +89,67 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	assert.ElementsMatch(t, expected, rt.Stats)
 	assert.Equal(t, int32(1), rt.GroupSize)
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
+}
+
+// TestFmtProcessStats test the chunking logic of fmtProcessStats
+func TestFmtProcessStats(t *testing.T) {
+	procs := map[int32]*procutil.Stats{
+		1: makeProcessStats(),
+		2: makeProcessStats(),
+		3: makeProcessStats(),
+	}
+	lastProcs := map[int32]*procutil.Stats{
+		1: makeProcessStats(),
+		2: makeProcessStats(),
+		3: makeProcessStats(),
+	}
+
+	type testCase struct {
+		description        string
+		maxBatchSize       int
+		expectedNumChunks  int
+		expectedChunkSizes []int
+	}
+	tests := []testCase{
+		{
+			description:        "Chunking - max batch size 1",
+			maxBatchSize:       1,
+			expectedNumChunks:  3,
+			expectedChunkSizes: []int{1, 1, 1},
+		},
+		{
+			description:        "Chunking - max batch size 2",
+			maxBatchSize:       2,
+			expectedNumChunks:  2,
+			expectedChunkSizes: []int{2, 1},
+		},
+		{
+			description:        "No chunking - max batch size",
+			maxBatchSize:       math.MaxInt,
+			expectedNumChunks:  1,
+			expectedChunkSizes: []int{3},
+		},
+		{
+			description:        "No chunking - max batch size 0",
+			maxBatchSize:       0,
+			expectedNumChunks:  1,
+			expectedChunkSizes: []int{3},
+		},
+		{
+			description:        "No chunking - max batch size 10",
+			maxBatchSize:       10,
+			expectedNumChunks:  1,
+			expectedChunkSizes: []int{3},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			chunked := fmtProcessStats(tc.maxBatchSize, procs, lastProcs, map[int]string{}, cpu.TimesStat{}, cpu.TimesStat{}, time.Now().Add(-time.Second), time.Now())
+			assert.Len(t, chunked, tc.expectedNumChunks)
+			for i, size := range tc.expectedChunkSizes {
+				assert.Len(t, chunked[i], size)
+			}
+		})
+	}
 }

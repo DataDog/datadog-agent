@@ -9,6 +9,7 @@ package windowsevent
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -35,6 +36,22 @@ const (
 // as it is used in the context of Windows Event Log messages.
 type Map struct {
 	mxj.Map
+}
+
+// TransformOptions controls which transforms are applied during XML parsing
+type TransformOptions struct {
+	FormatEventData  bool // Convert named Data elements to key-value map (see formatEventDataField)
+	FormatBinaryData bool // Decode binary hex as UTF-16 (buggy, not recommended for new code) (see formatEventBinaryData)
+	NormalizeEventID bool // Separate EventID and Qualifier fields (see normalizeEventID)
+}
+
+// DefaultTransformOptions returns options with all transforms enabled (for backwards compatibility)
+func DefaultTransformOptions() TransformOptions {
+	return TransformOptions{
+		FormatEventData:  true,
+		FormatBinaryData: true,
+		NormalizeEventID: true,
+	}
 }
 
 // SetTask sets the task field in the map.
@@ -98,12 +115,18 @@ func (m *Map) GetMessage() string {
 }
 
 // NewMapXML converts Windows Event Log XML to a map and runs some transforms to normalize the data.
+// All transforms are enabled by default for backwards compatibility.
 //
 // Transforms:
 //   - Event.EventData.Data: Convert to a map if values are named, else to a list
 //   - Event.EventData.Binary: Convert to a string if it is a utf-16 string
 //   - Event.System.EventID: Separate the EventID and Qualifier fields
 func NewMapXML(eventXML []byte) (*Map, error) {
+	return NewMapXMLWithOptions(eventXML, DefaultTransformOptions())
+}
+
+// NewMapXMLWithOptions converts Windows Event Log XML to a map with configurable transforms.
+func NewMapXMLWithOptions(eventXML []byte, opts TransformOptions) (*Map, error) {
 	var err error
 	m := &Map{}
 
@@ -113,22 +136,28 @@ func NewMapXML(eventXML []byte) (*Map, error) {
 		return nil, err
 	}
 
-	// extract then modify the Event.EventData.Data field to have a key value mapping
-	err = formatEventDataField(m.Map)
-	if err != nil {
-		log.Debugf("Error formatting %s: %s", dataPath, err)
+	if opts.FormatEventData {
+		// extract then modify the Event.EventData.Data field to have a key value mapping
+		err = formatEventDataField(m.Map)
+		if err != nil {
+			log.Debugf("Error formatting %s: %s", dataPath, err)
+		}
 	}
 
-	// extract, parse then modify the Event.EventData.Binary data field
-	err = formatEventBinaryData(m.Map)
-	if err != nil {
-		log.Debugf("Error formatting %s: %s", binaryPath, err)
+	if opts.FormatBinaryData {
+		// extract, parse then modify the Event.EventData.Binary data field
+		err = formatEventBinaryData(m.Map)
+		if err != nil {
+			log.Debugf("Error formatting %s: %s", binaryPath, err)
+		}
 	}
 
-	// Normalize the Event.System.EventID field
-	err = normalizeEventID(m.Map)
-	if err != nil {
-		log.Debugf("Error normalizing EventID: %s", err)
+	if opts.NormalizeEventID {
+		// Normalize the Event.System.EventID field
+		err = normalizeEventID(m.Map)
+		if err != nil {
+			log.Debugf("Error normalizing EventID: %s", err)
+		}
 	}
 
 	return m, nil
@@ -254,7 +283,7 @@ func formatEventBinaryData(mv mxj.Map) error {
 // utf16decode converts ut16le bytes to utf8 bytes
 func convertUTF16ToUTF8(b []byte) ([]byte, error) {
 	if len(b)%2 != 0 {
-		return nil, fmt.Errorf("length must be an even number")
+		return nil, errors.New("length must be an even number")
 	}
 	// UTF-16 little-endian (UTF-16LE) is the encoding standard in the Windows operating system.
 	// https://learn.microsoft.com/en-us/globalization/encoding/transformations-of-unicode-code-points

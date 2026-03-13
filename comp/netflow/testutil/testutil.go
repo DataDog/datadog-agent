@@ -160,7 +160,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 		payloadBytes, _ := json.Marshal(p)
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(MatchEVPFlow(m), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}
 }
 
@@ -223,7 +223,7 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.M
 
 		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
 
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(MatchEVPFlow(m), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
 		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
 	}
 }

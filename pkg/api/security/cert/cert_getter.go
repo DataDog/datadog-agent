@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -135,11 +136,11 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.
 func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, error) {
 	certPool := x509.NewCertPool()
 	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
-		return nil, nil, fmt.Errorf("Unable to generate certPool from PEM IPC cert")
+		return nil, nil, errors.New("Unable to generate certPool from PEM IPC cert")
 	}
 	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+		return nil, nil, errors.New("Unable to generate x509 cert from PERM IPC cert and key")
 	}
 
 	clientTLSConfig := &tls.Config{
@@ -149,8 +150,8 @@ func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, err
 
 	serverTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		// The server parses the client certificate but does not make any verification, this is useful for telemetry
-		ClientAuth: tls.RequestClientCert,
+		// The server verify client certificate if given, this is useful to enable mTLS for a subsection of the API
+		ClientAuth: tls.VerifyClientCertIfGiven,
 		// The server will accept any client certificate signed by the IPC CA
 		ClientCAs: certPool,
 	}

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -29,7 +30,7 @@ const dockerCommandMaxLength = 29
 
 func getDockerSelfInspect(wmeta option.Option[workloadmeta.Component]) ([]byte, error) {
 	if !env.IsContainerized() {
-		return nil, fmt.Errorf("The Agent is not containerized")
+		return nil, errors.New("The Agent is not containerized")
 	}
 
 	du, err := docker.GetDockerUtil()

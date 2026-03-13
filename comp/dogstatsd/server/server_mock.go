@@ -60,12 +60,9 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) SetFilterList(v []string, _ bool) {
+func (s *serverMock) SetMetricFilterList(v []string, _ bool) {
 	s.filterlist = v
 }
 
 // ServerlessFlush is a noop mocked function
 func (s *serverMock) ServerlessFlush(time.Duration) {}
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) SetExtraTags(_ []string) {}

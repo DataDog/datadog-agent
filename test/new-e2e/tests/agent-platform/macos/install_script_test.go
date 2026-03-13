@@ -13,13 +13,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -35,9 +35,11 @@ func TestMacosInstallScript(t *testing.T) {
 	// Going directly through the configmap is the only way we have for now to let Pulumi know about it.
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)),
-			awshost.WithExtraConfigParams(extraConfigMap)),
-	))
+		awshost.ProvisionerNoAgentNoFakeIntake(
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault))),
+			awshost.WithExtraConfigParams(extraConfigMap),
+		)),
+	)
 }
 
 func (m *macosInstallSuite) TestInstallAgent() {
@@ -52,7 +54,8 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	}, 20*time.Second, 1*time.Second)
 
 	// check that there is no world-writable files or directories in /opt/datadog-agent
-	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002")
+	// exclude /opt/datadog-agent/run/ipc which is intentionally world-writable for multi-user GUI sockets
+	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
 	assert.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
 }

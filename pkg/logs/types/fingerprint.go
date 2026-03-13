@@ -13,6 +13,10 @@ import (
 // InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced
 const (
 	InvalidFingerprintValue = 0
+	// DefaultLinesCount is the default number of lines to use for fingerprinting when fingerprint_strategy is line_checksum
+	DefaultLinesCount = 1
+	// DefaultBytesCount is the default number of bytes to use for fingerprinting when fingerprint_strategy is byte_checksum
+	DefaultBytesCount = 1024
 )
 
 // Fingerprint struct that stores both the value and config used to derive that value
@@ -53,6 +57,12 @@ type FingerprintConfig struct {
 	// MaxBytes is only used for line-based fingerprinting to prevent overloading
 	// when reading large files. It's ignored for byte-based fingerprinting.
 	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
+
+	// Source is the source of the fingerprint config
+	// - "per-source": the fingerprint config is set per-source
+	// - "global": the fingerprint config is set globally
+	// - "none": the fingerprint config is not set
+	Source FingerprintConfigSource `json:"source" mapstructure:"source" yaml:"source"`
 }
 
 // FingerprintStrategy defines the strategy used for fingerprinting
@@ -65,6 +75,18 @@ const (
 	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
 	// FingerprintStrategyDisabled disables fingerprinting
 	FingerprintStrategyDisabled FingerprintStrategy = "disabled"
+)
+
+// FingerprintConfigSource defines the source of the fingerprint config
+type FingerprintConfigSource string
+
+const (
+	// FingerprintConfigSourcePerSource defines the fingerprint config is set per-source
+	FingerprintConfigSourcePerSource FingerprintConfigSource = "per-source"
+	// FingerprintConfigSourceGlobal defines the fingerprint config is set globally
+	FingerprintConfigSourceGlobal FingerprintConfigSource = "global"
+	// FingerprintConfigSourceDefault defines the fingerprint config is the default config
+	FingerprintConfigSourceDefault FingerprintConfigSource = "default"
 )
 
 func (s FingerprintStrategy) String() string {

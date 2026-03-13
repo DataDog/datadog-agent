@@ -68,8 +68,16 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{val: 1, b: {cycle}}"
   }
 ]

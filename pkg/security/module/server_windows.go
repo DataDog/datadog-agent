@@ -9,8 +9,22 @@ import (
 	"context"
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
+
+// sshSessionPatcher stub for Windows
+type sshSessionPatcher interface {
+	IsResolved() error
+	PatchEvent(_ interface{})
+	MaxRetry() int
+}
+
+// createSSHSessionPatcher creates a no-op patcher for Windows
+func createSSHSessionPatcher(_ *model.Event, _ *probe.Probe) sshSessionPatcher {
+	return nil
+}
 
 // DumpDiscarders handles discarder dump requests
 func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {

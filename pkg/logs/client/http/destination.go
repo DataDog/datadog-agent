@@ -100,7 +100,6 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -152,6 +151,8 @@ func newDestination(endpoint config.Endpoint,
 	if destMeta.ReportingEnabled {
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
+
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
@@ -292,8 +293,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(payload.Count())
-		metrics.TlmLogsSent.Add(float64(payload.Count()))
+		if err != nil {
+			// Permanent error, increment the logs dropped metric
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+		} else {
+			metrics.LogsSent.Add(payload.Count())
+			metrics.TlmLogsSent.Add(float64(payload.Count()))
+		}
+
 		output <- payload
 		return result
 	}
@@ -323,9 +331,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		sourceTag = "epforwarder"
 	}
 
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+	// Use GetAgentIdentityTag() to identify which agent is sending logs
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
@@ -333,9 +342,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
+
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
@@ -476,7 +486,7 @@ func buildURL(endpoint config.Endpoint) string {
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
 		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
+		url.Path = endpoint.PathPrefix + "/v1/input"
 	}
 	return url.String()
 }
@@ -489,10 +499,9 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
-	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
+	destination := newDestination(endpoint, JSONContentType, ctx, timeoutOverride, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
 
 	return ctx, destination
 }
@@ -506,7 +515,8 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
+	// Use a short 5s timeout because this check is done synchronously during the agent bootstrap sequence
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg, time.Second*5)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
@@ -519,7 +529,8 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 
 // CheckConnectivityDiagnose checks HTTP connectivity to an endpoint and returns the URL and any errors for diagnostic purposes
 func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
+	// Use the configured logs_config.http_timeout (default 10s) rather than the short 5s bootstrap timeout
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg, NoTimeoutOverride)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 

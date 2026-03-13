@@ -9,13 +9,13 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
 	"testing"
@@ -68,9 +68,9 @@ func TestPackageSigningComponent(t *testing.T) {
 		e2e.Run(tt,
 			&packageSigningTestSuite{osName: osDesc.Flavor.String()},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-				awshost.WithEC2InstanceOptions(ec2.WithOS(osDesc)),
+				awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(osDesc))),
 			)),
-			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", osDesc.Flavor.String())),
+			e2e.WithStackName("pkgSigning-"+osDesc.Flavor.String()),
 		)
 	})
 }
@@ -92,7 +92,7 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 		keys := []string{"DATADOG_RPM_KEY_E09422B3.public", "DATADOG_RPM_KEY_CURRENT.public", "DATADOG_RPM_KEY_FD4BF915.public", "DATADOG_RPM_KEY_E09422B3.public"}
 		for _, key := range keys {
 			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
-			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rpm --import /tmp/%s", key))
+			is.Env().RemoteHost.MustExecute("sudo rpm --import /tmp/" + key)
 		}
 	}
 

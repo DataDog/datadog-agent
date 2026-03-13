@@ -243,12 +243,16 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
-	var content []byte = msg.GetContent()
+	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------
 
-	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+	var extraRules []*config.ProcessingRule
+	if msg.Origin != nil && msg.Origin.LogSource != nil {
+		extraRules = msg.Origin.LogSource.Config.ProcessingRules
+	}
+	rules := append(p.processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -299,10 +303,6 @@ func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
 func (p *Processor) GetHostname(msg *message.Message) string {
 	if msg.Hostname != "" {
 		return msg.Hostname
-	}
-
-	if msg.Lambda != nil {
-		return msg.Lambda.ARN
 	}
 
 	if p.hostname == nil {

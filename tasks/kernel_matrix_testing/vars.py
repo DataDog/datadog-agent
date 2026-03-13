@@ -6,7 +6,7 @@ from tasks.libs.types.arch import Arch, KMTArchName
 
 KMT_SUPPORTED_ARCHS: list[KMTArchName] = ["x86_64", "arm64"]
 VMCONFIG = "vmconfig.json"
-AWS_ACCOUNT = "sso-sandbox-account-admin"
+AWS_ACCOUNT = "sso-agent-sandbox-account-admin"
 
 
 class KMTPaths:

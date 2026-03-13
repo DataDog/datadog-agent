@@ -1,0 +1,90 @@
+---
+# notify stage
+# Contains jobs which send notifications depending on pipeline status.
+
+.notify_setup:
+  - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  - dda self dep sync -f legacy-tasks -f legacy-notifications
+
+# Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
+.notify-job:
+  stage: .post
+  allow_failure: true
+
+notify-on-tagged-success:
+  extends: .notify-job
+  stage: .post
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch]
+  dependencies: []
+  tags: ["arch:arm64", "specific:true"]
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
+    dda self dep sync -f legacy-tasks -f legacy-notifications
+    SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+    dda inv notify.post-message -c "#agent-release-sync-ops" -m "$MESSAGE_TEXT"
+
+notify:
+  extends: .notify-job
+  stage: .post
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  dependencies: []
+  tags: ["arch:arm64", "specific:true"]
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  script:
+    - !reference [.notify_setup]
+    - !reference [.setup_agent_github_app]
+    - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
+
+send_pipeline_stats:
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  when: always
+  dependencies: []
+  script:
+    - !reference [.notify_setup]
+    - dda inv -- -e notify.send-stats
+
+notify_gitlab_ci_changes:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  extends: .notify-job
+  needs: [compute_gitlab_ci_config]
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*.yml
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - python3 -m dda self dep sync -f legacy-tasks
+    - !reference [.setup_agent_github_app]
+    - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
+
+close_failing_tests_stale_issues:
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.on_scheduled_main]
+  needs: []
+  tags: ["arch:arm64", "specific:true"]
+  script:
+    - weekday="$(date --utc '+%A')"
+    # Weekly on Friday
+    - |
+      if [ "$weekday" != "Friday" ]; then
+        echo "This script is run weekly on Fridays"
+        exit
+      fi
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- -e notify.close-failing-tests-stale-issues

@@ -1,0 +1,9 @@
+index-consolidation:
+  stage: dynamic_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64"]
+  dependencies: []
+  rules:
+    - !reference [.on_coverage_pipeline]
+  script:
+    - dda inv -- -e dyntest.consolidate-index-in-s3 --commit-sha $CI_COMMIT_SHA --bucket-uri $S3_PERMANENT_ARTIFACTS_URI

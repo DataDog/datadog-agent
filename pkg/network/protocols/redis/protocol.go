@@ -107,6 +107,11 @@ func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 		return nil, nil
 	}
 
+	if !Supported() {
+		log.Warnf("Redis monitoring is not supported on kernels < %s. Disabling Redis monitoring.", MinimumKernelVersion.String())
+		return nil, nil
+	}
+
 	return &protocol{
 		cfg:         cfg,
 		statskeeper: NewStatsKeeper(cfg),

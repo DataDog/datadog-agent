@@ -1,0 +1,17 @@
+---
+stages:
+  - deploy_containers
+  - deploy_mutable_image_tags
+  - deploy_packages
+  - deploy_cws_instrumentation
+  - deploy_cws_instrumentation_mutable_tags
+  - deploy_dca
+  - deploy_dca_mutable_tags
+  - trigger_release
+
+include:
+  - .gitlab/.pre/common/shared.yml
+  - .gitlab/.pre/common/container_publish_job_templates.yml
+  - .gitlab/deploy/conditions.yml
+  - local: .gitlab/deploy/trigger_release/**.yml
+  - local: .gitlab/distribute/**.yml

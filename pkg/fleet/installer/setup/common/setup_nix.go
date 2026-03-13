@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,7 +27,7 @@ func (s *Setup) postInstallPackages() (err error) {
 func (s *Setup) addAgentToAdditionalGroups() {
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
-		if _, err := user.GetGroupID(group); err != nil {
+		if _, err := user.GetGroupID(s.Ctx, group); err != nil {
 			log.Infof("Skipping group %s as it does not exist", group)
 			continue
 		}
@@ -42,7 +43,7 @@ func copyInstallerSSI() error {
 	destinationPath := "/opt/datadog-packages/run/datadog-installer-ssi"
 
 	// Get the current executable path
-	currentExecutable, err := os.Executable()
+	currentExecutable, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get current executable: %w", err)
 	}

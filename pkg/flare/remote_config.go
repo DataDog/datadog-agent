@@ -38,7 +38,7 @@ func (r *RemoteFlareProvider) exportRemoteConfig(fb flaretypes.FlareBuilder) err
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", r.IPC.GetAuthToken())}, // TODO IPC: Implement a GRPC secure client
+		"authorization": []string{"Bearer " + r.IPC.GetAuthToken()}, // TODO IPC: Implement a GRPC secure client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 

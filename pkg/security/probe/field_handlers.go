@@ -54,6 +54,9 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
 			serviceValues = append(serviceValues, service)
 		}
+		if service := entry.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
+			serviceValues = append(serviceValues, service)
+		}
 	}
 
 	inContainer := entry.ProcessContext.ContainerContext.ContainerID != ""
@@ -66,6 +69,9 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
+				serviceValues = append(serviceValues, service)
+			}
+			if service := ancestor.EnvsEntry.Get(OTELServiceEnvVar); service != "" {
 				serviceValues = append(serviceValues, service)
 			}
 		}
@@ -124,10 +130,10 @@ func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent
 // ResolveSource resolves the source of the event
 func (bfh *BaseFieldHandlers) ResolveSource(ev *model.Event, _ *model.BaseEvent) string {
 	if ev.Source == "" {
-		if ev.IsSnapshotEvent() {
-			ev.Source = "snapshot"
+		if ev.IsEventFromReplay() {
+			ev.Source = model.EventSourceReplay
 		} else {
-			ev.Source = "runtime"
+			ev.Source = model.EventSourceRuntime
 		}
 	}
 	return ev.Source

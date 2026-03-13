@@ -33,7 +33,8 @@ type bundledTransformer struct {
 func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
 	var errors []error
 
-	bundlesByObject := make(map[bundleID]*kubernetesEventBundle)
+	// Map bundleID to a slice of kubernetesEventBundles, as we can have several bundles for the same object if the event text length exceeds the maximum allowed length.
+	bundlesByObject := make(map[bundleID][]*kubernetesEventBundle)
 
 	for _, event := range events {
 		if event.InvolvedObject.Kind == "" ||
@@ -59,13 +60,21 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 
 		id := buildBundleID(event)
 
-		bundle, found := bundlesByObject[id]
+		bundles, found := bundlesByObject[id]
 		if !found {
-			bundle = newKubernetesEventBundler(c.clusterName, event)
-			bundlesByObject[id] = bundle
+			bundles = []*kubernetesEventBundle{newKubernetesEventBundler(c.clusterName, event)}
+			bundlesByObject[id] = bundles
 		}
 
-		err := bundle.addEvent(event)
+		lastBundle := bundles[len(bundles)-1]
+		_, fits := lastBundle.fitsEvent(event)
+		if !fits {
+			lastBundle = newKubernetesEventBundler(c.clusterName, event)
+			bundles = append(bundles, lastBundle)
+			bundlesByObject[id] = bundles
+		}
+
+		err := lastBundle.addEvent(event)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -74,21 +83,23 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 
 	datadogEvs := make([]event.Event, 0, len(bundlesByObject))
 
-	for id, bundle := range bundlesByObject {
-		datadogEv, err := bundle.formatEvents(c.taggerInstance)
-		if err != nil {
-			errors = append(errors, err)
-			continue
+	for id, bundles := range bundlesByObject {
+		for _, bundle := range bundles {
+			datadogEv, err := bundle.formatEvents(c.taggerInstance)
+			if err != nil {
+				errors = append(errors, err)
+				continue
+			}
+
+			emittedEvents.Inc(
+				id.kind,
+				id.evType,
+				getEventSource(bundle.reportingController, bundle.component),
+				"true",
+			)
+
+			datadogEvs = append(datadogEvs, datadogEv)
 		}
-
-		emittedEvents.Inc(
-			id.kind,
-			id.evType,
-			getEventSource(bundle.reportingController, bundle.component),
-			"true",
-		)
-
-		datadogEvs = append(datadogEvs, datadogEv)
 	}
 
 	return datadogEvs, errors

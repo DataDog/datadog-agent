@@ -6,21 +6,20 @@
 package common
 
 import (
+	"context"
 	"regexp"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
 	t.Run("integration", func(tt *testing.T) {
-		flake.Mark(tt)
 		requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
 		ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
@@ -83,12 +82,12 @@ func installIntegration(t *testing.T, client *TestClient, integration string) {
 	// Their release pipeline runs at least once a day at 5AM CET and can run during working hours if they need to release something.
 
 	interval := 30 * time.Second
-	maxRetries := 6
+	maxRetries := 30
 
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "--unsafe-disable-verification", "-r", integration}))
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+		return nil, err
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(uint(maxRetries)))
 
 	require.NoError(t, err)
 }

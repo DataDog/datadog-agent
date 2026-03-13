@@ -13,6 +13,7 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -74,6 +75,7 @@ func newMock(deps mockDependencies) MockProvides {
 		LogsCompression:    logscompressionmock.NewMockCompressor(),
 		MetricsCompression: metricscompressionmock.NewMockCompressor(),
 		HaAgent:            haagentmock.NewMockHaAgent(),
+		FilterList:         filterlistmock.NewMockFilterList(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}

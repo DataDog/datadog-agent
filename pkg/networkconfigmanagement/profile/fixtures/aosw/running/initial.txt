@@ -1,0 +1,76 @@
+Building Configuration...
+
+version 8.10
+hostname "OXID-IZE01"
+clock timezone Europe/Berlin +02 0
+!
+vpn-dialer default-dialer
+ike authentication pre-share AAAAAAAAAABBBBBBBBBB
+!
+!
+crypto isakmp policy 20
+encryption AES256
+authentication pre-share
+!
+syslocation "LOCATION"
+syscontact "OXIDIZED"
+snmp-server community "AAAAAAAAAABBBBBBBBBBCCCCCCCCCC"
+snmp-server community "AAAAAAAAAABBBBBBBBBB"
+mgmt-user admin root ******************** node /
+mgmt-user oxidized root ********************
+
+!
+country DE
+change-config-node /
+!
+aaa authentication-server tacacs "tacacs1"
+host "10.42.0.12"
+key "AAAAAAAAAABBBBBBBBBBB"
+!
+aaa authentication-server tacacs "tacacs2"
+host "10.42.0.13"
+key "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCC"
+!
+aaa authentication-server radius "radius1"
+host "10.42.0.14"
+key "AAAAAAAAAABBBBBBBBBBB"
+nas-identifier "OXID-IZE01"
+nas-ip 10.42.0.5
+!
+preemption
+state-sync
+pre-shared-key "AAAAAAAAAABBBBBBBBBBCCCCCCCCCCC"
+controller 10.42.0.2 role active
+controller 10.42.0.3 role standby
+!
+ap system-profile "AP-PROFILE"
+    session-acl ""
+lms-ip 10.42.0.52
+bkup-lms-ip 10.42.0.53
+ap-console-password "AAAAAAAAAABBBBBBBBBB"
+bkup-passwords "AAAAAAAAAABBBBBBBBBBCCCCCCCCCC"
+!
+wlan ssid-profile "PSK-SSID"
+essid "PSK-SSID"
+wpa-passphrase "AAAAAAAAAABBBBBBBBBB"
+opmode wpa2-psk-aes
+!
+
+snmp-server enable trap
+snmp-server host 10.42.1.5 version 2c AAAAAAAAAABBBBBBBBBB udp-port 162
+snmp-server host 10.42.1.6 version 2c AAAAAAAAAABBBBBBBBBB udp-port 162
+!
+conductor-redundancy
+conductor-vrrp 255
+peer-ip-address 10.42.0.3 ipsec AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+!
+vrrp 254
+priority 110
+authentication AAAAAAAAAABBBBBBBBBB
+ip address 10.42.0.8
+description "VRRP-Master"
+vlan 42
+no shutdown
+!
+
+end

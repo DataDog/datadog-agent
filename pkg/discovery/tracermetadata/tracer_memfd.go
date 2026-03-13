@@ -56,24 +56,3 @@ func GetTracerMetadata(pid int, procRoot string) (TracerMetadata, error) {
 	}
 	return parseData(data)
 }
-
-// GetTags returns a list of tags from the tracer metadata
-func (t TracerMetadata) GetTags() []string {
-	var tags []string
-	if t.ServiceName != "" {
-		tags = append(tags, "service:"+t.ServiceName)
-	}
-	if t.ServiceEnv != "" {
-		tags = append(tags, "env:"+t.ServiceEnv)
-	}
-	if t.ServiceVersion != "" {
-		tags = append(tags, "version:"+t.ServiceVersion)
-	}
-	for tag := range strings.SplitSeq(t.ProcessTags, ",") {
-		if tag == "" {
-			continue
-		}
-		tags = append(tags, tag)
-	}
-	return tags
-}

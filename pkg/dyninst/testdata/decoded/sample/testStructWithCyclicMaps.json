@@ -82,9 +82,11 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{m1: nil, m2: nil, m3: nil, m4: nil, m5: nil, ...}}"
   }
 ]

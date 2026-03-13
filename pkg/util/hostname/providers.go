@@ -9,8 +9,8 @@ package hostname
 
 import (
 	"context"
+	"errors"
 	"expvar"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -238,7 +238,7 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 		return hostnameData, nil
 	}
 
-	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
+	err = errors.New("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 	expErr := new(expvar.String)
 	expErr.Set(err.Error())
 	hostnameErrors.Set("all", expErr)

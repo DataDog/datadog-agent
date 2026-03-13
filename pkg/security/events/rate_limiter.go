@@ -7,7 +7,6 @@
 package events
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -44,6 +43,7 @@ var (
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
+		RawPacketActionRuleID:           rate.Every(30 * time.Second),
 	}
 )
 
@@ -101,21 +101,25 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	rl.applyBaseLimitersFromDefault(newLimiters)
 
 	var err error
-	for id, rule := range ruleSet.GetRules() {
+	for _, rule := range ruleSet.GetRules() {
 		every, burst := defaultEvery, defaultBurst
 
-		if duration := rule.Def.Every.GetDuration(); duration != 0 {
-			every, burst = duration, 1
+		if rule.Def.Every != nil {
+			// Every is specified in the rule definition
+			every, burst = rule.Def.Every.GetDuration(), 1
+
 		}
 
-		if len(rule.Def.RateLimiterToken) > 0 {
-			newLimiters[id], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
+		if len(rule.Def.RateLimiterToken) > 0 && every != 0 {
+			newLimiters[rule.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
 				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
-				newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+				newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 			}
+		} else if every != 0 {
+			newLimiters[rule.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		} else {
-			newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+			newLimiters[rule.ID] = NewStdLimiter(rate.Inf, burst)
 		}
 	}
 
@@ -129,6 +133,7 @@ func (rl *RateLimiter) Allow(ruleID string, event Event) bool {
 
 	limiter, ok := rl.limiters[ruleID]
 	if !ok {
+		seclog.Errorf("Rule %s not found in rate limiter", ruleID)
 		return false
 	}
 	return limiter.Allow(event)
@@ -151,7 +156,7 @@ func (rl *RateLimiter) GetStats() map[string][]utils.LimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats() error {
 	for ruleID, stats := range rl.GetStats() {
-		ruleIDTag := fmt.Sprintf("rule_id:%s", ruleID)
+		ruleIDTag := "rule_id:" + ruleID
 		for _, stat := range stats {
 			tags := []string{ruleIDTag}
 			if len(stat.Tags) > 0 {

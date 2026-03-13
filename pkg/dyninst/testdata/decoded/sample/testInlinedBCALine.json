@@ -64,8 +64,10 @@
             "63": {}
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBCA"
   }
 ]

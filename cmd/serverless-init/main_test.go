@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 
@@ -22,7 +23,6 @@ import (
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -45,11 +45,10 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
-	defer traceAgent.Stop()
+	_, _, tracingCtx, metricAgent, _ := setup(secretsmock.New(t), delegatedauthmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	defer tracingCtx.TraceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
-	assert.Subset(t, logs.GetLogsTags(), allTags)
 }
 
 func TestFxApp(t *testing.T) {

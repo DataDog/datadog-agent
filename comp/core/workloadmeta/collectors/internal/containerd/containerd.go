@@ -119,7 +119,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
-			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog:                workloadmeta.NodeAgent,
 			contToExitInfo:         make(map[string]*exitInfo),
 			knownImages:            newKnownImages(),
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
@@ -366,13 +366,13 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 	case containerCreationTopic, containerUpdateTopic, containerDeletionTopic:
 		containerID, hasID = containerdEvent.Field([]string{"event", "id"})
 		if !hasID {
-			return "", nil, fmt.Errorf("missing ID in containerd event")
+			return "", nil, errors.New("missing ID in containerd event")
 		}
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic, TaskExitTopic, TaskDeleteTopic:
 		containerID, hasID = containerdEvent.Field([]string{"event", "container_id"})
 		if !hasID {
-			return "", nil, fmt.Errorf("missing ID in containerd event")
+			return "", nil, errors.New("missing ID in containerd event")
 		}
 
 	default:

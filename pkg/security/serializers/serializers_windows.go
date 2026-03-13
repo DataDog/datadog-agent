@@ -83,6 +83,8 @@ type ProcessSerializer struct {
 	CmdLine string `json:"cmdline,omitempty"`
 	// User name
 	User string `json:"user,omitempty"`
+	// Variable values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -171,7 +173,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -180,17 +182,26 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
+	ps.Variables = newVariablesContext(e, rule, "process.")
+
 	ctx := eval.NewContext(e)
 
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
+	originalPCE := e.ProcessCacheEntry
 	first := true
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
 		s := newProcessSerializer(&pce.Process, e)
+
+		// evaluate variables scoped to this ancestor
+		e.ProcessCacheEntry = pce
+		s.Variables = newVariablesContext(e, rule, "process.")
+		e.ProcessCacheEntry = originalPCE
+
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -214,8 +225,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
-	s := NewEventSerializer(event, rule)
+func MarshalEvent(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) ([]byte, error) {
+	s := NewEventSerializer(event, rule, scrubber)
 	return json.Marshal(s)
 }
 
@@ -225,9 +236,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule, scrubber),
 		UserContextSerializer: newUserContextSerializer(event),
 	}
 	eventType := model.EventType(event.Type)

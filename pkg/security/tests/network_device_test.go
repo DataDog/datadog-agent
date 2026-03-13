@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -55,7 +56,7 @@ func TestNetDevice(t *testing.T) {
 	}
 	defer test.Close()
 
-	currentNetns, err := utils.NetNSPathFromPid(utils.Getpid()).GetProcessNetworkNamespace()
+	currentNetns, err := utils.NewNSPathFromPid(utils.Getpid(), utils.NetNsType).GetNSID()
 	if err != nil {
 		t.Errorf("couldn't retrieve current network namespace ID: %v", err)
 	}
@@ -67,7 +68,7 @@ func TestNetDevice(t *testing.T) {
 		_ = exec.Command(executable, "link", "delete", "host-eth0").Run()
 	}()
 
-	// those tests are dependend on each other, they can't be run in isolation
+	// those tests are dependent on each other, they can't be run in isolation
 
 	// register_netdevice
 	err = test.GetProbeEvent(func() error {
@@ -83,7 +84,7 @@ func TestNetDevice(t *testing.T) {
 		}
 		stat, ok := fi.Sys().(*syscall.Stat_t)
 		if !ok {
-			return fmt.Errorf("couldn't parse test_netns inum")
+			return errors.New("couldn't parse test_netns inum")
 		}
 		testNetns = uint32(stat.Ino)
 
@@ -207,11 +208,11 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal("pid of the sleep command is zero")
 		}
 
-		netNs := utils.NetNSPathFromPid(sleepProcPid)
+		netNs := utils.NewNSPathFromPid(sleepProcPid, utils.NetNsType)
 		// wait for the new net namespace to be created
 		// and for the tc probes to be attached to the new interface
 		time.Sleep(1 * time.Second)
-		nsid, err := netNs.GetProcessNetworkNamespace()
+		nsid, err := netNs.GetNSID()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -262,7 +263,7 @@ func TestTCFilters(t *testing.T) {
 	}
 }
 
-func tcFiltersExist(netNs *utils.NetNSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {
+func tcFiltersExist(netNs *utils.NSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {
 	netNsFile, err := os.Open(netNs.GetPath())
 	if err != nil {
 		return

@@ -46,22 +46,18 @@ func GetPrettyPrintFromQueryParams(req *http.Request) FormatOptions {
 }
 
 // WriteAsJSON marshals the give data argument into JSON and writes it to the `http.ResponseWriter`
-func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOptions) {
-	var buf []byte
-	var err error
-	// Keeping the condition explicit for readability
-	//nolint:gosimple
+func WriteAsJSON(req *http.Request, w http.ResponseWriter, data any, outputOptions FormatOptions) {
+	encoder := json.NewEncoder(w)
+	//nolint:staticcheck // S1002: explicit comparison preferred for readability
 	if outputOptions == PrettyPrint {
-		buf, err = json.MarshalIndent(data, "", "  ")
-	} else {
-		buf, err = json.Marshal(data)
+		encoder.SetIndent("", "  ")
 	}
+	err := encoder.Encode(data)
 	if err != nil {
-		log.Errorf("unable to marshal data into JSON: %s", err)
+		log.Errorf("unable to marshal data into JSON for %s: %s", req.URL.RequestURI(), err)
 		w.WriteHeader(500)
 		return
 	}
-	_, _ = w.Write(buf)
 }
 
 // GetClientID gets client provided in the http request, defaulting to -1

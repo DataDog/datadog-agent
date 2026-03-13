@@ -10,7 +10,7 @@ import (
 )
 
 func secretRefreshHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
-	response, err := deps.Secrets.Refresh()
+	response, err := deps.Secrets.RefreshNow()
 	if err != nil {
 		deps.Log.Errorf("error while refreshing secrets: %s", err)
 		writeError(err, http.StatusInternalServerError, w)

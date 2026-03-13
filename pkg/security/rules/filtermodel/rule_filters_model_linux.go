@@ -12,52 +12,52 @@ import (
 	"os"
 	"runtime"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
-	kv  *kernel.Version
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	kv       *kernel.Version
+	cfg      RuleFilterEventConfig
+	hostname string
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
-	kv  *kernel.Version
-	cfg RuleFilterEventConfig
-	ipc ipc.Component
+	kv       *kernel.Version
+	cfg      RuleFilterEventConfig
+	hostname string
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel(cfg RuleFilterEventConfig, ipc ipc.Component) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg RuleFilterEventConfig, hostname string) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
 	}
 	return &RuleFilterModel{
-		kv:  kv,
-		cfg: cfg,
-		ipc: ipc,
+		kv:       kv,
+		cfg:      cfg,
+		hostname: hostname,
 	}, nil
 }
 
 // NewRuleFilterModelWithKernelVersion returns a new rule filter model
-func NewRuleFilterModelWithKernelVersion(cfg RuleFilterEventConfig, kv *kernel.Version) *RuleFilterModel {
+func NewRuleFilterModelWithKernelVersion(cfg RuleFilterEventConfig, kv *kernel.Version, hostname string) *RuleFilterModel {
 	return &RuleFilterModel{
-		kv:  kv,
-		cfg: cfg,
+		kv:       kv,
+		cfg:      cfg,
+		hostname: hostname,
 	}
 }
 
 // NewEvent returns a new event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
-		kv:  m.kv,
-		cfg: m.cfg,
-		ipc: m.ipc,
+		kv:       m.kv,
+		cfg:      m.cfg,
+		hostname: m.hostname,
 	}
 }
 
@@ -204,7 +204,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID, _ in
 		}, nil
 	case "hostname":
 		return &eval.StringEvaluator{
-			Value: getHostname(m.ipc),
+			Value: m.hostname,
 			Field: field,
 		}, nil
 	case "kernel.core.enabled":
@@ -283,7 +283,7 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "origin":
 		return e.cfg.Origin, nil
 	case "hostname":
-		return getHostname(e.ipc), nil
+		return e.hostname, nil
 	case "kernel.core.enabled":
 		return e.cfg.COREEnabled && e.kv.SupportCORE(), nil
 	}

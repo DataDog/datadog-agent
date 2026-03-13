@@ -7,6 +7,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -67,7 +68,7 @@ func hasServiceCheckFormat(message []byte) bool {
 
 func parseServiceCheckName(rawName []byte) ([]byte, error) {
 	if len(rawName) == 0 {
-		return nil, fmt.Errorf("invalid dogstatsd service check name: empty name")
+		return nil, errors.New("invalid dogstatsd service check name: empty name")
 	}
 	return rawName, nil
 }
@@ -117,7 +118,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 
 func (p *parser) parseServiceCheck(message []byte) (dogstatsdServiceCheck, error) {
 	if !hasServiceCheckFormat(message) {
-		return dogstatsdServiceCheck{}, fmt.Errorf("invalid dogstatsd service check format")
+		return dogstatsdServiceCheck{}, errors.New("invalid dogstatsd service check format")
 	}
 	// pop the _sc| header
 	message = message[4:]

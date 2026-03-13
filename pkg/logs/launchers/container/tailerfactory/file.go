@@ -161,14 +161,14 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	// and set it in place of the usual docker base path
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
-		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
+		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log")
 	}
 
 	switch runtime.GOOS {
 	case "windows":
 		return filepath.Join(
 			dockerLogsBasePathWin, "containers", containerID,
-			fmt.Sprintf("%s-json.log", containerID))
+			containerID+"-json.log")
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
@@ -186,7 +186,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 		}
 		return filepath.Join(
 			dockerLogsBasePathNix, "containers", containerID,
-			fmt.Sprintf("%s-json.log", containerID))
+			containerID+"-json.log")
 	}
 }
 
@@ -228,7 +228,6 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	// get the path for the discovered pod and container
-	// TODO: need a different base path on windows?
 	path := findK8sLogPath(pod, container.Name)
 
 	// Note that it's not clear from k8s documentation that the container logs,

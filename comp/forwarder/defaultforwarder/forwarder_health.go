@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -44,7 +46,7 @@ var (
 
 	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
 	// with 'api.' (see computeDomainURLAPIKeyMap).
-	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)\.?$`)
 )
 
 func init() {
@@ -67,6 +69,7 @@ func initForwarderHealthExpvars() {
 type forwarderHealth struct {
 	log                   log.Component
 	config                config.Component
+	secrets               secrets.Component
 	health                *health.Handle
 	stop                  chan bool
 	stopped               chan struct{}
@@ -199,7 +202,9 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 
 func getAPIDomain(domain string) string {
 	if domainURLRegexp.MatchString(domain) {
-		return "https://api." + domainURLRegexp.FindString(domain)
+		match := domainURLRegexp.FindString(domain)
+		match = strings.TrimSuffix(match, ".")
+		return "https://api." + match
 	}
 
 	return domain
@@ -219,7 +224,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expv
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
-	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
+	obfuscatedKey := "API key ending with " + apiKey
 	if status == &apiKeyRemove {
 		apiKeyStatus.Delete(obfuscatedKey)
 		apiKeyFailure.Delete(obfuscatedKey)
@@ -253,7 +258,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		return false, err
 	}
 
-	req.Header.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	req.Header.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -323,6 +328,9 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 			validKey = true
 		} else {
 			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
+
+			// Trigger throttled secret refresh on invalid API key
+			fh.secrets.Refresh()
 		}
 	}
 

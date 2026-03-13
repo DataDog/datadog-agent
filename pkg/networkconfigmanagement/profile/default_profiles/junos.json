@@ -1,0 +1,45 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show configuration | display omit"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+            "type": "timestamp",
+            "regex": "## Last commit: (.*) by",
+            "format": "2006-01-02 15:04:05 MST"
+          },
+          {
+            "type": "author",
+            "regex": "(?m)^## Last commit: .* by (.*?)\\s*$"
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "version \\d+\\.\\d+[^;]*;"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(?m)^(\\s*community) (\\S+) (\\{)",
+            "replacement": "$1 <secret hidden> {"
+          },
+          {
+            "regex":  " \\\"\\$\\d\\$\\S+; ## SECRET-DATA",
+            "replacement": " <secret hidden>;"
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}

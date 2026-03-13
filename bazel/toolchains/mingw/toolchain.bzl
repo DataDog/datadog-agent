@@ -11,7 +11,7 @@ load(
     "tool_path",
 )
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
-load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc:defs.bzl", "CcToolchainConfigInfo", "cc_common")
 
 def _impl(ctx):
     tools = [
@@ -57,6 +57,8 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = [
+                            "-no-canonical-prefixes",
+                            "-fno-canonical-system-headers",
                             "-Wno-builtin-macro-redefined",
                             "-D__DATE__=\"redacted\"",
                             "-D__TIMESTAMP__=\"redacted\"",
@@ -78,7 +80,7 @@ def _impl(ctx):
                     ACTION_NAMES.cpp_link_static_library,
                 ],
                 env_entries = [
-                    env_entry("PATH", "{}/bin".format(ctx.attr.MINGW_PATH)),
+                    env_entry("PATH", "{}/usr/bin;{}/bin".format(ctx.attr.MSYS2_PATH, ctx.attr.MINGW_PATH)),
                 ],
             ),
         ],
@@ -202,6 +204,7 @@ def _impl(ctx):
 mingw_cc_toolchain_config = rule(
     implementation = _impl,
     attrs = {
+        "MSYS2_PATH": attr.string(mandatory = True),
         "MINGW_PATH": attr.string(mandatory = True),
         "GCC_VERSION": attr.string(mandatory = True),
     },

@@ -53,17 +53,21 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         if "needs" in job:
             job["needs"] = update_needs_parent(
                 job["needs"],
-                deps_to_keep=["go_e2e_deps", "tests_windows_sysprobe_x64", "tests_windows_secagent_x64"],
+                deps_to_keep=[
+                    # Warning: if you want to add a dependency here you will hit a gitlab limit (no more than 5 needs https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731)
+                    "go_e2e_deps",
+                    "go_tools_deps",
+                    "tests_windows_sysprobe_x64",
+                    "tests_windows_secagent_x64",
+                    "go_e2e_test_binaries",
+                ],
                 package_deps=[
-                    "agent_deb-x64-a7-fips",
-                    "agent_deb-x64-a7",
-                    "windows_msi_and_bosh_zip_x64-a7-fips",
-                    "windows_msi_and_bosh_zip_x64-a7",
                     "agent_rpm-x64-a7",
                     "agent_suse-x64-a7",
                 ],
                 package_deps_suffix="-fips",
             )
+        job["needs"].append({"pipeline": "$PARENT_PIPELINE_ID", "job": "all-artifacts"})
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])

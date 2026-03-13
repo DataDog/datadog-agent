@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -75,7 +77,7 @@ func getTelemetryData() (string, error) {
 }
 
 func TestNewStats(t *testing.T) {
-	stats := NewStats(newMockCheck())
+	stats := NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
 	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
@@ -91,12 +93,10 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
-	NewStats(newMockCheck())
+	NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
 	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	assert.Contains(
 		t,

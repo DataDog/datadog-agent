@@ -6,9 +6,11 @@
 package software
 
 import (
-	"fmt"
-	"github.com/stretchr/testify/assert"
+	"encoding/json"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // MockCollector implements Collector for testing
@@ -78,7 +80,7 @@ func TestCollectorOrchestration(t *testing.T) {
 			name: "Collector error handling - continues with other collectors",
 			collectors: []Collector{
 				&MockCollector{
-					err: fmt.Errorf("registry access denied"),
+					err: errors.New("registry access denied"),
 				},
 				&MockCollector{
 					entries: map[string]*Entry{
@@ -93,12 +95,12 @@ func TestCollectorOrchestration(t *testing.T) {
 			name: "Collector error handling - multiple errors",
 			collectors: []Collector{
 				&MockCollector{
-					err: fmt.Errorf("msi error"),
+					err: errors.New("msi error"),
 					entries: map[string]*Entry{
 						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
-				&MockCollector{err: fmt.Errorf("registry error")},
+				&MockCollector{err: errors.New("registry error")},
 			},
 			expectedEntryCount: 0, // No entries returned on error because the collector was skipped
 			expectError:        true,
@@ -181,4 +183,46 @@ func TestWarnings(t *testing.T) {
 
 	warn := Warning{Message: "test warning"}
 	assert.Equal(t, "test warning", warn.Message)
+}
+
+func TestPrivateFieldsExcludedFromJSON(t *testing.T) {
+	// Test that private fields (with json:"-") are excluded from JSON serialization
+	// but still accessible in Go code
+	entry := &Entry{
+		DisplayName:   "TestApp",
+		Version:       "1.0",
+		Source:        "app",
+		ProductCode:   "com.test.app",
+		BrokenReason:  "executable not found",
+		InstallSource: "pkg",
+		PkgID:         "com.test.pkg",
+		InstallPath:   "/Applications/TestApp.app",
+		InstallPaths:  []string{"/Applications", "/Library"},
+	}
+
+	// Verify fields are accessible in Go code
+	assert.Equal(t, "executable not found", entry.BrokenReason)
+	assert.Equal(t, "pkg", entry.InstallSource)
+	assert.Equal(t, "com.test.pkg", entry.PkgID)
+	assert.Equal(t, "/Applications/TestApp.app", entry.InstallPath)
+	assert.Equal(t, []string{"/Applications", "/Library"}, entry.InstallPaths)
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(entry)
+	assert.NoError(t, err)
+
+	jsonStr := string(jsonData)
+
+	// Verify private fields are NOT in JSON
+	assert.NotContains(t, jsonStr, "broken_reason")
+	assert.NotContains(t, jsonStr, "install_source")
+	assert.NotContains(t, jsonStr, "pkg_id")
+	assert.NotContains(t, jsonStr, "install_path")
+	assert.NotContains(t, jsonStr, "install_paths")
+
+	// Verify public fields ARE in JSON
+	assert.Contains(t, jsonStr, "software_type")
+	assert.Contains(t, jsonStr, "name")
+	assert.Contains(t, jsonStr, "version")
+	assert.Contains(t, jsonStr, "product_code")
 }

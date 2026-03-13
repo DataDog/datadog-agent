@@ -1,0 +1,112 @@
+single_machine_performance-regression_detector-merge_base_check:
+  stage: functional_test
+  timeout: 10m
+  rules:
+    - !reference [.except_coverage_pipeline]
+    # On main: wait for the agent image to land in ECR before checking for baselines.
+    - if: $CI_COMMIT_BRANCH == "main"
+      needs:
+        - job: single_machine_performance-full-amd64-a7
+          artifacts: false
+    # On dev branches: no needs — runs at the start of functional_test for fast feedback.
+    - !reference [.on_dev_branches_with_artifact_changes]
+  needs: []
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - regression_detector.env
+    reports:
+      dotenv: regression_detector.env  # Expose BASELINE_SHA as a CI variable for the trigger job
+  variables:
+    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+  script:
+    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    # Fetch origin to ensure we have latest main branch
+    - git fetch origin
+    # Get the base branch from release.json
+    - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
+    # Compute four days before now as UNIX timestamp
+    - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
+    # Determine baseline SHA based on whether we're on the base branch or a dev branch
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$SMP_BASE_BRANCH" ]]; then
+          # On the base branch, use the parent commit as the baseline
+          BASELINE_SHA=$(git rev-parse "${CI_COMMIT_SHA}^")
+          echo "On base branch, using parent commit ${BASELINE_SHA} as initial baseline"
+      else
+          # On a dev branch, compute the merge base with the base branch
+          echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
+          SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+          echo "Merge base is ${SMP_MERGE_BASE}"
+          BASELINE_SHA="${SMP_MERGE_BASE}"
+      fi
+    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+    # Check if baseline SHA is too old
+    - |
+      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+      then
+          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
+          exit 1
+      fi
+    - echo "Commit ${BASELINE_SHA} is recent enough"
+    # Setup AWS credentials for single-machine-performance AWS account to check ECR images
+    - AWS_NAMED_PROFILE="single-machine-performance"
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+
+    # Check if image exists for the baseline SHA
+    - echo "Checking if image exists for commit ${BASELINE_SHA}..."
+    - |
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
+      do
+          echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
+          BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
+          echo "Checking if commit ${BASELINE_SHA} is recent enough..."
+          BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+          if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+          then
+              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
+              exit 1
+          fi
+          echo "Commit ${BASELINE_SHA} is recent enough"
+          echo "Checking if image exists for commit ${BASELINE_SHA}..."
+      done
+    - echo "Image exists for commit ${BASELINE_SHA}"
+    # Save the baseline SHA to an artifact file
+    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
+    - echo "Merge-base check passed. Baseline SHA saved to artifact."
+
+# Trigger a child pipeline for SMP regression detection.
+# The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
+# so the main pipeline completes without blocking on the ~1h SMP run.
+trigger-single-machine-performance-regression_detector:
+  stage: functional_test
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_main]  # Run on every main commit
+    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
+  needs:
+    - job: single_machine_performance-regression_detector-merge_base_check
+      artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
+    - job: single_machine_performance-full-amd64-a7
+      artifacts: false  # Ensures comparison image is in ECR before child pipeline starts (dev branches)
+      optional: true  # Build job may not run if triggered only via RUN_E2E_TESTS or experiments
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    BASELINE_SHA: $BASELINE_SHA  # Forwarded from the merge_base_check dotenv artifact
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  trigger:
+    include:
+      - local: .gitlab/childs/smp-regression-child-pipeline.yml
+    # No strategy: depend — parent pipeline does not wait for the child pipeline to finish
+  allow_failure: true

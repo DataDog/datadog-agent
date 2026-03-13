@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -372,8 +371,8 @@ func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 		},
 	}
 
-	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
 
 	// First batch
 	sess.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
@@ -578,8 +577,8 @@ func Test_fetchOidBatchSize_zeroSizeError(t *testing.T) {
 func Test_fetchOidBatchSize_fetchError(t *testing.T) {
 	sess := session.CreateMockSession()
 
-	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
-	sess.On("Get", []string{"1.1.1.1.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
+	sess.On("Get", []string{"1.1.1.1.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGet, 2)
@@ -833,14 +832,14 @@ func Test_fetchValues_errors(t *testing.T) {
 			name:          "invalid batch size",
 			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
 			ScalarOIDs:    []string{"1.1", "1.2"},
-			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to create oid batches: batch size must be positive. invalid size: 0"),
+			expectedError: errors.New("failed to fetch scalar oids with batching: failed to create oid batches: batch size must be positive. invalid size: 0"),
 		},
 		{
 			name:          "get fetch error",
 			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
 			batchSize:     10,
 			ScalarOIDs:    []string{"1.1", "2.2"},
-			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.1]` using Get: get error"),
+			expectedError: errors.New("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.1]` using Get: get error"),
 		},
 		{
 			name:          "bulk fetch error",
@@ -848,18 +847,18 @@ func Test_fetchValues_errors(t *testing.T) {
 			batchSize:     10,
 			ScalarOIDs:    []string{},
 			ColumnOIDs:    []string{"1.1", "2.2"},
-			expectedError: fmt.Errorf("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1]` using GetNext: getnext error"),
+			expectedError: errors.New("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1]` using GetNext: getnext error"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := session.CreateMockSession()
-			sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
-			sess.On("Get", []string{"1.1"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
-			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-			sess.On("GetBulk", []string{"1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-			sess.On("GetNext", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("getnext error"))
-			sess.On("GetNext", []string{"1.1"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("getnext error"))
+			sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, errors.New("get error"))
+			sess.On("Get", []string{"1.1"}).Return(&gosnmp.SnmpPacket{}, errors.New("get error"))
+			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+			sess.On("GetBulk", []string{"1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+			sess.On("GetNext", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, errors.New("getnext error"))
+			sess.On("GetNext", []string{"1.1"}).Return(&gosnmp.SnmpPacket{}, errors.New("getnext error"))
 
 			batchSizeOptimizers := NewOidBatchSizeOptimizers(tt.batchSize)
 
@@ -1100,11 +1099,11 @@ func Test_batchSizeOptimizers(t *testing.T) {
 					},
 				}
 
-				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
+				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
 				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&scalarPacket1, nil)
 				sess.On("Get", []string{"1.1.1.3.0", "1.1.1.4.0"}).Return(&scalarPacket2, nil)
 
-				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
 				sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket1, nil)
 				sess.On("GetBulk", []string{"1.1.3", "1.1.4"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
@@ -1196,7 +1195,7 @@ func Test_batchSizeOptimizers(t *testing.T) {
 					Variables: []gosnmp.SnmpPDU{scalarVariable4},
 				}
 
-				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
+				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
 				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0"}).Return(&scalarPacket1, nil)
 				sess.On("Get", []string{"1.1.1.4.0"}).Return(&scalarPacket2, nil)
 
@@ -1253,7 +1252,7 @@ func Test_batchSizeOptimizers(t *testing.T) {
 					Variables: []gosnmp.SnmpPDU{scalarVariable4},
 				}
 
-				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
+				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, errors.New("my error"))
 				sess.On("Get", []string{"1.1.1.1.0"}).Return(&scalarPacket1, nil)
 				sess.On("Get", []string{"1.1.1.2.0"}).Return(&scalarPacket2, nil)
 				sess.On("Get", []string{"1.1.1.3.0"}).Return(&scalarPacket3, nil)
@@ -1305,9 +1304,9 @@ func Test_batchSizeOptimizers(t *testing.T) {
 					},
 				}
 
-				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-				sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-				sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
 
 				sess.On("GetNext", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}).Return(&nextPacket1, nil)
 				sess.On("GetNext", []string{"1.1.1.1", "1.1.2.1", "1.1.3.1", "1.1.4.1"}).Return(&gosnmp.SnmpPacket{}, nil)
@@ -1394,13 +1393,13 @@ func Test_batchSizeOptimizers(t *testing.T) {
 
 				sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0"}).Return(&scalarPacket1, nil)
 
-				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-				sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
-				sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
+				sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, errors.New("bulk error"))
 
-				sess.On("GetNext", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("next error"))
-				sess.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("next error"))
-				sess.On("GetNext", []string{"1.1.1"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("next error"))
+				sess.On("GetNext", []string{"1.1.1", "1.1.2", "1.1.3", "1.1.4"}).Return(&gosnmp.SnmpPacket{}, errors.New("next error"))
+				sess.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&gosnmp.SnmpPacket{}, errors.New("next error"))
+				sess.On("GetNext", []string{"1.1.1"}).Return(&gosnmp.SnmpPacket{}, errors.New("next error"))
 
 				return sess
 			},

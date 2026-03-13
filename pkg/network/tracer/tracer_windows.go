@@ -95,6 +95,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		config.MaxRedisStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
+		config.DNSMonitoringPortList,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -323,11 +324,6 @@ func (t *Tracer) DebugHostConntrackFull(_ context.Context) (*DebugConntrackTable
 // DebugDumpProcessCache is not implemented on this OS for Tracer
 func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
-}
-
-// GetNetworkID is not implemented on this OS for Tracer
-func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
-	return "", ebpf.ErrNotImplemented
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {

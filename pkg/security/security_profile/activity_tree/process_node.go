@@ -14,6 +14,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -57,9 +58,9 @@ type ProcessNode struct {
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
 	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
 		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0)
 		}
 	}
 	node := &ProcessNode{
@@ -100,9 +101,10 @@ func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	label := tableHeader
+	var builder strings.Builder
+	builder.WriteString(tableHeader)
 
-	label += "<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">"
+	builder.WriteString("<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">")
 	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
 		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
@@ -113,23 +115,23 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	if len(cmd) > 100 {
 		cmd = cmd[:100] + " ..."
 	}
-	label += html.EscapeString(cmd)
-	label += "</FONT></TD></TR>"
+	builder.WriteString(html.EscapeString(cmd))
+	builder.WriteString("</FONT></TD></TR>")
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		label += "<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>"
+		builder.WriteString("<TR><TD>Package</TD><TD>" + pn.Process.FileEvent.PkgName + ":" + pn.Process.FileEvent.PkgVersion + "</TD></TR>")
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {
-		label += "<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>")
 		for _, h := range pn.Process.FileEvent.Hashes {
-			label += "<TR><TD></TD><TD>" + h + "</TD></TR>"
+			builder.WriteString("<TR><TD></TD><TD>" + h + "</TD></TR>")
 		}
 	} else {
-		label += "<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>")
 	}
-	label += "</TABLE>>"
-	return label
+	builder.WriteString("</TABLE>>")
+	return builder.String()
 }
 
 // nolint: unused
@@ -146,7 +148,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 		})
 
 		for _, f := range sortedFiles {
-			f.debug(w, fmt.Sprintf("%s    -", prefix))
+			f.debug(w, prefix+"    -")
 		}
 	}
 	if len(pn.DNSNames) > 0 {
@@ -481,7 +483,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
 	if !pn.HasImageTag(imageTag) {
-		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
+		return false // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
 	}
 	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTag)
 	if IsNodeEmpty {

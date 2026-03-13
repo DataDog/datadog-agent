@@ -33,8 +33,8 @@ const (
 	// raw packet data, see kernel definition
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
 	structRawPacketEventPidOffset      = 16
-	structRawPacketEventCgroupIdOffset = 64
-	structRawPacketEventDataOffset     = 92
+	structRawPacketEventCgroupIdOffset = 80
+	structRawPacketEventDataOffset     = 108
 
 	// payload size
 	structRawPacketEventDataSize = 256

@@ -90,7 +90,9 @@ func runMapList(w io.Writer) error {
 }
 
 func makeMapDumpCommand(_ *command.GlobalParams) *cobra.Command {
-	return &cobra.Command{
+	var prettyPrint bool
+
+	cmd := &cobra.Command{
 		Use:   "dump {id <id> | name <name>}",
 		Short: "Dump contents of an eBPF map",
 		Args:  cobra.ExactArgs(2),
@@ -104,17 +106,21 @@ func makeMapDumpCommand(_ *command.GlobalParams) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("invalid map id: %w", err)
 				}
-				return runMapDumpByID(ebpf.MapID(mapID), os.Stdout)
+				return runMapDumpByID(ebpf.MapID(mapID), os.Stdout, prettyPrint)
 			case "name":
-				return runMapDumpByName(value, os.Stdout)
+				return runMapDumpByName(value, os.Stdout, prettyPrint)
 			default:
 				return fmt.Errorf("invalid specifier %q, use 'id' or 'name'", specifier)
 			}
 		},
 	}
+
+	cmd.Flags().BoolVar(&prettyPrint, "pretty", false, "pretty-print JSON output with indentation")
+
+	return cmd
 }
 
-func runMapDumpByID(id ebpf.MapID, w io.Writer) error {
+func runMapDumpByID(id ebpf.MapID, w io.Writer, pretty bool) error {
 	m, err := ebpf.NewMapFromID(id)
 	if err != nil {
 		return fmt.Errorf("failed to open map: %w", err)
@@ -126,17 +132,17 @@ func runMapDumpByID(id ebpf.MapID, w io.Writer) error {
 		return err
 	}
 
-	return dumpMapJSON(m, info, w)
+	return dumpMapJSON(m, info, w, pretty)
 }
 
-func runMapDumpByName(name string, w io.Writer) error {
+func runMapDumpByName(name string, w io.Writer, pretty bool) error {
 	m, info, err := findMapByName(name)
 	if err != nil {
 		return err
 	}
 	defer m.Close()
 
-	return dumpMapJSON(m, info, w)
+	return dumpMapJSON(m, info, w, pretty)
 }
 
 func findMapByName(name string) (*ebpf.Map, *ebpf.MapInfo, error) {
@@ -195,22 +201,22 @@ func isPerCPUMap(mapType ebpf.MapType) bool {
 
 // bpfMapInfo mirrors the kernel's bpf_map_info structure fields we need
 type bpfMapInfo struct {
-	mapType                uint32
-	id                     uint32
-	keySize                uint32
-	valueSize              uint32
-	maxEntries             uint32
-	mapFlags               uint32
-	name                   [16]byte
-	ifindex                uint32
-	btfVmlinuxValueTypeID  uint32
-	netnsDev               uint64
-	netnsIno               uint64
-	btfID                  uint32
-	btfKeyTypeID           uint32
-	btfValueTypeID         uint32
-	btfVmlinuxIDUnused     uint32
-	mapExtra               uint64
+	mapType               uint32
+	id                    uint32
+	keySize               uint32
+	valueSize             uint32
+	maxEntries            uint32
+	mapFlags              uint32
+	name                  [16]byte
+	ifindex               uint32
+	btfVmlinuxValueTypeID uint32
+	netnsDev              uint64
+	netnsIno              uint64
+	btfID                 uint32
+	btfKeyTypeID          uint32
+	btfValueTypeID        uint32
+	btfVmlinuxIDUnused    uint32
+	mapExtra              uint64
 }
 
 // getBTFTypeIDsFromSyscall directly calls BPF_OBJ_GET_INFO_BY_FD to get BTF type IDs
@@ -286,7 +292,7 @@ func getBTFInfoForMap(m *ebpf.Map) (spec *btf.Spec, keyType, valueType btf.Type,
 	return spec, keyType, valueType, nil
 }
 
-func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
+func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer, pretty bool) error {
 	// Try to get BTF info
 	spec, keyType, valueType, err := getBTFInfoForMap(m)
 	useBTF := (err == nil)
@@ -308,14 +314,24 @@ func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer) error {
 	iter := m.Iterate()
 
 	if isPerCPU {
-		return dumpPerCPUMapJSON(iter, keyBuf, info.ValueSize, useBTF, dumper, keyType, valueType, w)
+		return dumpPerCPUMapJSON(iter, keyBuf, info.ValueSize, useBTF, dumper, keyType, valueType, w, pretty)
 	}
 
 	valueBuf := make([]byte, info.ValueSize)
-	return dumpRegularMapJSON(iter, keyBuf, valueBuf, useBTF, dumper, keyType, valueType, w)
+	return dumpRegularMapJSON(iter, keyBuf, valueBuf, useBTF, dumper, keyType, valueType, w, pretty)
 }
 
-func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF bool, dumper *BTFDumper, keyType, valueType btf.Type, w io.Writer) error {
+// writePrettyJSON formats and writes the entries as pretty-printed JSON
+func writePrettyJSON(w io.Writer, entries interface{}) error {
+	output, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal entries: %w", err)
+	}
+	fmt.Fprintf(w, "%s\n", output)
+	return nil
+}
+
+func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF bool, dumper *BTFDumper, keyType, valueType btf.Type, w io.Writer, pretty bool) error {
 	var entries []mapEntry
 
 	for iter.Next(&keyBuf, &valueBuf) {
@@ -352,6 +368,11 @@ func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF 
 		return fmt.Errorf("iteration error: %w", err)
 	}
 
+	// Use pretty-printing if requested
+	if pretty {
+		return writePrettyJSON(w, entries)
+	}
+
 	// Custom JSON formatting to match bpftool: compact arrays, indented objects
 	fmt.Fprintf(w, "[")
 	for i, entry := range entries {
@@ -383,7 +404,7 @@ func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF 
 	return nil
 }
 
-func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, useBTF bool, dumper *BTFDumper, keyType, valueType btf.Type, w io.Writer) error {
+func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, useBTF bool, dumper *BTFDumper, keyType, valueType btf.Type, w io.Writer, pretty bool) error {
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
 		return fmt.Errorf("failed to get number of CPUs: %w", err)
@@ -444,6 +465,11 @@ func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, 
 
 	if err := iter.Err(); err != nil {
 		return fmt.Errorf("iteration error: %w", err)
+	}
+
+	// Use pretty-printing if requested
+	if pretty {
+		return writePrettyJSON(w, entries)
 	}
 
 	// Custom JSON formatting to match bpftool

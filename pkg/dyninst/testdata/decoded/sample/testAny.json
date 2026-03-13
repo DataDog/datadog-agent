@@ -70,10 +70,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type main.otherFirstBehavior}"
   },
   {
     "service": "sample",
@@ -146,10 +148,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *main.otherFirstBehavior}"
   },
   {
     "service": "sample",
@@ -222,10 +226,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type main.otherSecondBehavior}"
   },
   {
     "service": "sample",
@@ -298,10 +304,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *main.otherSecondBehavior}"
   },
   {
     "service": "sample",
@@ -374,10 +382,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type lib_v2.V2Type}"
   },
   {
     "service": "sample",
@@ -450,10 +460,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *lib_v2.V2Type}"
   },
   {
     "service": "sample",
@@ -508,11 +520,7 @@
             "arguments": {
               "a": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           },
@@ -525,10 +533,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -601,10 +611,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -678,10 +690,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -754,9 +768,11 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "foo"
   }
 ]

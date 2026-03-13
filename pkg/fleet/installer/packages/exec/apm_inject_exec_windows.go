@@ -74,7 +74,7 @@ type apmInjectExecCmd struct {
 }
 
 func (a *APMInjectExec) newAPMInjectExecCmd(ctx context.Context, command string, args ...string) *apmInjectExecCmd {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("apmInjectExec.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "apmInjectExec."+command)
 	span.SetTag("args", args)
 
 	// Build the command arguments

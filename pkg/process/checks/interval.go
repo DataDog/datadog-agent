@@ -9,7 +9,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,36 +27,24 @@ const (
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
-
-	configIntervals = configPrefix + "intervals."
-
-	// The interval, in seconds, at which we will run each check. If you want consistent
-	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
-	// Defaults to 10s for normal checks and 2s for others.
-	configProcessInterval     = configIntervals + "process"
-	configRTProcessInterval   = configIntervals + "process_realtime"
-	configContainerInterval   = configIntervals + "container"
-	configRTContainerInterval = configIntervals + "container_realtime"
-	configConnectionsInterval = configIntervals + "connections"
 )
 
 var (
 	defaultIntervals = map[string]time.Duration{
-		ProcessCheckName:       ProcessCheckDefaultInterval,
-		RTProcessCheckName:     RTProcessCheckDefaultInterval,
-		ContainerCheckName:     ContainerCheckDefaultInterval,
-		RTContainerCheckName:   RTContainerCheckDefaultInterval,
-		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-		ProcessEventsCheckName: pkgconfigsetup.DefaultProcessEventsCheckInterval,
+		ProcessCheckName:     ProcessCheckDefaultInterval,
+		RTProcessCheckName:   RTProcessCheckDefaultInterval,
+		ContainerCheckName:   ContainerCheckDefaultInterval,
+		RTContainerCheckName: RTContainerCheckDefaultInterval,
+		ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+		DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 	}
 
 	configKeys = map[string]string{
-		ProcessCheckName:     configProcessInterval,
-		RTProcessCheckName:   configRTProcessInterval,
-		ContainerCheckName:   configContainerInterval,
-		RTContainerCheckName: configRTContainerInterval,
-		ConnectionsCheckName: configConnectionsInterval,
+		ProcessCheckName:     "process_config.intervals.process",
+		RTProcessCheckName:   "process_config.intervals.process_realtime",
+		ContainerCheckName:   "process_config.intervals.container",
+		RTContainerCheckName: "process_config.intervals.container_realtime",
+		ConnectionsCheckName: "process_config.intervals.connections",
 	}
 )
 
@@ -79,19 +66,10 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 		}
 		return discoveryInterval
 
-	case ProcessEventsCheckName:
-		eventsInterval := cfg.GetDuration("process_config.event_collection.interval")
-		if eventsInterval < pkgconfigsetup.DefaultProcessEventsMinCheckInterval {
-			eventsInterval = pkgconfigsetup.DefaultProcessEventsCheckInterval
-			_ = log.Warnf("Invalid interval for process_events check (< %s) using default value of %s",
-				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
-		}
-		return eventsInterval
-
 	default:
 		defaultInterval := defaultIntervals[checkName]
 		configKey, ok := configKeys[checkName]
-		if !ok || !cfg.IsSet(configKey) {
+		if !ok {
 			return defaultInterval
 		}
 

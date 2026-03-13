@@ -255,13 +255,19 @@ func TestEventHandleTracerTags(t *testing.T) {
 						},
 						ExecTime: now,
 						Envp: []string{
+							"DD_SERVICE=service-from-envp",
 							"DD_ENV=env-from-envp",
+							"DD_VERSION=version-from-envp",
 						},
 						TracerTags: []string{
-							"service:my-service",
-							"env:my-env",
-							"version:my-version",
+							"tracer_service_name:my-service",
+							"tracer_service_env:my-env",
+							"tracer_service_version:my-version",
 							"entrypoint.name:my-entrypoint",
+							// Should be skipped because it matches the UST tags
+							"tracer_service_name:service-from-envp",
+							"tracer_service_env:env-from-envp",
+							"tracer_service_version:version-from-envp",
 						},
 					},
 				},
@@ -275,10 +281,14 @@ func TestEventHandleTracerTags(t *testing.T) {
 		require.Len(t, handler.events, 1, "should have received 1 process event")
 		receivedProc := handler.events[0]
 		assert.Equal(t, uint32(1234), receivedProc.Pid)
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:service-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:my-service"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:my-env"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:my-version"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:service-from-envp"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:env-from-envp"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:version-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
 	})
 

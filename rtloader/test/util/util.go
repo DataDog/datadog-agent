@@ -6,14 +6,13 @@
 package testutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
-	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*
@@ -26,6 +25,10 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_cgo_free_cb(rtloader, _free);
    set_headers_cb(rtloader, headers);
 }
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -35,9 +38,9 @@ var (
 )
 
 type message struct {
-	Name string `yaml:"name"`
-	Body string `yaml:"body"`
-	Time int64  `yaml:"time"`
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
 }
 
 func setUp() error {
@@ -55,9 +58,6 @@ func setUp() error {
 		return err
 	}
 
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
-
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
 	}
@@ -73,7 +73,7 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
+	code := helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import util
 	import sys
@@ -81,13 +81,13 @@ try:
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}\n".format(e))
-`, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+`, call, tmpfile.Name()))
+	defer C.call_free(code)
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, code) == 1
+	ret := C.run_simple_string(rtloader, (*C.char)(code)) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
@@ -108,7 +108,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := yaml.Marshal(h)
+	retval, _ := json.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }

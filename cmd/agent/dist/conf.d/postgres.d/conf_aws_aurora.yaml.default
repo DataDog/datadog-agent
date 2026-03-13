@@ -20,6 +20,14 @@ instances:
     #
     dbm: "%%extra_dbm%%"
 
+    ## @param global_view_db - string - optional - default: postgres
+    ## Set the global_view_db for database autodiscovery. The value of `%%global_view_db%%` is set by the value of the
+    ## global_view_db tag, which defaults to `datadoghq.com/global_view_db`. For example, if the Aurora cluster has a tag `datadoghq.com/global_view_db:global`
+    ## then the value of `global_view_db` will be `global`.
+    ## To use database autodiscovery you must also set `enabled: true`.
+    database_autodiscovery:
+      global_view_db: %%global_view_db%%
+
     ## This block defines the configuration for AWS RDS and Aurora instances.
     ##
     ## Complete this section if you have installed the Datadog AWS Integration

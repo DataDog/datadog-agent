@@ -69,11 +69,7 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               },
               "~r1": {
                 "type": "error",
@@ -93,10 +89,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42, true"
   },
   {
     "service": "sample",
@@ -177,18 +175,16 @@
               },
               "~r1": {
                 "type": "error",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42, false"
   }
 ]

@@ -16,13 +16,14 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -52,11 +53,17 @@ var GitCommit string
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	envSpecificClusterTags []string
+	runtime                string
 }
 
 func (suite *k8sSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
+	suite.runtime = "containerd"
+}
+
+func (suite *k8sSuite) BeforeTest(suiteName, testName string) {
+	suite.baseSuite.BeforeTest(suiteName, testName)
 }
 
 func (suite *k8sSuite) TearDownSuite() {
@@ -91,7 +98,7 @@ func (suite *k8sSuite) TearDownSuite() {
 func (suite *k8sSuite) Test00UpAndRunning() {
 	timeout := 10 * time.Minute
 	// Windows FIPS images are bigger and take longer to pull and start
-	if suite.Env().Agent.FIPSEnabled {
+	if suite.Env().Agent.FIPSEnabled || suite.runtime == "cri-o" {
 		timeout = 20 * time.Minute
 	}
 	suite.testUpAndRunning(timeout)
@@ -121,58 +128,37 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
 				).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux nodes")
 
 			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Windows nodes")
 
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
 
 			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Windows datadog agent pods")
 
 			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list datadog cluster agent pods")
 
 			clusterChecksPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods")
 
 			dogstatsdPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list dogstatsd standalone pods")
 
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
 			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
@@ -209,6 +195,22 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	})
 }
 
+// selectPodForExec selects a suitable pod for exec from a list of pods for a given container.
+// It filters out pods being deleted and containers not ready.
+func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name == containerName && cs.Ready {
+				return &pod
+			}
+		}
+	}
+	return nil
+}
+
 func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
@@ -242,10 +244,12 @@ func (suite *k8sSuite) TestVersion() {
 		suite.Run(tt.podType+" pods are running the good version", func() {
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
-				Limit:         1,
 			})
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
+				suite.T().Logf("Found %d running pods matching selector", len(linuxPods.Items))
+				execPod := selectPodForExec(linuxPods.Items, tt.container)
+				suite.Require().NotNil(execPod, "No running pods found with container %s ready", tt.container)
+				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", execPod.Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
@@ -323,10 +327,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
-			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoError(c, err) {
-				return
-			}
+			require.NoError(c, err)
 			matched, err := regexp.MatchString(`container\.memory\.usage\s+gauge\s+\d+\s+\d+`, stdout)
 			if assert.NoError(c, err) {
 				assert.Truef(c, matched, "Output of `agent check -r container` doesn’t contain the expected metric")
@@ -341,10 +342,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
-			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoError(c, err) {
-				return
-			}
+			require.NoError(c, err)
 			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
 				var blob interface{}
 				err := json.Unmarshal([]byte(stdout), &blob)
@@ -367,12 +365,134 @@ func (suite *k8sSuite) testAgentCLI() {
 		}
 	})
 
+	suite.Run("agent workload-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
+		suite.Contains(entities, "container", "expected 'container' kind in Entities")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json container", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "container"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json container` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+
+		// Search term "container" uses substring matching on kind names
+		// Should match "container" and may also match "container_image_metadata" if present
+		suite.Contains(entities, "container", "expected 'container' kind in filtered Entities")
+
+		// Verify no unrelated kinds (like kubernetes_pod) are included
+		suite.NotContains(entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
 	suite.Run("agent tagger-list", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
 		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
+
+		// Check for expected entity types
+		foundContainer := false
+		foundPod := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+			}
+			if strings.HasPrefix(key, "kubernetes_pod_uid://") {
+				foundPod = true
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity")
+		suite.True(foundPod, "expected at least one kubernetes_pod_uid entity")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json container_id", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json", "container_id"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json container_id` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+
+		// Filter by "container_id" should match entities starting with "container_id://"
+		foundContainer := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+				break
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity in filtered results")
+
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -496,9 +616,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Output:\n%s", stdout)
 
 			validEntryCount := 0
-			lines := strings.Split(stdout, "\n")
+			lines := strings.SplitSeq(stdout, "\n")
 
-			for _, line := range lines {
+			for line := range lines {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue
@@ -517,6 +637,14 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
 			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
 		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
+	})
+
+	suite.Run("cluster-agent CRD collector", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"agent", "workload-list"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
+		suite.Contains(stdout, "=== Entity crd sources(merged):[kubeapiserver] id: datadogmetrics.datadoghq.com ===")
+
 	})
 }
 
@@ -576,6 +704,15 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 func (suite *k8sSuite) TestNginx() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
@@ -584,12 +721,10 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -609,7 +744,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
 				`^team:contp$`,
-			},
+			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
 		},
 	})
@@ -675,14 +810,12 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testLogExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^dirname:/var/log/pods/workload-nginx_nginx-`,
 				`^display_container_name:nginx`,
 				`^filename:[[:digit:]]+.log$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -702,7 +835,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
 				`^team:contp$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
@@ -715,17 +848,27 @@ func (suite *k8sSuite) TestNginx() {
 func (suite *k8sSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -740,7 +883,33 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
+			}, sourceCodeIntegrationTags),
+			AcceptUnexpectedTags: true,
+		},
+	})
+
+	// Test AD annotated endpoint check configured as an 'http_check' for redis service
+	// http checks are expected to fail for redis services. This assertion is focused
+	// on confirming an endpoint check is scheduled and running as expected.
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "network.http.cant_connect",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
 			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: suite.testClusterTags([]string{
+				`^cluster_name:`,
+				`^instance:My_Redis$`,
+				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_service:redis$`,
+				`^kube_endpoint_ip:`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`, // endpoint checks should have pod tags
+				`^pod_phase:running$`,
+			}),
 			AcceptUnexpectedTags: true,
 		},
 	})
@@ -775,15 +944,16 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testLogExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^filename:[[:digit:]]+.log$`,
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
@@ -799,7 +969,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Message: `Accepted`,
 		},
 	})
@@ -836,6 +1006,15 @@ func (suite *k8sSuite) TestArgoRollout() {
 func (suite *k8sSuite) TestCPU() {
 	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 	// Test CPU metrics
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
@@ -845,12 +1024,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -863,9 +1040,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^runtime:containerd$`,
+				`^runtime:` + regexp.QuoteMeta(suite.runtime) + `$`,
 				`^short_image:apps-stress-ng$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 155000000,
 				Min: 145000000,
@@ -882,12 +1059,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -900,9 +1075,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^runtime:containerd$`,
+				`^runtime:` + regexp.QuoteMeta(suite.runtime) + `$`,
 				`^short_image:apps-stress-ng$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 200000000,
 				Min: 200000000,
@@ -919,12 +1094,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -939,7 +1112,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
 				Min: 75000000,
@@ -956,12 +1129,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -976,7 +1147,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
 				Min: 0.2,
@@ -1060,19 +1231,30 @@ func (suite *k8sSuite) TestKSM() {
 }
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
+	// Test with UDP + External Data
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+
+	if suite.runtime == "cri-o" {
+		suite.T().Skip("Dogstatsd tests not using External Data are not currently supported on CRI-O")
+		return
+	}
+
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
-	// Test with UDP + External Data
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
 	// Test with UDS + CSI Driver
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
+	if suite.runtime == "cri-o" {
+		suite.T().Skip("DogstatsdStandalone tests not using External Data are not currently supported on CRI-O")
+		return
+	}
+
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
 	// Dogstatsd standalone does not support origin detection
@@ -1081,6 +1263,15 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 }
 
 func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -1090,12 +1281,10 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1110,13 +1299,22 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
 
 func (suite *k8sSuite) TestPrometheus() {
 	// Test Prometheus check
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
@@ -1126,13 +1324,11 @@ func (suite *k8sSuite) TestPrometheus() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1147,7 +1343,7 @@ func (suite *k8sSuite) TestPrometheus() {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-prometheus$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
@@ -1158,6 +1354,15 @@ func (suite *k8sSuite) TestPrometheus() {
 // "prom_gauge_configured_in_etcd" to confirm that the check is using the
 // etcd-defined configuration.
 func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge_configured_in_etcd", // This is the name defined in the check config stored in etcd
@@ -1167,13 +1372,11 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1188,7 +1391,7 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-prometheus$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
@@ -1214,14 +1417,14 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
 
-		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(appPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, appPod.Items, 1)
 
 			nodeName := appPod.Items[0].Spec.NodeName
 
@@ -1231,27 +1434,21 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(agentPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, agentPod.Items, 1)
 
 			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
-			suite.Require().NoError(err)
-			suite.Contains(stdout, "Language: python")
-			if suite.T().Failed() {
+			require.NoError(c, err)
+			if !assert.Contains(c, stdout, "Language: python") {
 				suite.T().Log(stdout)
 			}
 		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
 
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-			if !assert.NoError(c, err) {
-				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
-				return
-			}
+			require.NoErrorf(c, err, "deployment with name %s in namespace %s not found", name, namespace)
 
-			if deployment.Status.AvailableReplicas == 0 {
-				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
-			}
+			assert.NotZerof(c, deployment.Status.AvailableReplicas, "deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 
 			detectedLangsLabelIsSet := false
 			detectedLangsAnnotationRegex := regexp.MustCompile(`^internal\.dd\.datadoghq\.com/.*\.detected_langs$`)
@@ -1353,6 +1550,13 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 }
 
 func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+	if suite.runtime == "cri-o" {
+		// Won't work on OpenShift because the kube-system namespace is unused
+		// Since OpenShift is the only platform that uses cri-o by default, we assume this test is running on OpenShift.
+		suite.T().Skip("TestAdmissionControllerExcludesSystemNamespaces is not supported on CRI-O")
+		return
+	}
+
 	ctx := context.Background()
 
 	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
@@ -1439,14 +1643,8 @@ func (suite *k8sSuite) TestContainerImage() {
 		}()
 
 		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No container_image yet") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
+		require.NotEmptyf(c, images, "No container_image yet")
 
 		expectedTags := []*regexp.Regexp{
 			regexp.MustCompile(`^architecture:(amd|arm)64$`),
@@ -1509,19 +1707,13 @@ func (suite *k8sSuite) TestSBOM() {
 		}()
 
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
 
 		sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
 			return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
-			return
-		}
+		require.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet")
 
 		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
 			images, err := suite.Fakeintake.FilterSBOMs(id)
@@ -1529,19 +1721,13 @@ func (suite *k8sSuite) TestSBOM() {
 			return images
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
-			return
-		}
+		require.NotEmptyf(c, images, "No SBOM payload yet")
 
 		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 			return image.Status == sbom.SBOMStatus_SUCCESS
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
-			return
-		}
+		require.NotEmptyf(c, images, "No successful SBOM yet")
 
 		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 			cyclonedx := image.GetCyclonedx()
@@ -1550,10 +1736,7 @@ func (suite *k8sSuite) TestSBOM() {
 				cyclonedx.Metadata.Component != nil
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
-			return
-		}
+		require.NotEmptyf(c, images, "No SBOM with complete CycloneDX")
 
 		for _, image := range images {
 			if !assert.NotNil(c, image.GetCyclonedx().Metadata.Component.Properties) {
@@ -1568,6 +1751,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
@@ -1624,13 +1808,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
 		})
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
-			return
-		}
-		if !assert.NotEmptyf(c, pods.Items, "Failed to find an nginx pod") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to list nginx pods")
+		require.NotEmptyf(c, pods.Items, "Failed to find an nginx pod")
 
 		// Choose the oldest pod.
 		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
@@ -1660,10 +1839,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		}()
 
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
 
 		foundPodEvent := false
 
@@ -1705,9 +1881,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 
 		defer func() {
 			if suite.T().Failed() {
-				sendEvent("error", "Failed to witness scale up *and* scale down events.", nil)
+				sendEvent("error", "Failed to witness a scale up *or* scale down event.", nil)
 			} else {
-				sendEvent("success", "Scale up and scale down events detected.", nil)
+				sendEvent("success", "Scale up or scale down event detected.", nil)
 			}
 		}()
 
@@ -1719,21 +1895,17 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					"kube_deployment:" + deployment,
 				}),
 			)
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to query fake intake")
 			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
 				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
 				return
 			}
 
-			// Check HPA is properly scaling up and down
+			// Check HPA is properly scaling up or down
 			// This indirectly tests the cluster-agent external metrics server
-			scaleUp := false
-			scaleDown := false
+			scaled := false
 			prevValue := -1.0
-		out:
+		outer:
 			for _, metric := range metrics {
 				for _, point := range metric.GetPoints() {
 					if prevValue == -1.0 {
@@ -1741,30 +1913,20 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 						continue
 					}
 
-					if !scaleUp && point.Value > prevValue+0.5 {
-						scaleUp = true
+					if point.Value > prevValue+0.5 {
 						sendEvent("success", "Scale up detected.", pointer.Ptr(int(point.Timestamp)))
-						if scaleDown {
-							break out
-						}
-					} else if !scaleDown && point.Value < prevValue-0.5 {
-						scaleDown = true
+						scaled = true
+						break outer
+					} else if point.Value < prevValue-0.5 {
 						sendEvent("success", "Scale down detected.", pointer.Ptr(int(point.Timestamp)))
-						if scaleUp {
-							break out
-						}
+						scaled = true
+						break outer
 					}
 					prevValue = point.Value
 				}
 			}
-			assert.Truef(c, scaleUp, "No scale up detected")
-			assert.Truef(c, scaleDown, "No scale down detected")
-			// The deployments that have an HPA configured (nginx and redis)
-			// exhibit a traffic pattern that follows a sine wave with a
-			// 20-minute period. This is defined in the test-infra-definitions
-			// repo. For this reason, the timeout for this test needs to be a
-			// bit higher than 20 min to capture the scale down event.
-		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+			assert.Truef(c, scaled, "No scale up or scale down detected")
+		}, 7*time.Minute, 10*time.Second, "Failed to witness scale up or scale down of %s.%s", namespace, deployment)
 	})
 }
 
@@ -1780,10 +1942,7 @@ func (suite *k8sSuite) TestTraceTCP() {
 func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, cerr, "Failed to query fake intake")
 
 		var err error
 		// Iterate starting from the most recent traces
@@ -1820,7 +1979,11 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
 
-func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
-	combined := append(tags, suite.envSpecificClusterTags...)
+func (suite *k8sSuite) combineTags(tags []string, sourceCodeIntegrationTags []string) *[]string {
+	combined := append(tags, sourceCodeIntegrationTags...)
 	return &combined
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	return suite.combineTags(tags, suite.envSpecificClusterTags)
 }

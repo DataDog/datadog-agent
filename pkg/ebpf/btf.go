@@ -109,10 +109,10 @@ type BTFResultMetadata struct {
 func (d BTFResultMetadata) String() string {
 	res := fmt.Sprintf("numLoadAttempts: %d\nloaderUsed: %s", d.numLoadAttempts, d.loaderUsed)
 	if d.filepathUsed != "" {
-		res += fmt.Sprintf("\nfilepathUsed: %s", d.filepathUsed)
+		res += "\nfilepathUsed: " + d.filepathUsed
 	}
 	if d.tarballUsed != "" {
-		res += fmt.Sprintf("\ntarballUsed: %s", d.tarballUsed)
+		res += "\ntarballUsed: " + d.tarballUsed
 	}
 	return res
 }

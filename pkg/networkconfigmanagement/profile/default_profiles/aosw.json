@@ -1,0 +1,108 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "Building Configuration..."
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(?m)^(secret) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(enable secret) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?mi)^(.*pre-share) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(.*ipsec) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(.*community) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "( sha) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "( des) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(mobility-manager \\S+ user \\S+) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(mgmt-user \\S+ (?:root|guest-provisioning|network-operations|read-only|location-api-mgmt)) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(mgmt-user \\S+) (\\S+)( (?:read-only|guest-mgmt))?\\s?$",
+            "replacement": "$1 <secret hidden> $3"
+          },
+          {
+            "regex": "(?m)^(.*key) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(vrrp-passphrase) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(wpa-passphrase) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(bkup-passwords) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(ap-console-password) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(virtual-controller-key) (\\S+)\\s?$",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "community (.*?)\\s*$",
+            "replacement": "community <secret hidden>"
+          },
+          {
+            "regex": "(?m)^(snmp-server host \\S+ (?:trap )?version (?:v?[123]c?|v3)) (\\S+)(.*)",
+            "replacement": "$1 <secret hidden>$3"
+          },
+          {
+            "regex": "(?m)^(vrrp \\d+.*\\n.*\\n)(authentication) (\\S+)",
+            "replacement": "$1$2 <secret hidden>",
+            "multiline": true
+          },
+          {
+            "regex": "Building Configuration...\\s*",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}

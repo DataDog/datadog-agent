@@ -18,8 +18,3 @@ import (
 func GetProcStats(_ *http.Client, _ []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, errors.New("unsupported platform")
 }
-
-// GetNetworkID fetches the network_id (vpc_id) from system-probe
-func GetNetworkID(_ *http.Client) (string, error) {
-	return "", errors.New("unsupported platform")
-}

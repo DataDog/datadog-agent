@@ -6,13 +6,11 @@
 package setup
 
 import (
-	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows/registry"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -31,10 +29,10 @@ var (
 	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
 	// DefaultHostProfilerLogFile is the default host-profiler log file
 	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
+	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
+	DefaultPrivateActionRunnerLogFile = "C:\\ProgramData\\Datadog\\logs\\private-action-runner.log"
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
-	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
-	defaultEventMonitorAddress = "localhost:3337"
 	// defaultSystemProbeLogFilePath is the default system probe log file
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
@@ -50,6 +48,7 @@ var (
 )
 
 func osinit() {
+	// The config dir is configurable on Windows, so fetch the path from the registry
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
 		defaultConfdPath = filepath.Join(pd, "conf.d")
@@ -61,15 +60,16 @@ func osinit() {
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
 		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
 		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
+		DefaultPrivateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
 	}
 
-	// Agent binary
-	if _here, err := executable.Folder(); err == nil {
-		InstallPath = filepath.Join(_here, "..", "..")
-		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
-		if _, err := os.Stat(agentFilePath); err == nil {
-			DefaultDDAgentBin = agentFilePath
-		}
+	// The install path is configurable on Windows, so fetch the path from the registry
+	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
+	// so this can lead to an incorrect result.
+	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	if err == nil {
+		InstallPath = pd
+		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")
 	}
 
 	// Fleet Automation

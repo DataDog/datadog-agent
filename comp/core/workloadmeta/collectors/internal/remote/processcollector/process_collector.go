@@ -11,7 +11,7 @@ package processcollector
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 	"time"
 
@@ -164,7 +164,7 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
-		return nil, fmt.Errorf("incorrect response type")
+		return nil, errors.New("incorrect response type")
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))

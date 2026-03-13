@@ -139,7 +139,7 @@ func (ofl *openFilesLister) mmapMetadata() (Files, error) {
 }
 
 func permToString(perms *procfs.ProcMapPermissions) string {
-	s := ""
+	var builder strings.Builder
 
 	for _, perm := range []struct {
 		set       bool
@@ -153,13 +153,13 @@ func permToString(perms *procfs.ProcMapPermissions) string {
 		{perms.Shared, "s", ""},
 	} {
 		if perm.set {
-			s += perm.charSet
+			builder.WriteString(perm.charSet)
 		} else {
-			s += perm.charUnset
+			builder.WriteString(perm.charUnset)
 		}
 	}
 
-	return s
+	return builder.String()
 }
 
 func mmapFD(path string, fileType, cwd string) string {
@@ -291,8 +291,8 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	}
 
 	for protocol, parser := range map[string]func() (procfs.NetTCP, error){
-		"tcp":  fs.NetTCP,
-		"tcp6": fs.NetTCP6,
+		"tcp":  fs.NetTCP,  //nolint:staticcheck // TODO use netlink to collect these statistics
+		"tcp6": fs.NetTCP6, //nolint:staticcheck // TODO use netlink to collect these statistics
 	} {
 		addrs, err := parser()
 		if err != nil {

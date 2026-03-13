@@ -52,11 +52,7 @@
             "arguments": {
               "v": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           },
@@ -64,19 +60,17 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -154,10 +148,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42"
   },
   {
     "service": "sample",
@@ -237,9 +233,11 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42"
   }
 ]

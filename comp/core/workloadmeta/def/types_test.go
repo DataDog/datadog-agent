@@ -224,7 +224,6 @@ Gids: [1002 1003]
 					TCPPorts:                 []uint16{8080, 8081},
 					UDPPorts:                 []uint16{8082, 8083},
 					APMInstrumentation:       true,
-					Type:                     "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -282,7 +281,6 @@ Service Generated Name: java-app
 					TCPPorts:           []uint16{8080, 8081},
 					UDPPorts:           []uint16{8082, 8083},
 					APMInstrumentation: true,
-					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -312,7 +310,6 @@ Service Tracer Metadata: []
 Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
 Service APM Instrumentation: true
-Service Type: web_service
 ---- Unified Service Tagging ----
 Service: java-app
 Env: production
@@ -382,10 +379,11 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:        "nvidia",
-		DriverVersion: "460.32.03",
-		Device:        "",
-		ActivePIDs:    []int{123, 456},
+		Vendor:           "nvidia",
+		DriverVersion:    "460.32.03",
+		Device:           "",
+		ActivePIDs:       []int{123, 456},
+		ChildrenGPUUUIDs: []string{"gpu-2-id", "gpu-3-id"},
 	}
 	gpu2 := GPU{
 		EntityID: EntityID{
@@ -395,10 +393,11 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:        "nvidia",
-		DriverVersion: "460.32.03",
-		Device:        "tesla",
-		ActivePIDs:    []int{654},
+		Vendor:           "nvidia",
+		DriverVersion:    "460.32.03",
+		Device:           "tesla",
+		ActivePIDs:       []int{654},
+		ChildrenGPUUUIDs: []string{"gpu-4-id", "gpu-5-id"},
 	}
 
 	err := gpu1.Merge(&gpu2)
@@ -406,4 +405,5 @@ func TestMergeGPU(t *testing.T) {
 	assert.Equal(t, gpu1.Device, "tesla")
 	assert.ElementsMatch(t, gpu1.ActivePIDs, []int{654})
 	assert.Equal(t, gpu1.Vendor, "nvidia")
+	assert.ElementsMatch(t, gpu1.ChildrenGPUUUIDs, []string{"gpu-4-id", "gpu-5-id"})
 }

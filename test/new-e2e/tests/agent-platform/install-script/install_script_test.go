@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +90,7 @@ func TestInstallScript(t *testing.T) {
 			e2e.Run(tt,
 				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion)),
 			)
@@ -107,12 +107,14 @@ func DockerTest(t *testing.T) {
 		t.Fatalf("expected platform to be docker, got %s", platform)
 	}
 
+	suite := &installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)}
+	suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
 		e2e.Run(tt,
-			&installScriptSuiteSysVInit{arch: e2eos.ArchitectureFromString(architecture)},
+			suite,
 			e2e.WithProvisioner(
 				awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithDocker(),
+					awshost.WithRunOptions(ec2.WithDocker()),
 				),
 			),
 		)
@@ -185,7 +187,13 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		if is.cwsSupported {
 			common.CheckCWSBehaviour(is.T(), client)
 		}
+
+		time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+		common.CheckADPEnabled(is.T(), client)
+		time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+		common.CheckADPDisabled(is.T(), client)
 	}
+
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)
 }
@@ -249,7 +257,8 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 
 type installScriptSuiteSysVInit struct {
 	e2e.BaseSuite[environments.Host]
-	arch e2eos.Architecture
+	arch           e2eos.Architecture
+	testingKeysURL string
 }
 
 func (is *installScriptSuiteSysVInit) TestInstallAgent() {
@@ -266,7 +275,15 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
 	require.NoError(is.T(), err)
 
-	install.Unix(is.T(), client, installparams.WithArch(string(is.arch)), installparams.WithFlavor(*flavor))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.arch)),
+		installparams.WithFlavor(*flavor),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), client, installOptions...)
 
 	// We can't easily reuse the the helpers that assume everything runs directly on the host
 	// We run a few selected sanity checks here instead (sufficient for this platform anyway)

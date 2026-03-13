@@ -9,7 +9,9 @@ package notableeventsimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,7 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 	eventChan := make(chan eventPayload)
 
 	// Create submitter with forwarder
-	sub := newSubmitter(forwarder, eventChan)
+	sub := newSubmitter(forwarder, eventChan, hostname)
 
 	// Start submitter
 	sub.start()
@@ -42,17 +44,21 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 	numEvents := 5
 	for i := 0; i < numEvents; i++ {
 		eventChan <- eventPayload{
-			Channel: "System",
-			EventID: uint(7040 + i),
+			Timestamp: time.Now(),
+			EventType: "Test event type",
+			Title:     fmt.Sprintf("Test event %d", i),
+			Message:   "Test message",
+			Custom: map[string]interface{}{
+				"windows_event_log": map[string]interface{}{
+					"test_key": "test_value",
+				},
+			},
 		}
 	}
 
 	// Stop submitter (close channel and wait for drain)
 	close(eventChan)
 	sub.stop()
-
-	// Small delay to ensure messages are processed
-	// time.Sleep(100 * time.Millisecond)
 
 	// Verify sent messages
 	sentMessages := forwarder.Purge()
@@ -72,11 +78,31 @@ func TestSubmitter_DrainChannelAndPayloadFormat(t *testing.T) {
 		assert.Equal(t, "event", data["type"], "Event type should be 'event'")
 		attributes, ok := data["attributes"].(map[string]interface{})
 		require.True(t, ok, "Data should have 'attributes' field")
-		_, ok = attributes["title"].(string)
+
+		// Verify title and message
+		title, ok := attributes["title"].(string)
 		require.True(t, ok, "Attributes should have 'title' field")
+		assert.Equal(t, fmt.Sprintf("Test event %d", i), title)
+		message, ok := attributes["message"].(string)
+		require.True(t, ok, "Attributes should have 'message' field")
+		assert.Equal(t, "Test message", message)
+
+		// Verify host and category
+		_, ok = attributes["host"].(string)
+		require.True(t, ok, "Attributes should have 'host' field")
 		assert.Equal(t, "alert", attributes["category"], "Category should be 'alert'")
+
+		// Verify nested attributes
 		nestedAttrs, ok := attributes["attributes"].(map[string]interface{})
 		require.True(t, ok, "Attributes should have nested 'attributes' field")
 		assert.Equal(t, "error", nestedAttrs["status"], "Status should be 'error'")
+		assert.Equal(t, "5", nestedAttrs["priority"], "Priority should be '5'")
+
+		// Verify custom data
+		custom, ok := nestedAttrs["custom"].(map[string]interface{})
+		require.True(t, ok, "Nested attributes should have 'custom' field")
+		windowsEventLog, ok := custom["windows_event_log"].(map[string]interface{})
+		require.True(t, ok, "Custom should have 'windows_event_log' field")
+		assert.Equal(t, "test_value", windowsEventLog["test_key"], "Custom data should be preserved")
 	}
 }

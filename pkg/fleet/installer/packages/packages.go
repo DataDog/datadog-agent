@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -38,6 +40,10 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
+
+	preInstallExtension  packageHook
+	preRemoveExtension   packageHook
+	postInstallExtension packageHook
 }
 
 // Hooks is the interface for the hooks.
@@ -56,6 +62,10 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	PreInstallExtension(ctx context.Context, pkg string, extension string) error
+	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
+	PostInstallExtension(ctx context.Context, pkg string, extension string, isExperiment bool) error
 }
 
 // NewHooks creates a new Hooks instance that will execute hooks via the CLI.
@@ -73,62 +83,77 @@ type hooksCLI struct {
 
 // PreInstall calls the pre-install hook for the package.
 func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, false, pkg, "preInstall", pkgType, upgrade, nil)
+	return h.callHook(ctx, false, pkg, "preInstall", pkgType, upgrade, nil, "")
 }
 
 // PreRemove calls the pre-remove hook for the package.
 func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil)
+	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil, "")
 }
 
 // PostInstall calls the post-install hook for the package.
 func (h *hooksCLI) PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error {
-	return h.callHook(ctx, false, pkg, "postInstall", pkgType, upgrade, winArgs)
+	return h.callHook(ctx, false, pkg, "postInstall", pkgType, upgrade, winArgs, "")
 }
 
 // PreStartExperiment calls the pre-start-experiment hook for the package.
 func (h *hooksCLI) PreStartExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "preStartExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "preStartExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PostStartExperiment calls the post-start-experiment hook for the package.
 func (h *hooksCLI) PostStartExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, true, pkg, "postStartExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, true, pkg, "postStartExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PreStopExperiment calls the pre-stop-experiment hook for the package.
 func (h *hooksCLI) PreStopExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, true, pkg, "preStopExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, true, pkg, "preStopExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PostStopExperiment calls the post-stop-experiment hook for the package.
 func (h *hooksCLI) PostStopExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "postStopExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "postStopExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PrePromoteExperiment calls the pre-promote-experiment hook for the package.
 func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
 func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PostStartConfigExperiment calls the post-start-config-experiment hook for the package.
 func (h *hooksCLI) PostStartConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "postStartConfigExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "postStartConfigExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PreStopConfigExperiment calls the pre-stop-config-experiment hook for the package.
 func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "preStopConfigExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "preStopConfigExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
+	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil, "")
+}
+
+// PreInstallExtension calls the pre-install-extension hook for the package.
+func (h *hooksCLI) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+	return h.callHook(ctx, false, pkg, "preInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
+}
+
+// PreRemoveExtension calls the pre-remove-extension hook for the package.
+func (h *hooksCLI) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+	return h.callHook(ctx, false, pkg, "preRemoveExtension", h.extensionPackageType(pkg), false, nil, extension)
+}
+
+// PostInstallExtension calls the post-install-extension hook for the package.
+func (h *hooksCLI) PostInstallExtension(ctx context.Context, pkg string, extension string, isExperiment bool) error {
+	return h.callHook(ctx, isExperiment, pkg, "postInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
 }
 
 // PackageType is the type of package.
@@ -141,6 +166,8 @@ const (
 	PackageTypeDEB PackageType = "deb"
 	// PackageTypeRPM is the type for RPM packages.
 	PackageTypeRPM PackageType = "rpm"
+	// PackageTypeMSI is the type for MSI packages.
+	PackageTypeMSI PackageType = "msi"
 )
 
 // HookContext is the context passed to hooks during install/upgrade/uninstall.
@@ -152,6 +179,7 @@ type HookContext struct {
 	Hook            string      `json:"hook"`
 	Upgrade         bool        `json:"upgrade"`
 	WindowsArgs     []string    `json:"windows_args"`
+	Extension       string      `json:"extension"`
 }
 
 // StartSpan starts a new span with the given operation name.
@@ -168,7 +196,8 @@ func (c HookContext) StartSpan(operationName string) (*telemetry.Span, HookConte
 
 func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) string {
 	switch pkgType {
-	case PackageTypeOCI:
+	case PackageTypeOCI, PackageTypeMSI:
+		// MSI-installed agent uses the same OCI packages directory for extensions.
 		switch experiment {
 		case false:
 			return h.packages.Get(pkg).StablePath()
@@ -176,20 +205,47 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 			return h.packages.Get(pkg).ExperimentPath()
 		}
 	case PackageTypeDEB, PackageTypeRPM:
-		if pkg == "datadog-agent" {
+		if pkg == agentPackage {
 			return "/opt/datadog-agent"
 		}
 	}
 	panic(fmt.Sprintf("unknown package type with package: %s, %s", pkgType, pkg))
 }
 
-func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) error {
-	hooksCLIPath, err := os.Executable()
+// extensionPackageType detects whether the agent is OCI- or DEB/RPM-installed by checking
+// the location of the running installer binary. Extension hooks must use this rather than
+// assuming PackageTypeOCI so that the hook receives the correct PackagePath.
+// Note: on Windows this always returns PackageTypeOCI (not PackageTypeMSI). PackageTypeMSI
+// is only used for direct hook dispatch from the MSI custom actions, not for CLI-driven hooks.
+func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
+	if pkg != agentPackage {
+		return PackageTypeOCI
+	}
+	if runtime.GOOS != "linux" {
+		return PackageTypeOCI
+	}
+	execPath, err := exec.GetExecutable()
+	if err != nil || strings.HasPrefix(execPath, "/opt/datadog-packages") {
+		return PackageTypeOCI
+	}
+	return PackageTypeDEB
+}
+
+func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string, extension string) error {
+	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 	pkgPath := h.getPath(pkg, packageType, experiment)
-	if pkg == "datadog-agent" && runtime.GOOS == "linux" && name != "preInstall" {
+
+	hooksWithoutReExec := []string{
+		"preInstall",
+		"preInstallExtension",
+		"preRemoveExtension",
+		"postInstallExtension",
+	}
+
+	if pkg == agentPackage && runtime.GOOS == "linux" && !slices.Contains(hooksWithoutReExec, name) {
 		agentInstallerPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
 		_, err := os.Stat(agentInstallerPath)
 		if err != nil && !os.IsNotExist(err) {
@@ -207,6 +263,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		PackageType: packageType,
 		Upgrade:     upgrade,
 		WindowsArgs: windowsArgs,
+		Extension:   extension,
 	}
 	serializedHookCtx, err := json.Marshal(hookCtx)
 	if err != nil {
@@ -262,6 +319,12 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
+	case "preInstallExtension":
+		return h.preInstallExtension
+	case "preRemoveExtension":
+		return h.preRemoveExtension
+	case "postInstallExtension":
+		return h.postInstallExtension
 	}
 	return nil
 }
@@ -279,7 +342,7 @@ type PackageCommandHandler func(ctx context.Context, command string) error
 
 // RunPackageCommand runs a package-specific command
 func RunPackageCommand(ctx context.Context, packageName string, command string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("package.%s", packageName))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "package."+packageName)
 	span.SetTag("command", command)
 	defer func() { span.Finish(err) }()
 

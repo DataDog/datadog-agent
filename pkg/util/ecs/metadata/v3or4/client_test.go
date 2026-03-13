@@ -9,7 +9,7 @@ package v3or4
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -29,7 +29,7 @@ func TestGetV4TaskWithTags(t *testing.T) {
 	ts := dummyECS.Start()
 	defer ts.Close()
 
-	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+	client := NewClient(ts.URL+"/v4/1234-1", "v4")
 	task, err := client.GetTaskWithTags(context.Background())
 	require.NoError(t, err)
 
@@ -45,7 +45,7 @@ func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
 	require.NoError(t, err)
 	ts := dummyECS.Start()
 
-	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+	client := NewClient(ts.URL+"/v4/1234-1", "v4")
 	task, err := client.GetTaskWithTags(context.Background())
 
 	ts.Close()
@@ -66,7 +66,7 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 	ts := dummyECS.Start()
 
 	c := NewClient(
-		fmt.Sprintf("%s/v4/1234-1", ts.URL),
+		ts.URL+"/v4/1234-1",
 		"v4",
 		WithTryOption(100*time.Millisecond, 2*time.Second, func(d time.Duration) time.Duration { return 2 * d }),
 	)
@@ -155,7 +155,7 @@ func TestGetContainerStats(t *testing.T) {
 			name:        "missing-container",
 			fixture:     "./testdata/task_stats.json",
 			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42",
-			expectedErr: fmt.Errorf("Failed to retrieve container stats for id: 470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42"),
+			expectedErr: errors.New("Failed to retrieve container stats for id: 470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42"),
 		},
 	}
 
@@ -168,7 +168,7 @@ func TestGetContainerStats(t *testing.T) {
 			ts := dummyECS.Start()
 			defer ts.Close()
 
-			client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+			client := NewClient(ts.URL+"/v4/1234-1", "v4")
 			stats, err := client.GetContainerStats(ctx, tt.containerID)
 
 			if tt.expectedErr != nil {

@@ -73,7 +73,7 @@ state:
 ---
 event: !attached {program_id: 1, process_id: 1001}
 effects:
-  - !detach-from-process {process_id: 1001, program_id: 1}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil>
   queued_programs: '[]'

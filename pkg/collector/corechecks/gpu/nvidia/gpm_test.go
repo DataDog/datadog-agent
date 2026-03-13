@@ -124,6 +124,7 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 	calls := 0
 	collector := &gpmCollector{
 		device: &mockGpmDevice{
+			gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
 			GpmSampleGetFunc: func(_ nvml.GpmSample) error {
 				calls++
 				return nil
@@ -170,6 +171,12 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 
 	mockLib := &mockGpmNvml{
 		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			// Check that we got metrics passed in the correct order.
+			// Sample 1 needs to be the older sample, and sample 2 the newer one.
+			sample1 := metrics.Sample1.(*gpmSample)
+			sample2 := metrics.Sample2.(*gpmSample)
+			assert.Greater(t, sample2.getIndex, sample1.getIndex)
+
 			for i := range metrics.Metrics[:metrics.NumMetrics] {
 				if metrics.Metrics[i].MetricId == 2 {
 					metrics.Metrics[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
@@ -181,10 +188,16 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 			return nvml.SUCCESS
 		},
 	}
+
+	getIndex := 0
 	mockDevice := &mockGpmDevice{
-		gpmSupport:       nvml.GpmSupport{IsSupportedDevice: 1},
-		GpmSampleGetFunc: func(_ nvml.GpmSample) error { return nil },
-		uuid:             "test-uuid-5",
+		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		GpmSampleGetFunc: func(sample nvml.GpmSample) error {
+			sample.(*gpmSample).getIndex = getIndex
+			getIndex++
+			return nil
+		},
+		uuid: "test-uuid-5",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
@@ -192,10 +205,6 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	collector, err := newGPMCollector(mockDevice, nil)
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
-
-	// Pre-fill samples so calculateGpmMetrics works
-	gpmCol.samples = [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}}
-	gpmCol.nextSampleToCollect = 0
 
 	result, err := gpmCol.Collect()
 	assert.NoError(t, err)
@@ -252,7 +261,8 @@ func (m *mockGpmNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) nvml.Return
 
 type gpmSample struct {
 	nvml.GpmSample
-	id int
+	id       int
+	getIndex int
 }
 
 type mockGpmDevice struct {
@@ -273,6 +283,10 @@ func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
 }
 
 func (m *mockGpmDevice) GpmSampleGet(sample nvml.GpmSample) error {
+	if m.gpmSupport.IsSupportedDevice == 0 {
+		return safenvml.NewNvmlAPIErrorOrNil("GpmSampleGet", nvml.ERROR_NOT_SUPPORTED)
+	}
+
 	if m.GpmSampleGetFunc != nil {
 		return m.GpmSampleGetFunc(sample)
 	}

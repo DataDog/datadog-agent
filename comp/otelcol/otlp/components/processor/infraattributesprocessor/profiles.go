@@ -8,6 +8,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"go.opentelemetry.io/collector/pdata/pprofile"
@@ -41,6 +42,10 @@ func (iapp *infraAttributesProfileProcessor) processProfiles(_ context.Context, 
 	rps := pd.ResourceProfiles()
 	for i := 0; i < rps.Len(); i++ {
 		resourceAttributes := rps.At(i).Resource().Attributes()
+
+		// Always add `host.arch` tag to profiles' resource attributes
+		resourceAttributes.PutStr("host.arch", runtime.GOARCH)
+
 		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride)
 	}
 	return pd, nil

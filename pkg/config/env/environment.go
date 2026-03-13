@@ -93,6 +93,13 @@ func IsECSSidecarMode(cfg model.Reader) bool {
 	return false
 }
 
+// IsECSManagedInstancesDaemonMode returns true when the agent is running on ECS Managed Instances
+// in daemon mode (i.e. not sidecar). Callers should use this when behavior differs between
+// daemon and sidecar on Managed Instances (e.g. hostname resolution via EC2 IMDS).
+func IsECSManagedInstancesDaemonMode(cfg model.Reader) bool {
+	return IsFeaturePresent(ECSManagedInstances) && !IsECSSidecarMode(cfg)
+}
+
 // IsHostProcAvailable returns whether host proc is available or not
 func IsHostProcAvailable() bool {
 	if IsContainerized() {
@@ -107,9 +114,4 @@ func IsHostSysAvailable() bool {
 		return filesystem.FileExists("/host/sys")
 	}
 	return true
-}
-
-// IsLambda returns whether the Agent is running in a Lambda function
-func IsLambda() bool {
-	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
 }

@@ -129,7 +129,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	snmpConfig := map[string]interface{}{
 		"network":              "192.168.0.0/24",
 		"community":            "public",
-		"ignored_ip_addresses": map[string]bool{"192.168.0.0": true},
+		"ignored_ip_addresses": []string{"192.168.0.0"},
 	}
 
 	mockConfig := configmock.New(t)

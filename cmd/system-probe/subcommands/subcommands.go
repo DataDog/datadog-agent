@@ -8,6 +8,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	cmdcompliance "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/compliance"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/config"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/coverage"
 	cmddebug "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug"
@@ -29,6 +30,7 @@ func SysprobeSubcommands() []command.SubcommandFactory {
 		cmddebug.Commands,
 		cmdconfig.Commands,
 		cmdruntime.Commands,
+		cmdcompliance.Commands,
 		cmdcoverage.Commands,
 		cmdebpf.Commands,
 		cmdusm.Commands,

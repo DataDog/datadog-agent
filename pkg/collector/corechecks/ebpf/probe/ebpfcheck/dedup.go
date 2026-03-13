@@ -8,8 +8,8 @@
 package ebpfcheck
 
 import (
-	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
@@ -43,7 +43,7 @@ func deduplicateMapNames(stats *model.EBPFStats) {
 			// start with i, so we overwrite the first entry in series
 			j := i
 			for ; j < len(allMaps) && allMaps[j].Name == origName && allMaps[j].Module == origModule; j++ {
-				allMaps[j].Name = fmt.Sprintf("%s_%d", allMaps[j].Name, j-i+1)
+				allMaps[j].Name = allMaps[j].Name + "_" + strconv.Itoa(j-i+1)
 			}
 			i = j
 			continue

@@ -18,7 +18,7 @@ var (
 	// defaultSampleSize is the default allocation size used to store
 	// samples when a message contains multiple values. This will
 	// automatically be extended if needed when we append to it.
-	defaultSampleSize = 1024
+	defaultSampleSize = 128
 )
 
 type worker struct {
@@ -40,7 +40,7 @@ type worker struct {
 	filterList       utilstrings.Matcher
 }
 
-func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
+func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -55,6 +55,7 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
 		FilterListUpdate: make(chan utilstrings.Matcher),
+		filterList:       filterList,
 	}
 }
 

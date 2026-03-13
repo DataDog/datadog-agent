@@ -32,19 +32,20 @@ const (
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
-	Name            string
-	SourcePkgPrefix string
-	SourcePkg       string
-	TargetPkg       string
-	BuildTags       []string
-	Fields          map[string]*StructField // Fields only contains fields that are exposed in SECL
-	//GettersOnlyFields map[string]*StructField // GettersOnlyFields only contains fields that have generated getters but are not exposed in SECL
-	AllFields  map[string]*StructField
-	Iterators  map[string]*StructField
-	EventTypes map[string]*EventTypeMetadata
-	FileFields []FileField
-	Mock       bool
-	Getters    []string
+	Name                string
+	SourcePkgPrefix     string
+	SourcePkg           string
+	TargetPkg           string
+	BuildTags           []string
+	Fields              map[string]*StructField // Fields only contains fields that are exposed in SECL
+	AllFields           map[string]*StructField
+	AllStructFields     interface{} // used for event deep copy generation
+	Iterators           map[string]*StructField
+	EventTypes          map[string]*EventTypeMetadata
+	FileFields          []FileField
+	Mock                bool
+	Getters             []string
+	FieldsOrderByChecks []string
 }
 
 // FileField represents a file field used for `{Get,Validate}FileField` generation
@@ -62,6 +63,7 @@ type StructField struct {
 	ReturnType       string
 	IsArray          bool
 	IsLength         bool
+	IsRootDomain     bool
 	Event            string
 	Handler          string
 	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
@@ -91,22 +93,22 @@ func (sf *StructField) GetEvaluatorType() string {
 		evaluatorType = "eval.IntEvaluator"
 	} else if sf.ReturnType == "int" {
 		evaluatorType = "eval.IntEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.IntArrayEvaluator"
 		}
 	} else if sf.ReturnType == "bool" {
 		evaluatorType = "eval.BoolEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.BoolArrayEvaluator"
 		}
 	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.CIDRArrayEvaluator"
 		}
 	} else {
 		evaluatorType = "eval.StringEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.StringArrayEvaluator"
 		}
 	}

@@ -13,10 +13,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-
-	// we need this import for the seelog custom 'ShortFilePath' custom formater. We should migrate them to
-	// pkg/util/log
-	_ "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // tbWriter is an implementation of io.Writer that sends lines to
@@ -43,12 +39,12 @@ func New(t testing.TB) log.Component {
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
-		iface.Flush()
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		iface.Close()
 	})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
+	pkglog.SetupLogger(iface, pkglog.DebugStr)
 
 	return pkglog.NewWrapper(2)
 }

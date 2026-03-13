@@ -5,7 +5,7 @@ default_version "75.1.0"
 
 skip_transitive_dependency_licensing true
 
-dependency "pip3"
+dependency "python3"
 
 relative_path "setuptools-#{version}"
 

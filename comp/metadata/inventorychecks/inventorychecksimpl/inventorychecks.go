@@ -293,7 +293,7 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	configFiles := providers.ReadConfigFormats()
 	if len(configFiles) == 0 {
-		ic.log.Errorf("could not read files metadata")
+		ic.log.Debug("could not read files metadata")
 		return metadata{}
 	}
 

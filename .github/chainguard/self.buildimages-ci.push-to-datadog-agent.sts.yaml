@@ -1,0 +1,13 @@
+---
+# Policy used by the `push_to_datadog_agent` job in `datadog-agent-buildimages` CI.
+# Needs to be able to trigger the `buildimages-update` workflow.
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent-buildimages:.*"
+
+claim_pattern:
+  project_path: DataDog/datadog-agent-buildimages
+  pipeline_source: push
+
+permissions:
+  actions: write

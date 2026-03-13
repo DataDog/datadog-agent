@@ -35,7 +35,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -117,8 +116,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle(),
-			secretfx.Module(),
+			core.Bundle(core.WithSecrets()),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
@@ -132,8 +130,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 			// we can include the tagger as part of the workloadmeta component.
-			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 			}),
 			haagentfx.Module(),
 			logscompression.Module(),

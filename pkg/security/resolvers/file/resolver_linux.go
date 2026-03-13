@@ -97,13 +97,12 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 		}, nil
 	}
 
-	// add pid one for hash resolution outside of a container
+	// add pid one for hash resolution outside a container
 	process := event.ProcessContext.Process
 	rootPIDs := []uint32{process.Pid, 1}
 	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {
-		w, ok := r.cgroupResolver.GetWorkload(process.ContainerContext.ContainerID)
-		if ok {
-			rootPIDs = w.GetPIDs()
+		if cachedEntry := r.cgroupResolver.GetCacheEntryContainerID(process.ContainerContext.ContainerID); cachedEntry != nil {
+			rootPIDs = cachedEntry.GetPIDs()
 		}
 	} else if event.ProcessCacheEntry != nil {
 		rootPIDs = event.ProcessCacheEntry.GetAncestorsPIDs()

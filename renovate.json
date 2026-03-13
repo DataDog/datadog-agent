@@ -1,6 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "enabledManagers": ["custom.regex", "pre-commit"],
+    "enabledManagers": ["custom.regex", "pre-commit", "github-actions", "dockerfile"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
@@ -16,11 +16,13 @@
       },
       {
         "matchDepNames": ["linux-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 * * 1-5"]
       },
       {
         "matchDepNames": ["windows-images"],
+        "maxMajorIncrement": 0,
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
         "schedule": ["* 2-6 2 * *"]
       },
@@ -28,6 +30,16 @@
         "matchDepNames": ["DataDog/datadog-agent-dev"],
         "changelogUrl": "https://github.com/DataDog/datadog-agent-dev/releases/tag/v{{newValue}}",
         "schedule": ["* 1-4 5 6,12 *"]
+      },
+      {
+        "matchManagers": ["github-actions"],
+        "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
+      },
+      {
+        "matchManagers": ["dockerfile"],
+        "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+        "schedule": ["on saturday"]
       }
     ],
     "pre-commit": {

@@ -150,6 +150,19 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
+	// In ns4, autoscaler1 targets the statefulset "my-statefulset"
+	store.Set("ns4/autoscaler1", model.FakePodAutoscalerInternal{
+		Namespace: "ns4",
+		Name:      "autoscaler1",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       kubernetes.StatefulSetKind,
+				APIVersion: "apps/v1",
+				Name:       "my-statefulset",
+			},
+		},
+	}.Build(), "")
+
 	return store
 }
 
@@ -820,6 +833,24 @@ func TestFindAutoscaler(t *testing.T) {
 				},
 			},
 			expectedAutoscalerID: "ns3/autoscaler1",
+			expectedError:        nil,
+		},
+		{
+			name: "Pod owned by statefulset",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns4",
+					Name:      "my-statefulset-0",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       kubernetes.StatefulSetKind,
+							Name:       "my-statefulset",
+							APIVersion: "apps/v1",
+						},
+					},
+				},
+			},
+			expectedAutoscalerID: "ns4/autoscaler1",
 			expectedError:        nil,
 		},
 	}

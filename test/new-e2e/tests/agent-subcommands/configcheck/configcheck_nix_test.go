@@ -8,12 +8,13 @@ package configcheck
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type linuxConfigCheckSuite struct {
@@ -94,7 +95,7 @@ func (v *linuxConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(integration))))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 
@@ -107,7 +108,7 @@ func (v *linuxConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(integration))))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 

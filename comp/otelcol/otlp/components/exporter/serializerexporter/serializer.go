@@ -7,11 +7,14 @@ package serializerexporter
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -104,7 +107,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 
 	// Handle no_proxy environment variable
 	var noProxy []any
-	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
+	for v := range strings.SplitSeq(proxyConfig.NoProxy, ",") {
 		noProxy = append(noProxy, v)
 	}
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
@@ -121,7 +124,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD")
+			pkgconfig := create.NewConfig("DD", "")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 
@@ -164,7 +167,9 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
+		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
+		delegatedauthnoopfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
 	)
@@ -173,7 +178,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 	}
 	fw, ok := f.(*defaultforwarder.DefaultForwarder)
 	if !ok {
-		return nil, nil, fmt.Errorf("failed to cast forwarder to defaultforwarder.DefaultForwarder")
+		return nil, nil, errors.New("failed to cast forwarder to defaultforwarder.DefaultForwarder")
 	}
 	return s, fw, nil
 }

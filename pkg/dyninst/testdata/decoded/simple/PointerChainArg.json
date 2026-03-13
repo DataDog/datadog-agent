@@ -52,8 +52,16 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "ptr: {pointer: not captured at 0x[addr]}"
   }
 ]

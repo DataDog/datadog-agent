@@ -9,16 +9,18 @@ package externalmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -28,9 +30,9 @@ import (
 )
 
 const (
-	maxRetry             int    = 3
-	requeueDelaySeconds  int    = 2
-	ddmControllerStoreID string = "ddmc"
+	maxRetry             int                  = 3
+	requeueDelaySeconds  int                  = 2
+	ddmControllerStoreID autoscaling.SenderID = "ddmc"
 )
 
 type controllerOperation string
@@ -66,7 +68,7 @@ type DatadogMetricController struct {
 // NewDatadogMetricController returns a new AutoscalersController
 func NewDatadogMetricController(client dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
 	if store == nil {
-		return nil, fmt.Errorf("Store must be initialized")
+		return nil, errors.New("Store must be initialized")
 	}
 
 	datadogMetricsInformer := informer.ForResource(gvrDDM)
@@ -145,8 +147,8 @@ func (c *DatadogMetricController) enqueue(obj interface{}) {
 	c.workqueue.AddRateLimited(key)
 }
 
-func (c *DatadogMetricController) enqueueID(id, sender string) {
-	// Do not enqueue our own updates (avoid infinite loops)
+func (c *DatadogMetricController) enqueueID(id string, sender autoscaling.SenderID, _ interface{}) {
+	// Avoid re-enqueuing events triggered by this controller's own store updates
 	if sender != ddmControllerStoreID {
 		c.workqueue.AddRateLimited(id)
 	}
@@ -200,7 +202,7 @@ func (c *DatadogMetricController) processDatadogMetric(workerID int, key interfa
 	}
 
 	switch {
-	case errors.IsNotFound(err):
+	case k8serrors.IsNotFound(err):
 		// We ignore not found here as we may need to create a DatadogMetric later
 		datadogMetricCached = nil
 	case err != nil:
@@ -351,7 +353,7 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	return nil
 }
 
-func (c *DatadogMetricController) deleteTelemetry(id, _ string) {
+func (c *DatadogMetricController) deleteTelemetry(id string, _ autoscaling.SenderID, _ interface{}) {
 	ns, name, err := cache.SplitMetaNamespaceKey(id)
 	if err != nil {
 		log.Debugf("Unable to split meta namespace key to delete telemetry: %v", err)

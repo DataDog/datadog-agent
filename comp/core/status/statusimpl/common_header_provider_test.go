@@ -80,22 +80,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	provider.Text(false, buffer)
 
-	expectedTextOutput := fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  FIPS Mode: not available
-  Log Level: info
-
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-`, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
+	expectedTextOutput := getTextStatusOutput(pid, goVersion, arch, agentFlavor, config)
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
@@ -176,28 +161,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	provider.Text(false, buffer)
 
-	expectedTextOutput := fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  FIPS Mode: proxy
-  Log Level: info
-
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
-  FIPS proxy
-  ==========
-    FIPS proxy is enabled. All communication to Datadog is routed to a local FIPS proxy:
-      - Local address: localhost
-      - Starting port: 9803
-`, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
+	expectedTextOutput := getTextStatusOutput(pid, goVersion, arch, agentFlavor, config)
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")

@@ -62,7 +62,7 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 
 	// setup telemetry
 	metricGroup := telemetry.NewMetricGroup(
-		fmt.Sprintf("usm.%s", proto),
+		"usm."+proto,
 		telemetry.OptStatsd,
 	)
 	eventsCount := metricGroup.NewCounter("events_captured")

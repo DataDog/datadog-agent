@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -24,6 +23,10 @@ extern int is_excluded(char *, char *, char *);
 
 static void initContainersTests(rtloader_t *rtloader) {
    set_is_excluded_cb(rtloader, is_excluded);
+}
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
 }
 */
 import "C"
@@ -56,9 +59,6 @@ func setUp() error {
 
 	C.initContainersTests(rtloader)
 
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
-
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
 	}
@@ -72,20 +72,20 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
+	code := helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import containers
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+`, call, tmpfile.Name()))
+	defer C.call_free(code)
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, code) == 1
+	ret := C.run_simple_string(rtloader, (*C.char)(code)) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

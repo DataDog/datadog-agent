@@ -34,7 +34,7 @@ func CreateDummyKubeService(name, namespace string, annotations map[string]strin
 	}
 	return &KubeServiceService{
 		entity:   apiserver.EntityForService(ksvc),
-		metadata: workloadfilter.CreateService(name, namespace, annotations),
+		metadata: workloadfilter.CreateKubeService(name, namespace, annotations),
 	}
 }
 
@@ -42,7 +42,7 @@ func CreateDummyKubeService(name, namespace string, annotations map[string]strin
 func CreateDummyKubeEndpoint(name, namespace string, annotations map[string]string) *KubeEndpointService {
 	return &KubeEndpointService{
 		entity:   apiserver.EntityForEndpoints(namespace, name, "10.0.0.1"),
-		metadata: workloadfilter.CreateEndpoint(name, namespace, annotations),
+		metadata: workloadfilter.CreateKubeEndpoint(name, namespace, annotations),
 	}
 }
 

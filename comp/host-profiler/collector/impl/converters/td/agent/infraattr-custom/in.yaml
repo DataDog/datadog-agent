@@ -1,0 +1,14 @@
+processors:
+  infraattributes/custom: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+      - infraattributes/custom
+      receivers: []
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

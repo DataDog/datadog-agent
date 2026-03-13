@@ -54,21 +54,47 @@ dda inv full-host-profiler.build
 
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
 
-## Usage
+## Development
+
+### Using docker-compose
+
+Create a `.env` file in `cmd/host-profiler` containing:
+
+```
+DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
+UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
+GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
+```
+
+Then run
+
+```bash
+docker-compose up --build
+```
+
+Check profiler's logs with
+
+```bash
+docker-compose logs host-profiler -f
+```
+
+### Running on Host
 
 ```bash
 # Standalone mode
-./bin/host-profiler/host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
+./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
 
 # Agent-integrated mode
 # First, start the Datadog Agent
 ./bin/agent/agent run -c ./dev/dist
 
 # Then, in another terminal, start the host-profiler with Agent integration
-./bin/host-profiler/host-profiler run \
+./bin/full-host-profiler/full-host-profiler run \
   -c cmd/host-profiler/dist/host-profiler-config.yaml \
   --core-config ./dev/dist/datadog.yaml
 ```
+
+**Warning**: in this configuration, container attributes might be broken.
 
 ## Configuration
 
@@ -82,6 +108,18 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`exporters.otlphttp`**: Datadog profiling intake endpoint configuration
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
 
+### Configuration Inference
+
+Configuration inference is enabled by default in bundled mode when symbol_endpoints and otlphttp exporters are not explicitly configured.
+
+The host profiler searches for the following nodes in the core agent's configuration file:
+- **`apm_config`**:
+    - **`profiling_dd_url`**: URL from which the site is extracted (takes priority)
+    - **`profiling_additional_endpoints`**: additional endpoints with a url to extract `site` and `n` number of api keys
+- **`site`**: secondary site (if `profiling_dd_url` isn't configured) for symbol endpoints and otlphttp's `profiles_endpoint`
+- **`api_key`**: main api key for `site`
+
+This inference will create as many symbol endpoints and otlphttp exporters as there are site+key combinations.
 
 ## CLI Flags
 

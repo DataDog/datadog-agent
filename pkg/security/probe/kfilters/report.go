@@ -172,7 +172,7 @@ func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, er
 		event := rs.NewEvent()
 
 		for _, invalid := range filterReport.DiscardersReport.Invalid {
-			eventType, _, _, err := event.GetFieldMetadata(invalid.Field)
+			eventType, _, _, _, err := event.GetFieldMetadata(invalid.Field)
 			if err != nil {
 				return nil, err
 			}

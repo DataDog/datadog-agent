@@ -76,10 +76,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "true"
   },
   {
     "service": "sample",
@@ -142,18 +144,16 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "false"
   }
 ]

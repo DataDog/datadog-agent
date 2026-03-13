@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +179,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	re := regexp.MustCompile("PASS")
 	matches := re.FindAllString(diagnose, -1)
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
-	assert.Equal(v.T(), len(matches), summary.Total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, len(matches))
+	assert.Equal(v.T(), len(matches), summary.Success, "Expected to have the same number of 'PASS' as successful checks (%v), but was %v", summary.Success, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 

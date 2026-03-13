@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type vmSuiteEx6 struct {
@@ -24,7 +26,7 @@ type vmSuiteEx6 struct {
 
 func TestVMSuiteEx6(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
@@ -40,9 +42,7 @@ func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
-		if !assert.NoError(c, err, "fakeintake GetConnectionsNames() error") {
-			return
-		}
+		require.NoError(c, err, "fakeintake GetConnectionsNames() error")
 
 		if assert.NotZero(c, len(hostnameNetID), "no connections yet") {
 			t.Logf("hostname+networkID %v seen connections", hostnameNetID)

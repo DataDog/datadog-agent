@@ -1,0 +1,654 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+  annotations:
+    autopilot.gke.io/no-connect: "true"
+  name: datadog-datadog-daemonset-exemption-v1.0.1
+exemptions:
+  - autogke-no-write-mode-hostpath
+  - autogke-no-host-port
+  - autogke-default-linux-capabilities
+matchingCriteria:
+  containers:
+    - command:
+        - process-agent
+        - -config=/etc/datadog-agent/datadog.yaml
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      envFrom:
+        - secretRef:
+            name: ^datadog-.*
+      image: ^.*$
+      name: process-agent
+      volumeMounts:
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /host/sys/fs/cgroup
+          name: cgroups
+          readOnly: true
+        - mountPath: /etc/passwd
+          name: passwd
+          readOnly: true
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+          readOnly: true
+        - mountPath: /etc/datadog-agent/datadog.yaml
+          name: datadog-yaml
+        - mountPath: /host/etc/os-release
+          name: os-release-file
+          readOnly: true
+        - mountPath: /var/run/sysprobe
+          name: sysprobe-socket-dir
+          readOnly: true
+        - mountPath: /etc/datadog-agent/system-probe.yaml
+          name: sysprobe-config
+          readOnly: true
+    - command:
+        - agent
+        - run
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      envFrom:
+        - secretRef:
+            name: ^datadog-.*
+      image: ^.*$
+      name: agent
+      volumeMounts:
+        - mountPath: /etc/datadog-agent/install_info
+          name: installinfo
+          readOnly: true
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /host/sys/fs/cgroup
+          name: cgroups
+          readOnly: true
+        - mountPath: /opt/datadog-agent/run
+          name: pointerdir
+        - mountPath: /var/log/pods
+          name: logpodpath
+          readOnly: true
+        - mountPath: /var/log/containers
+          name: logscontainerspath
+          readOnly: true
+        - mountPath: /var/lib/docker/containers
+          name: logdockercontainerpath
+          readOnly: true
+        - mountPath: /etc/datadog-agent/datadog.yaml
+          name: datadog-yaml
+        - mountPath: /host/etc/os-release
+          name: os-release-file
+          readOnly: true
+        - mountPath: /var/run/sysprobe
+          name: sysprobe-socket-dir
+          readOnly: true
+        - mountPath: /etc/datadog-agent/system-probe.yaml
+          name: sysprobe-config
+          readOnly: true
+        - name: passwd
+          mountPath: /etc/passwd
+          readOnly: true
+    - command:
+        - trace-agent
+        - -config=/etc/datadog-agent/datadog.yaml
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      envFrom:
+        - secretRef:
+            name: ^datadog-.*
+      image: ^.*$
+      name: trace-agent
+      volumeMounts:
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /etc/datadog-agent/datadog.yaml
+          name: datadog-yaml
+        - mountPath: /host/etc/os-release
+          name: os-release-file
+          readOnly: true
+    - command:
+        - system-probe
+        - --config=/etc/datadog-agent/system-probe.yaml
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      envFrom:
+        - secretRef:
+            name: ^datadog-.*$
+      image: ^.*$
+      name: system-probe
+      securityContext:
+        appArmorProfile:
+          type: "Unconfined"
+        capabilities:
+          add:
+            - BPF # eBPF monitoring
+            - CHOWN # Changing the owner of the socket exposed between system-probe and process-agent
+            - DAC_READ_SEARCH # eBPF monitoring
+            - IPC_LOCK # mmap(2)
+            - NET_ADMIN # Conntracker
+            - NET_BROADCAST # Set netlink socket to listen on all namespaces NETLINK_LISTEN_ALL_NSID
+            - NET_RAW # Creating AF_PACKET sockets
+            - SYS_ADMIN # bpf(2) syscalls, setns(2) syscalls
+            - SYS_PTRACE # Reading the netns number of the other processes.
+            - SYS_RESOURCE # Changing RLIMIT_MEMLOCK
+      volumeMounts:
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /tmp
+          name: tmpdir
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /host/sys/fs/cgroup
+          name: cgroups
+          readOnly: true
+        - mountPath: /etc/passwd
+          name: passwd
+          readOnly: true
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /var/run/datadog
+          name: dsdsocket
+          readOnly: true
+        - mountPath: /etc/datadog-agent/datadog.yaml
+          name: datadog-yaml
+        - mountPath: /sys/kernel/debug
+          name: debugfs
+          readOnly: false
+        - mountPath: /etc/datadog-agent/system-probe.yaml
+          name: sysprobe-config
+          readOnly: true
+        - mountPath: /var/run/sysprobe
+          name: sysprobe-socket-dir
+          readOnly: false
+        - mountPath: /host/etc/os-release
+          name: os-release-file
+          readOnly: true
+        - mountPath: /host/root
+          name: hostroot
+          readOnly: true
+        - mountPath: /lib/modules
+          name: modules
+          readOnly: true
+        - mountPath: /var/tmp/datadog-agent/system-probe/build
+          name: runtime-compiler-output-dir
+          readOnly: false
+        - mountPath: /var/tmp/datadog-agent/system-probe/kernel-headers
+          name: kernel-headers-download-dir
+          readOnly: false
+        - mountPath: /host/etc/apt
+          name: apt-config-dir
+          readOnly: true
+        - mountPath: /host/etc/yum.repos.d
+          name: yum-repos-dir
+          readOnly: true
+        - mountPath: /host/etc/zypp
+          name: opensuse-repos-dir
+          readOnly: true
+        - mountPath: /host/etc/pki
+          name: public-key-dir
+          readOnly: true
+        - mountPath: /host/etc/yum/vars
+          name: yum-vars-dir
+          readOnly: true
+        - mountPath: /host/etc/dnf/vars
+          name: dnf-vars-dir
+          readOnly: true
+        - mountPath: /host/etc/rhsm
+          name: rhel-subscription-dir
+          readOnly: true
+        - name: bpffs
+          mountPath: /sys/fs/bpf
+          readOnly: true
+  initContainers:
+    - args:
+        - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ; do bash $script ; done
+      command:
+        - bash
+        - -c
+      env:
+        - name: ^DD_.*$
+        - name: AWS_EXECUTION_ENV
+        - name: AWS_LAMBDA_RUNTIME_API
+        - name: AWS_LAMBDA_FUNCTION_NAME
+        - name: AWS_LAMBDA_FUNCTION_TIMEOUT
+        - name: BPF_DEBUG
+        - name: DATADOG_HOST
+        - name: DOCKER_DD_AGENT
+        - name: DOGSTATSD_BIN
+        - name: ECS_FARGATE
+        - name: GOFILE
+        - name: GOPACKAGE
+        - name: GOPATH
+        - name: GO_TEST_PROCESS
+        - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HOST_SYS
+        - name: KUBERNETES
+        - name: KUBERNETES_SERVICE_HOST
+        - name: KUBERNETES_SERVICE_PORT
+        - name: LISTSIZE
+        - name: DEBIAN_FRONTEND
+        - name: S6_VERSION
+        - name: PROXY_HOST
+        - name: PROXY_PASSWORD
+        - name: PROXY_PORT
+        - name: PROXY_USER
+        - name: RUNTIME_SECURITY_TESTSUITE
+        - name: STATSD_URL
+        - name: TAGSIZE
+        - name: TRACE_AGENT_URL
+        - name: TRACE_AGENT_VERSION
+        - name: VARIAN
+        - name: DOCKER_API_VERSION
+        - name: DOCKER_CONFIG
+        - name: DOCKER_CERT_PATH
+        - name: DOCKER_HOST
+        - name: DOCKER_TLS_VERIFY
+        - name: HOST_ETC
+        - name: HOST_PROC
+        - name: HOST_ROOT
+        - name: HTTP_PROXY
+        - name: HTTPS_PROXY
+        - name: NO_PROXY
+        - name: GOGC
+        - name: GODEBUG
+        - name: GOMAXPROCS
+        - name: GOTRACEBACK
+        - name: LOG_LEVEL
+        - name: LOG_TO_CONSOLE
+        - name: S6_KEEP_ENV
+        - name: S6_READ_ONLY_ROOT
+        - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+        - name: CURL_CA_BUNDLE
+      image: ^.*$
+      name: init-config
+      volumeMounts:
+        - mountPath: /var/log/datadog
+          name: logdatadog
+        - mountPath: /etc/datadog-agent
+          name: config
+        - mountPath: /checks.d
+          name: checksd
+          readOnly: true
+        - mountPath: /host/proc
+          name: procdir
+          readOnly: true
+        - mountPath: /host/var/run/containerd
+          name: runtimesocketdir
+          readOnly: true
+        - mountPath: /conf.d
+          name: confd
+          readOnly: true
+        - name: sysprobe-config
+          mountPath: /etc/datadog-agent/system-probe.yaml
+          readOnly: true
+    - args:
+        - cp -r /etc/datadog-agent /opt
+      command:
+        - bash
+        - -c
+      image: ^.*$
+      name: init-volume
+      volumeMounts:
+        - mountPath: /opt/datadog-agent
+          name: config
+    - command:
+        - cp
+        - /etc/config/system-probe-seccomp.json
+        - /host/var/lib/kubelet/seccomp/system-probe
+      image: ^.*$
+      name: seccomp-setup
+      volumeMounts:
+        - mountPath: /etc/config
+          name: datadog-agent-security
+          readOnly: true
+        - mountPath: /host/var/lib/kubelet/seccomp
+          name: seccomp-root
+          readOnly: false
+  volumes:
+    - name: config
+    - name: logdatadog
+    - name: dsdsocket
+    - name: tmpdir
+    - name: s6-run
+    - name: sysprobe-config
+    - name: datadog-agent-security
+    - configMap:
+        name: datadog-agent-checksd
+      name: checksd
+    - configMap:
+        name: datadog-agent-confd
+      name: confd
+    - configMap:
+        name: datadog-agent-datadog-yaml
+      name: datadog-yaml
+    - configMap:
+        name: datadog-monitoring-installinfo
+      name: installinfo
+    - hostPath:
+        path: /var/lib/docker/containers # for monitoring container logs
+      name: logdockercontainerpath
+    - hostPath:
+        path: /var/run/containerd # Containers autodiscovery and collect container image information
+      name: runtimesocketdir
+    - hostPath:
+        path: /sys/fs/cgroup # Introspect container information for real-time container monitoring (https://docs.datadoghq.com/infrastructure/livecontainers/)
+      name: cgroups
+    - hostPath:
+        path: /var/log/containers # Containers logs retrieval (https://docs.datadoghq.com/agent/kubernetes/log/)
+      name: logscontainerspath
+    - hostPath:
+        path: /proc # Introspect process information for real-time process visibility (https://docs.datadoghq.com/infrastructure/process/)
+      name: procdir
+    - hostPath:
+        path: /etc/passwd # Map processes to users for real-time process visibility (https://docs.datadoghq.com/infrastructure/process/)
+      name: passwd
+    - hostPath:
+        path: /var/autopilot/addon/datadog/logs # store logs tailing metadata, needed for logs collection
+      name: pointerdir
+    - hostPath:
+        path: /var/log/pods # Containers logs retrieval (https://docs.datadoghq.com/agent/kubernetes/log/)
+      name: logpodpath
+    - hostPath:
+        path: /etc/os-release
+      name: os-release-file
+    - hostPath:
+        path: /sys/kernel/debug # eBPF monitoring
+      name: debugfs
+    - hostPath:
+        path: /var/tmp/datadog-agent/system-probe/build
+      name: runtime-compiler-output-dir
+    - hostPath:
+        path: /var/tmp/datadog-agent/system-probe/kernel-headers
+      name: kernel-headers-download-dir
+    - hostPath:
+        path: /var/lib/kubelet/seccomp # eBPF monitoring
+      name: seccomp-root
+    - name: sysprobe-socket-dir
+    - hostPath:
+        path: /lib/modules # eBPF monitoring
+      name: modules
+    - hostPath:
+        path: /sys/fs/bpf # eBPF monitoring
+      name: bpffs
+    - hostPath:
+        path: /
+      name: hostroot
+    # The following hostPath mounts are needed for runtime compilation
+    - hostPath:
+        path: /etc/apt
+      name: apt-config-dir
+    - hostPath:
+        path: /etc/yum.repos.d
+      name: yum-repos-dir
+    - hostPath:
+        path: /etc/zypp
+      name: opensuse-repos-dir
+    - hostPath:
+        path: /etc/pki
+      name: public-key-dir
+    - hostPath:
+        path: /etc/yum/vars
+      name: yum-vars-dir
+    - hostPath:
+        path: /etc/dnf/vars
+      name: dnf-vars-dir
+    - hostPath:
+        path: /etc/rhsm
+      name: rhel-subscription-dir

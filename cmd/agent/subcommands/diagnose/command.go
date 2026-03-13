@@ -9,6 +9,7 @@ package diagnose
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -35,7 +36,6 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -107,7 +107,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot("CORE", cliParams.logLevelDefaultOff.Value(), true),
 				}),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -170,7 +169,6 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -186,7 +184,6 @@ This command prints the gohai data sent by the Agent, including current processe
 				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -202,7 +199,6 @@ This command print the inventory-agent metadata payload. This payload is used by
 				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -218,7 +214,6 @@ This command print the host-gpu metadata payload. This payload is used by the 'h
 				fx.Supply(payloadName("host-gpu")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -234,23 +229,6 @@ This command print the inventory-host metadata payload. This payload is used by 
 				fx.Supply(payloadName("inventory-host")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-
-	payloadInventoriesOtelCmd := &cobra.Command{
-		Use:   "inventory-otel",
-		Short: "Print the Inventory otel metadata payload.",
-		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("inventory-otel")),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -266,7 +244,6 @@ This command print the ha-agent metadata payload. This payload is used by the 'H
 				fx.Supply(payloadName("ha-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -282,7 +259,6 @@ This command print the inventory-checks metadata payload. This payload is used b
 				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -298,7 +274,6 @@ This command print the package-signing metadata payload. This payload is used by
 				fx.Supply(payloadName("package-signing")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -314,7 +289,6 @@ This command print the system-probe metadata payload. This payload is used by th
 				fx.Supply(payloadName("system-probe")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -330,7 +304,6 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(payloadName("security-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -345,7 +318,6 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(payloadName("agent-telemetry")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -359,7 +331,36 @@ This command print the security-agent metadata payload. This payload is used by 
 			return fxutil.OneShot(printAgentFullTelemetry,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
+	payloadHostSystemInfoCmd := &cobra.Command{
+		Use:   "host-system-info",
+		Short: "[internal] Print the host system info metadata payload.",
+		Long: `
+This command print the host system info metadata payload.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-system-info")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
+	payloadHealthPlatformIssuesCmd := &cobra.Command{
+		Use:   "health-issues",
+		Short: "[internal] Print health issues detected by the agent.",
+		Long: `
+This command prints health issues detected by the agent.
+Health platform must be enabled for issues to be reported.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printHealthPlatformIssues,
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -370,7 +371,6 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadHostGpuCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
@@ -378,6 +378,8 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
+	showPayloadCommand.AddCommand(payloadHostSystemInfoCmd)
+	showPayloadCommand.AddCommand(payloadHealthPlatformIssuesCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -414,6 +416,11 @@ func cmdDiagnose(cliParams *cliParams,
 			fmt.Fprintf(w, "  %d. %s\n", idx+1, suiteName)
 		}
 		return nil
+	}
+
+	// API key is required to run diagnose; without it no checks can run and the command would exit successfully with no useful output
+	if !config.IsConfigured("api_key") {
+		return errors.New("no API key configured: diagnose requires an API key to run checks. Set the API key in datadog.yaml or use the DD_API_KEY environment variable")
 	}
 
 	// Run command
@@ -459,6 +466,23 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
 		return fmt.Errorf("Could not fetch metadata payload: %s", err)
+	}
+
+	fmt.Println(string(r))
+	return nil
+}
+
+func printHealthPlatformIssues(_ log.Component, config config.Component, client ipc.HTTPClient) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%d/health-platform/issues",
+		ipcAddress, config.GetInt("cmd_port"))
+
+	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
+	if err != nil {
+		return fmt.Errorf("Could not fetch health platform issues: %s", err)
 	}
 
 	fmt.Println(string(r))

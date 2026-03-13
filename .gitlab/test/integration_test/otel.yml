@@ -1,0 +1,204 @@
+---
+# integration_test stage
+# Contains jobs to run integration tests in otel go binaries
+
+integration_tests_otel:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - dda inv -- check-otel-build
+    - dda inv -- check-otel-module-versions
+    - dda inv -- otel-agent.integration-test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+docker_image_build_otel:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - mkdir -p /tmp/otel-ci
+    - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
+    - export OTELCOL_VERSION=$(yq eval '.processors[] | select(.gomod | test("opentelemetry-collector-contrib")) | .gomod' /tmp/otel-ci/manifest.yaml | head -1 | awk '{print $NF}')
+    - >-
+      yq eval -i
+      '.receivers += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver " + env(OTELCOL_VERSION)}]'
+      /tmp/otel-ci/manifest.yaml
+    - >-
+      yq eval -i
+      '.processors += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor " + env(OTELCOL_VERSION)}]'
+      /tmp/otel-ci/manifest.yaml
+  script:
+    - !reference [.login_to_docker_readonly]
+    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
+    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    - |
+      docker build \
+      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
+      --build-arg CI \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      --tag agent-byoc:latest \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
+    - |
+      OT_AGENT_IMAGE_NAME=agent-byoc \
+      OT_AGENT_TAG=latest python3 \
+      /tmp/otel-ci/otel_agent_build_tests.py
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+datadog_otel_components_ocb_build:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
+  rules:
+    - !reference [.on_otel_components_changes]
+  timeout: 15 minutes
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
+
+# Test that the BYOC packages can be built with the existing Dockerfile
+.ddot_byoc_oci_build_test:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+    - apt-get update && apt-get install -y --no-install-recommends zstd
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
+    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    # Start a local OCI registry to receive both the source agent OCI and the output image
+    - docker run -d -p 5000:5000 --name local-registry registry:2
+    - OUTPUT_OCI="localhost:5000/${DDOT_BYOC_OCI_REPO}:${AGENT_VERSION}"
+    # TODO: use staging package for AGENT_OCI until DDOT extension is released in 7.78.0
+    - |
+      docker build \
+      --target builder \
+      --network=host \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
+      --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
+      --build-arg OUTPUT_OCI=$OUTPUT_OCI \
+      --build-arg CI \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
+    # Verify the OCI image index was pushed and the replaced binary is present in the ddot layer
+    - |
+      REGISTRY_BASE="http://localhost:5000/v2/${DDOT_BYOC_OCI_REPO}"
+      oci_curl() { curl -sf -H "Accept: $1" "${REGISTRY_BASE}/$2"; }
+      MANIFEST=$(oci_curl application/vnd.oci.image.index.v1+json "manifests/${AGENT_VERSION}") || \
+        { echo "ERROR: OCI image index not found in local registry after build"; exit 1; }
+      echo "$MANIFEST" | jq -e '.manifests | length > 0' || \
+        { echo "ERROR: OCI image index has no manifests"; exit 1; }
+      echo "OCI image index verified in local registry"
+      MANIFEST_DIGEST=$(echo "$MANIFEST" | jq -r '.manifests[0].digest')
+      PLATFORM_MANIFEST=$(oci_curl application/vnd.oci.image.manifest.v1+json "manifests/${MANIFEST_DIGEST}")
+      DDOT_LAYER_DIGEST=$(echo "$PLATFORM_MANIFEST" | \
+        jq -r '.layers[] | select(.annotations["com.datadoghq.package.extension.name"] == "ddot") | .digest')
+      [ -n "$DDOT_LAYER_DIGEST" ] || { echo "ERROR: ddot extension layer not found in pushed manifest"; exit 1; }
+      oci_curl "*/*" "blobs/${DDOT_LAYER_DIGEST}" | zstd -d | tar -t | grep "${DDOT_BYOC_BINARY_NAME}" || \
+        { echo "ERROR: ${DDOT_BYOC_BINARY_NAME} not found in ddot extension layer"; exit 1; }
+      echo "${DDOT_BYOC_BINARY_NAME} verified in ddot extension layer"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+ddot_byoc_package_build_test_linux_oci:
+  extends: .ddot_byoc_oci_build_test
+  variables:
+    DDOT_BYOC_PACKAGE_TYPE: linux
+    DDOT_BYOC_OCI_REPO: ddot-byoc-linux
+    DDOT_BYOC_BINARY_NAME: otel-agent
+
+ddot_byoc_package_build_test_windows_oci:
+  extends: .ddot_byoc_oci_build_test
+  variables:
+    DDOT_BYOC_PACKAGE_TYPE: windows
+    DDOT_BYOC_OCI_REPO: ddot-byoc-windows
+    DDOT_BYOC_BINARY_NAME: otel-agent.exe
+
+ddot_byoc_binary_build_test_ubuntu2004:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
+    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    - |
+      docker build \
+      --target builder \
+      --tag otel-builder-tmp \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg UBUNTU_VERSION=20.04 \
+      --build-arg CI \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
+    - mkdir -p ddot-byoc
+    - docker run --rm -v "$(pwd)/ddot-byoc:/out" otel-builder-tmp cp /workspace/datadog-agent/bin/otel-agent/otel-agent /out/otel-agent
+    - BIN_PATH=ddot-byoc/otel-agent
+    # Check GLIBC compatibility (must be <= 2.31, given we built with Ubuntu 20.04)
+    - |
+      ALLOWED_GLIBC=2.31
+      REQUIRED_GLIBC=$(objdump -T "$BIN_PATH" 2>/dev/null | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/[^0-9.]//g' | sort -V | tail -1)
+      echo "Detected required GLIBC version: ${REQUIRED_GLIBC:-unknown} (allowed max: $ALLOWED_GLIBC)"
+      if [ -z "$REQUIRED_GLIBC" ]; then
+        echo "WARNING: Could not detect GLIBC requirement from binary; proceeding without hard failure." >&2
+      else
+        # This amounts to reporting an error when $REQUIRED_GLIBC > $ALLOWED_GLIBC
+        highest_version=$(printf '%s\n%s\n' "$REQUIRED_GLIBC" "$ALLOWED_GLIBC" | sort -V | tail -1)
+        if [[ "$REQUIRED_GLIBC" != "$ALLOWED_GLIBC" && "$highest_version" == "$REQUIRED_GLIBC" ]]; then
+          echo "ERROR: otel-agent requires GLIBC_$REQUIRED_GLIBC which exceeds expected GLIBC_$ALLOWED_GLIBC" >&2
+          objdump -T "$BIN_PATH" | grep 'GLIBC'
+          exit 1
+        fi
+      fi
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success

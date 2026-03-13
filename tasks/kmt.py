@@ -74,6 +74,7 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
+    build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
     get_ebpf_build_dir,
@@ -101,8 +102,8 @@ except ImportError:
     tabulate = None
 
 
-X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
-ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+X86_AMI_ID_SANDBOX = "ami-0ee01fdc00d76ae88"
+ARM_AMI_ID_SANDBOX = "ami-0b200b09727f5cd75"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
@@ -497,9 +498,7 @@ def selfcheck(
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
     info("[+] Configuring SSH key for use with the KMT AWS instances")
-    info(
-        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
-    )
+    info("[+] Ensure your desired SSH key is set up in the AWS agent-sandbox account so we can check its existence")
     info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
@@ -748,6 +747,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/test-json-review/",
+            "tags": "-tags=test",
             "env": env_str,
         },
     )
@@ -1057,7 +1057,7 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
 
     packages_list = " ".join(packages)
     list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    res = ctx.run(f"go list -buildvcs=false -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
     if res is None or not res.ok:
         raise Exit("Failed to get dependencies for system-probe")
 
@@ -1121,6 +1121,14 @@ def kmt_sysprobe_prepare(
     build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
+
+    info("[+] Building Rust binaries...")
+    build_rust_binaries(
+        ctx,
+        arch=arch,
+        output_dir=kmt_paths.sysprobe_tests,
+        packages=[os.path.relpath(p, os.getcwd()) for p in target_packages],
+    )
 
     info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
@@ -2318,8 +2326,8 @@ def tag_ci_job(ctx: Context):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
     if len(metrics) > 0:
-        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
-        ctx.run(f"datadog-ci metric --level job {metrics_str}")
+        metrics_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci measure --level job {metrics_str}")
 
 
 @task

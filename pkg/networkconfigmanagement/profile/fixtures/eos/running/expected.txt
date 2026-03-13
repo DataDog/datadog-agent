@@ -1,0 +1,81 @@
+transceiver qsfp default-mode 4x10G
+!
+hostname Arista-1
+ip name-server vrf default 10.101.0.20
+ip name-server vrf default 8.8.8.8
+!
+ntp server 10.101.0.1
+!
+snmp-server community <secret hidden>
+snmp-server community <secret hidden>
+!
+spanning-tree mode mstp
+!
+aaa authorization exec default local
+!
+enable secret 5 <secret hidden>
+no aaa root
+!
+username admin privilege 15 role network-admin secret 5 <secret hidden>
+!
+vlan 2,4093
+!
+vlan 4092
+   name MLAG_LEFT
+!
+vlan 4094
+   trunk group MLAG-Peer
+!
+interface Port-Channel1
+   switchport mode trunk
+   switchport trunk group MLAG-Peer
+!
+interface Port-Channel4
+   switchport mode trunk
+   mlag 4
+!
+interface Ethernet1
+   description PEER_LINK
+   switchport access vlan 4094
+!
+interface Ethernet2
+description MLAG_LEFT_to_Arista-3
+!
+interface Ethernet3
+   description MLAG_LEFT_to_Arista-4
+   switchport access vlan 2
+   channel-group 4 mode active
+!
+interface Ethernet4
+!
+interface Management1
+   description management
+   ip address 10.101.0.245/24
+!
+interface Vlan1
+!
+interface Vlan4092
+   ip address 10.0.1.1/30
+!
+interface Vlan4094
+   ip address 10.0.0.1/30
+!
+no ip routing
+!
+mlag configuration
+   domain-id MLAG-1
+   heartbeat-interval 2500
+   local-interface Vlan4094
+   peer-address 10.0.0.2
+   peer-link Port-Channel1
+!
+management api http-commands
+   protocol http
+   no shutdown
+!
+management telnet
+   no shutdown
+   idle-timeout 180
+!
+!
+end

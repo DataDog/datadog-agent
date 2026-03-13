@@ -9,11 +9,13 @@ package clusterchecks
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -55,7 +57,7 @@ func (d *dispatcher) calculateAvg() (int, error) {
 	}
 
 	if length == 0 {
-		return -1, fmt.Errorf("zero nodes reporting")
+		return -1, errors.New("zero nodes reporting")
 	}
 
 	return busyness / length, nil
@@ -172,11 +174,22 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-		return d.rebalanceUsingUtilization(force)
-	}
+	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
+		tracer.ResourceName("rebalance_checks"),
+		tracer.SpanType("worker"))
+	span.SetTag("force", force)
+	defer span.Finish()
 
-	return d.rebalanceUsingBusyness()
+	var result []types.RebalanceResponse
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+		result = d.rebalanceUsingUtilization(force)
+		span.SetTag("algorithm", "utilization")
+	} else {
+		result = d.rebalanceUsingBusyness()
+		span.SetTag("algorithm", "busyness")
+	}
+	span.SetTag("checks_moved", len(result))
+	return result
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster

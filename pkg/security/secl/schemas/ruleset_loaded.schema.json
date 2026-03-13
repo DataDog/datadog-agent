@@ -43,6 +43,9 @@
                 "version": {
                     "type": "string"
                 },
+                "type": {
+                    "type": "string"
+                },
                 "status": {
                     "type": "string",
                     "enum": [

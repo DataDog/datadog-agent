@@ -9,6 +9,7 @@
 package admission
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -16,10 +17,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/informers"
@@ -37,7 +38,6 @@ type ControllerContext struct {
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
-	ImageResolver                autoinstrumentation.ImageResolver
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -58,7 +58,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
 		datadogConfig.GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
 	secretConfig := secret.NewConfig(
-		common.GetResourcesNamespace(),
+		namespace.GetResourcesNamespace(),
 		datadogConfig.GetString("admission_controller.certificate.secret_name"),
 		datadogConfig.GetString("admission_controller.service_name"),
 		certConfig)
@@ -98,7 +98,6 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		pa,
 		datadogConfig,
 		ctx.Demultiplexer,
-		ctx.ImageResolver,
 	)
 
 	go secretController.Run(ctx.StopCh)
@@ -125,6 +124,17 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	if datadogConfig.GetBool("admission_controller.probe.enabled") {
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig)
+		setProbe(admissionProbe)
+		probeCtx, probeCancel := context.WithCancel(context.Background())
+		go func() {
+			<-ctx.StopCh
+			probeCancel()
+		}()
+		go admissionProbe.Run(probeCtx)
+	}
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }

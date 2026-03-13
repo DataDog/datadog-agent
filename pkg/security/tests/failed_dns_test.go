@@ -11,15 +11,17 @@ package tests
 // Package tests holds tests related files
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 // Purpose of the test:
@@ -52,7 +54,7 @@ func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%x", decoded), nil
+	return hex.EncodeToString(decoded), nil
 }
 
 func TestFailedDNSFullResponse(t *testing.T) {

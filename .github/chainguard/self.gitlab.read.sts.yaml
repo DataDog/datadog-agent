@@ -1,0 +1,10 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
+
+claim_pattern:
+  project_path: "DataDog/datadog-agent"
+  project_id: "4670"
+  ref: ".+"
+permissions:
+  contents: read

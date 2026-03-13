@@ -7,7 +7,9 @@
 
 package setup
 
-import pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 // Datadog returns the current agent configuration
 func Datadog() pkgconfigmodel.Config {

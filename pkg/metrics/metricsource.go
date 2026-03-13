@@ -258,7 +258,7 @@ const (
 	MetricSourceOpenstackController
 	MetricSourceOracle
 	MetricSourcePdhCheck
-	MetricSourcePerfect
+	MetricSourcePrefect
 	MetricSourcePgbouncer
 	MetricSourcePhpFpm
 	MetricSourcePostfix
@@ -338,7 +338,9 @@ const (
 	MetricSourceHuggingFaceTgi
 	MetricSourceIbmSpectrumLsf
 	MetricSourceDatadogOperator
-
+	MetricSourceBattery
+	MetricSourcePinot
+	MetricSourceDellPowerFlex
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -386,9 +388,6 @@ const (
 
 	// Serverless
 	MetricSourceServerless
-	MetricSourceAwsLambdaCustom
-	MetricSourceAwsLambdaEnhanced
-	MetricSourceAwsLambdaRuntime
 	MetricSourceAzureContainerAppCustom
 	MetricSourceAzureContainerAppEnhanced
 	MetricSourceAzureContainerAppRuntime
@@ -442,7 +441,7 @@ func (ms MetricSource) String() string {
 	case MetricSourceContainerd:
 		return "containerd"
 	case MetricSourceControlM:
-		return "controlm"
+		return "control_m"
 	case MetricSourceCri:
 		return "cri"
 	case MetricSourceDocker:
@@ -697,8 +696,8 @@ func (ms MetricSource) String() string {
 		return "oracle"
 	case MetricSourcePdhCheck:
 		return "pdh_check"
-	case MetricSourcePerfect:
-		return "perfect"
+	case MetricSourcePrefect:
+		return "prefect"
 	case MetricSourcePgbouncer:
 		return "pgbouncer"
 	case MetricSourcePhpFpm:
@@ -1107,12 +1106,6 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_couchdbreceiver"
 	case MetricSourceServerless:
 		return "serverless"
-	case MetricSourceAwsLambdaCustom:
-		return "aws_lambda_custom"
-	case MetricSourceAwsLambdaEnhanced:
-		return "aws_lambda_enhanced"
-	case MetricSourceAwsLambdaRuntime:
-		return "aws_lambda_runtime"
 	case MetricSourceAzureContainerAppCustom:
 		return "azure_container_app_custom"
 	case MetricSourceAzureContainerAppEnhanced:
@@ -1135,6 +1128,12 @@ func (ms MetricSource) String() string {
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
 		return "windows_certificate"
+	case MetricSourceBattery:
+		return "battery"
+	case MetricSourcePinot:
+		return "pinot"
+	case MetricSourceDellPowerFlex:
+		return "dell_powerflex"
 	default:
 		return "<unknown>"
 	}
@@ -1149,7 +1148,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceContainer
 	case "containerd":
 		return MetricSourceContainerd
-	case "controlm":
+	case "control_m":
 		return MetricSourceControlM
 	case "cri":
 		return MetricSourceCri
@@ -1401,8 +1400,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOracle
 	case "pdh_check":
 		return MetricSourcePdhCheck
-	case "perfect":
-		return MetricSourcePerfect
+	case "prefect":
+		return MetricSourcePrefect
 	case "pgbouncer":
 		return MetricSourcePgbouncer
 	case "php_fpm":
@@ -1819,6 +1818,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWlan
 	case "windows_certificate":
 		return MetricSourceWindowsCertificateStore
+	case "battery":
+		return MetricSourceBattery
+	case "pinot":
+		return MetricSourcePinot
+	case "dell_powerflex":
+		return MetricSourceDellPowerFlex
 	default:
 		return MetricSourceUnknown
 	}

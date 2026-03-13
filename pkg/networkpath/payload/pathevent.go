@@ -100,6 +100,52 @@ const (
 	PathOriginNetworkTraffic PathOrigin = "network_traffic"
 	// PathOriginNetworkPathIntegration correspond to traffic from network_path integration.
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
+	// PathOriginSynthetics correspond to traffic from synthetics.
+	PathOriginSynthetics PathOrigin = "synthetics"
+)
+
+// TestRunType defines the type of test run
+type TestRunType string
+
+const (
+	// TestRunTypeScheduled is a scheduled test run.
+	TestRunTypeScheduled TestRunType = "scheduled"
+	// TestRunTypeDynamic is a dynamic test run.
+	TestRunTypeDynamic TestRunType = "dynamic"
+	// TestRunTypeTriggered is a triggered test run.
+	TestRunTypeTriggered TestRunType = "triggered"
+)
+
+// SourceProduct defines the product that originated the path
+type SourceProduct string
+
+const (
+	// SourceProductNetworkPath is the network path product.
+	SourceProductNetworkPath SourceProduct = "network_path"
+	// SourceProductSynthetics is the synthetics product.
+	SourceProductSynthetics SourceProduct = "synthetics"
+	// SourceProductEndUserDevice is the end user device monitoring product.
+	SourceProductEndUserDevice SourceProduct = "end_user_device"
+)
+
+// GetSourceProduct returns the appropriate SourceProduct based on infrastructure mode.
+// If infraMode is "end_user_device", returns SourceProductEndUserDevice.
+// Otherwise, returns SourceProductNetworkPath.
+func GetSourceProduct(infraMode string) SourceProduct {
+	if infraMode == "end_user_device" {
+		return SourceProductEndUserDevice
+	}
+	return SourceProductNetworkPath
+}
+
+// CollectorType defines the type of collector
+type CollectorType string
+
+const (
+	// CollectorTypeAgent is an agent collector.
+	CollectorTypeAgent CollectorType = "agent"
+	// CollectorTypeManagedLocation is a managed location collector.
+	CollectorTypeManagedLocation CollectorType = "managed_location"
 )
 
 // NetworkPathSource encapsulates information
@@ -112,6 +158,7 @@ type NetworkPathSource struct {
 	NetworkID   string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
 	Service     string       `json:"service,omitempty"`
 	ContainerID string       `json:"container_id,omitempty"`
+	PublicIP    string       `json:"public_ip,omitempty"`
 }
 
 // NetworkPathDestination encapsulates information
@@ -186,17 +233,20 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp    int64                  `json:"timestamp"`
-	AgentVersion string                 `json:"agent_version"`
-	Namespace    string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestResultID string                 `json:"test_result_id"` // ID of specific test result (test run)
-	PathtraceID  string                 `json:"pathtrace_id"`   // DEPRECATED
-	Origin       PathOrigin             `json:"origin"`
-	Protocol     Protocol               `json:"protocol"`
-	Source       NetworkPathSource      `json:"source"`
-	Destination  NetworkPathDestination `json:"destination"`
-	Traceroute   Traceroute             `json:"traceroute"`
-	E2eProbe     E2eProbe               `json:"e2e_probe"`
-	Tags         []string               `json:"tags,omitempty"`
+	Timestamp     int64                  `json:"timestamp"`
+	AgentVersion  string                 `json:"agent_version"`
+	Namespace     string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID  string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestResultID  string                 `json:"test_result_id"` // ID of specific test result (test run)
+	TestRunID     string                 `json:"test_run_id"`
+	Origin        PathOrigin             `json:"origin"`
+	TestRunType   TestRunType            `json:"test_run_type"`
+	SourceProduct SourceProduct          `json:"source_product"`
+	CollectorType CollectorType          `json:"collector_type"`
+	Protocol      Protocol               `json:"protocol"`
+	Source        NetworkPathSource      `json:"source"`
+	Destination   NetworkPathDestination `json:"destination"`
+	Traceroute    Traceroute             `json:"traceroute"`
+	E2eProbe      E2eProbe               `json:"e2e_probe"`
+	Tags          []string               `json:"tags,omitempty"`
 }

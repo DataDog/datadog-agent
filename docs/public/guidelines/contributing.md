@@ -81,8 +81,6 @@ Including new features
 This feature does this and that. Some tests are excluded on x86 because of ...
 ```
 
-If your commit is only shipping documentation changes or example files, and is a complete no-op for the test suite, please add **[skip ci]** in the commit message body to skip the build and give that slot to someone else who does need it.
-
 ### Pull request workflow
 
 The goals ordered by priority are:

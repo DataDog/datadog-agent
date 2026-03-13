@@ -8,7 +8,7 @@
 package software
 
 import (
-	"fmt"
+	"errors"
 
 	"golang.org/x/sys/windows"
 
@@ -122,7 +122,7 @@ func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Entry
 		name = properties[msiProductName]
 	}
 	if name == "" {
-		return nil, fmt.Errorf("no valid name found for product")
+		return nil, errors.New("no valid name found for product")
 	}
 
 	version := mappedProperties[displayVersion]

@@ -10,6 +10,7 @@ package external
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,7 +55,7 @@ func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher wor
 func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, clusterName string, dpa model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
 	recommenderConfig := dpa.CustomRecommenderConfiguration()
 	if recommenderConfig == nil { // should not happen; we should not process autoscalers without recommender config
-		return nil, fmt.Errorf("external recommender spec is required")
+		return nil, errors.New("external recommender spec is required")
 	}
 
 	u, err := url.Parse(recommenderConfig.Endpoint)
@@ -63,7 +64,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("only http and https schemes are supported")
+		return nil, errors.New("only http and https schemes are supported")
 	}
 
 	req, err := r.buildWorkloadRecommendationRequest(clusterName, dpa, recommenderConfig)
@@ -164,11 +165,12 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 	}
 
 	if dpa.Spec().Constraints != nil {
-		req.Constraints = &kubeAutoscaling.WorkloadRecommendationConstraints{
-			MaxReplicas: dpa.Spec().Constraints.MaxReplicas,
-		}
+		req.Constraints = &kubeAutoscaling.WorkloadRecommendationConstraints{}
 		if dpa.Spec().Constraints.MinReplicas != nil {
 			req.Constraints.MinReplicas = *dpa.Spec().Constraints.MinReplicas
+		}
+		if dpa.Spec().Constraints.MaxReplicas != nil {
+			req.Constraints.MaxReplicas = *dpa.Spec().Constraints.MaxReplicas
 		}
 	}
 

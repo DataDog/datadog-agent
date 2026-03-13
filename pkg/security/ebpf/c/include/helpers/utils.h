@@ -49,7 +49,9 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         return -1;
     }
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (size_t i = 0; i < SELINUX_WRITE_BUFFER_LEN; i++) {
         char curr = copy->buffer[i];
         if (curr == 0) {

@@ -151,6 +151,7 @@ func AllMaps() []*manager.Map {
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
+		{Name: "prctl_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
@@ -279,6 +280,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"capabilities_contexts": {
 			MaxEntries: capabilitiesContextsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"open_samples": {
+			MaxEntries: 40000,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

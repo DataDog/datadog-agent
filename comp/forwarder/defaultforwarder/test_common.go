@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
@@ -56,7 +58,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, client *http.Client) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -175,11 +177,6 @@ func (tf *MockedForwarder) SubmitProcessDiscoveryChecks(payload transaction.Byte
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
-// SubmitProcessEventChecks mock
-func (tf *MockedForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return nil, tf.Called(payload, extra).Error(0)
-}
-
 // SubmitRTProcessChecks mock
 func (tf *MockedForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
@@ -208,4 +205,23 @@ func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPay
 // SubmitOrchestratorManifests mock
 func (tf *MockedForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
+}
+
+// GetDomainResolvers returns the list of resolvers used by this forwarder.
+func (tf *MockedForwarder) GetDomainResolvers() []resolver.DomainResolver {
+	return tf.Called().Get(0).([]resolver.DomainResolver)
+}
+
+// SubmitTransaction adds a transaction to the queue for sending.
+func (tf *MockedForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
+	return tf.Called(t).Error(0)
+}
+
+// NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
+func NewTestForwarder(params Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
+	opts, err := createOptions(params, config, log, secrets)
+	if err != nil {
+		return nil, err
+	}
+	return NewDefaultForwarder(config, log, opts), nil
 }

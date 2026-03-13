@@ -10,14 +10,15 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 
 	"golang.org/x/sys/unix"
 )
@@ -90,7 +91,7 @@ func TestFsmount(t *testing.T) {
 	})
 
 	t.Run("fsmount-resolve-open-file", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
 				t.Skip("This kernel doesn't have the new mount api")
@@ -119,11 +120,11 @@ func TestFsmount(t *testing.T) {
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "/test-open", event.Open.File.PathnameStr, "Wrong pathname")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fsmount-resolve-mkdir", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
 				t.Skip("This kernel doesn't have the new mount api")
@@ -152,6 +153,6 @@ func TestFsmount(t *testing.T) {
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "/test-mkdir", event.Mkdir.File.PathnameStr, "Wrong path")
-		})
+		}, "test_rule_2")
 	})
 }

@@ -1,0 +1,25 @@
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+index b8ae535..4839532 100644
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -29,6 +29,7 @@ load(
+     "tool_path",
+     "with_feature_set",
+ )
++load("@rules_cc//cc:defs.bzl", "CcToolchainConfigInfo", "cc_common")
+ 
+ all_compile_actions = [
+     ACTION_NAMES.c_compile,
+diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
+index 65095db..c5b7ee0 100644
+--- a/toolchain/defs.bzl
++++ b/toolchain/defs.bzl
+@@ -433,7 +433,7 @@ ARCHS = struct(
+ )
+ 
+ _TOOLCHAIN_BUILD_FILE_CONTENT = """\
+-load("@rules_cc//cc:defs.bzl", "cc_toolchain")
++load("@rules_cc//cc:defs.bzl", "cc_library", "cc_toolchain")
+ load("@{gcc_toolchain_workspace_name}//toolchain:cc_toolchain_config.bzl", "cc_toolchain_config")
+ load("//:tool_paths.bzl", "tool_paths")
+ 

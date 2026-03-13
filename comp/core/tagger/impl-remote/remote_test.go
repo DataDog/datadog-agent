@@ -8,7 +8,7 @@ package remoteimpl
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -160,7 +160,7 @@ func TestNewComponentWithOverride(t *testing.T) {
 				}),
 
 				tagger.WithOverrideAuthTokenGetter(func(_ configmodel.Reader) (string, error) {
-					return "", fmt.Errorf("auth token getter always fails")
+					return "", errors.New("auth token getter always fails")
 				})),
 			Telemetry: nooptelemetry.GetCompatComponent(),
 			IPC:       ipcComp,

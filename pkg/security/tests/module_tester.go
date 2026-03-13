@@ -28,8 +28,9 @@ import (
 	"time"
 	"unsafe"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -61,7 +62,8 @@ const (
 	Skip
 )
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout         = 10 * time.Second
+	functionalTestsHostname = "functional_tests_host"
 )
 
 var (
@@ -250,7 +252,7 @@ func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules
 func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
 	tb.Helper()
 
-	if err := tm.getSignal(tb, action, cb); err != nil {
+	if err := tm.getSignalFromRule(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -260,13 +262,15 @@ func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*mo
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
-	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	return tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		cb(event, rule)
 		return nil
 	})
 }
 
-func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
+// getSignalForRule is like getSignal but filters events by ruleID
+// to prevent stale events from previous tests from being processed.
+func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID ...string) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -277,6 +281,11 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
+		// Filter out events that don't match the expected type and rule if ruleID is provided (only when WaitSignalFromRule is called)
+		if len(ruleID) > 0 && r.ID != ruleID[0] {
+			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -551,14 +560,21 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	return ErrTimeout{msg.String()}
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
+// WaitSignalFromRule is like WaitSignal but filters events by ruleID
+// to prevent stale events from previous sub-tests from being processed.
+func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
 	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		validateProcessContext(tb, event)
 		cb(event, rule)
 		return nil
-	})
+	}, ruleID); err != nil {
+		if _, ok := err.(ErrSkipTest); ok {
+			tb.Skip(err)
+		} else {
+			tb.Fatal(err)
+		}
+	}
 }
 
 func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
@@ -572,7 +588,7 @@ func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, nil)
+	b, err := serializers.MarshalEvent(ev, nil, tm.probe.GetScrubber())
 	return string(b), err
 }
 
@@ -787,12 +803,9 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
 		"ActivityDumpDuration":                       opts.activityDumpDuration,
-		"ActivityDumpLoadControllerPeriod":           opts.activityDumpLoadControllerPeriod,
-		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
-		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
 		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
@@ -804,8 +817,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
 		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
-		"EnableAutoSuppression":                      opts.enableAutoSuppression,
-		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
 		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
@@ -895,7 +906,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

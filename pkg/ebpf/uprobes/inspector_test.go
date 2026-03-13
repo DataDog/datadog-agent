@@ -8,7 +8,6 @@
 package uprobes
 
 import (
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -25,7 +24,7 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 	require.NoError(t, err)
 
 	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+	lib := filepath.Join(libmmap, "libssl.so."+runtime.GOARCH)
 	fpath := utils.FilePath{HostPath: lib}
 
 	setID := 0

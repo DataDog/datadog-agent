@@ -7,16 +7,39 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
+
+// msiSuccessExitCodes are Windows Installer exit codes that indicate success
+// but require or initiated a reboot. See:
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+const (
+	msiExitSuccessRebootRequired  = 3010 // ERROR_SUCCESS_REBOOT_REQUIRED
+	msiExitSuccessRebootInitiated = 1641 // ERROR_SUCCESS_REBOOT_INITIATED
+)
+
+func isMsiSuccessExitCode(err error) bool {
+	if err == nil {
+		return false
+	}
+	var exitErr *ssh.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	code := exitErr.ExitStatus()
+	return code == msiExitSuccessRebootRequired || code == msiExitSuccessRebootInitiated
+}
 
 // MsiExec runs msiexec on the VM with the provided operation and args and collects the log
 //
 // args may need to be escaped/quoted. The Start-Process ArgumentList parameter value is wrapped in single quotes. For example:
-//   - Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /l "logfile" /i "msipath" APIKEY="00000000000000000000000000000000"'
+//   - Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /norestart /l "logfile" /i "msipath" APIKEY="00000000000000000000000000000000"'
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process?view=powershell-7.4#example-7-specifying-arguments-to-the-process
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-7.4
 func MsiExec(host *components.RemoteHost, operation string, product string, args string, logPath string) error {
@@ -29,9 +52,12 @@ func MsiExec(host *components.RemoteHost, operation string, product string, args
 	if err != nil {
 		return err
 	}
-	args = fmt.Sprintf(`/qn /l "%s" %s "%s" %s`, remoteLogPath, operation, product, args)
+	args = fmt.Sprintf(`/qn /norestart /l "%s" %s "%s" %s`, remoteLogPath, operation, product, args)
 	cmd := fmt.Sprintf(`Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '%s').ExitCode`, args)
 	_, msiExecErr := host.Execute(cmd)
+	if msiExecErr != nil && isMsiSuccessExitCode(msiExecErr) {
+		msiExecErr = nil // Treat as success
+	}
 	if logPath != "" {
 		err = host.GetFile(remoteLogPath, logPath)
 		if err != nil {

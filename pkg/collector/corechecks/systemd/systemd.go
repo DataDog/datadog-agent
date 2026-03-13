@@ -9,15 +9,16 @@ package systemd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/dbus"
-	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -514,10 +515,8 @@ func getServiceCheckStatus(state string, mapping map[string]string) servicecheck
 
 // isMonitored verifies if a unit should be monitored.
 func (c *SystemdCheck) isMonitored(unitName string) bool {
-	for _, name := range c.config.instance.UnitNames {
-		if name == unitName {
-			return true
-		}
+	if slices.Contains(c.config.instance.UnitNames, unitName) {
+		return true
 	}
 	for _, pattern := range c.unitPatterns {
 		if pattern.MatchString(unitName) {
@@ -528,12 +527,7 @@ func (c *SystemdCheck) isMonitored(unitName string) bool {
 }
 
 func isValidServiceCheckStatus(serviceCheckStatus string) bool {
-	for _, validStatus := range validServiceCheckStatus {
-		if serviceCheckStatus == validStatus {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validServiceCheckStatus, serviceCheckStatus)
 }
 
 // Configure configures the systemd checks
@@ -556,13 +550,13 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	}
 
 	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexes) == 0 {
-		return fmt.Errorf("please set either `unit_names` or `unit_regexes` in the instance config")
+		return errors.New("please set either `unit_names` or `unit_regexes` in the instance config")
 	}
 
 	for _, regex := range c.config.instance.UnitRegexes {
 		pattern, err := regexp.Compile(regex)
 		if err != nil {
-			return errors.Wrapf(err, "cannot compile regular expression %q to monitor systemd units", regex)
+			return fmt.Errorf("cannot compile regular expression %q to monitor systemd units: %w", regex, err)
 		}
 		log.Debugf("Compiled regex %q to Regexp %q", regex, pattern)
 		c.unitPatterns = append(c.unitPatterns, pattern)

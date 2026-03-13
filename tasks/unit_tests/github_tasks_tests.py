@@ -9,6 +9,7 @@ from invoke.context import Context
 import tasks
 from tasks.github_tasks import (
     Exit,
+    _get_teams,
     assign_team_label,
     check_permissions,
     check_qa_labels,
@@ -27,15 +28,19 @@ class GithubAPIMock:
         self.pr_files = pr_files or []
         self.assigned_labels = []
         self.pr = pr
+        # self.pr.remove_from_labels = self.remove_pr_label
 
     def get_pr_files(self, *_args, **_kwargs):
         return self.pr_files
 
     def get_pr_labels(self, *_args, **_kwargs):
-        return self.pr_labels
+        return self.pr_labels + self.assigned_labels
 
     def add_pr_label(self, _pr_id, label_name):
         self.assigned_labels.append(label_name)
+
+    def remove_pr_label(self, label_name):
+        self.pr_labels.remove(label_name)
 
     def get_pr(self, _pr_id):
         return self.pr
@@ -56,17 +61,19 @@ class TestAssignTeamLabelMock(unittest.TestCase):
             patch.object(tasks.github_tasks, 'read_owners') as read_owners_mock,
             patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock,
         ):
+            pr = unittest.mock.Mock(spec=GithubAPIMock.PullRequest)
             gh = GithubAPIMock(
                 pr_labels,
                 changed_files,
+                pr=pr,
             )
             gh_mock.return_value = gh
+            gh.pr.remove_from_labels = gh.remove_pr_label  # only for triage removal
             read_owners_mock.return_value = fake_codeowners
             team_labels_mock.return_value = possible_labels
-
             assign_team_label(Context())
 
-            self.assertEqual(sorted(gh.assigned_labels), sorted(expected_labels))
+            self.assertEqual(sorted(gh.get_pr_labels()), sorted(expected_labels))
 
     def test_no_match(self):
         changed_files = ['idonotexist']
@@ -98,36 +105,35 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         self.make_test(changed_files, expected_labels)
 
-    def test_multiple_files_single_team_best(self):
-        # agent-platform has more files than security so only one team will be assigned
-        changed_files = ['.gitignore', '.gitlab-ci.yml', '.gitlab/security.yml']
-        expected_labels = ['team/team-everything']
-
-        self.make_test(changed_files, expected_labels)
-
     def test_multiple_files_multiple_teams(self):
         changed_files = ['.gitignore', '.gitlab/security.yml']
         expected_labels = ['team/team-everything', 'team/team-b']
 
         self.make_test(changed_files, expected_labels)
 
-    def test_skip1(self):
+    def test_no_skip_qa(self):
         changed_files = ['.gitignore']
-        expected_labels = []
+        expected_labels = ['qa/done', 'team/team-everything']
 
         self.make_test(changed_files, expected_labels, pr_labels=['qa/done'])
-
-    def test_skip2(self):
-        changed_files = ['.gitignore']
-        expected_labels = []
-
-        self.make_test(changed_files, expected_labels, pr_labels=['team/team-a'])
 
     def test_invalid_team_label(self):
         changed_files = ['.gitignore']
         expected_labels = []
 
         self.make_test(changed_files, expected_labels, possible_labels=['team/team-doc'])
+
+    def test_remove_triage_label_extend_teams(self):
+        changed_files = ['.gitignore']
+        expected_labels = ['team/team-a', 'team/team-everything']
+
+        self.make_test(changed_files, expected_labels, pr_labels=['team/triage', 'team/team-a'])
+
+    def test_no_remove_triage_label(self):
+        changed_files = ['idonotexist']
+        expected_labels = ['team/triage']
+
+        self.make_test(changed_files, expected_labels, pr_labels=['team/triage'])
 
 
 class TestExtractQADescriptionFromPR(unittest.TestCase):
@@ -668,4 +674,33 @@ class TestCheckPermissions(unittest.TestCase):
             channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
+        )
+
+
+class TestGetTeams(unittest.TestCase):
+    CODEOWNERS_FILE = './tasks/unit_tests/testdata/codeowners.txt'
+
+    def test_single_best_team(self):
+        # /.gitlab/security.yml matches both team-b (specific) and team-a (directory)
+        # so team-b has the highest count.
+        changed_files = ['.gitlab/security.yml']
+        self.assertEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=True),
+            ['@datadog/team-b'],
+        )
+
+    def test_two_best_teams_tie(self):
+        # One file owned by team-a, one file owned by team-b -> tie (1 each)
+        changed_files = ['.gitlab/hello/world', '.gitlab/security.yml']
+        self.assertCountEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=True),
+            ['@datadog/team-a', '@datadog/team-b'],
+        )
+
+    def test_return_all_teams_when_best_teams_only_false(self):
+        # README.md introduces team-doc in addition to team-a/team-b.
+        changed_files = ['README.md', '.gitlab/hello/world', '.gitlab/security.yml']
+        self.assertCountEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=False),
+            ['@datadog/team-a', '@datadog/team-b', '@datadog/team-doc'],
         )

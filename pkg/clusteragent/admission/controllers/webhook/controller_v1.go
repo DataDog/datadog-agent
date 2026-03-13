@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -60,7 +59,6 @@ func NewControllerV1(
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
-	imageResolver autoinstrumentation.ImageResolver,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
@@ -78,7 +76,7 @@ func NewControllerV1(
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer, imageResolver)
+	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -396,6 +394,33 @@ func (c *ControllerV1) generateTemplates() {
 			),
 		)
 	}
+
+	if c.config.probeEnabled && len(mutatingWebhooks) > 0 {
+		probeEndpoint := *mutatingWebhooks[0].ClientConfig.Service.Path
+		mutatingWebhooks = append(mutatingWebhooks, c.getMutatingWebhookSkeleton(
+			"probe",
+			probeEndpoint,
+			[]admiv1.OperationType{admiv1.Create},
+			map[string][]string{"": {"configmaps"}},
+			&metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{c.config.getServiceNs()},
+					},
+				},
+			},
+			&metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					common.ProbeLabelKey: "true",
+				},
+			},
+			nil,
+			0,
+		))
+	}
+
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 

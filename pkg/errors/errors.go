@@ -6,7 +6,10 @@
 // Package errors provides custom errors for the agent
 package errors
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type errorReason int
 
@@ -33,7 +36,7 @@ func (e AgentError) Error() string {
 }
 
 // NewNotFound returns a new error which indicates that the object passed in parameter was not found.
-func NewNotFound(notFoundObject string) *AgentError {
+func NewNotFound(notFoundObject any) *AgentError {
 	return &AgentError{
 		message:     fmt.Sprintf("%q not found", notFoundObject),
 		errorReason: notFoundError,
@@ -105,9 +108,9 @@ func IsTimeout(err error) bool {
 }
 
 func reasonForError(err error) errorReason {
-	switch t := err.(type) {
-	case *AgentError:
-		return t.errorReason
+	var agentErr *AgentError
+	if errors.As(err, &agentErr) {
+		return agentErr.errorReason
 	}
 	return unknownError
 }

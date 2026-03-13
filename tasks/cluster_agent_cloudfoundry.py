@@ -6,7 +6,7 @@ import os
 
 from invoke import task
 
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 
 # constants
@@ -24,7 +24,9 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
     build_common(
         ctx,
         BIN_PATH,
-        get_default_build_tags(build="cluster-agent-cloudfoundry"),
+        compute_build_tags_for_flavor(
+            build="cluster-agent-cloudfoundry", build_include=build_include, build_exclude=build_exclude
+        ),
         "-cloudfoundry",
         rebuild,
         build_include,

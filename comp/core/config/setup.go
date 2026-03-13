@@ -13,13 +13,14 @@ import (
 	"runtime"
 	"strings"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
-func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, p Params) error {
+func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, p Params) error {
 	confFilePath := p.ConfFilePath
 	configName := p.configName
 	defaultConfPath := p.defaultConfPath
@@ -29,7 +30,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// set the paths where a config file is expected
-	if len(confFilePath) != 0 {
+	if confFilePath != "" {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
 		config.AddConfigPath(confFilePath)
@@ -48,7 +49,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, pkgconfigsetup.SystemProbe().GetEnvVars())
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message

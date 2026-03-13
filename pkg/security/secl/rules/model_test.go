@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestDuration(t *testing.T) {
@@ -23,6 +23,24 @@ func TestDuration(t *testing.T) {
 			Scope: "container",
 			TTL: &HumanReadableDuration{
 				Duration: 1 * time.Second,
+			},
+		}
+		bytes, err := json.Marshal(setDef)
+		assert.NoError(t, err)
+		var deserialized SetDefinition
+		err = json.Unmarshal(bytes, &deserialized)
+		assert.NoError(t, err)
+		assert.Equal(t, setDef.Value, deserialized.Value)
+		assert.True(t, reflect.DeepEqual(setDef, deserialized))
+	})
+
+	t.Run("json marshaling with 0 duration", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:  "set_name",
+			Value: float64(123),
+			Scope: "container",
+			TTL: &HumanReadableDuration{
+				Duration: 0,
 			},
 		}
 		bytes, err := json.Marshal(setDef)
@@ -48,6 +66,24 @@ func TestDuration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, reflect.DeepEqual(setDef, deserialized))
 		err = json.Unmarshal([]byte(`{"name":"set_name","value":123,"scope":"container","ttl":1000000000}`), &deserialized)
+		assert.NoError(t, err)
+		assert.True(t, reflect.DeepEqual(setDef, deserialized))
+	})
+
+	t.Run("json unmarshalling 0 duration", func(t *testing.T) {
+		setDef := SetDefinition{
+			Name:  "set_name",
+			Value: float64(123),
+			Scope: "container",
+			TTL: &HumanReadableDuration{
+				Duration: 0 * time.Second,
+			},
+		}
+		var deserialized SetDefinition
+		err := json.Unmarshal([]byte(`{"name":"set_name","value":123,"scope":"container","ttl":"0s"}`), &deserialized)
+		assert.NoError(t, err)
+		assert.True(t, reflect.DeepEqual(setDef, deserialized))
+		err = json.Unmarshal([]byte(`{"name":"set_name","value":123,"scope":"container","ttl":0}`), &deserialized)
 		assert.NoError(t, err)
 		assert.True(t, reflect.DeepEqual(setDef, deserialized))
 	})

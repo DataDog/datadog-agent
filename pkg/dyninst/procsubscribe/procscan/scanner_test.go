@@ -10,6 +10,7 @@ package procscan
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"iter"
 	"os"
@@ -138,37 +139,38 @@ func runScannerSnapshotTest(t *testing.T, file string, rewrite bool) {
 
 // scannerTestState manages the test state for scanner tests.
 type scannerTestState struct {
-	t               *testing.T
-	scanner         *Scanner
-	currentTime     ticks
-	processes       map[int32]*testProcess
-	executables     map[int32]process.Executable
-	startDelayTicks ticks
-	lastCommand     command
-	lastScanResult  *scanResult
-	initialized     bool
-	firstOutput     bool
+	t                  *testing.T
+	scanner            *Scanner
+	currentTime        ticks
+	processes          map[int32]*testProcess
+	executables        map[int32]process.Executable
+	processDelaysTicks []ticks
+	lastCommand        command
+	lastScanResult     *scanResult
+	initialized        bool
+	firstOutput        bool
 }
 
 type testProcess struct {
-	pid            int32
-	startTime      ticks
-	tracerMetadata tracermetadata.TracerMetadata
+	pid                 int32
+	startTime           ticks
+	metadataAvailableAt ticks
+	tracerMetadata      tracermetadata.TracerMetadata
 }
 
 func newScannerTestState(t *testing.T) *scannerTestState {
-	const defaultStartDelay = 100 // 100 ticks
+	const defaultProcessDelay = 100 // 100 ticks
 	ts := &scannerTestState{
-		t:               t,
-		currentTime:     0,
-		processes:       make(map[int32]*testProcess),
-		executables:     make(map[int32]process.Executable),
-		startDelayTicks: defaultStartDelay,
-		firstOutput:     true,
+		t:                  t,
+		currentTime:        0,
+		processes:          make(map[int32]*testProcess),
+		executables:        make(map[int32]process.Executable),
+		processDelaysTicks: []ticks{defaultProcessDelay},
+		firstOutput:        true,
 	}
 
 	ts.scanner = newScanner(
-		defaultStartDelay,
+		[]timeWindow{{startDelay: defaultProcessDelay}},
 		func() (ticks, error) { return ts.currentTime, nil },
 		ts.listPids,
 		ts.readStartTime,
@@ -214,9 +216,10 @@ func (t *tracerMetadataInput) toTracerMetadata() tracermetadata.TracerMetadata {
 }
 
 type createProcessCommand struct {
-	PID            int32               `yaml:"pid"`
-	StartTime      uint64              `yaml:"start_time"`
-	TracerMetadata tracerMetadataInput `yaml:"tracer_metadata"`
+	PID                 int32               `yaml:"pid"`
+	StartTime           uint64              `yaml:"start_time"`
+	MetadataAvailableAt *uint64             `yaml:"metadata_available_at,omitempty"`
+	TracerMetadata      tracerMetadataInput `yaml:"tracer_metadata"`
 }
 
 func (c *createProcessCommand) execute(
@@ -226,10 +229,15 @@ func (c *createProcessCommand) execute(
 	if _, exists := ts.processes[c.PID]; exists {
 		return fmt.Errorf("process %d already exists", c.PID)
 	}
+	metadataAvailableAt := ticks(c.StartTime)
+	if c.MetadataAvailableAt != nil {
+		metadataAvailableAt = ticks(*c.MetadataAvailableAt)
+	}
 	ts.processes[c.PID] = &testProcess{
-		pid:            c.PID,
-		startTime:      ticks(c.StartTime),
-		tracerMetadata: c.TracerMetadata.toTracerMetadata(),
+		pid:                 c.PID,
+		startTime:           ticks(c.StartTime),
+		metadataAvailableAt: metadataAvailableAt,
+		tracerMetadata:      c.TracerMetadata.toTracerMetadata(),
 	}
 	ts.executables[c.PID] = process.Executable{
 		Path: fmt.Sprintf("/proc/%d/exe", c.PID),
@@ -271,8 +279,8 @@ func (c *advanceTimeCommand) execute(
 }
 
 type initializeCommand struct {
-	CurrentTime uint64 `yaml:"current_time"`
-	StartDelay  uint64 `yaml:"start_delay"`
+	CurrentTime   uint64   `yaml:"current_time"`
+	ProcessDelays []uint64 `yaml:"process_delays"`
 }
 
 func (c *initializeCommand) execute(
@@ -280,8 +288,16 @@ func (c *initializeCommand) execute(
 	ts *scannerTestState,
 ) error {
 	ts.currentTime = ticks(c.CurrentTime)
-	ts.startDelayTicks = ticks(c.StartDelay)
-	ts.scanner.startDelay = ticks(c.StartDelay)
+
+	// Build time windows from process delays.
+	ts.processDelaysTicks = make([]ticks, len(c.ProcessDelays))
+	windows := make([]timeWindow, len(c.ProcessDelays))
+	for i, delay := range c.ProcessDelays {
+		ts.processDelaysTicks[i] = ticks(delay)
+		windows[i] = timeWindow{startDelay: ticks(delay)}
+	}
+	ts.scanner.windows = windows
+
 	ts.initialized = true
 	return nil
 }
@@ -290,7 +306,7 @@ type scanCommand struct{}
 
 func (c *scanCommand) execute(_ *testing.T, ts *scannerTestState) error {
 	if !ts.initialized {
-		return fmt.Errorf(
+		return errors.New(
 			"scanner not initialized: use !initialize command first",
 		)
 	}
@@ -337,6 +353,12 @@ func (ts *scannerTestState) readTracerMetadata(
 			"process %d does not exist", pid,
 		)
 	}
+	// Metadata is only available after metadataAvailableAt.
+	if ts.currentTime < proc.metadataAvailableAt {
+		return tracermetadata.TracerMetadata{}, fmt.Errorf(
+			"metadata not yet available for process %d", pid,
+		)
+	}
 	return proc.tracerMetadata, nil
 }
 
@@ -351,11 +373,11 @@ func (ts *scannerTestState) resolveExecutable(
 }
 
 type scannerStateSnapshot struct {
-	CurrentTime       uint64  `yaml:"current_time"`
-	LastWatermark     uint64  `yaml:"last_watermark"`
-	StartDelay        uint64  `yaml:"start_delay,omitempty"`
-	Live              []int32 `yaml:"live,omitempty,flow"`
-	ProcessesInProcfs []int32 `yaml:"processes_in_procfs,omitempty,flow"`
+	CurrentTime       uint64   `yaml:"current_time"`
+	LastScan          uint64   `yaml:"last_scan"`
+	ProcessDelays     []uint64 `yaml:"process_delays,omitempty,flow"`
+	Live              []int32  `yaml:"live,omitempty,flow"`
+	ProcessesInProcfs []int32  `yaml:"processes_in_procfs,omitempty,flow"`
 }
 
 // Output structures for test commands.
@@ -371,10 +393,12 @@ type scanOutput struct {
 }
 
 func (ts *scannerTestState) cloneState(
-	includeStartDelay bool,
+	includeProcessDelays bool,
 ) *scannerStateSnapshot {
+	ts.scanner.mu.Lock()
+	defer ts.scanner.mu.Unlock()
 	live := make([]int32, 0)
-	ts.scanner.live.Ascend(func(pid uint32) bool {
+	ts.scanner.mu.live.Ascend(func(pid uint32) bool {
 		live = append(live, int32(pid))
 		return true
 	})
@@ -388,13 +412,16 @@ func (ts *scannerTestState) cloneState(
 
 	snapshot := &scannerStateSnapshot{
 		CurrentTime:       uint64(ts.currentTime),
-		LastWatermark:     uint64(ts.scanner.lastWatermark),
+		LastScan:          uint64(ts.scanner.lastScan),
 		Live:              live,
 		ProcessesInProcfs: pids,
 	}
 
-	if includeStartDelay {
-		snapshot.StartDelay = uint64(ts.startDelayTicks)
+	if includeProcessDelays {
+		snapshot.ProcessDelays = make([]uint64, len(ts.processDelaysTicks))
+		for i, d := range ts.processDelaysTicks {
+			snapshot.ProcessDelays[i] = uint64(d)
+		}
 	}
 
 	return snapshot
@@ -463,12 +490,12 @@ func parseCommandsFromAST(
 	file *ast.File,
 ) ([]command, []ast.Node, error) {
 	if len(file.Docs) == 0 {
-		return nil, nil, fmt.Errorf("no documents in file")
+		return nil, nil, errors.New("no documents in file")
 	}
 
 	doc := file.Docs[0]
 	if doc.Body == nil {
-		return nil, nil, fmt.Errorf("empty document")
+		return nil, nil, errors.New("empty document")
 	}
 
 	// The body should be a sequence.
@@ -604,4 +631,91 @@ func splitYAMLDocuments(content []byte) ([][]byte, error) {
 		documents = append(documents, currentDocument)
 	}
 	return documents, nil
+}
+
+// It verifies that Scan drives cache mark-and-sweep and avoids stale start
+// times on PID reuse.
+func TestScannerStartTimeCachePurgedOnMissingPIDAndPIDReuse(t *testing.T) {
+	now := ticks(1000)
+
+	type procInfo struct {
+		startTime ticks
+	}
+	procs := map[int32]procInfo{
+		// With delay=0 the window is [lastWatermark, now]. The first scan starts
+		// at lastWatermark=0, so ensure the start time is <= now.
+		1: {startTime: 900},
+	}
+
+	listPids := func() iter.Seq2[uint32, error] {
+		return func(yield func(uint32, error) bool) {
+			pids := make([]int32, 0, len(procs))
+			for pid := range procs {
+				pids = append(pids, pid)
+			}
+			slices.Sort(pids)
+			for _, pid := range pids {
+				if !yield(uint32(pid), nil) {
+					return
+				}
+			}
+		}
+	}
+
+	readCalls := 0
+	readStartTime := func(pid int32) (ticks, error) {
+		readCalls++
+		info, ok := procs[pid]
+		if !ok {
+			return 0, fmt.Errorf("process %d does not exist", pid)
+		}
+		return info.startTime, nil
+	}
+
+	s := newScanner(
+		[]timeWindow{{startDelay: 0}},
+		func() (ticks, error) { return now, nil },
+		listPids,
+		readStartTime,
+		func(int32) (tracermetadata.TracerMetadata, error) {
+			return tracermetadata.TracerMetadata{TracerLanguage: "go"}, nil
+		},
+		func(pid int32) (process.Executable, error) {
+			return process.Executable{Path: fmt.Sprintf("/proc/%d/exe", pid)}, nil
+		},
+	)
+	s.startTimeCache.maxSize = 8
+
+	discovered, removed, err := s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, removed)
+	require.Len(t, discovered, 1)
+	require.Equal(t, uint32(1), discovered[0].PID)
+	require.Equal(t, uint64(900), discovered[0].StartTimeTicks)
+
+	// End-of-scan sweep should have kept the entry and cleared the seen marker.
+	start, ok := s.startTimeCache.entries[1]
+	require.True(t, ok)
+	require.Equal(t, ticks(900), start)
+
+	// Process exits (PID no longer present in procfs).
+	delete(procs, 1)
+	now = 1100
+	discovered, removed, err = s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, discovered)
+	require.Equal(t, []ProcessID{1}, removed)
+	_, ok = s.startTimeCache.entries[1]
+	require.False(t, ok)
+
+	// PID is reused. Cache must not resurrect a stale start time.
+	procs[1] = procInfo{startTime: 1150}
+	now = 1200
+	discovered, removed, err = s.Scan()
+	require.NoError(t, err)
+	require.Empty(t, removed)
+	require.Len(t, discovered, 1)
+	require.Equal(t, uint32(1), discovered[0].PID)
+	require.Equal(t, uint64(1150), discovered[0].StartTimeTicks)
+	require.GreaterOrEqual(t, readCalls, 2)
 }

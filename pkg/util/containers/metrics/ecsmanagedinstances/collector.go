@@ -60,7 +60,7 @@ func newEcsManagedInstancesCollector(cache *provider.Cache) (provider.CollectorM
 	var collectorMetadata provider.CollectorMetadata
 
 	// the ecsManagedInstancesCollector should only be used when the agent is running in ECS Managed Instance as sidecar
-	if !env.IsFeaturePresent(env.ECSManagedInstances) || !fargate.IsFargateInstance() {
+	if !env.IsFeaturePresent(env.ECSManagedInstances) || !fargate.IsSidecar() {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 

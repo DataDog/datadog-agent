@@ -156,7 +156,7 @@ func checkAttachFuncProtoBpfMapEmbedStruct(spec *btf.Spec) (bool, error) {
 
 		ty, ok := member.Type.(*btf.Struct)
 		if !ok {
-			return false, fmt.Errorf("bpf_map.owner is not a struct")
+			return false, errors.New("bpf_map.owner is not a struct")
 		}
 
 		for _, ownerMember := range ty.Members {

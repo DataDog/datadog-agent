@@ -12,6 +12,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -118,13 +119,5 @@ func (c *collector) parseClusterName(value string) string {
 
 // parseStatus converts ECS container status strings to workloadmeta ContainerStatus enum.
 func (c *collector) parseStatus(status string) workloadmeta.ContainerStatus {
-	switch status {
-	case "RUNNING":
-		return workloadmeta.ContainerStatusRunning
-	case "STOPPED":
-		return workloadmeta.ContainerStatusStopped
-	case "PULLED", "CREATED", "RESOURCES_PROVISIONED":
-		return workloadmeta.ContainerStatusCreated
-	}
-	return workloadmeta.ContainerStatusUnknown
+	return util.ContainerStatusFromKnownStatus(status)
 }

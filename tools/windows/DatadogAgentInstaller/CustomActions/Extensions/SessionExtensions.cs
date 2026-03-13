@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 
 namespace Datadog.CustomActions.Extensions
 {

@@ -74,8 +74,16 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{m: map[1: 1]} {error: not available: function has no body}"
   }
 ]

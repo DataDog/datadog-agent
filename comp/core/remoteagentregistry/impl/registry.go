@@ -43,7 +43,7 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) Provides {
-	enabled := reqs.Config.GetBool("remote_agent_registry.enabled")
+	enabled := reqs.Config.GetBool("remote_agent.registry.enabled")
 	if !enabled {
 		return Provides{}
 	}
@@ -185,7 +185,7 @@ type remoteAgentRegistry struct {
 //
 // It returns the session ID, the recommended refresh interval, and an error if the registration fails.
 func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregistry.RegistrationData) (string, uint32, error) {
-	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent_registry.recommended_refresh_interval").Seconds())
+	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent.registry.recommended_refresh_interval").Seconds())
 
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
@@ -222,7 +222,7 @@ func (ra *remoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
 func (ra *remoteAgentRegistry) start() {
-	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
+	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent.registry.idle_timeout")
 	ra.registerCollector()
 
 	go func() {
@@ -250,13 +250,13 @@ func (ra *remoteAgentRegistry) start() {
 					remoteAgentClient, ok := ra.agentMap[sessionID]
 					if ok {
 						if remoteAgentClient.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.SessionID, sessionID)
+							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.unhealthyReason)
 						} else {
 							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
 						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
 						// close the remote agent client and remove it from the registry
-						remoteAgentClient.close()
+						_ = remoteAgentClient.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}

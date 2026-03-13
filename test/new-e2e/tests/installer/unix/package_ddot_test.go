@@ -13,10 +13,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -26,7 +27,7 @@ type packageDDOTSuite struct {
 
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageDDOTSuite{
-		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake())),
 	}
 }
 
@@ -52,7 +53,7 @@ func (s *packageDDOTSuite) RunInstallScriptWithError(params ...string) error {
 		return err
 	}
 
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -75,9 +76,8 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
-	// Verify both packages are installed
+	// Verify agent is installed
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Wait for services to be active
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
@@ -89,9 +89,6 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	// Verify configuration files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
-
-	// Verify DDOT binary exists
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 
 	// Verify otelcollector configuration is present in datadog.yaml
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
@@ -105,7 +102,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	// Install ddot
-	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
+	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Check if datadog.yaml exists, if not return an error
@@ -131,8 +128,8 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
-	state.AssertUnitsDead(probeUnit, securityUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent and system-probe because they may be running or dead based on timing
+	state.AssertUnitsDead(securityUnit)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {

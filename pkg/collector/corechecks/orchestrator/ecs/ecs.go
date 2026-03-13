@@ -10,19 +10,12 @@ package ecs
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
-	"fmt"
 	"math/rand"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -32,12 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // CheckName is the name of the check
@@ -201,62 +195,18 @@ func (c *Check) initConfig() {
 		return
 	}
 
-	tasks := c.workloadmetaStore.ListECSTasks()
-	if len(tasks) == 0 {
+	meta, err := ecsutil.GetClusterMeta()
+	if err != nil || meta == nil {
+		log.Warnf("Failed to get ECS meta: %s", err)
 		return
 	}
 
-	c.awsAccountID = tasks[0].AWSAccountID
-	c.clusterName = tasks[0].ClusterName
-	c.region = tasks[0].Region
-
-	if tasks[0].Region == "" || tasks[0].AWSAccountID == "" {
-		c.region, c.awsAccountID = getRegionAndAWSAccountID(tasks[0].EntityID.ID)
-	}
-
-	c.clusterID = initClusterID(c.awsAccountID, c.region, tasks[0].ClusterName)
+	c.awsAccountID = meta.AWSAccountID
+	c.region = meta.Region
+	c.clusterName = meta.ECSCluster
+	c.clusterID = meta.ECSClusterID
 }
 
 func (c *Check) initCollectors() {
 	c.collectors = []collectors.Collector{ecs.NewTaskCollector(c.tagger)}
-}
-
-// initClusterID generates a cluster ID from the AWS account ID, region and cluster name.
-func initClusterID(awsAccountID string, region, clusterName string) string {
-	cluster := fmt.Sprintf("%s/%s/%s", awsAccountID, region, clusterName)
-
-	hash := md5.New()
-	hash.Write([]byte(cluster))
-	hashString := hex.EncodeToString(hash.Sum(nil))
-	uuid, err := uuid.FromBytes([]byte(hashString[0:16]))
-	if err != nil {
-		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
-		return ""
-	}
-	return uuid.String()
-}
-
-// ParseRegionAndAWSAccountID parses the region and AWS account ID from an ARN.
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html#arns-syntax
-func getRegionAndAWSAccountID(arn string) (string, string) {
-	arnParts := strings.Split(arn, ":")
-	if len(arnParts) < 5 {
-		return "", ""
-	}
-	if arnParts[0] != "arn" || strings.Index(arnParts[1], "aws") != 0 {
-		return "", ""
-	}
-	region := arnParts[3]
-	if strings.Count(region, "-") < 2 {
-		region = ""
-	}
-
-	id := arnParts[4]
-	// aws account id is 12 digits
-	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
-	if len(id) != 12 {
-		return region, ""
-	}
-
-	return region, id
 }

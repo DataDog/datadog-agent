@@ -10,7 +10,7 @@ package containerd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
@@ -227,7 +227,7 @@ func TestTaskMetrics(t *testing.T) {
 			"io.containerd.cgroups.v1.Metric",
 			v1.Metrics{},
 			"",
-			fmt.Errorf("no running task found"),
+			errors.New("no running task found"),
 			&v1.Metrics{},
 		},
 		{
@@ -235,7 +235,7 @@ func TestTaskMetrics(t *testing.T) {
 			"io.containerd.cgroups.v1.Metric",
 			v1.Metrics{},
 			"",
-			fmt.Errorf("no metrics received"),
+			errors.New("no metrics received"),
 			&v1.Metrics{},
 		},
 	}

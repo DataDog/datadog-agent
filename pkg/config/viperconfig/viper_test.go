@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -259,6 +260,56 @@ func TestCheckKnownKey(t *testing.T) {
 	assert.Contains(t, config.unknownKeys, "foobar")
 }
 
+func TestCollectAllLeafKeys(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
+
+	config.SetKnown("apm_config.foo")     //nolint:forbidigo // testing behavior
+	config.SetKnown("apm_config.bar.baz") //nolint:forbidigo // testing behavior
+	config.SetKnown("proxy.http")         //nolint:forbidigo // testing behavior
+
+	// Track unknown keys through Get(), which is how unknownKeys is populated.
+	_ = config.Get("unknown_section")
+	_ = config.Get("unknown_section.info")
+
+	config.RLock()
+	keys := config.collectAllLeafKeys()
+	config.RUnlock()
+
+	assert.ElementsMatch(t, []string{
+		"apm_config.foo",
+		"apm_config.bar.baz",
+		"proxy.http",
+		"unknown_section",
+		"unknown_section.info",
+	}, keys)
+	assert.NotContains(t, keys, "apm_config")
+	assert.NotContains(t, keys, "apm_config.bar")
+	assert.NotContains(t, keys, "proxy")
+}
+
+func TestAllKeysVsCollectAllLeafKeys(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
+
+	// Known map-valued setting.
+	config.SetKnown("additional_endpoints") //nolint:forbidigo // testing behavior
+	config.Set("additional_endpoints", map[string]interface{}{
+		"https://app.datadoghq.com": []interface{}{"api_key"},
+	}, model.SourceFile)
+
+	allKeys := config.AllKeysLowercased()
+
+	config.RLock()
+	leafKeys := config.collectAllLeafKeys()
+	config.RUnlock()
+
+	// Viper's AllKeys() flattens map keys with dots, creating ambiguous keys.
+	assert.Contains(t, allKeys, "additional_endpoints.https://app.datadoghq.com")
+
+	// collectAllLeafKeys() should keep only the schema leaf key.
+	assert.Contains(t, leafKeys, "additional_endpoints")
+	assert.NotContains(t, leafKeys, "additional_endpoints.https://app.datadoghq.com")
+}
+
 func TestExtraConfig(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
@@ -367,6 +418,46 @@ func TestParseEnvAsSliceMapString(t *testing.T) {
 
 	t.Setenv("DD_MAP", "__some_data__")
 	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
+}
+
+func TestUnsetForSource(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("some.setting", "default_value")
+
+	yamlExample := []byte(`
+some:
+  setting: file_value
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+
+	tempfile.Write(yamlExample)
+
+	config.SetConfigFile(tempfile.Name())
+	config.ReadInConfig()
+
+	config.Set("some.setting", "runtime_value", model.SourceAgentRuntime)
+	config.Set("some.setting", "process_value", model.SourceLocalConfigProcess)
+	config.Set("some.setting", "RC_value", model.SourceRC)
+
+	assert.Equal(t, "RC_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceRC)
+	assert.Equal(t, "process_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
+	assert.Equal(t, "runtime_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceAgentRuntime)
+	assert.Equal(t, "file_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceFile)
+	assert.Equal(t, "default_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceDefault)
+	assert.Equal(t, "", config.GetString("some.setting"))
 }
 
 func TestListenersUnsetForSource(t *testing.T) {
@@ -488,4 +579,57 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 			return strings.Split(in, ",")
 		})
 	})
+}
+
+func TestIsConfiguredHasSection(t *testing.T) {
+	configData := `network_path:
+  collector:
+    workers: 6
+secret_backend_command: ./my_secret_fetcher.sh
+logs_config:
+`
+	t.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
+	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+	t.Setenv("TEST_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "http://example.com")
+
+	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.SetConfigType("yaml")
+	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior for compatibility
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "TEST_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
+	cfg.BindEnvAndSetDefault("secret_backend_command", "")
+	cfg.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("server_timeout", 30)
+
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	assert.True(t, cfg.IsConfigured("network_path"))
+	assert.True(t, cfg.IsConfigured("network_path.collector"))
+	assert.True(t, cfg.IsConfigured("network_path.collector.workers"))
+	assert.False(t, cfg.IsConfigured("network_path.collector.processing_chan_size"))
+	assert.True(t, cfg.IsConfigured("secret_backend_command"))
+	assert.False(t, cfg.IsConfigured("secret_backend_config"))
+	assert.True(t, cfg.IsConfigured("secret_backend_timeout"))
+	assert.False(t, cfg.IsConfigured("server_timeout"))
+	assert.False(t, cfg.IsConfigured("logs_config"))
+	assert.False(t, cfg.IsConfigured("apm_config"))
+	assert.True(t, cfg.IsConfigured("runtime_security_config"))
+
+	assert.True(t, cfg.HasSection("network_path"))
+	assert.True(t, cfg.HasSection("network_path.collector"))
+	assert.False(t, cfg.HasSection("network_path.collector.workers"))
+	assert.False(t, cfg.HasSection("network_path.collector.processing_chan_size"))
+	assert.False(t, cfg.HasSection("secret_backend_command"))
+	assert.False(t, cfg.HasSection("secret_backend_config"))
+	assert.False(t, cfg.HasSection("secret_backend_timeout"))
+	assert.False(t, cfg.HasSection("server_timeout"))
+	assert.True(t, cfg.HasSection("logs_config"))
+	assert.False(t, cfg.HasSection("apm_config"))
+	assert.True(t, cfg.HasSection("runtime_security_config"))
 }

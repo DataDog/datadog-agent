@@ -8,7 +8,7 @@
 package publishermetadatacache
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -92,7 +92,7 @@ func TestPublisherMetadataCache_Get_Error(t *testing.T) {
 	cache := New(mockAPI)
 
 	publisherName := "NonExistentPublisher"
-	expectedErr := fmt.Errorf("publisher not found")
+	expectedErr := errors.New("publisher not found")
 
 	mockAPI.On("EvtOpenPublisherMetadata", publisherName, "").Return(evtapi.EventPublisherMetadataHandle(0), expectedErr).Once()
 
@@ -121,7 +121,7 @@ func TestPublisherMetadataCache_Get_InvalidHandleExpiration(t *testing.T) {
 	cache.expiration = 10 * time.Millisecond // Short expiration for testing
 
 	publisherName := "PublisherWithError"
-	expectedErr := fmt.Errorf("publisher not available")
+	expectedErr := errors.New("publisher not available")
 	validHandle := evtapi.EventPublisherMetadataHandle(123)
 
 	// First call returns error
@@ -195,7 +195,7 @@ func TestPublisherMetadataCache_FormatMessage_UnexpectedError(t *testing.T) {
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
 	pubHandle := evtapi.EventPublisherMetadataHandle(42)
-	unexpectedErr := fmt.Errorf("unexpected error")
+	unexpectedErr := errors.New("unexpected error")
 
 	mockAPI.On("EvtOpenPublisherMetadata", publisherName, "").Return(pubHandle, nil).Once()
 	mockAPI.On("EvtFormatMessage", pubHandle, eventHandle, uint(0), evtapi.EvtVariantValues(nil), uint(0)).
@@ -219,7 +219,7 @@ func TestPublisherMetadataCache_FormatMessage_WithInvalidHandle(t *testing.T) {
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
-	expectedErr := fmt.Errorf("publisher not found")
+	expectedErr := errors.New("publisher not found")
 
 	mockAPI.On("EvtOpenPublisherMetadata", publisherName, "").Return(evtapi.EventPublisherMetadataHandle(0), expectedErr).Once()
 
@@ -281,7 +281,7 @@ func TestPublisherMetadataCache_Flush_SkipsInvalidHandles(t *testing.T) {
 	validHandle := evtapi.EventPublisherMetadataHandle(100)
 
 	mockAPI.On("EvtOpenPublisherMetadata", validPublisher, "").Return(validHandle, nil).Once()
-	mockAPI.On("EvtOpenPublisherMetadata", invalidPublisher, "").Return(evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not found")).Once()
+	mockAPI.On("EvtOpenPublisherMetadata", invalidPublisher, "").Return(evtapi.EventPublisherMetadataHandle(0), errors.New("not found")).Once()
 
 	cache.Get(validPublisher)
 	cache.Get(invalidPublisher)
@@ -306,7 +306,7 @@ func TestPublisherMetadataCache_Concurrency(_ *testing.T) {
 		handle := evtapi.EventPublisherMetadataHandle(100 + i)
 		mockAPI.On("EvtOpenPublisherMetadata", publisher, "").Return(handle, nil).Once()
 		mockAPI.On("EvtFormatMessage", handle, eventHandle, uint(0), evtapi.EvtVariantValues(nil), uint(0)).
-			Return(fmt.Sprintf("Message from %s", publisher), nil).Times(100 * numGoroutinesPerPublisher)
+			Return("Message from "+publisher, nil).Times(100 * numGoroutinesPerPublisher)
 	}
 
 	var wg sync.WaitGroup

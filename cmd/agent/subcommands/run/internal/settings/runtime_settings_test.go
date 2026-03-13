@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -44,6 +46,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		fx.Supply(core.BundleParams{}),
 		demultiplexerimpl.MockModule(),
 		dogstatsd.Bundle(server.Params{Serverless: false}),
@@ -52,6 +55,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 			return taggerComponent
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		filterlist.MockModule(),
 	))
 
 	s := DsdStatsRuntimeSetting{

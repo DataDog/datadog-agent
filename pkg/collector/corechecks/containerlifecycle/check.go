@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -187,7 +187,7 @@ func Factory(store workloadmeta.Component) option.Option[func() check.Check] {
 // sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
 func (c *Check) sendFargateTaskEvent() {
 	if !pkgconfigsetup.Datadog().GetBool("ecs_task_collection_enabled") ||
-		!env.IsECSFargate() {
+		!env.IsECSSidecarMode(pkgconfigsetup.Datadog()) {
 		return
 	}
 

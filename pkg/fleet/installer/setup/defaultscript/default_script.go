@@ -70,6 +70,9 @@ var (
 		"DD_PROXY_HTTPS",
 		"DD_PROXY_NO_PROXY",
 		"DD_INFRASTRUCTURE_MODE",
+		"DD_LOGS_ENABLED",
+		"DD_PRIVATE_ACTION_RUNNER_ENABLED",
+		"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST",
 	}
 )
 
@@ -96,8 +99,10 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Install agent package
 	installAgentPackage(s)
 
-	// Install DDOT package if enabled
-	installDDOTPackage(s)
+	// DDOT is now delivered as an agent extension and installed via
+	// postInstallDatadogAgent when DD_OTELCOLLECTOR_ENABLED=true.
+	// keep this for reference until code is fully cleaned up
+	// installDDOTPackage(s)
 
 	// Optionally setup SSI
 	err := SetupAPMSSIScript(s)
@@ -188,13 +193,14 @@ func installAgentPackage(s *common.Setup) {
 	}
 }
 
-// installDDOTPackage installs the DDOT package if enabled
-func installDDOTPackage(s *common.Setup) {
-	// DDOT install - check if otel-collector is enabled
-	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
-		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
-	}
-}
+// installDDOTPackage is no longer used. DDOT is now delivered as an agent
+// extension and installed via postInstallDatadogAgent when DD_OTELCOLLECTOR_ENABLED=true.
+// Kept for reference until full cleanup.
+// func installDDOTPackage(s *common.Setup) {
+// 	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+// 		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
+// 	}
+// }
 
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
@@ -271,7 +277,7 @@ func exitOnUnsupportedEnvVars(envVars ...string) error {
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	for _, envVar := range envVars {
-		s.Span.SetTag(fmt.Sprintf("env_var.%s", envVar), os.Getenv(envVar))
+		s.Span.SetTag("env_var."+envVar, os.Getenv(envVar))
 	}
 }
 

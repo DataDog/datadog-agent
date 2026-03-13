@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,10 +31,10 @@ import (
 
 func TestConfDisabled(t *testing.T) {
 	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
+		"metadata_providers": []map[string]interface{}{
 			{
-				Name:     "resources",
-				Interval: 0,
+				"name":     "resources",
+				"interval": 0,
 			},
 		},
 	}
@@ -56,10 +55,10 @@ func TestConfDisabled(t *testing.T) {
 
 func TestConfInterval(t *testing.T) {
 	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
+		"metadata_providers": []map[string]interface{}{
 			{
-				Name:     "resources",
-				Interval: 21,
+				"name":     "resources",
+				"interval": 21,
 			},
 		},
 	}
@@ -118,7 +117,7 @@ func TestCollect(t *testing.T) {
 func TestCollectError(t *testing.T) {
 	defer func(f func() (interface{}, error)) { collectResources = f }(collectResources)
 	collectResources = func() (interface{}, error) {
-		return nil, fmt.Errorf("some error from gohai")
+		return nil, errors.New("some error from gohai")
 	}
 
 	s := serializermock.NewMetricSerializer(t)

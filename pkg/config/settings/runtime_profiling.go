@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/fatih/color"
 )
@@ -52,7 +53,7 @@ func setRuntimeSetting(c Client, name string, value int) (interface{}, error) {
 		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
 	}
 
-	if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
+	if _, err := c.Set(name, strconv.Itoa(value)); err != nil {
 		return nil, fmt.Errorf("failed to set %s to %v: %v", name, value, err)
 	}
 

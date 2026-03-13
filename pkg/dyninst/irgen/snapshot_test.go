@@ -100,6 +100,11 @@ func probeConfigsWithMaxReferenceDepth(
 				cfg.Capture = new(rcjson.Capture)
 				cfg.Capture.MaxReferenceDepth = &limit
 			}
+		case *rcjson.CaptureExpressionProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = &limit
+			}
 		}
 	}
 	return probesCfgs
@@ -116,7 +121,22 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	// use the results because they might be huge.
 	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
-	require.Empty(t, irWithDefaultLimits.Issues)
+	// Use tags to communicate expected issues.
+	expectedIssues := make(map[string]string)
+	for _, cfg := range probesCfgs {
+		if issue, ok := testprogs.GetIssueTag(cfg); ok {
+			expectedIssues[cfg.GetID()] = issue
+		}
+	}
+	computeGotIssues := func(p *ir.Program) map[string]string {
+		gotIssues := make(map[string]string)
+		for _, issue := range p.Issues {
+			gotIssues[issue.ProbeDefinition.GetID()] = issue.Issue.Kind.String()
+		}
+		return gotIssues
+	}
+	require.Equal(t, expectedIssues, computeGotIssues(irWithDefaultLimits))
+
 	{
 		_, err := irprinter.PrintYAML(irWithDefaultLimits)
 		require.NoError(t, err)
@@ -130,7 +150,8 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
 		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
 		require.NoError(t, err)
-		require.Empty(t, irWithLimit.Issues)
+		require.Equal(t, expectedIssues, computeGotIssues(irWithLimit))
+
 		if i == 1 {
 			irWithLimit1 = irWithLimit
 		}

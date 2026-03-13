@@ -39,7 +39,7 @@ func (h *Host) LastJournaldTimestamp() JournaldTimestamp {
 func (h *Host) AssertUnitProperty(unit, property, value string) {
 	res, err := h.remote.Execute(fmt.Sprintf("sudo systemctl show -p %s %s", property, unit))
 	require.NoError(h.t(), err)
-	require.Equal(h.t(), fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute(fmt.Sprintf("sudo systemctl cat %s", unit)))
+	require.Equal(h.t(), fmt.Sprintf("%s=%s\n", property, value), res, "unit %s: %s != %s.\nUnit:\n%s", unit, fmt.Sprintf("%s=%s\n", property, value), res, h.remote.MustExecute("sudo systemctl cat "+unit))
 }
 
 func popIfMatches(searchedEvents []SystemdEvent, log journaldLog) []SystemdEvent {
@@ -71,9 +71,7 @@ func (h *Host) stripSystemd244(events []SystemdEvent) []SystemdEvent {
 	}
 	newEvents := make([]SystemdEvent, 0, len(events))
 	map244Units := map[string]struct{}{
-		"datadog-agent-sysprobe.service":     {},
 		"datadog-agent-security.service":     {},
-		"datadog-agent-sysprobe-exp.service": {},
 		"datadog-agent-security-exp.service": {},
 	}
 	for _, e := range events {
@@ -95,7 +93,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 		i, j := 0, 0
 		var searchedEvents []SystemdEvent
-		for i < len(logs) && j < len(events.Events) {
+		for i < len(logs) && (j < len(events.Events) || len(searchedEvents) > 0) {
 			if len(searchedEvents) == 0 {
 				searchedEvents = events.Events[j]
 				j++
@@ -105,7 +103,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 			i++
 		}
 		lastSearchedEvents = searchedEvents
-		return j == len(events.Events)
+		return j == len(events.Events) && len(searchedEvents) == 0
 	}, 60*time.Second, 1*time.Second)
 
 	if !success {
@@ -123,7 +121,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 
 		for unit := range units {
-			h.t().Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
+			h.t().Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 		}
 	}
 }

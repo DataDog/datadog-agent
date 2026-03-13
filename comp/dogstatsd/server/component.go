@@ -23,14 +23,8 @@ type Component interface {
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 	ServerlessFlush(time.Duration)
 
-	// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
-	SetExtraTags(tags []string)
-
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
-
-	// SetFilterList sets the filterlist to apply when parsing metrics from the DogStatsD listener.
-	SetFilterList([]string, bool)
 }
 
 // Mock implements mock-specific methods.

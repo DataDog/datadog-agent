@@ -8,12 +8,13 @@
 package python
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
 
 	"go.uber.org/atomic"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +25,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -88,16 +93,15 @@ var (
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
 func newStickyLock() (*stickyLock, error) {
-	runtime.LockOSThread()
-
 	pyDestroyLock.RLock()
 	defer pyDestroyLock.RUnlock()
 
 	// Ensure that rtloader isn't destroyed while we are trying to acquire GIL
 	if rtloader == nil {
-		return nil, fmt.Errorf("error acquiring the GIL: rtloader is not initialized")
+		return nil, fmt.Errorf("error acquiring the GIL: %w", ErrNotInitialized)
 	}
 
+	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	return &stickyLock{
@@ -121,62 +125,13 @@ func (sl *stickyLock) unlock() {
 	runtime.UnlockOSThread()
 }
 
-// cStringArrayToSlice converts an array of C strings to a slice of Go strings.
-// The function will not free the memory of the C strings.
-func cStringArrayToSlice(a **C.char) []string {
-	if a == nil {
-		return nil
-	}
-
-	var length int
-	forEachCString(a, func(_ *C.char) {
-		length++
-	})
-	res := make([]string, 0, length)
-	si, release := acquireInterner()
-	defer release()
-	forEachCString(a, func(s *C.char) {
-		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s))
-		res = append(res, si.intern(bytes))
-	})
-	return res
-}
-
-// cstrlen returns the length of a null-terminated C string. It's an alternative
-// to calling C.strlen, which avoids the overhead of doing a cgo call.
-func cstrlen(s *C.char) (len int) {
-	// TODO: This is ~13% of the CPU time of Benchmark_cStringArrayToSlice.
-	// Optimize using SWAR or similar vector techniques?
-	for ; *s != 0; s = (*C.char)(unsafe.Add(unsafe.Pointer(s), 1)) {
-		len++
-	}
-	return
-}
-
-// forEachCString iterates over a null-terminated array of C strings and calls
-// the given function for each string.
-func forEachCString(a **C.char, f func(*C.char)) {
-	for ; a != nil && *a != nil; a = (**C.char)(unsafe.Add(unsafe.Pointer(a), unsafe.Sizeof(a))) {
-		f(*a)
-	}
-}
-
-// testHelperSliceToCStringArray converts a slice of Go strings to an array of C strings.
-// It's a test helper, but it can't be declared in a _test.go file because cgo
-// is not allowed there.
-func testHelperSliceToCStringArray(s []string) **C.char {
-	cArray := (**C.char)(C.malloc(C.size_t(len(s) + 1)))
-	for i, str := range s {
-		*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(i)*unsafe.Sizeof(cArray))) = C.CString(str)
-	}
-	*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(len(s))*unsafe.Sizeof(cArray))) = nil
-	return cArray
-}
-
 // GetPythonIntegrationList collects python datadog installed integrations list
 func GetPythonIntegrationList() ([]string, error) {
 	glock, err := newStickyLock()
 	if err != nil {
+		if errors.Is(err, ErrNotInitialized) {
+			return []string{}, nil
+		}
 		return nil, err
 	}
 
@@ -190,7 +145,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	payload := C.GoString(integrationsList)
 
 	ddIntegrations := []string{}
-	if err := yaml.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
+	if err := json.Unmarshal([]byte(payload), &ddIntegrations); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal integration list payload: %s", err)
 	}
 
@@ -222,21 +177,21 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 
 	log.Infof("Interpreter stats received: %v", payload)
 
-	stats := map[interface{}]interface{}{}
-	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
+	stats := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(payload), &stats); err != nil {
 		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
 	}
 
 	myPythonStats := []*PythonStats{}
 	// Let's iterate map
 	for entryName, value := range stats {
-		entrySummary := value.(map[interface{}]interface{})
-		num := entrySummary["num"].(int)
-		size := entrySummary["sz"].(int)
+		entrySummary := value.(map[string]interface{})
+		num := int(entrySummary["num"].(float64))
+		size := int(entrySummary["sz"].(float64))
 		entries := entrySummary["entries"].([]interface{})
 
 		pyStat := &PythonStats{
-			Type:     entryName.(string),
+			Type:     entryName,
 			NObjects: num,
 			Size:     size,
 			Entries:  []*PythonStatsEntry{},
@@ -245,8 +200,8 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		for _, entry := range entries {
 			contents := entry.([]interface{})
 			ref := contents[0].(string)
-			refNum := contents[1].(int)
-			refSz := contents[2].(int)
+			refNum := int(contents[1].(float64))
+			refSz := int(contents[2].(float64))
 
 			// add to list
 			pyEntry := &PythonStatsEntry{
@@ -272,11 +227,11 @@ func SetPythonPsutilProcPath(procPath string) error {
 	defer glock.unlock()
 
 	module := TrackedCString(psutilModule)
-	defer C._free(unsafe.Pointer(module))
+	defer C.call_free(unsafe.Pointer(module))
 	attrName := TrackedCString(psutilProcPath)
-	defer C._free(unsafe.Pointer(attrName))
+	defer C.call_free(unsafe.Pointer(attrName))
 	attrValue := TrackedCString(procPath)
-	defer C._free(unsafe.Pointer(attrValue))
+	defer C.call_free(unsafe.Pointer(attrValue))
 
 	C.set_module_attr_string(rtloader, module, attrName, attrValue)
 	return getRtLoaderError()

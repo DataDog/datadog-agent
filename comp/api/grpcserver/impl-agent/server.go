@@ -10,10 +10,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
@@ -29,10 +25,14 @@ import (
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,18 +47,19 @@ type agentServer struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	taggerServer        *taggerserver.Server
-	tagProcessor        option.Option[tagger.Processor]
-	workloadmetaServer  *workloadmetaServer.Server
-	configService       option.Option[rcservice.Component]
-	configServiceMRF    option.Option[rcservicemrf.Component]
-	dogstatsdServer     dogstatsdServer.Component
-	capture             dsdReplay.Component
-	pidMap              pidmap.Component
-	remoteAgentRegistry remoteagentregistry.Component
-	autodiscovery       autodiscovery.Component
-	configComp          config.Component
-	configStreamServer  *configstreamServer.Server
+	taggerServer         *taggerserver.Server
+	tagProcessor         option.Option[tagger.Processor]
+	workloadmetaServer   *workloadmetaServer.Server
+	workloadfilterServer *workloadfilterServer.Server
+	configService        option.Option[rcservice.Component]
+	configServiceMRF     option.Option[rcservicemrf.Component]
+	dogstatsdServer      dogstatsdServer.Component
+	capture              dsdReplay.Component
+	pidMap               pidmap.Component
+	remoteAgentRegistry  remoteagentregistry.Component
+	autodiscovery        autodiscovery.Component
+	configComp           config.Component
+	configStreamServer   *configstreamServer.Server
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -233,6 +234,10 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 }
 
 func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
 	found := s.remoteAgentRegistry.RefreshRemoteAgent(in.SessionId)
 	if !found {
 		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
@@ -264,4 +269,8 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 		return rcNotInitializedErr
 	}
 	return rcService.CreateConfigSubscription(stream)
+}
+
+func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
+	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }

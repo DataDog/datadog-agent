@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed ECS ARN parsing to support AWS GovCloud (``aws-us-gov``) and China (``aws-cn``) regions.
+    Previously, only the standard ``aws`` partition was accepted, causing ECS metadata extraction
+    to fail for customers running the Datadog Agent in GovCloud or China regions. This resulted
+    in empty region and account ID values, breaking ECS monitoring for these customers.

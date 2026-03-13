@@ -25,7 +25,7 @@ func FuzzConsumerHandleEvent(f *testing.F) {
 	cfg := config.New()
 	ctx := getTestSystemContext(f, withFatbinParsingEnabled(false)) // Keep it simple, disable fatbin parsing
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(f), cfg)
-	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(f))
+	consumer := newTestCudaEventConsumer(f, ctx, cfg, handlers)
 
 	// Set up visible devices cache for a test PID
 	testPID := 1234

@@ -11,11 +11,8 @@ Package cadvisor exposes a metric provider to handle metrics exposed by the /met
 package cadvisor
 
 import (
-	"fmt"
 	"math"
 	"strings"
-
-	"github.com/prometheus/common/model"
 
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -65,7 +62,7 @@ var (
 	maxMemoryRss = math.Pow(2, 63)
 )
 
-type uidFromLabelsFunc func(model.Metric) string
+type uidFromLabelsFunc func(prom.Metric) string
 
 type processCache struct {
 	value float64
@@ -183,16 +180,16 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 
 		for _, label := range labels {
-			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+			if value, ok := sample.Metric[label]; ok {
+				tags = append(tags, label+":"+value)
 			}
 		}
 
 		switch metricType {
 		case "rate":
-			sender.Rate(metricName, float64(sample.Value), "", tags)
+			sender.Rate(metricName, sample.Value, "", tags)
 		case "gauge":
-			sender.Gauge(metricName, float64(sample.Value), "", tags)
+			sender.Gauge(metricName, sample.Value, "", tags)
 		default:
 			log.Debugf("Unsupported metric type %s for metric %s", metricType, metricName)
 		}
@@ -226,12 +223,12 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 
 		for _, label := range labels {
-			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+			if value, ok := sample.Metric[label]; ok {
+				tags = append(tags, label+":"+value)
 			}
 		}
 
-		sender.Rate(metricName, float64(sample.Value), "", tags)
+		sender.Rate(metricName, sample.Value, "", tags)
 	}
 }
 
@@ -244,7 +241,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 
 	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
-		containerName := string(sample.Metric["name"])
+		containerName := sample.Metric["name"]
 		if containerName == "" {
 			continue
 		}
@@ -273,18 +270,18 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		}
 
 		for _, label := range labels {
-			if value, ok := sample.Metric[model.LabelName(label)]; ok {
-				tags = append(tags, fmt.Sprintf("%s:%s", label, value))
+			if value, ok := sample.Metric[label]; ok {
+				tags = append(tags, label+":"+value)
 			}
 		}
 
 		cache[containerName] = &processCache{
-			value: float64(sample.Value),
+			value: sample.Value,
 			tags:  tags,
 		}
 		seenKeys[containerName] = true
 
-		sender.Gauge(metricName, float64(sample.Value), "", tags)
+		sender.Gauge(metricName, sample.Value, "", tags)
 	}
 
 	for k, seen := range seenKeys {
@@ -316,17 +313,17 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 				}
 			}
 
-			sender.Gauge(metricName, float64(sample.Value), "", tags)
+			sender.Gauge(metricName, sample.Value, "", tags)
 		}
 
 		if pctMetricName != "" && sample.Value > 0 {
-			containerName := string(sample.Metric["name"])
+			containerName := sample.Metric["name"]
 			if containerName == "" {
 				continue
 			}
 
 			if cached, ok := cache[containerName]; ok {
-				sender.Gauge(pctMetricName, cached.value/float64(sample.Value), "", cached.tags)
+				sender.Gauge(pctMetricName, cached.value/sample.Value, "", cached.tags)
 			} else {
 				log.Debugf("No corresponding usage found for metric %s and container %s, skipping usage_pct for now.", pctMetricName, containerName)
 			}
@@ -334,9 +331,10 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 	}
 }
 
-func (p *Provider) sumValuesByContext(metricFam *prom.MetricFamily, uidFromLabelsFunc uidFromLabelsFunc) map[string]*model.Sample {
-	seen := map[string]*model.Sample{}
-	for _, sample := range metricFam.Samples {
+func (p *Provider) sumValuesByContext(metricFam *prom.MetricFamily, uidFromLabelsFunc uidFromLabelsFunc) map[string]*prom.Sample {
+	seen := map[string]*prom.Sample{}
+	for i := range metricFam.Samples {
+		sample := &metricFam.Samples[i]
 		uid := uidFromLabelsFunc(sample.Metric)
 		if uid == "" {
 			continue
@@ -352,9 +350,10 @@ func (p *Provider) sumValuesByContext(metricFam *prom.MetricFamily, uidFromLabel
 	return seen
 }
 
-func (p *Provider) latestValueByContext(metricFam *prom.MetricFamily, uidFromLabelsFunc uidFromLabelsFunc) map[string]*model.Sample {
-	seen := map[string]*model.Sample{}
-	for _, sample := range metricFam.Samples {
+func (p *Provider) latestValueByContext(metricFam *prom.MetricFamily, uidFromLabelsFunc uidFromLabelsFunc) map[string]*prom.Sample {
+	seen := map[string]*prom.Sample{}
+	for i := range metricFam.Samples {
+		sample := &metricFam.Samples[i]
 		uid := uidFromLabelsFunc(sample.Metric)
 		if uid == "" {
 			continue
@@ -365,7 +364,7 @@ func (p *Provider) latestValueByContext(metricFam *prom.MetricFamily, uidFromLab
 	return seen
 }
 
-func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
+func (p *Provider) getEntityIDIfContainerMetric(labels prom.Metric) string {
 	if isContainerMetric(labels) {
 		pod := p.getPodByMetricLabel(labels)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
@@ -379,27 +378,27 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 	return ""
 }
 
-func (p *Provider) getPodUIDIfPodMetric(labels model.Metric) string {
+func (p *Provider) getPodUIDIfPodMetric(labels prom.Metric) string {
 	if isPodMetric(labels) {
 		return p.getPodUID(labels)
 	}
 	return ""
 }
 
-func (p *Provider) getPodUID(labels model.Metric) string {
+func (p *Provider) getPodUID(labels prom.Metric) string {
 	if pod := p.getPodByMetricLabel(labels); pod != nil {
 		return pod.ID
 	}
 	return ""
 }
 
-func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.KubernetesPod {
+func (p *Provider) getPodByMetricLabel(labels prom.Metric) *workloadmeta.KubernetesPod {
 	namespace := labels["namespace"]
 	podName, ok := labels["pod"]
 	if !ok {
 		podName = labels["pod_name"]
 	}
-	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
+	if pod, err := p.store.GetKubernetesPodByName(podName, namespace); err == nil {
 		filterablePod := workloadmetafilter.CreatePod(pod)
 		if !p.podFilter.IsExcluded(filterablePod) {
 			return pod
@@ -408,18 +407,18 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 	return nil
 }
 
-func (p *Provider) getContainerName(labels model.Metric) string {
+func (p *Provider) getContainerName(labels prom.Metric) string {
 	containerName := labels["container"]
 	if containerName == "" {
 		containerName = labels["container_name"]
 	}
-	return string(containerName)
+	return containerName
 }
 
-func (p *Provider) getKubeContainerNameTag(labels model.Metric) string {
+func (p *Provider) getKubeContainerNameTag(labels prom.Metric) string {
 	containerName := p.getContainerName(labels)
 	if containerName != "" {
-		return fmt.Sprintf("kube_container_name:%s", containerName)
+		return "kube_container_name:" + containerName
 	}
 	return ""
 }
@@ -428,7 +427,7 @@ func (p *Provider) containerCPUUsageSecondsTotal(metricFam *prom.MetricFamily, s
 	metricName := common.KubeletMetricsPrefix + "cpu.usage.total"
 	for i := range metricFam.Samples {
 		// Replace sample value to convert cores to nano cores
-		metricFam.Samples[i].Value *= model.SampleValue(math.Pow10(9))
+		metricFam.Samples[i].Value *= math.Pow10(9)
 	}
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
@@ -552,9 +551,9 @@ func (p *Provider) containerMemoryCache(metricFam *prom.MetricFamily, sender sen
 func (p *Provider) containerMemoryRss(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "memory.rss"
 	// Filter out aberrant values
-	filteredSamples := model.Vector{}
+	filteredSamples := []prom.Sample{}
 	for i := range metricFam.Samples {
-		if metricFam.Samples[i].Value < model.SampleValue(maxMemoryRss) {
+		if metricFam.Samples[i].Value < maxMemoryRss {
 			filteredSamples = append(filteredSamples, metricFam.Samples[i])
 		}
 	}
@@ -598,7 +597,7 @@ func (p *Provider) getPodByUID(podUID string) *workloadmeta.KubernetesPod {
 	return nil
 }
 
-func isContainerMetric(labels model.Metric) bool {
+func isContainerMetric(labels prom.Metric) bool {
 	if metricContainsLabels(labels, post116ContainerLabels) {
 		return labels["container"] != "" && labels["container"] != "POD"
 	} else if metricContainsLabels(labels, pre116ContainerLabels) {
@@ -607,16 +606,16 @@ func isContainerMetric(labels model.Metric) bool {
 	return false
 }
 
-func isPodMetric(labels model.Metric) bool {
+func isPodMetric(labels prom.Metric) bool {
 	return labels["container"] == "POD" ||
 		labels["container_name"] == "POD" ||
 		(labels["container"] == "" && labels["pod"] != "") ||
 		(labels["container_name"] == "" && labels["pod_name"] != "")
 }
 
-func metricContainsLabels(metric model.Metric, labels []string) bool {
+func metricContainsLabels(metric prom.Metric, labels []string) bool {
 	for _, label := range labels {
-		if _, ok := metric[model.LabelName(label)]; !ok {
+		if _, ok := metric[label]; !ok {
 			return false
 		}
 	}

@@ -18,9 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // EBPFMonitors regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -33,6 +35,7 @@ type EBPFMonitors struct {
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
 	dnsMonitor         *dns.Monitor
+	eventSampleMonitor *eventsample.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -76,6 +79,11 @@ func (m *EBPFMonitors) Init() error {
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
+	}
+
+	m.eventSampleMonitor, err = eventsample.NewEventSampleMonitor(p.Manager, p.statsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the event sample monitor: %w", err)
 	}
 
 	return nil
@@ -160,11 +168,15 @@ func (m *EBPFMonitors) SendStats() error {
 		}
 	}
 
+	if err := m.eventSampleMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send event sample stats: %w", err)
+	}
+
 	return nil
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
+func (m *EBPFMonitors) ProcessEvent(event *model.Event, scrubber *utils.Scrubber) {
 	if !m.ebpfProbe.config.RuntimeSecurity.InternalMonitoringEnabled {
 		return
 	}
@@ -179,29 +191,31 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	opts := m.ebpfProbe.evalOpts()
+
 	if errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewFailedDNSEvent(m.ebpfProbe.GetAgentContainerContext(), events.FailedDNSRuleID, events.AbnormalPathRuleDesc, event),
+			NewFailedDNSEvent(m.ebpfProbe.GetAgentContainerContext(), events.FailedDNSRuleID, events.AbnormalPathRuleDesc, event, opts),
 		)
 	}
 
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, scrubber, pathErr.Err, opts),
 		)
 	}
 
 	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, scrubber, event.Error, opts),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, scrubber, event.Error, opts),
 		)
 	}
 }

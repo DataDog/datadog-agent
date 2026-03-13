@@ -9,16 +9,19 @@ package autoinstrumentation
 
 import (
 	"fmt"
+	"os"
 	"strconv"
-	"time"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,10 +31,10 @@ type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
 	filter        mutatecommon.MutationFilter
-	imageResolver ImageResolver
+	imageResolver imageresolver.Resolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver) *mutatorCore {
 	return &mutatorCore{
 		config:        config,
 		wmeta:         wmeta,
@@ -40,8 +43,8 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatec
 	}
 }
 
-func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) error {
-	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
+func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, includeInitContainers bool) error {
+	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm), includeInitContainers)
 }
 
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
@@ -49,88 +52,177 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return nil
 	}
 
-	requirements, injectionDecision := initContainerResourceRequirements(pod, m.config.defaultResourceRequirements)
-	if injectionDecision.skipInjection {
-		if pod.Annotations == nil {
-			pod.Annotations = make(map[string]string)
-		}
-		pod.Annotations[apmInjectionErrorAnnotationKey] = injectionDecision.message
-		return nil
-	}
+	autoDetected := config.source.isFromLanguageDetection()
+	injectionType := config.source.injectionType()
 
-	var (
-		lastError      error
-		startTime      = time.Now()
-		configInjector = &libConfigInjector{}
-		injectionType  = config.source.injectionType()
-		autoDetected   = config.source.isFromLanguageDetection()
-
-		ustEnvVarMutator = m.ustEnvVarMutator(pod)
-
-		// initContainerMutators are resource and security constraints
-		// to all the init containers the init containers that we create.
-		initContainerMutators = append(
-			m.newInitContainerMutators(requirements, pod.Namespace),
-			ustEnvVarMutator,
-		)
-		injectorOptions = libRequirementOptions{
-			containerFilter:       m.config.containerFilter,
-			initContainerMutators: initContainerMutators,
-		}
-
-		injector          = m.newInjector(pod, startTime, injectorOptions)
-		containerMutators = containerMutators{
-			config.languageDetection.containerMutator(),
-			ustEnvVarMutator,
-		}
-	)
-
-	// Inject env variables used for Onboarding KPIs propagation...
-	// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
-	// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-	if err := m.mutatePodContainers(pod, config.source.containerMutator()); err != nil {
-		return err
-	}
-
-	if err := injector.podMutator().mutatePod(pod); err != nil {
-		// setting the language tag to `injector` because this injection is not related to a specific supported language
-		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
-		lastError = err
-		log.Errorf("Cannot inject library injector into pod %s: %s", mutatecommon.PodString(pod), err)
-	}
-
-	for _, lib := range config.libs {
-		injected := false
-		langStr := string(lib.lang)
-		defer func() {
-			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
-		}()
-
-		if err := lib.podMutator(libRequirementOptions{
-			containerFilter:       m.config.containerFilter,
-			containerMutators:     containerMutators,
-			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
-		}, m.imageResolver).mutatePod(pod); err != nil {
-			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
+	// Apply all mutations in order
+	var lastError error
+	for _, mutator := range []podMutator{
+		// Injects DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID
+		m.kpiEnvVarsMutator(config),
+		// Injects APM injector + language-specific library init containers, volumes, and env vars
+		m.apmInjectionMutator(config, autoDetected, injectionType),
+		// Injects DD_VERSION and DD_ENV from pod labels/annotations
+		m.ustEnvVarsPodMutator(),
+		// Injects language detection annotations
+		m.languageDetectionMutator(config),
+		// Injects library config from annotations (admission.datadoghq.com/all-lib.config.v1)
+		m.libConfigFromAnnotationsMutator(config, autoDetected, injectionType),
+		// Injects default library config for SSI-eligible namespaces
+		m.defaultLibConfigMutator(pod.Namespace),
+	} {
+		if err := mutator.mutatePod(pod); err != nil {
 			lastError = err
-			continue
 		}
-
-		injected = true
-	}
-
-	if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
-		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
-		lastError = err
-		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
-	}
-
-	if m.filter.IsNamespaceEligible(pod.Namespace) {
-		_ = basicLibConfigInjector{}.mutatePod(pod)
 	}
 
 	return lastError
+}
+
+// kpiEnvVarsMutator returns a mutator that injects KPI-related env vars.
+// (DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID)
+func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		return m.mutatePodContainers(pod, config.source.containerMutator(), true)
+	})
+}
+
+// apmInjectionMutator returns a mutator that injects the APM injector and language-specific libraries.
+func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		// Convert libInfo to LibraryConfig here because library_injection cannot
+		// import autoinstrumentation (circular dependency).
+		libs := make([]libraryinjection.LibraryConfig, len(config.libs))
+		for i, lib := range config.libs {
+			libs[i] = libraryinjection.LibraryConfig{
+				Language:      string(lib.lang),
+				Package:       m.resolveLibraryImage(lib),
+				ContainerName: lib.ctrName,
+			}
+		}
+
+		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			InjectionMode:               m.config.Instrumentation.InjectionMode,
+			DefaultResourceRequirements: m.config.defaultResourceRequirements,
+			InitSecurityContext:         m.config.initSecurityContext,
+			ContainerFilter:             m.config.containerFilter,
+			Wmeta:                       m.wmeta,
+			KubeServerVersion:           m.config.kubeServerVersion,
+			Debug:                       m.isDebugEnabled(pod),
+			AutoDetected:                autoDetected,
+			InjectionType:               injectionType,
+			Injector: libraryinjection.InjectorConfig{
+				Package: m.resolveInjectorImage(pod),
+			},
+			Libraries: libs,
+		})
+	})
+}
+
+// isDebugEnabled checks if debug mode is enabled via pod annotation.
+func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
+	if debugEnabled, found := annotation.Get(pod, annotation.EnableDebug); found {
+		if debug, err := strconv.ParseBool(debugEnabled); err == nil {
+			return debug
+		}
+	}
+	return false
+}
+
+// resolveInjectorImage determines the injector image to use based on configuration and pod annotations.
+func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.LibraryImage {
+	// Check for the injector image being set via annotation (highest priority)
+	if injectorImage, found := annotation.Get(pod, annotation.InjectorImage); found {
+		return libraryinjection.NewLibraryImageFromFullRef(injectorImage, "")
+	}
+
+	// Check for the injector version set via annotation
+	injectorTag := m.config.Instrumentation.InjectorImageTag
+	if injectorVersion, found := annotation.Get(pod, annotation.InjectorVersion); found {
+		injectorTag = injectorVersion
+	}
+
+	// Try to resolve via imageResolver (remote config)
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(m.config.containerRegistry, "apm-inject", injectorTag); ok {
+			log.Debugf("Resolved injector image for %s/apm-inject:%s: %s", m.config.containerRegistry, injectorTag, resolved.FullImageRef)
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
+		}
+	}
+
+	// Fall back to tag-based image
+	fullRef := fmt.Sprintf("%s/apm-inject:%s", m.config.containerRegistry, injectorTag)
+	return libraryinjection.NewLibraryImageFromFullRef(fullRef, "")
+}
+
+// resolveLibraryImage resolves the library image using the imageResolver if available.
+// Falls back to the pre-formatted image if resolution fails.
+func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.LibraryImage {
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(lib.registry, lib.repository, lib.tag); ok {
+			log.Debugf("Resolved library image for %s/%s:%s: %s", lib.registry, lib.repository, lib.tag, resolved.FullImageRef)
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
+		}
+	}
+	// Fall back to pre-formatted image
+	return libraryinjection.NewLibraryImageFromFullRef(lib.image, "")
+}
+
+// libConfigFromAnnotationsMutator returns a mutator that reads library configuration
+// from pod annotations (admission.datadoghq.com/<lang>-lib.config.v1) and injects
+// the corresponding env vars. Reads config for each injected language + "all".
+// This allows users to customize library behavior via annotations.
+func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		configInjector := &libConfigInjector{}
+		var lastError error
+
+		// Inject config for each language
+		for _, lib := range config.libs {
+			if err := configInjector.podMutator(lib.lang).mutatePod(pod); err != nil {
+				metrics.LibInjectionErrors.Inc(string(lib.lang), strconv.FormatBool(autoDetected), injectionType)
+				log.Errorf("Cannot inject library configuration for %s into pod %s: %s", lib.lang, mutatecommon.PodString(pod), err)
+				lastError = err
+			}
+		}
+
+		// Inject config for "all" languages
+		if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
+			metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
+			log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
+			lastError = err
+		}
+
+		return lastError
+	})
+}
+
+// defaultLibConfigMutator returns a mutator that injects default library configuration
+// for namespaces eligible to Single Step Instrumentation.
+// Defaults: DD_TRACE_ENABLED=true, DD_LOGS_INJECTION=true,
+// DD_TRACE_HEALTH_METRICS_ENABLED=true, DD_RUNTIME_METRICS_ENABLED=true.
+func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		if !m.filter.IsNamespaceEligible(namespace) {
+			return nil
+		}
+
+		return m.mutatePodContainers(pod, basicLibConfigInjector{}.containerMutator(), true)
+	})
+}
+
+// ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to filtered containers.
+func (m *mutatorCore) ustEnvVarsPodMutator() podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod), true)
+	})
+}
+
+// languageDetectionMutator returns a mutator that applies language detection mutations to filtered containers.
+func (m *mutatorCore) languageDetectionMutator(config extractedPodLibInfo) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		return m.mutatePodContainers(pod, config.languageDetection.containerMutator(), false)
+	})
 }
 
 // serviceNameMutator will attempt to find a service name to
@@ -181,87 +273,6 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	}
 
 	return mutators
-}
-
-// newInitContainerMutators constructs container mutators for behavior
-// that is common and passed to the init containers we create.
-//
-// At this point in time it is: resource requirements and security contexts.
-func (m *mutatorCore) newInitContainerMutators(
-	requirements corev1.ResourceRequirements,
-	nsName string,
-) containerMutators {
-	securityContext := m.config.initSecurityContext
-	if securityContext == nil {
-		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
-		if err != nil {
-			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
-		} else if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
-			// https://datadoghq.atlassian.net/browse/INPLAT-492
-			securityContext = defaultRestrictedSecurityContext
-		}
-	}
-
-	mutators := []containerMutator{
-		containerResourceRequirements{requirements},
-	}
-
-	if securityContext != nil {
-		mutators = append(mutators, containerSecurityContext{securityContext})
-	}
-
-	return mutators
-}
-
-// newInjector creates an injector instance for this pod.
-func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
-	opts := []injectorOption{
-		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
-	}
-
-	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractorFunc(m.imageResolver),
-		injectorImageAnnotationExtractor,
-		injectorDebugAnnotationExtractor,
-	} {
-		opt, err := e.extract(pod)
-		if err != nil {
-			if !isErrAnnotationNotFound(err) {
-				log.Warnf("error extracting injector annotation %s in single step", e.key)
-			}
-			continue
-		}
-		opts = append(opts, opt)
-	}
-
-	return newInjector(startTime, m.config.containerRegistry, opts...)
-}
-
-func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
-	var (
-		libList        []libInfo
-		extractLibInfo = func(e annotationExtractor[libInfo]) {
-			i, err := e.extract(pod)
-			if err != nil {
-				if !isErrAnnotationNotFound(err) {
-					log.Warnf("error extracting annotation for key %s", e.key)
-				}
-			} else {
-				libList = append(libList, i)
-			}
-		}
-	)
-	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
-		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
-		}
-	}
-
-	return libList
 }
 
 func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
@@ -323,54 +334,183 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 	}
 }
 
-// The config for the security products has three states: <unset> | true | false.
-// This is because the products themselves have treat these cases differently:
-// * <unset> - product disactivated but can be activated remotely
-// * true - product activated, not overridable remotely
-// * false - product disactivated, not overridable remotely
-func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
-	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
-	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
-
-	var mutators []containerMutator
-	if asmEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
-	}
-
-	if iastEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
-	}
-
-	if asmScaEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
-	}
-
-	return mutators
+type libInfoLanguageDetection struct {
+	libs             []libInfo
+	injectionEnabled bool
 }
 
-// The config for profiling has four states: <unset> | "auto" | "true" | "false".
-// * <unset> - profiling not activated, but can be activated remotely
-// * "true" - profiling activated unconditionally, not overridable remotely
-// * "false" - profiling deactivated, not overridable remotely
-// * "auto" - profiling activates per-process heuristically, not overridable remotely
-func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
+func (l *libInfoLanguageDetection) containerMutator() containerMutator {
+	return containerMutatorFunc(func(c *corev1.Container) error {
+		if l == nil {
+			return nil
+		}
 
-	var mutators []containerMutator
-	if profilingEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
-	}
+		var langs []string
+		for _, lib := range l.libs {
+			if lib.ctrName == c.Name { // strict container name matching
+				langs = append(langs, string(lib.lang))
+			}
+		}
 
-	return mutators
+		// N.B.
+		// We report on the languages detected regardless
+		// of if it is empty or not to disambiguate the empty state
+		// language_detection reporting being disabled.
+		if err := (containerMutators{
+			envVar{
+				key:     "DD_INSTRUMENTATION_LANGUAGES_DETECTED",
+				valFunc: identityValFunc(strings.Join(langs, ",")),
+			},
+			envVar{
+				key:     "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED",
+				valFunc: identityValFunc(strconv.FormatBool(l.injectionEnabled)),
+			},
+		}).mutateContainer(c); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
-func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
-	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
-	ns, err := wmeta.GetKubernetesMetadata(id)
+// libInfoSource describes where we got the libraries from for
+// injection and is used to set up metrics/telemetry. See
+// Webhook.injectAutoInstruConfig for usage.
+type libInfoSource int
+
+const (
+	// libInfoSourceLibInjection is when the user sets up annotations on their pods for
+	// library injection and single step is disabled.
+	libInfoSourceLibInjection libInfoSource = iota
+	// libInfoSourceSingleStepInstrumentation is when we are using the instrumentation config
+	// to determine which libraries to inject.
+	libInfoSourceSingleStepInstrumentation
+	// libInfoSourceSingleStepLanguageDetection is when we use the language detection
+	// annotation to determine which libs to inject.
+	libInfoSourceSingleStepLangaugeDetection
+)
+
+// injectionType produces a string to distinguish between if
+// we're using "single step" or "lib injection" for metrics and logging.
+func (s libInfoSource) injectionType() string {
+	switch s {
+	case libInfoSourceSingleStepInstrumentation, libInfoSourceSingleStepLangaugeDetection:
+		return singleStepInstrumentationInstallType
+	case libInfoSourceLibInjection:
+		return localLibraryInstrumentationInstallType
+	default:
+		return "unknown"
+	}
+}
+
+// isFromLanguageDetection tells us whether this source comes from
+// the language detection reporting and annotation.
+func (s libInfoSource) isFromLanguageDetection() bool {
+	return s == libInfoSourceSingleStepLangaugeDetection
+}
+
+func (s libInfoSource) instrumentationInstallTime() string {
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
+
+	return instrumentationInstallTime
+}
+
+// containerMutator creates a containerMutator for
+// telemetry environment variables pertaining to:
+//
+// - installation_time
+// - install_id
+// - injection_type
+func (s libInfoSource) containerMutator() containerMutator {
+	return containerMutators{
+		// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTimeEnvVarName,
+			Value: s.instrumentationInstallTime(),
+		}),
+		// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallIDEnvVarName,
+			Value: os.Getenv(instrumentationInstallIDEnvVarName),
+		}),
+		envVarMutator(corev1.EnvVar{
+			Name:  instrumentationInstallTypeEnvVarName,
+			Value: s.injectionType(),
+		}),
+	}
+}
+
+type extractedPodLibInfo struct {
+	// libs are the libraries we are going to attempt to inject into the given pod.
+	libs []libInfo
+	// languageDetection is set when we ran/used the language-detection annotation.
+	languageDetection *libInfoLanguageDetection
+	// source is where we got the data from, used for telemetry later.
+	source libInfoSource
+}
+
+func (e extractedPodLibInfo) withLibs(l []libInfo) extractedPodLibInfo {
+	e.libs = l
+	return e
+}
+
+func (e extractedPodLibInfo) useLanguageDetectionLibs() (extractedPodLibInfo, bool) {
+	if e.languageDetection != nil && len(e.languageDetection.libs) > 0 && e.languageDetection.injectionEnabled {
+		e.libs = e.languageDetection.libs
+		e.source = libInfoSourceSingleStepLangaugeDetection
+		return e, true
+	}
+
+	return e, false
+}
+
+// getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists
+// if the first owner is a replicaset, it returns the name
+func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
+	owners := pod.GetOwnerReferences()
+
+	if len(owners) == 0 {
+		return "", "", false
+	}
+
+	owner := owners[0]
+	ownerName, ownerKind := owner.Name, owner.Kind
+
+	if ownerKind == "ReplicaSet" {
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerName)
+		if deploymentName != "" {
+			ownerKind = "Deployment"
+			ownerName = deploymentName
+		}
+	}
+
+	return ownerName, ownerKind, true
+}
+
+func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
+	// populate libInfoList using the languages found in workloadmeta
+	id := fmt.Sprintf("%s/%s", ns, deploymentName)
+	deployment, err := store.GetKubernetesDeployment(id)
 	if err != nil {
-		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+		return nil
 	}
 
-	return ns.EntityMeta.Labels, nil
+	var libList []libInfo
+	for container, languages := range deployment.InjectableLanguages {
+		for lang := range languages {
+			// There's a mismatch between language detection and auto-instrumentation.
+			// The Node language is a js lib.
+			if lang == "node" {
+				lang = "js"
+			}
+
+			l := language(lang)
+			libList = append(libList, l.defaultLibInfo(registry, container.Name))
+		}
+	}
+
+	return libList
 }

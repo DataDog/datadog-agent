@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -28,7 +29,7 @@ type ExporterConfig struct {
 
 	HTTPConfig confighttp.ClientConfig `mapstructure:",squash"`
 
-	exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+	QueueBatchConfig configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
 
 	configtls.ClientConfig `mapstructure:"tls"`
 
@@ -55,16 +56,9 @@ type ExporterConfig struct {
 
 // Validate the configuration for errors. This is required by component.Config.
 func (c *ExporterConfig) Validate() error {
-	key := string(c.API.Key)
-	if key != "" { // there is no api key in the config when serializer exporter is used in OTLP ingest
-		if err := datadogconfig.StaticAPIKeyCheck(key); err != nil {
-			return err
-		}
-	}
-
 	histCfg := c.Metrics.Metrics.HistConfig
 	if histCfg.Mode == datadogconfig.HistogramModeNoBuckets && !histCfg.SendAggregations {
-		return fmt.Errorf("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
+		return errors.New("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
 	}
 
 	if c.HostMetadata.Enabled && c.HostMetadata.ReporterPeriod < 5*time.Minute {
@@ -96,7 +90,7 @@ func (c *ExporterConfig) Unmarshal(configMap *confmap.Conf) error {
 
 	// If an endpoint is not explicitly set, override it based on the site.
 	if !configMap.IsSet("metrics::endpoint") {
-		c.Metrics.Metrics.Endpoint = fmt.Sprintf("https://api.%s", c.API.Site)
+		c.Metrics.Metrics.Endpoint = "https://api." + c.API.Site
 	}
 
 	// Return an error if an endpoint is explicitly set to ""

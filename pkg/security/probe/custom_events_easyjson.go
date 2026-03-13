@@ -36,20 +36,27 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "payload":
-			out.Payload = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Payload = string(in.String())
+			}
 		case "date":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Timestamp).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				if data := in.Raw(); in.Ok() {
+					in.AddError((out.Timestamp).UnmarshalJSON(data))
+				}
 			}
 		case "service":
-			out.Service = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Service = string(in.String())
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -123,16 +130,19 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "id":
-			out.ContainerID = containerutils.ContainerID(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ContainerID = containerutils.ContainerID(in.String())
+			}
 		case "created_at":
-			out.CreatedAt = uint64(in.Uint64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CreatedAt = uint64(in.Uint64())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -178,14 +188,13 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "nsid":
-			out.NSID = uint64(in.Uint64())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.NSID = uint64(in.Uint64())
+			}
 		case "workload_container":
 			easyjsonF8f9ddd1Decode(in, &out.Container)
 		case "args":
@@ -205,18 +214,30 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 				}
 				for !in.IsDelim(']') {
 					var v1 string
-					v1 = string(in.String())
+					if in.IsNull() {
+						in.Skip()
+					} else {
+						v1 = string(in.String())
+					}
 					out.EntrypointArgs = append(out.EntrypointArgs, v1)
 					in.WantComma()
 				}
 				in.Delim(']')
 			}
 		case "date":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Timestamp).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				if data := in.Raw(); in.Ok() {
+					in.AddError((out.Timestamp).UnmarshalJSON(data))
+				}
 			}
 		case "service":
-			out.Service = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Service = string(in.String())
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -330,20 +351,31 @@ func easyjsonF8f9ddd1Decode(in *jlexer.Lexer, out *struct {
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "id":
-			out.ID = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ID = string(in.String())
+			}
 		case "name":
-			out.Name = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Name = string(in.String())
+			}
 		case "short_name":
-			out.ImageShortName = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ImageShortName = string(in.String())
+			}
 		case "image_tag":
-			out.ImageTag = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ImageTag = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -414,11 +446,6 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "triggering_event":
 			if in.IsNull() {
@@ -428,16 +455,32 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 				if out.Event == nil {
 					out.Event = new(serializers.EventSerializer)
 				}
-				(*out.Event).UnmarshalEasyJSON(in)
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					(*out.Event).UnmarshalEasyJSON(in)
+				}
 			}
 		case "error":
-			out.Error = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Error = string(in.String())
+			}
 		case "date":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.Timestamp).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				if data := in.Raw(); in.Ok() {
+					in.AddError((out.Timestamp).UnmarshalJSON(data))
+				}
 			}
 		case "service":
-			out.Service = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Service = string(in.String())
+			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()

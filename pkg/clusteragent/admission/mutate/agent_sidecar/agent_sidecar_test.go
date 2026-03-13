@@ -21,7 +21,7 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -38,6 +38,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 		ExpectError               bool
 		ExpectInjection           bool
 		KubernetesAPILogging      bool
+		TLSEnabled                bool
+		TLSCopyCAConfigMap        bool
+		DryRun                    *bool
 		ExpectedPodAfterInjection func() *corev1.Pod
 	}{
 		{
@@ -555,6 +558,95 @@ func TestInjectAgentSidecar(t *testing.T) {
 				}
 			},
 		},
+		{
+			Name: "should inject sidecar with TLS volume mounts and env vars when TLS enabled (self-managed)",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider:           "",
+			profilesJSON:       "[]",
+			TLSEnabled:         true,
+			TLSCopyCAConfigMap: false,
+			ExpectError:        false,
+			ExpectInjection:    true,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+
+				// TLS env vars should be added
+				sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
+					{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
+					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
+				}...)
+				// TLS volume mount should be added
+				sidecar.VolumeMounts = append(sidecar.VolumeMounts, clusterCACertVolumeMount)
+
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							sidecar,
+						},
+						// TLS volume should be added
+						Volumes: []corev1.Volume{clusterCACertVolume},
+					},
+				}
+			},
+		},
+		{
+			Name: "should inject sidecar with TLS env vars in dry-run mode",
+			Pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pod-name",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "container-name"},
+					},
+				},
+			},
+			provider:           "",
+			profilesJSON:       "[]",
+			TLSEnabled:         true,
+			TLSCopyCAConfigMap: true,
+			DryRun:             pointer.Ptr(true),
+			ExpectError:        false,
+			ExpectInjection:    true,
+			ExpectedPodAfterInjection: func() *corev1.Pod {
+				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
+
+				// TLS env vars should be added in dry-run mode
+				sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
+					{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
+					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
+				}...)
+				// TLS volume mount should be added in dry-run mode
+				sidecar.VolumeMounts = append(sidecar.VolumeMounts, clusterCACertVolumeMount)
+
+				return &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "pod-name",
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{Name: "container-name"},
+							sidecar,
+						},
+						// TLS volume should be added in dry-run mode
+						Volumes: []corev1.Volume{clusterCACertVolume},
+					},
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -563,10 +655,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.kubelet_api_logging.enabled", test.KubernetesAPILogging)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", test.TLSEnabled)
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", test.TLSCopyCAConfigMap)
 
 			webhook := NewWebhook(mockConfig)
 
-			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
+			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil, nil, test.DryRun)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -604,7 +698,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 			name:              "no configuration set",
 			setConfig:         func() model.Config { return configmock.New(t) },
 			containerRegistry: commonRegistry,
-			expectedImage:     fmt.Sprintf("%s/agent:latest", commonRegistry),
+			expectedImage:     commonRegistry + "/agent:latest",
 		},
 		{
 			name:              "setting custom registry, image and tag",
@@ -684,7 +778,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
@@ -723,7 +817,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
@@ -764,7 +858,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",

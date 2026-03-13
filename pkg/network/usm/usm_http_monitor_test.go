@@ -56,7 +56,7 @@ type usmHTTPSuite struct {
 }
 
 func (s *usmHTTPSuite) getCfg() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -175,6 +175,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
+				time.Sleep(time.Second)
 				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
 						if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
@@ -243,7 +244,7 @@ func TestGoTLSMapCleanup(t *testing.T) {
 	}
 
 	SetGoTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = true
 	cfg.GoTLSExcludeSelf = false

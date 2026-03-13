@@ -16,13 +16,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // CheckInstallation run tests to check the installation of the agent
 func CheckInstallation(t *testing.T, client *TestClient) {
 	t.Run("example config file", func(tt *testing.T) {
-		exampleFilePath := client.Helper.GetConfigFolder() + fmt.Sprintf("%s.example", client.Helper.GetConfigFileName())
+		exampleFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName() + ".example"
 
 		_, err := client.FileManager.FileExists(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")

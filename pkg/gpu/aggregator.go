@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -40,6 +41,9 @@ type aggregator struct {
 
 	// isActive is a flag to indicate if the aggregator has seen any activity in the last interval!
 	isActive bool
+
+	// activeIntervals stores the time intervals when kernels were active, used to compute ActiveTimePct
+	activeIntervals [][2]uint64
 }
 
 func newAggregator(deviceMaxThreads uint64) *aggregator {
@@ -48,15 +52,60 @@ func newAggregator(deviceMaxThreads uint64) *aggregator {
 	}
 }
 
+// mergeIntervals takes unsorted intervals and returns the total duration covered,
+// handling overlapping intervals correctly. This is used to compute the percentage
+// of time that any kernel was active on the GPU.
+func mergeIntervals(intervals [][2]uint64) uint64 {
+	if len(intervals) == 0 {
+		return 0
+	}
+
+	// Sort intervals by start time
+	sort.Slice(intervals, func(i, j int) bool {
+		return intervals[i][0] < intervals[j][0]
+	})
+
+	// Merge overlapping intervals and compute total duration
+	var totalDuration uint64
+	currentStart := intervals[0][0]
+	currentEnd := intervals[0][1]
+
+	for i := 1; i < len(intervals); i++ {
+		if intervals[i][0] <= currentEnd {
+			// Overlapping or adjacent interval, extend the current interval
+			if intervals[i][1] > currentEnd {
+				currentEnd = intervals[i][1]
+			}
+		} else {
+			// Non-overlapping interval, add duration of current interval and start a new one
+			totalDuration += currentEnd - currentStart
+			currentStart = intervals[i][0]
+			currentEnd = intervals[i][1]
+		}
+	}
+
+	// Add the last interval
+	totalDuration += currentEnd - currentStart
+
+	return totalDuration
+}
+
 // processKernelSpan takes a kernel span and computes the thread-seconds used by it during
 // the interval
 func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 	tsStart := span.startKtime
 	tsEnd := span.endKtime
 
-	// we only want to consider data that was not already processed in the previous interval
+	// Clamp the interval to the measurement window [lastCheckKtime, lastCheckKtime + measuredIntervalNs]
+	// This ensures we only count activity within the current measurement period
 	if agg.lastCheckKtime > tsStart {
 		tsStart = agg.lastCheckKtime
+	}
+
+	// Calculate the upper bound of the measurement window
+	intervalEndKtime := agg.lastCheckKtime + uint64(agg.measuredIntervalNs)
+	if tsEnd > intervalEndKtime {
+		tsEnd = intervalEndKtime
 	}
 
 	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
@@ -80,6 +129,9 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 
 	// weight the active threads by the time they were active
 	agg.totalThreadSecondsUsed += durationSec * float64(activeThreads)
+
+	// Track the interval for active time percentage calculation
+	agg.activeIntervals = append(agg.activeIntervals, [2]uint64{tsStart, tsEnd})
 }
 
 // processPastData takes spans/allocations that have already been closed
@@ -117,10 +169,17 @@ func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
 	stats.UsedCores = agg.getAverageCoreUsage()
 
-	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
-	for i := memAllocType(0); i < memAllocTypeCount; i++ {
-		memTsBuilders[memAllocType(i)] = &tseriesBuilder{}
+	// Compute active time percentage
+	if agg.measuredIntervalNs > 0 && len(agg.activeIntervals) > 0 {
+		activeDurationNs := mergeIntervals(agg.activeIntervals)
+		stats.ActiveTimePct = (float64(activeDurationNs) / float64(agg.measuredIntervalNs)) * 100.0
+		// Cap at 100% to handle any edge cases
+		if stats.ActiveTimePct > 100.0 {
+			stats.ActiveTimePct = 100.0
+		}
 	}
+
+	var memTsBuilders [memAllocTypeCount]tseriesBuilder
 
 	for _, alloc := range agg.currentAllocs {
 		memTsBuilders[alloc.allocType].AddEventStart(alloc.startKtime, int64(alloc.size))
@@ -130,8 +189,8 @@ func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 		memTsBuilders[alloc.allocType].AddEvent(alloc.startKtime, alloc.endKtime, int64(alloc.size))
 	}
 
-	for _, memTsBuilder := range memTsBuilders {
-		lastValue, maxValue := memTsBuilder.GetLastAndMax()
+	for allocType := range memTsBuilders {
+		lastValue, maxValue := memTsBuilders[allocType].GetLastAndMax()
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
 	}
@@ -146,4 +205,5 @@ func (agg *aggregator) flush() {
 	agg.currentAllocs = agg.currentAllocs[:0]
 	agg.pastAllocs = agg.pastAllocs[:0]
 	agg.totalThreadSecondsUsed = 0
+	agg.activeIntervals = agg.activeIntervals[:0]
 }

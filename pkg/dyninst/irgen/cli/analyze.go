@@ -74,7 +74,7 @@ func analyze(path string, method string) error {
 			&rcjson.SnapshotProbe{
 				LogProbeCommon: rcjson.LogProbeCommon{
 					ProbeCommon: rcjson.ProbeCommon{
-						ID:    fmt.Sprintf("probe_%s", method),
+						ID:    "probe_" + method,
 						Where: &rcjson.Where{MethodName: method},
 					},
 				},

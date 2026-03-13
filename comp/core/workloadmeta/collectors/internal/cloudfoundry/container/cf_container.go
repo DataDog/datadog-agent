@@ -41,7 +41,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog: workloadmeta.NodeAgent,
 		},
 	}, nil
 }
@@ -99,8 +99,7 @@ func (c *collector) Pull(_ context.Context) error {
 		log.Errorf("Error reading shared node agent tags file under '%s': %v", sharedNodeAgentTagsFile, err)
 	} else {
 		// TODO: handle json tags
-		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
-		for _, s := range sharedNodeTags {
+		for s := range strings.SplitSeq(string(sharedNodeTagsBytes), ",") {
 			containerTags.Add(s)
 		}
 	}

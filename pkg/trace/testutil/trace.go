@@ -11,6 +11,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
@@ -49,7 +50,7 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 		curSpans := make([]*pb.Span, 0, childSpans)
 		for j := 0; j < childSpans && timeLeft > 0; j++ {
 			news := RandomSpan()
-			news.TraceID = prev.TraceID
+			traceutil.CopyTraceID(news, prev)
 			news.ParentID = prev.SpanID
 
 			// distribute durations in prev span
@@ -93,7 +94,7 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
-		Origin:   "lambda",
+		Origin:   "cloudrun",
 		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }
@@ -214,9 +215,11 @@ func TraceChunkWithSpanAndPriority(span *pb.Span, priority int32) *pb.TraceChunk
 // TraceChunkV1WithSpanAndPriority wraps a `span` and `priority` with pb.TraceChunk
 func TraceChunkV1WithSpanAndPriority(span *idx.InternalSpan, priority int32) *idx.InternalTraceChunk {
 	return &idx.InternalTraceChunk{
-		Strings:  span.Strings,
-		Spans:    []*idx.InternalSpan{span},
-		Priority: priority,
+		TraceID:    []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		Strings:    span.Strings,
+		Spans:      []*idx.InternalSpan{span},
+		Priority:   priority,
+		Attributes: map[uint32]*idx.AnyValue{},
 	}
 }
 

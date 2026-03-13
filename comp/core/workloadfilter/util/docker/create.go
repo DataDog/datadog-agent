@@ -45,6 +45,5 @@ func CreateContainer(rawContainer container.Summary, resolvedImageName string, o
 
 	return &workloadfilter.Container{
 		FilterContainer: c,
-		Owner:           owner,
 	}
 }

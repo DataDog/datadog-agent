@@ -11,11 +11,11 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - Kind: Entry
-          Type: 216 EventRootType Probe[main.HandleHTTP]
+          Type: 209 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0x82b110", Frameless: false}]
           Condition: null
         - Kind: Return
-          Type: 217 EventRootType Probe[main.HandleHTTP]Return
+          Type: 210 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0x82b2d8"
               Frameless: false
@@ -33,11 +33,11 @@ Probes:
       subprogram: {subprogram: 2}
       events:
         - Kind: Entry
-          Type: 218 EventRootType Probe[main.LookAtTheRequest]
+          Type: 211 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0x82b408", Frameless: false}]
           Condition: null
         - Kind: Return
-          Type: 219 EventRootType Probe[main.LookAtTheRequest]Return
+          Type: 212 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0x82b470", Frameless: false}]
           Condition: null
 Subprograms:
@@ -172,7 +172,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 2.259936e+06
       GoKind: 22
-      Pointee: 113 StructureType bytes.Buffer
+      Pointee: 113 UnresolvedPointeeType bytes.Buffer
     - __kind: PointerType
       ID: 178
       Name: '*crypto/tls.ConnectionState'
@@ -208,27 +208,6 @@ Types:
       GoRuntimeType: 1.549984e+06
       GoKind: 22
       Pointee: 125 UnresolvedPointeeType gopkg.in/DataDog/dd-trace-go.v1/contrib/internal/httptrace.responseWriter
-    - __kind: PointerType
-      ID: 210
-      Name: '*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal.NoopSpan'
-      ByteSize: 8
-      GoRuntimeType: 1.723072e+06
-      GoKind: 22
-      Pointee: 211 StructureType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal.NoopSpan
-    - __kind: PointerType
-      ID: 212
-      Name: '*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.ciVisibilityEvent'
-      ByteSize: 8
-      GoRuntimeType: 1.83712e+06
-      GoKind: 22
-      Pointee: 213 UnresolvedPointeeType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.ciVisibilityEvent
-    - __kind: PointerType
-      ID: 214
-      Name: '*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span'
-      ByteSize: 8
-      GoRuntimeType: 2.30384e+06
-      GoKind: 22
-      Pointee: 215 UnresolvedPointeeType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
     - __kind: PointerType
       ID: 100
       Name: '*int'
@@ -585,7 +564,7 @@ Types:
       GoRuntimeType: 597472
       GoKind: 18
     - __kind: EventRootType
-      ID: 216
+      ID: 209
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -611,10 +590,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 217
+      ID: 210
       Name: Probe[main.HandleHTTP]Return
     - __kind: EventRootType
-      ID: 218
+      ID: 211
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -630,7 +609,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 219
+      ID: 212
       Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 92
@@ -857,28 +836,10 @@ Types:
       ByteSize: 1
       GoRuntimeType: 585248
       GoKind: 1
-    - __kind: StructureType
+    - __kind: UnresolvedPointeeType
       ID: 113
       Name: bytes.Buffer
-      ByteSize: 40
-      GoRuntimeType: 1.60576e+06
-      GoKind: 25
-      RawFields:
-        - Name: buf
-          Offset: 0
-          Type: 38 GoSliceHeaderType []uint8
-        - Name: off
-          Offset: 24
-          Type: 7 BaseType int
-        - Name: lastRead
-          Offset: 32
-          Type: 209 BaseType bytes.readOp
-    - __kind: BaseType
-      ID: 209
-      Name: bytes.readOp
-      ByteSize: 1
-      GoRuntimeType: 583456
-      GoKind: 3
+      ByteSize: 8
     - __kind: BaseType
       ID: 98
       Name: complex128
@@ -981,20 +942,6 @@ Types:
         - Name: data
           Offset: 8
           Type: 15 VoidPointerType unsafe.Pointer
-    - __kind: StructureType
-      ID: 211
-      Name: gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal.NoopSpan
-      GoRuntimeType: 1.823264e+06
-      GoKind: 25
-      RawFields: []
-    - __kind: UnresolvedPointeeType
-      ID: 213
-      Name: gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.ciVisibilityEvent
-      ByteSize: 8
-    - __kind: UnresolvedPointeeType
-      ID: 215
-      Name: gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
-      ByteSize: 8
     - __kind: GoSwissMapGroupsType
       ID: 192
       Name: groupReference<string,[]string>
@@ -2616,7 +2563,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 585312
       GoKind: 26
-MaxTypeID: 219
+MaxTypeID: 212
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x130d980", TypesOffset: 296}
 CommonTypes:

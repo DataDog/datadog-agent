@@ -7,8 +7,9 @@ package agenttests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -60,6 +61,17 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService("datadogagent").
 		WithIdentity(identity)
+
+	// Reinstall the same Agent again, but this time without the custom user arg
+	// it should keep the same user (settings read from registry)
+	out, err = s.InstallScript().Run()
+	s.T().Log(out)
+	s.Require().NoErrorf(err, "install script failed")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", s.agentUser)
+
 }
 
 // TestInstallScriptChangesAgentUser tests that the install script changes the agent user when the Agent is already installed

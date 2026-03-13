@@ -15,17 +15,19 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
+	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -34,6 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -42,12 +46,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
-	"github.com/DataDog/datadog-agent/comp/process/profiler"
+	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
@@ -63,7 +68,6 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -126,8 +130,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Populate(&appInitDeps),
 
 		// Provide core components
-		core.Bundle(),
-		secretsfx.Module(),
+		core.Bundle(core.WithSecrets()),
+		hostnameimpl.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
@@ -138,6 +142,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
 
+		remotetraceroute.Module(),
 		// Provide network path bundle
 		networkpath.Bundle(),
 
@@ -158,7 +163,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 
 		// Provide autoexit module
-		autoexitimpl.Module(),
+		autoexitfx.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		wmcatalogremote.GetCatalog(),
@@ -168,11 +173,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			AgentType: workloadmeta.Remote,
 		}),
 
+		// Provide workloadfilter module
+		remoteWorkloadfilterfx.Module(),
+
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
 		fxutil.FxAgentBase(),
-		logging.EnableFxLoggingOnDebug[logcomp.Component](),
+		fxinstrumentation.Module(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -215,6 +223,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 		settingsimpl.Module(),
 		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
 	)
 
 	err := app.Start(ctx)
@@ -262,6 +271,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	FilterStore  workloadfilter.Component
 	Logger       logcomp.Component
 	Tagger       tagger.Component
 	IPC          ipc.Component
@@ -279,7 +289,7 @@ func initMisc(deps miscDeps) error {
 	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 	// we can include the tagger as part of the workloadmeta component.
-	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger, deps.FilterStore)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg, deps.IPC.GetTLSServerConfig())
 

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    We collect namespaces in Kubernetes for Single Step Instrumentation. We need this information to utilize namespace
+    labels for workload selection. However, we also use this information to generate pod security polices for restricted
+    namespaces. This change fixes an issue where we would only collect namespace information when target based workload
+    selection was utilized instead of collecting namespaces for all Single Step Instrumentation configurations.

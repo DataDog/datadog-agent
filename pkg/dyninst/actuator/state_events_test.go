@@ -8,7 +8,6 @@
 package actuator
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,9 +37,8 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramLoadingFailed{
 				programID: 1,
-				err:       errors.New("load error"),
 			},
-			wantStr: `eventProgramLoadingFailed{programID: 1, err: load error}`,
+			wantStr: `eventProgramLoadingFailed{programID: 1}`,
 		},
 		{
 			ev: eventProgramAttached{
@@ -63,9 +61,8 @@ func TestEventStringer(t *testing.T) {
 			ev: eventProgramAttachingFailed{
 				programID: 1,
 				processID: ProcessID{PID: 100},
-				err:       errors.New("attach error"),
 			},
-			wantStr: `eventProgramAttachingFailed{programID: 1, processID: {PID:100}, err: attach error}`,
+			wantStr: `eventProgramAttachingFailed{programID: 1, processID: {PID:100}}`,
 		},
 		{
 			ev: eventProgramDetached{
@@ -77,6 +74,19 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev:      eventShutdown{},
 			wantStr: "eventShutdown{}",
+		},
+		{
+			ev: eventMissingTypesReported{
+				processID: ProcessID{PID: 100},
+				typeNames: []string{"Foo", "Bar"},
+			},
+			wantStr: "eventMissingTypesReported{processID: {PID:100}, typeNames: 2}",
+		},
+		{
+			ev: eventRuntimeStatsUpdated{
+				programID: 1,
+			},
+			wantStr: "eventRuntimeStatsUpdated{programID: 1}",
 		},
 	}
 

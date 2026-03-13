@@ -63,6 +63,11 @@ func (a *Auditor) Stop() {
 	a.stopChannel <- struct{}{}
 }
 
+// Flush is a no-op for the mock auditor
+func (a *Auditor) Flush() {
+	// No-op
+}
+
 // Channel returns the channel messages should be sent on
 func (a *Auditor) Channel() chan *message.Payload {
 	return a.channel

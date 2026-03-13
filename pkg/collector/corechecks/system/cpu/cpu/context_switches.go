@@ -7,10 +7,10 @@
 
 package cpu
 
-import "fmt"
+import "errors"
 
 // GetContextSwitches retrieves the number of context switches for the current process.
 // It returns an integer representing the count and an error if the retrieval fails.
 func GetContextSwitches() (int64, error) {
-	return 0, fmt.Errorf("context switches not supported on macOS")
+	return 0, errors.New("context switches not supported on macOS")
 }

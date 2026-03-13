@@ -56,10 +56,17 @@
           "location": {
             "method": "main.testInlinedBBB"
           }
-        },
-        "captures": {}
-      }
+        }
+      },
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBBB"
   }
 ]

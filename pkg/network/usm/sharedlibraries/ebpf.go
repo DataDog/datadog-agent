@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -184,7 +185,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 			continue
 		}
 
-		mapName := fmt.Sprintf("%s_%s", string(libset), sharedLibrariesPerfMap)
+		mapName := string(libset) + "_" + sharedLibrariesPerfMap
 		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
 
 		perfHandler, err := perf.NewEventHandler(mapName, handler.handleEvent, mode,
@@ -455,12 +456,12 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 
 		constEd := manager.ConstantEditor{
-			Name:  fmt.Sprintf("%s_libset_enabled", string(libset)),
+			Name:  string(libset) + "_libset_enabled",
 			Value: value,
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, constEd)
-		enabledMsgs = append(enabledMsgs, fmt.Sprintf("%s=%d", libset, value))
+		enabledMsgs = append(enabledMsgs, string(libset)+"="+strconv.FormatUint(value, 10))
 	}
 
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
@@ -549,7 +550,7 @@ func (e *EbpfProgram) initializeProbes() {
 	// Tracing represents fentry/fexit probes.
 	tracingProbes := []manager.ProbeIdentificationPair{
 		{
-			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
+			EBPFFuncName: "do_sys_" + openat2SysCall + "_exit",
 			UID:          probeUID,
 		},
 	}
@@ -568,7 +569,7 @@ func (e *EbpfProgram) initializeProbes() {
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
 			tpProbes = append(tpProbes, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
+				EBPFFuncName: "tracepoint__syscalls__sys_" + traceType + "_" + probe,
 				UID:          probeUID,
 			})
 		}
@@ -619,10 +620,10 @@ func (e *EbpfProgram) initializeProbes() {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 // ToBytes converts the libpath to a byte array containing the path

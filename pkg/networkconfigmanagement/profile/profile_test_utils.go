@@ -8,11 +8,39 @@
 package profile
 
 import (
+	"embed"
 	"fmt"
+	"path"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+//go:embed fixtures/*
+var fixturesFS embed.FS
+
+// Fixture represents the data to pass in for the test and its expected output for profile definitions
+type Fixture struct {
+	Initial  []byte
+	Expected []byte
+}
+
+func loadFixture(profileName string, command CommandType) Fixture {
+	initialPath := path.Join("fixtures", profileName, string(command), "initial.txt")
+	initial, err := fixturesFS.ReadFile(initialPath)
+	if err != nil {
+		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, command: %s, error: %s", profileName, command, err))
+	}
+	expectedPath := path.Join("fixtures", profileName, string(command), "expected.txt")
+	expected, err := fixturesFS.ReadFile(expectedPath)
+	if err != nil {
+		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, command:%s, error: %s", profileName, command, err))
+	}
+	return Fixture{
+		Initial:  normalizeOutput(initial),
+		Expected: normalizeOutput(expected),
+	}
+}
 
 var exampleConfig = `
 Building configuration...
@@ -183,7 +211,29 @@ func getRunningScrubber() *scrubber.Scrubber {
 	sc := scrubber.New()
 	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+		Repl:  []byte("$1 " + "<redacted secret>"),
 	})
 	return sc
+}
+
+// DefaultProfile will parse the official default profile given the name of the profile file
+func DefaultProfile(profileName string) *NCMProfile {
+	file := profileName + ".json"
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, file))
+	prof, _ := parseNCMProfileFromBytes(b, profileName)
+	return prof
+}
+
+// IOSProfile parses the test profile for IOS devices to test with
+func IOSProfile() *NCMProfile {
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "cisco-ios")
+	return prof
+}
+
+// JunOSProfile parses the test profile for junOS devices to test with
+func JunOSProfile() *NCMProfile {
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "junos.json"))
+	prof, _ := parseNCMProfileFromBytes(b, "junos")
+	return prof
 }

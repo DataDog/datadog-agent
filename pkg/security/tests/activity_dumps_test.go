@@ -9,9 +9,9 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +19,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -454,7 +453,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		var files []string
 		for i := 0; i < testActivityDumpRateLimiter*10; i++ {
-			files = append(files, filepath.Join(testDir, "ad-test-create-"+fmt.Sprintf("%d", i)))
+			files = append(files, filepath.Join(testDir, "ad-test-create-"+strconv.Itoa(i)))
 		}
 		args := []string{"sleep", "2", ";", "open"}
 		args = append(args, files...)
@@ -574,211 +573,4 @@ firstLoop:
 		return false
 	}
 	return true
-}
-
-func TestActivityDumpsAutoSuppression(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNodeForAD() {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	var expectedFormats = []string{"profile", "protobuf"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
-
-	outputDir := t.TempDir()
-	os.MkdirAll(outputDir, 0755)
-	defer os.RemoveAll(outputDir)
-
-	rulesDef := []*rules.RuleDefinition{
-		{
-			ID:         "test_autosuppression_exec",
-			Expression: `exec.file.name == "getconf"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-		{
-			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-	}
-
-	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpAutoSuppressionEnabled:  true,
-		autoSuppressionEventTypes:           []string{"exec", "dns"},
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	dockerInstance, dump, err := test.StartADockerGetDump()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance.stop()
-
-	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
-		// check we autosuppress signals during the activity dump duration
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Error("Got a signal that should have been suppressed")
-			}
-			return false
-		}, time.Second*3, "test_autosuppression_exec")
-		if err != nil {
-			if otherErr, ok := err.(ErrTimeout); !ok {
-				t.Fatal(otherErr)
-			}
-		}
-	})
-
-	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
-		// check we autosuppress signals during the activity dump duration
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Error("Got a signal that should have been suppressed")
-			}
-			return false
-		}, time.Second*3, "test_autosuppression_dns")
-		if err != nil {
-			if otherErr, ok := err.(ErrTimeout); !ok {
-				t.Fatal(otherErr)
-			}
-		}
-	})
-}
-
-func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-	if !IsDedicatedNodeForAD() {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	var expectedFormats = []string{"profile", "protobuf"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
-
-	outputDir := t.TempDir()
-	os.MkdirAll(outputDir, 0755)
-	defer os.RemoveAll(outputDir)
-
-	rulesDef := []*rules.RuleDefinition{
-		{
-			ID:         "test_autosuppression_exec",
-			Expression: `exec.file.name == "getconf"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-		{
-			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-	}
-
-	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      1,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpAutoSuppressionEnabled:  true,
-		autoSuppressionEventTypes:           []string{"exec", "dns"},
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	dockerInstance1, err := test.StartADocker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance1.stop()
-
-	dockerInstance2, err := test.StartADocker()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance2.stop()
-
-	// dockerInstance2 should not be traced
-	_, err = test.GetDumpFromDocker(dockerInstance2)
-	if err == nil {
-		t.Fatal("second docker instance should not have an active dump")
-	}
-
-	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
-		// check we autosuppress signals during the activity dump duration
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
-			_, err := cmd.CombinedOutput()
-			return err
-		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Error("Got a signal that should have been suppressed")
-			}
-			return false
-		}, time.Second*3, "test_autosuppression_exec")
-		if err != nil {
-			if otherErr, ok := err.(ErrTimeout); !ok {
-				t.Fatal(otherErr)
-			}
-		}
-	})
-
-	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
-		// check we autosuppress signals during the activity dump duration
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Error("Got a signal that should have been suppressed")
-			}
-			return false
-		}, time.Second*3, "test_autosuppression_dns")
-		if err != nil {
-			if otherErr, ok := err.(ErrTimeout); !ok {
-				t.Fatal(otherErr)
-			}
-		}
-	})
-
 }

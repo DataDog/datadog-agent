@@ -716,7 +716,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 
 func TestSkipConnectionDNS(t *testing.T) {
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
-		tr := &Tracer{config: &config.Config{CollectLocalDNS: false}}
+		tr := &Tracer{config: &config.Config{CollectLocalDNS: false, DNSMonitoringPortList: []int{53}}}
 		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
@@ -743,7 +743,7 @@ func TestSkipConnectionDNS(t *testing.T) {
 	})
 
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
-		tr := &Tracer{config: &config.Config{CollectLocalDNS: true}}
+		tr := &Tracer{config: &config.Config{CollectLocalDNS: true, DNSMonitoringPortList: []int{53}}}
 
 		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
@@ -930,7 +930,7 @@ type UDPServer struct {
 
 func (s *UDPServer) Run(payloadSize int) error {
 	if s.network == "" {
-		return fmt.Errorf("must set network for UDPServer.Run()")
+		return errors.New("must set network for UDPServer.Run()")
 	}
 	var err error
 	var ln net.PacketConn
@@ -990,7 +990,7 @@ func (s *UDPServer) Shutdown() {
 
 func dialUDP(network, address string) (net.Conn, error) {
 	if network == "" {
-		return nil, fmt.Errorf("must set network to dialUDP")
+		return nil, errors.New("must set network to dialUDP")
 	}
 	conn, err := net.DialTimeout(network, address, 50*time.Millisecond)
 	if err != nil {
@@ -1052,24 +1052,16 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		if !assert.NoError(c, err) {
-			return
-		}
+		require.NoError(c, err)
 		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		if timeout == 0 {
-			if !assert.NoError(c, err, "unexpected error making DNS request") {
-				return
-			}
+			require.NoError(c, err, "unexpected error making DNS request")
 		} else {
-			if !assert.Error(c, err) {
-				return
-			}
+			require.Error(c, err)
 		}
 		_ = dnsConn.Close()
-		if !assert.NoError(c, tr.reverseDNS.WaitForDomain(domain)) {
-			return
-		}
+		require.NoError(c, tr.reverseDNS.WaitForDomain(domain))
 
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections, cleanup := getConnections(c, tr)
@@ -1079,17 +1071,11 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 			return
 		}
 
-		if !assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes)) {
-			return
-		}
+		require.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes))
 		if !tr.config.EnableEbpfless {
-			if !assert.Equal(c, os.Getpid(), int(conn.Pid)) {
-				return
-			}
+			require.Equal(c, os.Getpid(), int(conn.Pid))
 		}
-		if !assert.Equal(c, dnsServerAddr.Port, int(conn.DPort)) {
-			return
-		}
+		require.Equal(c, dnsServerAddr.Port, int(conn.DPort))
 
 		var total uint32
 		var successfulResponses uint32
@@ -1106,15 +1092,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		failedResponses := total - successfulResponses
 
 		// DNS Stats
-		if !assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses) {
-			return
-		}
-		if !assert.Equal(c, uint32(failure), failedResponses) {
-			return
-		}
-		if !assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts) {
-			return
-		}
+		require.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
+		require.Equal(c, uint32(failure), failedResponses)
+		require.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
 	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 }
 
@@ -1251,9 +1231,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 			return cs.DPort == uint16(remotePort)
 		})
 
-		if !assert.Len(ct, outgoing, 1) {
-			return
-		}
+		require.Len(ct, outgoing, 1)
 		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond)
 }
@@ -1282,9 +1260,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
-		if !assert.Len(ct, outgoing, 1) {
-			return
-		}
+		require.Len(ct, outgoing, 1)
 
 		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
 		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))

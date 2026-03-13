@@ -9,7 +9,6 @@ import re
 import shutil
 import sys
 import tempfile
-from itertools import chain
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -352,6 +351,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("test")
+    build_tags.append("seclmax")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -361,7 +361,7 @@ def build_functional_tests(
             build_tags.append("ebpf_bindata")
 
         build_tags.append("pcap")
-        build_libpcap(ctx)
+        build_libpcap(ctx, env=env, arch=arch)
         cgo_flags = get_libpcap_cgo_flags(ctx)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
@@ -486,6 +486,7 @@ def docker_functional_tests(
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd += '--env=CI '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
@@ -550,6 +551,7 @@ def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/event_deep_copy")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/operators")
     with ctx.cd("./pkg/security/secl"):
         if sys.platform == "linux":
@@ -568,6 +570,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
+    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
@@ -677,13 +680,9 @@ def generate_cws_proto(ctx):
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
-            )
 
     security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
-    eventmonitor_files = glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True)
-    for path in chain(security_files, eventmonitor_files):
+    for path in security_files:
         print(f"replacing protoc version in {path}")
         with open(path) as f:
             content = f.read()
@@ -719,6 +718,7 @@ class FailingTask:
 def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
+        [generate_cws_proto],
         [gen_mocks],
     ]
     failing_tasks = []
@@ -793,7 +793,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
 
     env = {"CGO_ENABLED": "1"}
 
-    build_libpcap(ctx)
+    build_libpcap(ctx, env=env)
     cgo_flags = get_libpcap_cgo_flags(ctx)
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():
