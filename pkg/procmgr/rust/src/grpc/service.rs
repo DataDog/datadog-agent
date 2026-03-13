@@ -290,14 +290,14 @@ fn resolve_process<'a>(
             .iter()
             .filter(|p| p.uuid().starts_with(name_or_uuid))
             .collect();
-        match matches.len() {
-            1 => return Ok(matches[0]),
-            n if n > 1 => {
-                return Err(Status::invalid_argument(format!(
-                    "UUID prefix '{name_or_uuid}' is ambiguous ({n} matches)"
-                )));
-            }
-            _ => {}
+        if matches.len() == 1 {
+            return Ok(matches[0]);
+        }
+        if matches.len() > 1 {
+            return Err(Status::invalid_argument(format!(
+                "UUID prefix '{name_or_uuid}' is ambiguous ({} matches)",
+                matches.len()
+            )));
         }
     }
     procs
