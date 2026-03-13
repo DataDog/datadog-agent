@@ -87,7 +87,7 @@ func (mr *Resolver) syncCacheFromListMount() error {
 	if err != nil {
 		return fmt.Errorf("error synchronizing cache from listmount: %v", err)
 	}
-	seclog.Infof("listmount sync cache found %d entries", nrMounts)
+	seclog.Debugf("listmount sync cache found %d entries", nrMounts)
 	return nil
 }
 
@@ -102,7 +102,7 @@ func (mr *Resolver) syncCacheFromProcfs() error {
 	if err != nil {
 		return fmt.Errorf("error synchronizing from procfs: %v", err)
 	}
-	seclog.Infof("procfs sync cache found %d entries", nrMounts)
+	seclog.Debugf("procfs sync cache found %d entries", nrMounts)
 	return nil
 }
 
