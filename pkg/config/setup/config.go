@@ -1322,9 +1322,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", time.Duration(10*time.Second))
-
-	// Config Stream
-	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.configstream.enabled", false)
+	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
@@ -1489,6 +1488,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"versa",
 		"cisco_aci",
 		"system",
+		"systemd",
 		"system_core",
 		"system_swap",
 		"telemetry",

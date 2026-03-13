@@ -4,6 +4,7 @@ load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
@@ -114,6 +115,13 @@ select_file(
     name = "headers_win",
     srcs = "python_win",
     subpath = "build/include",
+)
+
+select_file(
+    name = "python_win_lib",
+    srcs = "python_win",
+    subpath = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:public"],
 )
 
 cc_import(

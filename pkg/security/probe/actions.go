@@ -33,13 +33,22 @@ const (
 	// KillActionStatusQueued indicates the kill action was queued until the end of the first rule period
 	KillActionStatusQueued KillActionStatus = "kill_queued"
 	// KillActionStatusPartiallyPerformed indicates the kill action was performed on some processes but not all
-	KillActionStatusPartiallyPerformed = "partially_performed"
+	KillActionStatusPartiallyPerformed KillActionStatus = "partially_performed"
+	// KillActionStatusKillAborted indicates the kill action was aborted because the process exited before the kill was performed
+	KillActionStatusKillAborted KillActionStatus = "kill_aborted"
 
 	// maxRetryForMsgWithKillAction is the maximum number of retries for a kill action
 	// - a kill can be queued up to the end of the first disarmer period (1min by default)
 	// - so, we set the server retry period to 1min and 2sec (+2sec to have the time to trigger the kill and wait to catch the process exit)
 	maxRetryForMsgWithKillAction = 62
 )
+
+// RemediationContainerContext represents the container context for remediation events (e.g. container ID and created_at).
+// Defined here so KillActionReport can use it on all platforms; Linux-specific remediation logic lives in remediations_linux.go.
+type RemediationContainerContext struct {
+	CreatedAt uint64 `json:"created_at,omitempty"`
+	ID        string `json:"id,omitempty"`
+}
 
 // KillActionReport defines a kill action reports
 type KillActionReport struct {
@@ -55,9 +64,10 @@ type KillActionReport struct {
 	DisarmerType string
 
 	// internal
-	Pid      uint32
-	resolved bool
-	rule     *rules.Rule
+	Pid              uint32
+	resolved         bool
+	rule             *rules.Rule
+	containerContext RemediationContainerContext // This is an internal field needed for remediation status events
 }
 
 // JKillActionReport used to serialize date
@@ -127,4 +137,11 @@ func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
 	defer k.RUnlock()
 
 	return k.rule.ID == ruleID
+}
+
+// GetRemediationContainerContext returns the container ID and created_at when the process was in a container, otherwise empty/zero.
+func (k *KillActionReport) GetRemediationContainerContext() RemediationContainerContext {
+	k.RLock()
+	defer k.RUnlock()
+	return k.containerContext
 }

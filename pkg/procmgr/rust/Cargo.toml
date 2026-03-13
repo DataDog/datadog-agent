@@ -17,7 +17,7 @@ prost.workspace = true
 prost-types.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
-simple_logger = { workspace = true, features = ["timestamps"] }
+dd-agent-log.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
 tokio-stream = { workspace = true, features = ["net"] }
 tonic = { workspace = true, features = ["transport"] }
