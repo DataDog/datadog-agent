@@ -11,7 +11,11 @@ from tasks.libs.owners.parsing import read_owners
 
 
 def load_and_validate(
-    file_name: str, default_placeholder: str, default_value: str, relpath: bool = True
+    file_name: str,
+    default_placeholder: str,
+    default_value: str,
+    relpath: bool = True,
+    channel_type: str = 'notification',
 ) -> dict[str, str]:
     if relpath:
         p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
@@ -23,6 +27,9 @@ def load_and_validate(
         for key, value in yaml.safe_load(file_stream).items():
             if not isinstance(key, str):
                 raise ValueError(f"File {file_name} contains a non-string key. Key: {key}")
+            # Support merged format with notification/review sub-keys
+            if isinstance(value, dict) and channel_type in value:
+                value = value[channel_type]
             # Support dict values with a 'name' field (e.g. {name: '#channel'})
             if isinstance(value, dict):
                 if 'name' not in value:
@@ -44,7 +51,7 @@ DEFAULT_JIRA_PROJECT = "AGNTR"
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
 GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
 GITHUB_SLACK_REVIEW_MAP = load_and_validate(
-    "github_slack_review_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL
+    "github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL, channel_type='review'
 )
 
 
