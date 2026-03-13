@@ -28,9 +28,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
-	prometheusreceiver "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
-	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
-	memorylimiterprocessor "go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -148,7 +145,6 @@ func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
 func (e extraFactoriesWithoutAgentCore) GetReceivers() []receiver.Factory {
 	return []receiver.Factory{
 		filelogreceiver.NewFactory(),
-		prometheusreceiver.NewFactory(),
 	}
 }
 
@@ -162,9 +158,7 @@ func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
 // GetProcessors returns the processors for the collector when the Agent Core is not available.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return []processor.Factory{
-		batchprocessor.NewFactory(),
 		k8sattributesprocessor.NewFactory(),
-		memorylimiterprocessor.NewFactory(),
 		resourcedetectionprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
 	}
