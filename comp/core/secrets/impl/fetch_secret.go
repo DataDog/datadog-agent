@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const secretsManagementDocsURL = "https://docs.datadoghq.com/agent/configuration/secrets-management"
+
 type limitBuffer struct {
 	max int
 	buf *bytes.Buffer
@@ -95,9 +97,23 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", r.backendCommand)
+			return nil, fmt.Errorf("secret_backend_command '%s' timed out after %d seconds. Increase secret_backend_timeout in datadog.yaml (default: 30) or optimize your script. Docs: %s",
+				r.backendCommand, r.backendTimeout, secretsManagementDocsURL)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", r.backendCommand, err)
+		errStr := err.Error()
+		stderrStr := stderr.buf.String()
+		if strings.Contains(strings.ToLower(errStr), "permission denied") || strings.Contains(strings.ToLower(errStr), "permission") {
+			log.Warnf("secret_backend_command '%s' failed: permission denied. On Linux: chmod 700 or 750; only owner (and optionally group) should have execute. On Windows: ensure the Agent user can execute the script. Docs: %s",
+				r.backendCommand, secretsManagementDocsURL)
+			return nil, fmt.Errorf("secret_backend_command '%s' failed: permission denied. Docs: %s", r.backendCommand, secretsManagementDocsURL)
+		}
+		if strings.Contains(stderrStr, "invalid version") || strings.Contains(stderrStr, "expected 1.0") {
+			log.Warnf("secret_backend_command returned invalid output. The Agent sends payload version %s (with optional \"type\" and \"config\"). If your script expects version 1.0, update it to accept %s. Docs: %s",
+				secrets.PayloadVersion, secrets.PayloadVersion, secretsManagementDocsURL)
+			return nil, fmt.Errorf("secret_backend_command '%s' failed: script expects payload version 1.0, Agent sends %s. Docs: %s", r.backendCommand, secrets.PayloadVersion, secretsManagementDocsURL)
+		}
+		return nil, fmt.Errorf("secret_backend_command '%s' failed (exit code %s): %s. Common causes: (1) script expects payload version 1.0 — Agent sends %s; (2) script not executable or wrong permissions; (3) script path incorrect. Docs: %s",
+			r.backendCommand, exitCode, err, secrets.PayloadVersion, secretsManagementDocsURL)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
@@ -186,7 +202,8 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		r.tlmSecretUnmarshalError.Inc()
-		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
+		return nil, fmt.Errorf("secret_backend_command '%s' returned invalid JSON: %s. Expected format: {\"handle1\":{\"value\":\"...\"},\"handle2\":{\"value\":\"...\"}} or {\"handle1\":{\"error\":\"error message\"}}. Docs: %s",
+			r.backendCommand, err, secretsManagementDocsURL)
 	}
 
 	res := map[string]string{}
@@ -194,7 +211,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		v, ok := secrets[sec]
 		if !ok {
 			r.tlmSecretResolveError.Inc("missing", sec)
-			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command", sec)
+			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command. Ensure your script returns the handle in the expected JSON format. Docs: %s", sec, secretsManagementDocsURL)
 		}
 
 		if v.ErrorMsg != "" {
@@ -208,7 +225,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 
 		if v.Value == "" {
 			r.tlmSecretResolveError.Inc("empty", sec)
-			return nil, fmt.Errorf("resolved secret for '%s' is empty", sec)
+			return nil, fmt.Errorf("resolved secret for '%s' is empty. Check that the secret exists in your backend and has a non-empty value. If using secret_backend_remove_trailing_line_break, trailing newlines are stripped. Docs: %s", sec, secretsManagementDocsURL)
 		}
 		res[sec] = v.Value
 	}

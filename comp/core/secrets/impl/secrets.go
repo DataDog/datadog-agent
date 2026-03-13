@@ -276,7 +276,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.backendCommand = params.Command
 	r.embeddedBackendPermissiveRights = false
 	if r.backendCommand != "" && r.backendType != "" {
-		log.Warnf("Both 'secret_backend_command' and 'secret_backend_type' are set, 'secret_backend_type' will be ignored")
+		log.Warnf("Both secret_backend_command and secret_backend_type are set. secret_backend_command takes precedence; secret_backend_type is ignored. To use native backend (aws.secrets, hashicorp.vault, etc.), remove secret_backend_command from datadog.yaml. Docs: https://docs.datadoghq.com/agent/configuration/secrets-management")
 	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
