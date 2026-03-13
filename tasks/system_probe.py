@@ -1336,7 +1336,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
             ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
 
     for f in copied_files:
-        os.chmod(f, 0o444)
+        os.chmod(f, 0o644)
 
     print(f"Copied eBPF objects to {build_dir}")
 
@@ -1463,7 +1463,7 @@ def build_cws_object_files(
             src = os.path.join(bazel_bin, label_path, f"{name}.o")
             dst = os.path.join(str(build_dir), dest_name)
             shutil.copy2(src, dst)
-            os.chmod(dst, 0o444)
+            os.chmod(dst, 0o644)
 
 
 def clean_object_files(ctx):
