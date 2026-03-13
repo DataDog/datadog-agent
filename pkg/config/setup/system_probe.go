@@ -293,6 +293,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.custom_sensitive_regexps", []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.erpc_dentry_resolution_enabled", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.erpc_dentry_resolution_retries", 2)
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.map_dentry_resolution_enabled", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dentry_cache_size", 8000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.lazy_interface_prefixes", []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.classifier_priority", 10)

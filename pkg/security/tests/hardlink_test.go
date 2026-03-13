@@ -126,7 +126,12 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 
 func TestHardLinkExecsWithERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
-	runHardlinkTests(t, testOpts{})
+	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
+}
+
+func TestHardLinkExecsWithMaps(t *testing.T) {
+	SkipIfNotAvailable(t)
+	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
 }
 
 func TestHardLink(t *testing.T) {

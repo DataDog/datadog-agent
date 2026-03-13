@@ -348,6 +348,84 @@ func computeFilenameFromParts(parts [][]byte) string {
 	return builder.String()
 }
 
+// ResolveFromMap resolves the path of the provided inode / mount id / path id
+func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
+	var resolutionErr error
+
+	keyBuffer, err := pathKey.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+
+	depth := int64(0)
+
+	dr.prepareBuffersWithCapacity(128)
+
+	// Fetch path recursively
+	for i := 0; i <= model.MaxPathDepth; i++ {
+		var pathLeaf model.PathLeaf
+		pathKey.Write(keyBuffer)
+		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
+			dr.filenameParts = dr.filenameParts[:0]
+			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
+			break
+		}
+		depth++
+
+		if pathLeaf.Name[0] == '\x00' {
+			if depth >= model.MaxPathDepth {
+				resolutionErr = errTruncatedParents
+			} else {
+				resolutionErr = errKernelMapResolution
+			}
+			break
+		}
+
+		// Don't append dentry name if this is the root dentry (i.d. name == '/')
+		var name []byte
+		if pathLeaf.Name[0] == '/' {
+			name = []byte("/")
+		} else {
+			name = model.NullTerminatedBytes(pathLeaf.Name[:])
+			dr.filenameParts = append(dr.filenameParts, name)
+		}
+
+		// do not cache fake path keys in the case of rename events
+		if !model.IsFakeInode(pathKey.Inode) && cache {
+			dr.keys = append(dr.keys, pathKey)
+			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
+		}
+
+		if pathLeaf.Parent.Inode == 0 {
+			break
+		}
+
+		// Prepare next key
+		pathKey = pathLeaf.Parent
+	}
+
+	filename := computeFilenameFromParts(dr.filenameParts)
+
+	entry := counterEntry{
+		resolutionType: metrics.KernelMapsTag,
+		resolution:     metrics.PathResolutionTag,
+	}
+
+	if resolutionErr == nil && len(dr.keys) > 0 {
+		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
+
+		if depth > 0 {
+			dr.hitsCounters[entry].Add(depth)
+		}
+	}
+
+	if resolutionErr != nil {
+		dr.missCounters[entry].Inc()
+	}
+
+	return filename, resolutionErr
+}
+
 // preventSegmentMajorPageFault prepares the userspace memory area where the dentry resolver response is written. Used in kernel versions where BPF_F_MMAPABLE array maps are not yet available.
 func (dr *Resolver) preventSegmentMajorPageFault() {
 	// if we don't access the segment, the eBPF program can't write to it ... (major page fault)
@@ -542,6 +620,9 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 				time.Sleep(2 * time.Millisecond)
 			}
 		}
+	}
+	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		path, err = dr.ResolveFromMap(pathKey, cache)
 	}
 	return path, err
 }

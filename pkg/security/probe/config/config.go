@@ -75,6 +75,9 @@ type Config struct {
 	// ERPCDentryResolutionRetries is the number of retries for ERPC dentry resolution on transient failures
 	ERPCDentryResolutionRetries int
 
+	// MapDentryResolutionEnabled determines if the map resolution is enabled
+	MapDentryResolutionEnabled bool
+
 	// DentryCacheSize is the size of the user space dentry cache
 	DentryCacheSize int
 
@@ -196,6 +199,7 @@ func NewConfig() (*Config, error) {
 		CustomSensitiveRegexps:             getStringSlice("custom_sensitive_regexps"),
 		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
 		ERPCDentryResolutionRetries:        getInt("erpc_dentry_resolution_retries"),
+		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:                    getInt("dentry_cache_size"),
 		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
@@ -247,6 +251,10 @@ func NewConfig() (*Config, error) {
 
 // sanitize config parameters
 func (c *Config) sanitize() error {
+	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
+		c.MapDentryResolutionEnabled = true
+	}
+
 	if c.NetworkRawPacketEnabled {
 		if c.RawNetworkClassifierHandle != c.NetworkClassifierHandle {
 			if c.NetworkClassifierHandle*c.RawNetworkClassifierHandle == 0 {
