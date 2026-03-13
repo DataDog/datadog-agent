@@ -92,7 +92,15 @@ def _get_latest_main_base_image(app: Application, arch: str) -> str | None:
         return None
 
 
-def _build_full_image(app: Application, *, target_image: str, arch: str | None) -> None:
+def _build_full_image(
+    app: Application,
+    *,
+    target_image: str,
+    arch: str | None,
+    cache_dir: str | None,
+    workers: int | None,
+    build_image: str | None,
+) -> None:
     """Build agent image using full omnibus build (production-like, slower)."""
     # Auto-detect architecture if not specified
     if arch is None:
@@ -100,6 +108,12 @@ def _build_full_image(app: Application, *, target_image: str, arch: str | None) 
 
     app.display(f"Building agent image using full omnibus build (arch: {arch})")
     build_cmd = ["dda", "inv", "omnibus.docker-build", f"--arch={arch}", f"--tag={target_image}"]
+    if cache_dir:
+        build_cmd.append(f"--cache-dir={cache_dir}")
+    if workers is not None:
+        build_cmd.append(f"--workers={workers}")
+    if build_image:
+        build_cmd.append(f"--build-image={build_image}")
     app.subprocess.run(build_cmd)
 
 
@@ -237,7 +251,7 @@ def _build_quick_image(
     "--base-image",
     default=None,
     help=(
-        "Base agent image to build from (ignored with --full). "
+        "[Quick only] Base agent image to build from (ignored with --full). "
         "Accepts a version (e.g. '7.63.0', resolved to datadog/agent:7.63.0) or a full image reference. "
         "Defaults to the latest successful build from main on registry.ddbuild.io."
     ),
@@ -251,6 +265,22 @@ def _build_quick_image(
         "Quick (default): agent.hacky-dev-image-build for fast iteration (~1-2 min), layers local binaries on a base image. "
         "Full: omnibus.docker-build for production-like builds from scratch (~10-30 min), includes full dependency compilation."
     ),
+)
+@click.option(
+    "--cache-dir",
+    default=None,
+    help="[Full only] Base directory for omnibus build caches (default: ~/.omnibus-docker-cache).",
+)
+@click.option(
+    "--workers",
+    type=int,
+    default=None,
+    help="[Full only] Number of parallel workers for compression and builds (default: 8).",
+)
+@click.option(
+    "--build-image",
+    default=None,
+    help="[Full only] Docker build image to use for omnibus build (default: uses version from .gitlab-ci.yml).",
 )
 @option_env_type()
 @click.option(
@@ -272,54 +302,54 @@ def _build_quick_image(
     "--process-agent",
     is_flag=True,
     default=False,
-    help="Include process-agent in the image (only for quick build).",
+    help="[Quick only] Include process-agent in the image.",
 )
 @click.option(
     "--trace-agent",
     is_flag=True,
     default=False,
-    help="Include trace-agent in the image (only for quick build).",
+    help="[Quick only] Include trace-agent in the image.",
 )
 @click.option(
     "--system-probe",
     is_flag=True,
     default=False,
-    help="Include system-probe in the image (only for quick build).",
+    help="[Quick only] Include system-probe in the image.",
 )
 @click.option(
     "--security-agent",
     is_flag=True,
     default=False,
-    help="Include security-agent in the image (only for quick build).",
+    help="[Quick only] Include security-agent in the image.",
 )
 @click.option(
     "--trace-loader",
     is_flag=True,
     default=False,
-    help="Include trace-loader in the image (only for quick build).",
+    help="[Quick only] Include trace-loader in the image.",
 )
 @click.option(
     "--privateactionrunner",
     is_flag=True,
     default=False,
-    help="Include private action runner in the image (only for quick build).",
+    help="[Quick only] Include private action runner in the image.",
 )
 @click.option(
     "--race",
     is_flag=True,
     default=False,
-    help="Build with race detector enabled (only for quick build).",
+    help="[Quick only] Build with race detector enabled.",
 )
 @click.option(
     "--development/--no-development",
     default=True,
-    help="Build in development mode (only for quick build).",
+    help="[Quick only] Build in development mode.",
 )
 @click.option(
     "--signed-pull",
     is_flag=True,
     default=False,
-    help="Use signed image pull (only for quick build).",
+    help="[Quick only] Use signed image pull.",
 )
 @pass_app
 def cmd(
@@ -329,6 +359,9 @@ def cmd(
     registry: str,
     base_image: str | None,
     full: bool,
+    cache_dir: str | None,
+    workers: int | None,
+    build_image: str | None,
     env_type: str,
     instance: str,
     arch: str | None,
@@ -396,10 +429,30 @@ def cmd(
             app.display_warning(
                 f"The following options only apply to quick builds and will be ignored: {', '.join(quick_only_flags)}"
             )
+    else:
+        # Validate that full-build-only options are not used without --full
+        full_only_flags = []
+        if cache_dir:
+            full_only_flags.append("--cache-dir")
+        if workers is not None:
+            full_only_flags.append("--workers")
+        if build_image:
+            full_only_flags.append("--build-image")
+        if full_only_flags:
+            app.display_warning(
+                f"The following options only apply to full builds and will be ignored: {', '.join(full_only_flags)}"
+            )
 
     # Build the image using the selected method
     if full:
-        _build_full_image(app, target_image=target_image, arch=arch)
+        _build_full_image(
+            app,
+            target_image=target_image,
+            arch=arch,
+            cache_dir=cache_dir,
+            workers=workers,
+            build_image=build_image,
+        )
     else:
         _build_quick_image(
             app,
