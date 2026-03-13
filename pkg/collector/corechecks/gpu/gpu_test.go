@@ -326,6 +326,12 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			}
 			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions()), nvml.SUCCESS
 		}
+		d.GpmMigSampleGetFunc = func(_ int, _ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
+		d.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
 	})
 
 	// Setup NVML mock with single parent device
