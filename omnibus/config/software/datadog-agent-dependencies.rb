@@ -2,48 +2,38 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
+if heroku_target?
+  flavor_flag = "--//packages/agent:flavor=heroku"
+else
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+end
+
 # Linux-specific dependencies
 if linux_target?
-  dependency 'curl'
+  build do
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @nghttp2//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/libnghttp2.so"
+
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @curl//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/libcurl.so" \
+      " #{install_dir}/embedded/bin/curl"
+  end
 end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-if (linux_target? && !heroku_target?) || windows_target?
-  build do
-    command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir=#{install_dir}"
-  end
-end
-
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
-
-# External agents
-dependency 'jmxfetch'
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
-dependency "systemd" if linux_target?
-
-if linux_target? and !heroku_target? # system-probe dependency
-  build do
-    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir=#{install_dir}"
-  end
-end
-
-# Include traps db file in snmp.d/traps_db/
-build do
-    command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir=#{install_dir}"
-end
-
 dependency 'datadog-agent-integrations-py3'
 
-# Additional software
-if windows_target?
-  build do
-    command_on_repo_root "bazelisk run -- //packages/windows:install_drivers --destdir=#{install_dir}"
-  end
+build do
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 end
 
 build do

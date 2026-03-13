@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -185,6 +186,7 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 
 	detail, err := device.GetRunningProcessDetailList()
 	var usage []processMemoryUsageData
+	var nvmlErr *ddnvml.NvmlAPIError
 	if err == nil {
 		// procs.ProcArray is a pointer to an array of ProcessDetail_v1, in C-style pointer+length mode,
 		// so convert it to a slice:
@@ -195,6 +197,13 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 				usedGpuMemory: proc.UsedGpuMemory,
 			})
 		}
+	} else if errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_INSUFFICIENT_SIZE {
+		// Depending on the NVML implementation, there might be an issue with the size of the array being passed.
+		// This PR seems related https://github.com/NVIDIA/go-nvml/pull/165 but for now we will suppress the error
+		// and continue with the collection.
+		// In this case, if we get no metrics, processMemoryUsage will emit a memory.limit metric with low priority
+		// so that it can be overridden by alternative APIs if available.
+		err = nil
 	}
 
 	return processMemoryUsage(device, usage, High), 0, err
@@ -272,6 +281,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "fan_speed_v2",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				var output []Metric
+				numFans, err := device.GetNumFans()
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
+				}
+
+				var multiErr error
+				for i := 0; i < numFans; i++ {
+					speed, err := device.GetFanSpeed_v2(i)
+					if err != nil {
+						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+					} else {
+						output = append(output, Metric{
+							Name:     "fan_speed",
+							Value:    float64(speed),
+							Type:     metrics.GaugeType,
+							Priority: Medium,
+							Tags:     []string{"fan_index:" + strconv.Itoa(i)},
+						})
+					}
+				}
+
+				return output, 0, multiErr
 			},
 		},
 		{

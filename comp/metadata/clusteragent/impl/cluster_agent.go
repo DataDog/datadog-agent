@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// Payload handles the JSON unmarshalling of the metadata payload
+// Payload handles the JSON unmarshalling of the metadata payloa d
 type Payload struct {
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`
@@ -180,7 +180,7 @@ func (dca *datadogclusteragent) getConfigs(data map[string]interface{}) {
 			}
 		}
 	}
-	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettings()); err == nil {
+	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettingsWithoutSecrets()); err == nil {
 		data["full_configuration"] = yaml
 	}
 }

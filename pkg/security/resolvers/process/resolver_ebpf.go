@@ -82,6 +82,7 @@ type EBPFResolver struct {
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
 	pidCacheMap  ebpf.Map
+	pathIDMap    ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -414,7 +415,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
-		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.PathKey, entry.Process.Pid)
 		if err != nil {
 			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
 		}
@@ -810,7 +811,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.PathKey, entry.Pid)
 		if err != nil {
 			return "", err
 		}
@@ -1268,6 +1269,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.pathIDMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1347,6 +1352,15 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	} else {
 		if err = p.pidCacheMap.Put(entry.PIDContext.Pid, pidCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
+	}
+
+	if !entry.FileEvent.PathKey.IsNull() {
+		buffer, err := entry.FileEvent.PathKey.MarshalBinary()
+		if err != nil {
+			seclog.Errorf("couldn't marshal path key: %s", err)
+		} else if err = p.pathIDMap.Put(entry.PIDContext.Pid, buffer); err != nil {
+			seclog.Errorf("couldn't push path_id entry to kernel space: %s", err)
 		}
 	}
 }
