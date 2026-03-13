@@ -256,7 +256,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
         // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
         // and do not provide any useful signal since the key is expected to be present sometimes.
         bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
-        tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+        val = bpf_map_lookup_elem(&tcp_stats, t);
         if (!val) {
             return;
         }
