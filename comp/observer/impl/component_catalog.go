@@ -11,7 +11,7 @@ import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 type componentKind int
 
 const (
-	componentDetector   componentKind = iota
+	componentDetector componentKind = iota
 	componentCorrelator
 )
 
@@ -118,6 +118,18 @@ func defaultCatalog() *componentCatalog {
 						MinLift:           2.0,
 						MinSupport:        2,
 					})
+				},
+				defaultEnabled: false,
+			},
+			{
+				name:        "fanout",
+				displayName: "Fanout",
+				kind:        componentCorrelator,
+				factory: func() any {
+					return &FanoutCorrelator{
+						windowSeconds: 30,
+						active:        make(map[observerdef.MetricName]*observerdef.ActiveCorrelation),
+					}
 				},
 				defaultEnabled: false,
 			},

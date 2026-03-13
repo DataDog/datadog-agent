@@ -364,6 +364,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.metrics.enabled", false)
 	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
+	config.BindEnvAndSetDefault("observer.correlator.fanout.enabled", true)
 	// CUSUM anomaly detector tuning. ThresholdFactor is multiplied by the baseline
 	// standard deviation to get detection threshold h. Lower = more sensitive (fires on
 	// smaller shifts); higher = less sensitive. Default: 4.0

@@ -188,7 +188,10 @@ func NewComponent(deps Requires) Provides {
 			return d
 		})
 	}
-	detectors, correlators, _ := catalog.Instantiate(nil)
+	catalogOverrides := map[string]bool{
+		"fanout": cfg.GetBool("observer.correlator.fanout.enabled"),
+	}
+	detectors, correlators, _ := catalog.Instantiate(catalogOverrides)
 
 	extractors := []observerdef.LogMetricsExtractor{
 		&LogMetricsExtractor{
