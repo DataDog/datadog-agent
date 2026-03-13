@@ -552,15 +552,15 @@ func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Len(tw.senders, 1)
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("invalid", "foo")
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("123", "foo")
-	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal("foo", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
 
@@ -618,6 +618,58 @@ func TestTraceWriterAPMMode(t *testing.T) {
 				// If APMMode is set, the tag should be present and equal to the expected value
 				assert.True(t, ok)
 				assert.Equal(t, tc.expected, v)
+			}
+		})
+	}
+}
+
+func TestTraceWriterV1OTelGateway(t *testing.T) {
+	testCases := []struct {
+		name        string
+		otelGateway bool
+	}{
+		{
+			name:        "gateway-disabled",
+			otelGateway: false,
+		},
+		{
+			name:        "gateway-enabled",
+			otelGateway: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+				SynchronousFlushing: true,
+				OTelGateway:         tc.otelGateway,
+			}
+			tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+			defer tw.Stop()
+
+			tw.WriteChunksV1(randomSampledSpansV1(20, 8))
+			err := tw.FlushSync()
+			assert.Nil(t, err)
+
+			require.Len(t, srv.payloads, 1)
+			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			assert.Nil(t, err)
+			v, ok := ap.Tags[tagOTelGateway]
+			if tc.otelGateway {
+				assert.True(t, ok)
+				assert.Equal(t, "true", v)
+			} else {
+				assert.False(t, ok)
+				assert.Empty(t, v)
 			}
 		})
 	}

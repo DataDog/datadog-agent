@@ -610,7 +610,11 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
-		utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		if _, isNonFatalError := err.(runner.NonFatalError); isNonFatalError {
+			utils.Logf(bs.T(), "Non-fatal error encountered creating the session output directory: %v", err)
+		} else {
+			utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		}
 	}
 	bs.outputDir = sessionDirectory
 	utils.Logf(bs.T(), "Suite session output directory: %s", bs.outputDir)

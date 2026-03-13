@@ -140,7 +140,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
 	// the basic mock, and we don't have any panics or anything.
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	eventsGatherer := NewDeviceEventsGatherer()
@@ -220,7 +220,7 @@ func TestDisabledCollectors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup NVML mock
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithDeviceCount(1), testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithDeviceCount(1), testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
 			ddnvml.WithMockNVML(t, nvmlMock)
 			deviceCache := ddnvml.NewDeviceCache()
 			devices, err := deviceCache.AllPhysicalDevices()
@@ -346,6 +346,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			switch metric.Name {
 			case "memory.usage":
 				require.Equal(t, Medium, metric.Priority)
+				require.NotContains(t, metric.Tags, "pid:1003")
 				memoryUsageCount++
 			case "core.temp":
 				require.Equal(t, Medium, metric.Priority)
@@ -445,6 +446,33 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			require.Equal(t, "metric1", result[0].Name)
 		})
 	})
+
+	t.Run("PreservedTags", func(t *testing.T) {
+		tags := []string{"pid:1001", "pid:1002"}
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "memory.limit", Priority: Medium, Tags: tags},
+			},
+			ebpf: {
+				{Name: "memory.limit", Priority: Low, Tags: nil},
+			},
+		}
+		result := RemoveDuplicateMetrics(allMetrics)
+		require.Len(t, result, 1)
+		require.ElementsMatch(t, result[0].Tags, tags)
+	})
+
+	t.Run("DifferentPrioritySameCollector", func(t *testing.T) {
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "memory.limit", Priority: Medium, Tags: []string{"pid:1001"}},
+				{Name: "memory.limit", Priority: Low, Tags: []string{""}},
+			},
+		}
+		result := RemoveDuplicateMetrics(allMetrics)
+		require.Len(t, result, 1)
+		require.ElementsMatch(t, result[0].Tags, []string{"pid:1001"})
+	})
 }
 
 // TestConfiguredMetricPriority ensures that the priority is as defined for certain critical metrics
@@ -459,8 +487,17 @@ func TestConfiguredMetricPriority(t *testing.T) {
 				},
 			}, nvml.SUCCESS
 		}
+		device.GetSamplesFunc = func(_ nvml.SamplingType, lastTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			return nvml.VALUE_TYPE_UNSIGNED_INT, []nvml.Sample{
+				{TimeStamp: lastTimestamp + 100, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{TimeStamp: lastTimestamp + 200, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+			}, nvml.SUCCESS
+		}
+		device.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
 		return device
-	}, testutil.WithMockAllFunctions())
+	}, testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
 	deviceUUID := device.GetDeviceInfo().UUID
 
 	spCache := &SystemProbeCache{
@@ -502,8 +539,27 @@ func TestConfiguredMetricPriority(t *testing.T) {
 
 	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
 	desiredMetricPriority := map[string][]CollectorName{
-		"sm_active":         {gpm, sampling, ebpf},
+		"sm_active":         {sampling, ebpf},
+		"gr_engine_active":  {gpm, sampling, ebpf},
 		"process.sm_active": {sampling, ebpf},
+	}
+
+	wantedCollectors := make(map[CollectorName]bool)
+	for _, collectors := range desiredMetricPriority {
+		for _, collector := range collectors {
+			wantedCollectors[collector] = true
+		}
+	}
+
+	for wantedCollector, isWanted := range wantedCollectors {
+		found := false
+		for _, collector := range collectors {
+			if collector.Name() == wantedCollector {
+				found = true
+				break
+			}
+		}
+		require.Equal(t, isWanted, found, "collector %s state is not as expected", wantedCollector)
 	}
 
 	metricsByCollector := make(map[string]map[CollectorName]Metric)

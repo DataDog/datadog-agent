@@ -59,6 +59,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 					},
 					GVR: &gvr,
 				},
+				IsComplete: true,
 			},
 		},
 	}

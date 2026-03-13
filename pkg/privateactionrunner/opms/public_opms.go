@@ -37,17 +37,21 @@ type PublicClient interface {
 		runnerName string,
 		runnerModes []modes.Mode,
 		publicJwk *jose.JSONWebKey,
+		agentHostname string,
+		orchClusterID string,
+		agentFlavor string,
 	) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
-	ddBaseURL  string
+	ddApiHost  string
 	httpClient *http.Client
 }
 
 func NewPublicClient(ddBaseURL string) PublicClient {
+	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
-		ddBaseURL: ddBaseURL,
+		ddApiHost: apiHost,
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(30_000),
 		},
@@ -61,6 +65,9 @@ func (p *publicClient) EnrollWithApiKey(
 	runnerName string,
 	runnerModes []modes.Mode,
 	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
 ) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
@@ -68,15 +75,18 @@ func (p *publicClient) EnrollWithApiKey(
 	}
 
 	createRunnerUrl := url.URL{
-		Host:   strings.Replace(p.ddBaseURL, "https://", "", 1),
+		Host:   p.ddApiHost,
 		Scheme: "https",
 		Path:   createPARPath,
 	}
 
 	request := par.CreateRunnerRequest{
-		RunnerName:   runnerName,
-		RunnerModes:  runnerModes,
-		PublicKeyPEM: publicKeyPEM,
+		RunnerName:    runnerName,
+		RunnerModes:   runnerModes,
+		PublicKeyPEM:  publicKeyPEM,
+		AgentHostname: agentHostname,
+		OrchClusterID: orchClusterID,
+		AgentFlavor:   agentFlavor,
 	}
 
 	requestBodyJSON, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())

@@ -23,22 +23,19 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.upgrade-python-version.create-pr
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
 
       - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.13'
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Install Python dependencies
-        run: pip install packaging httpx orjson
-
       - name: Update Python version
         id: update
         run: |
@@ -46,8 +43,8 @@ jobs:
           CURRENT_VERSION=$(dda inv python-version.get)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           
-          # Run update task (exits gracefully if no update available)
-          dda inv python-version.update || true
+          # Run update task (exits cleanly if already up-to-date)
+          dda inv python-version.update
           
           # Check if files were modified
           if git diff --quiet; then
@@ -64,7 +61,7 @@ jobs:
 
       - name: Create pull request
         if: steps.update.outputs.updated == 'true'
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true

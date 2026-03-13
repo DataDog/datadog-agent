@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -60,7 +60,7 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config                config.Component
+	Config                traceconfigdef.Component
 	Secrets               secrets.Component
 	Context               context.Context
 	Params                *Params
@@ -98,7 +98,7 @@ type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
-	config             config.Component
+	config             traceconfigdef.Component
 	secrets            secrets.Component
 	params             *Params
 	tagger             tagger.Component
@@ -137,9 +137,17 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 
 	prepGoRuntime(tracecfg)
 
+	tracecfg.SecretsRefreshFn = func() (string, error) {
+		if deps.Secrets == nil {
+			log.Error("Secrets component not available, cannot trigger refresh")
+			return "", errors.New("secrets component not available")
+		}
+		return deps.Secrets.RefreshNow()
+	}
+
 	c.Agent = pkgagent.NewAgent(
 		ctx,
-		c.config.Object(),
+		tracecfg,
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
@@ -228,7 +236,7 @@ func start(ag component) error {
 	return nil
 }
 
-func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) (ddgostatsd.ClientInterface, error) {
+func setupMetrics(statsd statsd.Component, cfg traceconfigdef.Component, telemetryCollector telemetry.TelemetryCollector) (ddgostatsd.ClientInterface, error) {
 	addr, err := findAddr(cfg.Object())
 	if err != nil {
 		return nil, err

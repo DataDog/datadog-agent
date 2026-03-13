@@ -175,7 +175,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 			case pb.AttributeAnyValue_BOOL_VALUE:
 				continue // Booleans can't be credit cards
 			case pb.AttributeAnyValue_ARRAY_VALUE:
-				a.ccObfuscateAttributeArray(v, strValue)
+				a.ccObfuscateAttributeArray(v)
 			}
 			newVal := a.obfuscator.ObfuscateCreditCardNumber(strValue)
 			if newVal != strValue {
@@ -185,7 +185,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	}
 }
 
-func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue string) {
+func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
 		switch vElement.Type {
@@ -199,7 +199,7 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue stri
 			continue // Booleans can't be credit cards
 		}
 		newVal := a.obfuscator.ObfuscateCreditCardNumber(arrStrValue)
-		if newVal != strValue {
+		if newVal != arrStrValue {
 			*vElement = pb.AttributeArrayValue{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: newVal}
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -43,8 +44,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
@@ -75,7 +77,7 @@ import (
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -92,6 +94,7 @@ import (
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
 	return fxutil.TestRunWithApp(
 		forwarder.Bundle(defaultforwarder.NewParams()),
+		delegatedauthnoopfx.Module(),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -150,13 +153,13 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		orchestratorimpl.MockModule(),
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(pidfilePath)),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		taggerfx.Module(),
 		noopsimpl.Module(),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		gzipfx.Module(),

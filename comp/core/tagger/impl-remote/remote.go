@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -299,6 +299,23 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	return []string{}, nil
 }
 
+// TagWithCompleteness returns tags for an entity along with a boolean indicating
+// whether the entity's data is complete.
+func (t *remoteTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.checksCardinality
+	}
+	entity := t.store.getEntity(entityID)
+	if entity != nil {
+		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+		return entity.GetTags(cardinality), entity.IsComplete, nil
+	}
+
+	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
+
+	return []string{}, false, nil
+}
+
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	fail := true
@@ -567,6 +584,7 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 				OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 				LowCardinalityTags:          entity.LowCardinalityTags,
 				StandardTags:                entity.StandardTags,
+				IsComplete:                  entity.GetIsComplete(),
 			},
 		})
 	}

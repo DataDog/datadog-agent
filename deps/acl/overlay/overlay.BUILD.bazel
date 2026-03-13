@@ -182,34 +182,12 @@ so_symlink(
     src = ":acl",
     libname = "libacl",
     version = "1.1.2301",
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = [":fixed_headers"],
     strip_prefix = strip_prefix.from_pkg("fixed"),
-    prefix = "embedded",
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libacl.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": VERSION,
-    },
-    template = "libacl.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -217,8 +195,9 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
         ":lib_files",
-        ":pc_file",
     ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(

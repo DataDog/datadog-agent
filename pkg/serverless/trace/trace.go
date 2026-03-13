@@ -20,7 +20,7 @@ import (
 	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
-	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -93,7 +93,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 		return nil, err
 	}
 
-	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
+	return traceconfigimpl.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method

@@ -101,7 +101,7 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Arrange
 
 	// Act
-	s.InstallWithXperf(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile(logFilename),
 	)
 
@@ -116,7 +116,7 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Env().RemoteHost.Remove(consts.BinaryPath))
 
 	// Act
-	s.InstallWithXperf(
+	s.InstallWithDiagnostics(
 		installerwindows.WithMSILogFile("repair.log"),
 	)
 

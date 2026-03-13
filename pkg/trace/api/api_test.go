@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -74,7 +75,24 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
+	// Enable convert-traces by default for tests since most tests expect V1 behavior
+	if conf.Features == nil {
+		conf.Features = make(map[string]struct{})
+	}
+	conf.Features["convert-traces"] = struct{}{}
 
+	return conf
+}
+
+// newTestReceiverConfigWithFeatures creates a test config with specific features enabled
+func newTestReceiverConfigWithFeatures(features ...string) *config.AgentConfig {
+	conf := newTestReceiverConfig()
+	if conf.Features == nil {
+		conf.Features = make(map[string]struct{})
+	}
+	for _, feat := range features {
+		conf.Features[feat] = struct{}{}
+	}
 	return conf
 }
 
@@ -106,7 +124,6 @@ func TestServerShutdown(t *testing.T) {
 		for {
 			// simulate the channel being busy
 			time.Sleep(100 * time.Millisecond)
-			//_, ok := <-rawTraceChan
 			_, okV1 := <-rawTraceChanV1
 			if !okV1 {
 				return
@@ -619,7 +636,35 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 
 	resp.Body.Close()
 	server.Close()
+}
 
+// Test the response message when decoding with a mismatched type somewhere
+func TestReceiverV1MsgpackDecoderError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(
+		r.handleWithVersion(V10, r.handleTraces),
+	)
+
+	// tip: decode this using https://ref45638.github.io/msgpack-converter/
+	bts := []byte{0x81, 0xa2, 0x31, 0x31, 0x91, 0x82, 0xa1, 0x34, 0x91, 0x89, 0xa1, 0x31, 0x7b, 0xa1, 0x32, 0xd9, 0x28, 0x73, 0x6f, 0x6d, 0x65, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x20, 0x26, 0x26, 0x3c, 0x40, 0x23, 0x20, 0x74, 0x68, 0x61, 0x74, 0x20, 0x73, 0x68, 0x6f, 0x75, 0x6c, 0x64, 0x20, 0x62, 0x65, 0x20, 0x61, 0x20, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x21, 0xa1, 0x33, 0xd9, 0x2c, 0x4e, 0x4f, 0x54, 0x20, 0x74, 0x6f, 0x75, 0x63, 0x68, 0x65, 0x64, 0x20, 0x62, 0x65, 0x63, 0x61, 0x75, 0x73, 0x65, 0x20, 0x69, 0x74, 0x20, 0x69, 0x73, 0x20, 0x67, 0x6f, 0x69, 0x6e, 0x67, 0x20, 0x74, 0x6f, 0x20, 0x62, 0x65, 0x20, 0x68, 0x61, 0x73, 0x68, 0x65, 0x64, 0xa1, 0x34, 0x34, 0xa1, 0x35, 0x2a, 0xa1, 0x36, 0xcb, 0x43, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa1, 0x37, 0xcb, 0x43, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa1, 0x39, 0x96, 0xa9, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x68, 0x6f, 0x73, 0x74, 0x01, 0xab, 0x31, 0x39, 0x32, 0x2e, 0x31, 0x36, 0x38, 0x2e, 0x30, 0x2e, 0x31, 0xac, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x6d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x03, 0xcb, 0x40, 0x44, 0xfe, 0xb8, 0x51, 0xeb, 0x85, 0x1f, 0xa2, 0x31, 0x31, 0x91, 0x85, 0xa1, 0x31, 0x81, 0xa1, 0x30, 0x2a, 0xa1, 0x32, 0x34, 0xa1, 0x33, 0x96, 0xa2, 0x61, 0x31, 0x01, 0xa2, 0x76, 0x31, 0xa2, 0x61, 0x32, 0x01, 0xa2, 0x76, 0x32, 0xa1, 0x34, 0xb9, 0x64, 0x64, 0x3d, 0x73, 0x3a, 0x32, 0x3b, 0x6f, 0x3a, 0x72, 0x75, 0x6d, 0x2c, 0x63, 0x6f, 0x6e, 0x67, 0x6f, 0x3d, 0x62, 0x61, 0x7a, 0x31, 0x32, 0x33, 0xa1, 0x35, 0xce, 0x80, 0x00, 0x00, 0x01, 0xa1, 0x36, 0xde, 0x00, 0x10, 0xa1, 0x30, 0x53, 0xa1, 0x31, 0xcc, 0x8c, 0xa1, 0x32, 0x7f, 0xa1, 0x33, 0xcc, 0x96, 0xa1, 0x34, 0xcc, 0xb1, 0xa1, 0x35, 0x64, 0xa1, 0x36, 0xcc, 0xbf, 0xa1, 0x37, 0x1b, 0xa1, 0x38, 0xcc, 0x97, 0xa1, 0x39, 0xcc, 0xbb, 0xa2, 0x31, 0x30, 0xcc, 0x9f, 0xa2, 0x31, 0x31, 0x4b, 0xa2, 0x31, 0x32, 0xcc, 0xb4, 0xa2, 0x31, 0x33, 0x72, 0xa2, 0x31, 0x34, 0xcc, 0xe8, 0xa2, 0x31, 0x35, 0xcc, 0x9f}
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
+	assert.Nil(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	var client http.Client
+	resp, err := client.Do(req)
+	require.Nil(t, err)
+	assert.Equal(400, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(err)
+	assert.Contains(string(body), "msgp: attempted to decode type \"str\" with method for \"uint\"")
+
+	resp.Body.Close()
+	server.Close()
 }
 
 func TestReceiverV1DecodingError(t *testing.T) {
@@ -742,9 +787,14 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	resp, err := client.Do(req)
 	assert.NoError(err)
 
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	assert.NoError(err)
+	respBody := string(respBodyBytes)
+
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
+	assert.Contains(respBody, "too few bytes left to read")
 }
 
 func TestTraceCount(t *testing.T) {
@@ -1028,6 +1078,79 @@ func TestHandleStats(t *testing.T) {
 	})
 }
 
+func TestStatsKeepaliveIdleTimeout(t *testing.T) {
+	// When IdleTimeout is unset, Go falls back to ReadTimeout for keepalive connections.
+	// Tracers reuse connections across their ~10s stats flush interval, so IdleTimeout
+	// must be set independently to avoid "connection reset by peer" errors.
+	runTest := func(t *testing.T, idleTimeout time.Duration) (firstErr, secondErr error) {
+		cfg := newTestReceiverConfig()
+		cfg.ReceiverIdleTimeout = idleTimeout
+		readTimeout := time.Duration(cfg.ReceiverTimeout) * time.Second
+
+		rcv := newTestReceiverFromConfig(cfg)
+		rcv.Start()
+		defer rcv.Stop()
+
+		addr := fmt.Sprintf("%s:%v", cfg.ReceiverHost, cfg.ReceiverPort)
+		require.Eventually(t, func() bool {
+			c, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+			if err != nil {
+				return false
+			}
+			c.Close()
+			return true
+		}, 2*time.Second, 10*time.Millisecond)
+
+		p := testutil.StatsPayloadSample()
+		var buf bytes.Buffer
+		require.NoError(t, msgp.Encode(&buf, p))
+		payload := buf.Bytes()
+
+		// doRequest bypasses http.Client's reconnect logic.
+		doRequest := func(conn net.Conn) error {
+			req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/v0.6/stats", bytes.NewReader(payload))
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Content-Type", "application/msgpack")
+			if err := req.Write(conn); err != nil {
+				return err
+			}
+			resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+			if err != nil {
+				return err
+			}
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			resp.Body.Close()
+			return nil
+		}
+
+		conn, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		firstErr = doRequest(conn)
+		time.Sleep(2 * readTimeout) // sleep past ReadTimeout
+		secondErr = doRequest(conn)
+		return firstErr, secondErr
+	}
+
+	t.Run("without idle timeout", func(t *testing.T) {
+		// With no IdleTimeout, Go falls back to ReadTimeout (1s). The second request on the
+		// same connection after 2s must fail with a connection reset.
+		firstErr, secondErr := runTest(t, 0)
+		require.NoError(t, firstErr)
+		require.Error(t, secondErr, "expected connection reset when IdleTimeout falls back to ReadTimeout")
+	})
+
+	t.Run("with idle timeout", func(t *testing.T) {
+		// With IdleTimeout > ReadTimeout, the connection stays alive and both requests succeed.
+		firstErr, secondErr := runTest(t, 5*time.Second)
+		require.NoError(t, firstErr)
+		require.NoError(t, secondErr, "keepalive connection must survive past ReadTimeout")
+	})
+}
+
 func TestClientComputedStatsHeader(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
@@ -1170,7 +1293,7 @@ func TestHandleTraces(t *testing.T) {
 
 		rawTraceChanV1 := make(chan *PayloadV1)
 		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
+		receiver.recvsem = make(chan struct{}) // overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
 		rr := httptest.NewRecorder()
@@ -1183,6 +1306,58 @@ func TestHandleTraces(t *testing.T) {
 		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
 		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
 	})
+
+
+	t.Run("context_timeout", func(t *testing.T) {
+		// prepare the msgpack payload
+		bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		// prepare the receiver
+		conf := newTestReceiverConfig()
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChanV1 := make(chan *PayloadV1)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		// Block the recvsem to ensure the handler waits for the semaphore
+		receiver.recvsem = make(chan struct{})
+
+		// response recorder
+		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+
+		// Create a request with a context that times out immediately
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Datadog-Send-Real-Http-Status", "true")
+		req.Header.Set(header.Lang, "go")
+
+		// Create a context with a very short timeout to trigger the context cancellation
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		// Wait a bit to ensure the context is cancelled before the handler processes it
+		time.Sleep(10 * time.Millisecond)
+
+		// Get initial PayloadTimeout count
+		ts := receiver.tagStats(v04, req, "")
+		initialTimeout := ts.PayloadTimeout.Load()
+
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+
+		// Verify that we got a 429 status code
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+
+		// Verify that PayloadTimeout was incremented
+		finalTimeout := ts.PayloadTimeout.Load()
+		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented when request context is cancelled")
+	})
+
 
 	t.Run("context_timeout_v10", func(t *testing.T) {
 		// Test the same scenario for V10 endpoint
@@ -1219,7 +1394,7 @@ func TestHandleTraces(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		ts := receiver.tagStats(V10, req.Header, "")
+		ts := receiver.tagStats(V10, req, "")
 		initialTimeout := ts.PayloadTimeout.Load()
 
 		handler.ServeHTTP(rr, req)

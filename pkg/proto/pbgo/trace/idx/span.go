@@ -270,7 +270,7 @@ func UnmarshalKeyValueMap(bts []byte, strings *StringTable) (kvl map[uint32]*Any
 		return
 	}
 	if numAttributes > 0 && numAttributes%3 != 0 {
-		err = msgp.WrapError(err, fmt.Sprintf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes))
+		err = fmt.Errorf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes)
 		return
 	}
 	kvl = make(map[uint32]*AnyValue, numAttributes/3)
@@ -303,7 +303,7 @@ func UnmarshalKeyValueList(bts []byte, strings *StringTable) (kvl []*KeyValue, o
 		return
 	}
 	if numAttributes > 0 && numAttributes%3 != 0 {
-		err = msgp.WrapError(err, fmt.Sprintf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes))
+		err = fmt.Errorf("Invalid number of span attributes %d - must be a multiple of 3", numAttributes)
 		return
 	}
 	kvl = make([]*KeyValue, numAttributes/3)
@@ -385,7 +385,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 			return
 		}
 		if numElements%2 != 0 {
-			err = msgp.WrapError(err, "Invalid number of array elements, should be 2 elements per AnyValue")
+			err = fmt.Errorf("Invalid number of array elements %d - should be 2 elements per AnyValue", numElements)
 			return
 		}
 		arrayValue := make([]*AnyValue, numElements/2)
@@ -410,7 +410,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		}
 		value.Value = &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: kvl}}
 	default:
-		err = msgp.WrapError(err, fmt.Sprintf("Unknown anyvalue type %d", valueType))
+		err = fmt.Errorf("Unknown anyvalue type %d", valueType)
 		return
 	}
 	return
@@ -420,7 +420,7 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 // For streaming string details see pkg/trace/api/version.go for details
 func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o []byte, err error) {
 	if len(bts) < 1 {
-		err = msgp.WrapError(err, "Expected streaming string but EOF")
+		err = errors.New("Expected streaming string but EOF")
 		return
 	}
 	if isString(bts) {
@@ -438,7 +438,7 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 			return
 		}
 		if int(index) >= strings.Len() {
-			err = msgp.WrapError(err, "Streaming string referenced an unseen string index")
+			err = fmt.Errorf("Streaming string referenced an unseen string index %d (string table length: %d)", index, strings.Len())
 			return
 		}
 	}

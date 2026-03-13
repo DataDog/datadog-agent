@@ -7,7 +7,7 @@ package mutatedbyadmissioncontroller
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
@@ -15,6 +15,7 @@ import (
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -55,20 +56,88 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	if err = k8sDeploymentWithoutLibInjection(e, namespaceWithoutLibInjection, "mutated", append(opts, pulumi.Parent(nsWithoutLibInjection))...); err != nil {
+	optsWithoutLibInjection := append(opts, pulumi.Parent(nsWithoutLibInjection), utils.PulumiDependsOn(nsWithoutLibInjection))
+	optsWithLibInjection := append(opts, pulumi.Parent(nsWithLibInjection), utils.PulumiDependsOn(nsWithLibInjection))
+
+	// openshift requires a non-default service account tied to the privileged scc
+	saWithoutLibInjection, err := corev1.NewServiceAccount(e.Ctx(), "mutated-sa", &corev1.ServiceAccountArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.StringPtr("mutated-sa"),
+			Namespace: pulumi.StringPtr(namespaceWithoutLibInjection),
+		},
+	}, optsWithoutLibInjection...)
+	if err != nil {
 		return nil, err
 	}
-	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-lib-annotation", true, append(opts, pulumi.Parent(nsWithLibInjection))...); err != nil {
+
+	// create a RoleBinding to bind the new service account with the existing privileged scc
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), "mutated-scc-binding", &rbacv1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("mutated-scc-binding"),
+			Namespace: pulumi.String(namespaceWithoutLibInjection),
+		},
+		RoleRef: &rbacv1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:hostaccess"),
+		},
+		Subjects: rbacv1.SubjectArray{
+			rbacv1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      saWithoutLibInjection.Metadata.Name().Elem(),
+				Namespace: pulumi.String(namespaceWithoutLibInjection),
+			},
+		},
+	}, optsWithoutLibInjection...); err != nil {
 		return nil, err
 	}
-	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-auto-detected-language", false, append(opts, pulumi.Parent(nsWithLibInjection))...); err != nil {
+
+	saWithLibInjection, err := corev1.NewServiceAccount(e.Ctx(), "mutated-with-lib-sa", &corev1.ServiceAccountArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.StringPtr("mutated-with-lib-sa"),
+			Namespace: pulumi.StringPtr(namespaceWithLibInjection),
+		},
+	}, optsWithLibInjection...)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a RoleBinding to bind the new service account with the existing privileged scc
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), "mutated-with-lib-scc-binding", &rbacv1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("mutated-with-lib-scc-binding"),
+			Namespace: pulumi.String(namespaceWithLibInjection),
+		},
+		RoleRef: &rbacv1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:hostaccess"),
+		},
+		Subjects: rbacv1.SubjectArray{
+			rbacv1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      saWithLibInjection.Metadata.Name().Elem(),
+				Namespace: pulumi.String(namespaceWithLibInjection),
+			},
+		},
+	}, optsWithLibInjection...); err != nil {
+		return nil, err
+	}
+
+	if err = k8sDeploymentWithoutLibInjection(e, namespaceWithoutLibInjection, "mutated", saWithoutLibInjection, optsWithoutLibInjection...); err != nil {
+		return nil, err
+	}
+	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-lib-annotation", true, saWithLibInjection, optsWithLibInjection...); err != nil {
+		return nil, err
+	}
+	if err = k8sDeploymentWithLibInjection(e, namespaceWithLibInjection, "mutated-with-auto-detected-language", false, saWithLibInjection, optsWithLibInjection...); err != nil {
 		return nil, err
 	}
 
 	return k8sComponent, nil
 }
 
-func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name string, opts ...pulumi.ResourceOption) error {
+func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name string, sa *corev1.ServiceAccount, opts ...pulumi.ResourceOption) error {
 	_, err := appsv1.NewDeployment(e.Ctx(), name, &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String(name),
@@ -82,6 +151,9 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 			},
 			Template: &corev1.PodTemplateSpecArgs{
 				Metadata: &metav1.ObjectMetaArgs{
+					Annotations: pulumi.StringMap{
+						"openshift.io/required-scc": pulumi.String("hostaccess"),
+					},
 					Labels: pulumi.StringMap{
 						"app":                             pulumi.String(name),
 						"admission.datadoghq.com/enabled": pulumi.String("true"),
@@ -91,6 +163,7 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name:  pulumi.String(name),
@@ -105,8 +178,10 @@ func k8sDeploymentWithoutLibInjection(e config.Env, namespace string, name strin
 	return err
 }
 
-func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, withLibAnnotation bool, opts ...pulumi.ResourceOption) error {
-	annotations := pulumi.StringMap{}
+func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, withLibAnnotation bool, sa *corev1.ServiceAccount, opts ...pulumi.ResourceOption) error {
+	annotations := pulumi.StringMap{
+		"openshift.io/required-scc": pulumi.String("hostaccess"),
+	}
 	if withLibAnnotation {
 		annotations["admission.datadoghq.com/python-lib.version"] = pulumi.String("v2.7.3")
 	}
@@ -134,6 +209,7 @@ func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, 
 					Annotations: annotations,
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name: pulumi.String(name),

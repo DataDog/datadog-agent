@@ -12,6 +12,8 @@ extensions:
   datadog/dd-autoconfigured:
     api:
       key: ggggg77777
+      site: "datadoghq.com"
+    deployment_type: daemonset
 
 service:
   extensions:

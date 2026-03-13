@@ -44,7 +44,6 @@ import (
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -85,6 +84,7 @@ type cliParams struct {
 
 	customerEmail        string
 	autoconfirm          bool
+	keepArchive          bool
 	forceLocal           bool
 	profiling            int
 	profileMutex         bool
@@ -118,6 +118,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 			)
 
+			flareParams := flare.NewLocalParams(
+				defaultpaths.GetDistPath(),
+				defaultpaths.PyChecksPath,
+				defaultpaths.LogFile,
+				defaultpaths.JmxLogFile,
+				defaultpaths.DogstatsDLogFile,
+				defaultpaths.StreamlogsLogFile,
+			)
+			flareParams.KeepArchiveAfterSend = cliParams.keepArchive
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -125,15 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
-				secretfx.Module(),
-				flare.Module(flare.NewLocalParams(
-					defaultpaths.GetDistPath(),
-					defaultpaths.PyChecksPath,
-					defaultpaths.LogFile,
-					defaultpaths.JmxLogFile,
-					defaultpaths.DogstatsDLogFile,
-					defaultpaths.StreamlogsLogFile,
-				)),
+				flare.Module(flareParams),
 				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -166,7 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() serializer.MetricSerializer {
 					return nil
 				}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				haagentfx.Module(),
 				logscompressorfx.Module(),
@@ -180,6 +181,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().BoolVar(&cliParams.keepArchive, "keep-archive", false, "Keep the flare archive file after a successful upload")
 	flareCmd.Flags().BoolVarP(&cliParams.forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.Flags().IntVarP(&cliParams.profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
 	flareCmd.Flags().BoolVarP(&cliParams.profileMutex, "profile-mutex", "M", false, "Add mutex profile to the performance data in the flare")
@@ -317,10 +319,7 @@ func makeFlare(flareComp flare.Component,
 
 	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
-	if e != nil {
-		return e
-	}
-	return nil
+	return e
 }
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {

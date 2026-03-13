@@ -140,7 +140,8 @@ func NewHTTPReceiver(
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *HTTPReceiver {
+	timing timing.Reporter,
+) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -280,6 +281,10 @@ func (r *HTTPReceiver) Start() {
 		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:     r.buildMux(),
 		ConnContext: connContext,
+	}
+
+	if r.conf.ReceiverIdleTimeout > r.server.ReadTimeout {
+		r.server.IdleTimeout = r.conf.ReceiverIdleTimeout
 	}
 
 	if r.conf.ReceiverPort > 0 {
@@ -486,11 +491,13 @@ const (
 
 // TagStats returns the stats and tags coinciding with the information found in header.
 // For more information, check the "Datadog-Meta-*" HTTP headers defined in this file.
-func (r *HTTPReceiver) TagStats(v Version, header http.Header, service string) *info.TagStats {
-	return r.tagStats(v, header, service)
+func (r *HTTPReceiver) TagStats(v Version, req *http.Request, service string) *info.TagStats {
+	return r.tagStats(v, req, service)
 }
 
-func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service string) *info.TagStats {
+func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *info.TagStats {
+	httpHeader := req.Header
+	connectionType := GetConnectionType(req.Context())
 	return r.Stats.GetTagStats(info.Tags{
 		Lang:            httpHeader.Get(header.Lang),
 		LangVersion:     httpHeader.Get(header.LangVersion),
@@ -498,13 +505,14 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
 		TracerVersion:   httpHeader.Get(header.TracerVersion),
 		EndpointVersion: string(v),
+		ConnectionType:  string(connectionType),
 		Service:         service,
 	})
 }
 
-// decodeTracerPayload decodes the payload in http request `req`.
+// decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.
+// This function will be deprecated in the future and all payloads will use decodeConvertedTracerPayload instead.
 // - tp is the decoded payload
-// - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
 func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *idx.InternalTracerPayload, err error) {
 	switch v {
@@ -662,7 +670,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {
 		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
-		tags := append(r.tagStats(V06, req.Header, "").AsTags(), "reason:decode")
+		tags := append(r.tagStats(V06, req, "").AsTags(), "reason:decode")
 		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 		return
@@ -675,7 +683,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		return cs.Stats[0].Stats[0].Service
 	}
 
-	ts := r.tagStats(V06, req.Header, firstService(in))
+	ts := r.tagStats(V06, req, firstService(in))
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload", 1, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
@@ -699,6 +707,119 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	if r.conf.HasFeature("convert-traces") {
+		r.handleTracesV1(v, w, req)
+		return
+	}
+	r.wg.Add(1)
+	defer r.wg.Done()
+
+	tracen, err := traceCount(req)
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
+	defer req.Body.Close()
+
+	select {
+	// Wait for the semaphore to become available, allowing the handler to
+	// decode its payload.
+	// After the configured timeout, respond without ingesting the payload,
+	// and sending the configured status.
+	case r.recvsem <- struct{}{}:
+	case <-req.Context().Done():
+		// Either the client closed the connection, or we hit a middleware timeout
+		log.Debugf("request context timed out, payload dropped")
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.tagStats(v, req, "").PayloadTimeout.Inc()
+		return
+	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
+		// this payload can not be accepted
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		switch v {
+		case v01, v02, v03:
+			// do nothing
+		default:
+			w.Header().Set("Content-Type", "application/json")
+		}
+		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		} else {
+			w.WriteHeader(r.rateLimiterResponse)
+		}
+		r.replyOK(req, v, w)
+		r.tagStats(v, req, "").PayloadRefused.Inc()
+		return
+	}
+	defer func() {
+		// Signal the semaphore that we are done decoding, so another handler
+		// routine can take a turn decoding a payload.
+		<-r.recvsem
+	}()
+
+	firstService := func(tp *idx.InternalTracerPayload) string {
+		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+			return ""
+		}
+		return tp.Chunks[0].Spans[0].Service()
+	}
+
+	start := time.Now()
+	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
+	ts := r.tagStats(v, req, firstService(tp))
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
+		switch err {
+		case apiutil.ErrLimitedReaderLimitReached:
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
+		case io.EOF, io.ErrUnexpectedEOF:
+			ts.TracesDropped.EOF.Add(tracen)
+		case msgp.ErrShortBytes:
+			ts.TracesDropped.MSGPShortBytes.Add(tracen)
+		default:
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				ts.TracesDropped.Timeout.Add(tracen)
+			} else {
+				ts.TracesDropped.DecodingError.Add(tracen)
+			}
+		}
+		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		return
+	}
+	if n, ok := r.replyOK(req, v, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
+
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
+	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID())
+	if len(ctags) > 0 {
+		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
+	}
+	ptags := getProcessTags(req.Header, tp)
+	if ptags != "" {
+		tp.SetStringAttribute(tagProcessTags, ptags)
+	}
+	payload := &PayloadV1{
+		Source:                 ts,
+		TracerPayload:          tp,
+		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
+		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
+		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
+		ContainerTags:          ctags,
+	}
+	r.outV1 <- payload
+}
+
+// handleTracesV1 knows how to handle a bunch of traces and converts them to the internal format if needed
+func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *http.Request) {
 	r.wg.Add(1)
 	defer r.wg.Done()
 	tracen, err := traceCount(req)
@@ -717,7 +838,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		// Either the client closed the connection, or we hit a middleware timeout
 		log.Debugf("request context timed out, payload dropped")
 		w.WriteHeader(http.StatusTooManyRequests)
-		r.tagStats(v, req.Header, "").PayloadTimeout.Inc()
+		r.tagStats(v, req, "").PayloadTimeout.Inc()
 		return
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
@@ -735,7 +856,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			w.WriteHeader(r.rateLimiterResponse)
 		}
 		r.replyOK(req, v, w)
-		r.tagStats(v, req.Header, "").PayloadRefused.Inc()
+		r.tagStats(v, req, "").PayloadRefused.Inc()
 		return
 	}
 	defer func() {
@@ -753,7 +874,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	start := time.Now()
 	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req.Header, firstService(tp))
+	ts := r.tagStats(v, req, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -856,6 +977,22 @@ func getProcessTags(h http.Header, p *idx.InternalTracerPayload) string {
 }
 
 func getFirstSpan(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
+	if len(p.Chunks) == 0 {
+		return nil, false
+	}
+	for _, chunk := range p.Chunks {
+		if chunk == nil || len(chunk.Spans) == 0 {
+			continue
+		}
+		if chunk.Spans[0] == nil {
+			continue
+		}
+		return chunk.Spans[0], true
+	}
+	return nil, false
+}
+
+func getFirstSpanV1(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
 	if len(p.Chunks) == 0 {
 		return nil, false
 	}

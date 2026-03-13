@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -53,7 +52,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}

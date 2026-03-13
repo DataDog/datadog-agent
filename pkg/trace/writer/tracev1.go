@@ -29,6 +29,9 @@ const pathTraces = "/api/v0.2/traces"
 // tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
 const tagAPMMode = "_dd.apm_mode"
 
+// tagOTelGateway is attached to the AgentPayload when the agent is configured as an OTel gateway.
+const tagOTelGateway = "_dd.otel.gateway"
+
 const defaultConnectionLimit = 5
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
@@ -86,6 +89,8 @@ type TraceWriterV1 struct {
 	compressor compression.Component
 	// apmMode exists here to propagate the value to the AgentPayload
 	apmMode string
+	// otelGateway indicates whether the agent is configured as an OTel gateway
+	otelGateway bool
 }
 
 // NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
@@ -98,7 +103,8 @@ func NewTraceWriterV1(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
-	compressor compression.Component) *TraceWriterV1 {
+	compressor compression.Component,
+) *TraceWriterV1 {
 	tw := &TraceWriterV1{
 		prioritySampler:    prioritySampler,
 		errorsSampler:      errorsSampler,
@@ -118,7 +124,8 @@ func NewTraceWriterV1(
 		timing:             timing,
 		compressor:         compressor,
 		// apmMode exists here to propagate the value to the AgentPayload
-		apmMode: cfg.APMMode,
+		apmMode:     cfg.APMMode,
+		otelGateway: cfg.OTelGateway,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -146,9 +153,9 @@ func NewTraceWriterV1(
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
-		if oldKey == s.cfg.apiKey {
+		if oldKey == s.apiKeyManager.Get() {
+			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
-			s.cfg.apiKey = newKey
 		}
 	}
 }
@@ -308,8 +315,14 @@ func (w *TraceWriterV1) flushPreparedPayloadsV1(prepared []*pb.PreparedTracerPay
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		// IdxTracerPayloads is not set - we use prepared payloads directly
 	}
-	if w.apmMode != "" {
-		p.Tags = map[string]string{tagAPMMode: w.apmMode}
+	if w.apmMode != "" || w.otelGateway {
+		p.Tags = make(map[string]string)
+		if w.apmMode != "" {
+			p.Tags[tagAPMMode] = w.apmMode
+		}
+		if w.otelGateway {
+			p.Tags[tagOTelGateway] = "true"
+		}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

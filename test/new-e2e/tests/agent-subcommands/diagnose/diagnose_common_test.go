@@ -179,7 +179,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	re := regexp.MustCompile("PASS")
 	matches := re.FindAllString(diagnose, -1)
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
-	assert.Equal(v.T(), len(matches), summary.Total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, len(matches))
+	assert.Equal(v.T(), len(matches), summary.Success, "Expected to have the same number of 'PASS' as successful checks (%v), but was %v", summary.Success, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 

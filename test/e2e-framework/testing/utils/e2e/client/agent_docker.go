@@ -6,6 +6,10 @@
 package client
 
 import (
+	"context"
+
+	"github.com/docker/docker/api/types/container"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -35,4 +39,10 @@ func (ae agentDockerExecutor) execute(arguments []string) (string, error) {
 	// TODO: Support all agents and Windows
 	arguments = append([]string{"agent"}, arguments...)
 	return ae.dockerClient.ExecuteCommandWithErr(ae.agentContainerName, arguments...)
+}
+
+func (ae agentDockerExecutor) restart() error {
+	ctx := context.Background()
+	timeout := 30
+	return ae.dockerClient.client.ContainerRestart(ctx, ae.agentContainerName, container.StopOptions{Timeout: &timeout})
 }

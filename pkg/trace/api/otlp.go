@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -291,57 +292,46 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
-	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		hostname = ""
-	}
-	if incomingHostname := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
-		hostname = incomingHostname
+
+	// Create a single accessor for all resource-level semantic lookups below, avoiding
+	// repeated allocation of accessor objects for the same attribute map.
+	resAccessor := semantics.NewPDataMapAccessor(otelres.Attributes())
+
+	// Get container ID from OTel semantic conventions
+	containerID := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
+	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+		containerID = traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
-	containerID := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
-	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-			containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey))
-		} else {
-			containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
-		}
-	}
+	// Get env from OTel semantic conventions
+	env := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptDeploymentEnv, true)
 
-	env := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
-	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
-	}
-
+	// Get container tags from OTel semantic conventions
 	var containerTags string
-	if incomingContainerTags := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
-		containerTags = incomingContainerTags
-	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		var builder *strings.Builder
-		if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-			// As part of extracting container tags, we remove some of the corresponding resource attributes
-			// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
-			// Because otelres is immutable when this function is called from the Datadog exporter,
-			// ConsumeContainerTagsFromResource will make a copy instead of modifying it in-place.
-			var containerTagsMap map[string]string
-			containerTagsMap, otelres = attributes.ConsumeContainerTagsFromResource(otelres)
-			builder = flatten(containerTagsMap)
+	var builder *strings.Builder
+	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
+		// As part of extracting container tags, we remove some of the corresponding resource attributes
+		// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
+		// Because otelres is immutable when this function is called from the Datadog exporter,
+		// ConsumeContainerTagsFromResource will make a copy instead of modifying it in-place.
+		var containerTagsMap map[string]string
+		containerTagsMap, otelres = attributes.ConsumeContainerTagsFromResource(otelres)
+		builder = flatten(containerTagsMap)
+	} else {
+		builder = flatten(attributes.ContainerTagsFromResourceAttributes(otelres.Attributes()))
 
+		// Populate container tags by calling ContainerTags tagger from configuration
+		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+			appendTags(builder, tags)
 		} else {
-			builder = flatten(attributes.ContainerTagsFromResourceAttributes(otelres.Attributes()))
-
-			// Populate container tags by calling ContainerTags tagger from configuration
-			if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
-				appendTags(builder, tags)
-			} else {
-				// we couldn't obtain any container tags
-				if src.Kind == source.AWSECSFargateKind {
-					// but we have some information from the source provider that we can add
-					appendTags(builder, src.Tag())
-				}
+			// we couldn't obtain any container tags
+			if src.Kind == source.AWSECSFargateKind {
+				// but we have some information from the source provider that we can add
+				appendTags(builder, src.Tag())
 			}
 		}
-		containerTags = builder.String()
 	}
+	containerTags = builder.String()
 
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
