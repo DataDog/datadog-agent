@@ -2,6 +2,7 @@
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -503,8 +504,8 @@ cc_shared_library(
         "@libyaml//:yaml",
         "@pcre2//:pcre2-8",
         "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
+        "@rpm//:rpm_so",
+        "@rpm//:rpmio_so",
         "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
@@ -550,8 +551,8 @@ cc_binary(
         "@libyaml//:yaml",
         "@pcre2//:pcre2-8",
         "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
+        "@rpm//:rpm_so",
+        "@rpm//:rpmio_so",
         "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
@@ -595,8 +596,8 @@ cc_binary(
         "@libyaml//:yaml",
         "@pcre2//:pcre2-8",
         "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
+        "@rpm//:rpm_so",
+        "@rpm//:rpmio_so",
         "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
@@ -658,6 +659,12 @@ pkg_files(
     attributes = pkg_attributes("0644"),
 )
 
+dd_collect_dependencies(
+    name = "collected_files",
+    srcs = [":oscap"],
+)
+
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -665,6 +672,7 @@ pkg_filegroup(
         ":lib_files",
         ":xccdf-resources",
         ":cpe_files",
+        ":collected_files",
     ],
     prefix = "embedded",
 )
