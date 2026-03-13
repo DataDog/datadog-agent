@@ -60,6 +60,7 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_fx",
     "com_github_datadog_datadog_agent_comp_core_config",
     "com_github_datadog_datadog_agent_comp_core_configsync",
+    "com_github_datadog_datadog_agent_comp_core_delegatedauth",
     "com_github_datadog_datadog_agent_comp_core_flare_builder",
     "com_github_datadog_datadog_agent_comp_core_flare_types",
     "com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface",
@@ -324,6 +325,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourcedetectionprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
@@ -331,7 +333,6 @@ use_repo(
     "com_github_pahanini_go_grpc_bidirectional_streaming_example",
     "com_github_patrickmn_go_cache",
     "com_github_pierrec_lz4_v4",
-    "com_github_pkg_errors",
     "com_github_planetscale_vtprotobuf",
     "com_github_prometheus_client_golang",
     "com_github_prometheus_client_model",
@@ -491,3 +492,5 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_stringer:repo.bzl", "go_stringer")(name = "go_stringer")
