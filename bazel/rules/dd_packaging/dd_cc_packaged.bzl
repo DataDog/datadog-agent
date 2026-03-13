@@ -1,5 +1,6 @@
-"""dd_cc_shared_library — packaging-aware wrapper around cc_shared_library."""
+"""dd_cc_packaged — packaging-aware wrapper around cc_shared_library or cc_binary."""
 
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
@@ -7,25 +8,27 @@ load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 
-def _dd_cc_shared_library_rule_impl(ctx):
+def _dd_cc_packaged_rule_impl(ctx):
     installed = []
     for dep in ctx.attr.installed_files:
         if PackageFilegroupInfo in dep:
             installed.append(dep[PackageFilegroupInfo])
         elif PackageFilesInfo in dep:
             installed.append(dep[PackageFilesInfo])
-    return [
-        ctx.attr.input[CcSharedLibraryInfo],
+    providers = [
         DdPackagingInfo(installed_files = installed),
         DefaultInfo(files = depset([ctx.file.patched])),
     ]
+    if CcSharedLibraryInfo in ctx.attr.input:
+        providers.append(ctx.attr.input[CcSharedLibraryInfo])
+    return providers
 
-_dd_cc_shared_library_rule = rule(
-    implementation = _dd_cc_shared_library_rule_impl,
+_dd_cc_packaged_rule = rule(
+    implementation = _dd_cc_packaged_rule_impl,
     attrs = {
         "input": attr.label(
             mandatory = True,
-            providers = [CcSharedLibraryInfo],
+            providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
         "patched": attr.label(
             mandatory = True,
@@ -35,7 +38,7 @@ _dd_cc_shared_library_rule = rule(
     },
 )
 
-def _dd_cc_shared_library_impl(name, input, version = "", installed_files = [], **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], **kwargs):
     patched_name = "{}_patched".format(name)
     rewrite_rpath(
         name = patched_name,
@@ -57,7 +60,7 @@ def _dd_cc_shared_library_impl(name, input, version = "", installed_files = [], 
             prefix = "lib",
         )
     rule_installed_files.append(":{}".format(packaged_lib))
-    _dd_cc_shared_library_rule(
+    _dd_cc_packaged_rule(
         name = name,
         input = input,
         patched = ":{}".format(patched_name),
@@ -65,7 +68,7 @@ def _dd_cc_shared_library_impl(name, input, version = "", installed_files = [], 
         **kwargs,
     )
 
-dd_cc_shared_library = macro(
+dd_cc_packaged = macro(
     attrs = {
         "input": attr.label(
             mandatory = True,
@@ -79,5 +82,5 @@ dd_cc_shared_library = macro(
             configurable = False,
         ),
     },
-    implementation = _dd_cc_shared_library_impl,
+    implementation = _dd_cc_packaged_impl,
 )
