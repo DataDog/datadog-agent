@@ -49,7 +49,8 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         restartItem.target = self
         loginItem = NSMenuItem(title: loginStatusEnableTitle, action: #selector(loginAction), keyEquivalent: "")
         loginItem.target = self
-        exitItem = NSMenuItem(title: "Exit", action: #selector(exitGUI), keyEquivalent: "")
+        let exitTitle = AgentManager.isGUIKeepAlive() ? "Restart App" : "Exit"
+        exitItem = NSMenuItem(title: exitTitle, action: #selector(exitGUI), keyEquivalent: "")
         exitItem.target = self
 
         ddMenu.autoenablesItems = true
@@ -238,6 +239,15 @@ class AgentManager {
     static let userAgentPlistPath: String = "~/Library/LaunchAgents/com.datadoghq.agent.plist"
     static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
+
+    /// Returns true if the GUI's own LaunchAgent plist has KeepAlive set to true.
+    static func isGUIKeepAlive() -> Bool {
+        let plistPath = ("~/Library/LaunchAgents/com.datadoghq.gui.plist" as NSString).expandingTildeInPath
+        guard let dict = NSDictionary(contentsOfFile: plistPath) else {
+            return false
+        }
+        return dict["KeepAlive"] as? Bool ?? false
+    }
 
     /// Full launchd job identifier for the agent. Per-user: gui/<UID>/com.datadoghq.agent; system-wide: system/com.datadoghq.agent.
     /// Using the full spec fixes "Could not find service in domain for port" when the GUI runs from a local build.
