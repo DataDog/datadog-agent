@@ -37,6 +37,7 @@ import (
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
@@ -564,6 +565,7 @@ func getSharedFxOption() fx.Option {
 		logondurationfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
+		privateactionrunnerfx.Module(),
 	)
 }
 
