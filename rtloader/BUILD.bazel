@@ -1,6 +1,4 @@
-load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
@@ -51,7 +49,10 @@ cc_library(
     linkopts = [
         # Make up for the fact that we may be using gcc and not g++
         "-lstdc++",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["-static"],
+        "//conditions:default": [],
+    }),
     local_defines = select({
         "@platforms//os:linux": [
             "_GLIBCXX_USE_CXX11_ABI=0",
@@ -172,7 +173,10 @@ cc_library(
     linkopts = [
         # Make up for the fact that we may be using gcc and not g++
         "-lstdc++",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["-static"],
+        "//conditions:default": [],
+    }),
     local_defines = select({
         "@platforms//os:windows": [
             # TODO: only set if not MSVC. But it might be OK do to anyway.
@@ -220,6 +224,11 @@ cc_shared_library(
             ":datadog-agent-rtloader",
             "@cpython//:python_unix_shared",
         ],
+    }),
+    shared_lib_name = select({
+        "@platforms//os:windows": "libdatadog-agent-three.dll",
+        "@platforms//os:linux": "libdatadog-agent-three.so",
+        "@platforms//os:macos": "libdatadog-agent-three.dylib",
     }),
     user_link_flags = select({
         "@platforms//os:windows": [],
