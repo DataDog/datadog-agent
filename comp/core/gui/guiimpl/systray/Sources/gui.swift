@@ -358,7 +358,12 @@ class AgentManager {
             return call(launchPath: "/bin/launchctl", arguments: ["kickstart", "-k", jobSpec])
         case "stop":
             let jobSpec = agentJobIdentifier()
-            return call(launchPath: "/bin/launchctl", arguments: ["bootout", jobSpec])
+            if checkCurrentInstallationMode() {
+                return call(launchPath: "/bin/launchctl", arguments: ["bootout", jobSpec])
+            }
+            // System-wide: send SIGTERM so the job stays loaded and kickstart can restart it.
+            // bootout would remove the job definition, making subsequent kickstart fail.
+            return call(launchPath: "/bin/launchctl", arguments: ["kill", "SIGTERM", jobSpec])
         default:
             let jobSpec = agentJobIdentifier()
             return call(launchPath: "/bin/launchctl", arguments: [command, jobSpec])
