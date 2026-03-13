@@ -248,15 +248,6 @@ def _build_quick_image(
     help="Docker registry to push the image to. Automated login via aws-vault is only supported for the default agent-sandbox ECR registry — for any other registry you must authenticate manually first with `docker login <registry>`.",
 )
 @click.option(
-    "--base-image",
-    default=None,
-    help=(
-        "[Quick only] Base agent image to build from (ignored with --full). "
-        "Accepts a version (e.g. '7.63.0', resolved to datadog/agent:7.63.0) or a full image reference. "
-        "Defaults to the latest successful build from main on registry.ddbuild.io."
-    ),
-)
-@click.option(
     "--full",
     is_flag=True,
     default=False,
@@ -265,26 +256,6 @@ def _build_quick_image(
         "Quick (default): agent.hacky-dev-image-build for fast iteration (~1-2 min), layers local binaries on a base image. "
         "Full: omnibus.docker-build for production-like builds from scratch (~10-30 min), includes full dependency compilation."
     ),
-)
-@click.option(
-    "--cache-dir",
-    default=None,
-    help="[Full only] Base directory for omnibus build caches (default: ~/.omnibus-docker-cache).",
-)
-@click.option(
-    "--workers",
-    type=int,
-    default=None,
-    help="[Full only] Number of parallel workers for compression and builds (default: 8).",
-)
-@click.option(
-    "--build-image",
-    default=None,
-    help="[Full only] Docker build image to use for omnibus build (default: uses version from .gitlab-ci.yml).",
-)
-@option_env_type()
-@click.option(
-    "--id", "instance", default="default", show_default=True, help="Unique identifier for the dev environment"
 )
 @click.option(
     "--arch",
@@ -297,6 +268,19 @@ def _build_quick_image(
     is_flag=True,
     default=False,
     help="Build the image locally without pushing to the registry.",
+)
+@click.option(
+    "--base-image",
+    default=None,
+    help=(
+        "[Quick only] Base agent image to build from (ignored with --full). "
+        "Accepts a version (e.g. '7.63.0', resolved to datadog/agent:7.63.0) or a full image reference. "
+        "Defaults to the latest successful build from main on registry.ddbuild.io."
+    ),
+)
+@option_env_type()
+@click.option(
+    "--id", "instance", default="default", show_default=True, help="Unique identifier for the dev environment"
 )
 @click.option(
     "--process-agent",
@@ -350,6 +334,22 @@ def _build_quick_image(
     is_flag=True,
     default=False,
     help="[Quick only] Use signed image pull.",
+)
+@click.option(
+    "--cache-dir",
+    default=None,
+    help="[Full only] Base directory for omnibus build caches (default: ~/.omnibus-docker-cache).",
+)
+@click.option(
+    "--workers",
+    type=int,
+    default=None,
+    help="[Full only] Number of parallel workers for compression and builds (default: 8).",
+)
+@click.option(
+    "--build-image",
+    default=None,
+    help="[Full only] Docker build image to use for omnibus build (default: uses version from .gitlab-ci.yml).",
 )
 @pass_app
 def cmd(
