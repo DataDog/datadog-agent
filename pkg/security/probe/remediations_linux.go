@@ -50,6 +50,7 @@ type Remediation struct {
 	policy             string
 	isolationReApplied bool
 	isolationNew       bool
+	isolationPerformed bool
 	ruleTags           RuleTags
 }
 
@@ -221,7 +222,7 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 		}
 	}
 
-	// When a new ruleset is loaded, reset all flags
+	// When a new ruleset is loaded, reset all flags except the performed flag
 	for _, state := range p.activeRemediations {
 		state.triggered = false
 		state.isolationReApplied = false
@@ -333,9 +334,17 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 		return
 	}
 	remediation.triggered = true
-	if remediation.isolationReApplied {
-		// We already re-applied the isolation, no need to send the event
+
+	// if the isolation is from the same rule and was already performed, don't send an event
+	if remediation.isolationReApplied && remediation.isolationPerformed {
 		return
+	}
+
+	// if the status is performed, update the isolationPerformed field
+	if report.Status == RawPacketActionStatusPerformed {
+		remediation.isolationPerformed = true
+	} else {
+		remediation.isolationPerformed = false
 	}
 
 	remediation.processContext.PID = ev.ProcessContext.Process.Pid
