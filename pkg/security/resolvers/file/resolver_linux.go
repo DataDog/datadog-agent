@@ -9,6 +9,7 @@ package file
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 
 	"go.uber.org/atomic"
@@ -87,7 +88,7 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	event.FieldHandlers.ResolveFileBasename(event, file)
 
 	// fileless - check this BEFORE trying to resolve full path, since path resolution will fail for memfd
-	if file.BasenameStr == "memfd:" && file.PathnameStr == "" {
+	if strings.HasPrefix(file.BasenameStr, "memfd:") && file.PathnameStr == "" {
 		return &model.FileMetadata{
 			Type:         int(model.FileLess),
 			IsExecutable: true,

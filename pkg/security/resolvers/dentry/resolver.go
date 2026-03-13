@@ -226,6 +226,41 @@ func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) 
 	return path.Name, nil
 }
 
+func (dr *Resolver) lookupInodeFromMap(pathKey model.PathKey) (model.PathLeaf, error) {
+	var pathLeaf model.PathLeaf
+	if err := dr.pathnames.Lookup(pathKey, &pathLeaf); err != nil {
+		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", pathKey.MountID, pathKey.Inode, err)
+	}
+	return pathLeaf, nil
+}
+
+// ResolveNameFromMap resolves the name of the provided inode.
+// Keep this fallback to recover basename resolution for fileless entries when cache/eRPC miss.
+func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool) (string, error) {
+	entry := counterEntry{
+		resolutionType: metrics.KernelMapsTag,
+		resolution:     metrics.SegmentResolutionTag,
+	}
+
+	pathLeaf, err := dr.lookupInodeFromMap(pathKey)
+	if err != nil {
+		dr.missCounters[entry].Inc()
+		return "", err
+	}
+
+	dr.hitsCounters[entry].Inc()
+	name := pathLeaf.GetName()
+
+	if !model.IsFakeInode(pathKey.Inode) && cache {
+		dr.cacheInode(pathKey, PathEntry{
+			Parent: pathLeaf.Parent,
+			Name:   name,
+		})
+	}
+
+	return name, nil
+}
+
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
 	name, err := dr.ResolveNameFromCache(pathKey)
@@ -240,6 +275,9 @@ func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
 				name = fullPath
 			}
 		}
+	}
+	if name == "" {
+		name, _ = dr.ResolveNameFromMap(pathKey, cache)
 	}
 
 	return name
