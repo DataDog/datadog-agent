@@ -78,6 +78,30 @@ static __always_inline void check_sock(struct sock *sk) {
     log_debug("check_sock: name=%s read_max=%d write_max=%d", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
 }
 
+SEC("fentry/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_entry, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fentry/tcp_sendmsg")
+int BPF_PROG(tcp_sendmsg_entry, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
+SEC("fexit/tcp_sendmsg")
+int BPF_PROG(tcp_sendmsg_exit, struct sock *sk) {
+    check_sock(sk);
+    return 0;
+}
+
 SEC("kprobe/tcp_recvmsg")
 int BPF_KPROBE(kprobe__tcp_recvmsg, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
