@@ -34,6 +34,10 @@ import (
 
 const (
 	statsMapName = "tcp_queue_stats"
+
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
+	maxActive = 512
 )
 
 // Tracer is the eBPF side of the TCP Queue Length check
@@ -199,7 +203,8 @@ func (t *Tracer) attach(collSpec *ebpflib.CollectionSpec) (err error) {
 				attachPoint := spec.SectionName[len(kretprobePrefix):]
 				manager.TraceFSLock.Lock()
 				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
-					TraceFSPrefix: "ddtcpq",
+					TraceFSPrefix:     "ddtcpq",
+					RetprobeMaxActive: maxActive,
 				})
 				manager.TraceFSLock.Unlock()
 				if err != nil {
