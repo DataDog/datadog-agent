@@ -111,6 +111,15 @@ def _build_quick_image(
     env_type: str,
     instance: str,
     arch: str | None,
+    process_agent: bool,
+    trace_agent: bool,
+    system_probe: bool,
+    security_agent: bool,
+    trace_loader: bool,
+    privateactionrunner: bool,
+    race: bool,
+    development: bool,
+    signed_pull: bool,
 ) -> None:
     """Build agent image using quick method (fast iteration with dev environment)."""
     from dda.env.dev import get_dev_env
@@ -187,6 +196,24 @@ def _build_quick_image(
     build_cmd = ["dda", "inv", "agent.hacky-dev-image-build", "--target-image", target_image]
     if resolved_base_image:
         build_cmd.extend(["--base-image", resolved_base_image])
+    if process_agent:
+        build_cmd.append("--process-agent")
+    if trace_agent:
+        build_cmd.append("--trace-agent")
+    if system_probe:
+        build_cmd.append("--system-probe")
+    if security_agent:
+        build_cmd.append("--security-agent")
+    if trace_loader:
+        build_cmd.append("--trace-loader")
+    if privateactionrunner:
+        build_cmd.append("--privateactionrunner")
+    if race:
+        build_cmd.append("--race")
+    if not development:
+        build_cmd.append("--no-development")
+    if signed_pull:
+        build_cmd.append("--signed-pull")
 
     app.display(f"Building agent image: {target_image}")
     env.run_command(build_cmd)
@@ -241,6 +268,59 @@ def _build_quick_image(
     default=False,
     help="Build the image locally without pushing to the registry.",
 )
+@click.option(
+    "--process-agent",
+    is_flag=True,
+    default=False,
+    help="Include process-agent in the image (only for quick build).",
+)
+@click.option(
+    "--trace-agent",
+    is_flag=True,
+    default=False,
+    help="Include trace-agent in the image (only for quick build).",
+)
+@click.option(
+    "--system-probe",
+    is_flag=True,
+    default=False,
+    help="Include system-probe in the image (only for quick build).",
+)
+@click.option(
+    "--security-agent",
+    is_flag=True,
+    default=False,
+    help="Include security-agent in the image (only for quick build).",
+)
+@click.option(
+    "--trace-loader",
+    is_flag=True,
+    default=False,
+    help="Include trace-loader in the image (only for quick build).",
+)
+@click.option(
+    "--privateactionrunner",
+    is_flag=True,
+    default=False,
+    help="Include private action runner in the image (only for quick build).",
+)
+@click.option(
+    "--race",
+    is_flag=True,
+    default=False,
+    help="Build with race detector enabled (only for quick build).",
+)
+@click.option(
+    "--development/--no-development",
+    default=True,
+    help="Build in development mode (only for quick build).",
+)
+@click.option(
+    "--signed-pull",
+    is_flag=True,
+    default=False,
+    help="Use signed image pull (only for quick build).",
+)
 @pass_app
 def cmd(
     app: Application,
@@ -253,6 +333,15 @@ def cmd(
     instance: str,
     arch: str | None,
     no_push: bool,
+    process_agent: bool,
+    trace_agent: bool,
+    system_probe: bool,
+    security_agent: bool,
+    trace_loader: bool,
+    privateactionrunner: bool,
+    race: bool,
+    development: bool,
+    signed_pull: bool,
 ) -> None:
     """
     Build an Agent Docker image and push it to the agent-sandbox ECR registry, used in E2E testing local runs.
@@ -280,6 +369,34 @@ def cmd(
     repository = f"{registry}/agent-e2e-tests"
     target_image = f"{repository}:{tag or getpass.getuser()}"
 
+    # Validate that quick-build-only options are not used with --full
+    if full:
+        quick_only_flags = []
+        if base_image:
+            quick_only_flags.append("--base-image")
+        if process_agent:
+            quick_only_flags.append("--process-agent")
+        if trace_agent:
+            quick_only_flags.append("--trace-agent")
+        if system_probe:
+            quick_only_flags.append("--system-probe")
+        if security_agent:
+            quick_only_flags.append("--security-agent")
+        if trace_loader:
+            quick_only_flags.append("--trace-loader")
+        if privateactionrunner:
+            quick_only_flags.append("--privateactionrunner")
+        if race:
+            quick_only_flags.append("--race")
+        if not development:
+            quick_only_flags.append("--no-development")
+        if signed_pull:
+            quick_only_flags.append("--signed-pull")
+        if quick_only_flags:
+            app.display_warning(
+                f"The following options only apply to quick builds and will be ignored: {', '.join(quick_only_flags)}"
+            )
+
     # Build the image using the selected method
     if full:
         _build_full_image(app, target_image=target_image, arch=arch)
@@ -291,6 +408,15 @@ def cmd(
             env_type=env_type,
             instance=instance,
             arch=arch,
+            process_agent=process_agent,
+            trace_agent=trace_agent,
+            system_probe=system_probe,
+            security_agent=security_agent,
+            trace_loader=trace_loader,
+            privateactionrunner=privateactionrunner,
+            race=race,
+            development=development,
+            signed_pull=signed_pull,
         )
 
     if no_push:
