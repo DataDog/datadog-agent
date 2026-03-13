@@ -1,11 +1,21 @@
-"""Agent configuration."""
+"""Agent configuration files."""
 
-filegroup(
-    name = "templates",
-    srcs = [
-        "config_template.yaml",
-        "security-agent_template.yaml",
-        "system-probe_template.yaml",
-    ],
-    visibility = ["//visibility:public"],
+load("//pkg/config/render_config:agent_config.bzl", "agent_config")
+
+agent_config(
+    name = "agent_config",
+    out = "datadog.yaml",
+    build_type = "agent-py3",
+    template = "config_template.yaml",
 )
+
+# TODO: The tool should pick the template based on the build_type.
+agent_config(
+    name = "security_agent_config",
+    out = "security-agent.yaml",
+    build_type = "security-agent",
+    template = "security-agent_template.yaml",
+)
+
+# TODO: Add targets for each package, as needed: iot-agent, dogstatsd, dca, dcacf, system-probe.
+# That will get easier after we auto-pick the template based on the build type.
