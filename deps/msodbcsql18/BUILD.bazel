@@ -111,6 +111,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        "@krb5//:pc_files",
     ],
 )
