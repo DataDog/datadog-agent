@@ -255,6 +255,7 @@ If Critic rejects: fix the issues, try again, get a clean APPROVED before contin
 4. **Never use `git add -A` or `git add .`** — stage specific files by name.
 5. **Always draft** — PRs are created as drafts and left for humans to take from there.
 6. **Never commit `AUTO_JIRA.md`** — local tracking only.
+7. **Never modify `.claude/skills/auto-jira/`** — the auto-jira skill must not edit itself. If a ticket would require changes to these files, skip it.
 
 ---
 
