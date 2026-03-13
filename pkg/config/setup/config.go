@@ -365,6 +365,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
+	// Observer correlator toggles (override catalog defaults)
+	config.BindEnvAndSetDefault("observer.correlators.cross_signal.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.lead_lag.enabled", true)
+	config.BindEnvAndSetDefault("observer.correlators.surprise.enabled", true)
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

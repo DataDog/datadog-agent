@@ -11,7 +11,7 @@ import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 type componentKind int
 
 const (
-	componentDetector   componentKind = iota
+	componentDetector componentKind = iota
 	componentCorrelator
 )
 
@@ -92,7 +92,7 @@ func defaultCatalog() *componentCatalog {
 						WindowSeconds:    120,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 			{
 				name:        "lead_lag",
@@ -106,7 +106,7 @@ func defaultCatalog() *componentCatalog {
 						WindowSeconds:       120,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 			{
 				name:        "surprise",
@@ -119,7 +119,7 @@ func defaultCatalog() *componentCatalog {
 						MinSupport:        2,
 					})
 				},
-				defaultEnabled: false,
+				defaultEnabled: true,
 			},
 		},
 	}

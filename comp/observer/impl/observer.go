@@ -19,7 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -178,7 +178,26 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	catalog := defaultCatalog()
-	detectors, correlators, _ := catalog.Instantiate(nil)
+
+	// Build correlator overrides from config keys (observer.correlators.<name>.enabled).
+	cfg := deps.Config
+	var correlatorOverrides map[string]bool
+	if cfg != nil {
+		for _, entry := range catalog.Entries() {
+			if entry.kind != componentCorrelator {
+				continue
+			}
+			key := "observer.correlators." + entry.name + ".enabled"
+			if deps.Config.IsKnown(key) {
+				if correlatorOverrides == nil {
+					correlatorOverrides = make(map[string]bool)
+				}
+				correlatorOverrides[entry.name] = deps.Config.GetBool(key)
+			}
+		}
+	}
+
+	detectors, correlators, _ := catalog.Instantiate(correlatorOverrides)
 
 	extractors := []observerdef.LogMetricsExtractor{
 		&LogMetricsExtractor{
@@ -220,12 +239,10 @@ func NewComponent(deps Requires) Provides {
 		obsCh:  make(chan observation, 1000),
 	}
 
-	cfg := pkgconfigsetup.Datadog()
-
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
 	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg.GetBool("observer.analysis.enabled")
+	analysisEnabled := cfg != nil && cfg.GetBool("observer.analysis.enabled")
 
 	obs.handleFunc = obs.noopHandle
 	if analysisEnabled {
