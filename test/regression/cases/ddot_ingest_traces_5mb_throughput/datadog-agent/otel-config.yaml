@@ -5,13 +5,6 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: 'otelcol'
-          scrape_interval: 10s
-          static_configs:
-            - targets: ['0.0.0.0:8888']
 exporters:
   datadog:
     sending_queue:
@@ -28,7 +21,6 @@ exporters:
       endpoint: http://127.0.0.1:9091
     logs:
       endpoint: http://127.0.0.1:9091
-
 
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
