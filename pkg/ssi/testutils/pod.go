@@ -23,6 +23,8 @@ const (
 	InjectionModeInitContainer InjectionMode = "init_container"
 	// InjectionModeCSI uses the Datadog CSI driver to mount library files.
 	InjectionModeCSI InjectionMode = "csi"
+	// InjectionModeImageVolume uses image volumes to mount library files.
+	InjectionModeImageVolume InjectionMode = "image_volume"
 )
 
 // InjectionValidator validates injection-specific aspects of a pod.
@@ -64,6 +66,8 @@ func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 	switch mode {
 	case InjectionModeCSI:
 		v.injection = newCSIInjectionValidator(v, pod)
+	case InjectionModeImageVolume:
+		v.injection = newImageVolumeInjectionValidator(v, pod)
 	// Auto mode currently uses init containers as the default injection method
 	case InjectionModeAuto, InjectionModeInitContainer:
 		fallthrough
