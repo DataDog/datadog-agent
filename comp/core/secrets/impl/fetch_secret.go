@@ -100,9 +100,9 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 			return nil, fmt.Errorf("secret_backend_command '%s' timed out after %d seconds. Increase secret_backend_timeout in datadog.yaml (default: 30) or optimize your script. Docs: %s",
 				r.backendCommand, r.backendTimeout, secretsManagementDocsURL)
 		}
-		errStr := err.Error()
+		errStr := strings.ToLower(err.Error())
 		stderrStr := stderr.buf.String()
-		if strings.Contains(strings.ToLower(errStr), "permission denied") || strings.Contains(strings.ToLower(errStr), "permission") {
+		if strings.Contains(errStr, "permission denied") || strings.Contains(errStr, "operation not permitted") || strings.Contains(errStr, "access is denied") {
 			log.Warnf("secret_backend_command '%s' failed: permission denied. On Linux: chmod 700 or 750; only owner (and optionally group) should have execute. On Windows: ensure the Agent user can execute the script. Docs: %s",
 				r.backendCommand, secretsManagementDocsURL)
 			return nil, fmt.Errorf("secret_backend_command '%s' failed: permission denied. Docs: %s", r.backendCommand, secretsManagementDocsURL)
