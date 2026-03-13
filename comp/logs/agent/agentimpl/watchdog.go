@@ -18,7 +18,6 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	logsstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -42,6 +41,8 @@ const (
 	autoReasonNoBottleneck = "no_bottleneck"
 
 	autoDefaultBatchMaxConcurrentSend = 0
+	autoDefaultBatchMaxSize           = 1000
+	autoDefaultBatchMaxContentSize    = 5000000
 	autoDefaultZstdCompressionLevel   = 1
 	autoDefaultGzipCompressionLevel   = 6
 	autoDefaultMessageChannelSize     = 100
@@ -483,11 +484,11 @@ func getAutoProfileLimits(baseline autoProfileRuntimeValues) autoProfileLimits {
 
 	baseBatchMaxContentSize := baseline.batchMaxContentSize
 	if baseBatchMaxContentSize <= 0 {
-		baseBatchMaxContentSize = pkgconfigsetup.DefaultBatchMaxContentSize
+		baseBatchMaxContentSize = autoDefaultBatchMaxContentSize
 	}
 	baseBatchMaxSize := baseline.batchMaxSize
 	if baseBatchMaxSize <= 0 {
-		baseBatchMaxSize = pkgconfigsetup.DefaultBatchMaxSize
+		baseBatchMaxSize = autoDefaultBatchMaxSize
 	}
 	baseMessageChannelSize := baseline.messageChannelSize
 	if baseMessageChannelSize <= 0 {
