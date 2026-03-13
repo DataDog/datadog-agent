@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.6
+go 1.25.7
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -168,7 +168,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6
 	github.com/DataDog/datadog-traceroute v1.0.13
-	github.com/DataDog/ebpf-manager v0.7.15
+	github.com/DataDog/ebpf-manager v0.7.16
 	github.com/DataDog/go-sqllexer v0.1.13
 	github.com/DataDog/gopsutil v1.2.4
 	github.com/DataDog/nikos v1.12.12
@@ -200,7 +200,7 @@ require (
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/cilium/ebpf v0.20.0
+	github.com/cilium/ebpf v0.21.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
@@ -553,7 +553,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.171.0 // indirect
-	github.com/docker/cli v29.0.3+incompatible // indirect
+	github.com/docker/cli v29.2.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
