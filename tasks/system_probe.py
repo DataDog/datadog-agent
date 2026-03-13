@@ -428,7 +428,6 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         "oom-kill",
         "tcp-queue-length",
         "ebpf",
-        "noisy-neighbor",
         "lock-contention-check",
     ]
 
@@ -602,9 +601,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
             ],
             "pkg/collector/corechecks/ebpf/probe/lockcontentioncheck/ebpf_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/lock-contention-check-kern-user.h"
