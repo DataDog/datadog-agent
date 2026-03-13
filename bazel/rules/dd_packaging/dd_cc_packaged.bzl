@@ -42,7 +42,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     rewrite_rpath(
         name = patched_name,
@@ -56,12 +56,14 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], **kwar
             src = ":{}".format(patched_name),
             libname = "lib" + input.name,
             version = version,
+            visibility = visibility,
         )
     else:
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
             prefix = "lib",
+            visibility = visibility,
         )
     rule_installed_files.append(":{}".format(packaged_lib))
     _dd_cc_packaged_rule(
@@ -69,6 +71,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], **kwar
         input = input,
         patched = ":{}".format(patched_name),
         installed_files = rule_installed_files,
+        visibility = visibility,
         **kwargs,
     )
 
