@@ -86,3 +86,6 @@ func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
 // Iterate iterates over all the mounts in the cache and calls the callback function for each mount
 func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
 }
+
+// SetPidMntNs sets the pid mount namespace in the cache
+func (mr *NoOpResolver) SetPidMntNs(_ uint32, _ uint32) {}
