@@ -36,7 +36,8 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -87,7 +88,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
-			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
 		autoexitfx.Module(),
@@ -104,9 +105,11 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				Disable: func(_ coreconfig.Component) bool { return serverlessenv.IsAzureAppServicesExtension() },
 			},
 			tagger.NewRemoteParams()),
-		fx.Invoke(func(_ config.Component) {}),
+		fx.Invoke(func(_ traceconfigdef.Component) {}),
 		// Required to avoid cyclic imports.
-		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
+			return telemetry.NewCollector(cfg.Object())
+		}),
 		fx.Supply(&traceagentimpl.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
