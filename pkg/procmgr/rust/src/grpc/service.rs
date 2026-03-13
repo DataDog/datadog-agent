@@ -281,15 +281,11 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
     })
 }
 
-fn looks_like_uuid_prefix(s: &str) -> bool {
-    s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
-}
-
 fn resolve_process<'a>(
     procs: &'a [ManagedProcess],
     name_or_uuid: &str,
 ) -> Result<&'a ManagedProcess, Status> {
-    if looks_like_uuid_prefix(name_or_uuid) {
+    if crate::manager::looks_like_uuid_prefix(name_or_uuid) {
         let matches: Vec<&ManagedProcess> = procs
             .iter()
             .filter(|p| p.uuid().starts_with(name_or_uuid))

@@ -376,7 +376,7 @@ impl ProcessManager {
     }
 }
 
-fn looks_like_uuid_prefix(s: &str) -> bool {
+pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 4 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
