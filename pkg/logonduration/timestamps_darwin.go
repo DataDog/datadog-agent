@@ -31,11 +31,6 @@ func unixFloatToTime(t float64) time.Time {
 	return time.Unix(sec, nsec)
 }
 
-// cTimestampToTime converts a C double Unix timestamp to time.Time.
-func cTimestampToTime(result C.double) time.Time {
-	return unixFloatToTime(float64(result))
-}
-
 // GetLoginWindowTime queries OSLogStore for when the login window appeared.
 // The query differs based on whether FileVault is enabled.
 // This requires root privileges to access the local log store.
@@ -44,47 +39,43 @@ func GetLoginWindowTime(fileVaultEnabled bool) (time.Time, error) {
 	if fileVaultEnabled {
 		fvEnabled = 1
 	}
-	var errMsg *C.char
-	result := C.queryLoginWindowTimestamp(fvEnabled, &errMsg)
-	if errMsg != nil {
+	var result C.double
+	if errMsg := C.queryLoginWindowTimestamp(fvEnabled, &result); errMsg != nil {
 		defer C.free(unsafe.Pointer(errMsg))
 		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
-	return cTimestampToTime(result), nil
+	return unixFloatToTime(float64(result)), nil
 }
 
 // GetLoginTime queries OSLogStore for when the user completed login.
 // This works the same way with or without FileVault.
 // This requires root privileges to access the local log store.
 func GetLoginTime() (time.Time, error) {
-	var errMsg *C.char
-	result := C.queryLoginTimestamp(&errMsg)
-	if errMsg != nil {
+	var result C.double
+	if errMsg := C.queryLoginTimestamp(&result); errMsg != nil {
 		defer C.free(unsafe.Pointer(errMsg))
 		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
-	return cTimestampToTime(result), nil
+	return unixFloatToTime(float64(result)), nil
 }
 
 // GetDesktopReadyTime queries OSLogStore for when the Dock checked in with launchservicesd.
 // This indicates the desktop is ready for user interaction.
 // This requires root privileges to access the local log store.
 func GetDesktopReadyTime() (time.Time, error) {
-	var errMsg *C.char
-	result := C.queryDesktopReadyTimestamp(&errMsg)
-	if errMsg != nil {
+	var result C.double
+	if errMsg := C.queryDesktopReadyTimestamp(&result); errMsg != nil {
 		defer C.free(unsafe.Pointer(errMsg))
 		return time.Time{}, errors.New(C.GoString(errMsg))
 	}
-	return cTimestampToTime(result), nil
+	return unixFloatToTime(float64(result)), nil
 }
 
 // IsFileVaultEnabled checks if FileVault is enabled.
 // This requires root privileges to run fdesetup.
 func IsFileVaultEnabled() (bool, error) {
-	var errMsg *C.char
-	result := C.checkFileVaultEnabled(&errMsg)
-	if errMsg != nil {
+	var result C.int
+	if errMsg := C.checkFileVaultEnabled(&result); errMsg != nil {
 		defer C.free(unsafe.Pointer(errMsg))
 		return false, errors.New(C.GoString(errMsg))
 	}

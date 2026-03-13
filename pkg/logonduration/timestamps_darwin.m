@@ -10,27 +10,22 @@
 
 // queryLogTimestamp is a helper that queries the unified log for the first entry matching the predicate.
 // Searches from the start of the current boot (equivalent to `log show --last boot`).
-// Returns Unix timestamp (seconds since epoch) or 0 on error.
-static double queryLogTimestamp(NSPredicate *predicate, const char *queryName, char **errorOut) {
+// Sets *result to the Unix timestamp (seconds since epoch) on success.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+static char *queryLogTimestamp(NSPredicate *predicate, const char *queryName, double *result) {
     NSError *error = nil;
 
     OSLogStore *store = [OSLogStore localStoreAndReturnError:&error];
     if (store == nil) {
-        if (errorOut) {
-            NSString *msg = [NSString stringWithFormat:@"failed to open OSLogStore for %s: %@", queryName, [error localizedDescription]];
-            *errorOut = strdup([msg UTF8String]);
-        }
-        return 0;
+        NSString *msg = [NSString stringWithFormat:@"failed to open OSLogStore for %s: %@", queryName, [error localizedDescription]];
+        return strdup([msg UTF8String]);
     }
 
     // Get position at the start of the current boot (equivalent to --last boot)
     OSLogPosition *position = [store positionWithTimeIntervalSinceLatestBoot:0];
     if (position == nil) {
-        if (errorOut) {
-            NSString *msg = [NSString stringWithFormat:@"failed to create log position for %s", queryName];
-            *errorOut = strdup([msg UTF8String]);
-        }
-        return 0;
+        NSString *msg = [NSString stringWithFormat:@"failed to create log position for %s", queryName];
+        return strdup([msg UTF8String]);
     }
 
     OSLogEnumerator *enumerator = [store entriesEnumeratorWithOptions:0
@@ -38,38 +33,31 @@ static double queryLogTimestamp(NSPredicate *predicate, const char *queryName, c
                                                             predicate:predicate
                                                                 error:&error];
     if (enumerator == nil) {
-        if (errorOut) {
-            NSString *msg = [NSString stringWithFormat:@"failed to create log enumerator for %s: %@", queryName, [error localizedDescription]];
-            *errorOut = strdup([msg UTF8String]);
-        }
-        return 0;
+        NSString *msg = [NSString stringWithFormat:@"failed to create log enumerator for %s: %@", queryName, [error localizedDescription]];
+        return strdup([msg UTF8String]);
     }
 
     OSLogEntryLog *entry = [enumerator nextObject];
     if (entry == nil) {
-        if (errorOut) {
-            NSString *msg = [NSString stringWithFormat:@"no log entry found for %s after boot time", queryName];
-            *errorOut = strdup([msg UTF8String]);
-        }
-        return 0;
+        NSString *msg = [NSString stringWithFormat:@"no log entry found for %s after boot time", queryName];
+        return strdup([msg UTF8String]);
     }
 
     NSDate *timestamp = entry.date;
     if (timestamp == nil) {
-        if (errorOut) {
-            NSString *msg = [NSString stringWithFormat:@"log entry for %s has no timestamp", queryName];
-            *errorOut = strdup([msg UTF8String]);
-        }
-        return 0;
+        NSString *msg = [NSString stringWithFormat:@"log entry for %s has no timestamp", queryName];
+        return strdup([msg UTF8String]);
     }
 
-    return [timestamp timeIntervalSince1970];
+    *result = [timestamp timeIntervalSince1970];
+    return NULL;
 }
 
 // queryLoginWindowTimestamp queries the unified log for when the login window appeared.
 // fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
-// Returns Unix timestamp (seconds since epoch) or 0 on error.
-double queryLoginWindowTimestamp(int fileVaultEnabled, char **errorOut) {
+// Sets *result to the Unix timestamp (seconds since epoch) on success.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryLoginWindowTimestamp(int fileVaultEnabled, double *result) {
     @autoreleasepool {
         NSPredicate *predicate;
         const char *queryName;
@@ -84,26 +72,28 @@ double queryLoginWindowTimestamp(int fileVaultEnabled, char **errorOut) {
             queryName = "Login Window Application Started";
         }
 
-        return queryLogTimestamp(predicate, queryName, errorOut);
+        return queryLogTimestamp(predicate, queryName, result);
     }
 }
 
 // queryLoginTimestamp queries the unified log for when the user completed login.
 // This works the same way with or without FileVault.
-// Returns Unix timestamp (seconds since epoch) or 0 on error.
-double queryLoginTimestamp(char **errorOut) {
+// Sets *result to the Unix timestamp (seconds since epoch) on success.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryLoginTimestamp(double *result) {
     @autoreleasepool {
         NSPredicate *predicate = [NSPredicate predicateWithFormat:
             @"process == 'SecurityAgent' AND composedMessage CONTAINS 'loginwindow:success is being invoked'"];
 
-        return queryLogTimestamp(predicate, "login timestamp", errorOut);
+        return queryLogTimestamp(predicate, "login timestamp", result);
     }
 }
 
 // queryDesktopReadyTimestamp queries the unified log for when the Dock checked in with launchservicesd.
 // This indicates the desktop is ready for user interaction.
-// Returns Unix timestamp (seconds since epoch) or 0 on error.
-double queryDesktopReadyTimestamp(char **errorOut) {
+// Sets *result to the Unix timestamp (seconds since epoch) on success.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryDesktopReadyTimestamp(double *result) {
     @autoreleasepool {
         // Equivalent to: log show --predicate '(process == "launchservicesd"
         //   AND (subsystem == "com.apple.launchservices" OR subsystem == "com.apple.launchservices:cas")
@@ -115,13 +105,14 @@ double queryDesktopReadyTimestamp(char **errorOut) {
             "composedMessage CONTAINS[c] 'checkin' AND "
             "composedMessage CONTAINS[c] 'com.apple.dock'"];
 
-        return queryLogTimestamp(predicate, "Dock checkin (desktop ready)", errorOut);
+        return queryLogTimestamp(predicate, "Dock checkin (desktop ready)", result);
     }
 }
 
 // checkFileVaultEnabled checks if FileVault is enabled using fdesetup.
-// Returns 1 if enabled, 0 if disabled, -1 on error.
-int checkFileVaultEnabled(char **errorOut) {
+// Sets *result to 1 if enabled, 0 if disabled.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *checkFileVaultEnabled(int *result) {
     @autoreleasepool {
         NSTask *task = [[NSTask alloc] init];
         [task setLaunchPath:@"/usr/bin/fdesetup"];
@@ -133,10 +124,7 @@ int checkFileVaultEnabled(char **errorOut) {
 
         NSError *error = nil;
         if (![task launchAndReturnError:&error]) {
-            if (errorOut) {
-                *errorOut = strdup([[error localizedDescription] UTF8String]);
-            }
-            return -1;
+            return strdup([[error localizedDescription] UTF8String]);
         }
 
         [task waitUntilExit];
@@ -145,14 +133,13 @@ int checkFileVaultEnabled(char **errorOut) {
         NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 
         if ([output containsString:@"FileVault is On"]) {
-            return 1;
+            *result = 1;
+            return NULL;
         } else if ([output containsString:@"FileVault is Off"]) {
-            return 0;
+            *result = 0;
+            return NULL;
         }
 
-        if (errorOut) {
-            *errorOut = strdup("unexpected fdesetup output");
-        }
-        return -1;
+        return strdup("unexpected fdesetup output");
     }
 }

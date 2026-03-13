@@ -6,21 +6,21 @@
 #ifndef TIMESTAMPS_DARWIN_H
 #define TIMESTAMPS_DARWIN_H
 
-// Returns Unix timestamp (seconds since epoch) or 0 on error
+// Queries the login window timestamp. Sets *result to the Unix timestamp (seconds since epoch).
 // fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
-// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
-double queryLoginWindowTimestamp(int fileVaultEnabled, char **errorOut);
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryLoginWindowTimestamp(int fileVaultEnabled, double *result) __attribute__((warn_unused_result));
 
-// Returns Unix timestamp (seconds since epoch) or 0 on error
-// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
-double queryLoginTimestamp(char **errorOut);
+// Queries the login timestamp. Sets *result to the Unix timestamp (seconds since epoch).
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryLoginTimestamp(double *result) __attribute__((warn_unused_result));
 
-// Returns Unix timestamp (seconds since epoch) or 0 on error
-// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
-double queryDesktopReadyTimestamp(char **errorOut);
+// Queries the desktop ready timestamp. Sets *result to the Unix timestamp (seconds since epoch).
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *queryDesktopReadyTimestamp(double *result) __attribute__((warn_unused_result));
 
-// Returns 1 if FileVault is enabled, 0 if disabled, -1 on error
-// errorOut: if non-NULL, set to a malloc'd error string on failure (caller must free)
-int    checkFileVaultEnabled(char **errorOut);
+// Checks if FileVault is enabled. Sets *result to 1 if enabled, 0 if disabled.
+// Returns NULL on success, or a malloc'd error string on failure (caller must free).
+char *checkFileVaultEnabled(int *result) __attribute__((warn_unused_result));
 
 #endif
