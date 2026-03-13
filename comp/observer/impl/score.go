@@ -32,18 +32,18 @@ type ScoreResult struct {
 	FN                   float64 `json:"fn"`
 	NumPredictions       int     `json:"num_predictions"`
 	NumGroundTruths      int     `json:"num_ground_truths"`
-	NumFilteredWarmup    int     `json:"num_filtered_warmup"`
-	NumFilteredCascading int     `json:"num_filtered_cascading"`
-	NumBaselineFPs       int     `json:"num_baseline_fps"`
+	NumFilteredWarmup int `json:"num_filtered_warmup"`
+	NumBaselineFPs    int `json:"num_baseline_fps"`
 	Sigma                float64 `json:"sigma"`
 }
 
 // ComputeGaussianF1 scores predicted anomaly events against ground truth events
 // using Gaussian overlap with right-sided half-Gaussians.
 //
-// For each ground truth event, the prediction with the highest overlap is selected
-// as the match. Predictions before the ground truth onset get zero overlap and
-// cannot match. All other predictions are false positives.
+// For each ground truth event, the first (earliest) post-onset prediction is
+// matched and scored via halfGaussianOverlap. Predictions before any GT onset
+// are counted as FP (baseline noise). Other post-onset predictions that aren't
+// the first match are ignored entirely (expected during an active incident).
 func ComputeGaussianF1(input ScoreInput) ScoreResult {
 	result := ScoreResult{
 		NumPredictions:  len(input.PredictionTimestamps),
@@ -68,41 +68,53 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		return result
 	}
 
-	// For each GT, find the prediction with the best overlap.
-	// Predictions before GT onset get zero overlap (no credit for early alarms).
+	// Find the minimum GT onset — predictions before this are baseline FP.
+	minGT := input.GroundTruthTimestamps[0]
+	for _, gt := range input.GroundTruthTimestamps[1:] {
+		if gt < minGT {
+			minGT = gt
+		}
+	}
+
+	// For each GT, find the first (earliest timestamp) post-onset prediction.
 	matchedPred := make(map[int]bool)
-	var tp, fp, fn float64
+	var tp, fn float64
 
 	for _, gt := range input.GroundTruthTimestamps {
-		bestOverlap := 0.0
-		bestIdx := -1
+		firstIdx := -1
+		var firstTS int64
 
 		for i, p := range input.PredictionTimestamps {
 			if matchedPred[i] || p < gt {
 				continue
 			}
-			overlap := halfGaussianOverlap(p, gt, input.Sigma)
-			if overlap > bestOverlap {
-				bestOverlap = overlap
-				bestIdx = i
+			if firstIdx == -1 || p < firstTS {
+				firstIdx = i
+				firstTS = p
 			}
 		}
 
-		if bestIdx >= 0 {
-			matchedPred[bestIdx] = true
-			tp += bestOverlap
-			fp += 1.0 - bestOverlap
-			fn += 1.0 - bestOverlap
+		if firstIdx >= 0 {
+			matchedPred[firstIdx] = true
+			overlap := halfGaussianOverlap(firstTS, gt, input.Sigma)
+			tp += overlap
+			fn += 1.0 - overlap
 		} else {
 			fn += 1.0
 		}
 	}
 
-	// Unmatched predictions → full FP
-	for i := range input.PredictionTimestamps {
-		if !matchedPred[i] {
+	// FP = predictions before any GT onset (baseline noise).
+	// Post-onset predictions that aren't the first match are ignored.
+	var fp float64
+	for i, p := range input.PredictionTimestamps {
+		if matchedPred[i] {
+			continue
+		}
+		if p < minGT {
 			fp += 1.0
 		}
+		// else: post-onset, unmatched → ignored (expected during incident)
 	}
 
 	result.TP = tp
@@ -286,25 +298,13 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with metadata.json")
 	}
 
-	// Compute prediction window: filter warmup (before baseline.start) and
-	// cascading effects (beyond max(groundTruth) + 2*sigma).
-	maxGT := groundTruthTimestamps[0]
-	for _, gt := range groundTruthTimestamps[1:] {
-		if gt > maxGT {
-			maxGT = gt
-		}
-	}
-	cutoff := float64(maxGT) + 2*sigma
-
+	// Filter warmup predictions (before baseline.start).
+	// Post-onset non-matched predictions are handled by ComputeGaussianF1 (ignored).
 	var predictions []int64
-	var numFilteredWarmup, numFilteredCascading int
+	var numFilteredWarmup int
 	for _, period := range output.AnomalyPeriods {
 		if baselineStart > 0 && period.PeriodStart < baselineStart {
 			numFilteredWarmup++
-			continue
-		}
-		if float64(period.PeriodStart) > cutoff {
-			numFilteredCascading++
 			continue
 		}
 		predictions = append(predictions, period.PeriodStart)
@@ -330,7 +330,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		Sigma:                 sigma,
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
-	result.NumFilteredCascading = numFilteredCascading
 	result.NumBaselineFPs = numBaselineFPs
 
 	return &result, nil

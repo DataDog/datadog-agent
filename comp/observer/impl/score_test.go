@@ -54,13 +54,15 @@ func TestGaussianF1_LateDetection(t *testing.T) {
 }
 
 func TestGaussianF1_NoisyButCorrect(t *testing.T) {
+	// 5 false alarms during baseline + 1 good detection after onset.
+	// Post-onset unmatched predictions are ignored, so only the 5 pre-onset
+	// predictions count as FP.
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{20, 30, 40, 50, 60, 102},
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
 
-	// 5 false alarms during baseline + 1 good detection
 	assert.Less(t, result.F1, 0.5, "noisy detector should be penalized")
 	assert.Greater(t, result.F1, 0.0, "correct detection should keep score above zero")
 	assert.Less(t, result.Precision, 0.3, "many FPs should hurt precision")
@@ -86,8 +88,10 @@ func TestGaussianF1_FalseAlarmOnly(t *testing.T) {
 		Sigma:                 testSigma,
 	})
 
-	// Prediction 80s away (8σ) — virtually no overlap
-	assert.Less(t, result.F1, 0.05, "distant false alarm should score near zero")
+	// Prediction 80s before onset → FP, GT unmatched → FN
+	assert.Equal(t, 0.0, result.F1, "distant false alarm should score zero")
+	assert.Equal(t, 1.0, result.FP)
+	assert.Equal(t, 1.0, result.FN)
 }
 
 func TestGaussianF1_NoPredictionsNoGroundTruth(t *testing.T) {
@@ -144,14 +148,44 @@ func TestGaussianF1_BeforeOnsetIsZero(t *testing.T) {
 }
 
 func TestGaussianF1_BeforeOnsetDoesNotStealMatch(t *testing.T) {
-	// A baseline FP 1s before GT must not steal the match from a real detection after GT.
+	// Prediction at 99 (before GT=100) is FP.
+	// Prediction at 102 (first post-onset) matches.
 	result := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{99, 102}, // 99 is closer by distance but before GT
+		PredictionTimestamps:  []int64{99, 102},
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
 	assert.Greater(t, result.F1, 0.0, "post-onset prediction should match, not the closer pre-onset one")
 	assert.Greater(t, result.TP, 0.0, "should have nonzero TP from the post-onset match")
+	assert.Equal(t, 1.0, result.FP, "pre-onset prediction at 99 should be FP")
+}
+
+func TestGaussianF1_MultipleFiresDuringDisruption(t *testing.T) {
+	// Detector fires 3 times during disruption, 0 baseline FPs.
+	// First post-onset prediction (102) matches GT. The other two (110, 120)
+	// are post-onset unmatched → ignored. Should score near-perfect.
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  []int64{102, 110, 120},
+		GroundTruthTimestamps: []int64{100},
+		Sigma:                 testSigma,
+	})
+	assert.InDelta(t, 1.0, result.F1, 0.1, "3 fires during disruption with 0 baseline FPs should score near-perfect")
+	assert.Equal(t, 0.0, result.FP, "no FPs — extra post-onset predictions are ignored")
+}
+
+func TestGaussianF1_OneFireDuringDisruptionPlusBaselineFPs(t *testing.T) {
+	// Detector fires once during disruption + 5 baseline FPs.
+	// Good recall (detection matches) but precision penalized by 5 FPs.
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  []int64{10, 20, 30, 40, 50, 102},
+		GroundTruthTimestamps: []int64{100},
+		Sigma:                 testSigma,
+	})
+	assert.Greater(t, result.Recall, 0.8, "should have good recall from the match")
+	assert.Less(t, result.Precision, 0.5, "5 FPs should penalize precision")
+	assert.Greater(t, result.F1, 0.0, "F1 should be nonzero — there is a match")
+	assert.Less(t, result.F1, 0.6, "F1 should be penalized by the 5 baseline FPs")
+	assert.Equal(t, 5.0, result.FP, "5 pre-onset predictions are FP")
 }
 
 func TestScoreOutputFile(t *testing.T) {
@@ -179,13 +213,13 @@ func TestScoreOutputFile(t *testing.T) {
 	assert.Equal(t, 2, result.NumPredictions)
 	assert.Equal(t, 1, result.NumGroundTruths)
 	assert.Equal(t, 0, result.NumFilteredWarmup)
-	assert.Equal(t, 0, result.NumFilteredCascading)
 	assert.Greater(t, result.F1, 0.0)
 }
 
-func TestScoreOutputFile_PredictionWindowFiltering(t *testing.T) {
-	// Ground truth at 100, sigma=10 → cutoff = 100 + 2*10 = 120
-	// Predictions at 50 (baseline FP), 102 (good), 130 (cascading, filtered), 200 (cascading, filtered)
+func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
+	// Ground truth at 100, sigma=10.
+	// Predictions at 50 (baseline FP), 102 (match), 130 (post-onset ignored), 200 (post-onset ignored).
+	// No cascading filter — post-onset unmatched are just ignored by the scorer.
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{
 			Scenario:      "test",
@@ -195,8 +229,8 @@ func TestScoreOutputFile_PredictionWindowFiltering(t *testing.T) {
 		AnomalyPeriods: []ObserverCorrelation{
 			{Pattern: "baseline_fp", PeriodStart: 50},
 			{Pattern: "good_detect", PeriodStart: 102},
-			{Pattern: "cascade_1", PeriodStart: 130},
-			{Pattern: "cascade_2", PeriodStart: 200},
+			{Pattern: "post_onset_1", PeriodStart: 130},
+			{Pattern: "post_onset_2", PeriodStart: 200},
 		},
 	}
 
@@ -209,25 +243,13 @@ func TestScoreOutputFile_PredictionWindowFiltering(t *testing.T) {
 	result, err := ScoreOutputFile(path, []int64{100}, "", testSigma)
 	require.NoError(t, err)
 
-	// 2 predictions scored (50, 102), 2 cascading filtered (130, 200)
-	assert.Equal(t, 2, result.NumPredictions, "only predictions within window should be scored")
+	// All 4 predictions pass to scorer (no cascading filter).
+	assert.Equal(t, 4, result.NumPredictions, "all predictions should be passed to scorer")
 	assert.Equal(t, 0, result.NumFilteredWarmup)
-	assert.Equal(t, 2, result.NumFilteredCascading, "predictions beyond cutoff should be filtered")
 	assert.Equal(t, 1, result.NumGroundTruths)
-
-	// Prediction at exactly the cutoff (120) should be included
-	output.AnomalyPeriods = append(output.AnomalyPeriods, ObserverCorrelation{
-		Pattern: "at_cutoff", PeriodStart: 120,
-	})
-	data, err = json.MarshalIndent(output, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(path, data, 0644))
-
-	result, err = ScoreOutputFile(path, []int64{100}, "", testSigma)
-	require.NoError(t, err)
-
-	assert.Equal(t, 3, result.NumPredictions, "prediction at cutoff should be included")
-	assert.Equal(t, 2, result.NumFilteredCascading)
+	assert.Equal(t, 1, result.NumBaselineFPs, "prediction at 50 is a baseline FP")
+	// FP = 1 (the prediction at 50, before onset). Post-onset 130 and 200 are ignored.
+	assert.Equal(t, 1.0, result.FP, "only pre-onset predictions count as FP")
 }
 
 func TestScoreOutputFile_MetadataInference(t *testing.T) {
@@ -294,7 +316,6 @@ func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
 
 func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	// baseline.start at T=100 (warmup ends), disruption.start at T=200
-	// sigma=10 → cascading cutoff = 200 + 20 = 220
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
@@ -305,11 +326,11 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	output := ObserverOutput{
 		Metadata: ObserverMetadata{Scenario: "test_scenario"},
 		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "warmup_noise_1", PeriodStart: 50}, // warmup → filtered
-			{Pattern: "warmup_noise_2", PeriodStart: 90}, // warmup → filtered
-			{Pattern: "baseline_fp", PeriodStart: 120},   // baseline FP → scored
-			{Pattern: "good_detect", PeriodStart: 202},   // near onset → scored
-			{Pattern: "cascade", PeriodStart: 250},       // cascading → filtered
+			{Pattern: "warmup_noise_1", PeriodStart: 50},  // warmup → filtered
+			{Pattern: "warmup_noise_2", PeriodStart: 90},  // warmup → filtered
+			{Pattern: "baseline_fp", PeriodStart: 120},    // baseline FP → scored
+			{Pattern: "good_detect", PeriodStart: 202},    // near onset → scored
+			{Pattern: "post_onset", PeriodStart: 250},     // post-onset unmatched → scored but ignored by F1
 		},
 	}
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -322,6 +343,5 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.NumFilteredWarmup, "predictions before baseline.start should be filtered")
-	assert.Equal(t, 1, result.NumFilteredCascading, "predictions beyond 2σ should be filtered")
-	assert.Equal(t, 2, result.NumPredictions, "only baseline FP and good detect should be scored")
+	assert.Equal(t, 3, result.NumPredictions, "baseline FP, good detect, and post-onset should all be scored")
 }
