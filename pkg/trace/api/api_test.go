@@ -84,18 +84,6 @@ func newTestReceiverConfig() *config.AgentConfig {
 	return conf
 }
 
-// newTestReceiverConfigWithFeatures creates a test config with specific features enabled
-func newTestReceiverConfigWithFeatures(features ...string) *config.AgentConfig {
-	conf := newTestReceiverConfig()
-	if conf.Features == nil {
-		conf.Features = make(map[string]struct{})
-	}
-	for _, feat := range features {
-		conf.Features[feat] = struct{}{}
-	}
-	return conf
-}
-
 func TestMain(m *testing.M) {
 	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
@@ -1306,7 +1294,6 @@ func TestHandleTraces(t *testing.T) {
 		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
 		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
 	})
-
 
 	t.Run("context_timeout", func(t *testing.T) {
 		// prepare the msgpack payload

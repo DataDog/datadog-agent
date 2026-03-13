@@ -992,22 +992,6 @@ func getFirstSpan(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
 	return nil, false
 }
 
-func getFirstSpanV1(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
-	if len(p.Chunks) == 0 {
-		return nil, false
-	}
-	for _, chunk := range p.Chunks {
-		if chunk == nil || len(chunk.Spans) == 0 {
-			continue
-		}
-		if chunk.Spans[0] == nil {
-			continue
-		}
-		return chunk.Spans[0], true
-	}
-	return nil, false
-}
-
 // handleServices handle a request with a list of several services
 func (r *HTTPReceiver) handleServices(_ Version, w http.ResponseWriter, _ *http.Request) {
 	httpOK(w)
