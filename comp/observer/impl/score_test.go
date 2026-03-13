@@ -124,35 +124,34 @@ func TestGaussianF1_MultipleGroundTruths(t *testing.T) {
 	assert.Equal(t, 2, result.NumGroundTruths)
 }
 
-func TestGaussianF1_HalfGaussianSymmetry(t *testing.T) {
-	// With both prediction and ground truth as right-sided half-Gaussians,
-	// equal distances before and after produce the same overlap — both
-	// distributions extend rightward, so the geometry is symmetric around d=0.
+func TestGaussianF1_BeforeOnsetIsZero(t *testing.T) {
+	// Predictions before ground truth onset get zero overlap — no credit for early alarms.
 	before := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{92}, // 8s before
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
+	assert.Equal(t, 0.0, before.F1, "prediction before onset should score 0")
+	assert.Equal(t, 1.0, before.FP, "prediction before onset is a full FP")
+	assert.Equal(t, 1.0, before.FN, "ground truth is unmatched → full FN")
 
 	after := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{108}, // 8s after
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
+	assert.Greater(t, after.F1, 0.3, "prediction after onset should score well")
+}
 
-	assert.InDelta(t, before.F1, after.F1, 0.01,
-		"equal distances should produce similar scores (before=%.3f, after=%.3f)",
-		before.F1, after.F1)
-
-	// But a prediction far before onset should score much less than one close after
-	farBefore := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{60}, // 40s before (4σ)
+func TestGaussianF1_BeforeOnsetDoesNotStealMatch(t *testing.T) {
+	// A baseline FP 1s before GT must not steal the match from a real detection after GT.
+	result := ComputeGaussianF1(ScoreInput{
+		PredictionTimestamps:  []int64{99, 102}, // 99 is closer by distance but before GT
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
-	assert.Less(t, farBefore.F1, after.F1,
-		"far before onset (%.3f) should score less than close after (%.3f)",
-		farBefore.F1, after.F1)
+	assert.Greater(t, result.F1, 0.0, "post-onset prediction should match, not the closer pre-onset one")
+	assert.Greater(t, result.TP, 0.0, "should have nonzero TP from the post-onset match")
 }
 
 func TestScoreOutputFile(t *testing.T) {

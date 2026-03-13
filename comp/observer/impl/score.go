@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 )
 
@@ -40,8 +39,11 @@ type ScoreResult struct {
 }
 
 // ComputeGaussianF1 scores predicted anomaly events against ground truth events
-// using Gaussian overlap. Predictions are symmetric Gaussians; ground truth events
-// are asymmetric half-Gaussians (zero mass before onset, normal decay after).
+// using Gaussian overlap with right-sided half-Gaussians.
+//
+// For each ground truth event, the prediction with the highest overlap is selected
+// as the match. Predictions before the ground truth onset get zero overlap and
+// cannot match. All other predictions are false positives.
 func ComputeGaussianF1(input ScoreInput) ScoreResult {
 	result := ScoreResult{
 		NumPredictions:  len(input.PredictionTimestamps),
@@ -66,58 +68,40 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		return result
 	}
 
-	// Greedy nearest-match: each prediction matches to nearest unmatched ground truth.
-	type match struct {
-		predIdx int
-		gtIdx   int
-		dist    float64
-	}
-
-	// Build all pairwise distances
-	var candidates []match
-	for i, p := range input.PredictionTimestamps {
-		for j, g := range input.GroundTruthTimestamps {
-			dist := math.Abs(float64(p - g))
-			candidates = append(candidates, match{predIdx: i, gtIdx: j, dist: dist})
-		}
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].dist < candidates[j].dist
-	})
-
+	// For each GT, find the prediction with the best overlap.
+	// Predictions before GT onset get zero overlap (no credit for early alarms).
 	matchedPred := make(map[int]bool)
-	matchedGT := make(map[int]bool)
-
 	var tp, fp, fn float64
 
-	for _, c := range candidates {
-		if matchedPred[c.predIdx] || matchedGT[c.gtIdx] {
-			continue
-		}
-		matchedPred[c.predIdx] = true
-		matchedGT[c.gtIdx] = true
+	for _, gt := range input.GroundTruthTimestamps {
+		bestOverlap := 0.0
+		bestIdx := -1
 
-		overlap := halfGaussianOverlap(
-			input.PredictionTimestamps[c.predIdx],
-			input.GroundTruthTimestamps[c.gtIdx],
-			input.Sigma,
-		)
-		tp += overlap
-		fp += 1.0 - overlap // prediction area not overlapping ground truth
-		fn += 1.0 - overlap // ground truth area not overlapping prediction
+		for i, p := range input.PredictionTimestamps {
+			if matchedPred[i] || p < gt {
+				continue
+			}
+			overlap := halfGaussianOverlap(p, gt, input.Sigma)
+			if overlap > bestOverlap {
+				bestOverlap = overlap
+				bestIdx = i
+			}
+		}
+
+		if bestIdx >= 0 {
+			matchedPred[bestIdx] = true
+			tp += bestOverlap
+			fp += 1.0 - bestOverlap
+			fn += 1.0 - bestOverlap
+		} else {
+			fn += 1.0
+		}
 	}
 
 	// Unmatched predictions → full FP
 	for i := range input.PredictionTimestamps {
 		if !matchedPred[i] {
 			fp += 1.0
-		}
-	}
-
-	// Unmatched ground truths → full FN
-	for j := range input.GroundTruthTimestamps {
-		if !matchedGT[j] {
-			fn += 1.0
 		}
 	}
 
