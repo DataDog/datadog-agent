@@ -349,9 +349,8 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 
 // start will listen to the service channels before anything is sent to them
 func (ac *AutoConfig) start() {
-	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
-	listeners.RegisterListeners(ac.serviceListenerFactories, useEndpointSlices)
-	providers.RegisterProviders(ac.providerCatalog, useEndpointSlices)
+	listeners.RegisterListeners(ac.serviceListenerFactories)
+	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
@@ -493,6 +492,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 	err := ac.initializeConfiguration(&config)
 	if err != nil {
 		log.Errorf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, err)
+		errorStats.setConfigError(config.Name, err.Error())
 		return integration.ConfigChanges{}
 	}
 

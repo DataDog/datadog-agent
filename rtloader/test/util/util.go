@@ -6,13 +6,13 @@
 package testutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*
@@ -38,9 +38,9 @@ var (
 )
 
 type message struct {
-	Name string `yaml:"name"`
-	Body string `yaml:"body"`
-	Time int64  `yaml:"time"`
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
 }
 
 func setUp() error {
@@ -57,9 +57,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
@@ -111,7 +108,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := yaml.Marshal(h)
+	retval, _ := json.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }

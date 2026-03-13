@@ -10,8 +10,10 @@ sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
 http_archive(
     name = "sqlite3",
-    build_file = "//deps:sqlite3.BUILD.bazel",
-    files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
+    files = {
+        "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
+        "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
+    },
     sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
@@ -22,7 +24,6 @@ http_file(
     downloaded_file_path = "LICENSE.md",
     sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
     urls = [url.format(".".join([v.lstrip("0") for v in sqlite_ver])) for url in (
-        "https://cdn.jsdelivr.net/gh/sqlite/sqlite@version-{}/LICENSE.md",
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
@@ -60,7 +61,6 @@ http_archive(
     name = "bzip2",
     files = {
         "BUILD.bazel": "//deps/bzip2:overlay.BUILD.bazel",
-        "bzip2.pc.in": "//deps/bzip2:bzip2.pc.in",
     },
     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
     strip_prefix = "bzip2-1.0.8",
@@ -73,14 +73,18 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
+# Pinned to main commit e4068330a799ba6090d8247cf34d470f722b32c4 to get:
+# - bazel-contrib/rules_foreign_cc#1451: out_data_dirs in output groups
+# - bazel-contrib/rules_foreign_cc#1465: resource_set integration (fixes overcommitting)
+# - bazel-contrib/rules_foreign_cc#1470: -isystem forwarding to configure scripts
+# Patch 0002 is still carried locally (bazel-contrib/rules_foreign_cc#1452 not yet merged).
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-single_version_override(
+git_override(
     module_name = "rules_foreign_cc",
+    commit = "e4068330a799ba6090d8247cf34d470f722b32c4",
     patch_strip = 1,
-    patches = [
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
-        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
-    ],
+    patches = ["//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch"],
+    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )
 
 register_toolchains(
@@ -97,6 +101,10 @@ register_toolchains(
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
+    patch_strip = 1,
+    patches = [
+        "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+    ],
     sha256 = "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89",
     strip_prefix = "openssl-3.5.5",
     urls = [
@@ -406,5 +414,17 @@ http_archive(
     urls = [
         "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.0.9.tar.gz",
         "https://www.openssl.org/source/openssl-3.0.9.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "systemd",
+    files = {
+        "BUILD.bazel": "//deps:systemd/systemd.BUILD.bazel",
+    },
+    sha256 = "acbd86d42ebc2b443722cb469ad215a140f504689c7a9133ecf91b235275a491",
+    strip_prefix = "systemd-253",
+    urls = [
+        "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
 )

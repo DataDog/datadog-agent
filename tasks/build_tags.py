@@ -64,6 +64,7 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "sharedlibrarycheck",
@@ -223,6 +224,7 @@ SYSTEM_PROBE_TAGS = {
     "pcap",
     "zlib",
     "zstd",
+    "seclmax",
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
@@ -362,6 +364,11 @@ build_tags = {
 }
 
 
+_GOOS_TO_SYS_PLATFORM = {
+    "windows": "win32",
+}
+
+
 def compute_build_tags_for_flavor(
     build: str,
     build_include: str | None,
@@ -378,10 +385,15 @@ def compute_build_tags_for_flavor(
 
     Then, remove from these the provided list of tags to exclude.
     """
+    # Normalize GOOS values (e.g. "windows") to sys.platform values (e.g. "win32")
+    # so that downstream functions like filter_incompatible_tags work correctly.
+    if platform is not None:
+        platform = _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+
     build_include = (
         get_default_build_tags(build=build, flavor=flavor, platform=platform)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+        else filter_incompatible_tags(build_include.split(","), platform=platform)
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -433,7 +445,6 @@ def filter_incompatible_tags(include, platform=sys.platform):
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
-
     exclude = set()
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)

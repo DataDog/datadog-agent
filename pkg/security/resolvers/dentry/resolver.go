@@ -17,6 +17,8 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -64,12 +66,16 @@ type Resolver struct {
 	challenge             uint32
 
 	// buffers
-	filenameParts    []string
+	filenameParts    [][]byte
 	keys             []model.PathKey
-	cacheNameEntries []string
+	cacheNameEntries [][]byte
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	erpcResolutionAvgTime   float64
+	erpcResolutionNumValues int64
+	erpcResolutionTimesLock sync.Mutex
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -139,6 +145,16 @@ func (dr *Resolver) SendStats() error {
 	}
 
 	_ = dr.statsdClient.Gauge(metrics.MetricDentryCacheSize, float64(dr.cache.Len()), []string{}, 1)
+
+	dr.erpcResolutionTimesLock.Lock()
+	avgTime := dr.erpcResolutionAvgTime
+	numValues := dr.erpcResolutionNumValues
+	dr.erpcResolutionNumValues = 0
+	dr.erpcResolutionAvgTime = 0
+	dr.erpcResolutionTimesLock.Unlock()
+	if numValues > 0 {
+		_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeUs, avgTime, nil, 1)
+	}
 
 	return dr.sendERPCStats()
 }
@@ -271,7 +287,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 	var path PathEntry
 	var err error
 	depth := int64(0)
-	filenameParts := make([]string, 0, 128)
+	filenameParts := make([][]byte, 0, 128)
 
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
@@ -289,7 +305,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
-			filenameParts = append(filenameParts, path.Name)
+			filenameParts = append(filenameParts, []byte(path.Name))
 		}
 
 		if path.Parent.Inode == 0 {
@@ -307,7 +323,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 	return computeFilenameFromParts(filenameParts), err
 }
 
-func computeFilenameFromParts(parts []string) string {
+func computeFilenameFromParts(parts [][]byte) string {
 	if len(parts) == 0 {
 		return "/"
 	}
@@ -326,7 +342,7 @@ func computeFilenameFromParts(parts []string) string {
 		j := len(parts) - 1 - i
 
 		builder.WriteRune('/')
-		builder.WriteString(parts[j])
+		builder.Write(parts[j])
 	}
 	return builder.String()
 }
@@ -365,11 +381,11 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		var name string
+		var name []byte
 		if pathLeaf.Name[0] == '/' {
-			name = "/"
+			name = []byte("/")
 		} else {
-			name = model.NullTerminatedString(pathLeaf.Name[:])
+			name = model.NullTerminatedBytes(pathLeaf.Name[:])
 			dr.filenameParts = append(dr.filenameParts, name)
 		}
 
@@ -441,14 +457,14 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 	return challenge, dr.erpc.Request(dr.erpcRequest)
 }
 
-func (dr *Resolver) cacheEntries(keys []model.PathKey, names []string) error {
+func (dr *Resolver) cacheEntries(keys []model.PathKey, names [][]byte) error {
 	if len(keys) != len(names) {
 		return errors.New("out of bound")
 	}
 
 	for i, k := range keys {
 		cacheEntry := PathEntry{
-			Name: names[i],
+			Name: string(names[i]),
 		}
 		if len(keys) > i+1 {
 			cacheEntry.Parent = keys[i+1]
@@ -536,7 +552,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			break
 		}
 
-		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		segment := model.NullTerminatedBytes(dr.erpcSegment[i:])
 		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
@@ -570,7 +586,15 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		t := time.Now()
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		durationMicrosec := time.Since(t).Microseconds()
+
+		// update in-line average
+		dr.erpcResolutionTimesLock.Lock()
+		dr.erpcResolutionNumValues++
+		dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
+		dr.erpcResolutionTimesLock.Unlock()
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(pathKey, cache)
@@ -628,7 +652,7 @@ func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
 
 func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {
 	if cap(dr.filenameParts) < capacity {
-		dr.filenameParts = make([]string, 0, capacity)
+		dr.filenameParts = make([][]byte, 0, capacity)
 	} else {
 		dr.filenameParts = dr.filenameParts[:0]
 	}
@@ -640,7 +664,7 @@ func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {
 	}
 
 	if cap(dr.cacheNameEntries) < capacity {
-		dr.cacheNameEntries = make([]string, 0, capacity)
+		dr.cacheNameEntries = make([][]byte, 0, capacity)
 	} else {
 		dr.cacheNameEntries = dr.cacheNameEntries[:0]
 	}

@@ -2,7 +2,6 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -106,33 +105,12 @@ so_symlink(
     src = ":attr",
     libname = "libattr",
     version = "1.1.2501",
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include/attr/",
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libattr.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": _VERSION,
-    },
-    template = "libattr.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
+    prefix = "include/attr/",
 )
 
 pkg_filegroup(
@@ -141,6 +119,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -148,6 +127,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )

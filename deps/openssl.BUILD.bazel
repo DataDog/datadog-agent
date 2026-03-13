@@ -1,9 +1,9 @@
-load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
+load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 # This should be private. We can fix it in another PR
 package(default_visibility = ["//visibility:public"])
@@ -66,20 +66,27 @@ FIX_OPENSSL_PATHS = """
     SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
 
     # === OPENSSLDIR paths ===
-    # OPENSSLDIR display string: /ssl"
-    OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
-
-    # OPENSSLDIR internal path (bare, no quote) - used for actual config lookup
-    OLD_PATH="$${SANDBOX}/ssl" NEW_PATH="$${TARGET}/ssl" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+    # Longer suffixes MUST be replaced before shorter ones to avoid partial matches
+    # (e.g. bare /ssl would clobber /ssl/cert.pem and /ssl/certs)
+    if [ $$(echo $${SANDBOX} | wc -c) -lt $$(echo $${TARGET} | wc -c) ]; then
+        echo "The new path placeholder is larger than the target it should replace replace ($${SANDBOX})";
+        exit 1;
+    fi
 
     # SSL private dir: /ssl/private
     OLD_PATH="$${SANDBOX}/ssl/private" NEW_PATH="$${TARGET}/ssl/private" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
+    # SSL cert.pem: /ssl/cert.pem
+    OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
     # SSL certs dir: /ssl/certs
     OLD_PATH="$${SANDBOX}/ssl/certs" NEW_PATH="$${TARGET}/ssl/certs" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
-    # SSL cert.pem: /ssl/cert.pem
-    OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+    # OPENSSLDIR display string: /ssl"
+    OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
+
+    # OPENSSLDIR internal path (bare, no quote) - must come after all /ssl/* paths
+    OLD_PATH="$${SANDBOX}/ssl" NEW_PATH="$${TARGET}/ssl" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
     # === ENGINESDIR and MODULESDIR paths ===
     # ENGINESDIR display string: /lib/engines-3"
@@ -144,6 +151,12 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        # Provide a long value to ensure we end up with a path to openssl in the sandbox that
+        # is longer than the placeholder we will replace it with as part of the postfix script
+        "//conditions:default": "placeholder" + "_" * 50,
+    }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
     out_interface_libs = select({
@@ -164,9 +177,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = [
-        "lib/pkgconfig",
-    ] + select({
+    out_data_dirs = select({
         "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",
@@ -198,15 +209,10 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
-            # Fix install names
-            for lib in libcrypto.dylib libssl.dylib; do
-                install_name_tool -id @rpath/$$lib $$INSTALLDIR/lib/$$lib
-                for dep in $$(otool -L $$INSTALLDIR/lib/$$lib | grep 'sandbox.*execroot' | awk '{print $$1}'); do
-                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
-                done
-            done
             LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
         """ + FIX_OPENSSL_PATHS + """
         codesign -s - -f $$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib
@@ -222,7 +228,7 @@ configure_make(
     }),
 )
 
-cc_shared_library_wrapper(
+foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
 )
@@ -298,8 +304,8 @@ pkg_files(
     ),
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":openssl_bin_files",
     ] + select({
@@ -315,4 +321,15 @@ pkg_install(
             ":libcrypto_with_symlink",
         ],
     }),
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )

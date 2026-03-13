@@ -230,20 +230,20 @@ cc_shared_library(
 pkg_files(
     name = "lib_file",
     srcs = [":tdsodbc_so"],
-    prefix = "embedded/lib",
+    prefix = "lib",
 )
 
 pkg_mklink(
     name = "so_link",
     attributes = pkg_attributes(mode = "755"),
-    link_name = "embedded/lib/libtdsodbc.so.%s" % SO_VERSION,
+    link_name = "lib/libtdsodbc.so.%s" % SO_VERSION,
     target = "libtdsodbc.so",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include/tdsodbc/",
+    prefix = "include/tdsodbc/",
 )
 
 pkg_filegroup(
@@ -257,6 +257,7 @@ pkg_filegroup(
         ":lib_file",
         ":so_link",
     ],
+    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 

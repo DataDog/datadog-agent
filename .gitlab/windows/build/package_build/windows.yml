@@ -1,0 +1,146 @@
+---
+.windows_msi_base:
+  stage: package_build
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
+  needs: ["go_deps"]
+  script:
+    - $ErrorActionPreference = 'Stop'
+    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
+    - mkdir omnibus\pkg
+    - >
+      .\tools\ci\docker-run-with-bazel-cache.ps1
+      -m 24576M
+      -v "$(Get-Location):c:\mnt"
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e GITLAB_CI
+      -e CI_JOB_ID
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_COMMIT_BRANCH
+      -e CI_JOB_NAME_SLUG
+      -e CI_COMMIT_REF_NAME
+      -e OMNIBUS_TARGET
+      -e WINDOWS_BUILDER=true
+      -e INTEGRATIONS_CORE_VERSION
+      -e WINDOWS_DDNPM_DRIVER
+      -e WINDOWS_DDNPM_VERSION
+      -e WINDOWS_DDNPM_SHASUM
+      -e WINDOWS_DDPROCMON_DRIVER
+      -e WINDOWS_DDPROCMON_VERSION
+      -e WINDOWS_DDPROCMON_SHASUM
+      -e GOMODCACHE="c:\modcache"
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e TARGET_ARCH="$ARCH"
+      -e DEBUG_CUSTOMACTION
+      -e BUCKET_BRANCH
+      -e S3_OMNIBUS_CACHE_BUCKET
+      -e S3_OMNIBUS_GIT_CACHE_BUCKET
+      -e INTEGRATION_WHEELS_CACHE_BUCKET
+      -e BUNDLE_MIRROR__RUBYGEMS__ORG
+      -e PIP_INDEX_URL
+      -e API_KEY_ORG2
+      -e OMNIBUS_GIT_CACHE_DIR=${Env:TEMP}/${CI_PIPELINE_ID}/omnibus-git-cache
+      -e AGENT_FLAVOR
+      -e OMNIBUS_RUBY_VERSION
+      -e PYTHONUTF8=1
+      -e E2E_COVERAGE_PIPELINE
+      -e DEPLOY_AGENT
+      -e CI_JOB_TOKEN
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
+    - !reference [.upload_sbom_artifacts_windows]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
+.windows_main_agent_base:
+  extends: .windows_msi_base
+  variables:
+    OMNIBUS_TARGET: main
+
+windows_msi_and_bosh_zip_x64-a7:
+  extends: .windows_main_agent_base
+  rules:
+    - when: on_success
+  variables:
+    ARCH: "x64"
+  timeout: 2h
+
+windows_msi_and_bosh_zip_x64-a7-fips:
+  extends: .windows_main_agent_base
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    ARCH: "x64"
+    AGENT_FLAVOR: fips
+  timeout: 2h
+
+.windows_zip_base:
+  stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .windows_docker_default
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
+    - mkdir omnibus\pkg
+    - >
+      docker run --rm
+      -m 24576M
+      -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e CI_COMMIT_BRANCH
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_JOB_NAME_SLUG
+      -e CI_COMMIT_REF_NAME
+      -e OMNIBUS_TARGET
+      -e WINDOWS_BUILDER=true
+      -e INTEGRATIONS_CORE_VERSION
+      -e WINDOWS_DDNPM_DRIVER
+      -e WINDOWS_DDNPM_VERSION
+      -e WINDOWS_DDNPM_SHASUM
+      -e WINDOWS_DDPROCMON_DRIVER
+      -e WINDOWS_DDPROCMON_VERSION
+      -e WINDOWS_DDPROCMON_SHASUM
+      -e GOMODCACHE="c:\modcache"
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e BUCKET_BRANCH
+      -e INTEGRATION_WHEELS_CACHE_BUCKET
+      -e S3_OMNIBUS_CACHE_BUCKET
+      -e USE_S3_CACHING
+      -e BUNDLE_MIRROR__RUBYGEMS__ORG
+      -e PIP_INDEX_URL
+      -e API_KEY_ORG2
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      ${WINBUILDIMAGE}
+      powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
+    - !reference [.upload_sbom_artifacts_windows]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
+# azure-app-services build for Windows
+windows_zip_agent_binaries_x64-a7:
+  extends: .windows_zip_base
+  variables:
+    OMNIBUS_TARGET: agent-binaries
+
+windows_zip_ddot_x64:
+  extends: .windows_zip_base
+  variables:
+    OMNIBUS_TARGET: ddot

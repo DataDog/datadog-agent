@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -42,7 +43,9 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:  &FakeFieldHandlers{},
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
 			ProcessContext: &ProcessContext{},
 			Os:             runtime.GOOS,
 		},
@@ -51,6 +54,9 @@ func NewFakeEvent() *Event {
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid, pid, false)
 }
 
@@ -438,8 +444,7 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
-		String:  pc.Comm,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 
@@ -484,7 +489,7 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname,OverlayFSPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`               // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                        // SECLDoc[filesystem] Definition:`File's filesystem`
-	Extension   string `field:"extension,handler:ResolveFileExtension"`                                                          // SECLDoc[extension] Definition:`File's extension`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.ExtensionCmp"`                          // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -848,19 +853,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                       // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                                // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`                                                   // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`                                                                          // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`                                                      // Connection address
-	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`                                               // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`                                                                         // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                                  // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
@@ -898,6 +903,27 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// MountEquals returns true if the mount ID is the same as the other mount ID taking the path ID into account
+// See the increment of the path ID when the mount is updated kernel side
+func (p *PathKey) MountEquals(other PathKey) bool {
+	// PathID encodes as PATH_ID(high, low) = (high << 16) | (low & 0xFFFF).
+	// The high 16 bits are the mount revision counter (bumped by MOUNT_REVISION_BUMP_VALUE on
+	// global invalidations such as directory renames/unlinks affecting the mount namespace).
+	// The low 16 bits are a per-inode counter and are unrelated between different files,
+	// so we must compare the high bits here.
+	pathID, otherPathID := uint16(p.PathID>>16), uint16(other.PathID>>16)
+
+	diff := pathID - otherPathID // unsigned wrap-around
+	if diff > 0x8000 {
+		diff = ^diff + 1 // equivalent to 65536 - diff
+	}
+
+	// see kernel side definition of MOUNT_REVISION_BUMP_VALUE
+	const mountRevisionBumpValue = 64
+
+	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || diff < mountRevisionBumpValue)
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event

@@ -16,8 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
@@ -217,7 +218,10 @@ func TestProxy(t *testing.T) {
 		{
 			name: "no values",
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
-				assert.Equal(t, map[string]interface{}{"http": "", "https": "", "no_proxy": []interface{}{}}, config.Get("proxy"))
+				proxyMap := config.Get("proxy").(map[string]interface{})
+				assert.Equal(t, "", proxyMap["http"])
+				assert.Equal(t, "", proxyMap["https"])
+				assert.Empty(t, proxyMap["no_proxy"])
 				assert.Nil(t, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -440,7 +444,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -557,7 +561,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1455,7 +1459,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

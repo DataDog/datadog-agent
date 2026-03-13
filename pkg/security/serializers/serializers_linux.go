@@ -318,8 +318,12 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
+	// Indicates whether the process entry is from a new binary execution
+	IsExec bool `json:"is_exec,omitempty"`
 	// Indicates whether the process is an exec following another exec
 	IsExecExec bool `json:"is_exec_child,omitempty"`
+	// Indicates whether the direct parent is missing
+	IsParentMissing bool `json:"is_parent_missing,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
 	// List of syscalls captured to generate the event
@@ -328,6 +332,8 @@ type ProcessSerializer struct {
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
 	// Tags from an APM tracer instrumentation
 	Tracer map[string]string `json:"tracer,omitempty"`
+	// Variable values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -951,23 +957,25 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
 			ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
-			Pid:           ps.Pid,
-			Tid:           ps.Tid,
-			PPid:          createNumPointer(ps.PPid),
-			Comm:          ps.Comm,
-			TTY:           ps.TTYName,
-			Executable:    newFileSerializer(&ps.FileEvent, e, 0, nil),
-			Argv0:         argv0,
-			Args:          argv,
-			ArgsTruncated: argvTruncated,
-			Envs:          envs,
-			EnvsTruncated: envsTruncated,
-			IsThread:      ps.IsThread,
-			IsKworker:     ps.IsKworker,
-			IsExecExec:    ps.IsExecExec,
-			Source:        model.ProcessSourceToString(ps.Source),
-			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
-			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
+			Pid:             ps.Pid,
+			Tid:             ps.Tid,
+			PPid:            createNumPointer(ps.PPid),
+			Comm:            ps.Comm,
+			TTY:             ps.TTYName,
+			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
+			Argv0:           argv0,
+			Args:            argv,
+			ArgsTruncated:   argvTruncated,
+			Envs:            envs,
+			EnvsTruncated:   envsTruncated,
+			IsThread:        ps.IsThread,
+			IsKworker:       ps.IsKworker,
+			IsExec:          ps.IsExec,
+			IsExecExec:      ps.IsExecExec,
+			IsParentMissing: ps.IsParentMissing,
+			Source:          model.ProcessSourceToString(ps.Source),
+			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1009,7 +1017,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
@@ -1022,11 +1030,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		return psSerializer
 	}
 	return &ProcessSerializer{
-		Pid:        ps.Pid,
-		Tid:        ps.Tid,
-		IsKworker:  ps.IsKworker,
-		IsExecExec: ps.IsExecExec,
-		Source:     model.ProcessSourceToString(ps.Source),
+		Pid:             ps.Pid,
+		Tid:             ps.Tid,
+		IsKworker:       ps.IsKworker,
+		IsExec:          ps.IsExec,
+		IsExecExec:      ps.IsExecExec,
+		IsParentMissing: ps.IsParentMissing,
+		Source:          model.ProcessSourceToString(ps.Source),
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},
@@ -1176,7 +1186,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent, nil),
 	}
 }
 
@@ -1201,7 +1211,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e),
+		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
 	}
 	return ses
 }
@@ -1370,7 +1380,7 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -1378,6 +1388,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
+
+	ps.Variables = newVariablesContext(e, rule, "process.")
 
 	// add the syscalls from the event only for the top level parent
 	if e.GetEventType() == model.SyscallsEventType {
@@ -1394,9 +1406,17 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	first := true
 
+	originalPCE := e.ProcessCacheEntry
+
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 		s := newProcessSerializer(&pce.Process, e)
+
+		// evaluate variables scoped to this ancestor
+		e.ProcessCacheEntry = pce
+		s.Variables = newVariablesContext(e, rule, "process.")
+		e.ProcessCacheEntry = originalPCE
+
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -1536,7 +1556,7 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Resource: model.RlimitResource(e.Setrlimit.Resource).String(),
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
-		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent),
+		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
 	}
 }
 

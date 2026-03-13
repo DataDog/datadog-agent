@@ -14,14 +14,16 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -33,14 +35,14 @@ import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type cliParams struct {
@@ -61,6 +63,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 			return runHostProfilerCommand(context.Background(), params)
 		},
 	}
+
 	cmd.Flags().BoolVar(&params.GoRuntimeMetrics, "go-runtime-metrics", false, "Enable Go runtime metrics collection.")
 	return []*cobra.Command{cmd}
 }
@@ -83,7 +86,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
-
+		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
@@ -97,16 +100,21 @@ func run(collector collector.Component) error {
 
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
-		ipcfx.ModuleReadOnly(),
-		secretfx.Module(),
+		ipcfx.ModuleReadWrite(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+	}
+}
+
+func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
+	return []fx.Option{
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
 
 func getTraceAgentOptions(ctx context.Context) []fx.Option {
 	return []fx.Option{
 		traceagentfx.Module(),
-		traceconfig.Module(),
+		traceconfigfx.Module(),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
@@ -114,7 +122,7 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 			PIDFilePath:              "",
 			DisableInternalProfiling: true,
 		}),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
