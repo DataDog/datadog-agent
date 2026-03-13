@@ -457,7 +457,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> Vec<usize> {
         );
     }
     let names: Vec<&str> = result.order.iter().map(|&i| procs[i].name()).collect();
-    info!("startup order: {}", names.join(" -> "));
+    debug!("startup order: {}", names.join(" -> "));
     result.order
 }
 
