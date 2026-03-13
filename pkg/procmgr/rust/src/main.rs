@@ -21,7 +21,11 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    simple_logger::init_with_level(log::Level::Info)?;
+    dd_agent_log::init(dd_agent_log::LogConfig {
+        logger_name: "PROCMGR",
+        level: log::Level::Info,
+        log_file: None,
+    })?;
     info!(
         "dd-procmgrd starting (version {})",
         env!("CARGO_PKG_VERSION")

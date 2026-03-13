@@ -7,7 +7,7 @@ claim_pattern:
   event_name: pull_request_review
   ref_type: branch
   repository: DataDog/datadog-agent
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add_dependabot_pr_to_mq\.yml@refs/pull/[0-9]+/merge
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add-dependabot-pr-to-mq\.yml@refs/pull/[0-9]+/merge
 
 permissions:
   contents: read

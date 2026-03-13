@@ -68,6 +68,9 @@ var (
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 	// MetricDentryCacheSize is the size of the cache
 	MetricDentryCacheSize = newRuntimeMetric(".dentry_resolver.cache_size")
+	// MetricDentryERPCResolutionTimeUs is the counter of eRPC average erpc dentry resolution time in a given instant, in microseconds
+	// Tags: -
+	MetricDentryERPCResolutionTimeUs = newRuntimeMetric(".dentry_resolver.erpc_avg_resolution_time_usec")
 
 	// DNS Resolver metrics
 
@@ -211,6 +214,12 @@ var (
 	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
+	// MetricMountResolverDanglingCacheSize is the name of the metric used to report the size of the dangling mount cache
+	// Tags: -
+	MetricMountResolverDanglingCacheSize = newRuntimeMetric(".mount_resolver.dangling_cache_size")
+	// MetricMountResolverPidNsCacheSize is the name of the metric used to report the size of the pid namespace cache
+	// Tags: -
+	MetricMountResolverPidNsCacheSize = newRuntimeMetric(".mount_resolver.pid_ns_cache_size")
 
 	// Activity dump metrics
 

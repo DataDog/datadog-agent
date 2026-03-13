@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -70,7 +71,8 @@ import (
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
-	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -242,7 +244,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		telemetryimpl.Module(),
-		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
+		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		gzipfx.Module(),
@@ -251,12 +253,18 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(deps traceconfig.Dependencies, _ configsync.Component) (traceconfig.Component, error) {
+		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
 			// TODO: this would be much better if we could leverage traceconfig.Module
-			//       Must add a new parameter to traconfig.Module to handle this.
-			return traceconfig.NewConfig(deps)
+			//       Must add a new parameter to traceconfig.Module to handle this.
+			provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
+				Params: params,
+				Config: cfg,
+				Tagger: taggerComp,
+				IPC:    ipcComp,
+			})
+			return provides.Comp, err
 		}),
-		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
+		fx.Supply(traceconfigdef.Params{FailIfAPIKeyMissing: false}),
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
 			MemProfile:               "",
