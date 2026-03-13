@@ -117,10 +117,32 @@ func (w *timeSamplerWorker) run() {
 		case matcher := <-w.tagFilterListChan:
 			w.tagFilterList = matcher
 		case trigger := <-w.flushChan:
+			// Drain any pending samples before flushing so that metrics
+			// submitted just before a flush (e.g. during shutdown) are
+			// included in this flush cycle.
+			w.drainSamples()
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
 		case trigger := <-w.dumpChan:
 			trigger.done <- w.sampler.dumpContexts(trigger.dest)
+		}
+	}
+}
+
+// drainSamples processes all samples currently buffered in samplesChan.
+// This must be called from the worker goroutine (same goroutine as run()).
+func (w *timeSamplerWorker) drainSamples() {
+	for {
+		select {
+		case ms := <-w.samplesChan:
+			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			t := timeNowNano()
+			for i := 0; i < len(ms); i++ {
+				w.sampler.sample(&ms[i], t, w.tagFilterList)
+			}
+			w.metricSamplePool.PutBatch(ms)
+		default:
+			return
 		}
 	}
 }
