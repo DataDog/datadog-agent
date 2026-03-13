@@ -6,109 +6,163 @@
 # because the '@' symbol is reserved in YAML.
 '@datadog/action-platform':
   name: '#action-platform-reviews'
+  id: 'C0AG2UCHUKZ'
 '@datadog/agent-all':
   name: '#datadog-agent-pipelines'
+  id: 'CR5TV8QBY'
 '@datadog/agent-apm':
   name: '#apm-agent'
+  id: 'CK4KK761W'
 '@datadog/agent-build':
   name: '#agent-build-reviews'
+  id: 'C08SK57TL1M'
 '@datadog/agent-configuration':
   name: '#agent-configuration-ops'
+  id: 'C08A85VGC8P'
 '@datadog/agent-cspm':
   name: '#security-and-compliance-agent'
+  id: 'CTNVD37T3'
 '@datadog/agent-delivery':
   name: '#agent-delivery-reviews'
+  id: 'C06PQ6KD5BK'
 '@datadog/agent-devx':
   name: '#agent-devx-reviews'
+  id: 'C06P2KX149M'
 '@datadog/agent-discovery':
   name: '#agent-discovery'
+  id: 'C089ER2M7MZ'
 '@datadog/agent-health':
   name: '#agent-health'
+  id: 'C08U2C0GCMV'
 '@datadog/agent-integrations':
   name: '#agent-integrations-reviews'
+  id: 'C06E366NH2B'
 '@datadog/agent-log-pipelines':
   name: '#agent-log-pipelines'
+  id: 'C089UJ6CUAW'
 '@datadog/agent-metric-pipelines':
   name: '#agent-metric-pipelines'
+  id: 'C08A7KEN7LL'
 '@datadog/agent-metrics-logs':
   name: '#agent-metrics-logs'
+  id: 'C03EC7JKSMV'
 '@datadog/agent-onboarding':
   name: '#agent-onboarding-ops'
+  id: 'C03THNXNJSZ'
 '@datadog/agent-platform':
-  name: DEFAULT_SLACK_CHANNEL
+  name: 'DEFAULT_SLACK_CHANNEL'
+  id: 'C0795C1C2AE'
 '@datadog/agent-processing-and-routing':
   name: '#agent-processing-and-routing'
+  id: 'C06DYV5HN3Y'
 '@datadog/agent-runtimes':
   name: '#agent-runtimes-reviews'
+  id: 'C0ABM4KFQ6Q'
 '@datadog/agent-security':
   name: '#security-and-compliance-agent'
+  id: 'CTNVD37T3'
 '@datadog/apm-ecosystems-performance':
   name: '#apm-benchmarking-platform'
+  id: 'C045F97HYJD'
 '@datadog/apm-onboarding':
   name: '#apm-onboarding'
+  id: 'CLWN64GAW'
 '@datadog/apm-trace-storage':
   name: '#apm-trace-storage'
+  id: 'C02FKLS4ETW'
 '@datadog/asm-go':
   name: '#k9-library-go'
+  id: 'C02HVGRLQ8Z'
 '@datadog/cloud-network-monitoring':
   name: '#cnm-agent'
+  id: 'C07FNUP1M3N'
 '@datadog/container-autoscaling':
   name: '#container-autoscaling'
+  id: 'C06D0H262G4'
 '@datadog/container-experiences':
   name: '#container-experiences'
+  id: 'C05404GL3R8'
 '@datadog/container-integrations':
   name: '#container-integrations'
+  id: 'C4TQDFK1P'
 '@datadog/container-platform':
   name: '#container-platform'
+  id: 'C0702JHC7G8'
 '@datadog/core-authn':
   name: '#aaa-authn'
+  id: 'C02S3STU39N'
 '@datadog/data-jobs-monitoring':
   name: '#data-jobs-monitoring'
+  id: 'C05DAN6ULF6'
 '@datadog/data-streams-monitoring':
   name: '#data-streams-monitoring'
+  id: 'C02FFNF9VN0'
 '@datadog/database-monitoring':
   name: '#database-monitoring'
+  id: 'C011QG8MJBA'
 '@datadog/debugger-go':
   name: '#debugger-go'
+  id: 'C09DBHFJE4E'
 '@datadog/documentation':
   name: '#documentation'
+  id: 'C0DESMBQU'
 '@datadog/ecs-experiences':
   name: '#ecs-experiences'
+  id: 'C09FX078WH2'
 '@datadog/ebpf-platform':
   name: '#ebpf-platform'
+  id: 'C0424HA1SJK'
 '@datadog/fleet':
   name: '#fleet-automation'
+  id: 'C05PUSNU4H5'
 '@datadog/injection-platform':
   name: '#injection-platform'
+  id: 'C06UEUW9A75'
 '@datadog/kubernetes-experiences':
   name: '#kubernetes-experiences'
+  id: 'CSY06FKSP'
 '@datadog/metrics-aggregation':
   name: '#metrics-aggregation'
+  id: 'C573SFWSJ'
 '@datadog/network-device-monitoring-core':
   name: '#ndm-core'
+  id: 'C07RHJTEFRD'
 '@datadog/ndm-integrations':
   name: '#ndm-integrations'
+  id: 'C07S0UH4R0C'
 '@datadog/network-path':
   name: '#network-path-dev'
+  id: 'C06GLJ7SHM3'
 '@datadog/opentelemetry':
   name: '#opentelemetry-ops'
+  id: 'C045DGB1V39'
 '@datadog/opentelemetry-agent':
   name: '#opentelemetry-agent'
+  id: 'C086Z7E2A0Y'
 '@datadog/profiling-full-host':
   name: '#profiling-full-host-project'
+  id: 'C06F2EP2SDA'
 '@datadog/remote-config':
   name: '#remote-config-platform'
+  id: 'C01HVED6Q1M'
 '@datadog/sdlc-security':
   name: '#sdlc-security'
+  id: 'C027P1CK07N'
 '@datadog/serverless':
   name: '#serverless-agent'
+  id: 'C017ES2MY05'
 '@datadog/serverless-azure-gcp':
   name: '#serverless-azure-gcp-team'
+  id: 'C06P8R33PD3'
 '@datadog/single-machine-performance':
   name: '#single-machine-performance'
+  id: 'C03LY8MQ73R'
 '@datadog/synthetics-executing':
   name: '#synthetics'
+  id: 'C8E85JEGH'
 '@datadog/universal-service-monitoring':
   name: '#universal-service-monitoring'
+  id: 'C01R6Q0HQDD'
 '@datadog/windows-products':
   name: '#windows-products-reviews'
+  id: 'C0983QTJJJ0'
