@@ -69,7 +69,8 @@ func TestConfigValidate_AutoFixConcurrentSync(t *testing.T) {
 
 func TestCreateDefaultConfig(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
-	assert.True(t, cfg.EnableMetadataCollection)
+	require.NotNil(t, cfg.EnableMetadataCollection)
+	assert.True(t, *cfg.EnableMetadataCollection)
 	assert.Equal(t, 300, cfg.MetadataInterval)
 	assert.False(t, cfg.EnableTaggerServer)
 	assert.Equal(t, 0, cfg.TaggerServerPort)
@@ -77,4 +78,44 @@ func TestCreateDefaultConfig(t *testing.T) {
 	assert.Equal(t, 4*1024*1024, cfg.TaggerMaxMessageSize)
 	assert.Equal(t, 5, cfg.TaggerMaxConcurrentSync)
 	assert.False(t, cfg.StandaloneMode)
+	// Standalone-mode fields default to zero/nil so they do not
+	// override the DD agent config when not explicitly set.
+	assert.Equal(t, "", cfg.Hostname)
+	assert.Equal(t, "", cfg.SecretBackendCommand)
+	assert.Nil(t, cfg.SecretBackendArguments)
+	assert.Equal(t, 0, cfg.SecretBackendTimeout)
+	assert.Equal(t, 0, cfg.SecretBackendOutputMaxSize)
+	assert.Equal(t, "", cfg.KubernetesKubeletHost)
+	assert.Nil(t, cfg.KubeletTLSVerify)
+	assert.Equal(t, 0, cfg.KubernetesHTTPKubeletPort)
+	assert.Equal(t, 0, cfg.KubernetesHTTPSKubeletPort)
+}
+
+func TestConfigValidate_StandaloneFields_Valid(t *testing.T) {
+	falseVal := false
+	cfg := createDefaultConfig().(*Config)
+	cfg.Hostname = "my-host"
+	cfg.SecretBackendCommand = "/usr/local/bin/secret-provider"
+	cfg.SecretBackendArguments = []string{"--arg1"}
+	cfg.SecretBackendTimeout = 30
+	cfg.SecretBackendOutputMaxSize = 4096
+	cfg.KubernetesKubeletHost = "10.0.0.1"
+	cfg.KubeletTLSVerify = &falseVal
+	cfg.KubernetesHTTPKubeletPort = 10255
+	cfg.KubernetesHTTPSKubeletPort = 10250
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfigValidate_KubeletTLSVerify_NilIsValid(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.KubeletTLSVerify = nil
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfigValidate_KubeletTLSVerify_ExplicitFalse(t *testing.T) {
+	falseVal := false
+	cfg := createDefaultConfig().(*Config)
+	cfg.KubeletTLSVerify = &falseVal
+	require.NoError(t, cfg.Validate())
+	assert.False(t, *cfg.KubeletTLSVerify)
 }

@@ -87,12 +87,13 @@ func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 	}
 
 	// Start metadata collection if enabled
-	if e.config.EnableMetadataCollection && e.metadataRunner != nil {
+	metadataEnabled := e.config.EnableMetadataCollection != nil && *e.config.EnableMetadataCollection
+	if metadataEnabled && e.metadataRunner != nil {
 		e.log.Info("Metadata collection is enabled")
 	}
 
 	e.log.Infof("dogtelextension started successfully (tagger_port=%d, metadata_enabled=%t)",
-		e.taggerServerPort, e.config.EnableMetadataCollection)
+		e.taggerServerPort, metadataEnabled)
 
 	// Send liveness metric to indicate the extension is running
 	if err := e.sendLivenessMetric(context.Background()); err != nil {

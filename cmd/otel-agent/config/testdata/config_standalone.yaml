@@ -1,0 +1,28 @@
+extensions:
+  dogtel:
+    enable_metadata_collection: true
+    metadata_interval: 600
+    hostname: "my-standalone-host"
+    secret_backend_command: "/usr/local/bin/secret-provider"
+    secret_backend_arguments: ["--timeout", "30"]
+    secret_backend_timeout: 60
+    secret_backend_output_max_size: 8192
+    kubernetes_kubelet_host: "10.0.0.1"
+    kubelet_tls_verify: false
+    kubernetes_http_kubelet_port: 10255
+    kubernetes_https_kubelet_port: 10250
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: STANDALONE_API_KEY
+      site: datadoghq.com
+service:
+  extensions: [dogtel]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

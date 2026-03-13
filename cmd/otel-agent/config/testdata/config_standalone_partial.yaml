@@ -1,0 +1,18 @@
+extensions:
+  dogtel:
+    kubernetes_kubelet_host: "192.168.1.100"
+    kubelet_tls_verify: false
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: STANDALONE_API_KEY
+service:
+  extensions: [dogtel]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

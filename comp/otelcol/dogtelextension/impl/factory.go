@@ -129,8 +129,9 @@ func NewExtension(reqs Requires) (dogtelextension.Component, error) {
 }
 
 func createDefaultConfig() component.Config {
+	trueVal := true
 	return &Config{
-		EnableMetadataCollection: true,
+		EnableMetadataCollection: &trueVal,
 		MetadataInterval:         300, // 5 minutes
 		EnableTaggerServer:       false,
 		TaggerServerPort:         0, // Auto-assign
