@@ -6,6 +6,7 @@
 use serde::Serialize;
 
 use crate::apm;
+use crate::comm;
 use crate::envs;
 use crate::fs::SubDirFs;
 use crate::injector::is_apm_injector_in_process_maps;
@@ -63,6 +64,10 @@ pub fn get_services(params: Params) -> ServicesResponse {
     if let Some(new_pids) = &params.new_pids {
         // Check for APM injector even if process is not detected as a service.
         for pid in new_pids {
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
             if is_apm_injector_in_process_maps(*pid) {
                 resp.injected_pids.push(*pid);
             }
@@ -83,6 +88,10 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
     if let Some(heartbeat_pids) = &params.heartbeat_pids {
         for pid in heartbeat_pids {
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
             if let Some(service) = get_heartbeat_service(*pid, &mut context) {
                 resp.services.push(service);
             }
