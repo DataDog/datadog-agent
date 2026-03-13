@@ -82,19 +82,23 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	if !r.Enabled {
 		return nil, nil
 	}
-	if !file.IsPathnameStrResolved {
-		event.FieldHandlers.ResolveFilePath(event, file)
-	}
-	if file.PathResolutionError != nil {
-		return nil, fmt.Errorf("path resolution error: %w", file.PathResolutionError)
-	}
 
-	// fileless
+	// Resolve basename first (lightweight operation, doesn't require full path resolution)
+	event.FieldHandlers.ResolveFileBasename(event, file)
+
+	// fileless - check this BEFORE trying to resolve full path, since path resolution will fail for memfd
 	if file.BasenameStr == "memfd:" && file.PathnameStr == "" {
 		return &model.FileMetadata{
 			Type:         int(model.FileLess),
 			IsExecutable: true,
 		}, nil
+	}
+
+	if !file.IsPathnameStrResolved {
+		event.FieldHandlers.ResolveFilePath(event, file)
+	}
+	if file.PathResolutionError != nil {
+		return nil, fmt.Errorf("path resolution error: %w", file.PathResolutionError)
 	}
 
 	// add pid one for hash resolution outside a container
