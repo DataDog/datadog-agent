@@ -7,6 +7,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dd_collect_dependencies_bzl",
+    srcs = ["dd_collect_dependencies.bzl"],
+    deps = [
+        ":dd_packaging_info_bzl",
+        "@rules_pkg//pkg:providers.bzl",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
     name = "dd_cc_packaged_bzl",
     srcs = ["dd_cc_packaged.bzl"],
     deps = [

@@ -14,7 +14,11 @@ def _dd_cc_packaged_rule_impl(ctx):
         if PackageFilegroupInfo in dep:
             installed.append(dep[PackageFilegroupInfo])
         elif PackageFilesInfo in dep:
-            installed.append(dep[PackageFilesInfo])
+            installed.append(PackageFilegroupInfo(
+                pkg_files = [(dep[PackageFilesInfo], dep.label)],
+                pkg_dirs = [],
+                pkg_symlinks = [],
+            ))
     providers = [
         DdPackagingInfo(installed_files = installed),
         DefaultInfo(files = depset([ctx.file.patched])),
