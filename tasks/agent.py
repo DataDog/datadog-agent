@@ -92,7 +92,6 @@ AGENT_CORECHECKS = [
     "network_config_management",
     "battery",
     "cloud_hostinfo",
-    "test_check",
 ]
 
 WINDOWS_CORECHECKS = [
