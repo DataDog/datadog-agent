@@ -185,6 +185,18 @@ func (t *Tracer) attach(collSpec *ebpflib.CollectionSpec) (err error) {
 		}
 	}()
 
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return err
+	}
+
+	retprobeMaxActive := maxActive
+	// maxactive not supported on < 4.12
+	// TODO this could be a feature test
+	if kv < kernel.VersionCode(4, 12, 0) {
+		retprobeMaxActive = 0
+	}
+
 	for name, prog := range t.coll.Programs {
 		spec := collSpec.Programs[name]
 		switch prog.Type() {
@@ -204,7 +216,7 @@ func (t *Tracer) attach(collSpec *ebpflib.CollectionSpec) (err error) {
 				manager.TraceFSLock.Lock()
 				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
 					TraceFSPrefix:     "ddtcpq",
-					RetprobeMaxActive: maxActive,
+					RetprobeMaxActive: retprobeMaxActive,
 				})
 				manager.TraceFSLock.Unlock()
 				if err != nil {
