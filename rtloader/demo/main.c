@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
         // clean error
         get_error(rtloader);
 
-        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", &check)) {
+        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", "config-provider", &check)) {
             if (has_error(rtloader)) {
                 printf("error loading check: %s\n", get_error(rtloader));
             }
