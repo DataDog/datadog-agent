@@ -119,8 +119,7 @@ async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<C
         None => socket_path(),
     };
     let path_clone = path.clone();
-    let channel = Endpoint::try_from("http://[::]:50051")
-        .map_err(|e| format!("invalid endpoint: {e}"))?
+    let channel = Endpoint::from_static(dd_procmgrd::grpc::UDS_DUMMY_ENDPOINT)
         .connect_with_connector(service_fn(move |_: Uri| {
             let p = path_clone.clone();
             async move {

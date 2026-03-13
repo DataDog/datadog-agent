@@ -6,6 +6,10 @@
 pub mod server;
 pub mod service;
 
+/// Placeholder URI for tonic Endpoint when connecting over UDS.
+/// The actual address is irrelevant because `connect_with_connector` bypasses it.
+pub const UDS_DUMMY_ENDPOINT: &str = "http://[::]:50051";
+
 #[cfg(not(bazel))]
 pub mod proto {
     tonic::include_proto!("datadog.procmgr");
@@ -117,8 +121,7 @@ mod tests {
             }
         });
 
-        let channel = Endpoint::try_from("http://[::]:50051")
-            .unwrap()
+        let channel = Endpoint::from_static(super::UDS_DUMMY_ENDPOINT)
             .connect_with_connector(service_fn(move |_: Uri| {
                 let path = sock_path.clone();
                 async move {
