@@ -2,6 +2,6 @@
 
 DdPackagingInfo = provider(
     fields = {
-        "files": "depset of struct(file=File, prefix=str).",
+        "installed_files": "list of PackageFilesInfo or PackageFilegroupInfo",
     },
 )
