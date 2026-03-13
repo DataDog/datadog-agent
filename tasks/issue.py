@@ -108,7 +108,7 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
 
     if len(requested_reviewers) > 0:
         print(
-            f"This PR already has already requested review to {', '.join([rr.name for rr in requested_reviewers])}, this action should not be run on it."
+            f"This PR already has already requested review to {requested_reviewers}, this action should not be run on it."
         )
         return
 
@@ -117,13 +117,14 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
         return
 
     folder = ""
-    if pr.title.startswith("Bump the "):
-        match = re.match(r"^Bump the (\S+) group (.*$)", pr.title)
+    title = pr.title.removeprefix("build(deps): ")
+    if title.lower().startswith("bump the "):
+        match = re.match(r"^[Bb]ump the (\S+) group (.*$)", title)
         if match.group(2).startswith("in"):
             match_folder = re.match(r"^in (\S+).*$", match.group(2))
             folder = match_folder.group(1).removeprefix("/")
     else:
-        match = re.match(r"^Bump (\S+) from (\S+) to (\S+)( in .*)?$", pr.title)
+        match = re.match(r"^[Bb]ump (\S+) from (\S+) to (\S+)( in .*)?$", title)
         if match.group(4):
             match_folder = re.match(r"^ in (\S+).*$", match.group(4))
             folder = match_folder.group(1).removeprefix("/")

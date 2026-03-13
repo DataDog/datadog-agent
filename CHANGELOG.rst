@@ -2,6 +2,68 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.3:
+
+7.76.3
+======
+
+.. _Release Notes_7.76.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-09
+
+- Please refer to the `7.76.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7763>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.3_Security Notes:
+
+Security Notes
+--------------
+
+- Bump github.com/cloudflare/circl to fix v1.6.3 to fix CVE-2026-1229.
+
+- Fixed a limited out-of-bounds memory read and DoS vulnerability in Windows kernel driver while handling TLS traffic.
+  The host must have the ddnpm kernel driver service running, by having system_probe_config and network_config enabled, to be affected.
+  This configuration is not enabled by default.
+  Query with PowerShell: Get-Service ddnpm
+  Query with command prompt: sc query ddnpm
+
+
+.. _Release Notes_7.76.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed IPv6 address matching logic that caused network traffic to be tracked incorrectly.
+  Fixed failed classification of HTTP DELETE requests.
+  Added additional memory handling and overflow safety checks.
+
+
+.. _Release Notes_7.76.2:
+
+7.76.2
+======
+
+.. _Release Notes_7.76.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-03-05
+
+- Please refer to the `7.76.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7762>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.76.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The ``infra_mode`` tag is now correctly added to ``system.cpu.user`` on Windows when
+  ``infrastructure_mode`` is not set to ``"full"``, matching the behavior of the Linux cpu check.
+
+
 .. _Release Notes_7.76.1:
 
 7.76.1
@@ -531,6 +593,7 @@ Deprecation Notes
 
 - APM: Removed unused configuration options ``apm_config.service_writer.queue_size``, and ``apm_config.service_writer.connection_limit``. These options were already ignored.
 
+- macOS 11 is not supported anymore, macOS 12 becomes the new minimally supported version.
 
 .. _Release Notes_7.75.0_Bug Fixes:
 

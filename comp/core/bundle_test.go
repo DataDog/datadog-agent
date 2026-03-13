@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

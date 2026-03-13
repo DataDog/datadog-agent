@@ -51,11 +51,16 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 			if c.coreConfig.GetString("site") != "" {
 				site = c.coreConfig.GetString("site")
 			}
+			deploymentType := "daemonset"
+			if c.coreConfig.GetBool("otelcollector.gateway.mode") {
+				deploymentType = "gateway"
+			}
 			extension.Config = map[string]any{
 				"api": map[string]any{
 					"key":  c.coreConfig.GetString("api_key"),
 					"site": site,
 				},
+				"deployment_type": deploymentType,
 			}
 		}
 		addComponentToConfig(conf, extension)

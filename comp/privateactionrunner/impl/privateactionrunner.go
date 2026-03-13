@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -35,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 // Configuration keys for the private action runner.
@@ -48,39 +48,6 @@ const (
 
 	maxStartupWaitTimeout = 15 * time.Second
 )
-
-var (
-	// apiKeyRegex matches valid Datadog API keys (32 hexadecimal characters)
-	apiKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
-	// appKeyRegex matches valid Datadog application keys (40 hexadecimal characters)
-	appKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
-)
-
-func validateAPIKey(key string) error {
-	if key == "" {
-		return errors.New("api_key is required but not set")
-	}
-	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
-		return errors.New("api_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
-	}
-	if !apiKeyRegex.MatchString(key) {
-		return fmt.Errorf("api_key has invalid format (expected 32 hexadecimal characters, got %d characters)", len(key))
-	}
-	return nil
-}
-
-func validateAppKey(key string) error {
-	if key == "" {
-		return errors.New("app_key is required but not set")
-	}
-	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
-		return errors.New("app_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
-	}
-	if !appKeyRegex.MatchString(key) {
-		return fmt.Errorf("app_key has invalid format (expected 40 hexadecimal characters, got %d characters)", len(key))
-	}
-	return nil
-}
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
@@ -127,6 +94,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
+		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
@@ -287,12 +255,16 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	apiKey := p.coreConfig.GetString("api_key")
 	appKey := p.coreConfig.GetString("app_key")
 
-	if err := validateAPIKey(apiKey); err != nil {
+	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)
+	} else if !apiKeyOK {
+		p.logger.Warnf("api_key does not match the expected format; enrollment may fail")
 	}
 
-	if err := validateAppKey(appKey); err != nil {
+	if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
 		return nil, fmt.Errorf("invalid app_key: %w", err)
+	} else if !appKeyOK {
+		p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
 	}
 
 	runnerHostname, err := p.hostnameGetter.Get(ctx)
@@ -300,7 +272,18 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerHostname, apiKey, appKey)
+	runnerNamePrefix := runnerHostname
+	// For cluster agent, use cluster name instead of hostname for better identification
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		clusterName := clustername.GetClusterName(ctx, runnerHostname)
+		if clusterName != "" {
+			runnerNamePrefix = clusterName
+		} else {
+			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
+		}
+	}
+
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}

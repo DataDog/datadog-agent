@@ -15,6 +15,7 @@ extensions:
     api:
       key: ggggg77777
       site: "us5.datadoghq.com"
+    deployment_type: daemonset
 
 service:
   extensions:

@@ -227,9 +227,9 @@ func TestHistToDist(t *testing.T) {
 func TestExtraTags(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
+	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	deps.Server.SetExtraTags([]string{"sometag3:somevalue3"})
 
 	test := defaultMetric().withTags([]string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
 	// Test single metric

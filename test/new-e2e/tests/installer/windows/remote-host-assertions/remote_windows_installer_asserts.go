@@ -31,7 +31,10 @@ func (d *RemoteWindowsInstallerAssertions) Status() *RemoteWindowsInstallerStatu
 	output, err := d.execute("status --json")
 	d.require.NoError(err)
 	status, err := parseStatusOutput(output)
-	d.require.NoError(err)
+	if err != nil {
+		d.context.T().Logf("Failed to parse status output: %s", output)
+		d.require.NoError(err)
+	}
 	return &RemoteWindowsInstallerStatusAssertions{
 		RemoteWindowsInstallerAssertions: d,
 		status:                           status,
