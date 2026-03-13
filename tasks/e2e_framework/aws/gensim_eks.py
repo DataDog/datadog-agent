@@ -32,6 +32,9 @@ def _get_app_key(cfg):
     return get_app_key(cfg)
 
 
+_VALID_MODES = ("record-parquet", "live-anomaly-detection")
+
+
 @task(
     help={
         "image": "Full agent Docker image path (e.g. docker.io/datadog/agent-dev:my-tag)",
@@ -40,6 +43,7 @@ def _get_app_key(cfg):
         "namespace": "Kubernetes namespace for the episode workloads (default: default)",
         "stack_name": doc.stack_name,
         "instance_type": "EC2 instance type for EKS worker nodes (default: t3.xlarge)",
+        "mode": f"Observer mode: {' or '.join(_VALID_MODES)} (default: record-parquet)",
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
     }
@@ -52,6 +56,7 @@ def submit_gensim_eks(
     namespace: str = "default",
     stack_name: str = _DEFAULT_STACK_NAME,
     instance_type: str = "t3.xlarge",
+    mode: str = "record-parquet",
     debug: bool = False,
     config_path: str | None = None,
 ) -> None:
@@ -62,9 +67,13 @@ def submit_gensim_eks(
     is not busy, then deploys via Pulumi. The orchestrator Job on the cluster handles
     agent installation and episode sequencing.
 
+    Modes:
+        record-parquet          - Collect observer data to parquet files for offline analysis
+        live-anomaly-detection  - Run live edge anomaly detection, sending events to Datadog
+
     Examples:
         inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=authcore-pgbouncer:pool-saturation
-        inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=ep1:scen-a,ep2:scen-b --s3-bucket=my-bucket
+        inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
     """
     from pydantic_core._pydantic_core import ValidationError
 
@@ -74,6 +83,8 @@ def submit_gensim_eks(
         raise Exit("--image is required (e.g. docker.io/datadog/agent-dev:my-tag)")
     if not episodes:
         raise Exit("--episodes is required (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)")
+    if mode not in _VALID_MODES:
+        raise Exit(f"--mode must be one of {_VALID_MODES}, got '{mode}'")
 
     # ── 1. Parse and validate episode:scenario pairs ──────────────────────
     episode_pairs = []
@@ -198,6 +209,7 @@ def submit_gensim_eks(
         "gensim:namespace": namespace,
         "gensim:imageRegistry": ecr_registry,
         "gensim:episodeDataDir": str(gensim_repo_path),
+        "gensim:mode": mode,
         # Datadog keys -- must be explicit since install_agent=False
         "ddagent:apiKey": _get_api_key(local_config),
         "ddagent:appKey": _get_app_key(local_config),

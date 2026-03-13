@@ -21,8 +21,16 @@ datadog:
   clusterChecks:
     enabled: true
   env:
+{{- if eq .Mode "record-parquet"}}
     - name: DD_OBSERVER_RECORDING_ENABLED
       value: "true"
+{{- end}}
+{{- if eq .Mode "live-anomaly-detection"}}
+    - name: DD_OBSERVER_ANALYSIS_ENABLED
+      value: "true"
+    - name: DD_OBSERVER_EVENT_REPORTER_SENDING_ENABLED
+      value: "true"
+{{- end}}
     - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
       value: "1s"
 
@@ -32,13 +40,22 @@ agents:
     repository: {{.ImageRepo}}
     tag: {{.ImageTag}}
     doNotCheckTag: true
+    pullPolicy: Always
   useConfigMap: true
   customAgentConfig:
     observer:
+{{- if eq .Mode "record-parquet"}}
       recording:
         enabled: true
         parquet_output_dir: /tmp/observer-parquet
         parquet_flush_interval: 30s
+{{- end}}
+{{- if eq .Mode "live-anomaly-detection"}}
+      analysis:
+        enabled: true
+      event_reporter:
+        sending_enabled: true
+{{- end}}
   containers:
     agent:
       resources:

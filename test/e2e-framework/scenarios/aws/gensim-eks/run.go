@@ -108,6 +108,10 @@ func Run(ctx *pulumi.Context) error {
 	if namespace == "" {
 		namespace = "default"
 	}
+	mode := cfg.Get("mode")
+	if mode == "" {
+		mode = "record-parquet"
+	}
 
 	// If no episodes are specified, stop here — cluster-only mode.
 	if episodes == "" {
@@ -190,7 +194,7 @@ func Run(ctx *pulumi.Context) error {
 	// ── Orchestrator Job ─────────────────────────────────────────────────────
 	if err := deployOrchestratorJob(
 		ctx, &awsEnv, kubeProvider, sa, ddSecret,
-		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir,
+		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, mode,
 	); err != nil {
 		return err
 	}
@@ -280,6 +284,7 @@ func deployOrchestratorJob(
 	s3Bucket string,
 	imageRegistry string,
 	episodeDataDir string,
+	mode string,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
@@ -369,7 +374,7 @@ func deployOrchestratorJob(
 	}
 
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
-	renderedValues, err := renderAgentValues(agentImage)
+	renderedValues, err := renderAgentValues(agentImage, mode)
 	if err != nil {
 		return err
 	}
@@ -437,7 +442,7 @@ func deployOrchestratorJob(
 								Name:    pulumi.String("orchestrator"),
 								Image:   pulumi.String("alpine/k8s:1.31.0"),
 								Command: pulumi.StringArray{pulumi.String("bash"), pulumi.String("-c")},
-								Args:    pulumi.StringArray{pulumi.String(buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry))},
+								Args:    pulumi.StringArray{pulumi.String(buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, mode))},
 								Env: corev1.EnvVarArray{
 									corev1.EnvVarArgs{
 										Name: pulumi.String("DD_API_KEY"),
@@ -464,6 +469,7 @@ func deployOrchestratorJob(
 									corev1.EnvVarArgs{Name: pulumi.String("S3_BUCKET"), Value: pulumi.StringPtr(s3Bucket)},
 									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
 									corev1.EnvVarArgs{Name: pulumi.String("IMAGE_REGISTRY"), Value: pulumi.StringPtr(imageRegistry)},
+									corev1.EnvVarArgs{Name: pulumi.String("GENSIM_MODE"), Value: pulumi.StringPtr(mode)},
 								},
 								VolumeMounts: episodeVolumeMounts,
 							},
@@ -485,8 +491,9 @@ func deployOrchestratorJob(
 //go:embed agent-values.yaml.tmpl
 var agentValuesTmpl string
 
-// renderAgentValues renders the agent Helm values template with the given image.
-func renderAgentValues(agentImage string) (string, error) {
+// renderAgentValues renders the agent Helm values template with the given image and mode.
+// mode is one of "record-parquet" or "live-anomaly-detection".
+func renderAgentValues(agentImage, mode string) (string, error) {
 	idx := strings.LastIndex(agentImage, ":")
 	if idx < 0 {
 		return "", fmt.Errorf("invalid image reference %q: expected repo:tag format", agentImage)
@@ -500,14 +507,14 @@ func renderAgentValues(agentImage string) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, struct{ ImageRepo, ImageTag string }{repo, tag})
+	err = tmpl.Execute(&buf, struct{ ImageRepo, ImageTag, Mode string }{repo, tag, mode})
 	if err != nil {
 		return "", fmt.Errorf("rendering agent-values template: %w", err)
 	}
 	return buf.String(), nil
 }
 
-func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry string) string {
+func buildOrchestratorScript(episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, mode string) string {
 	return `set -euo pipefail
 apk add --no-cache aws-cli 2>/dev/null || true
 helm repo add datadog https://helm.datadoghq.com && helm repo update
@@ -524,6 +531,7 @@ echo "  Image:      $AGENT_IMAGE"
 echo "  Gensim SHA: $GENSIM_SHA"
 echo "  S3 Bucket:  $S3_BUCKET"
 echo "  Namespace:  $KUBE_NAMESPACE"
+echo "  Mode:       $GENSIM_MODE"
 
 # ── Status ConfigMap helpers ────────────────────────────────────────────
 init_status() {
@@ -691,32 +699,35 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   bash /workspace/play-episode.sh run-episode "$SCENARIO" || EP_OUTCOME="failure"
   cd /
 
-  update_episode_status "$EP_SPEC" "running" '{"phase":"collecting-parquet"}'
-
-  # 4. Collect parquet from agent pod
+  # 4. Collect results (mode-dependent)
   PARQUET_COUNT=0
-  AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [ -z "$AGENT_POD" ]; then
-    echo "ERROR: no agent pod found (label app=datadog-agent) -- parquet not collected" >&2
-  else
-    echo "Collecting parquet from pod $AGENT_POD..."
-    mkdir -p /workspace/results/parquet
-    if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet" /workspace/results/parquet/; then
-      PARQUET_COUNT=$(find /workspace/results/parquet -type f -name '*.parquet' | wc -l)
-      echo "Parquet collected: $PARQUET_COUNT files"
+  if [ "$GENSIM_MODE" = "record-parquet" ]; then
+    update_episode_status "$EP_SPEC" "running" '{"phase":"collecting-parquet"}'
+    AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "$AGENT_POD" ]; then
+      echo "ERROR: no agent pod found (label app=datadog-agent) -- parquet not collected" >&2
     else
-      echo "ERROR: kubectl cp failed -- parquet not collected" >&2
+      echo "Collecting parquet from pod $AGENT_POD..."
+      mkdir -p /workspace/results/parquet
+      if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/observer-parquet" /workspace/results/parquet/; then
+        PARQUET_COUNT=$(find /workspace/results/parquet -type f -name '*.parquet' | wc -l)
+        echo "Parquet collected: $PARQUET_COUNT files"
+      else
+        echo "ERROR: kubectl cp failed -- parquet not collected" >&2
+      fi
     fi
-  fi
 
-  # 5. Upload to S3
-  if [ -n "$S3_BUCKET" ]; then
-    EP_SCENARIO="${EPISODE}--${SCENARIO}"
-    S3_PATH="${IMAGE_TAG}/${EP_SCENARIO}/gensim-$(date -u +%Y%m%d)-${GENSIM_SHA}"
-    DEST="s3://${S3_BUCKET}/${S3_PATH}"
-    echo "Uploading results to $DEST/..."
-    aws s3 cp /workspace/results/ "$DEST/" --recursive || echo "ERROR: S3 upload failed" >&2
-    echo "Uploaded to $DEST/"
+    # 5. Upload to S3
+    if [ -n "$S3_BUCKET" ]; then
+      EP_SCENARIO="${EPISODE}--${SCENARIO}"
+      S3_PATH="${IMAGE_TAG}/${EP_SCENARIO}/gensim-$(date -u +%Y%m%d)-${GENSIM_SHA}"
+      DEST="s3://${S3_BUCKET}/${S3_PATH}"
+      echo "Uploading results to $DEST/..."
+      aws s3 cp /workspace/results/ "$DEST/" --recursive || echo "ERROR: S3 upload failed" >&2
+      echo "Uploaded to $DEST/"
+    fi
+  else
+    echo "Mode: $GENSIM_MODE -- skipping parquet collection and S3 upload"
   fi
 
   EP_END=$(date +%s)

@@ -51,15 +51,12 @@ def destroy(
         for stack_name in short_stack_names:
             error(f" {stack_name}")
     else:
-        cmd = f"pulumi {pulumi_dir_flag} destroy --remove --yes --skip-preview -s {full_stack_name}"
-        pty = True
-        if tool.is_windows():
-            pty = False
-        ret = ctx.run(cmd, pty=pty, warn=True)
+        cmd = f"PULUMI_SKIP_UPDATE_CHECK=1 pulumi {pulumi_dir_flag} destroy --remove --yes --skip-preview --non-interactive -s {full_stack_name}"
+        ret = ctx.run(cmd, pty=False, warn=True)
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             cmd += " --refresh"
-            ctx.run(cmd, pty=pty)
+            ctx.run(cmd, pty=False)
 
 
 def _get_existing_stacks(pulumi_dir_flag: list[str]) -> tuple[list[str], list[str]]:
