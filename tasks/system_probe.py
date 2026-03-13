@@ -1336,7 +1336,7 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
             ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
 
     for f in copied_files:
-        os.chmod(f, 0o444)
+        os.chmod(f, 0o644)
 
     print(f"Copied eBPF objects to {build_dir}")
 
