@@ -50,6 +50,7 @@ type testConfig struct {
 	testingTools string
 	extraParams  string
 	extraEnv     string
+	shuffleSeed  int64
 }
 
 type userProvidedConfig struct {
@@ -252,9 +253,15 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		return fmt.Errorf("test glob: %s", err)
 	}
 
-	// Randomize the order in which test packages are executed
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(testsuites), func(i, j int) {
+	// Randomize the order in which test packages are executed.
+	// Print the seed so failures can be reproduced with -shuffle-seed.
+	seed := testConfig.shuffleSeed
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+	fmt.Printf("shuffle seed: %d\n", seed)
+	rng := rand.New(rand.NewSource(seed))
+	rng.Shuffle(len(testsuites), func(i, j int) {
 		testsuites[i], testsuites[j] = testsuites[j], testsuites[i]
 	})
 
@@ -344,6 +351,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
+	shuffleSeed := flag.Int64("shuffle-seed", 0, "seed for shuffling test package order (0 = random)")
 
 	flag.Parse()
 
@@ -382,6 +390,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testingTools:       tools,
 		extraParams:        *extraParams,
 		extraEnv:           *extraEnv,
+		shuffleSeed:        *shuffleSeed,
 	}, nil
 }
 
