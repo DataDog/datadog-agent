@@ -185,6 +185,7 @@ git_override(
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
+        "//bazel/patches:gcc-toolchain/0006-add-default-optimization-feature.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )

@@ -1,0 +1,45 @@
+From: Alex Lopez <alex.lopez@datadoghq.com>
+Date: Mon, 13 Mar 2026 00:00:00 +0000
+Subject: add default_optimization feature
+
+Adds a standalone, independently-disableable `default_optimization`
+feature that applies -O2 to C and C++ compilation. This mirrors the
+approach used in the MinGW toolchain and allows individual rules to
+opt out via `features = ["-default_optimization"]` without losing the
+hermetic toolchain setup that lives in `extra_cflags`.
+
+---
+ toolchain/cc_toolchain_config.bzl | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -371,6 +371,20 @@ def _impl(ctx):
+         ] if len(extra_cflags) > 0 else [],
+     )
+
++    default_optimization_feature = feature(
++        name = "default_optimization",
++        enabled = True,
++        flag_sets = [
++            flag_set(
++                actions = [ACTION_NAMES.c_compile, ACTION_NAMES.cpp_compile],
++                flag_groups = [
++                    flag_group(flags = ["-O2"]),
++                ],
++            ),
++        ],
++    )
++
+     extra_cxxflags_feature = feature(
+         name = "extra_cxxflags",
+         enabled = True,
+@@ -455,6 +469,7 @@ def _impl(ctx):
+         unfiltered_compile_flags_feature,
+         redacted_dates_feature,
+         extra_cflags_feature,
++        default_optimization_feature,
+         extra_cxxflags_feature,
+         extra_ldflags_feature,
+         extra_asmflags_feature,

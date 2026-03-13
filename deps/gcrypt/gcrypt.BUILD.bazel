@@ -319,6 +319,10 @@ cc_library(
         # `The rndjent module needs to be compiled without optimization.``
         "-O0",
     ],
+    features = [
+        # Disable the toolchain's default optimization so that -O0 above takes effect.
+        "-default_optimization",
+    ],
     implementation_deps = [
         ":config_h",
     ],

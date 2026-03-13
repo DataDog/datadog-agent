@@ -86,6 +86,19 @@ def _impl(ctx):
         ],
     )
 
+    optimization_feature = feature(
+        name = "default_optimization",
+        enabled = True,
+        flag_sets = [
+            flag_set(
+                actions = [ACTION_NAMES.c_compile, ACTION_NAMES.cpp_compile],
+                flag_groups = [
+                    flag_group(flags = ["-O2"]),
+                ],
+            ),
+        ],
+    )
+
     # Feature for archiver flags (ar)
     archiver_flags_feature = feature(
         name = "archiver_flags",
@@ -117,7 +130,7 @@ def _impl(ctx):
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
-            features = [default_feature, archiver_flags_feature],
+            features = [default_feature, archiver_flags_feature, optimization_feature],
             toolchain_identifier = "mingw-toolchain",
             host_system_name = "nothing",
             target_system_name = "nothing",
