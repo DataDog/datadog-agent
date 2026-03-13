@@ -688,14 +688,44 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			cmdWrapper = newStdCmdWrapper()
 		}
 	}
+	
+	if testMod != nil && ebpfLessEnabled {
+		testMod.resetTestState(t, st, cmdWrapper, opts)
 
-	// FULL TEST ISOLATION: Always cleanup and recreate testMod to prevent state pollution
-	// between tests when running with -test.shuffle. This ensures:
-	// 1. No data races from shared process cache entries
-	// 2. No eBPF probe conflicts from reused network namespaces
-	// 3. No metric accumulation in statsd client
-	// Trade-off: ~2-4 seconds overhead per test for complete eBPF reload
-	if testMod != nil {
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
+		}
+
+		if !opts.staticOpts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
+		}
+		return testMod, nil
+	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+		testMod.resetTestState(t, st, cmdWrapper, opts)
+
+		if !disableTracePipe && !ebpfLessEnabled {
+			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+				return testMod, err
+			}
+		}
+
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
+		}
+
+		if !opts.staticOpts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
+		}
+
+		if ruleDefs != nil && logStatusMetrics {
+			t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+		}
+		return testMod, nil
+	} else if testMod != nil {
 		testMod.cleanup()
 		testMod = nil
 	}
@@ -961,7 +991,33 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 	return logger, nil
 }
 
+// resetTestState prepares a reused module for a new test by clearing all
+// test-scoped state while keeping the eBPF infrastructure intact.
+func (tm *testModule) resetTestState(t testing.TB, st *simpleTest, cmdWrapper cmdWrapper, opts tmOpts) {
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
+	tm.st = st
+	tm.cmdWrapper = cmdWrapper
+	tm.t = t
+	tm.opts.dynamicOpts = opts.dynamicOpts
+	tm.opts.staticOpts = opts.staticOpts
+	tm.statsdClient.Flush()
+	if tm.msgSender != nil {
+		tm.msgSender.flush()
+	}
+	tm.eventHandlers = eventHandlers{}
+}
+
 func (tm *testModule) cleanup() {
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
+	if tm.grpcServer != nil {
+		tm.grpcServer.Stop()
+	}
 	if tm.eventMonitor != nil {
 		tm.eventMonitor.Close()
 	}
