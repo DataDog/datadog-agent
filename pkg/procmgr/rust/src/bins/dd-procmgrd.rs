@@ -16,10 +16,7 @@ async fn main() -> Result<()> {
         level: log::Level::Info,
         log_file: None,
     })?;
-    info!(
-        "dd-procmgrd starting (version {})",
-        env!("CARGO_PKG_VERSION")
-    );
+    info!("dd-procmgrd starting");
 
     let loader = Arc::new(YamlConfigLoader::from_env());
     let mgr = ProcessManager::new(loader);
