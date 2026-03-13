@@ -424,7 +424,13 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+    container_integrations_co_re_programs = [
+        "oom-kill",
+        "tcp-queue-length",
+        "ebpf",
+        "noisy-neighbor",
+        "lock-contention-check",
+    ]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -596,6 +602,12 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
+            ],
+            "pkg/collector/corechecks/ebpf/probe/lockcontentioncheck/ebpf_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/lock-contention-check-kern-user.h"
             ],
             "pkg/dyninst/output/framing.go": [
                 "pkg/dyninst/ebpf/framing.h",
