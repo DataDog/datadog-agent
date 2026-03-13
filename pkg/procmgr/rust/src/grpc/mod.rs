@@ -38,7 +38,7 @@ mod tests {
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnixListenerStream;
-    use tonic::transport::{Channel, Endpoint, Uri};
+    use tonic::transport::{Channel, Endpoint};
     use tower::service_fn;
 
     async fn start_test_server(
@@ -122,7 +122,7 @@ mod tests {
         });
 
         let channel = Endpoint::from_static(super::UDS_DUMMY_ENDPOINT)
-            .connect_with_connector(service_fn(move |_: Uri| {
+            .connect_with_connector(service_fn(move |_| {
                 let path = sock_path.clone();
                 async move {
                     tokio::net::UnixStream::connect(path)

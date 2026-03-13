@@ -10,7 +10,7 @@ use dd_procmgrd::grpc::server::socket_path;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use tonic::transport::{Channel, Endpoint, Uri};
+use tonic::transport::{Channel, Endpoint};
 use tower::service_fn;
 
 #[derive(Parser)]
@@ -120,7 +120,7 @@ async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<C
     };
     let path_clone = path.clone();
     let channel = Endpoint::from_static(dd_procmgrd::grpc::UDS_DUMMY_ENDPOINT)
-        .connect_with_connector(service_fn(move |_: Uri| {
+        .connect_with_connector(service_fn(move |_| {
             let p = path_clone.clone();
             async move {
                 tokio::net::UnixStream::connect(p)
