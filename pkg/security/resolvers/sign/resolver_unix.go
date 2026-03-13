@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 type Resolver struct {
@@ -25,9 +26,11 @@ type Resolver struct {
 }
 
 var newSignatureResolver = sync.OnceValue(func() *Resolver {
-	rand.Seed(time.Now().UnixNano())
+	seed := time.Now().UnixNano()
+	rng := rand.New(rand.NewSource(seed))
+	seclog.Infof("signature resolver seed: %d", seed)
 	return &Resolver{
-		signatureKey: rand.Uint64(),
+		signatureKey: rng.Uint64(),
 	}
 })
 
