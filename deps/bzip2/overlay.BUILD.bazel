@@ -138,13 +138,12 @@ so_symlink(
     src = ":bz2",
     libname = "libbz2",
     version = VERSION,
-    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include",
+    prefix = "include",
 )
 
 pkg_filegroup(
@@ -153,6 +152,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 

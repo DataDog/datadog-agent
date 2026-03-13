@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"unsafe"
 
@@ -48,9 +47,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString(filepath.Join("..", "python")))
 
 	ok := C.init(rtloader)
 	if ok != 1 {
