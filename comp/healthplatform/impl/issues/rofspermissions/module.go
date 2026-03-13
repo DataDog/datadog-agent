@@ -4,17 +4,20 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package rofspermissions provides a complete module for handling Read-Only Filesystem permission issues specifically
-// checking if the Agent as write permissions to all the expected directories.
+// checking if the Agent has write permissions to all the expected directories.
 package rofspermissions
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 func init() {
-	issues.RegisterModuleFactory(NewModule)
+	if env.IsContainerized() {
+		issues.RegisterModuleFactory(NewModule)
+	}
 }
 
 const (
@@ -56,6 +59,6 @@ func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
 		CheckFn: func() (*healthplatform.IssueReport, error) {
 			return Check(r.conf)
 		},
-		Startup: true,
+		Once: true,
 	}
 }

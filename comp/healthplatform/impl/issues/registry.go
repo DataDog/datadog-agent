@@ -39,7 +39,7 @@ func (r *Registry) RegisterModule(module Module) {
 
 	// Register the built-in check if present
 	if check := module.BuiltInCheck(); check != nil {
-		if check.Startup {
+		if check.Once {
 			r.startupChecks = append(r.startupChecks, check)
 		} else {
 			r.checks = append(r.checks, check)

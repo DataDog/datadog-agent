@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -39,25 +38,13 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 		return nil, fmt.Errorf("error building read-only filesystem permission issue: %w", err)
 	}
 
-	var remediation *healthplatform.Remediation
-	if env.IsContainerized() {
-		remediation = &healthplatform.Remediation{
-			Summary: "Mount writable volumes to each directory listed.",
-			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Mount writable volumes to the following directories: " + directoriesStr},
-				{Order: 2, Text: "Use a bind mount or emptyDir volume depending on your container platform (Docker, Kubernetes, ECS)."},
-				{Order: 3, Text: "For detailed instructions, see: https://docs.datadoghq.com/containers/guide/readonly-root-filesystem"},
-			},
-		}
-	} else {
-		remediation = &healthplatform.Remediation{
-			Summary: "Grant write permissions to the dd-agent user for the required directories.",
-			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Grant write permissions to the following directories: " + directoriesStr},
-				{Order: 2, Text: fmt.Sprintf("Run: sudo setfacl -Rm g:dd-agent:rwx '%s'", strings.ReplaceAll(directories[0], `'`, `'\''`))},
-				{Order: 3, Text: "Alternatively, add the dd-agent user to a group with write access to these directories."},
-			},
-		}
+	remediation := &healthplatform.Remediation{
+		Summary: "Mount writable volumes to each directory listed.",
+		Steps: []*healthplatform.RemediationStep{
+			{Order: 1, Text: "Mount writable volumes to the following directories: " + directoriesStr},
+			{Order: 2, Text: "Use a bind mount or emptyDir volume depending on your container platform (Docker, Kubernetes, ECS)."},
+			{Order: 3, Text: "For detailed instructions, see: https://docs.datadoghq.com/containers/guide/readonly-root-filesystem"},
+		},
 	}
 
 	descriptionDirectory := "directory"

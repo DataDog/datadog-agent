@@ -21,8 +21,8 @@ import (
 func IsReadOnly(dir string) (bool, error) {
 	if !FileExists(dir) {
 		// A missing directory does not mean the path is read-only.
-		err := os.Mkdir(dir, 0755)
-		// If we can't create the directory, it's not writable.
+		// Only when a write operation fails can we be sure.
+		err := os.MkdirAll(dir, 0755)
 		if os.IsPermission(err) || errors.Is(err, syscall.EROFS) {
 			return false, nil
 		}

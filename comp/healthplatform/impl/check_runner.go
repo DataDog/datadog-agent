@@ -140,9 +140,6 @@ func (r *checkRunner) RunCheck(checkID, checkName string, checkFn healthplatform
 		return errors.New("check function cannot be nil")
 	}
 
-	r.checkMux.Lock()
-	defer r.checkMux.Unlock()
-
 	go r.executeCheck(&registeredCheck{
 		checkID:   checkID,
 		checkName: checkName,
