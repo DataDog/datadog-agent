@@ -5,6 +5,18 @@
 
 //go:build kubeapiserver
 
+// Package instrumentation follows a controller architecture watching for
+// DatadogInstrumentation custom resources and reconciles their state.
+//
+// The controller uses a dynamic informer to track add, update, and delete events
+// on DatadogInstrumentation CRs. Rather than handling each event individually, it
+// coalesces them through a rate-limited workqueue and performs a full-sync
+// reconciliation: listing all CRs and fanning the complete set out to each
+// registered ConfigSectionHandler. This means handlers always receive the full
+// picture of deployed CRs on every cycle, simplifying their reconciliation logic.
+//
+// The controller is leader-aware and only reconciles when the current instance
+// holds the leader election lock.
 package instrumentation
 
 import (

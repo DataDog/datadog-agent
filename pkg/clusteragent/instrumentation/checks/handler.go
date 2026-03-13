@@ -5,6 +5,9 @@
 
 //go:build kubeapiserver
 
+// Package checks provides the mapping logic turning checks defined in the
+// DatadogInstrumentation CRD into equivalent file based autodiscovery check
+// configs that are written to a ConfigMap for Node Agents to consume.
 package checks
 
 import (
