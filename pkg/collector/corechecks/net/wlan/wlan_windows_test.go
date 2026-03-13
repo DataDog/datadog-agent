@@ -67,7 +67,7 @@ func TestGetWiFiInfoMissingDLLReturnsErrorNotPanic(t *testing.T) {
 	setMissingWLANAPIDLLForTest(t)
 
 	assert.NotPanics(t, func() {
-		_, err := GetWiFiInfo()
+		_, err := (&WLANCheck{}).GetWiFiInfo()
 		assert.Error(t, err)
 		assert.ErrorContains(t, err, "failed to get WLAN client handle")
 	})
