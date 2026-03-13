@@ -39,11 +39,6 @@ build do
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libpopt.so"
 
-  command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/librpm.so" \
-    " #{install_dir}/embedded/lib/librpmio.so"
-
   command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libblkid.so"
