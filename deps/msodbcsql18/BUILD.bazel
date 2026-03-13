@@ -100,9 +100,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":msodbcsql_files",
-        "@krb5//:all_libs",
-        "@krb5//:bin_files",
-        "@krb5//:hdr_files",
+        "@krb5//:all_files",
     ],
     visibility = ["//packages:__subpackages__"],
 )
