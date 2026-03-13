@@ -664,7 +664,6 @@ dd_collect_dependencies(
     srcs = [":oscap"],
 )
 
-
 pkg_filegroup(
     name = "all_files",
     srcs = [

@@ -9,16 +9,17 @@ bzl_library(
 bzl_library(
     name = "dd_collect_dependencies_bzl",
     srcs = ["dd_collect_dependencies.bzl"],
+    visibility = ["//visibility:public"],
     deps = [
         ":dd_packaging_info_bzl",
         "@rules_pkg//pkg:providers.bzl",
     ],
-    visibility = ["//visibility:public"],
 )
 
 bzl_library(
     name = "dd_cc_packaged_bzl",
     srcs = ["dd_cc_packaged.bzl"],
+    visibility = ["//visibility:public"],
     deps = [
         ":dd_packaging_info_bzl",
         "//bazel/rules:so_symlink_bzl",
@@ -28,5 +29,4 @@ bzl_library(
         "@rules_pkg//pkg:mappings.bzl",
         "@rules_pkg//pkg:providers.bzl",
     ],
-    visibility = ["//visibility:public"],
 )
