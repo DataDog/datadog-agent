@@ -104,21 +104,17 @@ func (w *timeSamplerWorker) run() {
 		case <-w.stopChan:
 			return
 		case ms := <-w.samplesChan:
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
-			t := timeNowNano()
-
-			for i := 0; i < len(ms); i++ {
-				w.sampler.sample(&ms[i], t, w.tagFilterList)
-			}
-			w.metricSamplePool.PutBatch(ms)
+			w.processSamples(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
 		case matcher := <-w.tagFilterListChan:
 			w.tagFilterList = matcher
 		case trigger := <-w.flushChan:
-			// TODO(SVLS-8771): uncomment once CI confirms the test catches the race
-			// w.drainSamples()
+			// When both samplesChan and flushChan are ready, Go's select
+			// picks randomly. Drain buffered samples first so they're
+			// included in this flush — critical on shutdown when there's
+			// no next flush to catch them.
+			w.drainSamples()
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
 		case trigger := <-w.dumpChan:
@@ -127,18 +123,24 @@ func (w *timeSamplerWorker) run() {
 	}
 }
 
+// processSamples processes a batch of metric samples into the time sampler.
+func (w *timeSamplerWorker) processSamples(ms []metrics.MetricSample) {
+	aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+	tlmProcessed.Add(float64(len(ms)), w.sampler.idString, "dogstatsd_metrics")
+	t := timeNowNano()
+	for i := 0; i < len(ms); i++ {
+		w.sampler.sample(&ms[i], t, w.tagFilterList)
+	}
+	w.metricSamplePool.PutBatch(ms)
+}
+
 // drainSamples processes all samples currently buffered in samplesChan.
 // This must be called from the worker goroutine (same goroutine as run()).
 func (w *timeSamplerWorker) drainSamples() {
 	for {
 		select {
 		case ms := <-w.samplesChan:
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			t := timeNowNano()
-			for i := 0; i < len(ms); i++ {
-				w.sampler.sample(&ms[i], t, w.tagFilterList)
-			}
-			w.metricSamplePool.PutBatch(ms)
+			w.processSamples(ms)
 		default:
 			return
 		}
