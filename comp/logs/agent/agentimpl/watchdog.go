@@ -18,6 +18,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	logsstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -29,6 +30,7 @@ const (
 	autoProfileEvalInterval  = 10 * time.Second
 	autoProfileCooldown      = 10 * time.Minute
 	autoProfileMaxRestartsHr = 3
+	autoRecoveryQuietPeriod  = 15 * time.Minute
 
 	autoSaturationHighThreshold = 0.70
 	autoSaturationLowThreshold  = 0.30
@@ -42,20 +44,37 @@ const (
 	autoDefaultBatchMaxConcurrentSend = 0
 	autoDefaultZstdCompressionLevel   = 1
 	autoDefaultGzipCompressionLevel   = 6
+	autoDefaultMessageChannelSize     = 100
+	autoDefaultPayloadChannelSize     = 10
 )
 
 var autoProfileControlledKeys = []string{
 	"logs_config.pipelines",
 	"logs_config.batch_max_concurrent_send",
+	"logs_config.batch_max_content_size",
+	"logs_config.batch_max_size",
+	"logs_config.message_channel_size",
+	"logs_config.payload_channel_size",
 	"logs_config.use_compression",
 	"logs_config.compression_kind",
 	"logs_config.zstd_compression_level",
 	"logs_config.compression_level",
 }
 
+var (
+	autoBatchMaxContentSizeLadder = []int{500000, 1000000, 2000000, 5000000, 10000000, 20000000}
+	autoBatchMaxSizeLadder        = []int{100, 250, 500, 1000, 2000, 4000, 8000}
+	autoMessageChannelSizeLadder  = []int{25, 50, 100, 200, 400, 800}
+	autoPayloadChannelSizeLadder  = []int{5, 10, 20, 40, 80}
+)
+
 type autoProfileRuntimeValues struct {
 	pipelines              int
 	batchMaxConcurrentSend int
+	batchMaxContentSize    int
+	batchMaxSize           int
+	messageChannelSize     int
+	payloadChannelSize     int
 	useCompression         bool
 	compressionKind        string
 	zstdCompressionLevel   int
@@ -63,9 +82,15 @@ type autoProfileRuntimeValues struct {
 }
 
 type autoProfileLimits struct {
-	baselinePipelines   int
-	maxPipelines        int
-	baselineConcurrency int
+	baselinePipelines           int
+	maxPipelines                int
+	baselineConcurrency         int
+	baselineBatchMaxContentSize int
+	baselineBatchMaxSize        int
+	baselineMessageChannelSize  int
+	maxMessageChannelSize       int
+	baselinePayloadChannelSize  int
+	maxPayloadChannelSize       int
 }
 
 type autoProfileAction struct {
@@ -77,6 +102,10 @@ type autoProfileAction struct {
 type autoProfileRuntimeValuesLog struct {
 	Pipelines              int    `json:"pipelines"`
 	BatchMaxConcurrentSend int    `json:"batch_max_concurrent_send"`
+	BatchMaxContentSize    int    `json:"batch_max_content_size"`
+	BatchMaxSize           int    `json:"batch_max_size"`
+	MessageChannelSize     int    `json:"message_channel_size"`
+	PayloadChannelSize     int    `json:"payload_channel_size"`
 	UseCompression         bool   `json:"use_compression"`
 	CompressionKind        string `json:"compression_kind"`
 	ZstdCompressionLevel   int    `json:"zstd_compression_level"`
@@ -84,9 +113,15 @@ type autoProfileRuntimeValuesLog struct {
 }
 
 type autoProfileLimitsLog struct {
-	BaselinePipelines   int `json:"baseline_pipelines"`
-	MaxPipelines        int `json:"max_pipelines"`
-	BaselineConcurrency int `json:"baseline_concurrency"`
+	BaselinePipelines           int `json:"baseline_pipelines"`
+	MaxPipelines                int `json:"max_pipelines"`
+	BaselineConcurrency         int `json:"baseline_concurrency"`
+	BaselineBatchMaxContentSize int `json:"baseline_batch_max_content_size"`
+	BaselineBatchMaxSize        int `json:"baseline_batch_max_size"`
+	BaselineMessageChannelSize  int `json:"baseline_message_channel_size"`
+	MaxMessageChannelSize       int `json:"max_message_channel_size"`
+	BaselinePayloadChannelSize  int `json:"baseline_payload_channel_size"`
+	MaxPayloadChannelSize       int `json:"max_payload_channel_size"`
 }
 
 type autoProfileStageFillLog struct {
@@ -140,6 +175,7 @@ type autoProfileWatchdog struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
+	baseline       autoProfileRuntimeValues
 	startTime      time.Time
 	cooldownUntil  time.Time
 	applyHistory   []time.Time
@@ -149,6 +185,7 @@ type autoProfileWatchdog struct {
 func newAutoProfileWatchdog(agent *logAgent) *autoProfileWatchdog {
 	return &autoProfileWatchdog{
 		agent:        agent,
+		baseline:     getAutoProfileRuntimeValues(agent.config),
 		done:         make(chan struct{}),
 		startTime:    time.Now(),
 		applyHistory: make([]time.Time, 0, autoProfileMaxRestartsHr),
@@ -189,7 +226,7 @@ func (w *autoProfileWatchdog) evaluateAndApply() {
 	now := time.Now()
 	summary := logsmetrics.GlobalSaturationHistory.Summary()
 	current := getAutoProfileRuntimeValues(w.agent.config)
-	limits := getAutoProfileLimits()
+	limits := getAutoProfileLimits(w.baseline)
 
 	action, skipReason := w.decide(now, summary, current, limits)
 	if skipReason != "" {
@@ -240,6 +277,9 @@ func (w *autoProfileWatchdog) decide(now time.Time, summary logsmetrics.Saturati
 	action := decideAutoProfileAction(summary, current, limits)
 	if action.name == "no_change" {
 		return autoProfileAction{}, "no_change"
+	}
+	if action.reason == autoReasonRecovered && hasRecentSaturation(summary, now) {
+		return autoProfileAction{}, "stabilizing"
 	}
 
 	return action, ""
@@ -303,6 +343,10 @@ func toRuntimeValuesLog(v autoProfileRuntimeValues) autoProfileRuntimeValuesLog 
 	return autoProfileRuntimeValuesLog{
 		Pipelines:              v.pipelines,
 		BatchMaxConcurrentSend: v.batchMaxConcurrentSend,
+		BatchMaxContentSize:    v.batchMaxContentSize,
+		BatchMaxSize:           v.batchMaxSize,
+		MessageChannelSize:     v.messageChannelSize,
+		PayloadChannelSize:     v.payloadChannelSize,
 		UseCompression:         v.useCompression,
 		CompressionKind:        v.compressionKind,
 		ZstdCompressionLevel:   v.zstdCompressionLevel,
@@ -312,9 +356,15 @@ func toRuntimeValuesLog(v autoProfileRuntimeValues) autoProfileRuntimeValuesLog 
 
 func toLimitsLog(v autoProfileLimits) autoProfileLimitsLog {
 	return autoProfileLimitsLog{
-		BaselinePipelines:   v.baselinePipelines,
-		MaxPipelines:        v.maxPipelines,
-		BaselineConcurrency: v.baselineConcurrency,
+		BaselinePipelines:           v.baselinePipelines,
+		MaxPipelines:                v.maxPipelines,
+		BaselineConcurrency:         v.baselineConcurrency,
+		BaselineBatchMaxContentSize: v.baselineBatchMaxContentSize,
+		BaselineBatchMaxSize:        v.baselineBatchMaxSize,
+		BaselineMessageChannelSize:  v.baselineMessageChannelSize,
+		MaxMessageChannelSize:       v.maxMessageChannelSize,
+		BaselinePayloadChannelSize:  v.baselinePayloadChannelSize,
+		MaxPayloadChannelSize:       v.maxPayloadChannelSize,
 	}
 }
 
@@ -414,6 +464,10 @@ func getAutoProfileRuntimeValues(cfg pkgconfigmodel.Reader) autoProfileRuntimeVa
 	return autoProfileRuntimeValues{
 		pipelines:              cfg.GetInt("logs_config.pipelines"),
 		batchMaxConcurrentSend: cfg.GetInt("logs_config.batch_max_concurrent_send"),
+		batchMaxContentSize:    cfg.GetInt("logs_config.batch_max_content_size"),
+		batchMaxSize:           cfg.GetInt("logs_config.batch_max_size"),
+		messageChannelSize:     cfg.GetInt("logs_config.message_channel_size"),
+		payloadChannelSize:     cfg.GetInt("logs_config.payload_channel_size"),
 		useCompression:         cfg.GetBool("logs_config.use_compression"),
 		compressionKind:        cfg.GetString("logs_config.compression_kind"),
 		zstdCompressionLevel:   cfg.GetInt("logs_config.zstd_compression_level"),
@@ -421,16 +475,39 @@ func getAutoProfileRuntimeValues(cfg pkgconfigmodel.Reader) autoProfileRuntimeVa
 	}
 }
 
-func getAutoProfileLimits() autoProfileLimits {
+func getAutoProfileLimits(baseline autoProfileRuntimeValues) autoProfileLimits {
 	maxPipelines := runtime.GOMAXPROCS(0)
 	if maxPipelines < 1 {
 		maxPipelines = 1
 	}
 
+	baseBatchMaxContentSize := baseline.batchMaxContentSize
+	if baseBatchMaxContentSize <= 0 {
+		baseBatchMaxContentSize = pkgconfigsetup.DefaultBatchMaxContentSize
+	}
+	baseBatchMaxSize := baseline.batchMaxSize
+	if baseBatchMaxSize <= 0 {
+		baseBatchMaxSize = pkgconfigsetup.DefaultBatchMaxSize
+	}
+	baseMessageChannelSize := baseline.messageChannelSize
+	if baseMessageChannelSize <= 0 {
+		baseMessageChannelSize = autoDefaultMessageChannelSize
+	}
+	basePayloadChannelSize := baseline.payloadChannelSize
+	if basePayloadChannelSize <= 0 {
+		basePayloadChannelSize = autoDefaultPayloadChannelSize
+	}
+
 	return autoProfileLimits{
-		baselinePipelines:   min(4, maxPipelines),
-		maxPipelines:        maxPipelines,
-		baselineConcurrency: autoDefaultBatchMaxConcurrentSend,
+		baselinePipelines:           min(4, maxPipelines),
+		maxPipelines:                maxPipelines,
+		baselineConcurrency:         autoDefaultBatchMaxConcurrentSend,
+		baselineBatchMaxContentSize: baseBatchMaxContentSize,
+		baselineBatchMaxSize:        baseBatchMaxSize,
+		baselineMessageChannelSize:  baseMessageChannelSize,
+		maxMessageChannelSize:       max(baseMessageChannelSize, baseMessageChannelSize*4),
+		baselinePayloadChannelSize:  basePayloadChannelSize,
+		maxPayloadChannelSize:       max(basePayloadChannelSize, basePayloadChannelSize*4),
 	}
 }
 
@@ -470,6 +547,24 @@ func nextConcurrencyDown(current int) int {
 	return current
 }
 
+func nextLadderUp(current int, ladder []int) int {
+	for _, v := range ladder {
+		if v > current {
+			return v
+		}
+	}
+	return current
+}
+
+func nextLadderDown(current int, ladder []int) int {
+	for i := len(ladder) - 1; i >= 0; i-- {
+		if ladder[i] < current {
+			return ladder[i]
+		}
+	}
+	return current
+}
+
 func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current autoProfileRuntimeValues, limits autoProfileLimits) autoProfileAction {
 	isStrategySaturated := summary.MaxFill5m[logsmetrics.StrategyTlmName] >= autoSaturationHighThreshold
 	isSenderSaturated := summary.MaxFill5m[logsmetrics.SenderTlmName] >= autoSaturationHighThreshold
@@ -491,6 +586,16 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 				},
 			}
 		}
+		nextPayloadChannelSize := min(nextLadderUp(current.payloadChannelSize, autoPayloadChannelSizeLadder), limits.maxPayloadChannelSize)
+		if nextPayloadChannelSize > current.payloadChannelSize {
+			return autoProfileAction{
+				name:   "increase_payload_channel_size",
+				reason: autoReasonSender,
+				changes: map[string]interface{}{
+					"logs_config.payload_channel_size": nextPayloadChannelSize,
+				},
+			}
+		}
 		if current.pipelines < limits.maxPipelines {
 			return autoProfileAction{
 				name:   "increase_pipelines",
@@ -501,11 +606,31 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 			}
 		}
 	case isStrategySaturated:
-		if !compressionNormalized(current) {
+		if current.useCompression && !compressionNormalized(current) {
 			return autoProfileAction{
 				name:    "normalize_compression",
 				reason:  autoReasonStrategy,
 				changes: normalizeCompressionChanges(),
+			}
+		}
+		nextBatchMaxContentSize := nextLadderDown(current.batchMaxContentSize, autoBatchMaxContentSizeLadder)
+		if nextBatchMaxContentSize < current.batchMaxContentSize && nextBatchMaxContentSize > 0 {
+			return autoProfileAction{
+				name:   "decrease_batch_max_content_size",
+				reason: autoReasonStrategy,
+				changes: map[string]interface{}{
+					"logs_config.batch_max_content_size": nextBatchMaxContentSize,
+				},
+			}
+		}
+		nextBatchMaxSize := nextLadderDown(current.batchMaxSize, autoBatchMaxSizeLadder)
+		if nextBatchMaxSize < current.batchMaxSize && nextBatchMaxSize > 0 {
+			return autoProfileAction{
+				name:   "decrease_batch_max_size",
+				reason: autoReasonStrategy,
+				changes: map[string]interface{}{
+					"logs_config.batch_max_size": nextBatchMaxSize,
+				},
 			}
 		}
 		if current.pipelines < limits.maxPipelines {
@@ -518,6 +643,16 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 			}
 		}
 	case isProcessorSaturated:
+		nextMessageChannelSize := min(nextLadderUp(current.messageChannelSize, autoMessageChannelSizeLadder), limits.maxMessageChannelSize)
+		if nextMessageChannelSize > current.messageChannelSize {
+			return autoProfileAction{
+				name:   "increase_message_channel_size",
+				reason: autoReasonProcess,
+				changes: map[string]interface{}{
+					"logs_config.message_channel_size": nextMessageChannelSize,
+				},
+			}
+		}
 		if current.pipelines < limits.maxPipelines {
 			return autoProfileAction{
 				name:   "increase_pipelines",
@@ -528,15 +663,6 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 			}
 		}
 	case recovered:
-		if current.pipelines > limits.baselinePipelines {
-			return autoProfileAction{
-				name:   "decrease_pipelines",
-				reason: autoReasonRecovered,
-				changes: map[string]interface{}{
-					"logs_config.pipelines": current.pipelines - 1,
-				},
-			}
-		}
 		nextConcurrency := nextConcurrencyDown(current.batchMaxConcurrentSend)
 		if nextConcurrency < current.batchMaxConcurrentSend && nextConcurrency >= limits.baselineConcurrency {
 			return autoProfileAction{
@@ -554,11 +680,72 @@ func decideAutoProfileAction(summary logsmetrics.SaturationSummary, current auto
 				changes: normalizeCompressionChanges(),
 			}
 		}
+		nextBatchMaxContentSize := min(nextLadderUp(current.batchMaxContentSize, autoBatchMaxContentSizeLadder), limits.baselineBatchMaxContentSize)
+		if nextBatchMaxContentSize > current.batchMaxContentSize {
+			return autoProfileAction{
+				name:   "increase_batch_max_content_size",
+				reason: autoReasonRecovered,
+				changes: map[string]interface{}{
+					"logs_config.batch_max_content_size": nextBatchMaxContentSize,
+				},
+			}
+		}
+		nextBatchMaxSize := min(nextLadderUp(current.batchMaxSize, autoBatchMaxSizeLadder), limits.baselineBatchMaxSize)
+		if nextBatchMaxSize > current.batchMaxSize {
+			return autoProfileAction{
+				name:   "increase_batch_max_size",
+				reason: autoReasonRecovered,
+				changes: map[string]interface{}{
+					"logs_config.batch_max_size": nextBatchMaxSize,
+				},
+			}
+		}
+		nextMessageChannelSize := max(nextLadderDown(current.messageChannelSize, autoMessageChannelSizeLadder), limits.baselineMessageChannelSize)
+		if nextMessageChannelSize < current.messageChannelSize {
+			return autoProfileAction{
+				name:   "decrease_message_channel_size",
+				reason: autoReasonRecovered,
+				changes: map[string]interface{}{
+					"logs_config.message_channel_size": nextMessageChannelSize,
+				},
+			}
+		}
+		nextPayloadChannelSize := max(nextLadderDown(current.payloadChannelSize, autoPayloadChannelSizeLadder), limits.baselinePayloadChannelSize)
+		if nextPayloadChannelSize < current.payloadChannelSize {
+			return autoProfileAction{
+				name:   "decrease_payload_channel_size",
+				reason: autoReasonRecovered,
+				changes: map[string]interface{}{
+					"logs_config.payload_channel_size": nextPayloadChannelSize,
+				},
+			}
+		}
+		if current.pipelines > limits.baselinePipelines {
+			return autoProfileAction{
+				name:   "decrease_pipelines",
+				reason: autoReasonRecovered,
+				changes: map[string]interface{}{
+					"logs_config.pipelines": current.pipelines - 1,
+				},
+			}
+		}
 	default:
 		return autoProfileAction{name: "no_change", reason: autoReasonNoBottleneck}
 	}
 
 	return autoProfileAction{name: "no_change", reason: autoReasonNoBottleneck}
+}
+
+func hasRecentSaturation(summary logsmetrics.SaturationSummary, now time.Time) bool {
+	for _, e := range summary.RecentEvents {
+		if e.Ongoing() {
+			return true
+		}
+		if !e.EndTime.IsZero() && now.Sub(e.EndTime) < autoRecoveryQuietPeriod {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *logAgent) startAutoProfileWatchdog(trigger string) {

@@ -30,9 +30,15 @@ func testSummary(processor, strategy, sender float64) logsmetrics.SaturationSumm
 
 func testLimits() autoProfileLimits {
 	return autoProfileLimits{
-		baselinePipelines:   4,
-		maxPipelines:        8,
-		baselineConcurrency: 0,
+		baselinePipelines:           4,
+		maxPipelines:                8,
+		baselineConcurrency:         0,
+		baselineBatchMaxContentSize: 5000000,
+		baselineBatchMaxSize:        1000,
+		baselineMessageChannelSize:  100,
+		maxMessageChannelSize:       400,
+		baselinePayloadChannelSize:  10,
+		maxPayloadChannelSize:       40,
 	}
 }
 
@@ -41,10 +47,14 @@ func TestDecideAutoProfileAction_StrategyPrefersCompression(t *testing.T) {
 	current := autoProfileRuntimeValues{
 		pipelines:              4,
 		batchMaxConcurrentSend: 0,
-		useCompression:         false,
+		batchMaxContentSize:    5000000,
+		batchMaxSize:           1000,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
+		useCompression:         true,
 		compressionKind:        "gzip",
 		zstdCompressionLevel:   1,
-		gzipCompressionLevel:   6,
+		gzipCompressionLevel:   9,
 	}
 
 	action := decideAutoProfileAction(summary, current, testLimits())
@@ -59,7 +69,32 @@ func TestDecideAutoProfileAction_StrategyThenPipelines(t *testing.T) {
 	current := autoProfileRuntimeValues{
 		pipelines:              4,
 		batchMaxConcurrentSend: 0,
+		batchMaxContentSize:    5000000,
+		batchMaxSize:           1000,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
 		useCompression:         true,
+		compressionKind:        "zstd",
+		zstdCompressionLevel:   1,
+		gzipCompressionLevel:   6,
+	}
+
+	action := decideAutoProfileAction(summary, current, testLimits())
+	assert.Equal(t, "decrease_batch_max_content_size", action.name)
+	assert.Equal(t, autoReasonStrategy, action.reason)
+	assert.Equal(t, 2000000, action.changes["logs_config.batch_max_content_size"])
+}
+
+func TestDecideAutoProfileAction_StrategyUsesPipelinesAsLastResort(t *testing.T) {
+	summary := testSummary(0.1, 0.9, 0.1)
+	current := autoProfileRuntimeValues{
+		pipelines:              4,
+		batchMaxConcurrentSend: 0,
+		batchMaxContentSize:    500000,
+		batchMaxSize:           100,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
+		useCompression:         false,
 		compressionKind:        "zstd",
 		zstdCompressionLevel:   1,
 		gzipCompressionLevel:   6,
@@ -76,6 +111,10 @@ func TestDecideAutoProfileAction_SenderLadder(t *testing.T) {
 	current := autoProfileRuntimeValues{
 		pipelines:              4,
 		batchMaxConcurrentSend: 5,
+		batchMaxContentSize:    5000000,
+		batchMaxSize:           1000,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
 		useCompression:         true,
 		compressionKind:        "zstd",
 		zstdCompressionLevel:   1,
@@ -93,6 +132,10 @@ func TestDecideAutoProfileAction_SenderTakesPrecedenceOverStrategy(t *testing.T)
 	current := autoProfileRuntimeValues{
 		pipelines:              4,
 		batchMaxConcurrentSend: 0,
+		batchMaxContentSize:    500000,
+		batchMaxSize:           100,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
 		useCompression:         false,
 		compressionKind:        "gzip",
 		zstdCompressionLevel:   1,
@@ -110,6 +153,10 @@ func TestDecideAutoProfileAction_ProcessorIncreasesPipelines(t *testing.T) {
 	current := autoProfileRuntimeValues{
 		pipelines:              3,
 		batchMaxConcurrentSend: 0,
+		batchMaxContentSize:    5000000,
+		batchMaxSize:           1000,
+		messageChannelSize:     400,
+		payloadChannelSize:     10,
 		useCompression:         true,
 		compressionKind:        "zstd",
 		zstdCompressionLevel:   1,
@@ -127,6 +174,10 @@ func TestDecideAutoProfileAction_RecoveryDownscales(t *testing.T) {
 	current := autoProfileRuntimeValues{
 		pipelines:              6,
 		batchMaxConcurrentSend: 10,
+		batchMaxContentSize:    5000000,
+		batchMaxSize:           1000,
+		messageChannelSize:     100,
+		payloadChannelSize:     10,
 		useCompression:         true,
 		compressionKind:        "zstd",
 		zstdCompressionLevel:   1,
@@ -134,14 +185,14 @@ func TestDecideAutoProfileAction_RecoveryDownscales(t *testing.T) {
 	}
 
 	action := decideAutoProfileAction(summary, current, testLimits())
-	assert.Equal(t, "decrease_pipelines", action.name)
-	assert.Equal(t, autoReasonRecovered, action.reason)
-	assert.Equal(t, 5, action.changes["logs_config.pipelines"])
-
-	current.pipelines = 4
-	action = decideAutoProfileAction(summary, current, testLimits())
 	assert.Equal(t, "decrease_concurrency", action.name)
+	assert.Equal(t, autoReasonRecovered, action.reason)
 	assert.Equal(t, 5, action.changes["logs_config.batch_max_concurrent_send"])
+
+	current.batchMaxConcurrentSend = 0
+	action = decideAutoProfileAction(summary, current, testLimits())
+	assert.Equal(t, "decrease_pipelines", action.name)
+	assert.Equal(t, 5, action.changes["logs_config.pipelines"])
 }
 
 func TestWatchdogDecideGuardrails(t *testing.T) {
@@ -155,7 +206,7 @@ func TestWatchdogDecideGuardrails(t *testing.T) {
 	now := time.Now()
 	summary := logsmetrics.GlobalSaturationHistory.Summary()
 	current := getAutoProfileRuntimeValues(cfg)
-	limits := getAutoProfileLimits()
+	limits := getAutoProfileLimits(current)
 
 	w.startTime = now.Add(-30 * time.Second)
 	_, skip := w.decide(now, summary, current, limits)
@@ -176,12 +227,30 @@ func TestWatchdogDecideGuardrails(t *testing.T) {
 	assert.Equal(t, "budget", skip)
 }
 
+func TestHasRecentSaturation(t *testing.T) {
+	now := time.Now()
+	sum := logsmetrics.SaturationSummary{
+		RecentEvents: []logsmetrics.SaturationEvent{
+			{
+				Stage:     logsmetrics.StrategyTlmName,
+				StartTime: now.Add(-20 * time.Minute),
+				EndTime:   now.Add(-2 * time.Minute),
+			},
+		},
+	}
+	assert.True(t, hasRecentSaturation(sum, now))
+
+	sum.RecentEvents[0].EndTime = now.Add(-20 * time.Minute)
+	assert.False(t, hasRecentSaturation(sum, now))
+}
+
 func TestClearAutoProfileRuntimeOverrides(t *testing.T) {
 	cfg := configComponent.NewMockWithOverrides(t, map[string]interface{}{
 		"api_key": "test",
 	})
 	cfg.Set("logs_config.pipelines", 7, pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("logs_config.batch_max_concurrent_send", 10, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.batch_max_content_size", 2000000, pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("logs_config.compression_kind", "zstd", pkgconfigmodel.SourceAgentRuntime)
 
 	agent := &logAgent{config: cfg}
@@ -190,5 +259,6 @@ func TestClearAutoProfileRuntimeOverrides(t *testing.T) {
 	assert.True(t, cleared)
 	assert.NotEqual(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("logs_config.pipelines"))
 	assert.NotEqual(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("logs_config.batch_max_concurrent_send"))
+	assert.NotEqual(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("logs_config.batch_max_content_size"))
 	assert.NotEqual(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("logs_config.compression_kind"))
 }
