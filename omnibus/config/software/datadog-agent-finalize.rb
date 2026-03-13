@@ -227,7 +227,7 @@ build do
                                  live_stream: Omnibus.logger.live_stream(:info),
                                  env: {
                                    ARCH: arm_target? ? "arm64" : "x86_64",
-                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   MIN_ACCEPTABLE_VERSION: "12.0",
                                    INSTALL_DIR: install_dir,
                                    ALLOW_PATTERN: "(#{allow_list.join('|')})",
                                  }
